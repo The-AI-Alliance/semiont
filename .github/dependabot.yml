@@ -1,0 +1,103 @@
+version: 2
+updates:
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/apps/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "frontend"
+      include: "scope"
+
+  # Backend dependencies  
+  - package-ecosystem: "npm"
+    directory: "/apps/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday" 
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "backend"
+      include: "scope"
+
+  # CDK dependencies
+  - package-ecosystem: "npm"
+    directory: "/cdk"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "infrastructure"
+    commit-message:
+      prefix: "cdk"
+      include: "scope"
+
+  # Scripts dependencies
+  - package-ecosystem: "npm"
+    directory: "/scripts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "scripts"
+    commit-message:
+      prefix: "scripts"
+      include: "scope"
+
+  # Root dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "root"
+    commit-message:
+      prefix: "root"
+      include: "scope"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "actions"
+      include: "scope"

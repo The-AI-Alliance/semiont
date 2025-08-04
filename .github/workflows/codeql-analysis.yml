@@ -1,0 +1,76 @@
+name: "CodeQL Security Analysis"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '.gitignore'
+      - 'LICENSE'
+  schedule:
+    # Run CodeQL analysis every Monday at 6 AM UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze Code
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'typescript' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        # Override default CodeQL config with custom queries for better security coverage
+        config-file: ./.github/codeql/codeql-config.yml
+
+    # Setup Node.js for JavaScript/TypeScript analysis
+    - name: Setup Node.js
+      if: matrix.language == 'javascript' || matrix.language == 'typescript'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    # Install dependencies for better analysis
+    - name: Install frontend dependencies
+      if: matrix.language == 'javascript' || matrix.language == 'typescript'
+      run: |
+        cd apps/frontend
+        npm ci
+      continue-on-error: true
+
+    - name: Install backend dependencies
+      if: matrix.language == 'javascript' || matrix.language == 'typescript'
+      run: |
+        cd apps/backend
+        npm ci
+      continue-on-error: true
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+    - name: Upload CodeQL results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: ../results/${{ matrix.language }}.sarif
+      continue-on-error: true
