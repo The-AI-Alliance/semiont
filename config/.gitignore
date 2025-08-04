@@ -1,0 +1,27 @@
+# Compiled TypeScript files
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# Build output
+dist/
+
+# Node modules (if any)
+node_modules/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Cache
+.cache/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
