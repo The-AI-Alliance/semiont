@@ -27,12 +27,14 @@ semiont/
 │   ├── ARCHITECTURE.md   # System architecture overview
 │   ├── CONFIGURATION.md  # Configuration management guide
 │   ├── DATABASE.md       # Database setup and management
-│   ├── OAuth.md          # OAuth configuration and setup
 │   ├── SECURITY.md       # Security controls and best practices
 │   ├── RBAC.md          # Role-based access control details
 │   ├── SCALING.md       # Performance and cost scaling guide
+│   ├── TESTING.md       # Testing strategy and guidelines
 │   ├── MAINTENANCE.md   # Operational maintenance procedures
 │   └── TROUBLESHOOTING.md # Common issues and solutions
+├── config/              # Configuration management
+│   └── README.md        # Configuration architecture and usage
 └── packages/            # Shared packages (future)
 ```
 
@@ -121,8 +123,11 @@ npm run cdk deploy SemiontAppStack
 | Document | Description |
 |----------|-------------|
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
+| [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
 | [Scripts README](scripts/README.md) | Management scripts architecture, security features, and usage |
+| [Config README](config/README.md) | Configuration system architecture and environment management |
+| [CDK README](cdk/README.md) | Infrastructure as Code setup and deployment |
 
 ### System Documentation
 
@@ -132,7 +137,7 @@ npm run cdk deploy SemiontAppStack
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
 | [DATABASE.md](docs/DATABASE.md) | Database setup, migrations, and management |
-| [OAuth.md](docs/OAuth.md) | OAuth configuration and authentication setup |
+| [TESTING.md](docs/TESTING.md) | Testing strategy, frameworks, and best practices |
 
 ### Operations & Security
 
