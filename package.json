@@ -1,0 +1,33 @@
+{
+  "name": "semiont",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Semiont - Semantic Knowledge Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "cdk"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "build": "npm run build --workspaces",
+    "frontend:dev": "npm run dev -w semiont-frontend",
+    "backend:dev": "npm run dev -w semiont-backend",
+    "cdk:deploy": "npm run cdk deploy -w cdk",
+    "install:all": "npm install",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "config:init": "npx tsx scripts/config.ts init",
+    "config:show": "npx tsx scripts/config.ts show",
+    "config:validate": "npx tsx scripts/config.ts validate",
+    "config:export": "npx tsx scripts/config.ts export",
+    "config:env": "npx tsx scripts/config.ts env"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5"
+  },
+  "license": "Apache-2.0"
+}
