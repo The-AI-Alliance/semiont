@@ -51,7 +51,7 @@ export class SemiontAppStack extends cdk.Stack {
       jwtSecret,
       adminPassword,
       googleOAuth,
-      githubOAuth,
+      githubOAuth: _githubOAuth, // TODO: Implement GitHub OAuth when needed
       adminEmails,
       ecsSecurityGroup,
       albSecurityGroup
