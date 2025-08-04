@@ -8,9 +8,9 @@ A type-safe Node.js backend API built with modern development practices and comp
 # Install dependencies
 npm install
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your configuration
+# Configure secrets (from project root)
+../../scripts/semiont secrets set database-password  # Enter: localpassword
+../../scripts/semiont secrets set jwt-secret         # Generate with: openssl rand -base64 32
 
 # Run database migrations
 npx prisma db push
@@ -29,7 +29,7 @@ npm start
 
 - Node.js 18+ (recommend using nvm)
 - PostgreSQL database (local or Docker)
-- Environment variables configured in `.env`
+- Secrets configured via `semiont secrets` command
 
 ### Setting Up Local Database
 
@@ -42,8 +42,8 @@ docker run --name semiont-postgres \
   -p 5432:5432 \
   -d postgres:15-alpine
 
-# Connection string for .env
-DATABASE_URL="postgresql://postgres:localpassword@localhost:5432/semiont"
+# Database password should match what you configured with:
+# ../../scripts/semiont secrets set database-password
 ```
 
 #### Option 2: Local PostgreSQL
@@ -489,28 +489,37 @@ app.get('/api/protected-endpoint', authMiddleware, async (c) => {
 3. **Update user model** if needed
 4. **Add new route** following the existing pattern
 
-### Environment Variables
+### Configuration Management
 
-Add new environment variables in three places:
+The backend uses a unified configuration system that reads from the shared `config/` directory:
 
-1. **Validation schema** in `src/config/env.ts`:
+1. **Application Configuration** - Edit `config/base/app.config.ts`:
 ```typescript
-const envSchema = z.object({
-  NEW_SERVICE_API_KEY: z.string().min(1),
-});
+backend: {
+  port: 4000,
+  database: {
+    host: 'localhost',
+    port: 5432,
+    name: 'semiont',
+    user: 'postgres'
+  }
+}
 ```
 
-2. **Configuration export** in `src/config.ts`:
-```typescript
-export const CONFIG = {
-  NEW_SERVICE_API_KEY: env.NEW_SERVICE_API_KEY,
-};
+2. **Secrets Management** - Use the semiont CLI:
+```bash
+# Local development secrets
+../../scripts/semiont secrets set database-password
+../../scripts/semiont secrets set jwt-secret
+
+# Production secrets (AWS Secrets Manager)
+../../scripts/semiont secrets set oauth/google
 ```
 
-3. **Environment file** `.env`:
-```
-NEW_SERVICE_API_KEY=your_api_key_here
-```
+3. **Adding New Configuration**:
+   - For non-secret config: Add to `config/schemas/config.schema.ts` and `config/base/app.config.ts`
+   - For secrets: Add to `scripts/local-secrets.ts` for local dev
+   - Update validation in `src/config/env.ts`
 
 ## Testing
 

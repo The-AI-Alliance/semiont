@@ -24,7 +24,15 @@ case $COMMAND in
     ;;
   "secrets")
     shift
-    cd "$SCRIPT_DIR" && npx tsx secrets.ts "$@"
+    # Check if this is for local development
+    if [[ "$1" == "local" ]] || [[ "$SEMIONT_ENV" == "development" && "$1" == "set" && ("$2" == "database-password" || "$2" == "jwt-secret") ]]; then
+      if [[ "$1" == "local" ]]; then
+        shift  # Remove 'local' from arguments
+      fi
+      cd "$SCRIPT_DIR" && npx tsx local-secrets.ts "$@"
+    else
+      cd "$SCRIPT_DIR" && npx tsx secrets.ts "$@"
+    fi
     ;;
   "restart")
     shift

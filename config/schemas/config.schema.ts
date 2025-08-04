@@ -66,6 +66,20 @@ export interface ApplicationConfiguration {
     cacheTimeout?: number;
     maxRequestSize?: string;  // e.g., '10mb'
   };
+  
+  // Backend configuration
+  backend?: {
+    port?: number;
+    database?: {
+      host?: string;
+      port?: number;
+      name?: string;
+      user?: string;
+    };
+    frontend?: {
+      url?: string;
+    };
+  };
 }
 
 export interface DatabaseConfig {

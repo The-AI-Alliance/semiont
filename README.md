@@ -59,12 +59,15 @@ npm install  # Installs all workspace dependencies
 ```bash
 # Frontend only with mock API
 cd apps/frontend
-cp .env.example .env.local
 npm run dev:mock  # Frontend on :3000 with mock API
 ```
 
 #### Full Stack Development
 ```bash
+# Configure local secrets (first time only)
+./scripts/semiont secrets set database-password  # Enter: localpassword
+./scripts/semiont secrets set jwt-secret         # Generate with: openssl rand -base64 32
+
 # Start PostgreSQL (Docker)
 docker run --name semiont-postgres \
   -e POSTGRES_PASSWORD=localpassword \
@@ -74,37 +77,51 @@ docker run --name semiont-postgres \
 
 # Backend setup
 cd apps/backend
-cp .env.example .env
-# Edit .env with DATABASE_URL="postgresql://postgres:localpassword@localhost:5432/semiont"
 npx prisma db push
 npm run dev  # Backend on :4000
 
 # Frontend setup (in new terminal)
 cd apps/frontend
-cp .env.example .env.local
 npm run dev  # Frontend on :3000
 ```
 
-### 3. AWS Deployment
+### 3. Configuration Setup
+
+```bash
+# Initialize configuration (first time only)
+npm run config:init
+
+# Edit configuration with your values
+# Update config/base/site.config.ts with:
+# - Your domain name
+# - Site branding
+# - OAuth settings
+# - Email addresses
+
+# Validate configuration
+npm run config:validate
+```
+
+### 4. AWS Deployment
 ```bash
 # Configure AWS credentials
 export AWS_PROFILE=your-profile  # or use AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
 
-# Bootstrap CDK (first time only)
-cd cdk
-npm run cdk bootstrap
+# Set environment (development or production)
+export SEMIONT_ENV=development
 
-# Deploy infrastructure stack
-npm run cdk deploy SemiontInfraStack
+# Deploy all stacks (infrastructure + application)
+./scripts/semiont create all
 
-# Deploy application stack  
-npm run cdk deploy SemiontAppStack
+# Or deploy stacks individually:
+# ./scripts/semiont create infra  # Infrastructure stack only
+# ./scripts/semiont create app    # Application stack only
 
-# Configure OAuth (after deployment)
-../scripts/semiont secrets set oauth/google
+# Configure OAuth secrets (after deployment)
+./scripts/semiont secrets set oauth/google
 ```
 
-### 4. Verify Deployment
+### 5. Verify Deployment
 ```bash
 # Check system status
 ./scripts/semiont status
@@ -171,6 +188,21 @@ npm run cdk deploy SemiontAppStack
 - **Performance**: Bundle analysis, Lighthouse CI, and performance monitoring
 
 For detailed architecture information, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Configuration System
+
+Semiont uses a unified TypeScript-based configuration system that provides:
+- **Type Safety**: All configuration validated at compile time
+- **Environment Management**: Separate configs for development/production
+- **Centralized Settings**: Domain, OAuth, AWS resources all configured in one place
+- **Secure Secrets**: Local secrets managed via `semiont secrets` command (not in files)
+
+Both frontend and backend read from the same `config/` directory:
+- **Configuration**: Stored in `config/base/site.config.ts` (domain, branding, OAuth)
+- **Secrets**: Managed via `semiont secrets` command for local development
+- **Production**: Secrets automatically injected from AWS Secrets Manager
+
+No more `.env` files - everything is type-safe and centralized!
 
 ## 🛠️ Development
 

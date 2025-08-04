@@ -6,7 +6,6 @@ import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
 import { CONFIG } from './config';
-import * as dotenv from 'dotenv';
 import {
   AuthResponse,
   UserResponse,
@@ -22,8 +21,6 @@ import {
   HelloParamsSchema,
   validateData
 } from './validation/schemas';
-
-dotenv.config();
 
 type Variables = {
   user: User;
