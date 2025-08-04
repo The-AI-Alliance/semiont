@@ -1,0 +1,47 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Initial "Hello World" model to verify database connectivity
+model HelloWorld {
+  id        String   @id @default(cuid())
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// User model for OAuth authentication
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?  // Profile picture from OAuth provider
+  provider  String   // 'google', 'github', etc.
+  providerId String  // OAuth provider's user ID
+  domain    String   // Email domain for access control
+  isActive  Boolean  @default(true)
+  isAdmin   Boolean  @default(false) // Admin role for administrative access
+  termsAcceptedAt DateTime? // When user accepted terms of service
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerId])
+  @@map("users")
+}
+
+// Future models will be added here as we implement features:
+// - Document
+// - Entity
+// - Relationship
+// - Permission
+// - Role
+// - Asset
