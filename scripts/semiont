@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+# Semiont management wrapper script
+# Usage: ./semiont [command] [args...]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Ensure dependencies are installed
+if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
+    echo "📦 Installing dependencies..."
+    cd "$SCRIPT_DIR" && npm install
+fi
+
+COMMAND=${1:-help}
+
+case $COMMAND in
+  "logs")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx logs.ts "$@"
+    ;;
+  "status")
+    shift  
+    cd "$SCRIPT_DIR" && npx tsx status.ts "$@"
+    ;;
+  "secrets")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx secrets.ts "$@"
+    ;;
+  "restart")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx restart.ts "$@"
+    ;;
+  "exec")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx exec.ts "$@"
+    ;;
+  "backup")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx db-backup.ts "$@"
+    ;;
+  "create")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx create.ts "$@"
+    ;;
+  "update-images")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx update-images.ts "$@"
+    ;;
+  "clean")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx clean.ts "$@"
+    ;;
+  "build")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx build.ts "$@"
+    ;;
+  "test")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx test.ts "$@"
+    ;;
+  "performance"|"perf")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx performance.ts "$@"
+    ;;
+  "help"|*)
+    echo "🚀 Semiont Management Tool"
+    echo ""
+    echo "Usage: $0 [command] [args...]"
+    echo ""
+    echo "Commands:"
+    echo "   logs [tail|follow]     - View container logs"
+    echo "   status                 - Check deployment status"
+    echo "   secrets [list|get|set] - Manage secrets (OAuth, JWT, etc.)"
+    echo "   restart [frontend|backend|both] - Restart Semiont services"
+    echo "   exec [command]         - Execute command in container"
+    echo "   backup [name]          - Backup database"
+    echo "   create [infra|app|all] - Create infrastructure stacks"
+    echo "   update-images          - Push images to ECR and update ECS"
+    echo "   clean [--docker|--node|--cdk|--nextjs] - Clean build artifacts and caches"
+    echo "   build [frontend|backend|docker|all] - Build applications and Docker images"
+    echo "   test [frontend|backend|security|all] - Run automated tests"
+    echo ""
+    echo "   performance [analyze|monitor|check] - Performance analysis"
+    echo ""
+    echo "Examples:"
+    echo "   $0 status              # Check service status"
+    echo "   $0 logs follow         # Follow logs in real-time"
+    echo "   $0 secrets set oauth/google    # Configure Google OAuth"
+    echo "   $0 secrets list        # View all secrets"
+    echo ""
+    echo "   $0 perf analyze        # Run bundle analysis"
+    echo "   $0 perf monitor        # Run performance monitoring"
+    echo "   $0 exec --backend 'psql \$DATABASE_URL'  # Access database"
+    echo "   $0 create app          # Create application stack"
+    echo "   $0 update-images       # Deploy application code to existing stacks"
+    echo "   $0 clean               # Clean all caches and build artifacts"
+    echo "   $0 clean --docker      # Clean Docker cache only"
+    echo "   $0 build               # Build everything (npm install + builds + Docker)"
+    echo "   $0 build frontend      # Build frontend application only"
+    echo "   $0 test                # Run all tests"
+    echo "   $0 test security       # Run security-focused tests"
+    ;;
+esac
