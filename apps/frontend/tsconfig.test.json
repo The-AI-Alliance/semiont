@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Test-specific compiler options
+    "types": ["vitest", "vitest/globals", "@testing-library/jest-dom", "node"],
+    // Allow test files to use the same strict settings
+    "noEmit": true,
+    // Allow importing .js files (for vitest.setup.js)
+    "allowJs": true
+  },
+  "include": [
+    "vitest.setup.js",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts", 
+    "src/**/*.spec.tsx",
+    "src/**/__tests__/**/*",
+    "src/mocks/**/*",
+    "src/types/**/*"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -1,0 +1,69 @@
+{
+  "name": "semiont-frontend",
+  "version": "0.1.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:mock": "node scripts/dev-with-mock.js",
+    "dev:fast": "next dev --turbo",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:security": "vitest run --reporter=verbose --testNamePattern=security",
+    "test:typecheck": "vitest typecheck",
+    "type-check": "tsc --noEmit",
+    "type-check:test": "tsc --noEmit -p tsconfig.test.json",
+    "type-check:all": "npm run type-check && npm run type-check:test",
+    "analyze": "cross-env ANALYZE=true next build",
+    "build:analyze": "npm run analyze",
+    "bundle-analyzer": "npx @next/bundle-analyzer .",
+    "lighthouse": "lhci autorun",
+    "analyze-bundle": "node scripts/analyze-bundle.js",
+    "perf": "npm run analyze-bundle && npm run lighthouse",
+    "perf-monitor": "node scripts/performance-monitor.js",
+    "perf-check": "npm run perf-monitor && npm run analyze"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@tanstack/react-query": "^4.36.1",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "next": "^14.2.31",
+    "next-auth": "^4.24.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5",
+    "zod": "^4.0.14"
+  },
+  "devDependencies": {
+    "@lhci/cli": "^0.15.1",
+    "@next/bundle-analyzer": "^14.2.0",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/ui": "^3.2.4",
+    "autoprefixer": "^10",
+    "cross-env": "^7.0.3",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "jsdom": "^26.1.0",
+    "msw": "^2.10.4",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "undici": "^7.13.0",
+    "vitest": "^3.2.4",
+    "webpack-bundle-analyzer": "^4.9.0"
+  },
+  "msw": {
+    "workerDirectory": [
+      "apps/frontend/public"
+    ]
+  }
+}
