@@ -104,13 +104,10 @@ npm run config:validate
 
 ### 4. AWS Deployment
 ```bash
-# Configure AWS credentials
-export AWS_PROFILE=your-profile  # or use AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
-
 # Set environment (development or production)
 export SEMIONT_ENV=development
 
-# Deploy all stacks (infrastructure + application)
+# Deploy all stacks (infrastructure + application)  
 ./scripts/semiont create all
 
 # Or deploy stacks individually:
@@ -120,6 +117,10 @@ export SEMIONT_ENV=development
 # Configure OAuth secrets (after deployment)
 ./scripts/semiont secrets set oauth/google
 ```
+
+**Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
+- `aws configure` for access keys
+- `aws sso login` for AWS SSO
 
 ### 5. Verify Deployment
 ```bash
