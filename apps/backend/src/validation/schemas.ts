@@ -1,19 +1,15 @@
 // Request Validation Schemas
 import { z } from 'zod';
+// Import shared schemas from the api-types package
+import { 
+  GoogleAuthSchema, 
+  HelloParamsSchema,
+  EmailSchema,
+  CuidSchema 
+} from '@semiont/api-types';
 
-// Auth request schemas
-export const GoogleAuthSchema = z.object({
-  access_token: z.string().min(1, 'Access token is required'),
-});
-
-// Parameter schemas
-export const HelloParamsSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-});
-
-// Common validation helpers
-export const EmailSchema = z.string().email('Invalid email format');
-export const CuidSchema = z.string().cuid('Invalid ID format');
+// Re-export shared schemas for backward compatibility
+export { GoogleAuthSchema, HelloParamsSchema, EmailSchema, CuidSchema };
 
 // JWT Payload validation schema
 export const JWTPayloadSchema = z.object({

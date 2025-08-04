@@ -14,6 +14,8 @@
     "frontend:dev": "npm run dev -w semiont-frontend",
     "backend:dev": "npm run dev -w semiont-backend",
     "cdk:deploy": "npm run cdk deploy -w cdk",
+    "types:build": "npm run build -w @semiont/api-types",
+    "types:watch": "npm run watch -w @semiont/api-types",
     "install:all": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
     "config:init": "npx tsx scripts/config.ts init",

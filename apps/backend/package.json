@@ -17,6 +17,7 @@
   "dependencies": {
     "@hono/node-server": "^1.17.1",
     "@prisma/client": "^5.7.1",
+    "@semiont/api-types": "*",
     "dotenv": "^16.3.1",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",

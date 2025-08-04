@@ -1,69 +1,14 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-
-// API response types for type safety
-interface HelloResponse {
-  message: string;
-  timestamp: string;
-  platform: string;
-}
-
-interface StatusResponse {
-  status: string;
-  version: string;
-  features: {
-    semanticContent: string;
-    collaboration: string;
-    rbac: string;
-  };
-  message: string;
-}
-
-interface AuthResponse {
-  success: boolean;
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-    image: string | null;
-    domain: string;
-    isAdmin: boolean;
-  };
-  token: string;
-  isNewUser: boolean;
-}
-
-interface UserResponse {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  domain: string;
-  provider: string;
-  isAdmin: boolean;
-  isActive: boolean;
-  lastLogin: string | null;
-  createdAt: string;
-}
-
-interface LogoutResponse {
-  success: boolean;
-  message: string;
-}
-
-interface HealthResponse {
-  status: string;
-  message: string;
-  version: string;
-  timestamp: string;
-  database: string;
-  environment: string;
-}
-
-// Error response type
-interface ErrorResponse {
-  error: string;
-  details?: string[];
-}
+// Import shared API types
+import type {
+  HelloResponse,
+  StatusResponse,
+  AuthResponse,
+  UserResponse,
+  LogoutResponse,
+  HealthResponse,
+  ErrorResponse
+} from '@semiont/api-types';
 
 // Admin API types
 interface AdminUser {

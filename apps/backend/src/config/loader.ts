@@ -10,8 +10,6 @@ import * as path from 'path';
 
 // Load configuration from the config directory
 function loadConfig() {
-  const configPath = path.join(process.cwd(), '..', '..', 'config');
-  
   // Check if we're in the backend directory and adjust path accordingly
   const currentDir = process.cwd();
   let configDir: string;
