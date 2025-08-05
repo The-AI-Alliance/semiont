@@ -8,29 +8,30 @@
  * - Prevents security vulnerabilities
  */
 
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { Context } from 'hono';
 import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
 import { OAuthService } from '../../auth/oauth';
 import { User } from '@prisma/client';
 
 // Mock OAuthService
-jest.mock('../../auth/oauth', () => ({
+vi.mock('../../auth/oauth', () => ({
   OAuthService: {
-    getUserFromToken: jest.fn(),
+    getUserFromToken: vi.fn(),
   }
 }));
 
-const mockOAuthService = OAuthService as jest.Mocked<typeof OAuthService>;
+const mockOAuthService = OAuthService as vi.Mocked<typeof OAuthService>;
 
 // Helper to create mock Hono context
 function createMockContext(headers: Record<string, string> = {}): Context {
-  const mockJson = jest.fn().mockReturnValue(new Response());
-  const mockSet = jest.fn();
-  const mockGet = jest.fn();
+  const mockJson = vi.fn().mockReturnValue(new Response());
+  const mockSet = vi.fn();
+  const mockGet = vi.fn();
 
   const context = {
     req: {
-      header: jest.fn((name: string) => headers[name]),
+      header: vi.fn((name: string) => headers[name]),
     },
     json: mockJson,
     set: mockSet,
@@ -40,11 +41,11 @@ function createMockContext(headers: Record<string, string> = {}): Context {
   return context;
 }
 
-const mockNext = jest.fn();
+const mockNext = vi.fn();
 
 describe('Auth Middleware', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('authMiddleware', () => {
@@ -94,7 +95,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const authHeader of testCases) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': authHeader });
           
           await authMiddleware(context, mockNext);
@@ -146,7 +147,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const token of testTokens) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
           mockOAuthService.getUserFromToken.mockRejectedValue(new Error('Test error'));
           
@@ -225,7 +226,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const error of sensitiveErrors) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': 'Bearer token' });
           mockOAuthService.getUserFromToken.mockRejectedValue(error);
           
@@ -254,7 +255,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const error of networkErrors) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': 'Bearer token' });
           mockOAuthService.getUserFromToken.mockRejectedValue(error);
           
@@ -289,7 +290,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const token of specialTokens) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
           mockOAuthService.getUserFromToken.mockRejectedValue(new Error('Invalid format'));
           
@@ -366,7 +367,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const authHeader of malformedHeaders) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': authHeader });
           
           await optionalAuthMiddleware(context, mockNext);
@@ -427,7 +428,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const token of testTokens) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
           mockOAuthService.getUserFromToken.mockResolvedValue(mockUser);
           
@@ -450,7 +451,7 @@ describe('Auth Middleware', () => {
         ];
 
         for (const error of authErrors) {
-          jest.clearAllMocks();
+          vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': 'Bearer error-token' });
           mockOAuthService.getUserFromToken.mockRejectedValue(error);
           
@@ -468,7 +469,7 @@ describe('Auth Middleware', () => {
         mockOAuthService.getUserFromToken.mockRejectedValue(sensitiveError);
         
         // Mock console.error to verify no sensitive logging
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         
         await optionalAuthMiddleware(context, mockNext);
         
@@ -504,7 +505,7 @@ describe('Auth Middleware', () => {
       mockOAuthService.getUserFromToken.mockResolvedValue(mockUser);
       
       // Mock next middleware that checks for user
-      const nextMiddleware = jest.fn(async () => {
+      const nextMiddleware = vi.fn(async () => {
         const user = context.get('user');
         expect(user).toEqual(mockUser);
       });
@@ -517,7 +518,7 @@ describe('Auth Middleware', () => {
 
     it('should return response immediately on auth failure', async () => {
       const context = createMockContext(); // No auth header
-      const nextMiddleware = jest.fn();
+      const nextMiddleware = vi.fn();
       
       await authMiddleware(context, nextMiddleware);
       

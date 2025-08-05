@@ -1,29 +1,30 @@
-// Test setup file
+// Test setup file for Vitest
+import { vi } from 'vitest';
 import { config } from 'dotenv';
 
 // Load test environment variables
 config({ path: '.env.test' });
 
 // Mock Prisma for tests
-jest.mock('../db', () => ({
+vi.mock('../db', () => ({
   prisma: {
     user: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
-    $queryRaw: jest.fn(),
+    $queryRaw: vi.fn(),
   },
 }));
 
 // Mock OAuthService for tests
-jest.mock('../auth/oauth', () => ({
+vi.mock('../auth/oauth', () => ({
   OAuthService: {
-    getUserFromToken: jest.fn(),
-    verifyGoogleToken: jest.fn(),
-    createOrUpdateUser: jest.fn(),
+    getUserFromToken: vi.fn(),
+    verifyGoogleToken: vi.fn(),
+    createOrUpdateUser: vi.fn(),
   },
 }));
 

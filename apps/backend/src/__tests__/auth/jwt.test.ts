@@ -8,16 +8,30 @@
  * - Prevents JWT-related security vulnerabilities
  */
 
+import { vi, describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import * as jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 
 // Mock jsonwebtoken
-jest.mock('jsonwebtoken');
-const mockJwt = jwt as jest.Mocked<typeof jwt>;
+vi.mock('jsonwebtoken', () => ({
+  sign: vi.fn(),
+  verify: vi.fn(),
+  JsonWebTokenError: class JsonWebTokenError extends Error {},
+  TokenExpiredError: class TokenExpiredError extends Error {
+    constructor(message: string, public expiredAt: Date) {
+      super(message);
+    }
+  },
+  NotBeforeError: class NotBeforeError extends Error {
+    constructor(message: string, public date: Date) {
+      super(message);
+    }
+  },
+}));
 
 // Mock CONFIG
-jest.mock('../../config', () => ({
+vi.mock('../../config', () => ({
   CONFIG: {
     JWT_SECRET: 'test-secret-key-for-testing',
     DOMAIN: 'test.example.com',
@@ -25,8 +39,8 @@ jest.mock('../../config', () => ({
 }));
 
 // Mock validation schemas
-jest.mock('../../validation/schemas', () => ({
-  validateData: jest.fn((_schema, data) => ({ success: true, data })),
+vi.mock('../../validation/schemas', () => ({
+  validateData: vi.fn((_schema, data) => ({ success: true, data })),
   JWTPayloadSchema: {},
 }));
 
@@ -41,19 +55,20 @@ describe('JWT Service', () => {
     providerId: 'google-123',
     isAdmin: false,
     isActive: true,
+    termsAcceptedAt: null,
     lastLogin: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('generateToken', () => {
     it('should generate JWT token with correct payload', () => {
       const expectedToken = 'generated.jwt.token';
-      mockJwt.sign.mockReturnValue(expectedToken as any);
+      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
         userId: mockUser.id,
@@ -65,7 +80,7 @@ describe('JWT Service', () => {
       });
 
       expect(result).toBe(expectedToken);
-      expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         {
           userId: 'user-123',
           email: 'user@example.com',
@@ -84,7 +99,7 @@ describe('JWT Service', () => {
 
     it('should generate token for admin user', () => {
       const expectedToken = 'admin.jwt.token';
-      mockJwt.sign.mockReturnValue(expectedToken as any);
+      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
         userId: mockUser.id,
@@ -96,7 +111,7 @@ describe('JWT Service', () => {
       });
 
       expect(result).toBe(expectedToken);
-      expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         expect.objectContaining({
           isAdmin: true,
         }),
@@ -107,7 +122,7 @@ describe('JWT Service', () => {
 
     it('should handle user with optional name', () => {
       const expectedToken = 'minimal.jwt.token';
-      mockJwt.sign.mockReturnValue(expectedToken as any);
+      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
         userId: mockUser.id,
@@ -118,7 +133,7 @@ describe('JWT Service', () => {
       });
 
       expect(result).toBe(expectedToken);
-      expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'user-123',
           email: 'user@example.com',
@@ -132,7 +147,7 @@ describe('JWT Service', () => {
     });
 
     it('should throw error if JWT signing fails', () => {
-      mockJwt.sign.mockImplementation(() => {
+      vi.mocked(jwt.sign).mockImplementation(() => {
         throw new Error('JWT signing failed');
       });
 
@@ -147,7 +162,7 @@ describe('JWT Service', () => {
     });
 
     it('should use secure JWT options', () => {
-      mockJwt.sign.mockReturnValue('test.token' as any);
+      vi.mocked(jwt.sign).mockReturnValue('test.token' as any);
 
       JWTService.generateToken({
         userId: mockUser.id,
@@ -158,7 +173,7 @@ describe('JWT Service', () => {
         isAdmin: mockUser.isAdmin,
       });
 
-      const callArgs = mockJwt.sign.mock.calls[0];
+      const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [, secret, options] = callArgs || [];
       
       expect(secret).toBe('test-secret-key-for-testing');
@@ -181,30 +196,30 @@ describe('JWT Service', () => {
       exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
     };
 
-    beforeEach(() => {
+    beforeEach(async () => {
       // Mock successful validation
-      const mockValidateData = require('../../validation/schemas').validateData;
-      mockValidateData.mockReturnValue({ success: true, data: validPayload });
+      const { validateData } = await import('../../validation/schemas');
+      vi.mocked(validateData).mockReturnValue({ success: true, data: validPayload });
     });
 
     it('should verify valid JWT token', () => {
-      mockJwt.verify.mockReturnValue(validPayload as any);
+      vi.mocked(jwt.verify).mockReturnValue(validPayload as any);
 
       const result = JWTService.verifyToken('valid.jwt.token');
 
       expect(result).toEqual(validPayload);
-      expect(mockJwt.verify).toHaveBeenCalledWith(
+      expect(vi.mocked(jwt.verify)).toHaveBeenCalledWith(
         'valid.jwt.token',
         'test-secret-key-for-testing'
       );
     });
 
-    it('should verify admin token correctly', () => {
+    it('should verify admin token correctly', async () => {
       const adminPayload = { ...validPayload, isAdmin: true };
-      mockJwt.verify.mockReturnValue(adminPayload as any);
+      vi.mocked(jwt.verify).mockReturnValue(adminPayload as any);
       
-      const mockValidateData = require('../../validation/schemas').validateData;
-      mockValidateData.mockReturnValue({ success: true, data: adminPayload });
+      const { validateData } = await import('../../validation/schemas');
+      vi.mocked(validateData).mockReturnValue({ success: true, data: adminPayload });
 
       const result = JWTService.verifyToken('admin.jwt.token');
 
@@ -212,7 +227,7 @@ describe('JWT Service', () => {
     });
 
     it('should throw error for invalid token signature', () => {
-      mockJwt.verify.mockImplementation(() => {
+      vi.mocked(jwt.verify).mockImplementation(() => {
         throw new jwt.JsonWebTokenError('Invalid signature');
       });
 
@@ -221,7 +236,7 @@ describe('JWT Service', () => {
     });
 
     it('should throw error for expired token', () => {
-      mockJwt.verify.mockImplementation(() => {
+      vi.mocked(jwt.verify).mockImplementation(() => {
         throw new jwt.TokenExpiredError('Token expired', new Date());
       });
 
@@ -229,11 +244,11 @@ describe('JWT Service', () => {
         .toThrow('Token has expired');
     });
 
-    it('should handle payload validation errors', () => {
-      mockJwt.verify.mockReturnValue(validPayload as any);
+    it('should handle payload validation errors', async () => {
+      vi.mocked(jwt.verify).mockReturnValue(validPayload as any);
       
-      const mockValidateData = require('../../validation/schemas').validateData;
-      mockValidateData.mockReturnValue({ 
+      const { validateData } = await import('../../validation/schemas');
+      vi.mocked(validateData).mockReturnValue({ 
         success: false, 
         error: 'Invalid payload structure' 
       });
@@ -244,10 +259,10 @@ describe('JWT Service', () => {
   });
 
   describe('isAllowedDomain', () => {
-    beforeAll(() => {
+    beforeAll(async () => {
       // Mock CONFIG for domain tests
-      const mockConfig = require('../../config');
-      mockConfig.CONFIG.OAUTH_ALLOWED_DOMAINS = ['example.com', 'test.org'];
+      const { CONFIG } = await import('../../config');
+      CONFIG.OAUTH_ALLOWED_DOMAINS = ['example.com', 'test.org'];
     });
 
     it('should allow configured domains', () => {
@@ -269,7 +284,7 @@ describe('JWT Service', () => {
 
   describe('Security', () => {
     it('should not expose secret in error messages', () => {
-      mockJwt.sign.mockImplementation(() => {
+      vi.mocked(jwt.sign).mockImplementation(() => {
         throw new Error('Signing failed with secret: test-secret-key-for-testing');
       });
 
@@ -282,7 +297,7 @@ describe('JWT Service', () => {
           provider: mockUser.provider,
           isAdmin: mockUser.isAdmin,
         });
-        fail('Should have thrown an error');
+        expect.fail('Should have thrown an error');
       } catch (error) {
         const errorMessage = (error as Error).message;
         expect(errorMessage).toContain('Signing failed');
@@ -296,7 +311,7 @@ describe('JWT Service', () => {
         { userId: 'user-3', email: 'user3@example.com', name: 'User 3', domain: 'example.com', provider: 'google', isAdmin: true },
       ];
 
-      mockJwt.sign
+      vi.mocked(jwt.sign)
         .mockReturnValueOnce('token-1' as any)
         .mockReturnValueOnce('token-2' as any)
         .mockReturnValueOnce('token-3' as any);
@@ -304,11 +319,11 @@ describe('JWT Service', () => {
       const tokens = users.map(user => JWTService.generateToken(user));
 
       expect(tokens).toEqual(['token-1', 'token-2', 'token-3']);
-      expect(mockJwt.sign).toHaveBeenCalledTimes(3);
+      expect(vi.mocked(jwt.sign)).toHaveBeenCalledTimes(3);
     });
 
     it('should validate token expiration settings', () => {
-      mockJwt.sign.mockReturnValue('test.token' as any);
+      vi.mocked(jwt.sign).mockReturnValue('test.token' as any);
 
       JWTService.generateToken({
         userId: mockUser.id,
@@ -319,7 +334,7 @@ describe('JWT Service', () => {
         isAdmin: mockUser.isAdmin,
       });
 
-      const callArgs = mockJwt.sign.mock.calls[0];
+      const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [, , options] = callArgs || [];
       
       // Should have reasonable expiration time
@@ -329,7 +344,7 @@ describe('JWT Service', () => {
     });
 
     it('should ensure admin flag cannot be escalated through token manipulation', () => {
-      mockJwt.sign.mockReturnValue('regular.token' as any);
+      vi.mocked(jwt.sign).mockReturnValue('regular.token' as any);
 
       JWTService.generateToken({
         userId: mockUser.id,
@@ -340,7 +355,7 @@ describe('JWT Service', () => {
         isAdmin: false,
       });
 
-      expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         expect.objectContaining({
           isAdmin: false,
         }),
@@ -348,7 +363,7 @@ describe('JWT Service', () => {
         expect.any(Object)
       );
 
-      const callArgs = mockJwt.sign.mock.calls[0];
+      const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [payload] = callArgs || [];
       expect((payload as any)?.isAdmin).toBe(false);
     });

@@ -4,18 +4,19 @@
  * These tests focus on testing the core admin functionality without complex Hono integration
  */
 
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { User } from '@prisma/client';
 
 // Mock Prisma
 const mockPrismaUser = {
-  findMany: jest.fn(),
-  count: jest.fn(),
-  findUnique: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
+  findMany: vi.fn(),
+  count: vi.fn(),
+  findUnique: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
 };
 
-jest.mock('../../db', () => ({
+vi.mock('../../db', () => ({
   prisma: {
     user: mockPrismaUser
   }
@@ -32,6 +33,7 @@ const mockUsers: User[] = [
     providerId: 'google-1',
     isAdmin: false,
     isActive: true,
+    termsAcceptedAt: null,
     lastLogin: new Date('2024-01-01'),
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
@@ -46,6 +48,7 @@ const mockUsers: User[] = [
     providerId: 'google-2',
     isAdmin: true,
     isActive: true,
+    termsAcceptedAt: new Date('2024-01-01'),
     lastLogin: new Date('2024-01-02'),
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-02'),
@@ -54,7 +57,7 @@ const mockUsers: User[] = [
 
 describe('Admin API Unit Tests', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('User Management', () => {

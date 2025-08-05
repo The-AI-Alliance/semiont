@@ -2,6 +2,7 @@
  * Simple unit tests for API documentation endpoint
  */
 
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 
 describe('API Documentation Endpoint Unit Tests', () => {

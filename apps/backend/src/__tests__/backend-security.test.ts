@@ -5,6 +5,8 @@
  * and document the security requirements to prevent regression.
  */
 
+import { describe, it, expect } from 'vitest';
+
 describe('Backend API Security', () => {
   describe('Security Requirements Documentation', () => {
     it('should document admin endpoint protection requirements', () => {

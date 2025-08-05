@@ -2,6 +2,7 @@
  * Simple unit tests for validation schemas
  */
 
+import { describe, it, expect } from 'vitest';
 import { 
   GoogleAuthSchema, 
   HelloParamsSchema, 
