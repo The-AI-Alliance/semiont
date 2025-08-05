@@ -76,9 +76,11 @@ export interface ApplicationConfiguration {
       name?: string;
       user?: string;
     };
-    frontend?: {
-      url?: URL;
-    };
+  };
+  
+  // Frontend configuration
+  frontend?: {
+    url?: URL;
   };
 }
 
@@ -158,9 +160,11 @@ export interface ApplicationConfigurationOverride {
       name?: string;
       user?: string;
     };
-    frontend?: {
-      url?: URL | string;
-    };
+  };
+  
+  // Frontend configuration (allows string URLs for overrides)
+  frontend?: {
+    url?: URL | string;
   };
 }
 

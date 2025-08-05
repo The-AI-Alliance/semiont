@@ -58,8 +58,8 @@ function normalizeUrls(config: SemiontConfiguration): SemiontConfiguration {
     normalized.app.backend.url = new URL(normalized.app.backend.url);
   }
   
-  if (normalized.app.backend?.frontend?.url && typeof normalized.app.backend.frontend.url === 'string') {
-    normalized.app.backend.frontend.url = new URL(normalized.app.backend.frontend.url);
+  if (normalized.app.frontend?.url && typeof normalized.app.frontend.url === 'string') {
+    normalized.app.frontend.url = new URL(normalized.app.frontend.url);
   }
   
   return normalized;
@@ -136,7 +136,7 @@ export function getBackendUrl(): string {
 }
 
 export function getFrontendUrl(): string {
-  const frontend = config.app.backend?.frontend;
+  const frontend = config.app.frontend;
   if (!frontend?.url) {
     throw new Error('Frontend URL not configured');
   }
@@ -152,7 +152,7 @@ export function getBackendUrlObject(): URL {
 }
 
 export function getFrontendUrlObject(): URL {
-  const frontend = config.app.backend?.frontend;
+  const frontend = config.app.frontend;
   if (!frontend?.url) {
     throw new Error('Frontend URL not configured');
   }

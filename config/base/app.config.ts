@@ -40,9 +40,11 @@ export const appConfig: ApplicationConfiguration = {
       port: parseInt(process.env.DB_PORT || '5432', 10),
       name: process.env.DB_NAME || 'semiont',
       user: process.env.DB_USER || 'postgres'
-    },
-    frontend: {
-      url: new URL(process.env.FRONTEND_URL || 'http://localhost:3000')
     }
+  },
+  
+  // Frontend configuration
+  frontend: {
+    url: new URL(process.env.FRONTEND_URL || 'http://localhost:3000')
   }
 };

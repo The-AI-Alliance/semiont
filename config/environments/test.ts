@@ -41,10 +41,10 @@ export const testConfig: EnvironmentOverrides = {
         port: 5432,
         name: 'semiont_test',
         user: 'test_user'
-      },
-      frontend: {
-        url: 'http://localhost:3000'
       }
+    },
+    frontend: {
+      url: 'http://localhost:3000'
     }
   },
   aws: {
