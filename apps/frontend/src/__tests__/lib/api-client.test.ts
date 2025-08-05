@@ -4,6 +4,15 @@ import { TypedAPIClient, APIError, apiClient, apiService } from '@/lib/api-clien
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
 
+// Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
+const { config } = require('semiont-config');
+
+// Extract test configuration values from root config
+const TEST_CONFIG = {
+  API_BASE_URL: `http://${config.app.backend.host}:${config.app.backend.port}`,
+  API_HOST: `${config.app.backend.host}:${config.app.backend.port}`,
+};
+
 // Mock fetch globally - need to restore original fetch for MSW bypass
 const originalFetch = global.fetch;
 const mockFetch = vi.fn();
@@ -74,7 +83,7 @@ describe('TypedAPIClient', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: 'http://localhost:3001' };
+    process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: TEST_CONFIG.API_BASE_URL };
     client = new TypedAPIClient();
   });
 
@@ -84,7 +93,7 @@ describe('TypedAPIClient', () => {
 
   describe('constructor', () => {
     it('should initialize with correct baseUrl and headers', () => {
-      expect(client['baseUrl']).toBe('http://localhost:3001');
+      expect(client['baseUrl']).toBe(TEST_CONFIG.API_BASE_URL);
       expect(client['defaultHeaders']).toEqual({
         'Content-Type': 'application/json'
       });
@@ -100,7 +109,7 @@ describe('TypedAPIClient', () => {
       it('should make GET request with correct URL and headers', async () => {
         await client.get('/api/test');
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/test', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/test`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -111,7 +120,7 @@ describe('TypedAPIClient', () => {
       it('should handle path parameters', async () => {
         await client.get('/api/users/:id', { params: { id: '123' } });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/users/123', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/users/123`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -122,7 +131,7 @@ describe('TypedAPIClient', () => {
       it('should handle optional path parameters', async () => {
         await client.get('/api/hello/:name?', { params: { name: 'world' } });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/hello/world', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/hello/world`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -133,7 +142,7 @@ describe('TypedAPIClient', () => {
       it('should remove optional parameters when not provided', async () => {
         await client.get('/api/hello/:name?', { params: {} });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/hello', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/hello`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -144,7 +153,7 @@ describe('TypedAPIClient', () => {
       it('should handle custom headers', async () => {
         await client.get('/api/test', { headers: { 'Custom-Header': 'value' } });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/test', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/test`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -159,7 +168,7 @@ describe('TypedAPIClient', () => {
         const body = { name: 'test' };
         await client.post('/api/test', { body });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/test', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/test`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -172,7 +181,7 @@ describe('TypedAPIClient', () => {
         const body = { name: 'test' };
         await client.get('/api/test', { body });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/test', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/test`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -187,7 +196,7 @@ describe('TypedAPIClient', () => {
         const body = { name: 'updated' };
         await client.patch('/api/users/:id', { params: { id: '123' }, body });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/users/123', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/users/123`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
@@ -201,7 +210,7 @@ describe('TypedAPIClient', () => {
       it('should make DELETE request with parameters', async () => {
         await client.delete('/api/users/:id', { params: { id: '123' } });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/users/123', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/users/123`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json'
@@ -273,7 +282,7 @@ describe('TypedAPIClient', () => {
       client.setAuthToken('test-token');
       await client.get('/api/test');
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/test', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/test`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -291,7 +300,7 @@ describe('TypedAPIClient', () => {
         params: { type: 'user', id: '123' } 
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/user/123/details', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/user/123/details`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -306,7 +315,7 @@ describe('TypedAPIClient', () => {
         params: { id: '123', postId: undefined } 
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/users/123/posts', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/users/123/posts`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -321,7 +330,7 @@ describe('TypedAPIClient', () => {
         params: { id: 123 } 
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/items/123', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/items/123`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -342,14 +351,14 @@ describe('apiService', () => {
     vi.clearAllMocks();
     mockFetch.mockResolvedValue(createMockResponse({ success: true }));
     // Keep the URL consistent with test expectations
-    process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: 'http://localhost:3001' };
+    process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: TEST_CONFIG.API_BASE_URL };
   });
 
   describe('hello endpoints', () => {
     it('should call greeting endpoint without name parameter', async () => {
       await apiService.hello.greeting();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/hello', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/hello`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -360,7 +369,7 @@ describe('apiService', () => {
     it('should call greeting endpoint with name parameter', async () => {
       await apiService.hello.greeting('world');
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/hello/world', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/hello/world`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -373,7 +382,7 @@ describe('apiService', () => {
     it('should call status endpoint', async () => {
       await apiService.status();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/status', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/status`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -386,7 +395,7 @@ describe('apiService', () => {
     it('should call Google auth endpoint', async () => {
       await apiService.auth.google('test-token');
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/google', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -398,7 +407,7 @@ describe('apiService', () => {
     it('should call me endpoint', async () => {
       await apiService.auth.me();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/me', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/auth/me`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -409,7 +418,7 @@ describe('apiService', () => {
     it('should call logout endpoint', async () => {
       await apiService.auth.logout();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/logout', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -422,7 +431,7 @@ describe('apiService', () => {
     it('should call health endpoint', async () => {
       await apiService.health();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/health', {
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -436,7 +445,7 @@ describe('apiService', () => {
       it('should call list users endpoint', async () => {
         await apiService.admin.users.list();
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/admin/users`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -447,7 +456,7 @@ describe('apiService', () => {
       it('should call users stats endpoint', async () => {
         await apiService.admin.users.stats();
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/stats', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/admin/users/stats`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -459,7 +468,7 @@ describe('apiService', () => {
         const updateData = { isAdmin: true, isActive: false, name: 'Updated Name' };
         await apiService.admin.users.update('123', updateData);
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/123', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/admin/users/123`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
@@ -471,7 +480,7 @@ describe('apiService', () => {
       it('should call update user endpoint with partial fields', async () => {
         await apiService.admin.users.update('123', { isAdmin: true });
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/123', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/admin/users/123`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
@@ -483,7 +492,7 @@ describe('apiService', () => {
       it('should call delete user endpoint', async () => {
         await apiService.admin.users.delete('123');
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/123', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/admin/users/123`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json'
@@ -496,7 +505,7 @@ describe('apiService', () => {
       it('should call oauth config endpoint', async () => {
         await apiService.admin.oauth.config();
 
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/oauth/config', {
+        expect(mockFetch).toHaveBeenCalledWith(`${TEST_CONFIG.API_BASE_URL}/api/admin/oauth/config`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'

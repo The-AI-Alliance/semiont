@@ -33,6 +33,20 @@ export const testConfig: EnvironmentOverrides = {
     performance: {
       enableCaching: false,  // Disable caching for tests
       cacheTimeout: 0
+    },
+    backend: {
+      host: 'localhost',
+      port: 3001,
+      database: {
+        host: 'localhost',
+        port: 5432,
+        name: 'semiont_test',
+        user: 'test_user'
+      },
+      frontend: {
+        host: 'localhost',
+        port: 3000
+      }
     }
   },
   aws: {

@@ -15,11 +15,12 @@ describe('Privacy Policy Page', () => {
 
   describe('Page Structure', () => {
     it('should render the main privacy policy container', () => {
-      render(<PrivacyPolicyPage />);
+      const { container } = render(<PrivacyPolicyPage />);
       
-      const container = screen.getByRole('main', { hidden: true }) || document.querySelector('.min-h-screen');
-      expect(container).toBeInTheDocument();
-      expect(container).toHaveClass('min-h-screen', 'bg-gray-50');
+      // The privacy page uses a div container, not a main element
+      const pageContainer = container.querySelector('.min-h-screen');
+      expect(pageContainer).toBeInTheDocument();
+      expect(pageContainer).toHaveClass('min-h-screen', 'bg-gray-50');
     });
 
     it('should render the content within a responsive container', () => {

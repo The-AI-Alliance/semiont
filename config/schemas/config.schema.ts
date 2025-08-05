@@ -69,6 +69,7 @@ export interface ApplicationConfiguration {
   
   // Backend configuration
   backend?: {
+    host?: string;
     port?: number;
     database?: {
       host?: string;
@@ -77,7 +78,8 @@ export interface ApplicationConfiguration {
       user?: string;
     };
     frontend?: {
-      url?: string;
+      host?: string;
+      port?: number;
     };
   };
 }

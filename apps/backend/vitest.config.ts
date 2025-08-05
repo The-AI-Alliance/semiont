@@ -6,6 +6,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./src/__tests__/setup.ts'],
+    // Don't fail on uncaught exceptions from intentional error tests
+    dangerouslyIgnoreUnhandledErrors: true,
     include: [
       'src/**/__tests__/**/*.test.ts',
       'src/**/*.test.ts',

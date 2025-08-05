@@ -3,7 +3,13 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { config } from '../config';
+
+// Set environment for config loading - tests should use test environment
+process.env.SEMIONT_ENV = 'test';
+
+// Load config dynamically since it might be CommonJS
+const configModule = await import('../config/index.js');
+const config = configModule.config;
 
 interface TestOptions {
   target?: 'frontend' | 'backend' | 'security' | 'all';
@@ -37,27 +43,31 @@ async function runCommand(command: string[], cwd: string, description: string, v
     });
 
     if (!verbose) {
-      // Capture output but only show it if there's an error or if user wants verbose
+      // Capture output but only show summary lines
       process.stdout?.on('data', (data: Buffer) => {
         const text = data.toString();
         output += text;
-        // Only show final summary lines in non-verbose mode
+        // Only show final summary lines and test suite completion
         const lines = text.split('\n');
         lines.forEach((line: string) => {
-          if (line.includes('Tests:') || line.includes('Snapshots:') || 
-              line.includes('Time:') || line.includes('✓') || 
+          if (line.includes('Test Files') || line.includes('Tests:') || 
+              line.includes('Snapshots:') || line.includes('Time:') || 
+              line.includes('Duration') || line.includes('✓') || 
               line.includes('✗') || line.includes('PASS') || 
-              line.includes('FAIL') || line.trim().startsWith('Test Suites:')) {
+              line.includes('FAIL') || line.trim().match(/^\s*✓\s+\w+/)) {
             console.log(line);
           }
         });
       });
 
+      // Suppress stderr noise from intentional test errors
       process.stderr?.on('data', (data: Buffer) => {
         const text = data.toString();
         output += text;
-        // Always show errors
-        console.error(text);
+        // Only show actual test failures, not intentional error logs
+        if (text.includes('FAIL') || text.includes('Error:') && !text.includes('stderr |')) {
+          console.error(text);
+        }
       });
     }
 
@@ -95,6 +105,23 @@ async function checkDirectoryExists(dirPath: string): Promise<boolean> {
   }
 }
 
+async function parseFrontendTestResults(cwd: string): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
+  try {
+    const testResultsPath = path.resolve(cwd, 'test-results.json');
+    const testResults = await fs.readFile(testResultsPath, 'utf-8');
+    const results = JSON.parse(testResults);
+    
+    return {
+      totalTests: results.numTotalTests || 0,
+      passedTests: results.numPassedTests || 0,
+      failedTests: results.numFailedTests || 0
+    };
+  } catch (error) {
+    console.log('⚠️  Could not parse test results JSON, using basic parsing');
+    return { totalTests: 0, passedTests: 0, failedTests: 0 };
+  }
+}
+
 async function runFrontendTests(options: TestOptions): Promise<TestResult> {
   console.log('🎨 Running frontend tests...');
   
@@ -103,6 +130,9 @@ async function runFrontendTests(options: TestOptions): Promise<TestResult> {
     console.log('⚠️  Frontend directory not found, skipping frontend tests');
     return { name: 'Frontend', success: false, duration: 0 };
   }
+
+  // Set SEMIONT_ENV to 'test' for frontend tests
+  process.env.SEMIONT_ENV = 'test';
 
   // Determine test command based on options
   let testCommand = ['npm', 'run'];
@@ -118,6 +148,17 @@ async function runFrontendTests(options: TestOptions): Promise<TestResult> {
   }
 
   const result = await runCommand(testCommand, '../apps/frontend', 'Frontend tests', options.verbose);
+  
+  // Try to parse JSON results for better summary
+  if (!options.verbose && result.success) {
+    const testStats = await parseFrontendTestResults('../apps/frontend');
+    if (testStats.totalTests > 0) {
+      console.log(`✅ ${testStats.passedTests}/${testStats.totalTests} tests passed`);
+      if (testStats.failedTests > 0) {
+        console.log(`❌ ${testStats.failedTests} tests failed`);
+      }
+    }
+  }
   
   return {
     name: 'Frontend',
@@ -135,6 +176,9 @@ async function runBackendTests(options: TestOptions): Promise<TestResult> {
     console.log('⚠️  Backend directory not found, skipping backend tests');
     return { name: 'Backend', success: false, duration: 0 };
   }
+
+  // Set SEMIONT_ENV to 'test' for backend tests
+  process.env.SEMIONT_ENV = 'test';
 
   // Determine test command based on options
   let testCommand = ['npm', 'run'];

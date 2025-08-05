@@ -6,7 +6,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "cdk"
+    "cdk",
+    "config"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces",

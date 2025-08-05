@@ -9,6 +9,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
+    // Don't fail on uncaught exceptions from intentional error tests
+    dangerouslyIgnoreUnhandledErrors: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

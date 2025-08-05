@@ -7,6 +7,15 @@ import { api } from '@/lib/api-client';
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
 
+// Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
+const { config } = require('semiont-config');
+
+// Extract test configuration values from root config
+const TEST_CONFIG = {
+  API_BASE_URL: `http://${config.app.backend.host}:${config.app.backend.port}`,
+  API_HOST: `${config.app.backend.host}:${config.app.backend.port}`,
+};
+
 // Mock fetch globally - need to restore original fetch for MSW bypass
 const originalFetch = global.fetch;
 const mockFetch = vi.fn();
@@ -64,7 +73,7 @@ describe('React Query API hooks', () => {
   beforeEach(() => {
     // Mock fetch responses for each test
     mockFetch.mockResolvedValue(createMockResponse({ success: true }));
-    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
+    process.env.NEXT_PUBLIC_API_URL = TEST_CONFIG.API_BASE_URL;
   });
 
   describe('hello.greeting hook', () => {
@@ -80,7 +89,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/hello/world', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/hello/world', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -143,7 +152,8 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/status', {
+      const expectedUrl = TEST_CONFIG.API_BASE_URL + '/api/status';
+      expect(mockFetch).toHaveBeenCalledWith(expectedUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -177,7 +187,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ access_token: 'google-token' });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/google', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/auth/google', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -225,7 +235,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/me', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/auth/me', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -259,7 +269,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/logout', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -288,7 +298,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/health', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/health', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -328,7 +338,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/admin/users', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -371,7 +381,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/stats', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/admin/users/stats', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -413,7 +423,7 @@ describe('React Query API hooks', () => {
       const updateData = { isAdmin: true, isActive: false, name: 'Updated Name' };
       const mutationResult = await result.current.mutateAsync({ id: '123', data: updateData });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/123', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/admin/users/123', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -441,7 +451,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ id: '123', data: { isAdmin: true } });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/123', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/admin/users/123', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -471,7 +481,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ id: '123' });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/users/123', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/admin/users/123', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -503,7 +513,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/api/admin/oauth/config', {
+      expect(mockFetch).toHaveBeenCalledWith(TEST_CONFIG.API_BASE_URL + '/api/admin/oauth/config', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'

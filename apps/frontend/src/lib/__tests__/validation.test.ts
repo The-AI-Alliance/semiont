@@ -12,6 +12,16 @@ import {
 } from '../validation';
 import { z } from 'zod';
 
+// Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
+const { config } = require('semiont-config');
+
+// Extract test configuration values from root config
+const TEST_CONFIG = {
+  API_BASE_URL: `http://${config.app.backend.host}:${config.app.backend.port}`,
+  FRONTEND_BASE_URL: `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}`,
+  DATABASE_NAME: config.app.backend.database.name,
+};
+
 describe('Validation Library', () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
 
@@ -126,7 +136,7 @@ describe('Validation Library', () => {
     it('should validate valid HTTP and HTTPS URLs', () => {
       const validUrls = [
         'https://example.com',
-        'http://localhost:3000',
+        TEST_CONFIG.FRONTEND_BASE_URL,
         'https://sub.domain.com/path?query=value',
         'http://192.168.1.1:8080',
         'https://example.com/path/to/resource',
@@ -200,7 +210,7 @@ describe('Validation Library', () => {
     });
 
     it('should allow localhost HTTP for development', () => {
-      const localhostUrl = 'http://localhost:3000/image.jpg';
+      const localhostUrl = `${TEST_CONFIG.FRONTEND_BASE_URL}/image.jpg`;
       expect(() => ImageURLSchema.parse(localhostUrl)).not.toThrow();
     });
 

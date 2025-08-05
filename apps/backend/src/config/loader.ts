@@ -34,8 +34,8 @@ function loadConfig() {
     // Set environment before loading config
     process.env.SEMIONT_ENV = process.env.SEMIONT_ENV || 'development';
     
-    // Load the compiled config
-    const configModule = require(path.join(configDir, 'index'));
+    // Load the compiled config from dist directory
+    const configModule = require(path.join(configDir, 'dist', 'index'));
     return configModule.config;
   } catch (error) {
     console.error('Failed to load configuration from', configDir);
@@ -100,8 +100,12 @@ export function loadBackendConfig() {
     JWT_SECRET: secrets.JWT_SECRET || process.env.JWT_SECRET,
     
     // CORS
-    CORS_ORIGIN: config.app.backend?.frontend?.url || 'http://localhost:3000',
-    FRONTEND_URL: config.app.backend?.frontend?.url || 'http://localhost:3000',
+    CORS_ORIGIN: config.app.backend?.frontend ? 
+      `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}` : 
+      'http://localhost:3000',
+    FRONTEND_URL: config.app.backend?.frontend ? 
+      `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}` : 
+      'http://localhost:3000',
     
     // OAuth (from secrets or environment)
     GOOGLE_CLIENT_ID: secrets.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,

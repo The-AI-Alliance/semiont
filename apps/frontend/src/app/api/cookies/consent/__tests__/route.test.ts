@@ -3,6 +3,15 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 import { getServerSession } from 'next-auth'
 
+// Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
+const { config } = require('semiont-config');
+
+// Extract test configuration values from root config
+const TEST_CONFIG = {
+  API_BASE_URL: `http://${config.app.backend.host}:${config.app.backend.port}`,
+  FRONTEND_BASE_URL: `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}`,
+};
+
 // Mock next-auth
 vi.mock('next-auth', () => ({
   getServerSession: vi.fn(),
@@ -27,7 +36,7 @@ describe('/api/cookies/consent', () => {
         }
       });
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent');
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -46,7 +55,7 @@ describe('/api/cookies/consent', () => {
     it('should return 401 for unauthenticated user', async () => {
       (getServerSession as vi.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent');
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -60,7 +69,7 @@ describe('/api/cookies/consent', () => {
         user: { email: 'test@example.com' }
       });
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent');
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -72,7 +81,7 @@ describe('/api/cookies/consent', () => {
     it('should handle server errors gracefully', async () => {
       (getServerSession as vi.Mock).mockRejectedValue(new Error('Database error'));
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent');
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -100,7 +109,7 @@ describe('/api/cookies/consent', () => {
         preferences: true
       };
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: JSON.stringify(consentData),
         headers: {
@@ -126,7 +135,7 @@ describe('/api/cookies/consent', () => {
         preferences: true
       };
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: JSON.stringify(invalidData),
         headers: {
@@ -150,7 +159,7 @@ describe('/api/cookies/consent', () => {
         preferences: true
       };
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: JSON.stringify(invalidData),
         headers: {
@@ -169,7 +178,7 @@ describe('/api/cookies/consent', () => {
     it('should return 401 for unauthenticated user', async () => {
       (getServerSession as vi.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: JSON.stringify({
           necessary: true,
@@ -191,7 +200,7 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should handle malformed JSON gracefully', async () => {
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: 'invalid-json',
         headers: {
@@ -214,7 +223,7 @@ describe('/api/cookies/consent', () => {
         // Missing marketing and preferences
       };
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: JSON.stringify(incompleteData),
         headers: {
@@ -233,7 +242,7 @@ describe('/api/cookies/consent', () => {
     it('should handle server errors during save', async () => {
       (getServerSession as vi.Mock).mockRejectedValue(new Error('Database error'));
 
-      const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
+      const request = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/consent`, {
         method: 'POST',
         body: JSON.stringify({
           necessary: true,
