@@ -751,3 +751,6 @@ serve({
 });
 
 export type AppType = typeof app;
+
+// Export app for testing
+export { app };
