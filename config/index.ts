@@ -109,6 +109,22 @@ export function getFullDomain(): string {
     : config.site.domain;
 }
 
+export function getBackendUrl(): string {
+  const backend = config.app.backend;
+  if (!backend?.host || !backend?.port) {
+    throw new Error('Backend host and port not configured');
+  }
+  return `http://${backend.host}:${backend.port}`;
+}
+
+export function getFrontendUrl(): string {
+  const frontend = config.app.backend?.frontend;
+  if (!frontend?.host || !frontend?.port) {
+    throw new Error('Frontend host and port not configured');
+  }
+  return `http://${frontend.host}:${frontend.port}`;
+}
+
 // Configuration display for debugging (masks sensitive data)
 export function displayConfiguration(): void {
   const safeConfig = JSON.parse(JSON.stringify(config));

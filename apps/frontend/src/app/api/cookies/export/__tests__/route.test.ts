@@ -4,13 +4,8 @@ import { GET } from '../route';
 import type { CookieExportData } from '../route';
 
 // Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
-const { config } = require('semiont-config');
+const { getBackendUrl, getFrontendUrl } = require('semiont-config');
 
-// Extract test configuration values from root config
-const TEST_CONFIG = {
-  API_BASE_URL: `http://${config.app.backend.host}:${config.app.backend.port}`,
-  FRONTEND_BASE_URL: `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}`,
-};
 
 // Mock next-auth
 const mockGetServerSession = vi.fn();
@@ -32,7 +27,7 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 describe('Cookies Export Route', () => {
-  const mockRequest = new NextRequest(`${TEST_CONFIG.FRONTEND_BASE_URL}/api/cookies/export`);
+  const mockRequest = new NextRequest(`${getFrontendUrl()}/api/cookies/export`);
   const mockBackendUser = {
     id: 'user-123',
     email: 'test@example.com'

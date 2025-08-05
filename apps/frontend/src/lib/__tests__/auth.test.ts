@@ -5,12 +5,8 @@ import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 
 // Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
-const { config } = require('semiont-config');
+const { getBackendUrl } = require('semiont-config');
 
-// Extract test configuration values from root config
-const TEST_CONFIG = {
-  API_BASE_URL: `http://${config.app.backend.host}:${config.app.backend.port}`,
-};
 
 // Mock the validation module
 vi.mock('../validation', () => ({
@@ -46,7 +42,7 @@ describe('Auth Configuration', () => {
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
     process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
-    process.env.NEXT_PUBLIC_API_URL = TEST_CONFIG.API_BASE_URL;
+    process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
     
     // Import after setting environment variables
     const authModule = await import('../auth');
@@ -65,7 +61,7 @@ describe('Auth Configuration', () => {
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
     process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
-    process.env.NEXT_PUBLIC_API_URL = TEST_CONFIG.API_BASE_URL;
+    process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
 
     mockUser = {
       id: 'google-user-123',
