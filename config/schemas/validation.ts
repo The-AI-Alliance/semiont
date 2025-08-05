@@ -80,7 +80,7 @@ function validateAWSConfig(aws: SemiontConfiguration['aws']): void {
 }
 
 function validateAppConfig(app: SemiontConfiguration['app']): void {
-  if (!['development', 'staging', 'production'].includes(app.nodeEnv)) {
+  if (!['development', 'staging', 'production', 'test'].includes(app.nodeEnv)) {
     throw new ConfigurationError('Invalid NODE_ENV value', 'app.nodeEnv');
   }
   

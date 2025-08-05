@@ -3,8 +3,7 @@ import { vi } from 'vitest';
 import { config } from 'dotenv';
 import { setupMSW } from './mocks/server';
 
-// Load test environment variables
-config({ path: '.env.test' });
+// Load test environment variables (skip .env.test to avoid file dependency)
 
 // Setup MSW for mocking external HTTP requests
 setupMSW();
@@ -27,11 +26,11 @@ vi.mock('../db', () => ({
 
 // Don't mock OAuthService globally - let individual tests decide
 
-// Set test environment variables
+// Set test environment variables (similar to frontend setup)
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-jwt-secret';
+process.env.SEMIONT_ENV = 'test';
+process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-purposes';
+process.env.DATABASE_PASSWORD = 'test-password';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
 process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
 process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
-process.env.ADMIN_EMAIL = 'admin@example.com';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
-process.env.FRONTEND_URL = 'http://localhost:3000';

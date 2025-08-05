@@ -244,6 +244,15 @@ describe('JWT Service', () => {
         .toThrow('Token has expired');
     });
 
+    it('should throw error for token not active yet (NotBeforeError)', () => {
+      vi.mocked(jwt.verify).mockImplementation(() => {
+        throw new jwt.NotBeforeError('Token not active yet', new Date());
+      });
+
+      expect(() => JWTService.verifyToken('not-active-yet.jwt.token'))
+        .toThrow('Token not active yet');
+    });
+
     it('should handle payload validation errors', async () => {
       vi.mocked(jwt.verify).mockReturnValue(validPayload as any);
       

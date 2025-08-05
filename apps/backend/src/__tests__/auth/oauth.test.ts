@@ -150,6 +150,35 @@ describe('OAuth Service', () => {
       });
     });
 
+    it('should update existing user with no picture', async () => {
+      const existingUser = { ...mockUser, lastLogin: new Date('2024-01-01') };
+      const userWithoutPicture = { ...mockGoogleUser, picture: undefined };
+      
+      vi.mocked(JWTService.isAllowedDomain).mockReturnValue(true);
+      vi.mocked(JWTService.generateToken).mockReturnValue('mock-jwt-token');
+      mockPrismaUser.findFirst.mockResolvedValue(existingUser);
+      mockPrismaUser.update.mockResolvedValue({
+        ...existingUser,
+        image: null,
+        lastLogin: new Date(),
+      });
+
+      const result = await OAuthService.createOrUpdateUser(userWithoutPicture);
+
+      expect(result.isNewUser).toBe(false);
+      expect(mockPrismaUser.update).toHaveBeenCalledWith({
+        where: { id: existingUser.id },
+        data: {
+          name: userWithoutPicture.name,
+          image: null,
+          provider: 'google',
+          providerId: userWithoutPicture.id,
+          domain: 'example.com',
+          lastLogin: expect.any(Date),
+        }
+      });
+    });
+
     it('should throw error for disallowed domain', async () => {
       vi.mocked(JWTService.isAllowedDomain).mockReturnValue(false);
 
@@ -176,6 +205,84 @@ describe('OAuth Service', () => {
           image: null,
         })
       });
+    });
+
+    it('should handle email without domain (edge case)', async () => {
+      const userWithInvalidEmail = { ...mockGoogleUser, email: 'invalidemail' };
+      
+      vi.mocked(JWTService.isAllowedDomain).mockReturnValue(true);
+      vi.mocked(JWTService.generateToken).mockReturnValue('mock-jwt-token');
+      mockPrismaUser.findFirst.mockResolvedValue(null);
+      mockPrismaUser.create.mockResolvedValue({
+        ...mockUser,
+        domain: '',
+      });
+
+      await OAuthService.createOrUpdateUser(userWithInvalidEmail);
+
+      expect(mockPrismaUser.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          domain: '',
+        })
+      });
+    });
+
+    it('should handle domain update for existing user with undefined domain', async () => {
+      const userWithUndefinedDomain = { ...mockGoogleUser, email: 'user@' };
+      const existingUser = { ...mockUser, domain: 'olddomain.com' };
+      
+      vi.mocked(JWTService.isAllowedDomain).mockReturnValue(true);
+      vi.mocked(JWTService.generateToken).mockReturnValue('mock-jwt-token');
+      mockPrismaUser.findFirst.mockResolvedValue(existingUser);
+      mockPrismaUser.update.mockResolvedValue({
+        ...existingUser,
+        domain: '',
+        lastLogin: new Date(),
+      });
+
+      await OAuthService.createOrUpdateUser(userWithUndefinedDomain);
+
+      // Should call update without domain field when domain is undefined
+      expect(mockPrismaUser.update).toHaveBeenCalledWith({
+        where: { id: existingUser.id },
+        data: {
+          name: userWithUndefinedDomain.name,
+          image: userWithUndefinedDomain.picture,
+          provider: 'google',
+          providerId: userWithUndefinedDomain.id,
+          lastLogin: expect.any(Date),
+        }
+      });
+    });
+
+    it('should handle user with no name in JWT payload', async () => {
+      const userWithoutName = { ...mockGoogleUser, name: '' };
+      
+      vi.mocked(JWTService.isAllowedDomain).mockReturnValue(true);
+      vi.mocked(JWTService.generateToken).mockReturnValue('mock-jwt-token');
+      mockPrismaUser.findFirst.mockResolvedValue(null);
+      mockPrismaUser.create.mockResolvedValue({
+        ...mockUser,
+        name: '',
+      });
+
+      const result = await OAuthService.createOrUpdateUser(userWithoutName);
+
+      // JWT payload should have name as undefined when user.name is falsy
+      expect(JWTService.generateToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: expect.any(String),
+          email: userWithoutName.email,
+          name: undefined,
+          domain: 'example.com',
+          provider: 'google',
+          isAdmin: false,
+        })
+      );
+      
+      // Verify name is undefined when user.name is falsy
+      const generateTokenCall = vi.mocked(JWTService.generateToken).mock.calls[0][0];
+      expect(generateTokenCall.name).toBeUndefined();
     });
   });
 

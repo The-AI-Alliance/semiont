@@ -24,7 +24,6 @@ export default defineConfig({
         'src/__tests__/',
         '**/*.d.ts',
         '**/*.config.*',
-        'src/index.ts', // Exclude main server file from coverage
         'dist/'
       ],
       reportsDirectory: './coverage',
