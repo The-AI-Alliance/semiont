@@ -13,8 +13,7 @@ import {
   HelloResponse,
   StatusResponse,
   HealthResponse,
-  LogoutResponse,
-  LegacyHealthResponse
+  LogoutResponse
 } from './types/api';
 import {
   GoogleAuthSchema,
@@ -25,6 +24,7 @@ import {
 type Variables = {
   user: User;
 };
+
 
 const app = new Hono<{ Variables: Variables }>();
 
@@ -555,11 +555,6 @@ app.get('/api', (c) => {
           parameters: "none",
           response: "HealthResponse with service health"
         },
-        "GET /health": {
-          description: "Legacy health check endpoint",
-          parameters: "none",
-          response: "LegacyHealthResponse (for backward compatibility)"
-        }
       },
       
       // Authentication Endpoints
@@ -711,10 +706,6 @@ app.get('/api/health', async (c) => {
   });
 });
 
-// Legacy health check (for backward compatibility)
-app.get('/health', (c) => {
-  return c.json<LegacyHealthResponse>({ status: 'ok', message: 'Semiont API is running' });
-});
 
 // Start server
 const port = CONFIG.PORT;

@@ -10,12 +10,12 @@ import type {
   HelloResponse,
   StatusResponse,
   HealthResponse,
-  LegacyHealthResponse,
   AuthResponse,
   UserResponse,
   LogoutResponse,
   ErrorResponse,
 } from '@semiont/api-types';
+
 
 // Mock the entire auth/oauth module to avoid external API calls
 vi.mock('../../auth/oauth', () => ({
@@ -132,14 +132,6 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.database).toBe('disconnected');
     });
 
-    it('GET /health should return legacy health response', async () => {
-      const res = await app.request('/health');
-      expect(res.status).toBe(200);
-      
-      const data: LegacyHealthResponse = await res.json();
-      expect(data.status).toBe('ok');
-      expect(data.message).toBe('Semiont API is running');
-    });
 
     it('GET /api should return API documentation (JSON)', async () => {
       const res = await app.request('/api', {

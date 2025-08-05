@@ -75,14 +75,6 @@ describe('Main Application (index.ts)', () => {
       expect(data.timestamp).toBeDefined();
     });
 
-    it('should return legacy health response', async () => {
-      const response = await app.request('http://localhost/health');
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.status).toBe('ok');
-      expect(data.message).toBe('Semiont API is running');
-    });
   });
 
   describe('API Documentation', () => {

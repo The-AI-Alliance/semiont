@@ -8,12 +8,12 @@ import type {
   HelloResponse,
   StatusResponse,
   HealthResponse,
-  LegacyHealthResponse,
   AuthResponse,
   UserResponse,
   LogoutResponse,
   ErrorResponse,
 } from '@semiont/api-types';
+
 
 describe('API Contract Tests', () => {
   describe('Response Type Contracts', () => {
@@ -62,15 +62,6 @@ describe('API Contract Tests', () => {
       expect(mockResponse.version).toBeDefined();
     });
 
-    it('should match LegacyHealthResponse contract', () => {
-      const mockResponse: LegacyHealthResponse = {
-        status: 'ok',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      };
-
-      expect(mockResponse.status).toBeDefined();
-      expect(mockResponse.timestamp).toBeDefined();
-    });
 
     it('should match AuthResponse contract', () => {
       const mockResponse: AuthResponse = {

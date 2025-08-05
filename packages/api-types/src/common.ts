@@ -14,7 +14,6 @@ export interface ErrorResponse {
 // Status types used across multiple endpoints
 export type ServiceStatus = 'operational' | 'degraded' | 'offline';
 export type DatabaseStatus = 'connected' | 'disconnected' | 'unknown';
-export type LegacyStatus = 'ok' | 'error';
 
 // System response interfaces
 export interface StatusResponse {
@@ -37,11 +36,6 @@ export interface HealthResponse {
   environment: string;
 }
 
-// Legacy health check response (for backward compatibility)
-export interface LegacyHealthResponse {
-  status: LegacyStatus;
-  message: string;
-}
 
 // Hello endpoint response (example/demo endpoint)
 export interface HelloResponse {

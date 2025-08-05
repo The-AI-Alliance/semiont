@@ -9,9 +9,9 @@ import {
   HelloResponse,
   StatusResponse,
   HealthResponse,
-  LogoutResponse,
-  LegacyHealthResponse
+  LogoutResponse
 } from './api';
+
 
 // Route parameter types
 export interface HelloParams {
@@ -76,11 +76,6 @@ export interface APIRoutes {
     };
   };
   
-  '/health': {
-    GET: {
-      response: LegacyHealthResponse;
-    };
-  };
 }
 
 // Helper types for extracting route information
