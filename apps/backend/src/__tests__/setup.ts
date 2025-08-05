@@ -27,8 +27,10 @@ vi.mock('../db', () => ({
 // Don't mock OAuthService globally - let individual tests decide
 
 // Set test environment variables (similar to frontend setup)
+// Note: Most configuration comes from config/environments/test.ts when SEMIONT_ENV=test
+// These are the secrets and runtime values that can't be checked into git:
 process.env.NODE_ENV = 'test';
-process.env.SEMIONT_ENV = 'test';
+process.env.SEMIONT_ENV = 'test';  // This triggers loading of config/environments/test.ts
 process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-purposes';
 process.env.DATABASE_PASSWORD = 'test-password';
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';

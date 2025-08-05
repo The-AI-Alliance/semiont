@@ -2,6 +2,10 @@
  * Test Environment Configuration
  * 
  * Test-specific overrides for unit testing and CI/CD
+ * 
+ * Note: Secrets like JWT_SECRET, DATABASE_PASSWORD, and OAuth credentials
+ * are set in apps/backend/src/__tests__/setup.ts as environment variables
+ * since they shouldn't be committed to git.
  */
 
 import type { EnvironmentOverrides } from '../schemas/config.schema';
