@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 
-import { ECSClient, ListTasksCommand, ExecuteCommandCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { config } from '../config';
 import { spawn } from 'child_process';
@@ -26,7 +26,15 @@ async function getLatestTaskId(service: 'frontend' | 'backend'): Promise<string>
     throw new Error(`No running ${service} tasks found`);
   }
 
-  return response.taskArns[0].split('/').pop()!;
+  const taskArn = response.taskArns[0];
+  if (!taskArn) {
+    throw new Error(`Invalid task ARN received for ${service}`);
+  }
+  const taskId = taskArn.split('/').pop();
+  if (!taskId) {
+    throw new Error(`Could not extract task ID from ARN: ${taskArn}`);
+  }
+  return taskId;
 }
 
 async function executeCommand(service: 'frontend' | 'backend', command: string) {
@@ -88,7 +96,7 @@ if (args.length === 0) {
   command = args[1] || '/bin/sh';
 } else {
   // First argument is command, use default backend service
-  command = args[0];
+  command = args[0] || '/bin/sh';
 }
 
 console.log(`🚀 Executing on ${service} service: ${command}`);

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import path from 'path';
@@ -60,13 +60,13 @@ async function runCommand(command: string[], cwd: string, description: string): 
     log(`💻 Command: ${command.join(' ')}`);
     
     const startTime = Date.now();
-    const process = spawn(command[0], command.slice(1), {
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
       stdio: 'inherit',
       shell: true
     });
 
-    process.on('close', (code) => {
+    process.on('close', (code: number | null) => {
       const duration = Date.now() - startTime;
       if (code === 0) {
         log(`✅ ${description} completed in ${duration}ms`);
@@ -76,7 +76,7 @@ async function runCommand(command: string[], cwd: string, description: string): 
       resolve(code === 0);
     });
 
-    process.on('error', (error) => {
+    process.on('error', (error: Error) => {
       const duration = Date.now() - startTime;
       log(`❌ ${description} failed: ${error.message} after ${duration}ms`);
       resolve(false);
@@ -257,7 +257,11 @@ async function getDockerImageInfo(imageName: string): Promise<{ id: string; crea
       process.on('close', (code) => {
         if (code === 0 && output.trim()) {
           try {
-            const imageInfo = JSON.parse(output.trim().split('\n')[0]);
+            const firstLine = output.trim().split('\n')[0];
+            if (!firstLine) {
+              throw new Error('No output from docker build');
+            }
+            const imageInfo = JSON.parse(firstLine);
             resolve({
               id: imageInfo.ID?.substring(0, 12) || 'unknown',
               created: imageInfo.CreatedAt || 'unknown',
@@ -573,7 +577,7 @@ async function main() {
   }
   
   const options: BuildOptions = {
-    target,
+    ...(target && { target }),
     verbose: args.includes('--verbose'),
     skipInstall: args.includes('--skip-install'),
     skipBuild: args.includes('--skip-build'),

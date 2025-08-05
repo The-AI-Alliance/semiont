@@ -4,11 +4,11 @@ import { ECSClient, DescribeServicesCommand, ListTasksCommand, DescribeTasksComm
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand, DescribeMountTargetsCommand } from '@aws-sdk/client-efs';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
-import { CostExplorerClient, GetDimensionValuesCommand, GetRightsizingRecommendationCommand, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
+import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
 import { ElasticLoadBalancingV2Client, DescribeLoadBalancersCommand, DescribeTargetGroupsCommand, DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
-import { WAFV2Client, ListWebACLsCommand, GetWebACLCommand } from '@aws-sdk/client-wafv2';
+import { WAFV2Client, GetWebACLCommand } from '@aws-sdk/client-wafv2';
 import { SemiontStackConfig } from './lib/stack-config';
-import { ServiceType, DeploymentTarget, AWSError, ScriptError, isDeploymentTarget } from './lib/types.js';
+import { ServiceType, AWSError } from './lib/types.js';
 import { logger } from './lib/logger.js';
 import { config } from '../config';
 
@@ -156,7 +156,7 @@ async function getTaskCPUMetrics(taskArns: string[], serviceType: ServiceType) {
       metrics.push({
         taskId,
         cpuUtilization: latestDatapoint?.Average ? Math.round(latestDatapoint.Average * 10) / 10 : null,
-        timestamp: latestDatapoint?.Timestamp,
+        ...(latestDatapoint?.Timestamp && { timestamp: latestDatapoint.Timestamp }),
       });
     } catch (error) {
       metrics.push({
@@ -250,8 +250,8 @@ async function getALBStatus() {
   try {
     const loadBalancerDns = await stackConfig.getLoadBalancerDNS();
     
-    // Extract load balancer name from DNS name
-    const albName = loadBalancerDns.split('-')[0] + '-' + loadBalancerDns.split('-')[1] + '-' + loadBalancerDns.split('-')[2];
+    // Extract load balancer name from DNS name (unused but kept for reference)
+    // const albName = loadBalancerDns.split('-')[0] + '-' + loadBalancerDns.split('-')[1] + '-' + loadBalancerDns.split('-')[2];
     
     const response = await albClient.send(
       new DescribeLoadBalancersCommand({})
@@ -275,15 +275,17 @@ async function getALBStatus() {
     let targetHealth: any[] = [];
     if (targetGroupsResponse.TargetGroups && targetGroupsResponse.TargetGroups.length > 0) {
       const targetGroup = targetGroupsResponse.TargetGroups[0];
-      try {
-        const healthResponse = await albClient.send(
-          new DescribeTargetHealthCommand({
-            TargetGroupArn: targetGroup.TargetGroupArn,
-          })
-        );
-        targetHealth = healthResponse.TargetHealthDescriptions || [];
-      } catch (error) {
-        // Target health may not be accessible
+      if (targetGroup?.TargetGroupArn) {
+        try {
+          const healthResponse = await albClient.send(
+            new DescribeTargetHealthCommand({
+              TargetGroupArn: targetGroup.TargetGroupArn,
+            })
+          );
+          targetHealth = healthResponse.TargetHealthDescriptions || [];
+        } catch (error) {
+          // Target health may not be accessible
+        }
       }
     }
 
@@ -338,7 +340,7 @@ async function getWAFStatus() {
   }
 }
 
-async function getCostEstimate(dbStatus: any, efsStatus: any) {
+async function getCostEstimate(dbStatus: any, _efsStatus: any) {
   try {
     // Get last 7 days of costs
     const endDate = new Date();

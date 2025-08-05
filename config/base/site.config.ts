@@ -15,7 +15,7 @@ export const siteConfig: SiteConfiguration = {
   
   // Domain configuration - Must be configured in environment-specific configs
   domain: process.env.DOMAIN || '',
-  subdomain: process.env.SUBDOMAIN || undefined,  // Optional subdomain
+  ...(process.env.SUBDOMAIN && { subdomain: process.env.SUBDOMAIN }),  // Optional subdomain
   
   // Contact information - Must be configured in environment-specific configs
   adminEmail: process.env.ADMIN_EMAIL || '',

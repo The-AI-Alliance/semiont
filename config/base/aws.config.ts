@@ -45,6 +45,7 @@ export const awsConfig: AWSConfiguration = {
   monitoring: {
     enableDetailedMonitoring: process.env.ENABLE_DETAILED_MONITORING === 'true' || false,
     logRetentionDays: parseInt(process.env.LOG_RETENTION_DAYS || '7', 10),
-    alertEmail: process.env.ALERT_EMAIL || process.env.ADMIN_EMAIL
+    ...(process.env.ALERT_EMAIL && { alertEmail: process.env.ALERT_EMAIL }),
+    ...(process.env.ADMIN_EMAIL && !process.env.ALERT_EMAIL && { alertEmail: process.env.ADMIN_EMAIL })
   }
 };

@@ -149,7 +149,7 @@ class PerformanceManager {
     // Find latest report
     const { readdirSync, readFileSync } = require('fs');
     const reports = readdirSync(reportDir)
-      .filter(f => f.endsWith('.json'))
+      .filter((f: string) => f.endsWith('.json'))
       .sort()
       .reverse();
     
@@ -192,7 +192,8 @@ class PerformanceManager {
   }
 
   async run() {
-    const command = argv._[0] || 'check';
+    const parsedArgv = await argv;
+    const command = parsedArgv._[0] || 'check';
     
     switch (command) {
       case 'analyze':

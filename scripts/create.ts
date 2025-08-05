@@ -1,10 +1,10 @@
 #!/usr/bin/env -S npx tsx
 
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import path from 'path';
 import { config } from '../config';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, DescribeImagesCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
+// ECR functionality moved to update-images.ts
 import { requireValidAWSCredentials } from './utils/aws-validation';
 
 interface DeployOptions {
@@ -18,7 +18,6 @@ interface DeployOptions {
 // AWS SDK Clients
 const region = config.aws.region;
 const cloudFormationClient = new CloudFormationClient({ region });
-const ecrClient = new ECRClient({ region });
 
 function timestamp(): string {
   return new Date().toISOString();
@@ -35,13 +34,13 @@ async function runCommand(command: string[], cwd: string, description: string): 
     log(`💻 Command: ${command.join(' ')}`);
     
     const startTime = Date.now();
-    const process = spawn(command[0], command.slice(1), {
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
       stdio: 'inherit',
       shell: true
     });
 
-    process.on('close', (code) => {
+    process.on('close', (code: number | null) => {
       const duration = Date.now() - startTime;
       if (code === 0) {
         log(`✅ ${description} completed in ${duration}ms`);
@@ -51,7 +50,7 @@ async function runCommand(command: string[], cwd: string, description: string): 
       resolve(code === 0);
     });
 
-    process.on('error', (error) => {
+    process.on('error', (error: Error) => {
       const duration = Date.now() - startTime;
       log(`❌ ${description} failed: ${error.message} after ${duration}ms`);
       resolve(false);
@@ -87,242 +86,6 @@ async function verifyStackExists(stackName: string): Promise<boolean> {
   }
 }
 
-async function getECRLoginToken(): Promise<string | null> {
-  try {
-    const command = new GetAuthorizationTokenCommand({});
-    const response = await ecrClient.send(command);
-    
-    const authData = response.authorizationData?.[0];
-    if (!authData?.authorizationToken) {
-      log(`❌ Failed to get ECR login token: No authorization data`);
-      return null;
-    }
-    
-    // Decode base64 token to get username:password
-    const token = Buffer.from(authData.authorizationToken, 'base64').toString('utf-8');
-    const password = token.split(':')[1];
-    
-    return password;
-  } catch (error) {
-    log(`❌ Failed to get ECR login token: ${error}`);
-    return null;
-  }
-}
-
-async function ensureECRRepository(repositoryName: string): Promise<boolean> {
-  log(`🔍 Checking if ECR repository '${repositoryName}' exists...`);
-  
-  try {
-    // Check if repository exists
-    const checkCommand = new DescribeRepositoriesCommand({
-      repositoryNames: [repositoryName]
-    });
-    
-    await ecrClient.send(checkCommand);
-    log(`✅ ECR repository '${repositoryName}' already exists`);
-    return true;
-  } catch (error: any) {
-    if (error.name === 'RepositoryNotFoundException') {
-      // Repository doesn't exist, create it
-      log(`🔨 Creating ECR repository '${repositoryName}'...`);
-      
-      try {
-        const createCommand = new CreateRepositoryCommand({
-          repositoryName: repositoryName
-        });
-        
-        await ecrClient.send(createCommand);
-        log(`✅ Successfully created ECR repository '${repositoryName}'`);
-        return true;
-      } catch (createError) {
-        log(`❌ CRITICAL: Failed to create ECR repository '${repositoryName}': ${createError}`);
-        return false;
-      }
-    } else {
-      log(`❌ CRITICAL: Error checking ECR repository '${repositoryName}': ${error}`);
-      return false;
-    }
-  }
-}
-
-async function verifyECRPush(repositoryName: string, imageTag: string): Promise<boolean> {
-  log(`🔍 Verifying ECR push for ${repositoryName}:${imageTag}...`);
-  
-  try {
-    const command = new DescribeImagesCommand({
-      repositoryName: repositoryName,
-      imageIds: [{ imageTag: imageTag }]
-    });
-    
-    const response = await ecrClient.send(command);
-    
-    if (!response.imageDetails || response.imageDetails.length === 0) {
-      log(`❌ CRITICAL: ECR verification failed - image ${repositoryName}:${imageTag} not found in ECR`);
-      return false;
-    }
-    
-    log(`✅ ECR verification successful - image ${repositoryName}:${imageTag} confirmed in ECR`);
-    return true;
-  } catch (error) {
-    log(`❌ CRITICAL: ECR verification failed - ${error}`);
-    return false;
-  }
-}
-
-async function pushToECR(localImageName: string, serviceName: string): Promise<string | null> {
-  log(`🐳 Pushing ${localImageName} to ECR...`);
-  
-  // Get AWS account ID and region
-  const accountId = config.aws.accountId || '571600854494'; // fallback to known account
-  const region = config.aws.region;
-  
-  const ecrRepo = `${accountId}.dkr.ecr.${region}.amazonaws.com/semiont-${serviceName}`;
-  const repositoryName = `semiont-${serviceName}`;
-  
-  // Check if local image exists
-  const imageExists = await runCommand(['docker', 'image', 'inspect', localImageName], '.', `Check ${localImageName} exists`);
-  if (!imageExists) {
-    log(`❌ CRITICAL: Local image ${localImageName} does not exist`);
-    return null;
-  }
-  
-  // Ensure ECR repository exists
-  const repoExists = await ensureECRRepository(repositoryName);
-  if (!repoExists) {
-    log(`❌ CRITICAL: Could not ensure ECR repository ${repositoryName} exists`);
-    return null;
-  }
-  
-  // Generate unique tag based on timestamp and content hash
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const imageTag = `deploy-${timestamp}`;
-  const taggedImage = `${ecrRepo}:${imageTag}`;
-  
-  log(`📋 ECR repository: ${ecrRepo}`);
-  log(`🏷️  Image tag: ${imageTag}`);
-  
-  // Get ECR login token
-  const loginToken = await getECRLoginToken();
-  if (!loginToken) {
-    log(`❌ CRITICAL: Failed to get ECR login token`);
-    return null;
-  }
-  
-  // Login to ECR using the token
-  const loginSuccess = await runCommand([
-    'docker', 'login', '--username', 'AWS', '--password', loginToken, `${accountId}.dkr.ecr.${region}.amazonaws.com`
-  ], '.', 'ECR login');
-  
-  if (!loginSuccess) {
-    log(`❌ CRITICAL: ECR login failed`);
-    return null;
-  }
-  
-  // Tag the image
-  const tagSuccess = await runCommand(['docker', 'tag', localImageName, taggedImage], '.', `Tag image as ${taggedImage}`);
-  if (!tagSuccess) {
-    log(`❌ CRITICAL: Failed to tag image`);
-    return null;
-  }
-  
-  // Push the timestamped image
-  const pushSuccess = await runCommand(['docker', 'push', taggedImage], '.', `Push ${taggedImage}`);
-  if (!pushSuccess) {
-    log(`❌ CRITICAL: Failed to push image to ECR`);
-    return null;
-  }
-  
-  // Verify the timestamped push succeeded
-  const verifySuccess = await verifyECRPush(repositoryName, imageTag);
-  if (!verifySuccess) {
-    log(`❌ CRITICAL: ECR push verification failed`);
-    return null;
-  }
-  
-  // Tag and push as 'latest'
-  const latestImage = `${ecrRepo}:latest`;
-  const tagLatestSuccess = await runCommand(['docker', 'tag', localImageName, latestImage], '.', `Tag image as ${latestImage}`);
-  if (!tagLatestSuccess) {
-    log(`❌ CRITICAL: Failed to tag image as latest`);
-    return null;
-  }
-  
-  const pushLatestSuccess = await runCommand(['docker', 'push', latestImage], '.', `Push ${latestImage}`);
-  if (!pushLatestSuccess) {
-    log(`❌ CRITICAL: Failed to push latest image to ECR`);
-    return null;
-  }
-  
-  // Verify the latest push succeeded
-  const verifyLatestSuccess = await verifyECRPush(repositoryName, 'latest');
-  if (!verifyLatestSuccess) {
-    log(`❌ CRITICAL: ECR latest push verification failed`);
-    return null;
-  }
-  
-  log(`✅ Successfully pushed and verified in ECR: ${taggedImage}`);
-  log(`✅ Successfully pushed and verified in ECR: ${latestImage}`);
-  return taggedImage;
-}
-
-async function pushImagesToECR(): Promise<{ frontend: string | null; backend: string | null }> {
-  log(`🚀 Pushing Docker images to ECR...`);
-  
-  // Check if local images exist
-  const frontendExists = await runCommand(['docker', 'image', 'inspect', 'semiont-frontend:latest'], '.', 'Check frontend image exists');
-  const backendExists = await runCommand(['docker', 'image', 'inspect', 'semiont-backend:latest'], '.', 'Check backend image exists');
-  
-  if (!frontendExists && !backendExists) {
-    log(`❌ CRITICAL: No local Docker images found. Run './semiont build' first.`);
-    return { frontend: null, backend: null };
-  }
-  
-  const results = { frontend: null as string | null, backend: null as string | null };
-  let pushAttempts = 0;
-  let pushSuccesses = 0;
-  
-  // Push backend image
-  if (backendExists) {
-    pushAttempts++;
-    log(`📤 Pushing backend image to ECR...`);
-    results.backend = await pushToECR('semiont-backend:latest', 'backend');
-    if (results.backend) {
-      pushSuccesses++;
-      log(`✅ Backend ECR push successful: ${results.backend}`);
-    } else {
-      log(`❌ Backend ECR push failed`);
-    }
-  } else {
-    log(`⚠️  Backend image not found locally, skipping ECR push`);
-  }
-  
-  // Push frontend image  
-  if (frontendExists) {
-    pushAttempts++;
-    log(`📤 Pushing frontend image to ECR...`);
-    results.frontend = await pushToECR('semiont-frontend:latest', 'frontend');
-    if (results.frontend) {
-      pushSuccesses++;
-      log(`✅ Frontend ECR push successful: ${results.frontend}`);
-    } else {
-      log(`❌ Frontend ECR push failed`);
-    }
-  } else {
-    log(`⚠️  Frontend image not found locally, skipping ECR push`);
-  }
-  
-  // Summary
-  log(`📊 ECR Push Summary: ${pushSuccesses}/${pushAttempts} successful`);
-  if (pushSuccesses === 0) {
-    log(`❌ CRITICAL: All ECR pushes failed! Cannot proceed with deployment.`);
-  } else if (pushSuccesses < pushAttempts) {
-    log(`⚠️  Some ECR pushes failed, but continuing with partial deployment`);
-  } else {
-    log(`✅ All ECR pushes successful!`);
-  }
-  
-  return results;
-}
 
 async function deployInfraStack(options: DeployOptions): Promise<boolean> {
   console.log(`📦 Deploying ${config.site.siteName} Infrastructure Stack...`);

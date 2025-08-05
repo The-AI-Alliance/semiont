@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { config } from '../config';
@@ -19,13 +19,13 @@ async function runCommand(command: string[], cwd: string, description: string): 
     console.log(`🧹 ${description}...`);
     console.log(`💻 Running: ${command.join(' ')}`);
     
-    const process = spawn(command[0], command.slice(1), {
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
       stdio: 'inherit',
       shell: true
     });
 
-    process.on('close', (code) => {
+    process.on('close', (code: number | null) => {
       if (code === 0) {
         console.log(`✅ ${description} completed`);
       } else {
@@ -34,7 +34,7 @@ async function runCommand(command: string[], cwd: string, description: string): 
       resolve(code === 0);
     });
 
-    process.on('error', (error) => {
+    process.on('error', (error: Error) => {
       console.error(`❌ ${description} failed: ${error.message}`);
       resolve(false);
     });

@@ -4,7 +4,7 @@
  */
 
 import chalk from 'chalk';
-import { LogLevel, LogMessage } from './types.js';
+import { LogLevel } from './types.js';
 
 // Sensitive data patterns to redact
 const SENSITIVE_PATTERNS = [

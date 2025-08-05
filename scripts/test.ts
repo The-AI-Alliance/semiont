@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { config } from '../config';
@@ -30,7 +30,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
     const startTime = Date.now();
     let output = '';
     
-    const process = spawn(command[0], command.slice(1), {
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
       stdio: verbose ? 'inherit' : ['inherit', 'pipe', 'pipe'],
       shell: true
@@ -38,7 +38,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
 
     if (!verbose) {
       // Capture output but only show it if there's an error or if user wants verbose
-      process.stdout?.on('data', (data) => {
+      process.stdout?.on('data', (data: Buffer) => {
         const text = data.toString();
         output += text;
         // Only show final summary lines in non-verbose mode
@@ -53,7 +53,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
         });
       });
 
-      process.stderr?.on('data', (data) => {
+      process.stderr?.on('data', (data: Buffer) => {
         const text = data.toString();
         output += text;
         // Always show errors
@@ -61,7 +61,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
       });
     }
 
-    process.on('close', (code) => {
+    process.on('close', (code: number | null) => {
       const duration = Date.now() - startTime;
       if (code === 0) {
         console.log(`✅ ${description} completed`);
@@ -77,7 +77,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
       resolve({ success: code === 0, output, duration });
     });
 
-    process.on('error', (error) => {
+    process.on('error', (error: Error) => {
       const duration = Date.now() - startTime;
       console.error(`❌ ${description} failed: ${error.message}`);
       resolve({ success: false, output: error.message, duration });
@@ -320,7 +320,7 @@ async function main() {
   }
   
   const options: TestOptions = {
-    target,
+    ...(target && { target }),
     coverage: args.includes('--coverage'),
     watch: args.includes('--watch'),
     verbose: args.includes('--verbose'),

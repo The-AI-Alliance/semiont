@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import path from 'path';
 import { config } from '../config';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
@@ -36,13 +36,13 @@ async function runCommand(command: string[], cwd: string, description: string): 
     log(`💻 Command: ${command.join(' ')}`);
     
     const startTime = Date.now();
-    const process = spawn(command[0], command.slice(1), {
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
       stdio: 'inherit',
       shell: true
     });
 
-    process.on('close', (code) => {
+    process.on('close', (code: number | null) => {
       const duration = Date.now() - startTime;
       if (code === 0) {
         log(`✅ ${description} completed in ${duration}ms`);
@@ -52,7 +52,7 @@ async function runCommand(command: string[], cwd: string, description: string): 
       resolve(code === 0);
     });
 
-    process.on('error', (error) => {
+    process.on('error', (error: Error) => {
       const duration = Date.now() - startTime;
       log(`❌ ${description} failed: ${error.message} after ${duration}ms`);
       resolve(false);
@@ -79,7 +79,7 @@ async function getECRLoginToken(): Promise<string | null> {
     const token = Buffer.from(authData.authorizationToken, 'base64').toString('utf-8');
     const password = token.split(':')[1];
     
-    return password;
+    return password || null;
   } catch (error) {
     log(`❌ Failed to get ECR login token: ${error}`);
     return null;
@@ -414,7 +414,9 @@ async function diagnoseECSFailures(): Promise<void> {
   log(`🔍 Found ${failedTasks.length} recent failed tasks, analyzing most recent...`);
   
   // Analyze the most recent failed task
-  await getTaskLogs(clusterName, failedTasks[0]);
+  if (failedTasks[0]) {
+    await getTaskLogs(clusterName, failedTasks[0]);
+  }
 }
 
 async function updateECSServices(ecrImages: { frontend: string | null; backend: string | null }): Promise<boolean> {
@@ -441,7 +443,7 @@ async function updateECSServices(ecrImages: { frontend: string | null; backend: 
   return deploySuccess;
 }
 
-async function updateImages(options: UpdateImagesOptions) {
+async function updateImages(_options: UpdateImagesOptions) {
   console.log(`🚀 Starting ${config.site.siteName} image update...`);
   
   // Validate AWS credentials early to avoid wasting time

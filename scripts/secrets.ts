@@ -8,12 +8,8 @@ import * as readline from 'readline';
 const stackConfig = new SemiontStackConfig();
 const secretsClient = new SecretsManagerClient({ region: config.aws.region });
 
-interface SecretInfo {
-  name: string;
-  fullName: string;
-  configured: boolean;
-  description?: string;
-}
+// Reserved for future secret management features
+// interface SecretInfo for future use when needed
 
 // Known secrets and their descriptions
 const KNOWN_SECRETS: Record<string, string> = {
@@ -68,7 +64,8 @@ function maskSecretObject(obj: any): any {
 async function getSecretFullName(secretPath: string): Promise<string> {
   // Convert path format to actual secret name
   // oauth/google -> semiont-dev-oauth-google-secret (or similar based on stack config)
-  const stackName = await stackConfig.getInfraStackName();
+  const config = await stackConfig.getConfig();
+  const stackName = config.infraStack.name;
   return `${stackName}-${secretPath.replace('/', '-')}-secret`;
 }
 
@@ -102,7 +99,8 @@ async function updateSecret(secretName: string, secretValue: any): Promise<void>
 async function listSecrets(): Promise<void> {
   console.log('📋 Available secrets:\n');
   
-  const stackName = await stackConfig.getInfraStackName();
+  const config = await stackConfig.getConfig();
+  const stackName = config.infraStack.name;
   
   // List all secrets starting with our stack name
   const response = await secretsClient.send(new ListSecretsCommand({}));

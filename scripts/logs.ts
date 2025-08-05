@@ -1,13 +1,13 @@
 #!/usr/bin/env -S npx tsx
 
 import { ECSClient, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
-import { CloudWatchLogsClient, GetLogEventsCommand, DescribeLogStreamsCommand, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { CloudWatchLogsClient, GetLogEventsCommand, DescribeLogStreamsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { WAFV2Client, GetSampledRequestsCommand } from '@aws-sdk/client-wafv2';
 import { SemiontStackConfig } from './lib/stack-config';
-import { ECSTask, LogMode, ServiceType, ScriptError, AWSError, isServiceType, isLogMode } from './lib/types.js';
+import { ECSTask, LogMode, ServiceType, AWSError, isServiceType, isLogMode } from './lib/types.js';
 import { logger } from './lib/logger.js';
-import { validateAwsResourceName, assertValid } from './lib/validators.js';
+// Validators imported for future AWS resource validation needs
 import { config } from '../config';
 
 const stackConfig = new SemiontStackConfig();
@@ -76,6 +76,10 @@ async function getLatestTaskId(service?: ServiceType): Promise<{taskId: string, 
     (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
   )[0];
   
+  if (!latestTask) {
+    throw new AWSError('No tasks available after sorting', { service });
+  }
+  
   return { taskId: latestTask.id, service: latestTask.service };
 }
 
@@ -119,7 +123,7 @@ async function getLogsForTask(taskId: string, service: string, startTime?: Date,
 
     return {
       events: response.events || [],
-      nextToken: response.nextForwardToken,
+      ...(response.nextForwardToken && { nextToken: response.nextForwardToken }),
     };
   } catch (error) {
     return { events: [] };
@@ -161,8 +165,10 @@ async function getWAFLogs(minutes: number = 30) {
     
     // Extract ID and Name from ARN
     const arnParts = wafArn.split('/');
-    const wafName = arnParts[arnParts.length - 2];
-    const wafId = arnParts[arnParts.length - 1];
+    // WAF name and ID extracted for future use
+    const _wafName = arnParts[arnParts.length - 2];
+    const _wafId = arnParts[arnParts.length - 1];
+    void _wafName; void _wafId; // Mark as intentionally unused
     
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - minutes * 60 * 1000);
@@ -205,7 +211,7 @@ async function getALBMetrics(minutes: number = 30) {
         Dimensions: [
           {
             Name: 'LoadBalancer',
-            Value: `app/${albName}/${albDns.split('-')[3].split('.')[0]}`,
+            Value: `app/${albName}/${albDns.split('-')[3]?.split('.')[0] || 'unknown'}`,
           },
         ],
         StartTime: startTime,
@@ -223,7 +229,7 @@ async function getALBMetrics(minutes: number = 30) {
         Dimensions: [
           {
             Name: 'LoadBalancer',
-            Value: `app/${albName}/${albDns.split('-')[3].split('.')[0]}`,
+            Value: `app/${albName}/${albDns.split('-')[3]?.split('.')[0] || 'unknown'}`,
           },
         ],
         StartTime: startTime,
@@ -240,7 +246,7 @@ async function getALBMetrics(minutes: number = 30) {
         Dimensions: [
           {
             Name: 'LoadBalancer',
-            Value: `app/${albName}/${albDns.split('-')[3].split('.')[0]}`,
+            Value: `app/${albName}/${albDns.split('-')[3]?.split('.')[0] || 'unknown'}`,
           },
         ],
         StartTime: startTime,
@@ -276,12 +282,13 @@ async function showWAFandALBLogs(minutes: number = 30) {
   } else {
     logger.simple(`   Sampled requests (last ${minutes} minutes):`);
     wafRequests.slice(0, 10).forEach(request => {
-      const timestamp = new Date((request.Timestamp || 0) * 1000).toISOString();
+      const timestampNum = typeof request.Timestamp === 'number' ? request.Timestamp : 0;
+      const timestamp = new Date(timestampNum * 1000).toISOString();
       const action = request.Action || 'UNKNOWN';
       const uri = request.Request?.URI || 'N/A';
       const country = request.Request?.Country || 'N/A';
       const ip = request.Request?.ClientIP || 'N/A';
-      const method = request.Request?.HTTPMethod || 'N/A';
+      const method = (request.Request as any)?.Method || 'N/A';
       const statusIcon = action === 'ALLOW' ? '✅' : '❌';
       logger.simple(`   ${statusIcon} [${timestamp}] ${method} ${uri} - ${action} (${ip}, ${country})`);
     });
@@ -450,14 +457,14 @@ function parseArgs(): { mode: LogMode; service?: ServiceType; targetTaskId?: str
   // Parse arguments
   if (args.length === 0) {
     // Default: tail mode, all services
-  } else if (isServiceType(args[0])) {
+  } else if (args[0] && isServiceType(args[0])) {
     // First argument is service
     service = args[0];
     if (args[1] && isLogMode(args[1])) {
       mode = args[1];
     }
     targetTaskId = args[2];
-  } else if (isLogMode(args[0])) {
+  } else if (args[0] && isLogMode(args[0])) {
     // First argument is mode
     mode = args[0];
     if (args[1] && isServiceType(args[1])) {
@@ -490,7 +497,7 @@ function parseArgs(): { mode: LogMode; service?: ServiceType; targetTaskId?: str
     process.exit(1);
   }
 
-  return { mode, service, targetTaskId };
+  return { mode, ...(service && { service }), ...(targetTaskId && { targetTaskId }) };
 }
 
 // Main execution

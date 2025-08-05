@@ -3,7 +3,7 @@
  * Prevents injection attacks and provides safe process execution
  */
 
-import { execSync, spawn } from 'child_process';
+import { execSync, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { CommandOptions, CommandResult, ScriptError } from './types.js';
 import { validateCommand } from './validators.js';
 import { logger } from './logger.js';
@@ -87,7 +87,7 @@ export class CommandRunner {
     return new Promise((resolve, reject) => {
       const [cmd, ...args] = safeCommand.split(' ');
       
-      const child = spawn(cmd, args, {
+      const child: ChildProcessWithoutNullStreams = spawn(cmd!, args, {
         cwd: options.cwd || this.defaultCwd,
         env: { ...process.env, ...options.env },
         stdio: 'pipe'

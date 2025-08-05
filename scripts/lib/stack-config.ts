@@ -1,7 +1,7 @@
 #!/usr/bin/env -S npx tsx
 
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { StackConfiguration, StackOutputs, StackOutput, ValidationError, AWSError } from './types.js';
+import { StackOutput, AWSError } from './types.js';
 import { validateAwsResourceName, assertValid } from './validators.js';
 import { logger } from './logger.js';
 import { config } from '../../config';
@@ -55,7 +55,7 @@ export class SemiontStackConfig {
         throw new AWSError(`Infrastructure stack ${infraStackName} not found`);
       }
       
-      const infraOutputs = this.parseOutputs(infraResponse.Stacks[0].Outputs || []);
+      const infraOutputs = this.parseOutputs((infraResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       // Get application stack outputs
       const appResponse = await this.cfnClient.send(
@@ -66,7 +66,7 @@ export class SemiontStackConfig {
         throw new AWSError(`Application stack ${appStackName} not found`);
       }
       
-      const appOutputs = this.parseOutputs(appResponse.Stacks[0].Outputs || []);
+      const appOutputs = this.parseOutputs((appResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       this.config = {
         region: config.aws.region,
@@ -173,7 +173,7 @@ export class SemiontStackConfig {
 
   async getGitHubOAuthSecretName(): Promise<string> {
     // GitHub OAuth is no longer supported, but keeping method for backward compatibility
-    throw new AWSError('GitHub OAuth is no longer supported. Only Google OAuth is available.', 'DEPRECATED_FEATURE');
+    throw new AWSError('GitHub OAuth is no longer supported. Only Google OAuth is available.', { feature: 'DEPRECATED_FEATURE' });
   }
 
   async getAdminEmailsSecretName(): Promise<string> {
