@@ -69,8 +69,7 @@ export interface ApplicationConfiguration {
   
   // Backend configuration
   backend?: {
-    host?: string;
-    port?: number;
+    url?: URL;
     database?: {
       host?: string;
       port?: number;
@@ -78,8 +77,7 @@ export interface ApplicationConfiguration {
       user?: string;
     };
     frontend?: {
-      host?: string;
-      port?: number;
+      url?: URL;
     };
   };
 }
@@ -125,9 +123,50 @@ type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
+// Application configuration override interface (allows string URLs)
+export interface ApplicationConfigurationOverride {
+  // Environment
+  nodeEnv?: 'development' | 'staging' | 'production' | 'test';
+  
+  // Feature flags
+  features?: {
+    enableAnalytics?: boolean;
+    enableMaintenanceMode?: boolean;
+    enableDebugLogging?: boolean;
+  };
+  
+  // Security
+  security?: {
+    sessionTimeout?: number;  // in seconds
+    maxLoginAttempts?: number;
+    corsAllowedOrigins?: string[];
+  };
+  
+  // Performance
+  performance?: {
+    enableCaching?: boolean;
+    cacheTimeout?: number;
+    maxRequestSize?: string;  // e.g., '10mb'
+  };
+  
+  // Backend configuration (allows string URLs for overrides)
+  backend?: {
+    url?: URL | string;
+    database?: {
+      host?: string;
+      port?: number;
+      name?: string;
+      user?: string;
+    };
+    frontend?: {
+      url?: URL | string;
+    };
+  };
+}
+
 // Environment-specific override interface
 export interface EnvironmentOverrides {
   site?: Partial<SiteConfiguration>;
   aws?: DeepPartial<AWSConfiguration>;
-  app?: DeepPartial<ApplicationConfiguration>;
+  app?: ApplicationConfigurationOverride;
 }

@@ -11,6 +11,10 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.js'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,
+    // Configure reporters (replaces deprecated 'basic' reporter)
+    reporters: [
+      ['default', { summary: false }]
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

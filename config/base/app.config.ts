@@ -34,8 +34,7 @@ export const appConfig: ApplicationConfiguration = {
   
   // Backend configuration
   backend: {
-    host: process.env.BACKEND_HOST || 'localhost',
-    port: parseInt(process.env.BACKEND_PORT || '4000', 10),
+    url: new URL(process.env.BACKEND_URL || 'http://localhost:4000'),
     database: {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
@@ -43,8 +42,7 @@ export const appConfig: ApplicationConfiguration = {
       user: process.env.DB_USER || 'postgres'
     },
     frontend: {
-      host: process.env.FRONTEND_HOST || 'localhost',
-      port: parseInt(process.env.FRONTEND_PORT || '3000', 10)
+      url: new URL(process.env.FRONTEND_URL || 'http://localhost:3000')
     }
   }
 };

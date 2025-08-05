@@ -36,7 +36,7 @@ function deepMerge(target: any, source: any): any {
   
   for (const key in source) {
     if (source[key] !== undefined) {
-      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
+      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key]) && !(source[key] instanceof URL)) {
         result[key] = deepMerge(
           result[key] || {},
           source[key]
@@ -50,15 +50,33 @@ function deepMerge(target: any, source: any): any {
   return result;
 }
 
+// Convert string URLs to URL objects
+function normalizeUrls(config: SemiontConfiguration): SemiontConfiguration {
+  const normalized = { ...config };
+  
+  if (normalized.app.backend?.url && typeof normalized.app.backend.url === 'string') {
+    normalized.app.backend.url = new URL(normalized.app.backend.url);
+  }
+  
+  if (normalized.app.backend?.frontend?.url && typeof normalized.app.backend.frontend.url === 'string') {
+    normalized.app.backend.frontend.url = new URL(normalized.app.backend.frontend.url);
+  }
+  
+  return normalized;
+}
+
 // Build final configuration
 function buildConfiguration(): SemiontConfiguration {
   const overrides = getEnvironmentOverrides();
   
-  const config: SemiontConfiguration = {
+  let config: SemiontConfiguration = {
     site: deepMerge(siteConfig, overrides.site || {}),
     aws: deepMerge(awsConfig, overrides.aws || {}),
     app: deepMerge(appConfig, overrides.app || {})
   };
+  
+  // Normalize URLs (convert strings to URL objects)
+  config = normalizeUrls(config);
   
   // Validate configuration
   try {
@@ -111,23 +129,45 @@ export function getFullDomain(): string {
 
 export function getBackendUrl(): string {
   const backend = config.app.backend;
-  if (!backend?.host || !backend?.port) {
-    throw new Error('Backend host and port not configured');
+  if (!backend?.url) {
+    throw new Error('Backend URL not configured');
   }
-  return `http://${backend.host}:${backend.port}`;
+  return backend.url.origin; // Use origin instead of toString() to avoid trailing slash
 }
 
 export function getFrontendUrl(): string {
   const frontend = config.app.backend?.frontend;
-  if (!frontend?.host || !frontend?.port) {
-    throw new Error('Frontend host and port not configured');
+  if (!frontend?.url) {
+    throw new Error('Frontend URL not configured');
   }
-  return `http://${frontend.host}:${frontend.port}`;
+  return frontend.url.origin; // Use origin instead of toString() to avoid trailing slash
+}
+
+export function getBackendUrlObject(): URL {
+  const backend = config.app.backend;
+  if (!backend?.url) {
+    throw new Error('Backend URL not configured');
+  }
+  return backend.url;
+}
+
+export function getFrontendUrlObject(): URL {
+  const frontend = config.app.backend?.frontend;
+  if (!frontend?.url) {
+    throw new Error('Frontend URL not configured');
+  }
+  return frontend.url;
 }
 
 // Configuration display for debugging (masks sensitive data)
 export function displayConfiguration(): void {
-  const safeConfig = JSON.parse(JSON.stringify(config));
+  const safeConfig = JSON.parse(JSON.stringify(config, (key, value) => {
+    // Convert URL objects to strings for display
+    if (value instanceof URL) {
+      return value.toString();
+    }
+    return value;
+  }));
   
   // Mask sensitive values
   safeConfig.aws.certificateArn = safeConfig.aws.certificateArn.substring(0, 30) + '...';

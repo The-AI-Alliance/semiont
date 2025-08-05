@@ -35,8 +35,7 @@ export const testConfig: EnvironmentOverrides = {
       cacheTimeout: 0
     },
     backend: {
-      host: 'localhost',
-      port: 3001,
+      url: 'http://localhost:3001',
       database: {
         host: 'localhost',
         port: 5432,
@@ -44,8 +43,7 @@ export const testConfig: EnvironmentOverrides = {
         user: 'test_user'
       },
       frontend: {
-        host: 'localhost',
-        port: 3000
+        url: 'http://localhost:3000'
       }
     }
   },

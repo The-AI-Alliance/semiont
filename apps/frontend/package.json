@@ -9,7 +9,7 @@
     "dev:fast": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run --reporter=basic --reporter=json --outputFile=test-results.json",
+    "test": "vitest run --reporter=default --reporter=json --outputFile=test-results.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
