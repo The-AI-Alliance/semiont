@@ -187,7 +187,7 @@ function showHelp() {
   console.log('Notes:');
   console.log('   • Infrastructure stack must exist before creating application stack');
   console.log('   • This only creates AWS infrastructure - no application code is deployed');
-  console.log('   • Use "./semiont update-images" after this to deploy application code');
+  console.log('   • Use "./semiont deploy <environment>" after this to deploy application code');
   console.log('   • Stack creation typically takes 5-15 minutes');
   console.log('   • Use "./semiont check" to monitor progress');
 }

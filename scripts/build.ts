@@ -505,7 +505,7 @@ async function build(options: BuildOptions) {
       log('');
       log('💡 Next steps:');
       log('   ./semiont test           # Run tests (REQUIRED before deployment)');
-      log('   ./semiont update-images  # Push images to ECR and deploy');
+      log('   ./semiont deploy <env>   # Deploy to environment');
       log('   ./semiont check          # Check deployment status');
     } else {
       log('');
@@ -554,7 +554,7 @@ function showHelp() {
   console.log('   4. 🔍 Validate build outputs (check dist directories and images)');
   console.log('');
   console.log('💡 This prepares everything needed between a clean and deploy operation.');
-  console.log('   After building, use "./semiont update-images" to deploy to AWS.');
+  console.log('   After building, use "./semiont deploy <environment>" to deploy to AWS.');
 }
 
 async function main() {

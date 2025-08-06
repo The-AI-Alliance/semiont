@@ -22,6 +22,11 @@ import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
+import { loadConfig } from '../config/dist/index.js';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeTaskDefinitionCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
+import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, DescribeImagesCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
+import { SemiontStackConfig } from './lib/stack-config';
 
 // Valid environments
 // Environment type is now dynamic - any valid environment name
@@ -79,6 +84,39 @@ function info(message: string): void {
 
 function warning(message: string): void {
   console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+}
+
+async function runCommand(command: string[], cwd: string, description: string, verbose: boolean = false): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (verbose) {
+      log(`🔨 ${description}...`, colors.cyan);
+    }
+    
+    const startTime = Date.now();
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
+      cwd,
+      stdio: verbose ? 'inherit' : 'pipe',
+      shell: true
+    });
+
+    process.on('close', (code: number | null) => {
+      const duration = Date.now() - startTime;
+      if (code === 0) {
+        if (verbose) {
+          success(`${description} completed in ${duration}ms`);
+        }
+        resolve(true);
+      } else {
+        error(`${description} failed with code ${code} after ${duration}ms`);
+        resolve(false);
+      }
+    });
+
+    process.on('error', (err: Error) => {
+      error(`${description} failed: ${err.message}`);
+      resolve(false);
+    });
+  });
 }
 
 async function validateEnvironment(env: string): Promise<Environment> {
@@ -292,7 +330,7 @@ async function startLocalFrontend(mock: boolean, verbose: boolean): Promise<bool
 }
 
 async function deployStack(options: DeployOptions, config: any): Promise<boolean> {
-  const { environment, service, action, dryRun, verbose } = options;
+  const { environment, service, dryRun, verbose } = options;
   
   // Handle local deployment separately
   if (environment === 'local') {
@@ -384,17 +422,165 @@ async function deployDatabaseService(environment: Environment, config: any, opti
 }
 
 async function deployBackendService(environment: Environment, config: any, options: any): Promise<boolean> {
-  // Backend service deployment (update ECS service, push new images)
-  info('Updating backend container images and ECS service...');
-  // TODO: Build and push backend image, update ECS service
+  info('Deploying backend service...');
+  
+  // Build backend image if it doesn't exist
+  const backendExists = await runCommand(['docker', 'image', 'inspect', 'semiont-backend:latest'], '.', 'Check backend image exists', options.verbose);
+  
+  if (!backendExists) {
+    info('Building backend Docker image...');
+    const buildSuccess = await runCommand(['npm', 'run', 'build:backend'], '.', 'Build backend image', options.verbose);
+    if (!buildSuccess) {
+      error('Failed to build backend image');
+      return false;
+    }
+  }
+  
+  // Push to ECR and update ECS service
+  const ecrImage = await pushImageToECR('semiont-backend:latest', 'backend', environment);
+  if (!ecrImage) {
+    error('Failed to push backend image to ECR');
+    return false;
+  }
+  
+  // Update ECS service with new image
+  const updateSuccess = await updateECSService('backend', ecrImage, environment);
+  if (!updateSuccess) {
+    error('Failed to update backend ECS service');
+    return false;
+  }
+  
+  success('Backend service deployment completed');
   return true;
 }
 
 async function deployFrontendService(environment: Environment, config: any, options: any): Promise<boolean> {
-  // Frontend service deployment (update ECS service, invalidate CDN)
-  info('Updating frontend container images, ECS service, and CDN...');
-  // TODO: Build and push frontend image, update ECS service, invalidate CloudFront
+  info('Deploying frontend service...');
+  
+  // Build frontend image if it doesn't exist
+  const frontendExists = await runCommand(['docker', 'image', 'inspect', 'semiont-frontend:latest'], '.', 'Check frontend image exists', options.verbose);
+  
+  if (!frontendExists) {
+    info('Building frontend Docker image...');
+    const buildSuccess = await runCommand(['npm', 'run', 'build:frontend'], '.', 'Build frontend image', options.verbose);
+    if (!buildSuccess) {
+      error('Failed to build frontend image');
+      return false;
+    }
+  }
+  
+  // Push to ECR and update ECS service
+  const ecrImage = await pushImageToECR('semiont-frontend:latest', 'frontend', environment);
+  if (!ecrImage) {
+    error('Failed to push frontend image to ECR');
+    return false;
+  }
+  
+  // Update ECS service with new image
+  const updateSuccess = await updateECSService('frontend', ecrImage, environment);
+  if (!updateSuccess) {
+    error('Failed to update frontend ECS service');
+    return false;
+  }
+  
+  success('Frontend service deployment completed');
+  // TODO: Add CloudFront invalidation if needed
   return true;
+}
+
+// ECR and ECS deployment functions
+async function pushImageToECR(localImageName: string, serviceName: string, environment: string): Promise<string | null> {
+  const envConfig = loadConfig(environment);
+  const ecrClient = new ECRClient({ region: envConfig.aws.region });
+  
+  // Get ECR login token
+  const authResponse = await ecrClient.send(new GetAuthorizationTokenCommand({}));
+  const authToken = authResponse.authorizationData?.[0]?.authorizationToken;
+  const registryUrl = authResponse.authorizationData?.[0]?.proxyEndpoint;
+  
+  if (!authToken || !registryUrl) {
+    error('Failed to get ECR authorization');
+    return null;
+  }
+  
+  const repositoryName = `semiont-${serviceName}`;
+  const accountId = envConfig.aws.accountId;
+  const region = envConfig.aws.region;
+  const ecrImageUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}:latest`;
+  
+  // Ensure ECR repository exists
+  await ensureECRRepository(repositoryName, ecrClient);
+  
+  // Docker login to ECR
+  const loginCommand = ['docker', 'login', '--username', 'AWS', '--password', Buffer.from(authToken, 'base64').toString(), registryUrl];
+  const loginSuccess = await runCommand(loginCommand, '.', `ECR login for ${serviceName}`, false);
+  if (!loginSuccess) {
+    return null;
+  }
+  
+  // Tag image for ECR
+  const tagSuccess = await runCommand(['docker', 'tag', localImageName, ecrImageUri], '.', `Tag ${serviceName} image`, false);
+  if (!tagSuccess) {
+    return null;
+  }
+  
+  // Push to ECR
+  const pushSuccess = await runCommand(['docker', 'push', ecrImageUri], '.', `Push ${serviceName} to ECR`, true);
+  if (!pushSuccess) {
+    return null;
+  }
+  
+  return ecrImageUri;
+}
+
+async function ensureECRRepository(repositoryName: string, ecrClient: ECRClient): Promise<boolean> {
+  try {
+    await ecrClient.send(new DescribeRepositoriesCommand({ repositoryNames: [repositoryName] }));
+    return true;
+  } catch (error: any) {
+    if (error.name === 'RepositoryNotFoundException') {
+      info(`Creating ECR repository: ${repositoryName}`);
+      try {
+        await ecrClient.send(new CreateRepositoryCommand({ repositoryName }));
+        return true;
+      } catch (createError) {
+        error(`Failed to create ECR repository: ${createError}`);
+        return false;
+      }
+    }
+    error(`Error checking ECR repository: ${error}`);
+    return false;
+  }
+}
+
+async function updateECSService(serviceName: string, imageUri: string, environment: string): Promise<boolean> {
+  const envConfig = loadConfig(environment);
+  const ecsClient = new ECSClient({ region: envConfig.aws.region });
+  const stackConfig = new SemiontStackConfig(envConfig.aws.region);
+  
+  try {
+    const clusterName = await stackConfig.getClusterName();
+    const fullServiceName = serviceName === 'frontend' 
+      ? await stackConfig.getFrontendServiceName()
+      : await stackConfig.getBackendServiceName();
+    
+    info(`Updating ECS service: ${fullServiceName}`);
+    
+    // Update service with new task definition (simplified)
+    // In a full implementation, you'd create a new task definition revision
+    // For now, trigger a deployment to pick up the new ECR image
+    await ecsClient.send(new UpdateServiceCommand({
+      cluster: clusterName,
+      service: fullServiceName,
+      forceNewDeployment: true
+    }));
+    
+    info(`ECS service ${serviceName} update initiated`);
+    return true;
+  } catch (error) {
+    error(`Failed to update ECS service: ${(error as any).message || error}`);
+    return false;
+  }
 }
 
 function printHelp(): void {
@@ -470,11 +656,10 @@ async function main(): Promise<void> {
     const options: DeployOptions = {
       environment: validEnv,
       service: 'all',
-      action: 'full',
       dryRun: false,
       verbose: false,
       force: false,
-      requireApproval: undefined,  // Will be set based on environment
+      requireApproval: false,  // Will be set based on environment
       mock: false
     };
     

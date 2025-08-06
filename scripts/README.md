@@ -124,8 +124,8 @@ export SEMIONT_ENV=development  # or production
 ./semiont create infra             # Create infrastructure only (VPC, RDS, EFS, Secrets)
 ./semiont create app               # Create application only (ECS, ALB, WAF)
 
-# Update container images and deploy to ECS
-./semiont update-images            # Push images to ECR and update ECS services
+# Deploy application code and images
+./semiont deploy <environment>      # Deploy application code and images
 
 # Deploy with manual approval for changes
 ./semiont create --approval
@@ -134,7 +134,7 @@ export SEMIONT_ENV=development  # or production
 # Show build/create help and options
 ./semiont build --help
 ./semiont create --help
-./semiont update-images --help
+./semiont deploy --help
 ```
 
 ### Maintenance
@@ -280,7 +280,7 @@ The `config` command provides configuration management:
    - Prerequisite checking and dependency validation
    - Progress monitoring and error diagnostics
 
-4. **`update-images.ts`** - Container image deployment
+4. **`deploy.ts`** - Application code and container deployment
    - Push local Docker images to ECR with timestamped tags
    - Update ECS services with new container images
    - Deployment verification and rollback support
