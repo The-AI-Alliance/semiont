@@ -37,7 +37,7 @@
     "semiont-config": "*",
     "@types/node": "^20",
     "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react-dom": "^19",
     "next": "^14.2.31",
     "next-auth": "^4.24.5",
     "react": "^18.3.1",
