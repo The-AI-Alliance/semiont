@@ -25,6 +25,21 @@ interface TestResult {
   output?: string;
 }
 
+interface CoverageSummary {
+  statements: number;
+  branches: number;
+  functions: number;
+  lines: number;
+}
+
+interface DirectoryCoverage {
+  name: string;
+  statements: { covered: number; total: number; pct: number };
+  branches: { covered: number; total: number; pct: number };
+  functions: { covered: number; total: number; pct: number };
+  lines: { covered: number; total: number; pct: number };
+}
+
 async function runCommand(command: string[], cwd: string, description: string, verbose: boolean = false): Promise<{ success: boolean; output: string; duration: number }> {
   return new Promise((resolve) => {
     console.log(`🧪 ${description}...`);
@@ -122,6 +137,171 @@ async function parseFrontendTestResults(cwd: string): Promise<{ totalTests: numb
   }
 }
 
+function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories: DirectoryCoverage[] }, title: string): void {
+  console.log(`\n📊 ${title} Coverage Summary`);
+  
+  // Overall totals first
+  console.log('\n🎯 Overall Coverage');
+  console.log('┌────────────┬─────────┐');
+  console.log('│ Metric     │ Percent │');
+  console.log('├────────────┼─────────┤');
+  
+  const formatRow = (name: string, pct: number) => {
+    const pctStr = `${pct.toFixed(1)}%`;
+    const paddedPctStr = pctStr.padStart(7);
+    
+    // Color coding based on coverage percentage
+    let pctDisplay = '';
+    if (pct >= 90) {
+      pctDisplay = `\x1b[32m${paddedPctStr}\x1b[0m`; // Green for excellent
+    } else if (pct >= 80) {
+      pctDisplay = `\x1b[33m${paddedPctStr}\x1b[0m`; // Yellow for good
+    } else {
+      pctDisplay = `\x1b[31m${paddedPctStr}\x1b[0m`; // Red for needs improvement
+    }
+    
+    console.log(`│ ${name.padEnd(10)} │${pctDisplay} │`);
+  };
+  
+  formatRow('Statements', data.total.statements);
+  formatRow('Branches', data.total.branches);
+  formatRow('Functions', data.total.functions);
+  formatRow('Lines', data.total.lines);
+  
+  console.log('└────────────┴─────────┘');
+  
+  // Overall assessment
+  const avgCoverage = (data.total.statements + data.total.branches + data.total.functions + data.total.lines) / 4;
+  let assessment = '';
+  if (avgCoverage >= 90) {
+    assessment = '🟢 Excellent coverage!';
+  } else if (avgCoverage >= 80) {
+    assessment = '🟡 Good coverage, room for improvement';
+  } else {
+    assessment = '🔴 Coverage needs improvement';
+  }
+  console.log(`${assessment} (Average: ${avgCoverage.toFixed(1)}%)`);
+
+  // Directory breakdown
+  if (data.directories.length > 0) {
+    console.log('\n📁 Coverage by Directory');
+    console.log('┌──────────────┬──────────┬──────────┬──────────┬──────────┐');
+    console.log('│ Directory    │ Stmts    │ Branch   │ Funcs    │ Lines    │');
+    console.log('├──────────────┼──────────┼──────────┼──────────┼──────────┤');
+    
+    const formatDirRow = (dir: DirectoryCoverage) => {
+      const name = dir.name.length > 12 ? dir.name.substring(0, 12) : dir.name;
+      const nameCell = name.padEnd(12);
+      
+      const formatMetric = (pct: number) => {
+        const pctStr = `${pct.toFixed(1)}%`;
+        const paddedPctStr = pctStr.padStart(8);
+        if (pct >= 90) {
+          return `\x1b[32m${paddedPctStr}\x1b[0m`;
+        } else if (pct >= 80) {
+          return `\x1b[33m${paddedPctStr}\x1b[0m`;
+        } else {
+          return `\x1b[31m${paddedPctStr}\x1b[0m`;
+        }
+      };
+      
+      console.log(`│ ${nameCell} │${formatMetric(dir.statements.pct)} │${formatMetric(dir.branches.pct)} │${formatMetric(dir.functions.pct)} │${formatMetric(dir.lines.pct)} │`);
+    };
+    
+    data.directories.forEach(formatDirRow);
+    console.log('└──────────────┴──────────┴──────────┴──────────┴──────────┘');
+  }
+}
+
+async function parseCoverageFromSummaryJson(cwd: string): Promise<{ total: CoverageSummary; directories: DirectoryCoverage[] } | null> {
+  try {
+    const coverageSummaryPath = path.resolve(cwd, 'coverage/coverage-summary.json');
+    const summaryData = JSON.parse(await fs.readFile(coverageSummaryPath, 'utf-8'));
+    
+    if (!summaryData.total) {
+      return null;
+    }
+
+    // Get total coverage
+    const total: CoverageSummary = {
+      statements: summaryData.total.statements?.pct || 0,
+      branches: summaryData.total.branches?.pct || 0,
+      functions: summaryData.total.functions?.pct || 0,
+      lines: summaryData.total.lines?.pct || 0
+    };
+
+    // Aggregate coverage by directory
+    const directoriesMap = new Map<string, {
+      statements: { covered: number; total: number };
+      branches: { covered: number; total: number };
+      functions: { covered: number; total: number };
+      lines: { covered: number; total: number };
+    }>();
+
+    // Process each file entry (skip "total" key)
+    for (const [filePath, fileData] of Object.entries(summaryData)) {
+      if (filePath === 'total') continue;
+      
+      // Extract top-level directory from file path
+      // Example: "/path/to/project/src/components/Header.tsx" -> "components"
+      // Example: "/path/to/project/src/app/page.tsx" -> "app"
+      const relativePath = filePath.replace(/.*\/src\//, ''); // Remove everything up to /src/
+      const topLevelDir = relativePath.split('/')[0] || 'root';
+      
+      if (!directoriesMap.has(topLevelDir)) {
+        directoriesMap.set(topLevelDir, {
+          statements: { covered: 0, total: 0 },
+          branches: { covered: 0, total: 0 },
+          functions: { covered: 0, total: 0 },
+          lines: { covered: 0, total: 0 }
+        });
+      }
+      
+      const dirData = directoriesMap.get(topLevelDir)!;
+      const file = fileData as any;
+      
+      // Aggregate metrics
+      dirData.statements.covered += file.statements?.covered || 0;
+      dirData.statements.total += file.statements?.total || 0;
+      dirData.branches.covered += file.branches?.covered || 0;
+      dirData.branches.total += file.branches?.total || 0;
+      dirData.functions.covered += file.functions?.covered || 0;
+      dirData.functions.total += file.functions?.total || 0;
+      dirData.lines.covered += file.lines?.covered || 0;
+      dirData.lines.total += file.lines?.total || 0;
+    }
+
+    // Convert to DirectoryCoverage array with calculated percentages
+    const directories: DirectoryCoverage[] = Array.from(directoriesMap.entries()).map(([name, data]) => ({
+      name,
+      statements: {
+        covered: data.statements.covered,
+        total: data.statements.total,
+        pct: data.statements.total > 0 ? (data.statements.covered / data.statements.total) * 100 : 0
+      },
+      branches: {
+        covered: data.branches.covered,
+        total: data.branches.total,
+        pct: data.branches.total > 0 ? (data.branches.covered / data.branches.total) * 100 : 0
+      },
+      functions: {
+        covered: data.functions.covered,
+        total: data.functions.total,
+        pct: data.functions.total > 0 ? (data.functions.covered / data.functions.total) * 100 : 0
+      },
+      lines: {
+        covered: data.lines.covered,
+        total: data.lines.total,
+        pct: data.lines.total > 0 ? (data.lines.covered / data.lines.total) * 100 : 0
+      }
+    })).sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
+
+    return { total, directories };
+  } catch (error) {
+    return null;
+  }
+}
+
 async function runFrontendTests(options: TestOptions): Promise<TestResult> {
   console.log('🎨 Running frontend tests...');
   
@@ -159,8 +339,14 @@ async function runFrontendTests(options: TestOptions): Promise<TestResult> {
       }
     }
     
-    // Show coverage report location if coverage was requested
+    // Show coverage report if coverage was requested
     if (options.coverage) {
+      // Parse and display coverage table from JSON
+      const coverageData = await parseCoverageFromSummaryJson('../apps/frontend');
+      if (coverageData) {
+        formatEnhancedCoverageTable(coverageData, 'Frontend');
+      }
+      
       console.log(`\n📊 Coverage report generated at: apps/frontend/coverage/index.html`);
       console.log(`   Open in browser: file://${process.cwd()}/../apps/frontend/coverage/index.html`);
     }
@@ -201,8 +387,14 @@ async function runBackendTests(options: TestOptions): Promise<TestResult> {
 
   const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose);
   
-  // Show coverage report location if coverage was requested
+  // Show coverage report if coverage was requested
   if (options.coverage && result.success && !options.verbose) {
+    // Parse and display coverage table from JSON
+    const coverageData = await parseCoverageFromSummaryJson('../apps/backend');
+    if (coverageData) {
+      formatEnhancedCoverageTable(coverageData, 'Backend');
+    }
+    
     console.log(`\n📊 Coverage report generated at: apps/backend/coverage/index.html`);
     console.log(`   Open in browser: file://${process.cwd()}/../apps/backend/coverage/index.html`);
   }
