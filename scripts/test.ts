@@ -150,7 +150,7 @@ function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories
     const pctStr = `${pct.toFixed(1)}%`;
     const paddedPctStr = pctStr.padStart(7);
     
-    // Color coding based on coverage percentage
+    // Color coding based on coverage percentage - pad BEFORE adding color codes
     let pctDisplay = '';
     if (pct >= 90) {
       pctDisplay = `\x1b[32m${paddedPctStr}\x1b[0m`; // Green for excellent
@@ -160,7 +160,7 @@ function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories
       pctDisplay = `\x1b[31m${paddedPctStr}\x1b[0m`; // Red for needs improvement
     }
     
-    console.log(`│ ${name.padEnd(10)} │${pctDisplay} │`);
+    console.log(`│ ${name.padEnd(10)} │ ${pctDisplay} │`);
   };
   
   formatRow('Statements', data.total.statements);
@@ -205,7 +205,7 @@ function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories
         }
       };
       
-      console.log(`│ ${nameCell} │${formatMetric(dir.statements.pct)} │${formatMetric(dir.branches.pct)} │${formatMetric(dir.functions.pct)} │${formatMetric(dir.lines.pct)} │`);
+      console.log(`│ ${nameCell} │ ${formatMetric(dir.statements.pct)} │ ${formatMetric(dir.branches.pct)} │ ${formatMetric(dir.functions.pct)} │ ${formatMetric(dir.lines.pct)} │`);
     };
     
     data.directories.forEach(formatDirRow);
