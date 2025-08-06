@@ -34,7 +34,7 @@ describe('Database Integration Tests', () => {
       const dbInfo = await testPrisma.$queryRaw<Array<{ current_database: string }>>`
         SELECT current_database()
       `;
-      expect(dbInfo[0].current_database).toBe('test_semiont');
+      expect(dbInfo[0].current_database).toBe('semiont_test');
     });
 
     it('should have correct schema tables', async () => {

@@ -11,11 +11,11 @@ export class DatabaseTestSetup {
   static async setup() {
     console.log('🐳 Starting PostgreSQL test container...');
     
-    // Start PostgreSQL container with specific version for consistency
+    // Start PostgreSQL container aligned with config/environments/test.ts
     this.container = await new PostgreSqlContainer('postgres:15-alpine')
-      .withDatabase('test_semiont')
-      .withUsername('test_user')
-      .withPassword('test_password')
+      .withDatabase('semiont_test')  // Matches config: name: 'semiont_test'
+      .withUsername('test_user')     // Matches config: user: 'test_user'
+      .withPassword('test_password') // From environment variable
       .withExposedPorts(5432)
       .withEnvironment({ 
         POSTGRES_INITDB_ARGS: '--auth-host=md5' 
@@ -24,6 +24,9 @@ export class DatabaseTestSetup {
 
     this.connectionString = this.container.getConnectionUri();
     console.log(`📡 Database container started: ${this.connectionString}`);
+    
+    // Set DATABASE_URL globally for all tests and server startup
+    process.env.DATABASE_URL = this.connectionString;
     
     // Create Prisma client with test database
     this.prisma = new PrismaClient({
@@ -38,8 +41,6 @@ export class DatabaseTestSetup {
     // Apply database schema using Prisma
     console.log('🔧 Applying database schema...');
     try {
-      // Set environment variable for Prisma commands
-      process.env.DATABASE_URL = this.connectionString;
       
       // Run Prisma db push to create tables
       const schemaPath = path.resolve(__dirname, '../../../prisma/schema.prisma');

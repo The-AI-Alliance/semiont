@@ -5,6 +5,10 @@ import { DatabaseTestSetup } from './database';
 let isDatabaseSetup = false;
 
 beforeAll(async () => {
+  // Ensure test environment is properly configured
+  process.env.NODE_ENV = 'test';
+  process.env.SEMIONT_ENV = 'test';  // Load config/environments/test.ts
+  
   // Only set up database for integration tests
   const testPath = expect.getState().testPath;
   const isIntegrationTest = testPath?.includes('integration') || 
