@@ -1,11 +1,10 @@
 #!/usr/bin/env -S npx tsx
 
-import { spawn, type ChildProcess } from 'child_process';
-import path from 'path';
 import { config } from '../config';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-// ECR functionality moved to update-images.ts
 import { requireValidAWSCredentials } from './utils/aws-validation';
+import { CdkDeployer } from './lib/cdk-deployer';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface DeployOptions {
   target: 'infra' | 'app' | 'all';
@@ -15,180 +14,60 @@ interface DeployOptions {
   destroy?: boolean;
 }
 
-// AWS SDK Clients
 const region = config.aws.region;
-const cloudFormationClient = new CloudFormationClient({ region });
 
 function timestamp(): string {
   return new Date().toISOString();
 }
 
-function log(message: string): void {
-  console.log(`[${timestamp()}] ${message}`);
-}
-
-async function runCommand(command: string[], cwd: string, description: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    log(`🔨 ${description}...`);
-    log(`💻 Working directory: ${path.resolve(cwd)}`);
-    log(`💻 Command: ${command.join(' ')}`);
-    
-    const startTime = Date.now();
-    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
-      cwd,
-      stdio: 'inherit',
-      shell: true
-    });
-
-    process.on('close', (code: number | null) => {
-      const duration = Date.now() - startTime;
-      if (code === 0) {
-        log(`✅ ${description} completed in ${duration}ms`);
-      } else {
-        log(`❌ ${description} failed (exit code ${code}) after ${duration}ms`);
-      }
-      resolve(code === 0);
-    });
-
-    process.on('error', (error: Error) => {
-      const duration = Date.now() - startTime;
-      log(`❌ ${description} failed: ${error.message} after ${duration}ms`);
-      resolve(false);
-    });
-  });
-}
-
-async function runCdkCommand(command: string[], cwd: string): Promise<boolean> {
-  return runCommand(command, cwd, `CDK: ${command.join(' ')}`);
-}
-
-async function verifyStackExists(stackName: string): Promise<boolean> {
-  log(`🔍 Verifying stack ${stackName} exists...`);
-  
-  try {
-    const command = new DescribeStacksCommand({
-      StackName: stackName
-    });
-    
-    const response = await cloudFormationClient.send(command);
-    const stack = response.Stacks?.[0];
-    
-    if (!stack) {
-      log(`❌ CRITICAL: Stack ${stackName} was not created`);
-      return false;
-    }
-    
-    log(`✅ Stack ${stackName} verified - status: ${stack.StackStatus}`);
-    return true;
-  } catch (error) {
-    log(`❌ CRITICAL: Stack ${stackName} was not created - ${error}`);
-    return false;
-  }
-}
-
 
 async function deployInfraStack(options: DeployOptions): Promise<boolean> {
-  console.log(`📦 Deploying ${config.site.siteName} Infrastructure Stack...`);
-  console.log('   Contains: VPC, RDS, EFS, Secrets Manager');
-  
   // Validate AWS credentials early
   await requireValidAWSCredentials(region);
   
-  const cdkPath = '../cdk';
-  const approvalFlag = options.requireApproval ? '--require-approval' : '--require-approval=never';
-  
-  const command = ['cdk', 'deploy', 'SemiontInfraStack', approvalFlag];
-  
-  const deploySuccess = await runCdkCommand(command, cdkPath);
-  if (!deploySuccess) {
-    log(`❌ CDK deploy command failed for SemiontInfraStack`);
-    return false;
+  const deployer = new CdkDeployer();
+  try {
+    const success = await deployer.deployInfraStack(options);
+    return success;
+  } finally {
+    deployer.cleanup();
   }
-  
-  // Verify the stack was actually created/updated
-  const verifySuccess = await verifyStackExists('SemiontInfraStack');
-  if (!verifySuccess) {
-    log(`❌ CRITICAL: SemiontInfraStack deployment verification failed`);
-    log(`💡 The CDK command reported success, but the stack doesn't exist in CloudFormation`);
-    return false;
-  }
-  
-  return true;
 }
 
 async function deployAppStack(options: DeployOptions): Promise<boolean> {
-  log(`🏗️  Creating ${config.site.siteName} Application Stack...`);
-  log('   Contains: ECS, ALB, WAF, CloudWatch');
-  log('   Note: This creates infrastructure only. Use "./semiont update-images" to deploy application code.');
-  
   // Validate AWS credentials early
   await requireValidAWSCredentials(region);
   
-  const cdkPath = '../cdk';
-  const approvalFlag = options.requireApproval ? '--require-approval' : '--require-approval=never';
-  
-  const command = ['cdk', 'deploy', 'SemiontAppStack', approvalFlag];
-  
-  // Add force flag if specified
-  if (options.force) {
-    command.push('--force');
+  const deployer = new CdkDeployer();
+  try {
+    const success = await deployer.deployAppStack(options);
+    return success;
+  } finally {
+    deployer.cleanup();
   }
-  
-  const deploySuccess = await runCdkCommand(command, cdkPath);
-  if (!deploySuccess) {
-    log(`❌ CDK deploy command failed for SemiontAppStack`);
-    return false;
-  }
-  
-  // Verify the stack was actually created/updated
-  const verifySuccess = await verifyStackExists('SemiontAppStack');
-  if (!verifySuccess) {
-    log(`❌ CRITICAL: SemiontAppStack deployment verification failed`);
-    log(`💡 The CDK command reported success, but the stack doesn't exist in CloudFormation`);
-    log(`💡 This often indicates a CDK configuration issue or silent failure`);
-    return false;
-  }
-  
-  return true;
 }
 
 async function checkPrerequisites(): Promise<boolean> {
   console.log('🔍 Checking deployment prerequisites...');
   
-  // Check if CDK directory exists
-  const fs = await import('fs');
-  const path = await import('path');
-  
+  // Check if CDK library directory exists (for stack classes)
   const cdkPath = path.resolve('../cdk');
   if (!fs.existsSync(cdkPath)) {
     console.error('❌ CDK directory not found at ../cdk');
     return false;
   }
   
-  // Check if package.json exists
-  const packageJsonPath = path.join(cdkPath, 'package.json');
-  if (!fs.existsSync(packageJsonPath)) {
-    console.error('❌ CDK package.json not found');
+  // Check if stack files exist
+  const infraStackPath = path.join(cdkPath, 'lib', 'infra-stack.ts');
+  const appStackPath = path.join(cdkPath, 'lib', 'app-stack.ts');
+  
+  if (!fs.existsSync(infraStackPath)) {
+    console.error('❌ Infrastructure stack file not found');
     return false;
   }
   
-  // Check if node_modules exists (dependencies installed)
-  const nodeModulesPath = path.join(cdkPath, 'node_modules');
-  if (!fs.existsSync(nodeModulesPath)) {
-    console.log('📦 Installing CDK dependencies...');
-    const installSuccess = await runCdkCommand(['npm', 'install'], cdkPath);
-    if (!installSuccess) {
-      console.error('❌ Failed to install CDK dependencies');
-      return false;
-    }
-  }
-  
-  // Build CDK TypeScript to ensure JavaScript is up-to-date
-  console.log('🔨 Building CDK TypeScript...');
-  const buildSuccess = await runCdkCommand(['npm', 'run', 'build'], cdkPath);
-  if (!buildSuccess) {
-    console.error('❌ Failed to build CDK TypeScript');
-    console.error('💡 This may happen if there are TypeScript errors in the CDK code');
+  if (!fs.existsSync(appStackPath)) {
+    console.error('❌ Application stack file not found');
     return false;
   }
   

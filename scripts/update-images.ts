@@ -8,6 +8,7 @@ import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeTaskDefiniti
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, DescribeImagesCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
 import { requireValidAWSCredentials } from './utils/aws-validation';
+import { CdkDeployer } from './lib/cdk-deployer';
 
 interface UpdateImagesOptions {
   requireApproval?: boolean;
@@ -60,9 +61,6 @@ async function runCommand(command: string[], cwd: string, description: string): 
   });
 }
 
-async function runCdkCommand(command: string[], cwd: string): Promise<boolean> {
-  return runCommand(command, cwd, `CDK: ${command.join(' ')}`);
-}
 
 async function getECRLoginToken(): Promise<string | null> {
   try {
@@ -422,18 +420,26 @@ async function diagnoseECSFailures(): Promise<void> {
 async function updateECSServices(ecrImages: { frontend: string | null; backend: string | null }): Promise<boolean> {
   log(`🔄 Updating ECS services with new images...`);
   
-  const cdkPath = '../cdk';
-  const command = ['cdk', 'deploy', 'SemiontAppStack', '--require-approval=never'];
-  
-  // Pass ECR image URIs as context variables
+  // Prepare context variables for CDK
+  const context: Record<string, string> = {};
   if (ecrImages.frontend) {
-    command.push('--context', `frontendImageUri=${ecrImages.frontend}`);
+    context.frontendImageUri = ecrImages.frontend;
   }
   if (ecrImages.backend) {
-    command.push('--context', `backendImageUri=${ecrImages.backend}`);
+    context.backendImageUri = ecrImages.backend;
   }
   
-  const deploySuccess = await runCdkCommand(command, cdkPath);
+  const deployer = new CdkDeployer();
+  let deploySuccess: boolean;
+  
+  try {
+    deploySuccess = await deployer.deployAppStack({ 
+      requireApproval: false, 
+      context 
+    });
+  } finally {
+    deployer.cleanup();
+  }
   
   if (!deploySuccess) {
     log(`❌ ECS service update failed - running diagnostics...`);

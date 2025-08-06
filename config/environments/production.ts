@@ -15,6 +15,9 @@ export const productionConfig: EnvironmentOverrides = {
     oauthAllowedDomains: ['example.com']
   },
   app: {
+    // Note: No backend/frontend URLs needed in production config.
+    // CDK infrastructure uses config.site.domain to create Load Balancer
+    // and sets NEXT_PUBLIC_API_URL, FRONTEND_URL via environment variables.
     nodeEnv: 'production',
     features: {
       enableAnalytics: true,
