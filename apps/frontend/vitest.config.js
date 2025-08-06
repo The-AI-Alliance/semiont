@@ -26,7 +26,14 @@ export default defineConfig({
         '**/mockData/*',
         'src/mocks/**',
         '**/__tests__/**',
-        'vitest.setup.js'
+        'vitest.setup.js',
+        'public/**',
+        '**/public/**',
+        '**/mockServiceWorker.js',
+        'scripts/**',
+        'next.config.js',
+        'postcss.config.js',
+        'tailwind.config.ts'
       ],
     },
     typecheck: {

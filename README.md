@@ -14,10 +14,9 @@ semiont/
 │       ├── src/          # Type-safe API with JWT auth and validation
 │       └── README.md     # Backend development guide and patterns
 ├── cdk/                  # AWS CDK infrastructure (two-stack model)
-│   ├── lib/
-│   │   ├── infra-stack.ts # Infrastructure stack (VPC, RDS, EFS)
-│   │   └── app-stack.ts   # Application stack (ECS, ALB, CloudFront)
-│   └── bin/cdk.ts        # CDK entry point
+│   └── lib/
+│       ├── infra-stack.ts # Infrastructure stack (VPC, RDS, EFS)
+│       └── app-stack.ts   # Application stack (ECS, ALB, CloudFront)
 ├── scripts/              # Type-safe management and deployment scripts
 │   ├── lib/             # Security utilities (logging, validation, command execution)
 │   ├── semiont          # Main management CLI tool
