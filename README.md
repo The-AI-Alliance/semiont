@@ -269,35 +269,91 @@ Start with the [Scripts README](scripts/README.md) to understand:
 
 ## 🧪 Testing
 
-The project uses modern testing frameworks tailored for each application:
+The project uses modern testing frameworks with intelligent test type filtering:
 
-- **Frontend**: Vitest + MSW v2 + React Testing Library (100% test success rate, 244 tests)
-- **Backend**: Jest with comprehensive integration tests (40.6% coverage)
+- **Frontend**: Vitest + MSW v2 + React Testing Library (1012 tests organized by type)
+- **Backend**: Vitest with comprehensive coverage (176+ tests organized by type)
 - **Both**: Strict TypeScript compilation catches errors at build time
 
-### Frontend Testing Stack
-- **Vitest** - Fast, ESM-native test runner
-- **MSW v2** - Network-level API mocking
-- **React Testing Library** - User-focused component testing
+### Test Type Organization
+
+Semiont organizes tests into four distinct categories for targeted testing:
+
+- **🧩 Unit Tests**: Individual components, functions, hooks (~1007 frontend, ~176 backend)
+- **🔗 Integration Tests**: Multi-component workflows and user flows (~5 frontend, ~41 backend)
+- **🌐 API Tests**: Endpoint validation and route handlers (~77 frontend, ~60 backend)
+- **🔒 Security Tests**: Authentication, validation, GDPR compliance (~5 across both apps)
 
 ### Running Tests
+
+#### Using Semiont CLI (Recommended)
+
+```bash
+# Run all tests with coverage (default)
+./scripts/semiont test
+
+# Run by application
+./scripts/semiont test frontend           # Frontend only
+./scripts/semiont test backend            # Backend only
+./scripts/semiont test all                # Both apps (default)
+
+# Run by test type  
+./scripts/semiont test unit               # Unit tests only
+./scripts/semiont test integration        # Integration tests only
+./scripts/semiont test api               # API/route tests only
+./scripts/semiont test security          # Security tests only
+
+# Combine application and test type
+./scripts/semiont test frontend unit     # Frontend unit tests
+./scripts/semiont test backend api       # Backend API tests
+
+# Additional options
+./scripts/semiont test --no-coverage     # Skip coverage for speed
+./scripts/semiont test frontend --watch  # Watch mode
+./scripts/semiont test --verbose         # Detailed output
+```
+
+#### Direct npm Scripts
 
 ```bash
 # Run all tests
 npm test  # From root directory
 
-# Frontend tests (Vitest)
-cd apps/frontend
-npm test              # Run once
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage
+# Frontend tests (apps/frontend/)
+npm test                    # All tests
+npm run test:unit          # Unit tests only  
+npm run test:integration   # Integration tests only
+npm run test:api           # API route tests only
+npm run test:security      # Security tests only
+npm run test:coverage      # All tests with coverage
+npm run test:watch         # Watch mode
 
-# Backend tests (Jest)
-cd apps/backend
-npm test              # Run once
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage
+# Backend tests (apps/backend/)
+npm test                    # All tests
+npm run test:unit          # Unit tests only
+npm run test:integration   # Integration tests only
+npm run test:api           # API tests only
+npm run test:security      # Security tests only
+npm run test:coverage      # All tests with coverage
+npm run test:watch         # Watch mode
 ```
+
+#### Performance Benefits
+
+Targeted test execution provides significant performance improvements:
+- **Unit tests**: Excludes integration tests for faster feedback
+- **Integration tests**: Only 5-41 tests vs full suite for complex workflow testing
+- **API tests**: Focuses on endpoints without UI component overhead
+- **Security tests**: Runs only security-critical validations
+
+### Test Coverage & Quality
+
+The testing strategy emphasizes:
+- **Type Safety**: TypeScript catches errors at compile time
+- **Network-Level Mocking**: MSW v2 provides realistic API mocking
+- **User-Focused Testing**: Tests user behavior, not implementation details
+- **Performance Testing**: Lighthouse CI and bundle analysis catch regressions
+- **Security Testing**: Dedicated tests for authentication, GDPR compliance, and validation
 
 See [Testing Documentation](./docs/TESTING.md) and app-specific READMEs for detailed testing strategies.
 

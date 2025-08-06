@@ -480,9 +480,36 @@ The frontend uses **Vitest** with React Testing Library for testing React compon
 
 ### Running Tests
 
+#### Using Semiont CLI (Recommended)
+
+```bash
+# Run all frontend tests with coverage (from project root)
+./scripts/semiont test frontend
+
+# Run specific test types for frontend
+./scripts/semiont test frontend unit         # Unit tests only (~1007 tests)
+./scripts/semiont test frontend integration  # Integration tests only (~5 tests)
+./scripts/semiont test frontend api         # API route tests only (~77 tests)
+./scripts/semiont test frontend security    # Security tests only (~5 tests)
+
+# Watch mode for development
+./scripts/semiont test frontend unit --watch
+
+# Skip coverage reporting for faster runs
+./scripts/semiont test frontend --no-coverage
+```
+
+#### Direct npm Scripts
+
 ```bash
 # Run all tests
 npm test
+
+# Run specific test types
+npm run test:unit          # Unit tests (excludes integration tests)
+npm run test:integration   # Integration tests only (signup flows, etc.)
+npm run test:api           # API route tests only
+npm run test:security      # Security-focused tests only
 
 # Run tests with coverage report
 npm run test:coverage
@@ -499,6 +526,15 @@ npm run build
 # Performance testing
 npm run perf
 ```
+
+#### Performance Benefits
+
+Specific test type filtering provides significant performance improvements:
+
+- **Unit tests**: ~1007 tests (filters out integration tests)
+- **Integration tests**: ~5 tests (massive speedup for testing user flows)
+- **API tests**: ~77 tests (focuses on Next.js API routes)
+- **Security tests**: ~5 tests (authentication, GDPR compliance, validation)
 
 ### Test Stack
 
@@ -529,19 +565,46 @@ The frontend combines **type safety, unit testing, and performance monitoring** 
 
 ### Test Structure
 
+Tests are organized by type for efficient targeted testing:
+
+#### 🧩 Unit Tests
 ```
 src/
-├── app/
-│   ├── admin/__tests__/          # Admin page tests
-│   ├── api/__tests__/            # API route tests
-│   ├── auth/__tests__/           # Authentication page tests
-│   └── terms/__tests__/          # Terms page tests
-├── components/__tests__/          # Component unit tests
-├── lib/__tests__/                # Library function tests
-└── mocks/                        # MSW mock handlers
-    ├── browser.ts                # Browser-side MSW setup
-    ├── server.ts                 # Node-side MSW setup
-    └── handlers.ts               # API mock handlers
+├── components/__tests__/          # Component unit tests (UI logic)
+├── lib/__tests__/                # Library function tests (utilities)  
+├── hooks/__tests__/              # Custom hook tests (state management)
+└── app/__tests__/                # Page component tests (rendering)
+```
+
+#### 🔗 Integration Tests  
+```
+src/
+└── app/auth/__tests__/
+    └── signup-flow.integration.test.tsx  # Multi-component user flows
+```
+
+#### 🌐 API Tests
+```
+src/
+└── app/api/
+    ├── auth/[...nextauth]/__tests__/     # NextAuth.js route tests
+    ├── cookies/consent/__tests__/        # Cookie consent API tests
+    └── cookies/export/__tests__/         # Data export API tests
+```
+
+#### 🔒 Security Tests
+Security-focused tests are identified by naming pattern (`*security*`) and test:
+- Authentication flows and JWT validation
+- GDPR compliance features (cookie consent, data export)
+- Admin access controls and authorization
+- Input validation and sanitization
+
+#### Mock Infrastructure
+```
+src/mocks/                        # MSW mock handlers
+├── browser.ts                    # Browser-side MSW setup
+├── server.ts                     # Node-side MSW setup  
+└── handlers.ts                   # API mock handlers
 ```
 
 ### Writing Tests

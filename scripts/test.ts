@@ -12,7 +12,8 @@ const configModule = await import('../config/index.js');
 const config = configModule.config;
 
 interface TestOptions {
-  target?: 'frontend' | 'backend' | 'security' | 'all';
+  target?: 'frontend' | 'backend' | 'all';
+  testType?: 'unit' | 'integration' | 'api' | 'security' | 'all';
   coverage?: boolean;
   watch?: boolean;
   verbose?: boolean;
@@ -317,8 +318,14 @@ async function runFrontendTests(options: TestOptions): Promise<TestResult> {
   // Determine test command based on options
   let testCommand = ['npm', 'run'];
   
-  if (options.target === 'security') {
+  if (options.testType === 'security') {
     testCommand.push('test:security');
+  } else if (options.testType === 'unit') {
+    testCommand.push('test:unit');
+  } else if (options.testType === 'integration') {
+    testCommand.push('test:integration');
+  } else if (options.testType === 'api') {
+    testCommand.push('test:api');
   } else if (options.coverage) {
     testCommand.push('test:coverage');
   } else if (options.watch) {
@@ -375,8 +382,14 @@ async function runBackendTests(options: TestOptions): Promise<TestResult> {
   // Determine test command based on options
   let testCommand = ['npm', 'run'];
   
-  if (options.target === 'security') {
+  if (options.testType === 'security') {
     testCommand.push('test:security');
+  } else if (options.testType === 'unit') {
+    testCommand.push('test:unit');
+  } else if (options.testType === 'integration') {
+    testCommand.push('test:integration');
+  } else if (options.testType === 'api') {
+    testCommand.push('test:api');
   } else if (options.coverage) {
     testCommand.push('test:coverage');
   } else if (options.watch) {
@@ -449,8 +462,16 @@ async function test(options: TestOptions) {
     console.log('⚡ Running without coverage reporting...');
   }
   
-  if (options.target === 'security') {
-    console.log('🔒 Running security-focused tests...');
+  // More specific test type messaging
+  if (options.testType) {
+    const testTypeMessages = {
+      unit: '🧩 Running unit tests (individual components and functions)...',
+      integration: '🔗 Running integration tests (component interactions)...',
+      api: '🌐 Running API tests (endpoints and routes)...',
+      security: '🔒 Running security tests (auth, validation, GDPR compliance)...',
+      all: '🎯 Running all test types...'
+    };
+    console.log(testTypeMessages[options.testType] || testTypeMessages.all);
   }
   
   const startTime = Date.now();
@@ -471,18 +492,6 @@ async function test(options: TestOptions) {
       results.push(backendResult);
     }
     
-    // Security tests run on both if security target is specified
-    if (options.target === 'security') {
-      console.log('🔒 Running security tests on both frontend and backend...');
-      
-      const frontendSecurityResult = await runFrontendTests({ ...options, target: 'security' });
-      frontendSecurityResult.name = 'Frontend Security';
-      results.push(frontendSecurityResult);
-      
-      const backendSecurityResult = await runBackendTests({ ...options, target: 'security' });
-      backendSecurityResult.name = 'Backend Security';
-      results.push(backendSecurityResult);
-    }
     
     // Generate test report (only if not in watch mode)
     if (!options.watch) {
@@ -516,15 +525,22 @@ async function test(options: TestOptions) {
 function showHelp() {
   console.log(`🧪 ${config.site.siteName} Test Suite`);
   console.log('');
-  console.log('Usage: npx tsx test.ts [target] [options]');
-  console.log('   or: ./semiont test [target] [options]');
+  console.log('Usage: npx tsx test.ts [target] [test-type] [options]');
+  console.log('   or: ./semiont test [target] [test-type] [options]');
   console.log('');
   console.log('Targets:');
   console.log('   frontend         Run frontend tests only');
   console.log('   backend          Run backend tests only');
-  console.log('   security         Run security-focused tests on both apps');
   console.log('   all              Run all tests (default)');
   console.log('   (none)           Run all tests');
+  console.log('');
+  console.log('Test Types:');
+  console.log('   unit             🧩 Unit tests (individual components/functions)');
+  console.log('   integration      🔗 Integration tests (component interactions)');
+  console.log('   api              🌐 API tests (endpoints and routes)');
+  console.log('   security         🔒 Security tests (auth, validation, GDPR compliance)');
+  console.log('   all              🎯 All test types (default)');
+  console.log('   (none)           All test types');
   console.log('');
   console.log('Options:');
   console.log('   --no-coverage    Disable coverage reporting (enabled by default)');
@@ -533,18 +549,23 @@ function showHelp() {
   console.log('   --help, -h       Show this help');
   console.log('');
   console.log('Examples:');
-  console.log('   ./semiont test                    # Run all tests with coverage');
-  console.log('   ./semiont test frontend           # Run frontend tests with coverage');
-  console.log('   ./semiont test backend            # Run backend tests with coverage');
-  console.log('   ./semiont test security           # Run security tests on both apps');
-  console.log('   ./semiont test --no-coverage      # Run all tests without coverage');
-  console.log('   ./semiont test frontend --watch   # Watch frontend tests');
+  console.log('   ./semiont test                        # Run all tests with coverage');
+  console.log('   ./semiont test frontend               # Run all frontend tests');
+  console.log('   ./semiont test frontend unit          # Run only frontend unit tests');
+  console.log('   ./semiont test backend api            # Run only backend API tests');
+  console.log('   ./semiont test all security           # Run security tests on both apps');
+  console.log('   ./semiont test integration            # Run integration tests on all apps');
+  console.log('   ./semiont test --no-coverage          # Run all tests without coverage');
+  console.log('   ./semiont test frontend unit --watch  # Watch frontend unit tests');
   console.log('');
-  console.log('Test types available:');
-  console.log('   🎨 Frontend: Jest with React Testing Library');
-  console.log('   🚀 Backend: Jest with Supertest for API testing');
-  console.log('   🔒 Security: Authentication, authorization, input validation');
-  console.log('   📊 Coverage: Code coverage reports for both apps');
+  console.log('Test Framework Details:');
+  console.log('   🎨 Frontend: Vitest + React Testing Library + MSW');
+  console.log('   🚀 Backend: Vitest + Supertest for API testing');
+  console.log('   🧩 Unit: Individual components, functions, hooks');
+  console.log('   🔗 Integration: Multi-component flows (e.g., signup flow)');
+  console.log('   🌐 API: Route handlers, middleware, validation');
+  console.log('   🔒 Security: Auth flows, GDPR compliance, input validation');
+  console.log('   📊 Coverage: Code coverage reports with directory breakdown');
   console.log('');
   console.log('💡 Run tests before deploying to catch issues early.');
   console.log('   Coverage reporting is enabled by default for better insights.');
@@ -558,19 +579,31 @@ async function main() {
     return;
   }
   
-  // Get target from first non-flag argument
-  const target = args.find((arg: string) => !arg.startsWith('--')) as 'frontend' | 'backend' | 'security' | 'all' | undefined;
+  // Get non-flag arguments in order: target, testType
+  const nonFlagArgs = args.filter((arg: string) => !arg.startsWith('--'));
+  
+  const target = nonFlagArgs[0] as 'frontend' | 'backend' | 'all' | undefined;
+  const testType = nonFlagArgs[1] as 'unit' | 'integration' | 'api' | 'security' | 'all' | undefined;
   
   // Validate target argument
-  if (target && !['frontend', 'backend', 'security', 'all'].includes(target)) {
+  if (target && !['frontend', 'backend', 'all'].includes(target)) {
     console.error(`❌ Invalid target: ${target}`);
-    console.log('💡 Valid targets: frontend, backend, security, all');
+    console.log('💡 Valid targets: frontend, backend, all');
+    showHelp();
+    process.exit(1);
+  }
+  
+  // Validate test type argument
+  if (testType && !['unit', 'integration', 'api', 'security', 'all'].includes(testType)) {
+    console.error(`❌ Invalid test type: ${testType}`);
+    console.log('💡 Valid test types: unit, integration, api, security, all');
     showHelp();
     process.exit(1);
   }
   
   const options: TestOptions = {
     ...(target && { target }),
+    ...(testType && { testType }),
     coverage: !args.includes('--no-coverage'), // Coverage enabled by default, disabled with --no-coverage
     watch: args.includes('--watch'),
     verbose: args.includes('--verbose'),

@@ -10,6 +10,41 @@ The Semiont project uses a modern testing stack built on:
 - **React Testing Library** - Component testing focused on user behavior
 - **ES Modules** - Native JavaScript module system throughout
 
+## Test Types and Organization
+
+Semiont organizes tests into four distinct categories for targeted testing:
+
+### 🧩 **Unit Tests**
+Test individual components, functions, and hooks in isolation:
+- Component rendering and props handling
+- Hook behavior and state management
+- Utility function logic
+- Individual API client methods
+
+### 🔗 **Integration Tests**
+Test component interactions and multi-step workflows:
+- Complete user flows (e.g., signup process)
+- Component communication
+- State management across components
+- Form submission workflows
+
+### 🌐 **API Tests**
+Test API endpoints, route handlers, and middleware:
+- HTTP request/response handling
+- Authentication middleware
+- Input validation
+- Error handling
+- Database operations
+
+### 🔒 **Security Tests**
+Focus on security-critical functionality:
+- Authentication flows
+- Authorization checks
+- Input sanitization
+- GDPR compliance features
+- Cookie consent management
+- Admin access controls
+
 ## Frontend Testing Stack
 
 ### Core Technologies
@@ -413,7 +448,11 @@ describe('GreetingSection', () => {
      "scripts": {
        "test": "vitest run",
        "test:watch": "vitest",
-       "test:coverage": "vitest run --coverage"
+       "test:coverage": "vitest run --coverage",
+       "test:unit": "vitest run --testNamePattern=\"^(?!.*integration).*\"",
+       "test:integration": "vitest run --testNamePattern=\"integration\"",
+       "test:api": "vitest run [specific-api-test-files]",
+       "test:security": "vitest run --testNamePattern=\"security\""
      }
    }
    ```
@@ -513,6 +552,82 @@ it('should display user name after successful login', () => {})
 - Mock data and handlers
 - Configuration files
 - Type definition files
+
+## Running Tests
+
+### Using the Semiont CLI
+
+The recommended way to run tests is through the `semiont` CLI, which provides intelligent test type filtering and coverage reporting:
+
+```bash
+# Run all tests with coverage (default behavior)
+./scripts/semiont test
+
+# Run tests by application
+./scripts/semiont test frontend           # Frontend only
+./scripts/semiont test backend            # Backend only
+./scripts/semiont test all                # Both apps (default)
+
+# Run tests by type
+./scripts/semiont test unit               # Unit tests only
+./scripts/semiont test integration        # Integration tests only  
+./scripts/semiont test api               # API/route tests only
+./scripts/semiont test security          # Security tests only
+
+# Combine application and test type
+./scripts/semiont test frontend unit     # Frontend unit tests
+./scripts/semiont test backend api       # Backend API tests
+./scripts/semiont test all security      # Security tests on both apps
+
+# Additional options
+./scripts/semiont test --no-coverage     # Skip coverage reporting
+./scripts/semiont test frontend --watch  # Watch mode for development
+./scripts/semiont test --verbose         # Detailed output
+```
+
+### Performance Benefits
+
+Targeted test execution provides significant performance improvements:
+
+- **Unit tests**: ~1007 frontend + 176 backend tests (excludes integration)
+- **Integration tests**: ~5 frontend + 41 backend tests (massive speedup!)
+- **API tests**: ~77 frontend + 60 backend endpoint tests
+- **Security tests**: ~5 focused security validation tests
+
+### Coverage Reporting
+
+The CLI automatically generates:
+- **Console coverage tables** with color-coded metrics
+- **Directory-level breakdowns** showing coverage by code area
+- **HTML reports** for detailed analysis (`apps/{frontend,backend}/coverage/index.html`)
+
+Coverage reporting is enabled by default and can be disabled with `--no-coverage`.
+
+### Direct npm Scripts
+
+You can also run tests directly via npm in each app directory:
+
+#### Frontend (`apps/frontend/`)
+```bash
+npm test                    # All tests
+npm run test:unit          # Unit tests only
+npm run test:integration   # Integration tests only
+npm run test:api           # API route tests only
+npm run test:security      # Security tests only
+npm run test:coverage      # All tests with coverage
+npm run test:watch         # Watch mode
+```
+
+#### Backend (`apps/backend/`)
+```bash
+npm test                    # All tests
+npm run test:unit          # Unit tests only  
+npm run test:integration   # Integration tests only
+npm run test:api           # API tests only
+npm run test:security      # Security tests only
+npm run test:coverage      # All tests with coverage
+npm run test:watch         # Watch mode
+```
 
 ## Debugging Tests
 

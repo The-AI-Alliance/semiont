@@ -527,9 +527,36 @@ The backend uses **Jest** with TypeScript for unit testing, following a simple a
 
 ### Running Tests
 
+#### Using Semiont CLI (Recommended)
+
+```bash
+# Run all backend tests with coverage (from project root)
+./scripts/semiont test backend
+
+# Run specific test types for backend
+./scripts/semiont test backend unit         # Unit tests only (~176 tests)
+./scripts/semiont test backend integration  # Integration tests only (~41 tests)
+./scripts/semiont test backend api         # API endpoint tests only (~60 tests)
+./scripts/semiont test backend security    # Security tests only
+
+# Watch mode for development
+./scripts/semiont test backend unit --watch
+
+# Skip coverage reporting for faster runs
+./scripts/semiont test backend --no-coverage
+```
+
+#### Direct npm Scripts
+
 ```bash
 # Run all tests
 npm test
+
+# Run specific test types
+npm run test:unit          # Unit tests (excludes integration tests)
+npm run test:integration   # Integration tests only (contract tests, etc.)
+npm run test:api           # API endpoint tests only
+npm run test:security      # Security-focused tests only
 
 # Run tests with coverage report
 npm run test:coverage
@@ -543,6 +570,15 @@ npm run type-check
 # Build (includes type checking)
 npm run build
 ```
+
+#### Performance Benefits
+
+Specific test type filtering provides significant performance improvements:
+
+- **Unit tests**: ~176 tests (filters out integration tests)
+- **Integration tests**: ~41 tests (focuses on contract testing and multi-service flows)
+- **API tests**: ~60 tests (focuses on endpoint validation)
+- **Security tests**: Tests focused on JWT validation, auth middleware, and input sanitization
 
 ### Current Test Coverage
 
@@ -561,19 +597,46 @@ We prioritize **simple, focused unit tests** over complex integration tests to:
 
 ### Test Structure
 
+Tests are organized by type for efficient targeted testing:
+
+#### 🧩 Unit Tests
 ```
 src/__tests__/
 ├── auth/
 │   ├── jwt.test.ts              # JWT token management tests
-│   └── oauth.test.ts            # OAuth service tests (removed - see note)
+│   └── oauth.test.ts            # OAuth service tests
 ├── middleware/
 │   └── auth.test.ts             # Authentication middleware tests
 ├── validation/
 │   └── schemas.test.ts          # Zod schema validation tests
-└── api/
-    ├── admin-endpoints.test.ts  # Admin API unit tests (Prisma direct)
-    └── documentation.test.ts    # API documentation endpoint tests
+├── config/
+│   ├── config.test.ts           # Configuration validation tests
+│   └── env.test.ts              # Environment variable tests
+└── db.test.ts                   # Database connection tests
 ```
+
+#### 🔗 Integration Tests
+```
+src/__tests__/
+└── integration/
+    ├── api-endpoints.test.ts    # Multi-service API flows
+    └── contract-tests.test.ts   # API contract validation
+```
+
+#### 🌐 API Tests
+```
+src/__tests__/
+└── api/
+    ├── admin-endpoints.test.ts  # Admin API endpoint tests
+    └── documentation.test.ts    # API documentation tests
+```
+
+#### 🔒 Security Tests
+Security-focused tests are identified by naming pattern (`*security*`) and test:
+- JWT validation and token security
+- Authentication middleware behavior
+- Input validation and sanitization
+- Database access controls
 
 ### Testing Patterns
 
