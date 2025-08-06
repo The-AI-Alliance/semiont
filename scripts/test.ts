@@ -158,6 +158,12 @@ async function runFrontendTests(options: TestOptions): Promise<TestResult> {
         console.log(`❌ ${testStats.failedTests} tests failed`);
       }
     }
+    
+    // Show coverage report location if coverage was requested
+    if (options.coverage) {
+      console.log(`\n📊 Coverage report generated at: apps/frontend/coverage/index.html`);
+      console.log(`   Open in browser: file://${process.cwd()}/../apps/frontend/coverage/index.html`);
+    }
   }
   
   return {
@@ -194,6 +200,12 @@ async function runBackendTests(options: TestOptions): Promise<TestResult> {
   }
 
   const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose);
+  
+  // Show coverage report location if coverage was requested
+  if (options.coverage && result.success && !options.verbose) {
+    console.log(`\n📊 Coverage report generated at: apps/backend/coverage/index.html`);
+    console.log(`   Open in browser: file://${process.cwd()}/../apps/backend/coverage/index.html`);
+  }
   
   return {
     name: 'Backend',
