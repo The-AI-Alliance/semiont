@@ -36,7 +36,7 @@
     "@tanstack/react-query": "^4.36.1",
     "semiont-config": "*",
     "@types/node": "^20",
-    "@types/react": "^18",
+    "@types/react": "^19",
     "@types/react-dom": "^18",
     "next": "^14.2.31",
     "next-auth": "^4.24.5",
