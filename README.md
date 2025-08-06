@@ -42,8 +42,8 @@ semiont/
 ### Prerequisites
 - Node.js 18+ (22+ recommended)
 - npm 9+
-- Docker (for local database and deployment)
-- AWS CLI configured (for cloud deployment)
+- Docker (for local PostgreSQL containers)
+- AWS CLI configured (for cloud deployment only)
 
 ### 1. Clone & Install
 ```bash
@@ -52,7 +52,54 @@ cd semiont
 npm install  # Installs all workspace dependencies
 ```
 
-### 2. Local Development
+### 2. Instant Local Development 🎉
+
+#### 🚀 Complete Development Environment (Recommended)
+```bash
+# One command starts everything!
+./scripts/semiont local start
+
+# This automatically:
+# ✅ Starts PostgreSQL container with schema
+# ✅ Starts backend API with proper database connection
+# ✅ Starts frontend with real API integration
+# 🎉 Ready to develop in ~30 seconds!
+```
+
+**Your services are running at:**
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:3001
+- **Database**: PostgreSQL in Docker container
+
+#### 🎨 Frontend-Only Development (UI/UX Work)
+```bash
+# No backend/database needed
+./scripts/semiont local frontend start --mock
+
+# Perfect for:
+# - Component development and styling
+# - UI/UX iteration 
+# - Design system work
+```
+
+#### ⚡ Service-Specific Development
+```bash
+# Backend only (auto-starts database)
+./scripts/semiont local backend start
+
+# Database only (with sample data)  
+./scripts/semiont local db start --seed
+
+# Check what's running
+./scripts/semiont local status
+
+# Stop everything
+./scripts/semiont local stop
+```
+
+### 3. Alternative Manual Setup
+
+If you prefer manual environment setup:
 
 #### Quick Start (No Backend Required)
 ```bash
@@ -61,7 +108,7 @@ cd apps/frontend
 npm run dev:mock  # Frontend on :3000 with mock API
 ```
 
-#### Full Stack Development
+#### Full Stack Development (Manual)
 ```bash
 # Configure local secrets (first time only)
 ./scripts/semiont secrets set database-password  # Enter: localpassword
@@ -77,14 +124,14 @@ docker run --name semiont-postgres \
 # Backend setup
 cd apps/backend
 npx prisma db push
-npm run dev  # Backend on :4000
+npm run dev  # Backend on :3001
 
 # Frontend setup (in new terminal)
 cd apps/frontend
 npm run dev  # Frontend on :3000
 ```
 
-### 3. Configuration Setup
+### 4. Configuration Setup
 
 ```bash
 # Initialize configuration (first time only)

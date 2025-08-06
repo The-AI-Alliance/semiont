@@ -585,6 +585,66 @@ The recommended way to run tests is through the `semiont` CLI, which provides in
 ./scripts/semiont test --verbose         # Detailed output
 ```
 
+### Local Development Environment for Testing
+
+For integration and API tests that require a database, the Semiont CLI provides an instant local development environment:
+
+```bash
+# 🚀 Quick start - full environment for integration tests
+./scripts/semiont local start
+
+# This automatically starts:
+# ✅ PostgreSQL container with correct schema
+# ✅ Backend API server with database connection  
+# ✅ Frontend connected to real API
+
+# Then run integration tests against real services
+./scripts/semiont test integration
+
+# Or run specific database-dependent tests
+./scripts/semiont test backend integration
+```
+
+**Benefits for Testing:**
+- **Real Database**: Integration tests use actual PostgreSQL instead of mocks
+- **Consistent Environment**: Everyone gets identical test setup across machines
+- **Zero Configuration**: No manual database setup or connection strings needed
+- **Fresh Data**: Use `--reset` flag for clean test data between runs
+
+**Testing Workflow with Local Environment:**
+
+1. **Start local environment**:
+   ```bash
+   ./scripts/semiont local start --reset  # Fresh database with sample data
+   ```
+
+2. **Run tests against real services**:
+   ```bash
+   ./scripts/semiont test integration     # All integration tests
+   ./scripts/semiont test api             # API endpoint tests
+   ./scripts/semiont test backend integration # Backend-specific integration
+   ```
+
+3. **Stop services when done**:
+   ```bash
+   ./scripts/semiont local stop
+   ```
+
+**Database-Only Testing:**
+
+For backend tests that only need a database:
+
+```bash
+# Start just the database
+./scripts/semiont local db start --seed
+
+# Run backend tests
+./scripts/semiont test backend
+
+# Clean up
+./scripts/semiont local db stop
+```
+
 ### Performance Benefits
 
 Targeted test execution provides significant performance improvements:

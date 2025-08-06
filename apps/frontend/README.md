@@ -4,6 +4,26 @@ A modern, type-safe React frontend built with Next.js 14, featuring comprehensiv
 
 ## Quick Start
 
+### 🚀 Instant Setup with Semiont CLI (Recommended)
+
+```bash
+# From project root - starts everything automatically!
+./scripts/semiont local start
+
+# This will:
+# ✅ Start PostgreSQL container with correct schema
+# ✅ Start backend with proper environment
+# ✅ Start frontend connected to backend
+# 🎉 Ready to develop in ~30 seconds!
+```
+
+**That's it!** Your complete development environment is running:
+- **Frontend**: http://localhost:3000  
+- **Backend**: http://localhost:3001
+- **Database**: PostgreSQL in Docker container
+
+### 🛠 Manual Setup (Alternative)
+
 ```bash
 # Install dependencies
 npm install
@@ -26,16 +46,109 @@ npm start
 npm run perf
 ```
 
-## Local Development
+## 💻 Local Development with Semiont CLI
+
+### Essential Commands
+
+```bash
+# Full stack development
+./scripts/semiont local start              # Start everything (database + backend + frontend)
+./scripts/semiont local start --reset      # Fresh start with clean database
+./scripts/semiont local stop               # Stop all services
+./scripts/semiont local status             # Check what's running
+
+# Frontend development
+./scripts/semiont local frontend start     # Start frontend (auto-starts backend if needed)
+./scripts/semiont local frontend start --mock  # Start frontend with mock API only
+./scripts/semiont local frontend stop      # Stop frontend service
+
+# Backend + database
+./scripts/semiont local backend start      # Start backend (auto-starts database if needed)
+./scripts/semiont local backend start --fresh  # Start backend with fresh database
+./scripts/semiont local db start --seed    # Start database with sample data
+```
 
 ### Development Modes
 
+1. **🚀 Full Stack Development** (`./scripts/semiont local start`)
+   - Complete development environment in one command
+   - PostgreSQL container with schema applied automatically
+   - Backend API with database connection
+   - Frontend with real API integration
+   - **Perfect for full-stack feature development**
+
+2. **🎨 Frontend-Only Development** (`./scripts/semiont local frontend start --mock`)
+   - No backend or database dependencies
+   - Mock API provides realistic data
+   - Fast iteration for UI/UX work
+   - **Perfect for component development and styling**
+
+3. **⚡ Backend-Connected Development** (`./scripts/semiont local frontend start`)
+   - Auto-starts backend and database if needed
+   - Real API integration
+   - **Perfect for testing API integration**
+
+4. **🔧 Manual Development** (`npm run dev` - traditional approach)
+   - Requires manual backend/database setup
+   - Full control over environment configuration
+   - **For developers who prefer manual environment management**
+
+### Why Use Semiont CLI for Frontend?
+
+- **🔄 Smart Dependencies**: Frontend auto-starts backend when needed
+- **📦 Consistent Environment**: Everyone gets identical setup  
+- **⚡ Zero Configuration**: No environment files, API URLs, or manual setup
+- **🧹 Easy Reset**: Fresh database with sample data via `--reset`
+- **🎯 Focused Development**: Mock mode for UI work, real API mode for integration
+
+### Development Workflow with Semiont CLI
+
+1. **First time setup** (run once):
+```bash
+cd /your/project/root
+npm install  # Installs dependencies for all apps
+```
+
+2. **Frontend-focused development** (UI/UX work):
+```bash
+./scripts/semiont local frontend start --mock
+# Only frontend running with mock API
+# Perfect for component development, styling, layout work
+```
+
+3. **Full-stack development** (feature work):
+```bash  
+./scripts/semiont local start
+# Complete environment: database + backend + frontend
+# Perfect for implementing features that need real API integration
+```
+
+4. **Backend integration testing**:
+```bash
+./scripts/semiont local frontend start
+# Frontend + real backend + database
+# Perfect for testing API integration without manual backend setup
+```
+
+5. **Fresh start** (reset data):
+```bash
+./scripts/semiont local start --reset
+# Clean database with fresh sample data
+# Perfect when you need to reset state
+```
+
+### Traditional Manual Setup (Alternative)
+
+If you prefer manual setup or need to understand the internals:
+
+#### Development Modes (Manual)
+
 1. **Standard Development** (`npm run dev`)
    - Uses Next.js dev server with hot reload
-   - Requires backend API running on port 4000
+   - Requires backend API running on port 3001
 
 2. **Mock API Development** (`npm run dev:mock`) - **Recommended for UI work**
-   - Starts mock API server on port 4000
+   - Starts mock API server on port 3001
    - No backend dependencies needed
    - Perfect for rapid UI/UX iteration
 
@@ -43,14 +156,14 @@ npm run perf
    - Uses Next.js Turbopack for faster builds
    - Requires backend API running separately
 
-### Fast Iteration Features
+#### Fast Iteration Features
 
 - **Hot Module Replacement (HMR)** - Changes update instantly without losing state
 - **Fast Refresh** - Error recovery without losing component state
 - **Mock API Server** - Pre-configured endpoints for common operations
 - **TypeScript Path Aliases** - Use `@/components` instead of relative imports
 
-### Mock API Endpoints
+#### Mock API Endpoints
 
 The mock server (`npm run dev:mock`) provides:
 - `/api/health` - Health check endpoint
@@ -58,7 +171,7 @@ The mock server (`npm run dev:mock`) provides:
 - `/api/admin/stats` - Dashboard statistics
 - `/api/admin/users` - User management data
 
-### Tips for Faster Development
+#### Tips for Faster Development
 
 1. **Component Playground** - Create `src/app/playground/page.tsx` for isolated component testing
 2. **Disable Type Checking** (temporary) - Add `NEXT_DISABLE_TYPE_CHECK=true` to `.env.local`

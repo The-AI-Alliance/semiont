@@ -4,6 +4,26 @@ A type-safe Node.js backend API built with modern development practices and comp
 
 ## Quick Start
 
+### 🚀 Instant Setup with Semiont CLI (Recommended)
+
+```bash
+# From project root - starts everything automatically!
+./scripts/semiont local start
+
+# This will:
+# ✅ Start PostgreSQL container with correct schema
+# ✅ Start backend with proper environment
+# ✅ Start frontend connected to backend
+# 🎉 Ready to develop in ~30 seconds!
+```
+
+**That's it!** Your complete development environment is running:
+- **Frontend**: http://localhost:3000  
+- **Backend**: http://localhost:3001
+- **Database**: PostgreSQL in Docker container
+
+### 🛠 Manual Setup (Alternative)
+
 ```bash
 # Install dependencies
 npm install
@@ -23,39 +43,115 @@ npm run build
 npm start
 ```
 
-## Local Development
+## 💻 Local Development with Semiont CLI
 
-### Prerequisites
+### Essential Commands
 
-- Node.js 18+ (recommend using nvm)
-- PostgreSQL database (local or Docker)
+```bash
+# Full stack development
+./scripts/semiont local start              # Start everything (database + backend + frontend)
+./scripts/semiont local start --reset      # Fresh start with clean database
+./scripts/semiont local stop               # Stop all services
+./scripts/semiont local status             # Check what's running
+
+# Database management
+./scripts/semiont local db start           # Start PostgreSQL container
+./scripts/semiont local db start --seed    # Start database with sample data
+./scripts/semiont local db reset --seed    # Reset database with fresh sample data
+./scripts/semiont local db stop            # Stop database container
+
+# Backend only
+./scripts/semiont local backend start      # Start backend (auto-starts database if needed)
+./scripts/semiont local backend start --fresh  # Start backend with fresh database
+./scripts/semiont local backend stop       # Stop backend service
+
+# Frontend only  
+./scripts/semiont local frontend start     # Start frontend (auto-starts backend if needed)
+./scripts/semiont local frontend start --mock  # Start frontend with mock API (no backend)
+./scripts/semiont local frontend stop      # Stop frontend service
+```
+
+### Why Use Semiont CLI?
+
+- **🔄 Smart Dependencies**: Frontend auto-starts backend, backend auto-starts database  
+- **📦 Consistent Environment**: Everyone gets identical PostgreSQL setup
+- **⚡ Zero Configuration**: No manual database setup, connection strings, or environment variables
+- **🧹 Easy Reset**: Corrupted data? `--reset` gives you a fresh start
+- **🎯 Focused Development**: Start only what you need
+
+### Development Workflow with Semiont CLI
+
+1. **First time setup** (run once):
+```bash
+cd /your/project/root
+npm install  # Installs dependencies for all apps
+```
+
+2. **Daily development** (typical workflow):
+```bash
+# Start everything for full-stack development
+./scripts/semiont local start
+
+# Your services are now running! Develop normally...
+# Frontend: http://localhost:3000
+# Backend: http://localhost:3001  
+# Database: Managed automatically
+
+# When done developing
+./scripts/semiont local stop
+```
+
+3. **Backend-only development**:
+```bash
+./scripts/semiont local backend start
+# Only database + backend running
+```
+
+4. **Frontend with mock API**:
+```bash  
+./scripts/semiont local frontend start --mock
+# Only frontend running, no backend needed
+```
+
+5. **Fresh start** (reset database):
+```bash
+./scripts/semiont local start --reset
+# Clean database with sample data
+```
+
+### Traditional Manual Setup (Alternative)
+
+If you prefer manual setup or need to understand the internals:
+
+#### Prerequisites
+
+- Node.js 18+ (recommend using nvm) 
+- Docker (for PostgreSQL container)
 - Secrets configured via `semiont secrets` command
 
-### Setting Up Local Database
+#### Manual Database Setup
 
-#### Option 1: Docker (Recommended)
+**Option 1: Manual Docker (if not using Semiont CLI)**
 ```bash
 # Start PostgreSQL in Docker
-docker run --name semiont-postgres \
-  -e POSTGRES_PASSWORD=localpassword \
-  -e POSTGRES_DB=semiont \
+docker run --name semiont-postgres-dev \
+  -e POSTGRES_PASSWORD=dev_password \
+  -e POSTGRES_DB=semiont_dev \
+  -e POSTGRES_USER=dev_user \
   -p 5432:5432 \
   -d postgres:15-alpine
-
-# Database password should match what you configured with:
-# ../../scripts/semiont secrets set database-password
 ```
 
-#### Option 2: Local PostgreSQL
+**Option 2: Local PostgreSQL**
 ```bash
 # Create database
-createdb semiont
+createdb semiont_dev
 
 # Connection string for .env
-DATABASE_URL="postgresql://username:password@localhost:5432/semiont"
+DATABASE_URL="postgresql://dev_user:dev_password@localhost:5432/semiont_dev"
 ```
 
-### Development Workflow
+#### Manual Development Workflow
 
 1. **Initial Setup**
 ```bash
@@ -77,7 +173,7 @@ npx prisma db push
 # Run with hot reload
 npm run dev
 
-# Server starts on http://localhost:4000
+# Server starts on http://localhost:3001
 ```
 
 3. **Database Development**
