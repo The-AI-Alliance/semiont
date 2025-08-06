@@ -5,13 +5,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./src/__tests__/setup.ts', './src/__tests__/setup/test-setup.ts'],
+    // Use different setup files for integration tests - avoid mocking Prisma
+    setupFiles: ['./src/__tests__/setup/test-setup.ts'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,
     include: [
-      'src/**/__tests__/**/*.test.ts',
-      'src/**/*.test.ts',
-      'src/**/*.spec.ts'
+      'src/__tests__/integration/**/*.test.ts'
     ],
     exclude: [
       'node_modules',
@@ -38,9 +37,9 @@ export default defineConfig({
         }
       }
     },
-    // Increased timeouts for container operations
-    testTimeout: 60000,
-    hookTimeout: 60000,
+    // Longer timeouts for container operations
+    testTimeout: 120000,
+    hookTimeout: 120000,
     // Enable type checking for tests
     typecheck: {
       enabled: true
@@ -49,7 +48,7 @@ export default defineConfig({
     pool: 'threads',
     poolOptions: {
       threads: {
-        singleThread: false,
+        singleThread: true, // Run integration tests sequentially to avoid container conflicts
         isolate: true
       }
     }
