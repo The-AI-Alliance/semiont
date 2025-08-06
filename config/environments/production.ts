@@ -7,6 +7,10 @@
 import type { EnvironmentOverrides } from '../schemas/config.schema';
 
 export const productionConfig: EnvironmentOverrides = {
+  _meta: {
+    type: 'cloud',
+    description: 'Production environment (AWS)'
+  },
   site: {
     // Production-specific site configuration (example values - MUST BE CUSTOMIZED)
     domain: 'wiki.example.com',
@@ -18,7 +22,6 @@ export const productionConfig: EnvironmentOverrides = {
     // Note: No backend/frontend URLs needed in production config.
     // CDK infrastructure uses config.site.domain to create Load Balancer
     // and sets NEXT_PUBLIC_API_URL, FRONTEND_URL via environment variables.
-    nodeEnv: 'production',
     features: {
       enableAnalytics: true,
       enableMaintenanceMode: false,

@@ -14,15 +14,15 @@ fi
 COMMAND=${1:-help}
 
 case $COMMAND in
-  "logs")
+  "watch")
     shift
-    cd "$SCRIPT_DIR" && npx tsx logs.ts "$@"
+    cd "$SCRIPT_DIR" && npx tsx watch.ts "$@"
     ;;
-  "status")
+  "check")
     shift  
-    cd "$SCRIPT_DIR" && npx tsx status.ts "$@"
+    cd "$SCRIPT_DIR" && npx tsx check.ts "$@"
     ;;
-  "secrets")
+  "configure")
     shift
     # Check if this is for local development
     if [[ "$1" == "local" ]] || [[ "$SEMIONT_ENV" == "development" && "$1" == "set" && ("$2" == "database-password" || "$2" == "jwt-secret") ]]; then
@@ -31,8 +31,16 @@ case $COMMAND in
       fi
       cd "$SCRIPT_DIR" && npx tsx local-secrets.ts "$@"
     else
-      cd "$SCRIPT_DIR" && npx tsx secrets.ts "$@"
+      cd "$SCRIPT_DIR" && npx tsx configure.ts "$@"
     fi
+    ;;
+  "start")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx start.ts "$@"
+    ;;
+  "stop")
+    shift
+    cd "$SCRIPT_DIR" && npx tsx stop.ts "$@"
     ;;
   "restart")
     shift
@@ -46,13 +54,13 @@ case $COMMAND in
     shift
     cd "$SCRIPT_DIR" && npx tsx db-backup.ts "$@"
     ;;
-  "create")
+  "provision")
     shift
-    cd "$SCRIPT_DIR" && npx tsx create.ts "$@"
+    cd "$SCRIPT_DIR" && npx tsx provision.ts "$@"
     ;;
-  "update-images")
+  "deploy")
     shift
-    cd "$SCRIPT_DIR" && npx tsx update-images.ts "$@"
+    cd "$SCRIPT_DIR" && npx tsx deploy.ts "$@"
     ;;
   "clean")
     shift
@@ -66,61 +74,56 @@ case $COMMAND in
     shift
     cd "$SCRIPT_DIR" && npx tsx test.ts "$@"
     ;;
-  "performance"|"perf")
+  "benchmark")
     shift
-    cd "$SCRIPT_DIR" && npx tsx performance.ts "$@"
-    ;;
-  "local")
-    shift
-    cd "$SCRIPT_DIR" && npx tsx local.ts "$@"
+    cd "$SCRIPT_DIR" && npx tsx benchmark.ts "$@"
     ;;
   "help"|*)
     echo "🚀 Semiont Management Tool"
     echo ""
     echo "Usage: $0 [command] [args...]"
     echo ""
-    echo "🏗️  Production Commands:"
-    echo "   logs [tail|follow]     - View container logs"
-    echo "   status                 - Check deployment status"
-    echo "   secrets [list|get|set] - Manage secrets (OAuth, JWT, etc.)"
-    echo "   restart [frontend|backend|both] - Restart Semiont services"
-    echo "   exec [command]         - Execute command in container"
+    echo "🔨 Development:"
+    echo "   start <env>            - Start services in any environment"
+    echo "   stop <env>             - Stop services in any environment"  
+    echo "   restart <env>          - Restart services in any environment"
+    echo "   check                  - Check system health and status"
+    echo ""
+    echo "🧪 Testing:"
+    echo "   test [options]         - Run automated tests"
+    echo ""
+    echo "🏗️ Build & Deploy:"
+    echo "   build [target]         - Build applications and Docker images"
+    echo "   provision <env>        - Create cloud infrastructure (one-time)"
+    echo "   deploy <env>           - Deploy application code and configuration"
+    echo ""
+    echo "📊 Operations:"
+    echo "   watch [logs|metrics]   - Monitor logs and system metrics"
     echo "   backup [name]          - Backup database"
-    echo "   create [infra|app|all] - Create infrastructure stacks"
-    echo "   update-images          - Push images to ECR and update ECS"
-    echo "   clean [--docker|--node|--cdk|--nextjs] - Clean build artifacts and caches"
-    echo "   build [frontend|backend|docker|all] - Build applications and Docker images"
-    echo "   test [frontend|backend|security|all] - Run automated tests"
-    echo "   performance [analyze|monitor|check] - Performance analysis"
+    echo "   configure <cmd>        - Configure application settings and secrets"
+    echo "   exec [command]         - Execute command in container"
     echo ""
-    echo "💻 Local Development Commands:"
-    echo "   local start [--reset]  - Start full development environment"
-    echo "   local stop             - Stop all local services"
-    echo "   local status           - Show local services status"
-    echo ""
-    echo "   local db start [--seed] - Start PostgreSQL container"
-    echo "   local db reset [--seed] - Reset database with fresh data"
-    echo "   local db stop          - Stop database container"
-    echo ""
-    echo "   local backend start [--fresh] - Start backend (ensures db running)"
-    echo "   local backend stop     - Stop backend service"
-    echo ""
-    echo "   local frontend start [--mock] - Start frontend (mock or real API)"
-    echo "   local frontend stop    - Stop frontend service"
+    echo "🔧 Utilities:"
+    echo "   clean [target]         - Clean build artifacts and caches"
+    echo "   benchmark [action]     - Performance benchmarking and analysis"
     echo ""
     echo "Examples:"
-    echo "🏗️  Production:"
-    echo "   $0 status              # Check service status"
-    echo "   $0 logs follow         # Follow logs in real-time"
-    echo "   $0 secrets set oauth/google    # Configure Google OAuth"
-    echo "   $0 test                # Run all tests"
+    echo "   # Local Development:"
+    echo "   $0 start local               # Start all services locally"
+    echo "   $0 start local --service frontend --mock  # Frontend with mock API"
+    echo "   $0 stop local                # Stop all local services"
     echo ""
-    echo "💻 Local Development:"
-    echo "   $0 local start         # Start everything (db + backend + frontend)"
-    echo "   $0 local start --reset # Fresh start with clean database"
-    echo "   $0 local db start --seed # Start database with sample data"
-    echo "   $0 local frontend start --mock # Frontend with mock API only"
-    echo "   $0 local status        # Check what's running locally"
+    echo "   # Cloud Deployment:"
+    echo "   $0 provision production      # One-time infrastructure setup"
+    echo "   $0 deploy production         # Deploy code changes to production"
+    echo "   $0 start staging --service backend  # Start backend service in staging"
+    echo "   $0 restart production --service frontend  # Restart frontend in production"
+    echo ""
+    echo "   # Operations:"
+    echo "   $0 check                     # Check system health"
+    echo "   $0 watch logs                # Monitor logs continuously"
+    echo "   $0 watch metrics             # Monitor system metrics"
+    echo "   $0 test --suite unit --service frontend  # Unit tests for frontend"
     echo ""
     ;;
 esac

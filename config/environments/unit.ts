@@ -16,6 +16,10 @@ import { testConfig } from './test';
 
 export const unitConfig: EnvironmentOverrides = {
   ...testConfig,
+  _meta: {
+    type: 'test',
+    description: 'Unit tests with mocked dependencies'
+  },
   app: {
     ...testConfig.app,
     backend: {

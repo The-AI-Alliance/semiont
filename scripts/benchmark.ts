@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * Performance monitoring and analysis for Semiont
+ * Benchmark Command - Performance benchmarking and analysis for Semiont
  * Provides bundle analysis, lighthouse testing, and performance monitoring
  */
 
@@ -142,7 +142,7 @@ class PerformanceManager {
     const reportDir = join(this.frontendDir, 'performance-reports');
     if (!existsSync(reportDir)) {
       console.log(chalk.yellow('No performance reports found. Run monitoring first:'));
-      console.log(chalk.gray('  semiont performance monitor'));
+      console.log(chalk.gray('  semiont benchmark monitor'));
       return;
     }
     

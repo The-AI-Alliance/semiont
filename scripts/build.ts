@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import path from 'path';
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 
 interface BuildOptions {
   target?: 'frontend' | 'backend' | 'docker' | 'all';
@@ -506,7 +506,7 @@ async function build(options: BuildOptions) {
       log('💡 Next steps:');
       log('   ./semiont test           # Run tests (REQUIRED before deployment)');
       log('   ./semiont update-images  # Push images to ECR and deploy');
-      log('   ./semiont status         # Check deployment status');
+      log('   ./semiont check          # Check deployment status');
     } else {
       log('');
       log('❌ Build FAILED with critical errors');

@@ -8,7 +8,7 @@ import { SemiontStackConfig } from './lib/stack-config';
 import { ECSTask, LogMode, ServiceType, AWSError, isServiceType, isLogMode } from './lib/types.js';
 import { logger } from './lib/logger.js';
 // Validators imported for future AWS resource validation needs
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 
 const stackConfig = new SemiontStackConfig();
 const ecsClient = new ECSClient({ region: config.aws.region });
@@ -450,22 +450,41 @@ async function getLogs(mode: LogMode = 'tail', service?: ServiceType, targetTask
 // Parse command line arguments with type safety
 function parseArgs(): { mode: LogMode; service?: ServiceType; targetTaskId?: string } {
   const args = process.argv.slice(2);
-  let mode: LogMode = 'tail';
+  let mode: LogMode = 'follow'; // Default to follow for continuous monitoring
   let service: ServiceType | undefined;
   let targetTaskId: string | undefined;
 
-  // Parse arguments
+  // Parse arguments - handle new watch command structure
   if (args.length === 0) {
-    // Default: tail mode, all services
+    // Default: follow mode, all services
+    mode = 'follow';
+  } else if (args[0] === 'logs') {
+    // Watch logs continuously
+    mode = 'follow';
+    if (args[1] && isServiceType(args[1])) {
+      service = args[1];
+      targetTaskId = args[2];
+    }
+  } else if (args[0] === 'metrics' || args[0] === 'waf') {
+    // Watch metrics or WAF
+    mode = args[0] as LogMode;
+    if (args[1] && isServiceType(args[1])) {
+      service = args[1];
+      targetTaskId = args[2];
+    }
   } else if (args[0] && isServiceType(args[0])) {
     // First argument is service
     service = args[0];
-    if (args[1] && isLogMode(args[1])) {
+    if (args[1] === 'logs') {
+      mode = 'follow';
+    } else if (args[1] === 'metrics' || args[1] === 'waf') {
+      mode = args[1] as LogMode;
+    } else if (args[1] && isLogMode(args[1])) {
       mode = args[1];
     }
     targetTaskId = args[2];
   } else if (args[0] && isLogMode(args[0])) {
-    // First argument is mode
+    // Legacy mode support
     mode = args[0];
     if (args[1] && isServiceType(args[1])) {
       service = args[1];
@@ -474,26 +493,25 @@ function parseArgs(): { mode: LogMode; service?: ServiceType; targetTaskId?: str
       targetTaskId = args[1];
     }
   } else {
-    logger.simple('Usage: npx tsx logs.ts [frontend|backend] [tail|follow|all|waf] [task-id]');
-    logger.simple('   or: npx tsx logs.ts [tail|follow|all|waf] [frontend|backend] [task-id]');
+    logger.simple('Usage: semiont watch [logs|metrics|waf] [frontend|backend] [task-id]');
+    logger.simple('   or: semiont watch [frontend|backend] [logs|metrics|waf] [task-id]');
     logger.simple('');
     logger.simple('Services:');
     logger.simple('  frontend - Show only frontend container logs');
     logger.simple('  backend  - Show only backend container logs');
     logger.simple('  (none)   - Show logs from both services');
     logger.simple('');
-    logger.simple('Modes:');
-    logger.simple('  tail     - Show recent container logs (default)');
-    logger.simple('  follow   - Follow container logs in real-time');
-    logger.simple('  all      - Show all container logs from all tasks');
-    logger.simple('  waf      - Show WAF and ALB activity logs');
+    logger.simple('Monitoring Modes:');
+    logger.simple('  logs     - Follow container logs continuously (default)');
+    logger.simple('  metrics  - Monitor performance metrics');
+    logger.simple('  waf      - Monitor WAF and security events');
     logger.simple('');
     logger.simple('Examples:');
-    logger.simple('  npx tsx logs.ts tail');
-    logger.simple('  npx tsx logs.ts frontend tail');
-    logger.simple('  npx tsx logs.ts backend follow');
-    logger.simple('  npx tsx logs.ts all frontend');
-    logger.simple('  npx tsx logs.ts waf');
+    logger.simple('  semiont watch                # Monitor all logs');
+    logger.simple('  semiont watch logs           # Follow logs continuously');
+    logger.simple('  semiont watch metrics        # Monitor performance metrics');
+    logger.simple('  semiont watch waf            # Monitor WAF/security events');
+    logger.simple('  semiont watch frontend logs  # Follow frontend logs');
     process.exit(1);
   }
 
@@ -504,7 +522,7 @@ function parseArgs(): { mode: LogMode; service?: ServiceType; targetTaskId?: str
 async function main() {
   try {
     const { mode, service, targetTaskId } = parseArgs();
-    logger.debug('Starting logs script', { mode, service, targetTaskId });
+    logger.debug('Starting watch monitoring', { mode, service, targetTaskId });
     await getLogs(mode, service, targetTaskId);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

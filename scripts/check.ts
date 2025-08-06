@@ -10,7 +10,7 @@ import { WAFV2Client, GetWebACLCommand } from '@aws-sdk/client-wafv2';
 import { SemiontStackConfig } from './lib/stack-config';
 import { ServiceType, AWSError } from './lib/types.js';
 import { logger } from './lib/logger.js';
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 
 const stackConfig = new SemiontStackConfig();
 const ecsClient = new ECSClient({ region: config.aws.region });

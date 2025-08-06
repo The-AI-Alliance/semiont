@@ -61,12 +61,7 @@ Centralized Config → CDK Infrastructure → ECS Task Definition → Container 
 
 ### For Development
 
-1. **Initialize Configuration**
-   ```bash
-   npm run config:init
-   ```
-
-2. **Customize Development Environment**
+1. **Customize Development Environment**
    Edit `/config/environments/development.ts` and replace all example values with your development-specific settings:
    ```typescript
    export const developmentConfig: EnvironmentOverrides = {
@@ -85,26 +80,16 @@ Centralized Config → CDK Infrastructure → ECS Task Definition → Container 
    };
    ```
 
-3. **Validate Configuration** (development is the default)
+3. **Deploy** (validates configuration automatically)
    ```bash
-   npm run config:validate
+   ./scripts/semiont deploy local
    ```
 
-4. **Deploy**
-   ```bash
-   npm run deploy
-   ```
-
-   Note: SEMIONT_ENV defaults to development, so no environment variable is needed.
+   Note: Development configuration is used automatically for local development.
 
 ### For Production (custom deployment)
 
-1. **Initialize Configuration**
-   ```bash
-   npm run config:init
-   ```
-
-2. **Customize Production Environment**
+1. **Customize Production Environment**
    Edit `/config/environments/production.ts` and replace all example values:
    ```typescript
    export const productionConfig: EnvironmentOverrides = {
@@ -123,19 +108,14 @@ Centralized Config → CDK Infrastructure → ECS Task Definition → Container 
    };
    ```
 
-3. **Set SEMIONT_ENV to production**
+2. **Provision AWS infrastructure** (one-time setup)
    ```bash
-   export SEMIONT_ENV=production
+   ./scripts/semiont provision production
    ```
 
-4. **Validate Configuration**
+3. **Deploy using the production environment**
    ```bash
-   npm run config:validate
-   ```
-
-5. **Deploy**
-   ```bash
-   npm run deploy
+   ./scripts/semiont deploy production
    ```
 
 ## Configuration Files
@@ -241,17 +221,15 @@ semiont secrets set oauth/github '{"clientId":"...","clientSecret":"..."}'
 
 ## Environment Variables
 
-### SEMIONT_ENV vs NODE_ENV
+### Configuration Selection
 
-Semiont uses `SEMIONT_ENV` instead of `NODE_ENV` to determine which environment configuration to load:
+Semiont configuration is selected through explicit parameters:
 
-- **`SEMIONT_ENV=development`**: Uses `/config/environments/development.ts` (default)
-- **`SEMIONT_ENV=production`**: Uses `/config/environments/production.ts`
-- **`SEMIONT_ENV=test`**: Base test configuration (rarely used directly)
-- **`SEMIONT_ENV=unit`**: Unit test configuration with mocked dependencies
-- **`SEMIONT_ENV=integration`**: Integration test configuration with Testcontainers
+- **Scripts**: Use explicit environment parameters (`./scripts/semiont deploy production`)
+- **Backend**: Automatically selects config based on `NODE_ENV` (`production` → `production.ts`, others → `local.ts`)
+- **Tests**: Use suite-specific configuration (`unit` → unit.ts, `integration` → integration.ts)
 
-This allows Semiont to have its own environment configuration independent of your Node.js application's `NODE_ENV`.
+This provides explicit control over configuration selection.
 
 #### Test Environment Hierarchy
 
@@ -272,8 +250,8 @@ test.ts (base)
 Configuration values can be overridden using environment variables:
 
 ```bash
-# Semiont-specific environment (determines which config environment to use)
-export SEMIONT_ENV="production"  # or "development"
+# Configuration is selected via explicit parameters to scripts
+# No environment variables needed for config selection
 
 # Site configuration
 export SITE_NAME="My Site"
@@ -384,20 +362,14 @@ export const env = {
 Semiont provides a CLI for managing configuration:
 
 ```bash
-# Initialize configuration from example
-npm run config:init
+# Check deployment status and configuration
+./scripts/semiont status
 
-# Show current configuration (sensitive data masked)
-npm run config:show
+# Validate configuration before deployment
+./scripts/semiont deploy development --dry-run
 
-# Validate configuration
-npm run config:validate
-
-# Export as environment variables
-npm run config:export > .env
-
-# Show environment information
-npm run config:env
+# Deploy with automatic validation
+./scripts/semiont deploy development
 ```
 
 ## Development vs Production
@@ -443,7 +415,7 @@ export const productionConfig: EnvironmentOverrides = {
 
 After updating configuration, redeploy:
 ```bash
-npm run deploy
+./scripts/semiont deploy development
 ```
 
 ### 2. **OAuth Configuration**
@@ -534,14 +506,8 @@ export const developmentConfig: EnvironmentOverrides = {
 After any configuration change:
 
 ```bash
-# Validate configuration
-npm run config:validate
-
-# Deploy changes
-npm run deploy
-
-# Restart services to pick up new configuration
-./scripts/semiont restart
+# Deploy changes (validates automatically)
+./scripts/semiont deploy development
 ```
 
 ## Health Checks & Monitoring
@@ -677,13 +643,7 @@ The application validates configuration at startup:
 Use the management scripts and configuration CLI to inspect configuration:
 
 ```bash
-# Check current configuration
-npm run config:show
-
-# Validate configuration
-npm run config:validate
-
-# Check deployment status
+# Check deployment status and configuration
 ./scripts/semiont status
 
 # View application logs (both services)
@@ -704,30 +664,197 @@ npm run config:validate
 ./scripts/semiont restart
 ```
 
-## Migration from Old Configuration
+## Creating New Environment Configurations
 
-If migrating from an older version using `cdk/lib/shared-config.ts`:
+Semiont's configuration system is designed for easy extensibility. You can create new environment configurations without modifying core Semiont code.
 
-1. Configuration is automatically migrated on first use
-2. Old imports continue to work but show deprecation warnings
-3. Update imports when convenient:
-   ```typescript
-   // Old
-   import { SITE_CONFIG } from './cdk/lib/shared-config';
-   
-   // New
-   import { config } from './config';
-   ```
+### Step-by-Step Guide
+
+#### 1. **Create the Configuration File**
+
+Create a new file in `/config/environments/` with your environment name:
+
+```bash
+# Example: Create a staging environment
+touch config/environments/staging.ts
+```
+
+#### 2. **Define the Configuration**
+
+```typescript
+// config/environments/staging.ts
+import type { EnvironmentOverrides } from '../schemas/config.schema';
+
+export const stagingConfig: EnvironmentOverrides = {
+  // Environment metadata (REQUIRED) - declares the type of environment
+  _meta: {
+    type: 'cloud',  // 'local' | 'cloud' | 'test'
+    description: 'Staging environment for pre-production testing'
+  },
+  
+  site: {
+    domain: 'staging.example.com',
+    adminEmail: 'admin@staging.example.com',
+    supportEmail: 'support@staging.example.com',
+    oauthAllowedDomains: ['staging.example.com', 'example.com']
+  },
+  
+  app: {
+    features: {
+      enableAnalytics: true,       // Enable for realistic testing
+      enableMaintenanceMode: false,
+      enableDebugLogging: true     // Helpful for debugging
+    },
+    security: {
+      sessionTimeout: 14400,       // 4 hours
+      maxLoginAttempts: 5,
+      corsAllowedOrigins: ['https://staging.example.com']
+    },
+    performance: {
+      enableCaching: true,
+      cacheTimeout: 300           // 5 minutes
+    }
+    // Note: For cloud environments, URLs are set automatically by AWS infrastructure
+  },
+  
+  aws: {
+    accountId: '123456789012',
+    certificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/staging-cert-id',
+    hostedZoneId: 'ZSTAGINGZONEID123',
+    rootDomain: 'example.com',
+    database: {
+      multiAZ: false,            // Single AZ for staging cost savings
+      backupRetentionDays: 3
+    },
+    ecs: {
+      desiredCount: 1,           // Minimal resources for staging
+      minCapacity: 1,
+      maxCapacity: 3
+    },
+    monitoring: {
+      enableDetailedMonitoring: true,
+      logRetentionDays: 7
+    }
+  }
+};
+```
+
+#### 3. **Environment Types**
+
+Choose the appropriate `_meta.type` for your environment:
+
+| Type | Purpose | AWS Validation | Use Cases |
+|------|---------|----------------|-----------|
+| **`local`** | Local development | ❌ Skipped | Docker containers on developer machine |
+| **`cloud`** | Cloud infrastructure | ✅ Required | AWS-based environments (dev/staging/prod) |
+| **`test`** | Automated testing | ❌ Skipped | CI/CD testing environments |
+
+#### 4. **Environment-Specific Examples**
+
+**Local Environment Example:**
+```typescript
+// config/environments/local-experimental.ts
+export const localExperimentalConfig: EnvironmentOverrides = {
+  _meta: {
+    type: 'local',
+    description: 'Local development with experimental features'
+  },
+  site: {
+    domain: 'localhost',
+    adminEmail: 'admin@localhost.dev',
+    oauthAllowedDomains: ['localhost.dev', 'gmail.com']
+  },
+  app: {
+    backend: {
+      url: 'http://localhost:4001',    // Different port
+      database: {
+        name: 'semiont_experimental'   // Different database
+      }
+    },
+    frontend: {
+      url: 'http://localhost:4000'
+    }
+  }
+  // No AWS section needed for local environments
+};
+```
+
+**Cloud Environment Example:**
+```typescript
+// config/environments/preview.ts  
+export const previewConfig: EnvironmentOverrides = {
+  _meta: {
+    type: 'cloud',
+    description: 'Preview environment for feature branches'
+  },
+  // ... site, app, and aws configuration
+};
+```
+
+#### 5. **Use Your New Environment**
+
+Once created, your environment is immediately available:
+
+```bash
+# Deploy to your new environment
+./scripts/semiont deploy staging
+
+# Check configuration
+./scripts/semiont config show staging
+
+# Provision AWS infrastructure (for cloud environments)
+./scripts/semiont provision staging
+
+# View environment status
+./scripts/semiont status staging
+```
+
+### Key Benefits
+
+- ✅ **No core code changes** - Just create the config file
+- ✅ **Auto-discovery** - Scripts automatically detect new environments  
+- ✅ **Type safety** - Full TypeScript support and validation
+- ✅ **Inheritance** - Can extend existing configurations
+- ✅ **Flexible validation** - Metadata determines which validations apply
+
+### Advanced Patterns
+
+**Extending Existing Configurations:**
+```typescript
+import { productionConfig } from './production';
+
+export const productionEuConfig: EnvironmentOverrides = {
+  ...productionConfig,
+  _meta: {
+    type: 'cloud',
+    description: 'Production environment for EU region'
+  },
+  aws: {
+    ...productionConfig.aws,
+    region: 'eu-west-1',  // Override specific values
+    accountId: '987654321098'
+  }
+};
+```
+
+**Testing Your Configuration:**
+```bash
+# Validate configuration
+npm run build
+
+# Test loading
+node -e "console.log('Config valid:', require('./config/dist/index').loadConfig('staging'))"
+```
 
 ## Best Practices
 
 1. **Use centralized configuration** - Define all settings in `/config`
 2. **Use environment-specific overrides** - Keep environment differences in `/config/environments/`
 3. **Use CDK for all infrastructure** - Avoid manual AWS console changes
-4. **Use configuration management scripts** - Prefer `npm run config:*` and `./scripts/semiont secrets` over manual commands
+4. **Use semiont scripts** - Use `./scripts/semiont` commands for all operations
 5. **Test configuration changes** in development first
 6. **Use environment-specific values** - Never hardcode production URLs
-7. **Validate configuration** - Always run `npm run config:validate` before deployment
+7. **Validate configuration** - Use `./scripts/semiont deploy --dry-run` to validate before deployment
 8. **Restart services after config changes** - Configuration is cached in containers
 9. **Rotate secrets regularly** using AWS Secrets Manager
 10. **Monitor configuration drift** with AWS Config or CloudFormation drift detection

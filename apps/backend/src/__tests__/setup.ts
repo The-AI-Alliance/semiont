@@ -29,7 +29,6 @@ vi.mock('../db', () => ({
 // Set unit test environment variables
 // Unit tests use mock database and external services
 process.env.NODE_ENV = 'test';
-process.env.SEMIONT_ENV = 'unit';  // This triggers loading of config/environments/unit.ts
 process.env.JWT_SECRET = 'unit-test-jwt-secret-key-for-testing-purposes';
 process.env.DATABASE_PASSWORD = 'mock_password';
 process.env.DATABASE_URL = 'postgresql://mock_user:mock_password@mock-host:5432/mock_unit_test_db';

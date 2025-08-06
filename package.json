@@ -19,11 +19,6 @@
     "types:watch": "npm run watch -w @semiont/api-types",
     "install:all": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
-    "config:init": "npx tsx scripts/config.ts init",
-    "config:show": "npx tsx scripts/config.ts show",
-    "config:validate": "npx tsx scripts/config.ts validate",
-    "config:export": "npx tsx scripts/config.ts export",
-    "config:env": "npx tsx scripts/config.ts env"
   },
   "engines": {
     "node": ">=18.0.0",

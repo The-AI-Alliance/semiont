@@ -6,33 +6,36 @@
  */
 
 import { siteConfig, awsConfig, appConfig } from './base';
-import { developmentConfig } from './environments/development';
-import { productionConfig } from './environments/production';
-import { testConfig } from './environments/test';
-import { unitConfig } from './environments/unit';
-import { integrationConfig } from './environments/integration';
 import { validateConfiguration, ConfigurationError } from './schemas/validation';
 import type { SemiontConfiguration, EnvironmentOverrides } from './schemas/config.schema';
 
-// Determine current environment
-const environment = process.env['SEMIONT_ENV'] || 'development';
-
-// Select environment overrides
-function getEnvironmentOverrides(): EnvironmentOverrides {
-  switch (environment) {
-    case 'development':
-      return developmentConfig;
-    case 'production':
-      return productionConfig;
-    case 'test':
-      return testConfig;
-    case 'unit':
-      return unitConfig;
-    case 'integration':
-      return integrationConfig;
-    default:
-      console.warn(`Unknown environment: ${environment}, using development config`);
-      return developmentConfig;
+// Dynamic environment loading
+function getEnvironmentOverrides(environment: string): EnvironmentOverrides {
+  try {
+    // Try to dynamically import the environment configuration
+    const envModule = require(`./environments/${environment}`);
+    
+    // Look for the config export (e.g., localConfig, developmentConfig, fooConfig)
+    const configKey = `${environment}Config`;
+    if (envModule[configKey]) {
+      return envModule[configKey];
+    }
+    
+    // Fallback: look for any exported config
+    const exports = Object.keys(envModule);
+    const configExport = exports.find(key => key.endsWith('Config'));
+    if (configExport && envModule[configExport]) {
+      return envModule[configExport];
+    }
+    
+    throw new Error(`No configuration export found in environments/${environment}.ts`);
+  } catch (error) {
+    console.warn(`Failed to load environment '${environment}': ${error instanceof Error ? error.message : String(error)}`);
+    console.warn(`Using development config as fallback`);
+    
+    // Fallback to development
+    const devModule = require('./environments/development');
+    return devModule.developmentConfig;
   }
 }
 
@@ -72,8 +75,8 @@ function normalizeUrls(config: SemiontConfiguration): SemiontConfiguration {
 }
 
 // Build final configuration
-function buildConfiguration(): SemiontConfiguration {
-  const overrides = getEnvironmentOverrides();
+function buildConfiguration(environment: string): SemiontConfiguration {
+  const overrides = getEnvironmentOverrides(environment);
   
   let config: SemiontConfiguration = {
     site: deepMerge(siteConfig, overrides.site || {}),
@@ -86,7 +89,9 @@ function buildConfiguration(): SemiontConfiguration {
   
   // Validate configuration
   try {
-    validateConfiguration(config);
+    const environmentType = overrides._meta?.type;
+    const skipAWSValidation = environmentType === 'local' || environmentType === 'test';
+    validateConfiguration(config, { skipAWSValidation });
   } catch (error: unknown) {
     if (error instanceof ConfigurationError) {
       console.error(`Configuration Error: ${error.message}`);
@@ -101,30 +106,27 @@ function buildConfiguration(): SemiontConfiguration {
   return config;
 }
 
-// Export configuration
-export const config = buildConfiguration();
+// Load configuration for a specific environment (clean API)
+export function loadConfig(environment: string = 'development'): SemiontConfiguration {
+  return buildConfiguration(environment);
+}
+
+// Default configuration - uses development unless NODE_ENV suggests otherwise
+const defaultEnvironment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+export const config = buildConfiguration(defaultEnvironment);
 
 // Export individual sections for convenience
 export const { site, aws, app } = config;
 
 // Export types
 export * from './schemas/config.schema';
+export { ConfigurationError } from './schemas/validation';
 
-// Utility functions
-export function isDevelopment(): boolean {
-  return environment === 'development';
-}
+// Utility functions (work with default config)
 
-export function isProduction(): boolean {
-  return environment === 'production';
-}
-
-export function isTest(): boolean {
-  return environment === 'test';
-}
 
 export function getEnvironment(): string {
-  return environment;
+  return defaultEnvironment;
 }
 
 export function getFullDomain(): string {

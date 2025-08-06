@@ -22,6 +22,10 @@
 import type { EnvironmentOverrides } from '../schemas/config.schema';
 
 export const testConfig: EnvironmentOverrides = {
+  _meta: {
+    type: 'test',
+    description: 'Base test configuration with local-like settings'
+  },
   site: {
     // Test-specific site configuration
     domain: 'test.example.com',
@@ -30,7 +34,6 @@ export const testConfig: EnvironmentOverrides = {
     oauthAllowedDomains: ['test.example.com', 'example.org']
   },
   app: {
-    nodeEnv: 'test',
     features: {
       enableAnalytics: false,
       enableMaintenanceMode: false,

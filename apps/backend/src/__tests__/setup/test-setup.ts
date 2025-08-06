@@ -7,7 +7,6 @@ let isDatabaseSetup = false;
 beforeAll(async () => {
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';
-  process.env.SEMIONT_ENV = 'integration';  // Load config/environments/integration.ts
   
   // Configure Testcontainers early to avoid Node.js crashes
   process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';

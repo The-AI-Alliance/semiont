@@ -3,7 +3,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 
 interface CleanOptions {
   docker?: boolean;

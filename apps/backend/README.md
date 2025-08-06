@@ -678,19 +678,18 @@ The backend uses **Jest** with TypeScript for unit testing, following a simple a
 
 ```bash
 # Run all backend tests with coverage (from project root)
-./scripts/semiont test backend
+./scripts/semiont test --service backend
 
 # Run specific test types for backend
-./scripts/semiont test backend unit         # Unit tests only (~176 tests)
-./scripts/semiont test backend integration  # Integration tests only (~41 tests)
-./scripts/semiont test backend api         # API endpoint tests only (~60 tests)
-./scripts/semiont test backend security    # Security tests only
+./scripts/semiont test --service backend --suite unit         # Unit tests only (~176 tests)
+./scripts/semiont test --service backend --suite integration  # Integration tests only (~60 tests)
+./scripts/semiont test --service backend --suite security    # Security tests only
 
 # Watch mode for development
-./scripts/semiont test backend unit --watch
+./scripts/semiont test --service backend --suite unit --watch
 
 # Skip coverage reporting for faster runs
-./scripts/semiont test backend --no-coverage
+./scripts/semiont test --service backend --no-coverage
 ```
 
 #### Direct npm Scripts

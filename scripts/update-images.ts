@@ -2,7 +2,7 @@
 
 import { spawn, type ChildProcess } from 'child_process';
 import path from 'path';
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeTaskDefinitionCommand } from '@aws-sdk/client-ecs';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
@@ -484,7 +484,7 @@ async function updateImages(_options: UpdateImagesOptions) {
       console.log('✅ Image update completed successfully!');
       console.log(`⏱️  Total time: ${Math.floor(duration / 60)}m ${duration % 60}s`);
       console.log(`🌐 Your site should be available at: https://${config.site.domain}`);
-      console.log('💡 Check deployment status with: ./semiont status');
+      console.log('💡 Check deployment status with: ./semiont check');
       return true;
     } else {
       console.log('');

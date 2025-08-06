@@ -43,9 +43,6 @@ export interface AWSConfiguration {
 }
 
 export interface ApplicationConfiguration {
-  // Environment
-  nodeEnv: 'development' | 'staging' | 'production' | 'test';
-  
   // Feature flags
   features: {
     enableAnalytics?: boolean;
@@ -131,9 +128,6 @@ type DeepPartial<T> = {
 
 // Application configuration override interface (allows string URLs)
 export interface ApplicationConfigurationOverride {
-  // Environment
-  nodeEnv?: 'development' | 'staging' | 'production' | 'test';
-  
   // Feature flags
   features?: {
     enableAnalytics?: boolean;
@@ -176,8 +170,17 @@ export interface ApplicationConfigurationOverride {
   };
 }
 
+// Environment metadata
+export interface EnvironmentMetadata {
+  type: 'local' | 'cloud' | 'test';
+  description?: string;
+}
+
 // Environment-specific override interface
 export interface EnvironmentOverrides {
+  // Environment metadata - declares what type of environment this is
+  _meta?: EnvironmentMetadata;
+  
   site?: Partial<SiteConfiguration>;
   aws?: DeepPartial<AWSConfiguration>;
   app?: ApplicationConfigurationOverride;

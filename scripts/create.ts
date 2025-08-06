@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 import * as fs from 'fs';
@@ -77,7 +77,7 @@ async function checkPrerequisites(): Promise<boolean> {
 
 async function showDeploymentStatus() {
   console.log('\n📊 Post-deployment status:');
-  console.log('💡 Check deployment status with: ./semiont status');
+  console.log('💡 Check deployment status with: ./semiont check');
 }
 
 async function create(options: DeployOptions) {
@@ -189,7 +189,7 @@ function showHelp() {
   console.log('   • This only creates AWS infrastructure - no application code is deployed');
   console.log('   • Use "./semiont update-images" after this to deploy application code');
   console.log('   • Stack creation typically takes 5-15 minutes');
-  console.log('   • Use "./semiont status" to monitor progress');
+  console.log('   • Use "./semiont check" to monitor progress');
 }
 
 async function main() {

@@ -598,19 +598,18 @@ The frontend uses **Vitest** with React Testing Library for testing React compon
 
 ```bash
 # Run all frontend tests with coverage (from project root)
-./scripts/semiont test frontend
+./scripts/semiont test --service frontend
 
 # Run specific test types for frontend
-./scripts/semiont test frontend unit         # Unit tests only (~1007 tests)
-./scripts/semiont test frontend integration  # Integration tests only (~5 tests)
-./scripts/semiont test frontend api         # API route tests only (~77 tests)
-./scripts/semiont test frontend security    # Security tests only (~5 tests)
+./scripts/semiont test --service frontend --suite unit         # Unit tests only (~1007 tests)
+./scripts/semiont test --service frontend --suite integration  # Integration tests only (~5 tests)
+./scripts/semiont test --service frontend --suite security    # Security tests only (~5 tests)
 
 # Watch mode for development
-./scripts/semiont test frontend unit --watch
+./scripts/semiont test --service frontend --suite unit --watch
 
 # Skip coverage reporting for faster runs
-./scripts/semiont test frontend --no-coverage
+./scripts/semiont test --service frontend --no-coverage
 ```
 
 #### Direct npm Scripts

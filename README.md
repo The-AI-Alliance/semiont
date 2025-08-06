@@ -134,46 +134,42 @@ npm run dev  # Frontend on :3000
 ### 4. Configuration Setup
 
 ```bash
-# Initialize configuration (first time only)
-npm run config:init
+# View current configuration
+./scripts/semiont config show
 
 # Edit configuration with your values
-# Update config/base/site.config.ts with:
+# Update config/environments/development.ts and config/environments/production.ts with:
 # - Your domain name
 # - Site branding
 # - OAuth settings
 # - Email addresses
 
 # Validate configuration
-npm run config:validate
+./scripts/semiont config validate
 ```
 
 ### 4. Build and Test
 ```bash
-# Build applications and Docker images
-./scripts/semiont build all
-
 # Run comprehensive test suite
 ./scripts/semiont test
 
 # Run specific test types for targeted validation
-./scripts/semiont test frontend unit      # Fast frontend unit tests
-./scripts/semiont test backend api        # Backend API endpoint tests
-./scripts/semiont test integration        # Cross-service integration tests
-./scripts/semiont test security           # Security-focused validation
+./scripts/semiont test --service frontend --suite unit      # Fast frontend unit tests
+./scripts/semiont test --service backend --suite integration # Backend integration tests
+./scripts/semiont test --suite integration        # Cross-service integration tests
+./scripts/semiont test --suite security           # Security-focused validation
 ```
 
 ### 5. AWS Deployment
 ```bash
-# Set environment (development or production)
-export SEMIONT_ENV=development
+# Provision AWS infrastructure (one-time setup)
+./scripts/semiont provision production
 
-# Deploy all stacks (infrastructure + application)  
-./scripts/semiont create all
+# Deploy application code and configuration
+./scripts/semiont deploy production
 
-# Or deploy stacks individually:
-# ./scripts/semiont create infra  # Infrastructure stack only
-# ./scripts/semiont create app    # Application stack only
+# Start services (if needed)
+./scripts/semiont start production
 
 # Configure OAuth secrets (after deployment)
 ./scripts/semiont secrets set oauth/google
@@ -183,14 +179,18 @@ export SEMIONT_ENV=development
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
-### 6. Update Running Services
+### 6. Service Management
 ```bash
-# Push new images to ECR and update ECS services
-./scripts/semiont update-images
+# Deploy application changes (code and configuration updates)
+./scripts/semiont deploy production
 
-# Or update specific services:
-# ./scripts/semiont update-images frontend
-# ./scripts/semiont update-images backend
+# Start/stop services
+./scripts/semiont start production --service backend
+./scripts/semiont stop staging --service frontend
+./scripts/semiont restart production --service all
+
+# Test before deployment
+./scripts/semiont test
 ```
 
 ### 7. Verify Deployment
@@ -352,9 +352,9 @@ The project uses modern testing frameworks with intelligent test type filtering:
 Semiont organizes tests into four distinct categories for targeted testing:
 
 - **🧩 Unit Tests**: Individual components, functions, hooks (~1007 frontend, ~176 backend)
-- **🔗 Integration Tests**: Multi-component workflows and user flows (~5 frontend, ~41 backend)
-- **🌐 API Tests**: Endpoint validation and route handlers (~77 frontend, ~60 backend)
+- **🔗 Integration Tests**: Multi-component workflows, API endpoints, and service interactions (~82 frontend, ~101 backend)
 - **🔒 Security Tests**: Authentication, validation, GDPR compliance (~5 across both apps)
+- **🌐 E2E Tests**: End-to-end user workflows across services
 
 ### Running Tests
 
@@ -364,24 +364,24 @@ Semiont organizes tests into four distinct categories for targeted testing:
 # Run all tests with coverage (default)
 ./scripts/semiont test
 
-# Run by application
-./scripts/semiont test frontend           # Frontend only
-./scripts/semiont test backend            # Backend only
-./scripts/semiont test all                # Both apps (default)
+# Run by service
+./scripts/semiont test --service frontend           # Frontend only
+./scripts/semiont test --service backend            # Backend only
+./scripts/semiont test --service all                # Both services (default)
 
-# Run by test type  
-./scripts/semiont test unit               # Unit tests only
-./scripts/semiont test integration        # Integration tests only
-./scripts/semiont test api               # API/route tests only
-./scripts/semiont test security          # Security tests only
+# Run by test suite
+./scripts/semiont test --suite unit               # Unit tests only
+./scripts/semiont test --suite integration        # Integration tests only
+./scripts/semiont test --suite security          # Security tests only
+./scripts/semiont test --suite e2e               # End-to-end tests only
 
-# Combine application and test type
-./scripts/semiont test frontend unit     # Frontend unit tests
-./scripts/semiont test backend api       # Backend API tests
+# Combine service and test suite
+./scripts/semiont test --service frontend --suite unit     # Frontend unit tests
+./scripts/semiont test --service backend --suite integration # Backend integration tests
 
 # Additional options
 ./scripts/semiont test --no-coverage     # Skip coverage for speed
-./scripts/semiont test frontend --watch  # Watch mode
+./scripts/semiont test --watch           # Watch mode
 ./scripts/semiont test --verbose         # Detailed output
 ```
 
@@ -394,8 +394,8 @@ npm test  # From root directory
 # Frontend tests (apps/frontend/)
 npm test                    # All tests
 npm run test:unit          # Unit tests only  
-npm run test:integration   # Integration tests only
-npm run test:api           # API route tests only
+npm run test:integration   # Integration workflow tests
+npm run test:api           # API route tests (subset of integration)
 npm run test:security      # Security tests only
 npm run test:coverage      # All tests with coverage
 npm run test:watch         # Watch mode
@@ -403,20 +403,22 @@ npm run test:watch         # Watch mode
 # Backend tests (apps/backend/)
 npm test                    # All tests
 npm run test:unit          # Unit tests only
-npm run test:integration   # Integration tests only
-npm run test:api           # API tests only
+npm run test:integration   # Integration workflow tests
+npm run test:api           # API endpoint tests (subset of integration)
 npm run test:security      # Security tests only
 npm run test:coverage      # All tests with coverage
 npm run test:watch         # Watch mode
 ```
 
+**Note**: The `test:api` npm scripts test specific API routes/endpoints and are a subset of integration testing. When using the Semiont CLI, API tests are included in the `--suite integration` category.
+
 #### Performance Benefits
 
 Targeted test execution provides significant performance improvements:
-- **Unit tests**: Excludes integration tests for faster feedback
-- **Integration tests**: Only 5-41 tests vs full suite for complex workflow testing
-- **API tests**: Focuses on endpoints without UI component overhead
-- **Security tests**: Runs only security-critical validations
+- **Unit tests**: Excludes integration tests for faster feedback (~1183 focused tests)
+- **Integration tests**: Focused on workflows and API endpoints (~183 targeted tests)
+- **Security tests**: Runs only security-critical validations (~5 focused tests)
+- **E2E tests**: Complete user workflows for staging/production validation
 
 ### Test Coverage & Quality
 

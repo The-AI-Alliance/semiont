@@ -4,19 +4,21 @@ This guide provides comprehensive step-by-step instructions for deploying the Se
 
 ## Quick Reference
 
-**First-time setup:**
+**Local Development:**
 ```bash
-./scripts/semiont create infra    # Create VPC, RDS, EFS (10-15 min)
-./scripts/semiont build           # Build Docker images (3-5 min)
-./scripts/semiont update-images   # Push to ECR (2-3 min)
-./scripts/semiont create app      # Create ECS, ALB, WAF (8-12 min)
+./scripts/semiont deploy local            # Start all services locally with Docker
+```
+
+**Cloud Deployment (First-time setup):**
+```bash
+./scripts/semiont provision production    # Create AWS infrastructure (10-15 min)
+./scripts/semiont deploy production       # Deploy applications (8-12 min)
 ```
 
 **Code changes:**
 ```bash
-./scripts/semiont build           # Build new images (3-5 min)
-./scripts/semiont test            # Run tests (1-3 min) - REQUIRED
-./scripts/semiont update-images   # Deploy changes (2-3 min)
+./scripts/semiont test                    # Run tests (1-3 min) - REQUIRED
+./scripts/semiont deploy production       # Deploy changes (2-5 min)
 ```
 
 ## Pre-Deployment Checklist
@@ -136,54 +138,26 @@ docker build -t semiont-backend-test apps/backend
 docker rmi semiont-frontend-test semiont-backend-test
 ```
 
-### 5. Initial Deployment Workflow
+### 5. Deployment Workflow
 
-Semiont uses a two-phase deployment model separating infrastructure creation from application deployment:
+Semiont uses a simple two-step deployment model:
 
-**Step 4a: Create Infrastructure Stack**
+#### **Step 5a: Provision Infrastructure** (One-time setup)
 
 ```bash
-# Create the infrastructure stack (long-lived resources)
-./scripts/semiont create infra
+# Create all AWS infrastructure for the specified environment
+./scripts/semiont provision production
 ```
 
 **Expected Deployment Time:** 10-15 minutes
 
-**Infrastructure Resources Created:**
-- VPC with 3-tier subnet architecture
+**Resources Created:**
+- VPC with 3-tier subnet architecture  
 - RDS PostgreSQL database
 - EFS file system for persistent storage
 - Secrets Manager secrets
 - Security groups and IAM roles
-
-**Step 4b: Build, Test, and Deploy Application Images**
-
-```bash
-# Build local Docker images
-./scripts/semiont build
-
-# Run comprehensive tests - REQUIRED before deployment
-./scripts/semiont test
-
-# Push images to ECR (creates ECR repositories and :latest tags)
-./scripts/semiont update-images
-```
-
-**Expected Build Time:** 3-5 minutes
-**Expected Test Time:** 1-3 minutes (mandatory)
-**Expected Push Time:** 2-3 minutes
-
-**Step 4c: Create Application Stack**
-
-```bash
-# Create the application stack (references ECR images)
-./scripts/semiont create app
-```
-
-**Expected Deployment Time:** 8-12 minutes
-
-**Application Resources Created:**
-- ECS Fargate cluster with dual services (frontend/backend)
+- ECS Fargate cluster
 - Application Load Balancer with intelligent routing
 - WAF Web ACL with security rules
 - CloudWatch monitoring and SNS alerts
@@ -191,32 +165,31 @@ Semiont uses a two-phase deployment model separating infrastructure creation fro
 
 ## Ongoing Development Workflow
 
-After the initial deployment, code changes only require building and updating images:
+After the initial deployment, code changes only require testing and deployment:
 
 ```bash
 # For code changes after initial setup:
-./scripts/semiont build          # Build new Docker images locally
 ./scripts/semiont test           # Run tests - REQUIRED before deployment
-./scripts/semiont update-images  # Push to ECR and deploy to ECS
+./scripts/semiont deploy production  # Deploy changes (builds and pushes automatically)
 ```
 
-**Expected Time:** 6-11 minutes total (includes mandatory testing)
+**Expected Time:** 3-8 minutes total (includes mandatory testing)
 
 This workflow:
-1. Builds new Docker images with your code changes
-2. Runs comprehensive tests (frontend, backend, security)
-3. Pushes images to ECR with timestamped tags (only if tests pass)
+1. Runs comprehensive tests (frontend, backend, security)
+2. Builds new Docker images with your code changes (only if tests pass)
+3. Pushes images to ECR with timestamped tags
 4. Updates ECS task definitions to use new images
 5. Deploys new ECS tasks with zero-downtime rolling updates
 
-The `create` commands are only needed for:
+The `provision` command is only needed for:
 - Initial deployment
 - Infrastructure changes (modifying CDK stacks)
 - Recovery from stack deletion
 
 ## Testing Requirements
 
-**Testing is mandatory before any deployment.** The `update-images` command will not proceed without successful test completion.
+**Testing is mandatory before any deployment.** The `deploy` command will not proceed without successful test completion.
 
 ### Test Suite Overview
 
@@ -262,7 +235,7 @@ If tests fail:
 
 1. **Fix the issues** - Review test output for specific failures
 2. **Re-run tests** - `./scripts/semiont test`
-3. **Only then deploy** - `./scripts/semiont update-images`
+3. **Only then deploy** - `./scripts/semiont deploy production`
 
 **Deployment will be blocked until all tests pass.**
 
@@ -444,8 +417,8 @@ aws acm request-certificate --domain-name wiki.example.com --validation-method D
 
 ```bash
 # Update configuration via CDK (recommended)
-# Edit cdk/lib/shared-config.ts
-./scripts/semiont create app
+# Edit config/environments/production.ts
+./scripts/semiont deploy production
 
 # Or force service restart to pick up new environment
 ./scripts/semiont restart
@@ -549,20 +522,16 @@ If deployment fails or issues arise:
 # Quick service rollback using management scripts
 ./scripts/semiont restart
 
-# Rollback application stack only (preserves infrastructure)
-./scripts/semiont create app
+# Rollback application deployment only (preserves infrastructure)
+./scripts/semiont deploy production
 
 # Full rollback (emergency only - destroys all infrastructure)
 cd cdk
 npx cdk destroy SemiontAppStack
 npx cdk destroy SemiontInfraStack
 # Then redeploy from scratch
-cd ../scripts
-./scripts/semiont create infra
-./scripts/semiont build
-./scripts/semiont test
-./scripts/semiont update-images
-./scripts/semiont create app
+./scripts/semiont provision production
+./scripts/semiont deploy production
 ```
 
 **Important:** RDS and EFS resources have deletion protection and retain policies. The two-stack model allows you to rollback application changes without affecting the database.

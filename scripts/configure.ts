@@ -1,12 +1,21 @@
 #!/usr/bin/env -S npx tsx
 
+/**
+ * Configure Command - Unified configuration management for Semiont
+ * 
+ * Manages both public configuration (domains, settings) and private secrets (OAuth, JWT)
+ * 
+ * Usage:
+ *   ./scripts/semiont configure show            # Show public configuration
+ *   ./scripts/semiont configure list            # List all configurable items
+ *   ./scripts/semiont configure oauth/google    # Set OAuth secrets
+ *   ./scripts/semiont configure jwt-secret      # Set JWT secret
+ */
+
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from './lib/stack-config';
-import { config } from '../config';
+import { loadConfig, displayConfiguration, ConfigurationError } from '../config/dist/index.js';
 import * as readline from 'readline';
-
-const stackConfig = new SemiontStackConfig();
-const secretsClient = new SecretsManagerClient({ region: config.aws.region });
 
 // Reserved for future secret management features
 // interface SecretInfo for future use when needed
@@ -61,15 +70,19 @@ function maskSecretObject(obj: any): any {
   return obj;
 }
 
-async function getSecretFullName(secretPath: string): Promise<string> {
+async function getSecretFullName(environment: string, secretPath: string): Promise<string> {
   // Convert path format to actual secret name
-  // oauth/google -> semiont-dev-oauth-google-secret (or similar based on stack config)
+  // oauth/google -> semiont-production-oauth-google-secret (or similar based on stack config)
+  const envConfig = loadConfig(environment);
+  const stackConfig = new SemiontStackConfig(envConfig.aws.region);
   const config = await stackConfig.getConfig();
   const stackName = config.infraStack.name;
   return `${stackName}-${secretPath.replace('/', '-')}-secret`;
 }
 
-async function getCurrentSecret(secretName: string): Promise<any> {
+async function getCurrentSecret(environment: string, secretName: string): Promise<any> {
+  const envConfig = loadConfig(environment);
+  const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
   try {
     const response = await secretsClient.send(
       new GetSecretValueCommand({
@@ -85,7 +98,9 @@ async function getCurrentSecret(secretName: string): Promise<any> {
   }
 }
 
-async function updateSecret(secretName: string, secretValue: any): Promise<void> {
+async function updateSecret(environment: string, secretName: string, secretValue: any): Promise<void> {
+  const envConfig = loadConfig(environment);
+  const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
   const secretString = typeof secretValue === 'string' ? secretValue : JSON.stringify(secretValue);
   
   await secretsClient.send(
@@ -96,52 +111,13 @@ async function updateSecret(secretName: string, secretValue: any): Promise<void>
   );
 }
 
-async function listSecrets(): Promise<void> {
-  console.log('📋 Available secrets:\n');
-  
-  const config = await stackConfig.getConfig();
-  const stackName = config.infraStack.name;
-  
-  // List all secrets starting with our stack name
-  const response = await secretsClient.send(new ListSecretsCommand({}));
-  const ourSecrets = response.SecretList?.filter(secret => 
-    secret.Name?.startsWith(stackName)
-  ) || [];
-  
-  // Show known secrets first
-  for (const [secretPath, description] of Object.entries(KNOWN_SECRETS)) {
-    const fullName = await getSecretFullName(secretPath);
-    const exists = ourSecrets.some(s => s.Name === fullName);
-    
-    const status = exists ? '✅ configured' : '❌ not configured';
-    console.log(`   ${secretPath.padEnd(20)} ${status}`);
-    console.log(`   ${' '.repeat(20)} ${description}`);
-    console.log();
-  }
-  
-  // Show any other secrets we don't know about
-  const unknownSecrets = ourSecrets.filter(secret => {
-    const name = secret.Name || '';
-    return !Object.keys(KNOWN_SECRETS).some(path => 
-      name === stackName + '-' + path.replace('/', '-') + '-secret'
-    );
-  });
-  
-  if (unknownSecrets.length > 0) {
-    console.log('   Other secrets:');
-    for (const secret of unknownSecrets) {
-      const name = secret.Name || '';
-      const shortName = name.replace(stackName + '-', '').replace('-secret', '');
-      console.log(`   ${shortName.padEnd(20)} ✅ configured`);
-    }
-  }
-}
+// Remove unused listSecrets function for now - can be reimplemented later with environment support
 
-async function getSecret(secretPath: string): Promise<void> {
-  console.log(`🔍 Reading secret: ${secretPath}\n`);
+async function getSecret(environment: string, secretPath: string): Promise<void> {
+  console.log(`🔍 Reading secret: ${secretPath} from ${environment}\n`);
   
-  const fullName = await getSecretFullName(secretPath);
-  const secret = await getCurrentSecret(fullName);
+  const fullName = await getSecretFullName(environment, secretPath);
+  const secret = await getCurrentSecret(environment, fullName);
   
   if (secret === null) {
     console.log(`❌ Secret '${secretPath}' not found`);
@@ -160,10 +136,10 @@ async function getSecret(secretPath: string): Promise<void> {
   }
 }
 
-async function setSecret(secretPath: string, value?: string): Promise<void> {
-  console.log(`🔐 Setting secret: ${secretPath}\n`);
+async function setSecret(environment: string, secretPath: string, value?: string): Promise<void> {
+  console.log(`🔐 Setting secret: ${secretPath} in ${environment}\n`);
   
-  const fullName = await getSecretFullName(secretPath);
+  const fullName = await getSecretFullName(environment, secretPath);
   let secretValue: any;
   
   if (value) {
@@ -228,7 +204,7 @@ async function setSecret(secretPath: string, value?: string): Promise<void> {
   }
   
   try {
-    await updateSecret(fullName, secretValue);
+    await updateSecret(environment, fullName, secretValue);
     console.log(`✅ Secret '${secretPath}' updated successfully`);
     console.log(`   Full name: ${fullName}`);
     
@@ -244,53 +220,124 @@ async function setSecret(secretPath: string, value?: string): Promise<void> {
   }
 }
 
+function showConfiguration(): void {
+  try {
+    console.log('\n📋 Current Semiont Configuration:\n');
+    displayConfiguration();
+    console.log('\n✅ Configuration is valid\n');
+  } catch (error) {
+    if (error instanceof ConfigurationError) {
+      console.error(`❌ Configuration validation failed: ${error.message}`);
+      if (error.field) {
+        console.error(`   Field: ${error.field}`);
+      }
+    } else {
+      console.error(`❌ Failed to load configuration:`, error);
+    }
+    process.exit(1);
+  }
+}
+
+function showHelp(): void {
+  console.log('🔧 Semiont Configuration Manager\n');
+  console.log('Usage: semiont configure <command> [args...]\n');
+  console.log('Commands:');
+  console.log('   show                          - Show current public configuration');
+  console.log('   list                          - List all configurable items');
+  console.log('   <env> get <secret-path>       - Read a private secret (masked)');
+  console.log('   <env> set <secret-path> [val] - Set a private secret\n');
+  console.log('Examples:');
+  console.log('   semiont configure show');
+  console.log('   semiont configure list');
+  console.log('   semiont configure production get oauth/google');
+  console.log('   semiont configure staging set oauth/google');
+  console.log('   semiont configure production set jwt-secret "my-secret-32-chars"');
+}
+
+async function listConfigurable(): Promise<void> {
+  console.log('📋 Configurable Items:\n');
+  
+  console.log('🔧 Public Configuration (edit config/environments/*.ts):');
+  console.log('   • Domain and site settings');
+  console.log('   • Feature flags and application settings');
+  console.log('   • AWS infrastructure configuration');
+  console.log('   • Use: ./scripts/semiont configure show\n');
+  
+  console.log('🔐 Private Secrets (managed securely):');
+  for (const [secretPath, description] of Object.entries(KNOWN_SECRETS)) {
+    console.log(`   • ${secretPath.padEnd(20)} - ${description}`);
+  }
+  console.log('   • Use: ./scripts/semiont configure <environment> <get|set> <secret-path>\n');
+}
+
 async function main() {
-  const command = process.argv[2];
-  const secretPath = process.argv[3];
-  const value = process.argv[4];
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0) {
+    // Show help
+    showHelp();
+    return;
+  }
+  
+  const firstArg = args[0];
+  
+  // Handle commands that don't need environment
+  if (firstArg === 'show') {
+    showConfiguration();
+    return;
+  }
+  
+  if (firstArg === 'list') {
+    await listConfigurable();
+    return;
+  }
+  
+  // For secret operations, require environment
+  const environment = firstArg;
+  const command = args[1];
+  const secretPath = args[2];
+  const value = args[3];
+  
+  if (!environment) {
+    console.error('❌ Environment is required for secret operations');
+    showHelp();
+    process.exit(1);
+  }
+  
+  if (!command || !['get', 'read', 'set', 'write'].includes(command)) {
+    console.error('❌ Command is required for secret operations');
+    console.error('   Usage: semiont configure <environment> <get|set> <secret-path> [value]');
+    console.error('   Example: semiont configure production get oauth/google');
+    process.exit(1);
+  }
   
   try {
     switch (command) {
-      case 'list':
-        await listSecrets();
-        break;
-        
       case 'get':
       case 'read':
         if (!secretPath) {
           console.error('❌ Secret path is required');
-          console.error('   Usage: semiont secrets get <secret-path>');
-          console.error('   Example: semiont secrets get oauth/google');
+          console.error('   Usage: semiont configure <environment> get <secret-path>');
+          console.error('   Example: semiont configure production get oauth/google');
           process.exit(1);
         }
-        await getSecret(secretPath);
+        await getSecret(environment, secretPath);
         break;
         
       case 'set':
       case 'write':
         if (!secretPath) {
           console.error('❌ Secret path is required');
-          console.error('   Usage: semiont secrets set <secret-path> [value]');
-          console.error('   Example: semiont secrets set oauth/google');
-          console.error('   Example: semiont secrets set jwt-secret "my-secret-value"');
+          console.error('   Usage: semiont configure <environment> set <secret-path> [value]');
+          console.error('   Example: semiont configure production set oauth/google');
+          console.error('   Example: semiont configure staging set jwt-secret "my-secret-value"');
           process.exit(1);
         }
-        await setSecret(secretPath, value);
+        await setSecret(environment, secretPath, value);
         break;
         
       default:
-        console.log('🔐 Semiont Secrets Manager\n');
-        console.log('Usage: semiont secrets <command> [args...]\n');
-        console.log('Commands:');
-        console.log('   list                     - List all available secrets');
-        console.log('   get <secret-path>        - Read a secret (masked)');
-        console.log('   set <secret-path> [value] - Set a secret (interactive if no value)\n');
-        console.log('Examples:');
-        console.log('   semiont secrets list');
-        console.log('   semiont secrets get oauth/google');
-        console.log('   semiont secrets set oauth/google');
-        console.log('   semiont secrets set jwt-secret "my-secret-32-chars-long"');
-        console.log('   semiont secrets set oauth/github \'{"clientId":"...","clientSecret":"..."}\'');
+        showHelp();
         break;
     }
   } catch (error: any) {
@@ -299,6 +346,5 @@ async function main() {
   }
 }
 
-if (require.main === module) {
-  main();
-}
+// ES module entry point
+main();

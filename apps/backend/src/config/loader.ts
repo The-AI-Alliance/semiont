@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Load configuration from the config directory
-function loadConfig() {
+function loadConfig(environment = 'development') {
   // Check if we're in the backend directory and adjust path accordingly
   const currentDir = process.cwd();
   let configDir: string;
@@ -31,12 +31,9 @@ function loadConfig() {
   
   // Import the config module dynamically
   try {
-    // Set environment before loading config
-    process.env.SEMIONT_ENV = process.env.SEMIONT_ENV || 'development';
-    
-    // Load the compiled config from dist directory
+    // Load the compiled config from dist directory using function approach
     const configModule = require(path.join(configDir, 'dist', 'index'));
-    return configModule.config;
+    return configModule.loadConfig(environment);
   } catch (error) {
     console.error('Failed to load configuration from', configDir);
     console.error('Make sure to run from the project root or apps/backend directory');
@@ -80,7 +77,17 @@ function buildDatabaseUrl(config: any, secrets: any): string {
 
 // Export configuration loader
 export function loadBackendConfig() {
-  const config = loadConfig();
+  // Determine environment for configuration loading
+  // Local development gets 'local' config, production gets 'production', tests get 'development'
+  let environment: string;
+  if (process.env.NODE_ENV === 'production') {
+    environment = 'production';
+  } else if (process.env.NODE_ENV === 'test') {
+    environment = 'development'; // Tests use development-like config
+  } else {
+    environment = 'local'; // Local development uses local config
+  }
+  const config = loadConfig(environment);
   const secrets = loadLocalSecrets();
   
   // Build the configuration object matching the current backend expectations
@@ -92,7 +99,7 @@ export function loadBackendConfig() {
     
     // Backend specific
     PORT: config.app.backend?.port || 4000,
-    NODE_ENV: config.app.nodeEnv,
+    NODE_ENV: process.env.NODE_ENV || 'development',
     DATABASE_URL: buildDatabaseUrl(config, secrets),
     DATABASE_NAME: config.app.backend?.database?.name || 'semiont',
     

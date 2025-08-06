@@ -8,9 +8,6 @@
 import type { ApplicationConfiguration } from '../schemas/config.schema';
 
 export const appConfig: ApplicationConfiguration = {
-  // Environment
-  nodeEnv: (process.env.SEMIONT_ENV as 'development' | 'staging' | 'production') || 'development',
-  
   // Feature flags
   features: {
     enableAnalytics: process.env.ENABLE_ANALYTICS === 'true' || false,
@@ -33,8 +30,9 @@ export const appConfig: ApplicationConfiguration = {
   },
   
   // Backend configuration
+  // Note: URLs must be provided by environment-specific configuration
+  // Base configuration is environment-neutral
   backend: {
-    url: new URL(process.env.BACKEND_URL || 'http://localhost:4000'),
     database: {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
@@ -43,8 +41,8 @@ export const appConfig: ApplicationConfiguration = {
     }
   },
   
-  // Frontend configuration
+  // Frontend configuration  
+  // Note: URL must be provided by environment-specific configuration
   frontend: {
-    url: new URL(process.env.FRONTEND_URL || 'http://localhost:3000')
   }
 };

@@ -62,19 +62,19 @@ config/environments/
 
 Tests automatically use the appropriate environment based on their type:
 
-- **Unit Tests** (`SEMIONT_ENV=unit`):
+- **Unit Tests** (config: `unit.ts`):
   - Mocked database connections (`mockMode: true`)
   - No external service dependencies
   - Fast execution, ideal for TDD
   - Used by default frontend tests and backend unit tests
 
-- **Integration Tests** (`SEMIONT_ENV=integration`):
+- **Integration Tests** (config: `integration.ts`):
   - Real PostgreSQL via Testcontainers (`useTestcontainers: true`)
   - Actual database operations
   - Full API endpoint testing
   - Used for backend integration tests
 
-- **Base Test** (`SEMIONT_ENV=test`):
+- **Base Test** (config: `test.ts`):
   - Shared configuration for all test types
   - Disabled production features (analytics, monitoring)
   - Test-specific domains and emails
@@ -607,26 +607,32 @@ The recommended way to run tests is through the `semiont` CLI, which provides in
 # Run all tests with coverage (default behavior)
 ./scripts/semiont test
 
-# Run tests by application
-./scripts/semiont test frontend           # Frontend only
-./scripts/semiont test backend            # Backend only
-./scripts/semiont test all                # Both apps (default)
+# Run tests by service and suite
+./scripts/semiont test --service frontend --suite unit     # Frontend unit tests
+./scripts/semiont test --service backend --suite integration # Backend integration tests  
+./scripts/semiont test --service all --suite security      # Security tests on all services
 
-# Run tests by type
-./scripts/semiont test unit               # Unit tests only
-./scripts/semiont test integration        # Integration tests only  
-./scripts/semiont test api               # API/route tests only
-./scripts/semiont test security          # Security tests only
+# Run tests by environment
+./scripts/semiont test local              # Local tests (default, uses mocks)
+./scripts/semiont test staging --suite integration        # Integration tests against staging
+./scripts/semiont test production --suite e2e             # E2E tests on production
 
-# Combine application and test type
-./scripts/semiont test frontend unit     # Frontend unit tests
-./scripts/semiont test backend api       # Backend API tests
-./scripts/semiont test all security      # Security tests on both apps
+# Run tests by suite only (all services)
+./scripts/semiont test --suite unit               # Unit tests for all services
+./scripts/semiont test --suite integration        # Integration tests for all services
+./scripts/semiont test --suite security          # Security tests for all services
+./scripts/semiont test --suite e2e               # E2E tests for all services
+
+# Run tests by service only (all suites)  
+./scripts/semiont test --service frontend         # All frontend tests
+./scripts/semiont test --service backend          # All backend tests
+./scripts/semiont test --service database         # Database-specific tests
 
 # Additional options
 ./scripts/semiont test --no-coverage     # Skip coverage reporting
-./scripts/semiont test frontend --watch  # Watch mode for development
+./scripts/semiont test --watch           # Watch mode for development
 ./scripts/semiont test --verbose         # Detailed output
+./scripts/semiont test --dry-run         # Show what would be tested
 ```
 
 ### Local Development Environment for Testing
@@ -643,10 +649,10 @@ For integration and API tests that require a database, the Semiont CLI provides 
 # ✅ Frontend connected to real API
 
 # Then run integration tests against real services
-./scripts/semiont test integration
+./scripts/semiont test --suite integration
 
 # Or run specific database-dependent tests
-./scripts/semiont test backend integration
+./scripts/semiont test --service backend --suite integration
 ```
 
 **Benefits for Testing:**
@@ -664,9 +670,8 @@ For integration and API tests that require a database, the Semiont CLI provides 
 
 2. **Run tests against real services**:
    ```bash
-   ./scripts/semiont test integration     # All integration tests
-   ./scripts/semiont test api             # API endpoint tests
-   ./scripts/semiont test backend integration # Backend-specific integration
+   ./scripts/semiont test --suite integration     # All integration tests
+   ./scripts/semiont test --service backend --suite integration # Backend-specific integration
    ```
 
 3. **Stop services when done**:
@@ -683,7 +688,7 @@ For backend tests that only need a database:
 ./scripts/semiont local db start --seed
 
 # Run backend tests
-./scripts/semiont test backend
+./scripts/semiont test --service backend
 
 # Clean up
 ./scripts/semiont local db stop

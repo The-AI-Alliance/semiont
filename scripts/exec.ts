@@ -2,7 +2,7 @@
 
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
-import { config } from '../config';
+import { config } from '../config/dist/index.js';
 import { spawn } from 'child_process';
 
 const stackConfig = new SemiontStackConfig();

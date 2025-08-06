@@ -13,12 +13,14 @@ export class ConfigurationError extends Error {
   }
 }
 
-export function validateConfiguration(config: SemiontConfiguration): void {
+export function validateConfiguration(config: SemiontConfiguration, options?: { skipAWSValidation?: boolean }): void {
   // Validate site configuration
   validateSiteConfig(config.site);
   
-  // Validate AWS configuration
-  validateAWSConfig(config.aws);
+  // Validate AWS configuration (skip for local environments)
+  if (!options?.skipAWSValidation) {
+    validateAWSConfig(config.aws);
+  }
   
   // Validate app configuration
   validateAppConfig(config.app);
@@ -80,10 +82,6 @@ function validateAWSConfig(aws: SemiontConfiguration['aws']): void {
 }
 
 function validateAppConfig(app: SemiontConfiguration['app']): void {
-  if (!['development', 'staging', 'production', 'test'].includes(app.nodeEnv)) {
-    throw new ConfigurationError('Invalid NODE_ENV value', 'app.nodeEnv');
-  }
-  
   if (app.security.sessionTimeout && app.security.sessionTimeout < 300) { // 5 minutes minimum
     throw new ConfigurationError('Session timeout must be at least 300 seconds', 'app.security.sessionTimeout');
   }

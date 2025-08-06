@@ -202,7 +202,7 @@ export class SemiontAppStack extends cdk.Stack {
     const backendContainer = backendTaskDefinition.addContainer('semiont-backend', {
       image: backendImage,
       environment: {
-        NODE_ENV: config.app.nodeEnv,
+        NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
         DB_HOST: database.instanceEndpoint.hostname,
         DB_PORT: database.instanceEndpoint.port.toString(),
         DB_NAME: config.aws.database.name,
@@ -263,7 +263,7 @@ export class SemiontAppStack extends cdk.Stack {
     const frontendContainer = frontendTaskDefinition.addContainer('semiont-frontend', {
       image: frontendImage,
       environment: {
-        NODE_ENV: config.app.nodeEnv,
+        NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
         PORT: '3000',
         HOSTNAME: '0.0.0.0',
         // Public environment variables (available to browser)
