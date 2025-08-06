@@ -148,7 +148,22 @@ npm run config:init
 npm run config:validate
 ```
 
-### 4. AWS Deployment
+### 4. Build and Test
+```bash
+# Build applications and Docker images
+./scripts/semiont build all
+
+# Run comprehensive test suite
+./scripts/semiont test
+
+# Run specific test types for targeted validation
+./scripts/semiont test frontend unit      # Fast frontend unit tests
+./scripts/semiont test backend api        # Backend API endpoint tests
+./scripts/semiont test integration        # Cross-service integration tests
+./scripts/semiont test security           # Security-focused validation
+```
+
+### 5. AWS Deployment
 ```bash
 # Set environment (development or production)
 export SEMIONT_ENV=development
@@ -168,7 +183,17 @@ export SEMIONT_ENV=development
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
-### 5. Verify Deployment
+### 6. Update Running Services
+```bash
+# Push new images to ECR and update ECS services
+./scripts/semiont update-images
+
+# Or update specific services:
+# ./scripts/semiont update-images frontend
+# ./scripts/semiont update-images backend
+```
+
+### 7. Verify Deployment
 ```bash
 # Check system status
 ./scripts/semiont status
