@@ -89,8 +89,9 @@ function buildConfiguration(environment: string): SemiontConfiguration {
   
   // Validate configuration
   try {
-    const environmentType = overrides._meta?.type;
-    const skipAWSValidation = environmentType === 'local' || environmentType === 'test';
+    // Determine environment type based on presence of stack classes
+    const isCloudEnvironment = Boolean(overrides.stacks?.infraStack && overrides.stacks?.appStack);
+    const skipAWSValidation = !isCloudEnvironment;
     validateConfiguration(config, { skipAWSValidation });
   } catch (error: unknown) {
     if (error instanceof ConfigurationError) {
@@ -169,7 +170,7 @@ export function getFrontendUrlObject(): URL {
 
 // Configuration display for debugging (masks sensitive data)
 export function displayConfiguration(): void {
-  const safeConfig = JSON.parse(JSON.stringify(config, (key, value) => {
+  const safeConfig = JSON.parse(JSON.stringify(config, (_key, value) => {
     // Convert URL objects to strings for display
     if (value instanceof URL) {
       return value.toString();

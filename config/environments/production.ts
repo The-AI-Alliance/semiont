@@ -5,11 +5,13 @@
  */
 
 import type { EnvironmentOverrides } from '../schemas/config.schema';
+import { SemiontAppStack } from '../cdk/lib/app-stack';
+import { SemiontInfraStack } from '../cdk/lib/infra-stack';
 
 export const productionConfig: EnvironmentOverrides = {
-  _meta: {
-    type: 'cloud',
-    description: 'Production environment (AWS)'
+  stacks: {
+    infraStack: SemiontInfraStack,
+    appStack: SemiontAppStack
   },
   site: {
     // Production-specific site configuration (example values - MUST BE CUSTOMIZED)

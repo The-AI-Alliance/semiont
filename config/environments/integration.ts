@@ -16,10 +16,7 @@ import { testConfig } from './test';
 
 export const integrationConfig: EnvironmentOverrides = {
   ...testConfig,
-  _meta: {
-    type: 'test',
-    description: 'Integration tests with real services via Testcontainers'
-  },
+  // No stacks needed for integration tests - uses Testcontainers
   app: {
     ...testConfig.app,
     backend: {

@@ -5,7 +5,7 @@ import * as efs from 'aws-cdk-lib/aws-efs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
-import { config } from '../../config';
+import { config } from '../..';
 
 export class SemiontInfraStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;

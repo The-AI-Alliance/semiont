@@ -6,7 +6,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "cdk",
+    "config/cdk",
     "config"
   ],
   "scripts": {

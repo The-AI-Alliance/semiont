@@ -8,10 +8,7 @@
 import type { EnvironmentOverrides } from '../schemas/config.schema';
 
 export const localConfig: EnvironmentOverrides = {
-  _meta: {
-    type: 'local',
-    description: 'Local development using Docker containers'
-  },
+  // No stacks needed for local environment - uses Docker containers
   site: {
     // Local development site configuration
     domain: 'localhost',

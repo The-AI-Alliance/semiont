@@ -17,7 +17,7 @@ import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import { Construct } from 'constructs';
-import { config } from '../../config';
+import { config } from '../..';
 
 interface SemiontAppStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;

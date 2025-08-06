@@ -22,10 +22,7 @@
 import type { EnvironmentOverrides } from '../schemas/config.schema';
 
 export const testConfig: EnvironmentOverrides = {
-  _meta: {
-    type: 'test',
-    description: 'Base test configuration with local-like settings'
-  },
+  // No stacks needed for test environment - uses local/mocked resources
   site: {
     // Test-specific site configuration
     domain: 'test.example.com',

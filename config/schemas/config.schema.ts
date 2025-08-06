@@ -3,6 +3,10 @@
  * Provides type safety and validation for all configuration
  */
 
+// CDK Stack class references - import the actual stack classes
+import type { SemiontAppStack } from '../cdk/lib/app-stack';
+import type { SemiontInfraStack } from '../cdk/lib/infra-stack';
+
 export interface SiteConfiguration {
   // Site branding
   siteName: string;
@@ -126,6 +130,12 @@ type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
+// Stack reference interface - using actual TypeScript class types
+export interface CloudStackReferences {
+  infraStack: typeof SemiontInfraStack;
+  appStack: typeof SemiontAppStack;
+}
+
 // Application configuration override interface (allows string URLs)
 export interface ApplicationConfigurationOverride {
   // Feature flags
@@ -170,16 +180,10 @@ export interface ApplicationConfigurationOverride {
   };
 }
 
-// Environment metadata
-export interface EnvironmentMetadata {
-  type: 'local' | 'cloud' | 'test';
-  description?: string;
-}
-
 // Environment-specific override interface
 export interface EnvironmentOverrides {
-  // Environment metadata - declares what type of environment this is
-  _meta?: EnvironmentMetadata;
+  // Stack references - for cloud environments only
+  stacks?: CloudStackReferences;
   
   site?: Partial<SiteConfiguration>;
   aws?: DeepPartial<AWSConfiguration>;
