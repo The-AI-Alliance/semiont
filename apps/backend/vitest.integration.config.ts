@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // Use different setup files for integration tests - avoid mocking Prisma
+    // Integration tests use different setup - real database via Testcontainers, SEMIONT_ENV=integration
     setupFiles: ['./src/__tests__/setup/test-setup.ts'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,

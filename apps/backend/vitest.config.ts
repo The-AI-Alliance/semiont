@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./src/__tests__/setup.ts', './src/__tests__/setup/test-setup.ts'],
+    // Unit tests only use the unit test setup (mocks Prisma, uses SEMIONT_ENV=unit)
+    setupFiles: ['./src/__tests__/setup.ts'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,
     include: [
@@ -16,7 +17,9 @@ export default defineConfig({
     exclude: [
       'node_modules',
       'dist',
-      'src/**/*.d.ts'
+      'src/**/*.d.ts',
+      // Exclude integration tests from main config - they use separate config
+      'src/__tests__/integration/**/*.test.ts'
     ],
     coverage: {
       provider: 'v8',

@@ -9,6 +9,8 @@ import { siteConfig, awsConfig, appConfig } from './base';
 import { developmentConfig } from './environments/development';
 import { productionConfig } from './environments/production';
 import { testConfig } from './environments/test';
+import { unitConfig } from './environments/unit';
+import { integrationConfig } from './environments/integration';
 import { validateConfiguration, ConfigurationError } from './schemas/validation';
 import type { SemiontConfiguration, EnvironmentOverrides } from './schemas/config.schema';
 
@@ -24,6 +26,10 @@ function getEnvironmentOverrides(): EnvironmentOverrides {
       return productionConfig;
     case 'test':
       return testConfig;
+    case 'unit':
+      return unitConfig;
+    case 'integration':
+      return integrationConfig;
     default:
       console.warn(`Unknown environment: ${environment}, using development config`);
       return developmentConfig;

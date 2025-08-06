@@ -75,6 +75,10 @@ export interface ApplicationConfiguration {
       port?: number;
       name?: string;
       user?: string;
+      // Test-specific options
+      mockMode?: boolean;           // For unit tests - don't connect to real DB
+      useTestcontainers?: boolean;  // For integration tests - use Testcontainers
+      password?: string;            // Optional password (usually from secrets)
     };
   };
   
@@ -159,6 +163,10 @@ export interface ApplicationConfigurationOverride {
       port?: number;
       name?: string;
       user?: string;
+      // Test-specific options
+      mockMode?: boolean;           // For unit tests - don't connect to real DB
+      useTestcontainers?: boolean;  // For integration tests - use Testcontainers
+      password?: string;            // Optional password (usually from secrets)
     };
   };
   

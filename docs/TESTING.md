@@ -45,6 +45,50 @@ Focus on security-critical functionality:
 - Cookie consent management
 - Admin access controls
 
+## Test Environment Configuration
+
+Semiont uses a hierarchical test environment system to support different testing scenarios:
+
+### Environment Hierarchy
+
+```
+config/environments/
+├── test.ts          # Base test configuration (shared settings)
+├── unit.ts          # Unit tests (extends test + mocked dependencies)
+└── integration.ts   # Integration tests (extends test + real database)
+```
+
+### Environment Selection
+
+Tests automatically use the appropriate environment based on their type:
+
+- **Unit Tests** (`SEMIONT_ENV=unit`):
+  - Mocked database connections (`mockMode: true`)
+  - No external service dependencies
+  - Fast execution, ideal for TDD
+  - Used by default frontend tests and backend unit tests
+
+- **Integration Tests** (`SEMIONT_ENV=integration`):
+  - Real PostgreSQL via Testcontainers (`useTestcontainers: true`)
+  - Actual database operations
+  - Full API endpoint testing
+  - Used for backend integration tests
+
+- **Base Test** (`SEMIONT_ENV=test`):
+  - Shared configuration for all test types
+  - Disabled production features (analytics, monitoring)
+  - Test-specific domains and emails
+  - Rarely used directly, serves as parent config
+
+### Configuration Properties
+
+Each test environment provides:
+- Test-specific domain and email settings
+- Disabled production features (analytics, maintenance mode)
+- Appropriate database configuration (mocked vs. real)
+- Security settings optimized for testing
+- NODE_ENV set to 'test' for all test types
+
 ## Frontend Testing Stack
 
 ### Core Technologies

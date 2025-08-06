@@ -1,7 +1,18 @@
 /**
- * Test Environment Configuration
+ * Base Test Environment Configuration
  * 
- * Test-specific overrides for unit testing and CI/CD
+ * This serves as the base configuration for all test environments.
+ * It provides common test settings that are shared between different test types.
+ * 
+ * Environment Hierarchy:
+ * - test.ts (this file) - Base test configuration with common settings
+ * - unit.ts - Extends test.ts, adds mockMode for isolated unit tests
+ * - integration.ts - Extends test.ts, adds Testcontainers for integration tests
+ * 
+ * Direct Usage:
+ * This configuration is NOT typically used directly. Instead, tests should use:
+ * - SEMIONT_ENV=unit for unit tests (fast, mocked dependencies)
+ * - SEMIONT_ENV=integration for integration tests (real database via Testcontainers)
  * 
  * Note: Secrets like JWT_SECRET, DATABASE_PASSWORD, and OAuth credentials
  * are set in apps/backend/src/__tests__/setup.ts as environment variables

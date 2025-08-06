@@ -55,7 +55,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
     const process: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
       stdio: verbose ? 'inherit' : ['inherit', 'pipe', 'pipe'],
-      shell: true
+      shell: false  // Fixed: Don't use shell to avoid security vulnerability
     });
 
     if (!verbose) {

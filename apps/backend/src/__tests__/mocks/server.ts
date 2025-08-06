@@ -7,6 +7,35 @@ import { http, HttpResponse } from 'msw';
 
 // Mock handlers for external services
 export const handlers = [
+  // Mock Docker/Podman info endpoint (used by Testcontainers)
+  http.get('http://localhost/info', () => {
+    return HttpResponse.json({
+      ID: 'mock-docker-engine',
+      Containers: 0,
+      ContainersRunning: 0,
+      ContainersPaused: 0,
+      ContainersStopped: 0,
+      Images: 1,
+      ServerVersion: '20.10.0',
+      KernelVersion: '5.4.0',
+      OperatingSystem: 'Mock OS',
+      Architecture: 'x86_64'
+    });
+  }),
+
+  // Mock Docker image inspection endpoint  
+  http.get('http://localhost/images/:imageName/json', () => {
+    return HttpResponse.json({
+      Id: 'sha256:mock-image-id',
+      RepoTags: ['postgres:15-alpine'],
+      Config: {
+        ExposedPorts: {
+          '5432/tcp': {}
+        }
+      }
+    });
+  }),
+
   // Mock Google OAuth userinfo endpoint (v2)
   http.get('https://www.googleapis.com/oauth2/v2/userinfo', ({ request }) => {
     const url = new URL(request.url);

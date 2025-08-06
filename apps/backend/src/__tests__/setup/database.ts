@@ -11,6 +11,10 @@ export class DatabaseTestSetup {
   static async setup() {
     console.log('🐳 Starting PostgreSQL test container...');
     
+    // Configure Testcontainers to reduce risk of Node.js crashes
+    // Disable ryuk (resource reaper) which can cause issues with ssh2 module
+    process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
+    
     // Start PostgreSQL container aligned with config/environments/test.ts
     this.container = await new PostgreSqlContainer('postgres:15-alpine')
       .withDatabase('semiont_test')  // Matches config: name: 'semiont_test'
@@ -20,6 +24,7 @@ export class DatabaseTestSetup {
       .withEnvironment({ 
         POSTGRES_INITDB_ARGS: '--auth-host=md5' 
       })
+      .withReuse() // Allow container reuse to reduce setup time
       .start();
 
     this.connectionString = this.container.getConnectionUri();

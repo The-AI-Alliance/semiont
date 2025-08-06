@@ -247,8 +247,25 @@ Semiont uses `SEMIONT_ENV` instead of `NODE_ENV` to determine which environment 
 
 - **`SEMIONT_ENV=development`**: Uses `/config/environments/development.ts` (default)
 - **`SEMIONT_ENV=production`**: Uses `/config/environments/production.ts`
+- **`SEMIONT_ENV=test`**: Base test configuration (rarely used directly)
+- **`SEMIONT_ENV=unit`**: Unit test configuration with mocked dependencies
+- **`SEMIONT_ENV=integration`**: Integration test configuration with Testcontainers
 
 This allows Semiont to have its own environment configuration independent of your Node.js application's `NODE_ENV`.
+
+#### Test Environment Hierarchy
+
+The test environments follow an inheritance pattern:
+
+```
+test.ts (base)
+├── unit.ts (extends test + mockMode: true)
+└── integration.ts (extends test + useTestcontainers: true)
+```
+
+- **test**: Base configuration with common test settings (disabled features, test domains)
+- **unit**: Fast, isolated tests with mocked database and external services
+- **integration**: Tests with real PostgreSQL database via Testcontainers
 
 ### Environment Variable Overrides
 

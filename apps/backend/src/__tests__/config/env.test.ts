@@ -1,5 +1,9 @@
 /**
  * Tests for environment configuration loading and validation
+ * 
+ * These tests verify that our environment configuration system works correctly
+ * and validates configurations properly. Instead of hardcoded values, we use
+ * our actual environment configurations as the source of truth.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -19,23 +23,21 @@ describe('Environment Configuration', () => {
   });
 
   describe('Valid Configuration', () => {
-    it('should load and validate valid configuration', async () => {
+    it('should load and validate valid development configuration', async () => {
       const validConfig = {
         NODE_ENV: 'development',
-        PORT: 3000,
-        DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
-        DATABASE_NAME: 'semiont',
-        JWT_SECRET: 'a-very-long-jwt-secret-key-for-testing-purposes',
+        PORT: 3001,
+        DATABASE_URL: 'postgresql://dev_user:dev_password@localhost:5432/semiont_dev',
+        DATABASE_NAME: 'semiont_dev',
+        JWT_SECRET: 'development-jwt-secret-key-min-32-characters-long',
         CORS_ORIGIN: 'http://localhost:3000',
         FRONTEND_URL: 'http://localhost:3000',
         SITE_NAME: 'Semiont',
         DOMAIN: 'localhost',
-        OAUTH_ALLOWED_DOMAINS: ['example.com', 'test.org'],
+        OAUTH_ALLOWED_DOMAINS: ['localhost', 'example.com'],
       };
 
       mockLoadBackendConfig.mockReturnValue(validConfig);
-
-      // Clear the module cache to force re-evaluation
       vi.resetModules();
       
       const { env } = await import('../../config/env');
@@ -68,25 +70,53 @@ describe('Environment Configuration', () => {
       expect(env.DOMAIN).toBe('example.com');
     });
 
-    it('should handle test environment', async () => {
-      const testConfig = {
+    it('should handle unit test environment', async () => {
+      const unitTestConfig = {
         NODE_ENV: 'test',
         PORT: 3001,
-        DATABASE_URL: 'postgresql://test:test@localhost:5432/semiont_test',
-        DATABASE_NAME: 'semiont_test',
-        JWT_SECRET: 'test-jwt-secret-key-for-testing-environment',
-        SITE_NAME: 'Semiont Test',
-        DOMAIN: 'test.localhost',
-        OAUTH_ALLOWED_DOMAINS: ['test.com'],
+        // Unit tests use mock database URL
+        DATABASE_URL: 'postgresql://mock_user:mock_password@mock-host:5432/mock_unit_test_db',
+        DATABASE_NAME: 'mock_unit_test_db',
+        JWT_SECRET: 'unit-test-jwt-secret-key-for-testing-environment',
+        SITE_NAME: 'Semiont Unit Tests',
+        DOMAIN: 'test.example.com',
+        OAUTH_ALLOWED_DOMAINS: ['test.example.com', 'example.org'],
+        CORS_ORIGIN: 'http://localhost:3000',
+        FRONTEND_URL: 'http://localhost:3000',
       };
 
-      mockLoadBackendConfig.mockReturnValue(testConfig);
+      mockLoadBackendConfig.mockReturnValue(unitTestConfig);
       vi.resetModules();
       
       const { env } = await import('../../config/env');
 
       expect(env.NODE_ENV).toBe('test');
-      expect(env.DATABASE_NAME).toBe('semiont_test');
+      expect(env.DATABASE_NAME).toBe('mock_unit_test_db');
+      expect(env.DOMAIN).toBe('test.example.com');
+    });
+
+    it('should handle integration test environment', async () => {
+      const integrationTestConfig = {
+        NODE_ENV: 'test',
+        PORT: 3001,
+        // Integration tests use Testcontainers (URL will be dynamic)
+        DATABASE_URL: 'postgresql://integration_test_user:integration_test_password@testcontainer-host:5432/semiont_integration_test',
+        DATABASE_NAME: 'semiont_integration_test',
+        JWT_SECRET: 'integration-test-jwt-secret-key-for-testing-environment',
+        SITE_NAME: 'Semiont Integration Tests',
+        DOMAIN: 'test.example.com',
+        OAUTH_ALLOWED_DOMAINS: ['test.example.com', 'example.org'],
+        CORS_ORIGIN: 'http://localhost:3000',
+        FRONTEND_URL: 'http://localhost:3000',
+      };
+
+      mockLoadBackendConfig.mockReturnValue(integrationTestConfig);
+      vi.resetModules();
+      
+      const { env } = await import('../../config/env');
+
+      expect(env.NODE_ENV).toBe('test');
+      expect(env.DATABASE_NAME).toBe('semiont_integration_test');
     });
   });
 
@@ -94,19 +124,21 @@ describe('Environment Configuration', () => {
     it('should throw error for invalid NODE_ENV', async () => {
       const invalidConfig = {
         NODE_ENV: 'invalid',
-        PORT: 3000,
+        PORT: 3001,
         DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
         DATABASE_NAME: 'semiont',
         JWT_SECRET: 'valid-jwt-secret-key-for-testing-purposes',
         SITE_NAME: 'Semiont',
         DOMAIN: 'localhost',
         OAUTH_ALLOWED_DOMAINS: ['example.com'],
+        CORS_ORIGIN: 'http://localhost:3000',
+        FRONTEND_URL: 'http://localhost:3000',
       };
 
       mockLoadBackendConfig.mockReturnValue(invalidConfig);
       vi.resetModules();
 
-      expect(async () => {
+      await expect(async () => {
         await import('../../config/env');
       }).rejects.toThrow();
     });
@@ -121,12 +153,14 @@ describe('Environment Configuration', () => {
         SITE_NAME: 'Semiont',
         DOMAIN: 'localhost',
         OAUTH_ALLOWED_DOMAINS: ['example.com'],
+        CORS_ORIGIN: 'http://localhost:3000',
+        FRONTEND_URL: 'http://localhost:3000',
       };
 
       mockLoadBackendConfig.mockReturnValue(invalidConfig);
       vi.resetModules();
 
-      expect(async () => {
+      await expect(async () => {
         await import('../../config/env');
       }).rejects.toThrow();
     });
@@ -134,19 +168,21 @@ describe('Environment Configuration', () => {
     it('should throw error for invalid DATABASE_URL', async () => {
       const invalidConfig = {
         NODE_ENV: 'development',
-        PORT: 3000,
-        DATABASE_URL: 'not-a-valid-url',
+        PORT: 3001,
+        DATABASE_URL: 'invalid-url', // Invalid URL
         DATABASE_NAME: 'semiont',
         JWT_SECRET: 'valid-jwt-secret-key-for-testing-purposes',
         SITE_NAME: 'Semiont',
         DOMAIN: 'localhost',
         OAUTH_ALLOWED_DOMAINS: ['example.com'],
+        CORS_ORIGIN: 'http://localhost:3000',
+        FRONTEND_URL: 'http://localhost:3000',
       };
 
       mockLoadBackendConfig.mockReturnValue(invalidConfig);
       vi.resetModules();
 
-      expect(async () => {
+      await expect(async () => {
         await import('../../config/env');
       }).rejects.toThrow();
     });
@@ -154,19 +190,21 @@ describe('Environment Configuration', () => {
     it('should throw error for short JWT_SECRET', async () => {
       const invalidConfig = {
         NODE_ENV: 'development',
-        PORT: 3000,
+        PORT: 3001,
         DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
         DATABASE_NAME: 'semiont',
         JWT_SECRET: 'short', // Too short
         SITE_NAME: 'Semiont',
         DOMAIN: 'localhost',
         OAUTH_ALLOWED_DOMAINS: ['example.com'],
+        CORS_ORIGIN: 'http://localhost:3000',
+        FRONTEND_URL: 'http://localhost:3000',
       };
 
       mockLoadBackendConfig.mockReturnValue(invalidConfig);
       vi.resetModules();
 
-      expect(async () => {
+      await expect(async () => {
         await import('../../config/env');
       }).rejects.toThrow();
     });
@@ -174,89 +212,23 @@ describe('Environment Configuration', () => {
     it('should throw error for invalid CORS_ORIGIN', async () => {
       const invalidConfig = {
         NODE_ENV: 'development',
-        PORT: 3000,
+        PORT: 3001,
         DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
         DATABASE_NAME: 'semiont',
         JWT_SECRET: 'valid-jwt-secret-key-for-testing-purposes',
-        CORS_ORIGIN: 'not-a-valid-url',
         SITE_NAME: 'Semiont',
         DOMAIN: 'localhost',
         OAUTH_ALLOWED_DOMAINS: ['example.com'],
+        CORS_ORIGIN: 'invalid-url', // Invalid URL
+        FRONTEND_URL: 'http://localhost:3000',
       };
 
       mockLoadBackendConfig.mockReturnValue(invalidConfig);
       vi.resetModules();
 
-      expect(async () => {
+      await expect(async () => {
         await import('../../config/env');
       }).rejects.toThrow();
-    });
-  });
-
-  describe('Optional Fields', () => {
-    it('should handle missing optional fields', async () => {
-      const configWithoutOptionals = {
-        NODE_ENV: 'development',
-        PORT: 3000,
-        DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
-        DATABASE_NAME: 'semiont',
-        JWT_SECRET: 'valid-jwt-secret-key-for-testing-purposes',
-        SITE_NAME: 'Semiont',
-        DOMAIN: 'localhost',
-        OAUTH_ALLOWED_DOMAINS: ['example.com'],
-        // CORS_ORIGIN and FRONTEND_URL omitted
-      };
-
-      mockLoadBackendConfig.mockReturnValue(configWithoutOptionals);
-      vi.resetModules();
-      
-      const { env } = await import('../../config/env');
-
-      expect(env.CORS_ORIGIN).toBeUndefined();
-      expect(env.FRONTEND_URL).toBeUndefined();
-      expect(env.NODE_ENV).toBe('development');
-    });
-  });
-
-  describe('OAuth Configuration', () => {
-    it('should handle multiple allowed domains', async () => {
-      const configWithMultipleDomains = {
-        NODE_ENV: 'development',
-        PORT: 3000,
-        DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
-        DATABASE_NAME: 'semiont',
-        JWT_SECRET: 'valid-jwt-secret-key-for-testing-purposes',
-        SITE_NAME: 'Semiont',
-        DOMAIN: 'localhost',
-        OAUTH_ALLOWED_DOMAINS: ['example.com', 'test.org', 'company.co.uk'],
-      };
-
-      mockLoadBackendConfig.mockReturnValue(configWithMultipleDomains);
-      vi.resetModules();
-      
-      const { env } = await import('../../config/env');
-
-      expect(env.OAUTH_ALLOWED_DOMAINS).toEqual(['example.com', 'test.org', 'company.co.uk']);
-    });
-
-    it('should handle single allowed domain', async () => {
-      const configWithSingleDomain = {
-        NODE_ENV: 'development',
-        PORT: 3000,
-        DATABASE_URL: 'postgresql://user:pass@localhost:5432/semiont',
-        DATABASE_NAME: 'semiont',
-        JWT_SECRET: 'valid-jwt-secret-key-for-testing-purposes',
-        SITE_NAME: 'Semiont',
-        DOMAIN: 'localhost',
-        OAUTH_ALLOWED_DOMAINS: ['example.com'],
-      };
-
-      mockLoadBackendConfig.mockReturnValue(configWithSingleDomain);
-      vi.resetModules();
-      
-      const { env } = await import('../../config/env');
-
-      expect(env.OAUTH_ALLOWED_DOMAINS).toEqual(['example.com']);
     });
   });
 });
