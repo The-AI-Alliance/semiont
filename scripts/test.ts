@@ -444,7 +444,9 @@ async function test(options: TestOptions) {
   }
   
   if (options.coverage) {
-    console.log('📊 Running with coverage reporting...');
+    console.log('📊 Running with coverage reporting (use --no-coverage to disable)...');
+  } else {
+    console.log('⚡ Running without coverage reporting...');
   }
   
   if (options.target === 'security') {
@@ -525,17 +527,17 @@ function showHelp() {
   console.log('   (none)           Run all tests');
   console.log('');
   console.log('Options:');
-  console.log('   --coverage       Run tests with coverage reporting');
+  console.log('   --no-coverage    Disable coverage reporting (enabled by default)');
   console.log('   --watch          Run tests in watch mode');
   console.log('   --verbose        Show detailed output');
   console.log('   --help, -h       Show this help');
   console.log('');
   console.log('Examples:');
-  console.log('   ./semiont test                    # Run all tests');
-  console.log('   ./semiont test frontend           # Run frontend tests only');
-  console.log('   ./semiont test backend            # Run backend tests only');
+  console.log('   ./semiont test                    # Run all tests with coverage');
+  console.log('   ./semiont test frontend           # Run frontend tests with coverage');
+  console.log('   ./semiont test backend            # Run backend tests with coverage');
   console.log('   ./semiont test security           # Run security tests on both apps');
-  console.log('   ./semiont test --coverage         # Run all tests with coverage');
+  console.log('   ./semiont test --no-coverage      # Run all tests without coverage');
   console.log('   ./semiont test frontend --watch   # Watch frontend tests');
   console.log('');
   console.log('Test types available:');
@@ -545,7 +547,7 @@ function showHelp() {
   console.log('   📊 Coverage: Code coverage reports for both apps');
   console.log('');
   console.log('💡 Run tests before deploying to catch issues early.');
-  console.log('   Use "./semiont test --coverage" for detailed coverage reports.');
+  console.log('   Coverage reporting is enabled by default for better insights.');
 }
 
 async function main() {
@@ -569,7 +571,7 @@ async function main() {
   
   const options: TestOptions = {
     ...(target && { target }),
-    coverage: args.includes('--coverage'),
+    coverage: !args.includes('--no-coverage'), // Coverage enabled by default, disabled with --no-coverage
     watch: args.includes('--watch'),
     verbose: args.includes('--verbose'),
   };
