@@ -100,6 +100,7 @@ npm run perf
 - **⚡ Zero Configuration**: No environment files, API URLs, or manual setup
 - **🧹 Easy Reset**: Fresh database with sample data via `--reset`
 - **🎯 Focused Development**: Mock mode for UI work, real API mode for integration
+- **🐳 Container Runtime Flexibility**: Works with Docker or Podman (auto-detected)
 
 ### Development Workflow with Semiont CLI
 

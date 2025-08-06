@@ -78,6 +78,7 @@ npm start
 - **⚡ Zero Configuration**: No manual database setup, connection strings, or environment variables
 - **🧹 Easy Reset**: Corrupted data? `--reset` gives you a fresh start
 - **🎯 Focused Development**: Start only what you need
+- **🐳 Container Runtime Flexibility**: Works with Docker or Podman (auto-detected)
 
 ### Development Workflow with Semiont CLI
 
@@ -118,6 +119,56 @@ npm install  # Installs dependencies for all apps
 ./scripts/semiont local start --reset
 # Clean database with sample data
 ```
+
+### Container Runtime Options
+
+The Semiont CLI automatically detects and works with both **Docker** and **Podman**:
+
+#### Using Podman Instead of Docker
+
+For better security and performance, you can use Podman:
+
+**Linux Setup (Recommended):**
+```bash
+# 1. Install Podman (if not already installed)
+sudo apt install podman  # Ubuntu/Debian
+sudo dnf install podman  # Fedora/RHEL
+
+# 2. Enable rootless Podman socket
+systemctl --user enable --now podman.socket
+
+# 3. Set environment variables
+export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+
+# 4. Use Semiont CLI normally - it will detect Podman automatically
+./scripts/semiont local start
+```
+
+**macOS Setup:**
+```bash
+# 1. Install Podman via Homebrew
+brew install podman
+
+# 2. Initialize Podman machine
+podman machine init
+podman machine start
+
+# 3. Configure environment
+export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
+export TESTCONTAINERS_RYUK_DISABLED=true
+
+# 4. Use normally
+./scripts/semiont local start
+```
+
+**Benefits of Using Podman:**
+- **Enhanced Security**: Rootless containers by default (no root daemon)
+- **Better Performance**: No VM overhead on Linux systems
+- **Lower Resource Usage**: More efficient than Docker Desktop
+- **No Background Daemon**: Containers run without persistent daemon
+
+The Semiont CLI will automatically detect your container runtime and configure accordingly.
 
 ### Traditional Manual Setup (Alternative)
 

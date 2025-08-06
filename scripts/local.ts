@@ -7,11 +7,11 @@
  * for seamless development experience.
  */
 
-import { PostgreSqlContainer, StartedTestContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { execSync, spawn, ChildProcess } from 'child_process';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import { Command } from 'commander';
 
 const program = new Command();
@@ -37,7 +37,7 @@ const LOCAL_CONFIG = {
 // State tracking
 interface LocalState {
   database?: {
-    container: StartedTestContainer;
+    container: StartedPostgreSqlContainer;
     connectionString: string;
   };
   backend?: {
@@ -49,6 +49,103 @@ interface LocalState {
 }
 
 const state: LocalState = {};
+
+// Container runtime detection and configuration
+interface ContainerRuntime {
+  name: 'docker' | 'podman';
+  command: string;
+  detected: boolean;
+  configured: boolean;
+}
+
+function detectContainerRuntime(): ContainerRuntime {
+  // Check for explicit DOCKER_HOST configuration (indicates Podman setup)
+  const dockerHost = process.env.DOCKER_HOST;
+  const ryukDisabled = process.env.TESTCONTAINERS_RYUK_DISABLED;
+  const ryukPrivileged = process.env.TESTCONTAINERS_RYUK_PRIVILEGED;
+  
+  // Try to detect Podman
+  try {
+    execSync('podman --version', { stdio: 'pipe' });
+    const isPodmanConfigured = dockerHost?.includes('podman') || ryukDisabled || ryukPrivileged;
+    
+    if (isPodmanConfigured) {
+      return { name: 'podman', command: 'podman', detected: true, configured: true };
+    } else {
+      return { name: 'podman', command: 'podman', detected: true, configured: false };
+    }
+  } catch {
+    // Podman not available, fall back to Docker
+  }
+  
+  // Check for Docker
+  try {
+    execSync('docker --version', { stdio: 'pipe' });
+    return { name: 'docker', command: 'docker', detected: true, configured: true };
+  } catch {
+    // Neither runtime available
+    return { name: 'docker', command: 'docker', detected: false, configured: false };
+  }
+}
+
+function configureContainerRuntime(): void {
+  const runtime = detectContainerRuntime();
+  
+  if (!runtime.detected) {
+    error('No container runtime detected. Please install Docker or Podman.');
+    process.exit(1);
+  }
+  
+  if (runtime.name === 'podman' && !runtime.configured) {
+    log('🐳 Podman detected but not configured for Testcontainers', '⚠️');
+    console.log('');
+    console.log('To configure Podman for local development:');
+    console.log('');
+    
+    if (process.platform === 'linux') {
+      console.log('Linux setup:');
+      console.log('  systemctl --user enable --now podman.socket');
+      console.log('  export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"');
+      console.log('  export TESTCONTAINERS_RYUK_DISABLED=true');
+    } else if (process.platform === 'darwin') {
+      console.log('macOS setup:');
+      console.log('  podman machine init && podman machine start');
+      console.log('  export DOCKER_HOST="$(podman machine inspect --format \'{{.ConnectionInfo.PodmanSocket.Path}}\')"');
+      console.log('  export TESTCONTAINERS_RYUK_DISABLED=true');
+    }
+    
+    console.log('');
+    console.log('Or create a .testcontainers.properties file in project root:');
+    if (process.platform === 'linux') {
+      console.log('  docker.host=unix:///run/user/1000/podman/podman.sock');
+    } else {
+      console.log('  docker.host=unix:///tmp/podman-run-1000/podman/podman.sock');
+    }
+    console.log('  ryuk.disabled=true');
+    console.log('');
+    
+    // Auto-configure if possible
+    if (process.platform === 'linux') {
+      const uid = process.getuid ? process.getuid() : 1000;
+      const podmanSocket = `/run/user/${uid}/podman/podman.sock`;
+      if (fs.existsSync(podmanSocket)) {
+        log('🔧 Auto-configuring Podman environment variables...');
+        process.env.DOCKER_HOST = `unix://${podmanSocket}`;
+        process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
+        success('Podman configured automatically');
+        return;
+      }
+    }
+    
+    log('Please configure Podman and try again, or use Docker instead.');
+    process.exit(1);
+  }
+  
+  if (runtime.configured) {
+    const emoji = runtime.name === 'podman' ? '🐳' : '🐋';
+    log(`Using ${runtime.name.charAt(0).toUpperCase() + runtime.name.slice(1)} container runtime`, emoji);
+  }
+}
 
 // Utilities
 function log(message: string, emoji = '📝') {
@@ -90,6 +187,9 @@ function stopContainer(containerName: string): void {
 
 // Database Management
 async function startDatabase(options: { reset?: boolean; seed?: boolean } = {}): Promise<void> {
+  // Configure container runtime before starting
+  configureContainerRuntime();
+  
   log('🐳 Starting local PostgreSQL database...');
 
   // Stop existing container if reset requested
@@ -500,5 +600,5 @@ program
 if (process.argv.length < 3) {
   program.help();
 } else {
-  program.parse();
+  program.parse(process.argv);
 }

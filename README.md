@@ -42,7 +42,7 @@ semiont/
 ### Prerequisites
 - Node.js 18+ (22+ recommended)
 - npm 9+
-- Docker (for local PostgreSQL containers)
+- Docker or Podman (for local PostgreSQL containers)
 - AWS CLI configured (for cloud deployment only)
 
 ### 1. Clone & Install
@@ -114,7 +114,7 @@ npm run dev:mock  # Frontend on :3000 with mock API
 ./scripts/semiont secrets set database-password  # Enter: localpassword
 ./scripts/semiont secrets set jwt-secret         # Generate with: openssl rand -base64 32
 
-# Start PostgreSQL (Docker)
+# Start PostgreSQL (Docker or Podman)
 docker run --name semiont-postgres \
   -e POSTGRES_PASSWORD=localpassword \
   -e POSTGRES_DB=semiont \

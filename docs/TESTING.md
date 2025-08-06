@@ -645,6 +645,61 @@ For backend tests that only need a database:
 ./scripts/semiont local db stop
 ```
 
+### Container Runtime Support
+
+The local development environment supports both **Docker** and **Podman** container runtimes:
+
+#### Docker (Default)
+Works out of the box with no additional configuration.
+
+#### Podman Setup
+Podman is fully supported and often provides better performance and security. Here's how to configure it:
+
+**Linux (Recommended):**
+```bash
+# 1. Enable Podman socket (rootless - more secure)
+systemctl --user enable --now podman.socket
+
+# 2. Set environment variables
+export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+
+# 3. Start development environment
+./scripts/semiont local start
+```
+
+**macOS:**
+```bash
+# 1. Set up Podman machine
+podman machine init
+podman machine start
+
+# 2. Configure environment
+export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
+export TESTCONTAINERS_RYUK_DISABLED=true
+
+# 3. Start development environment  
+./scripts/semiont local start
+```
+
+**Alternative: .testcontainers.properties**
+Create a `.testcontainers.properties` file in your project root:
+```properties
+# For rootless Podman (recommended)
+docker.host=unix:///run/user/1000/podman/podman.sock
+ryuk.disabled=true
+
+# Or for rootful Podman
+docker.host=unix:///run/podman/podman.sock
+ryuk.privileged=true
+```
+
+**Benefits of Podman:**
+- **Better Security**: Rootless containers by default
+- **Better Performance**: No VM overhead on Linux
+- **Resource Efficiency**: Lower memory usage than Docker Desktop
+- **Daemonless**: No background daemon required
+
 ### Performance Benefits
 
 Targeted test execution provides significant performance improvements:
