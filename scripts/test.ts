@@ -12,7 +12,8 @@
 
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
-import path from 'path';
+import * as path from 'path';
+import * as os from 'os';
 
 // Color codes for output
 const colors = {
@@ -120,8 +121,8 @@ interface DirectoryCoverage {
   lines: { covered: number; total: number; pct: number };
 }
 
-async function runCommand(command: string[], cwd: string, description: string, verbose: boolean = false): Promise<{ success: boolean; output: string; duration: number }> {
-  return new Promise((resolve) => {
+async function runCommand(command: string[], cwd: string, description: string, verbose: boolean = false, testOptions?: TestOptions, config?: any): Promise<{ success: boolean; output: string; duration: number }> {
+  return new Promise(async (resolve) => {
     console.log(`🧪 ${description}...`);
     if (verbose) {
       console.log(`💻 Running: ${command.join(' ')}`);
@@ -130,16 +131,35 @@ async function runCommand(command: string[], cwd: string, description: string, v
     
     const startTime = Date.now();
     let output = '';
+    let configPath: string | undefined;
     
-    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
+    // Prepare environment variables for downstream test processes
+    const processEnv = { ...process.env };
+    
+    // Write configuration to temporary file if provided
+    if (config && testOptions) {
+      configPath = path.join(os.tmpdir(), `semiont-test-config-${Date.now()}-${Math.random().toString(36).substr(2, 6)}.json`);
+      try {
+        await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+        processEnv.SEMIONT_TEST_CONFIG_PATH = configPath;
+        
+        // Always show config file creation for transparency
+        console.log(`📋 Test config written to: ${configPath}`);
+      } catch (error) {
+        console.error(`⚠️  Failed to write test config: ${error}`);
+      }
+    }
+    
+    const childProcess: ChildProcess = spawn(command[0]!, command.slice(1), {
       cwd,
+      env: processEnv,
       stdio: verbose ? 'inherit' : ['inherit', 'pipe', 'pipe'],
       shell: false  // Fixed: Don't use shell to avoid security vulnerability
     });
 
     if (!verbose) {
       // Capture output but only show summary lines
-      process.stdout?.on('data', (data: Buffer) => {
+      childProcess.stdout?.on('data', (data: Buffer) => {
         const text = data.toString();
         output += text;
         // Only show final summary lines and test suite completion
@@ -156,7 +176,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
       });
 
       // Suppress stderr noise from intentional test errors
-      process.stderr?.on('data', (data: Buffer) => {
+      childProcess.stderr?.on('data', (data: Buffer) => {
         const text = data.toString();
         output += text;
         // Only show actual test failures, not intentional error logs
@@ -166,8 +186,22 @@ async function runCommand(command: string[], cwd: string, description: string, v
       });
     }
 
-    process.on('close', (code: number | null) => {
+    childProcess.on('close', async (code: number | null) => {
       const duration = Date.now() - startTime;
+      
+      // Clean up temporary config file
+      if (configPath) {
+        try {
+          await fs.unlink(configPath);
+          console.log(`🗑️  Cleaned up test config: ${path.basename(configPath)}`);
+        } catch (error) {
+          // Ignore cleanup errors - temp files will be cleaned by OS eventually
+          if (verbose) {
+            console.log(`⚠️  Could not clean up config file: ${error}`);
+          }
+        }
+      }
+      
       if (code === 0) {
         console.log(`✅ ${description} completed`);
       } else {
@@ -182,8 +216,19 @@ async function runCommand(command: string[], cwd: string, description: string, v
       resolve({ success: code === 0, output, duration });
     });
 
-    process.on('error', (error: Error) => {
+    childProcess.on('error', async (error: Error) => {
       const duration = Date.now() - startTime;
+      
+      // Clean up temporary config file on error
+      if (configPath) {
+        try {
+          await fs.unlink(configPath);
+          console.log(`🗑️  Cleaned up test config: ${path.basename(configPath)}`);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+      
       console.error(`❌ ${description} failed: ${error.message}`);
       resolve({ success: false, output: error.message, duration });
     });
@@ -396,7 +441,7 @@ async function parseCoverageFromSummaryJson(cwd: string): Promise<{ total: Cover
   }
 }
 
-async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
+async function runFrontendTestsImpl(options: TestOptions, config?: any): Promise<TestResult> {
   console.log('🎨 Running frontend tests...');
   
   const frontendExists = await checkDirectoryExists('../apps/frontend');
@@ -424,7 +469,7 @@ async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
     testCommand.push('test');
   }
 
-  const result = await runCommand(testCommand, '../apps/frontend', 'Frontend tests', options.verbose);
+  const result = await runCommand(testCommand, '../apps/frontend', 'Frontend tests', options.verbose, options, config);
   
   // Try to parse JSON results for better summary
   if (!options.verbose && result.success) {
@@ -452,7 +497,7 @@ async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
   };
 }
 
-async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
+async function runBackendTestsImpl(options: TestOptions, config?: any): Promise<TestResult> {
   console.log('🚀 Running backend tests...');
   
   const backendExists = await checkDirectoryExists('../apps/backend');
@@ -480,7 +525,7 @@ async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
     testCommand.push('test');
   }
 
-  const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose);
+  const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose, options, config);
   
   // Try to parse JSON results for better summary (same as frontend)
   if (!options.verbose && result.success) {
@@ -571,7 +616,7 @@ ${colors.cyan}Notes:${colors.reset}
 }
 
 
-async function runTests(options: TestOptions, _config: any): Promise<TestResult[]> {
+async function runTests(options: TestOptions, config: any): Promise<TestResult[]> {
   const { environment, suite, service, coverage, watch, verbose, dryRun } = options;
   
   log(`🧪 Running ${suite} tests for ${service} services in ${environment} environment`, colors.bright);
@@ -607,7 +652,7 @@ async function runTests(options: TestOptions, _config: any): Promise<TestResult[
         coverage: coverage ?? true, 
         watch: watch ?? false, 
         verbose: verbose ?? false 
-      });
+      }, config);
       results.push({
         name: 'Frontend',
         success: frontendResult.success,
@@ -622,7 +667,7 @@ async function runTests(options: TestOptions, _config: any): Promise<TestResult[
         coverage: coverage ?? true, 
         watch: watch ?? false, 
         verbose: verbose ?? false 
-      });
+      }, config);
       results.push({
         name: 'Backend',
         success: backendResult.success,
@@ -652,7 +697,7 @@ async function runTests(options: TestOptions, _config: any): Promise<TestResult[
   }
 }
 
-async function runFrontendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }) {
+async function runFrontendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }, config?: any) {
   // Delegate to existing frontend test logic
   return await runFrontendTestsImpl({
     environment: 'local',
@@ -661,10 +706,10 @@ async function runFrontendTests(suite: TestSuite, options: { coverage?: boolean;
     coverage: options.coverage ?? true,
     watch: options.watch ?? false,
     verbose: options.verbose ?? false
-  });
+  }, config);
 }
 
-async function runBackendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }) {
+async function runBackendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }, config?: any) {
   // Delegate to existing backend test logic  
   return await runBackendTestsImpl({
     environment: 'local',
@@ -673,7 +718,7 @@ async function runBackendTests(suite: TestSuite, options: { coverage?: boolean; 
     coverage: options.coverage ?? true,
     watch: options.watch ?? false,
     verbose: options.verbose ?? false
-  });
+  }, config);
 }
 
 async function main(): Promise<void> {

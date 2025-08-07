@@ -47,7 +47,23 @@ Focus on security-critical functionality:
 
 ## Test Environment Configuration
 
-Semiont uses a hierarchical test environment system to support different testing scenarios:
+Semiont uses a hierarchical test environment system to support different testing scenarios. The test orchestrator (`scripts/test.ts`) is the authoritative source for all test configuration, which is passed to downstream test processes via a temporary JSON file.
+
+### How Configuration Works
+
+1. **Configuration Generation**: When `scripts/test.ts` runs tests, it:
+   - Determines the appropriate configuration based on environment, suite, and service
+   - Loads and merges configuration from `config/environments/`
+   - Writes the full configuration to a temporary JSON file
+   - Sets `SEMIONT_TEST_CONFIG_PATH` environment variable pointing to this file
+   - Shows the config file path in the output for transparency
+
+2. **Configuration Access**: Test files can access configuration by:
+   - Checking for `SEMIONT_TEST_CONFIG_PATH` environment variable
+   - Reading and parsing the JSON file at that path
+   - Using the configuration values for test setup
+
+3. **Automatic Cleanup**: The temporary config file is automatically deleted when tests complete
 
 ### Environment Hierarchy
 
@@ -88,6 +104,72 @@ Each test environment provides:
 - Appropriate database configuration (mocked vs. real)
 - Security settings optimized for testing
 - NODE_ENV set to 'test' for all test types
+
+### Using Configuration in Tests
+
+The configuration object passed to tests contains:
+
+```typescript
+{
+  site: {
+    name: string,
+    url: string,
+    apiUrl: string
+  },
+  aws: {
+    region: string,
+    account: string,
+    // ... other AWS settings
+  },
+  app: {
+    database: {
+      url: string
+    },
+    // ... other app settings
+  }
+}
+```
+
+#### Option 1: Using the Config Loader Helper
+
+```typescript
+import { loadTestConfig, getTestConfigValue } from '@/config/test-config-loader';
+
+// In your test setup
+const config = loadTestConfig();
+if (config) {
+  // Use config.site.apiUrl, config.app.database.url, etc.
+  const apiUrl = config.site.apiUrl;
+  const dbUrl = config.app?.database?.url;
+}
+
+// Or get specific values
+const apiUrl = getTestConfigValue('site.apiUrl', 'http://localhost:3001');
+```
+
+#### Option 2: Direct Access in Test Setup
+
+```typescript
+// In your test setup file (e.g., vitest.setup.js)
+import { readFileSync } from 'fs';
+
+const configPath = process.env.SEMIONT_TEST_CONFIG_PATH;
+if (configPath) {
+  const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+  // Use configuration values
+  process.env.NEXT_PUBLIC_API_URL = config.site.apiUrl;
+  process.env.DATABASE_URL = config.app?.database?.url;
+}
+```
+
+### Benefits of This Approach
+
+1. **Single Source of Truth**: All configuration originates from `scripts/test.ts`
+2. **Type Safety**: Configuration can be typed and validated
+3. **Environment Agnostic**: Tests don't need to know about NODE_ENV
+4. **Flexible**: Full configuration object available, not just simple flags
+5. **Clean**: Temporary files are automatically cleaned up after tests
+6. **Transparent**: Config file paths are shown in test output for debugging
 
 ## Frontend Testing Stack
 
