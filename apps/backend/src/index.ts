@@ -719,7 +719,10 @@ async function runMigrations() {
   try {
     console.log('📝 Running database migrations...');
     const { execSync } = require('child_process');
-    execSync('npx prisma db push', { stdio: 'inherit' });
+    execSync('npx prisma db push', { 
+      stdio: 'inherit',
+      env: { ...process.env }  // Pass all environment variables including DATABASE_URL
+    });
     console.log('✅ Database migrations completed');
   } catch (error) {
     console.error('❌ Migration failed:', error);

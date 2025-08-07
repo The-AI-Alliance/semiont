@@ -47,6 +47,8 @@ async function loadConfigForSuite(environment: Environment, suite?: TestSuite): 
   // SMART CONFIG LOADING: Choose config based on test suite requirements
   // This ensures integration tests always get real databases, even when run locally
   
+  let config: any;
+  
   // Dynamically import the appropriate config based on test suite requirements
   if (suite === 'integration' || suite === 'e2e') {
     // Integration tests need real database
@@ -54,7 +56,7 @@ async function loadConfigForSuite(environment: Environment, suite?: TestSuite): 
     const { siteConfig, awsConfig, appConfig } = await import('../config/base');
     
     // Merge base config with integration overrides (simplified merge)
-    return {
+    config = {
       site: { ...siteConfig, ...integrationConfig.site },
       aws: { ...awsConfig, ...integrationConfig.aws },
       app: { ...appConfig, ...integrationConfig.app }
@@ -65,7 +67,7 @@ async function loadConfigForSuite(environment: Environment, suite?: TestSuite): 
     const { integrationConfig } = await import('../config/environments/integration');
     const { siteConfig, awsConfig, appConfig } = await import('../config/base');
     
-    return {
+    config = {
       site: { ...siteConfig, ...integrationConfig.site },
       aws: { ...awsConfig, ...integrationConfig.aws },
       app: { ...appConfig, ...integrationConfig.app }
@@ -76,12 +78,29 @@ async function loadConfigForSuite(environment: Environment, suite?: TestSuite): 
     const { unitConfig } = await import('../config/environments/unit');
     const { siteConfig, awsConfig, appConfig } = await import('../config/base');
     
-    return {
+    config = {
       site: { ...siteConfig, ...unitConfig.site },
       aws: { ...awsConfig, ...unitConfig.aws },
       app: { ...appConfig, ...unitConfig.app }
     };
   }
+  
+  // Build DATABASE_URL from database config components if present
+  if (config.app?.backend?.database) {
+    const db = config.app.backend.database;
+    if (db.host && db.port && db.name && db.user && db.password) {
+      // Construct PostgreSQL connection URL
+      const databaseUrl = `postgresql://${db.user}:${db.password}@${db.host}:${db.port}/${db.name}`;
+      
+      // Add the constructed URL to the config
+      if (!config.app.database) {
+        config.app.database = {};
+      }
+      config.app.database.url = databaseUrl;
+    }
+  }
+  
+  return config;
 }
 
 // Types following consistent patterns
@@ -138,7 +157,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
     
     // Write configuration to temporary file if provided
     if (config && testOptions) {
-      configPath = path.join(os.tmpdir(), `semiont-test-config-${Date.now()}-${Math.random().toString(36).substr(2, 6)}.json`);
+      configPath = path.join(os.tmpdir(), `semiont-test-config-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.json`);
       try {
         await fs.writeFile(configPath, JSON.stringify(config, null, 2));
         processEnv.SEMIONT_TEST_CONFIG_PATH = configPath;

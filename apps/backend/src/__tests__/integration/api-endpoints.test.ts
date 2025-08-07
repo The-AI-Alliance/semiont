@@ -5,7 +5,8 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
-import { app } from '../../index';
+// Delay app import until after test setup to avoid Prisma validation errors
+let app: Hono;
 import type {
   HelloResponse,
   StatusResponse,
@@ -56,6 +57,12 @@ vi.mock('../../config', () => ({
 }));
 
 describe('API Endpoints Integration Tests', () => {
+  beforeAll(async () => {
+    // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
+    const serverModule = await import('../../index');
+    app = serverModule.app;
+  });
+
   describe('Public Endpoints', () => {
     it('GET /api/hello should return greeting', async () => {
       const res = await app.request('/api/hello');

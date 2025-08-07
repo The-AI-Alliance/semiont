@@ -1,5 +1,6 @@
 import { beforeAll, afterAll } from 'vitest';
 import { DatabaseTestSetup } from './database';
+import { readFileSync } from 'fs';
 
 // Global test setup and teardown
 let isDatabaseSetup = false;
@@ -7,6 +8,28 @@ let isDatabaseSetup = false;
 beforeAll(async () => {
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';
+  
+  // Load configuration from test orchestrator if available
+  const configPath = process.env.SEMIONT_TEST_CONFIG_PATH;
+  if (configPath) {
+    try {
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      console.log('📋 Loaded test configuration from orchestrator');
+      
+      // Set DATABASE_URL from config if available (for integration tests)
+      if (config.app?.database?.url) {
+        process.env.DATABASE_URL = config.app.database.url;
+        console.log('🔗 Using DATABASE_URL from test configuration');
+      }
+      
+      // Set other test-specific config values if needed
+      if (config.site?.apiUrl) {
+        process.env.API_URL = config.site.apiUrl;
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not load test config from orchestrator:', error);
+    }
+  }
   
   // Configure Testcontainers early to avoid Node.js crashes
   process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
