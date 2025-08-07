@@ -473,16 +473,27 @@ async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
 
   const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose);
   
-  // Show coverage report if coverage was requested
-  if (options.coverage && result.success && !options.verbose) {
-    // Parse and display coverage table from JSON
-    const coverageData = await parseCoverageFromSummaryJson('../apps/backend');
-    if (coverageData) {
-      formatEnhancedCoverageTable(coverageData, 'Backend');
+  // Try to parse JSON results for better summary (same as frontend)
+  if (!options.verbose && result.success) {
+    const testStats = await parseFrontendTestResults('../apps/backend');
+    if (testStats.totalTests > 0) {
+      console.log(`✅ ${testStats.passedTests}/${testStats.totalTests} tests passed`);
+      if (testStats.failedTests > 0) {
+        console.log(`❌ ${testStats.failedTests} tests failed`);
+      }
     }
     
-    console.log(`\n📊 Coverage report generated at: apps/backend/coverage/index.html`);
-    console.log(`   Open in browser: file://${process.cwd()}/../apps/backend/coverage/index.html`);
+    // Show coverage report if coverage was requested
+    if (options.coverage) {
+      // Parse and display coverage table from JSON
+      const coverageData = await parseCoverageFromSummaryJson('../apps/backend');
+      if (coverageData) {
+        formatEnhancedCoverageTable(coverageData, 'Backend');
+      }
+      
+      console.log(`\n📊 Coverage report generated at: apps/backend/coverage/index.html`);
+      console.log(`   Open in browser: file://${process.cwd()}/../apps/backend/coverage/index.html`);
+    }
   }
   
   return {

@@ -14,6 +14,7 @@ import {
 import { api } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 
+
 // Mock dependencies
 vi.mock('@/lib/api-client', () => ({
   api: {
