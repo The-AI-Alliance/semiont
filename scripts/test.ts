@@ -126,10 +126,10 @@ interface TestResult {
 }
 
 interface CoverageSummary {
-  statements: number;
-  branches: number;
-  functions: number;
-  lines: number;
+  statements: { covered: number; total: number; pct: number };
+  branches: { covered: number; total: number; pct: number };
+  functions: { covered: number; total: number; pct: number };
+  lines: { covered: number; total: number; pct: number };
 }
 
 interface DirectoryCoverage {
@@ -300,25 +300,27 @@ function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories
   
   // Overall totals first
   console.log('\n🎯 Overall Coverage');
-  console.log('┌────────────┬─────────┐');
-  console.log('│ Metric     │ Percent │');
-  console.log('├────────────┼─────────┤');
+  console.log('┌────────────┬──────────────────┐');
+  console.log('│ Metric     │ Coverage         │');
+  console.log('├────────────┼──────────────────┤');
   
-  const formatRow = (name: string, pct: number) => {
-    const pctStr = `${pct.toFixed(1)}%`;
-    const paddedPctStr = pctStr.padStart(7);
+  const formatRow = (name: string, metric: { covered: number; total: number; pct: number }) => {
+    const pctStr = `${metric.pct.toFixed(1)}%`;
+    const fractionStr = `of ${metric.total}`;
+    const displayStr = `${pctStr} ${fractionStr}`;
+    const paddedDisplayStr = displayStr.padStart(16);
     
     // Color coding based on coverage percentage - pad BEFORE adding color codes
-    let pctDisplay = '';
-    if (pct >= 90) {
-      pctDisplay = `\x1b[32m${paddedPctStr}\x1b[0m`; // Green for excellent
-    } else if (pct >= 80) {
-      pctDisplay = `\x1b[33m${paddedPctStr}\x1b[0m`; // Yellow for good
+    let coverageDisplay = '';
+    if (metric.pct >= 90) {
+      coverageDisplay = `\x1b[32m${paddedDisplayStr}\x1b[0m`; // Green for excellent
+    } else if (metric.pct >= 80) {
+      coverageDisplay = `\x1b[33m${paddedDisplayStr}\x1b[0m`; // Yellow for good
     } else {
-      pctDisplay = `\x1b[31m${paddedPctStr}\x1b[0m`; // Red for needs improvement
+      coverageDisplay = `\x1b[31m${paddedDisplayStr}\x1b[0m`; // Red for needs improvement
     }
     
-    console.log(`│ ${name.padEnd(10)} │ ${pctDisplay} │`);
+    console.log(`│ ${name.padEnd(10)} │ ${coverageDisplay} │`);
   };
   
   formatRow('Statements', data.total.statements);
@@ -326,10 +328,10 @@ function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories
   formatRow('Functions', data.total.functions);
   formatRow('Lines', data.total.lines);
   
-  console.log('└────────────┴─────────┘');
+  console.log('└────────────┴──────────────────┘');
   
   // Overall assessment
-  const avgCoverage = (data.total.statements + data.total.branches + data.total.functions + data.total.lines) / 4;
+  const avgCoverage = (data.total.statements.pct + data.total.branches.pct + data.total.functions.pct + data.total.lines.pct) / 4;
   let assessment = '';
   if (avgCoverage >= 90) {
     assessment = '🟢 Excellent coverage!';
@@ -343,31 +345,38 @@ function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories
   // Directory breakdown
   if (data.directories.length > 0) {
     console.log('\n📁 Coverage by Directory');
-    console.log('┌──────────────┬──────────┬──────────┬──────────┬──────────┐');
-    console.log('│ Directory    │ Stmts    │ Branch   │ Funcs    │ Lines    │');
-    console.log('├──────────────┼──────────┼──────────┼──────────┼──────────┤');
+    console.log('┌──────────────┬────────────────┬────────────────┬────────────────┬────────────────┐');
+    console.log('│ Directory    │ Stmts          │ Branch         │ Funcs          │ Lines          │');
+    console.log('├──────────────┼────────────────┼────────────────┼────────────────┼────────────────┤');
     
     const formatDirRow = (dir: DirectoryCoverage) => {
       const name = dir.name.length > 12 ? dir.name.substring(0, 12) : dir.name;
       const nameCell = name.padEnd(12);
       
-      const formatMetric = (pct: number) => {
-        const pctStr = `${pct.toFixed(1)}%`;
-        const paddedPctStr = pctStr.padStart(8);
-        if (pct >= 90) {
-          return `\x1b[32m${paddedPctStr}\x1b[0m`;
-        } else if (pct >= 80) {
-          return `\x1b[33m${paddedPctStr}\x1b[0m`;
+      const formatMetric = (metric: { covered: number; total: number; pct: number }) => {
+        const pctStr = `${metric.pct.toFixed(1)}%`;
+        const fractionStr = `of ${metric.total}`;
+        const displayStr = `${pctStr} ${fractionStr}`;
+        const paddedDisplayStr = displayStr.padStart(14);
+        
+        // Apply color coding based on coverage percentage - pad BEFORE adding color codes
+        let coloredDisplay = '';
+        if (metric.pct >= 90) {
+          coloredDisplay = `\x1b[32m${paddedDisplayStr}\x1b[0m`; // Green for excellent
+        } else if (metric.pct >= 80) {
+          coloredDisplay = `\x1b[33m${paddedDisplayStr}\x1b[0m`; // Yellow for good
         } else {
-          return `\x1b[31m${paddedPctStr}\x1b[0m`;
+          coloredDisplay = `\x1b[31m${paddedDisplayStr}\x1b[0m`; // Red for needs improvement
         }
+        
+        return coloredDisplay;
       };
       
-      console.log(`│ ${nameCell} │ ${formatMetric(dir.statements.pct)} │ ${formatMetric(dir.branches.pct)} │ ${formatMetric(dir.functions.pct)} │ ${formatMetric(dir.lines.pct)} │`);
+      console.log(`│ ${nameCell} │ ${formatMetric(dir.statements)} │ ${formatMetric(dir.branches)} │ ${formatMetric(dir.functions)} │ ${formatMetric(dir.lines)} │`);
     };
     
     data.directories.forEach(formatDirRow);
-    console.log('└──────────────┴──────────┴──────────┴──────────┴──────────┘');
+    console.log('└──────────────┴────────────────┴────────────────┴────────────────┴────────────────┘');
   }
 }
 
@@ -380,12 +389,28 @@ async function parseCoverageFromSummaryJson(cwd: string): Promise<{ total: Cover
       return null;
     }
 
-    // Get total coverage
+    // Get total coverage with raw counts
     const total: CoverageSummary = {
-      statements: summaryData.total.statements?.pct || 0,
-      branches: summaryData.total.branches?.pct || 0,
-      functions: summaryData.total.functions?.pct || 0,
-      lines: summaryData.total.lines?.pct || 0
+      statements: {
+        covered: summaryData.total.statements?.covered || 0,
+        total: summaryData.total.statements?.total || 0,
+        pct: summaryData.total.statements?.pct || 0
+      },
+      branches: {
+        covered: summaryData.total.branches?.covered || 0,
+        total: summaryData.total.branches?.total || 0,
+        pct: summaryData.total.branches?.pct || 0
+      },
+      functions: {
+        covered: summaryData.total.functions?.covered || 0,
+        total: summaryData.total.functions?.total || 0,
+        pct: summaryData.total.functions?.pct || 0
+      },
+      lines: {
+        covered: summaryData.total.lines?.covered || 0,
+        total: summaryData.total.lines?.total || 0,
+        pct: summaryData.total.lines?.pct || 0
+      }
     };
 
     // Aggregate coverage by directory
