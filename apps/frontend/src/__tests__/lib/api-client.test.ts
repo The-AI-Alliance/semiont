@@ -4,8 +4,10 @@ import { TypedAPIClient, APIError, apiClient, apiService } from '@/lib/api-clien
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
 
-// Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
-const { config, getBackendUrl } = require('semiont-config');
+// Import test config explicitly
+const { loadConfig } = require('semiont-config');
+const testConfig = loadConfig('unit');
+const getBackendUrl = () => testConfig.app.backend?.url?.origin || 'http://localhost:3001';
 
 
 // Mock fetch globally - need to restore original fetch for MSW bypass

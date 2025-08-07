@@ -49,10 +49,19 @@ describe('Cookie Utilities - Basic Tests', () => {
     });
 
     it('should handle invalid JSON gracefully', () => {
+      // Mock console.warn to suppress stderr output during this test
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      
       localStorageMock.getItem.mockReturnValue('invalid-json');
       
       const consent = getCookieConsent();
       expect(consent).toBeNull();
+      
+      // Verify that the error was logged (optional - ensures error handling is working)
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to parse cookie consent:', expect.any(SyntaxError));
+      
+      // Restore console.warn
+      consoleSpy.mockRestore();
     });
   });
 

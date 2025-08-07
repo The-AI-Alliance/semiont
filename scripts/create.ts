@@ -16,16 +16,13 @@ interface DeployOptions {
 
 const region = config.aws.region;
 
-function timestamp(): string {
-  return new Date().toISOString();
-}
 
 
 async function deployInfraStack(options: DeployOptions): Promise<boolean> {
   // Validate AWS credentials early
   await requireValidAWSCredentials(region);
   
-  const deployer = new CdkDeployer();
+  const deployer = new CdkDeployer(config);
   try {
     const success = await deployer.deployInfraStack(options);
     return success;
@@ -38,7 +35,7 @@ async function deployAppStack(options: DeployOptions): Promise<boolean> {
   // Validate AWS credentials early
   await requireValidAWSCredentials(region);
   
-  const deployer = new CdkDeployer();
+  const deployer = new CdkDeployer(config);
   try {
     const success = await deployer.deployAppStack(options);
     return success;
@@ -51,9 +48,9 @@ async function checkPrerequisites(): Promise<boolean> {
   console.log('🔍 Checking deployment prerequisites...');
   
   // Check if CDK library directory exists (for stack classes)
-  const cdkPath = path.resolve('../cdk');
+  const cdkPath = path.resolve('../config/cdk');
   if (!fs.existsSync(cdkPath)) {
-    console.error('❌ CDK directory not found at ../cdk');
+    console.error('❌ CDK directory not found at ../config/cdk');
     return false;
   }
   

@@ -493,34 +493,6 @@ async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
   };
 }
 
-async function generateTestReport(results: TestResult[]): Promise<void> {
-  console.log('');
-  console.log('📊 Test Results Summary');
-  console.log('========================');
-  
-  let totalDuration = 0;
-  let passedTests = 0;
-  let failedTests = 0;
-  
-  results.forEach(result => {
-    if (result.duration > 0) { // Only count tests that actually ran
-      const icon = result.success ? '✅' : '❌';
-      const duration = (result.duration / 1000).toFixed(1);
-      console.log(`${icon} ${result.name}: ${duration}s`);
-      
-      totalDuration += result.duration;
-      if (result.success) {
-        passedTests++;
-      } else {
-        failedTests++;
-      }
-    }
-  });
-  
-  console.log('');
-  console.log(`📈 Overall: ${passedTests} passed, ${failedTests} failed`);
-  console.log(`⏱️  Total time: ${(totalDuration / 1000).toFixed(1)}s`);
-}
 
 
 function printHelp(): void {
@@ -584,7 +556,7 @@ ${colors.cyan}Notes:${colors.reset}
 }
 
 
-async function runTests(options: TestOptions, config: any): Promise<TestResult[]> {
+async function runTests(options: TestOptions, _config: any): Promise<TestResult[]> {
   const { environment, suite, service, coverage, watch, verbose, dryRun } = options;
   
   log(`🧪 Running ${suite} tests for ${service} services in ${environment} environment`, colors.bright);

@@ -15,8 +15,7 @@
  * Note: Local environment doesn't need provisioning - use 'deploy local' directly
  */
 
-import * as path from 'path';
-import * as fs from 'fs';
+// Remove unused imports
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 
@@ -117,7 +116,7 @@ async function loadEnvironmentConfig(environment: CloudEnvironment): Promise<any
   };
 }
 
-async function checkExistingInfrastructure(environment: CloudEnvironment, config: any): Promise<boolean> {
+async function checkExistingInfrastructure(_environment: CloudEnvironment, _config: any): Promise<boolean> {
   // Check if infrastructure already exists
   // This would check CloudFormation stacks, etc.
   // For now, returning false to indicate no existing infrastructure
@@ -150,7 +149,7 @@ async function provisionInfrastructure(options: ProvisionOptions, config: any): 
     }
   }
   
-  const deployer = new CdkDeployer();
+  const deployer = new CdkDeployer(config);
   
   try {
     // For staging/production, always require approval unless explicitly disabled
@@ -301,7 +300,7 @@ async function main(): Promise<void> {
       verbose: false,
       force: false,
       destroy: false,
-      requireApproval: undefined  // Will be set based on environment
+      requireApproval: false  // Will be set based on environment
     };
     
     // Process command line arguments
@@ -310,25 +309,25 @@ async function main(): Promise<void> {
       switch (arg) {
         case '--stack':
           const stack = args[++i];
-          if (!['infra', 'app', 'all'].includes(stack)) {
+          if (!stack || !['infra', 'app', 'all'].includes(stack)) {
             throw new Error(`Invalid stack: ${stack}. Must be one of: infra, app, all`);
           }
-          options.stack = stack as Stack;
+          options!.stack = stack as Stack;
           break;
         case '--dry-run':
-          options.dryRun = true;
+          options!.dryRun = true;
           break;
         case '--verbose':
-          options.verbose = true;
+          options!.verbose = true;
           break;
         case '--force':
-          options.force = true;
+          options!.force = true;
           break;
         case '--no-approval':
-          options.requireApproval = false;
+          options!.requireApproval = false;
           break;
         case '--destroy':
-          options.destroy = true;
+          options!.destroy = true;
           break;
         default:
           warning(`Unknown option: ${arg}`);
@@ -341,21 +340,21 @@ async function main(): Promise<void> {
     
     // Show provisioning plan
     console.log('');
-    info(options.destroy ? 'Destruction Plan:' : 'Provisioning Plan:');
+    info(options!.destroy ? 'Destruction Plan:' : 'Provisioning Plan:');
     console.log(`  Environment: ${colors.bright}${validEnv}${colors.reset}`);
-    console.log(`  Stack:       ${colors.bright}${options.stack}${colors.reset}`);
+    console.log(`  Stack:       ${colors.bright}${options!.stack}${colors.reset}`);
     console.log(`  Region:      ${colors.bright}${config.aws.region}${colors.reset}`);
-    console.log(`  Action:      ${colors.bright}${options.destroy ? 'DESTROY' : 'CREATE'}${colors.reset}`);
+    console.log(`  Action:      ${colors.bright}${options!.destroy ? 'DESTROY' : 'CREATE'}${colors.reset}`);
     
-    if (options.dryRun) {
+    if (options!.dryRun) {
       console.log(`  Mode:        ${colors.yellow}DRY RUN${colors.reset}`);
     }
     
     console.log('');
     
     // Confirm for production provisioning
-    if (validEnv === 'production' && !options.dryRun && options.requireApproval !== false) {
-      if (options.destroy) {
+    if (validEnv === 'production' && !options!.dryRun && options!.requireApproval !== false) {
+      if (options!.destroy) {
         error('⚠️  PRODUCTION DESTRUCTION - This will permanently delete all data!');
         const readline = require('readline').createInterface({
           input: process.stdin,
@@ -391,11 +390,11 @@ async function main(): Promise<void> {
     }
     
     // Execute provisioning
-    const provisionSuccess = await provisionInfrastructure(options, config);
+    const provisionSuccess = await provisionInfrastructure(options!, config);
     
     if (provisionSuccess) {
       console.log('');
-      if (options.destroy) {
+      if (options!.destroy) {
         success(`🗑️  Infrastructure in ${validEnv} destroyed successfully`);
       } else {
         success(`🎉 Infrastructure provisioned in ${validEnv} successfully!`);
@@ -408,7 +407,7 @@ async function main(): Promise<void> {
         console.log(`  3. Check status: ./scripts/semiont check --env ${validEnv}`);
       }
     } else {
-      error(options.destroy ? 'Destruction failed' : 'Provisioning failed');
+      error(options!.destroy ? 'Destruction failed' : 'Provisioning failed');
       process.exit(1);
     }
     

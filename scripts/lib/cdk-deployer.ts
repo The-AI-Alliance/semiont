@@ -1,8 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import { CloudFormationClient, CreateStackCommand, UpdateStackCommand, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
-import { SemiontInfraStack } from '../../cdk/lib/infra-stack';
-import { SemiontAppStack } from '../../cdk/lib/app-stack';
-import { config } from '../../config';
+import { SemiontInfraStack } from '../../config/cdk/lib/infra-stack';
+import { SemiontAppStack } from '../../config/cdk/lib/app-stack';
+import type { SemiontConfiguration } from '../../config';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -17,8 +17,10 @@ export class CdkDeployer {
   private cloudFormationClient: CloudFormationClient;
   private region: string;
   private account: string;
+  private config: SemiontConfiguration;
 
-  constructor() {
+  constructor(config: SemiontConfiguration) {
+    this.config = config;
     this.region = config.aws.region;
     this.account = config.aws.accountId;
     this.cloudFormationClient = new CloudFormationClient({ region: this.region });
@@ -136,12 +138,19 @@ export class CdkDeployer {
    * Deploy infrastructure stack programmatically
    */
   async deployInfraStack(options: DeployOptions = {}): Promise<boolean> {
-    this.log(`📦 Deploying ${config.site.siteName} Infrastructure Stack...`);
+    this.log(`📦 Deploying ${this.config.site.siteName} Infrastructure Stack...`);
     this.log('   Contains: VPC, RDS, EFS, Secrets Manager');
 
     try {
+      // Build context from config
+      const context = {
+        ...options.context,
+        adminEmail: this.config.site.adminEmail,
+        databaseName: this.config.aws.database.name
+      };
+      
       // Synthesize the template
-      const template = this.synthesizeStack(SemiontInfraStack, 'SemiontInfraStack', undefined, options.context);
+      const template = this.synthesizeStack(SemiontInfraStack, 'SemiontInfraStack', undefined, context);
       const stackExists = await this.stackExists('SemiontInfraStack');
 
       if (stackExists) {
@@ -211,15 +220,27 @@ export class CdkDeployer {
    * Deploy application stack programmatically
    */
   async deployAppStack(options: DeployOptions = {}): Promise<boolean> {
-    this.log(`🏗️ Creating ${config.site.siteName} Application Stack...`);
+    this.log(`🏗️ Creating ${this.config.site.siteName} Application Stack...`);
     this.log('   Contains: ECS, ALB, WAF, CloudWatch');
 
     try {
       // Get dependencies from infrastructure stack
       const dependencies = await this.getInfraStackOutputs();
       
+      // Build context from config
+      const context = {
+        ...options.context,
+        siteName: this.config.site.siteName,
+        domain: this.config.site.domain,
+        rootDomain: this.config.aws.rootDomain,
+        oauthAllowedDomains: this.config.site.oauthAllowedDomains.join(','),
+        databaseName: this.config.aws.database.name,
+        certificateArn: this.config.aws.certificateArn,
+        hostedZoneId: this.config.aws.hostedZoneId
+      };
+      
       // Synthesize the template
-      const template = this.synthesizeStack(SemiontAppStack, 'SemiontAppStack', dependencies, options.context);
+      const template = this.synthesizeStack(SemiontAppStack, 'SemiontAppStack', dependencies, context);
       const stackExists = await this.stackExists('SemiontAppStack');
 
       if (stackExists) {

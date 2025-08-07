@@ -69,13 +69,13 @@ async function cleanCDK(): Promise<boolean> {
   let success = true;
   
   // Remove CDK output directory
-  success = await removeDirectory('../cdk/cdk.out', 'CDK output directory') && success;
+  success = await removeDirectory('../config/cdk/cdk.out', 'CDK output directory') && success;
   
   // Remove CDK context cache
-  success = await removeDirectory('../cdk/cdk.context.json', 'CDK context cache') && success;
+  success = await removeDirectory('../config/cdk/cdk.context.json', 'CDK context cache') && success;
   
   // Remove CDK staging directory
-  success = await removeDirectory('../cdk/.cdk.staging', 'CDK staging directory') && success;
+  success = await removeDirectory('../config/cdk/.cdk.staging', 'CDK staging directory') && success;
   
   return success;
 }
@@ -98,8 +98,8 @@ async function cleanNode(): Promise<boolean> {
   success = await removeDirectory('../apps/backend/package-lock.json', 'Backend package-lock.json') && success;
   
   // CDK
-  success = await removeDirectory('../cdk/node_modules', 'CDK node_modules') && success;
-  success = await removeDirectory('../cdk/package-lock.json', 'CDK package-lock.json') && success;
+  success = await removeDirectory('../config/cdk/node_modules', 'CDK node_modules') && success;
+  success = await removeDirectory('../config/cdk/package-lock.json', 'CDK package-lock.json') && success;
   
   // Scripts
   success = await removeDirectory('./node_modules', 'Scripts node_modules') && success;

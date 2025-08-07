@@ -18,7 +18,7 @@
     "types:build": "npm run build -w @semiont/api-types",
     "types:watch": "npm run watch -w @semiont/api-types",
     "install:all": "npm install",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
   "engines": {
     "node": ">=18.0.0",

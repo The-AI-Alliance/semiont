@@ -13,7 +13,6 @@
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { execSync } from 'child_process';
-import * as path from 'path';
 
 // Types
 type Environment = 'local' | 'development' | 'staging' | 'production';

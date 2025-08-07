@@ -306,7 +306,7 @@ async function startBackend(options: { fresh?: boolean } = {}): Promise<void> {
   // Ensure database is running first
   if (!isContainerRunning(LOCAL_CONFIG.database.containerName)) {
     log('Database not running, starting it first...');
-    await startDatabase({ reset: options.fresh });
+    await startDatabase({ reset: options.fresh ?? false });
   }
 
   // Check if backend is already running
@@ -417,7 +417,7 @@ async function stopFrontend(): Promise<void> {
 async function startFullStack(options: { reset?: boolean } = {}): Promise<void> {
   log('🚀 Starting full Semiont development environment...');
   
-  await startDatabase({ reset: options.reset, seed: true });
+  await startDatabase({ reset: options.reset ?? false, seed: true });
   await startBackend();
   await startFrontend();
   

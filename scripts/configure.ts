@@ -12,7 +12,7 @@
  *   ./scripts/semiont configure jwt-secret      # Set JWT secret
  */
 
-import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from './lib/stack-config';
 import { loadConfig, displayConfiguration, ConfigurationError } from '../config/dist/index.js';
 import * as readline from 'readline';

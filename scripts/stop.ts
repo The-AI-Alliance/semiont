@@ -10,10 +10,7 @@
  *   ./scripts/semiont stop production --service backend # Stop backend in production
  */
 
-import { spawn, type ChildProcess } from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs';
-import { getAvailableEnvironments, isValidEnvironment, isCloudEnvironment } from './lib/environment-discovery';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 
 // Valid environments
@@ -40,13 +37,6 @@ const colors = {
   cyan: '\x1b[36m'
 };
 
-function timestamp(): string {
-  return new Date().toISOString();
-}
-
-function log(message: string, color: string = colors.reset): void {
-  console.log(`${color}[${timestamp()}] ${message}${colors.reset}`);
-}
 
 function error(message: string): void {
   console.error(`${colors.red}❌ ${message}${colors.reset}`);
@@ -75,7 +65,7 @@ async function validateEnvironment(env: string): Promise<Environment> {
 }
 
 async function stopLocalServices(options: StopOptions): Promise<boolean> {
-  const { service, verbose } = options;
+  const { service } = options;
   
   success('Stopping local services...');
   
@@ -102,7 +92,7 @@ async function stopLocalServices(options: StopOptions): Promise<boolean> {
 }
 
 async function stopCloudServices(options: StopOptions): Promise<boolean> {
-  const { environment, service, dryRun, verbose } = options;
+  const { environment, service, dryRun } = options;
   
   info(`Stopping services in ${environment} environment...`);
   
@@ -154,7 +144,7 @@ function parseArguments(args: string[]): StopOptions {
     throw new Error('Environment is required. Usage: stop <environment> [options]');
   }
   
-  options.environment = args[0];
+  options.environment = args[0]!;
   
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -182,7 +172,6 @@ function parseArguments(args: string[]): StopOptions {
       case '--help':
         printHelp();
         process.exit(0);
-        break;
       default:
         throw new Error(`Unknown option: ${arg}`);
     }
@@ -263,7 +252,6 @@ async function main(): Promise<void> {
 }
 
 // Run if this script is executed directly
-import { fileURLToPath } from 'url';
 if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }

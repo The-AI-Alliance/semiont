@@ -5,7 +5,6 @@ import * as efs from 'aws-cdk-lib/aws-efs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
-import { config } from '../..';
 
 export class SemiontInfraStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
@@ -103,10 +102,11 @@ export class SemiontInfraStack extends cdk.Stack {
     });
 
     // Admin users list
+    const adminEmail = this.node.tryGetContext('adminEmail') || 'admin@example.com';
     this.adminEmails = new secretsmanager.Secret(this, 'AdminEmails', {
       description: 'Comma-separated list of admin email addresses',
       secretObjectValue: {
-        emails: cdk.SecretValue.unsafePlainText(config.site.adminEmail),
+        emails: cdk.SecretValue.unsafePlainText(adminEmail),
       },
     });
 
@@ -164,7 +164,7 @@ export class SemiontInfraStack extends cdk.Stack {
         subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
       },
       securityGroups: [this.dbSecurityGroup],
-      databaseName: config.aws.database.name,
+      databaseName: this.node.tryGetContext('databaseName') || 'semiont',
       storageEncrypted: true,
       backupRetention: cdk.Duration.days(7),
       deletionProtection: true,

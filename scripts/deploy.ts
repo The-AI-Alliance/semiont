@@ -16,16 +16,11 @@
 
 import { spawn, type ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
-import { getAvailableEnvironments, isValidEnvironment, isCloudEnvironment } from './lib/environment-discovery';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
-import { CdkDeployer } from './lib/cdk-deployer';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PrismaClient } from '@prisma/client';
 import { loadConfig } from '../config/dist/index.js';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeTaskDefinitionCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
-import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, DescribeImagesCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
+import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
+import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
 import { SemiontStackConfig } from './lib/stack-config';
 
 // Valid environments
@@ -407,13 +402,13 @@ function getStacksForServices(service: Service): Stack[] {
   }
 }
 
-async function checkStackExists(stack: Stack, config: any): Promise<boolean> {
+async function checkStackExists(_stack: Stack, _config: any): Promise<boolean> {
   // Check if CloudFormation stack exists
   // For now, returning true as placeholder
   return true;
 }
 
-async function deployDatabaseService(environment: Environment, config: any, options: any): Promise<boolean> {
+async function deployDatabaseService(_environment: Environment, _config: any, _options: any): Promise<boolean> {
   // Database service deployment (RDS configuration, migrations)
   info('Database service runs on RDS - managed by infrastructure stack');
   info('Running database migrations...');
@@ -421,7 +416,7 @@ async function deployDatabaseService(environment: Environment, config: any, opti
   return true;
 }
 
-async function deployBackendService(environment: Environment, config: any, options: any): Promise<boolean> {
+async function deployBackendService(environment: Environment, _config: any, options: any): Promise<boolean> {
   info('Deploying backend service...');
   
   // Build backend image if it doesn't exist
@@ -454,7 +449,7 @@ async function deployBackendService(environment: Environment, config: any, optio
   return true;
 }
 
-async function deployFrontendService(environment: Environment, config: any, options: any): Promise<boolean> {
+async function deployFrontendService(environment: Environment, _config: any, options: any): Promise<boolean> {
   info('Deploying frontend service...');
   
   // Build frontend image if it doesn't exist
@@ -553,7 +548,7 @@ async function ensureECRRepository(repositoryName: string, ecrClient: ECRClient)
   }
 }
 
-async function updateECSService(serviceName: string, imageUri: string, environment: string): Promise<boolean> {
+async function updateECSService(serviceName: string, _imageUri: string, environment: string): Promise<boolean> {
   const envConfig = loadConfig(environment);
   const ecsClient = new ECSClient({ region: envConfig.aws.region });
   const stackConfig = new SemiontStackConfig(envConfig.aws.region);
@@ -577,8 +572,8 @@ async function updateECSService(serviceName: string, imageUri: string, environme
     
     info(`ECS service ${serviceName} update initiated`);
     return true;
-  } catch (error) {
-    error(`Failed to update ECS service: ${(error as any).message || error}`);
+  } catch (err) {
+    error(`Failed to update ECS service: ${(err as any).message || err}`);
     return false;
   }
 }

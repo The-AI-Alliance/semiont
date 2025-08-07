@@ -21,6 +21,7 @@ export const unitConfig: EnvironmentOverrides = {
     ...testConfig.app,
     backend: {
       ...testConfig.app?.backend,
+      url: 'http://localhost:3001', // Ensure URL is available for unit tests
       database: {
         ...testConfig.app?.backend?.database,
         // Unit tests mock the database - no real connection needed
@@ -33,6 +34,10 @@ export const unitConfig: EnvironmentOverrides = {
         user: 'mock_user',
         password: 'mock_password'
       }
+    },
+    frontend: {
+      ...testConfig.app?.frontend,
+      url: 'http://localhost:3000' // Ensure URL is available for unit tests
     },
     features: {
       ...testConfig.app?.features,

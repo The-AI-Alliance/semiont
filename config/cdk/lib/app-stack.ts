@@ -17,7 +17,6 @@ import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import { Construct } from 'constructs';
-import { config } from '../..';
 
 interface SemiontAppStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;
@@ -57,18 +56,24 @@ export class SemiontAppStack extends cdk.Stack {
       albSecurityGroup
     } = props;
 
-    // Parameters for configuration
-    const domainName = config.site.domain;
+    // Get configuration from CDK context
+    const siteName = this.node.tryGetContext('siteName') || 'Semiont';
+    const domainName = this.node.tryGetContext('domain') || 'example.com';
+    const rootDomain = this.node.tryGetContext('rootDomain') || 'example.com';
+    const oauthAllowedDomains = this.node.tryGetContext('oauthAllowedDomains') || ['example.com'];
+    const databaseName = this.node.tryGetContext('databaseName') || 'semiont';
+    const awsCertificateArn = this.node.tryGetContext('certificateArn');
+    const awsHostedZoneId = this.node.tryGetContext('hostedZoneId');
 
     const certificateArn = new cdk.CfnParameter(this, 'CertificateArn', {
       type: 'String', 
-      default: props.certificateArn || config.aws.certificateArn,
+      default: props.certificateArn || awsCertificateArn || 'arn:aws:acm:us-east-1:123456789012:certificate/placeholder',
       description: 'ACM Certificate ARN for HTTPS'
     });
 
     const hostedZoneId = new cdk.CfnParameter(this, 'HostedZoneId', {
       type: 'String',
-      default: props.hostedZoneId || config.aws.hostedZoneId, 
+      default: props.hostedZoneId || awsHostedZoneId || 'Z1234567890ABC', 
       description: 'Route53 Hosted Zone ID'
     });
 
@@ -205,16 +210,16 @@ export class SemiontAppStack extends cdk.Stack {
         NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
         DB_HOST: database.instanceEndpoint.hostname,
         DB_PORT: database.instanceEndpoint.port.toString(),
-        DB_NAME: config.aws.database.name,
+        DB_NAME: databaseName,
         PORT: '4000',
         API_PORT: '4000',
         CORS_ORIGIN: `https://${domainName}`,
         FRONTEND_URL: `https://${domainName}`,
         AWS_REGION: this.region,
         // Configuration for OAuth
-        SITE_NAME: config.site.siteName,
-        DOMAIN: config.site.domain,
-        OAUTH_ALLOWED_DOMAINS: config.site.oauthAllowedDomains.join(','),
+        SITE_NAME: siteName,
+        DOMAIN: domainName,
+        OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
       }, 
       secrets: {
         DB_USER: ecs.Secret.fromSecretsManager(dbCredentials, 'username'),
@@ -268,9 +273,9 @@ export class SemiontAppStack extends cdk.Stack {
         HOSTNAME: '0.0.0.0',
         // Public environment variables (available to browser)
         NEXT_PUBLIC_API_URL: `https://${domainName}`,
-        NEXT_PUBLIC_SITE_NAME: config.site.siteName,
-        NEXT_PUBLIC_DOMAIN: config.site.domain,
-        NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: config.site.oauthAllowedDomains.join(','),
+        NEXT_PUBLIC_SITE_NAME: siteName,
+        NEXT_PUBLIC_DOMAIN: domainName,
+        NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
         // NextAuth configuration
         NEXTAUTH_URL: `https://${domainName}`,
       },
@@ -365,7 +370,7 @@ export class SemiontAppStack extends cdk.Stack {
     // Route 53 Hosted Zone
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
       hostedZoneId: hostedZoneId.valueAsString,
-      zoneName: config.aws.rootDomain,
+      zoneName: rootDomain,
     });
 
     // SSL Certificate
@@ -748,7 +753,7 @@ export class SemiontAppStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'SiteName', {
-      value: config.site.siteName,
+      value: siteName,
       description: 'Semiont Site Name',
     });
   }

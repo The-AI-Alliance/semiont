@@ -12,8 +12,11 @@ import {
 } from '../validation';
 import { z } from 'zod';
 
-// Import root config system (SEMIONT_ENV=test is set by scripts/test.ts)
-const { config, getBackendUrl, getFrontendUrl } = require('semiont-config');
+// Import test config explicitly
+const { loadConfig } = require('semiont-config');
+const testConfig = loadConfig('unit');
+const getBackendUrl = () => testConfig.app.backend?.url?.origin || 'http://localhost:3001';
+const getFrontendUrl = () => testConfig.app.frontend?.url?.origin || 'http://localhost:3000';
 
 describe('Validation Library', () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
