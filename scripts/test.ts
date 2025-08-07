@@ -200,7 +200,7 @@ async function checkDirectoryExists(dirPath: string): Promise<boolean> {
   }
 }
 
-async function parseFrontendTestResults(cwd: string): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
+async function parseTestResults(cwd: string): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
   try {
     const testResultsPath = path.resolve(cwd, 'test-results.json');
     const testResults = await fs.readFile(testResultsPath, 'utf-8');
@@ -214,6 +214,20 @@ async function parseFrontendTestResults(cwd: string): Promise<{ totalTests: numb
   } catch (error) {
     console.log('⚠️  Could not parse test results JSON, using basic parsing');
     return { totalTests: 0, passedTests: 0, failedTests: 0 };
+  }
+}
+
+function displayTestSummary(testStats: { totalTests: number; passedTests: number; failedTests: number }): void {
+  if (testStats.totalTests > 0) {
+    const skippedTests = testStats.totalTests - testStats.passedTests - testStats.failedTests;
+    
+    if (testStats.failedTests > 0) {
+      console.log(`❌ ${testStats.failedTests} tests failed, ${testStats.passedTests} passed`);
+    } else if (skippedTests > 0) {
+      console.log(`✅ All ${testStats.passedTests} tests passed • ${skippedTests} skipped • ${testStats.totalTests} total`);
+    } else {
+      console.log(`✅ All ${testStats.passedTests} tests passed`);
+    }
   }
 }
 
@@ -414,13 +428,8 @@ async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
   
   // Try to parse JSON results for better summary
   if (!options.verbose && result.success) {
-    const testStats = await parseFrontendTestResults('../apps/frontend');
-    if (testStats.totalTests > 0) {
-      console.log(`✅ ${testStats.passedTests}/${testStats.totalTests} tests passed`);
-      if (testStats.failedTests > 0) {
-        console.log(`❌ ${testStats.failedTests} tests failed`);
-      }
-    }
+    const testStats = await parseTestResults('../apps/frontend');
+    displayTestSummary(testStats);
     
     // Show coverage report if coverage was requested
     if (options.coverage) {
@@ -475,13 +484,8 @@ async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
   
   // Try to parse JSON results for better summary (same as frontend)
   if (!options.verbose && result.success) {
-    const testStats = await parseFrontendTestResults('../apps/backend');
-    if (testStats.totalTests > 0) {
-      console.log(`✅ ${testStats.passedTests}/${testStats.totalTests} tests passed`);
-      if (testStats.failedTests > 0) {
-        console.log(`❌ ${testStats.failedTests} tests failed`);
-      }
-    }
+    const testStats = await parseTestResults('../apps/backend');
+    displayTestSummary(testStats);
     
     // Show coverage report if coverage was requested
     if (options.coverage) {
