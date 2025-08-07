@@ -735,6 +735,10 @@ async function main(): Promise<void> {
       default:
         if (arg && arg.startsWith('--')) {
           error(`Unknown option: ${arg}`);
+          process.exit(1);
+        } else if (arg && !arg.startsWith('--')) {
+          error(`Unknown argument: ${arg}. Use --suite and --service flags instead.`);
+          process.exit(1);
         }
         break;
     }
