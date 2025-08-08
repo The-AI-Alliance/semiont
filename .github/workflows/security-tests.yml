@@ -165,9 +165,51 @@ jobs:
           cd ../../packages/api-types && npm run build
           cd ../config-loader && npm run build
 
-      - name: Setup test database
+      - name: Setup test database and config
         run: |
-          echo "DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb" > .env.test
+          # Create test config with database connection
+          cd ../..
+          cat > config/environments/ci.json << 'EOF'
+          {
+            "site": {
+              "domain": "localhost", 
+              "adminEmail": "admin@test.local",
+              "supportEmail": "support@test.local",
+              "oauthAllowedDomains": ["test.local"]
+            },
+            "app": {
+              "features": {
+                "enableAnalytics": false,
+                "enableMaintenanceMode": false,
+                "enableDebugLogging": true
+              },
+              "security": {
+                "sessionTimeout": 28800,
+                "maxLoginAttempts": 20,
+                "corsAllowedOrigins": ["http://localhost:3000"]
+              },
+              "performance": {
+                "enableCaching": false,
+                "cacheTimeout": 0
+              },
+              "backend": {
+                "url": "http://localhost:3001",
+                "database": {
+                  "host": "localhost",
+                  "port": 5432,
+                  "name": "testdb",
+                  "user": "testuser"
+                }
+              },
+              "frontend": {
+                "url": "http://localhost:3000"
+              }
+            }
+          }
+          EOF
+          # Set secrets for test
+          echo '{"DATABASE_PASSWORD":"testpassword","JWT_SECRET":"test-secret-for-ci","GOOGLE_CLIENT_ID":"test-client-id","GOOGLE_CLIENT_SECRET":"test-client-secret"}' > .secrets.json
+          cd apps/backend
           npx prisma db push
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -198,18 +240,13 @@ jobs:
 
       - name: Start backend for API security verification
         run: |
-          npm start &
+          cd ../..
+          ./bin/semiont start ci --service backend &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
           # Wait for backend to start
           timeout 60 bash -c 'until curl -f http://localhost:3001/api/health 2>/dev/null; do sleep 2; done'
           sleep 2
-        env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
-          JWT_SECRET: test-secret-for-ci
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
-          PORT: 3001
 
       - name: Verify API security
         run: |
