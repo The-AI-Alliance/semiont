@@ -199,7 +199,9 @@ export class DashboardDataSource {
           .slice(0, maxEntries * 2); // Keep some history
 
         this.logCache.set(cacheKey, allServiceLogs);
-        this.lastLogTimestamp.set(cacheKey, newLogs[0].timestamp);
+        if (newLogs.length > 0 && newLogs[0]) {
+          this.lastLogTimestamp.set(cacheKey, newLogs[0].timestamp);
+        }
         return allServiceLogs;
       }
 

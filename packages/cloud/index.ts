@@ -6,3 +6,9 @@
 
 export { SemiontInfraStack } from './lib/infra-stack';
 export { SemiontAppStack } from './lib/app-stack';
+export { 
+  createStack, 
+  getStackConstructor, 
+  getAvailableStacks,
+  type StackConstructor 
+} from './lib/stack-factory';

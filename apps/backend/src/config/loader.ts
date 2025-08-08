@@ -72,12 +72,12 @@ export function loadBackendConfig() {
   // Build the configuration object matching the current backend expectations
   const backendConfig = {
     // Site configuration
-    SITE_NAME: config.site.siteName,
+    SITE_NAME: 'Semiont',
     DOMAIN: config.site.domain,
     OAUTH_ALLOWED_DOMAINS: config.site.oauthAllowedDomains,
     
     // Backend specific
-    PORT: config.app.backend?.port || 4000,
+    PORT: 4000, // Backend always runs on port 4000
     NODE_ENV: process.env.NODE_ENV || 'development',
     DATABASE_URL: buildDatabaseUrl(config, secrets),
     DATABASE_NAME: config.app.backend?.database?.name || 'semiont',
@@ -86,12 +86,8 @@ export function loadBackendConfig() {
     JWT_SECRET: secrets.JWT_SECRET || process.env.JWT_SECRET,
     
     // CORS
-    CORS_ORIGIN: config.app.backend?.frontend ? 
-      `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}` : 
-      'http://localhost:3000',
-    FRONTEND_URL: config.app.backend?.frontend ? 
-      `http://${config.app.backend.frontend.host}:${config.app.backend.frontend.port}` : 
-      'http://localhost:3000',
+    CORS_ORIGIN: config.app.frontend?.url || 'http://localhost:3000',
+    FRONTEND_URL: config.app.frontend?.url || 'http://localhost:3000',
     
     // OAuth (from secrets or environment)
     GOOGLE_CLIENT_ID: secrets.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,

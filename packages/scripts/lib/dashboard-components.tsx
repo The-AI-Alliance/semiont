@@ -177,15 +177,15 @@ export const LogViewer: React.FC<{
           return (
             <Box key={scrollPosition + index}>
               {showTimestamps && (
-                <Text color="gray" dimColor width={11}>
-                  {timestamp}
+                <Text color="gray" dimColor>
+                  {timestamp.padEnd(11)}
                 </Text>
               )}
-              <Text color="gray" width={9}>
-                {service}
+              <Text color="gray">
+                {service.padEnd(9)}
               </Text>
-              <Text color={colors[log.level]} width={6}>
-                {level}
+              <Text color={colors[log.level]}>
+                {level.padEnd(6)}
               </Text>
               <Text>{log.message}</Text>
             </Box>
@@ -240,9 +240,10 @@ export const MetricsPanel: React.FC<{
                 {metric.value}{metric.unit || ''}
               </Text>
               {metric.trend && (
-                <Text marginLeft={1}>
-                  {trendIcons[metric.trend]}
-                </Text>
+                <>
+                  <Text> </Text>
+                  <Text>{trendIcons[metric.trend]}</Text>
+                </>
               )}
             </Box>
           ))}
@@ -316,7 +317,7 @@ export const SimpleTable: React.FC<{
       <Box>
         {headers.map((header, index) => (
           <Box key={index} width={columnWidths[index]}>
-            <Text bold color="blue">{header.padEnd(columnWidths[index] - 1)}</Text>
+            <Text bold color="blue">{header.padEnd(columnWidths[index]! - 1)}</Text>
           </Box>
         ))}
       </Box>
@@ -333,7 +334,7 @@ export const SimpleTable: React.FC<{
         <Box key={rowIndex}>
           {row.map((cell, colIndex) => (
             <Box key={colIndex} width={columnWidths[colIndex]}>
-              <Text>{(cell || '').padEnd(columnWidths[colIndex] - 1)}</Text>
+              <Text>{(cell || '').padEnd(columnWidths[colIndex]! - 1)}</Text>
             </Box>
           ))}
         </Box>

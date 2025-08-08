@@ -4,8 +4,8 @@
  * React components that combine dashboard components into full-screen layouts
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, useApp, useStdout } from 'ink';
+import React, { useState } from 'react';
+import { Box, Text, useStdout } from 'ink';
 import { 
   ServicePanel, 
   LogViewer, 
@@ -156,7 +156,7 @@ export const LogsOnlyDashboard: React.FC<{
           height={logHeight}
           title="Live Stream"
           showTimestamps={true}
-          serviceFilter={serviceFilter}
+          {...(serviceFilter ? { serviceFilter } : {})}
         />
       </Box>
 
