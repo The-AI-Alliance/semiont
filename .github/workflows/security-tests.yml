@@ -37,6 +37,11 @@ jobs:
       - name: Install dependencies
         run: cd ../.. && npm install
 
+      - name: Build required packages
+        run: |
+          cd ../../packages/api-types && npm run build
+          cd ../config-loader && npm run build
+
       - name: Run security tests
         run: npm run test:security
 
@@ -154,6 +159,11 @@ jobs:
 
       - name: Install dependencies
         run: cd ../.. && npm install
+
+      - name: Build required packages
+        run: |
+          cd ../../packages/api-types && npm run build
+          cd ../config-loader && npm run build
 
       - name: Setup test database
         run: |
