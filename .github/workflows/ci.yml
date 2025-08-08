@@ -64,9 +64,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build api-types package
-        run: cd packages/api-types && npm run build
-
       - name: Run backend tests with semiont CLI
         run: ./bin/semiont test --service backend --no-coverage
         env:
@@ -159,9 +156,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Build api-types package
-        run: cd packages/api-types && npm run build
 
       - name: Run comprehensive test suite
         run: ./bin/semiont test --no-coverage

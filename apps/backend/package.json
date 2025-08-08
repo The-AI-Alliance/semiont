@@ -6,6 +6,7 @@
     "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
+    "pretest": "npm run build --workspace=@semiont/api-types",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

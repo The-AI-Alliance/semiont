@@ -8,6 +8,7 @@
     "dev:fast": "next dev --turbo",
     "build": "next build",
     "start": "next start",
+    "pretest": "npm run build --workspace=@semiont/api-types && npm run build --workspace=@semiont/config-loader",
     "test": "vitest run --reporter=default --reporter=json --outputFile=test-results.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
