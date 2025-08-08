@@ -28,25 +28,9 @@
     "zod": "^3.22.4"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
-    },
-    "./auth": {
-      "types": "./dist/auth.d.ts",
-      "import": "./dist/auth.js",
-      "require": "./dist/auth.js"
-    },
-    "./user": {
-      "types": "./dist/user.d.ts",
-      "import": "./dist/user.js",
-      "require": "./dist/user.js"
-    },
-    "./common": {
-      "types": "./dist/common.d.ts",
-      "import": "./dist/common.js",
-      "require": "./dist/common.js"
-    }
+    ".": "./dist/index.js",
+    "./auth": "./dist/auth.js",
+    "./user": "./dist/user.js",
+    "./common": "./dist/common.js"
   }
 }
