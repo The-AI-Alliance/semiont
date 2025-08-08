@@ -227,7 +227,9 @@ export function ProgressBar({ progress, width = 20, showPercentage = true }: {
     {},
     React.createElement(Text, { color: 'green' }, filledBar),
     React.createElement(Text, { color: 'gray' }, emptyBar),
-    showPercentage ? React.createElement(Text, { marginLeft: 1 }, `${progress}%`) : null
+    showPercentage ? React.createElement(Box, { marginLeft: 1 }, 
+      React.createElement(Text, {}, `${progress}%`)
+    ) : null
   );
 }
 

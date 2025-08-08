@@ -27,8 +27,11 @@
     "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@aws-sdk/client-sts": "^3.859.0",
     "@aws-sdk/client-wafv2": "^3.848.0",
+    "@prisma/client": "^6.13.0",
+    "@testcontainers/postgresql": "^11.5.1",
     "@vitest/coverage-v8": "^3.2.4",
     "aws-cdk-lib": "^2.208.0",
+    "commander": "^14.0.0",
     "constructs": "^10.4.2",
     "vitest": "^3.2.4"
   },

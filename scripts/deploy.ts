@@ -218,7 +218,7 @@ async function selectEnvironmentInteractively(): Promise<Environment> {
       // Render environment details
       await new Promise<void>((resolve) => {
         const DetailsComponent = React.createElement(EnvironmentDetails, {
-          environment: env,
+          environment: env || 'unknown',
           details
         });
         const { unmount } = render(DetailsComponent);
@@ -238,13 +238,13 @@ async function selectEnvironmentInteractively(): Promise<Environment> {
   return promptForEnvironmentSelection(availableEnvironments);
 }
 
-async function showDeploymentConfirmation(options: DeployOptions, config: any): Promise<boolean> {
+async function showDeploymentConfirmation(options: DeployOptions): Promise<boolean> {
   const { environment, service, dryRun } = options;
   
   console.log('\\n📋 Deployment Impact Analysis\\n');
   
   // Impact analysis data
-  const impactData = [];
+  const impactData: Array<{ Category: string; Impact: string; Details: string }> = [];
   
   // Environment impact
   const riskLevel = environment === 'production' ? '🔴 HIGH' : 
@@ -313,13 +313,13 @@ async function showDeploymentConfirmation(options: DeployOptions, config: any): 
           columns: ['Category', 'Impact', 'Details'],
           key: 'impact-table'
         }),
-        React.createElement(Text, { 
-          color: dryRun ? 'green' : (environment === 'production' ? 'red' : 'cyan'), 
-          key: 'mode',
-          marginTop: 1
-        }, dryRun ? '🔍 DRY RUN MODE - No changes will be made' : 
-           environment === 'production' ? '🚨 PRODUCTION DEPLOYMENT - This affects live users!' :
-           '🚀 Deployment ready to proceed')
+        React.createElement(Box, { key: 'mode', marginTop: 1 },
+          React.createElement(Text, { 
+            color: dryRun ? 'green' : (environment === 'production' ? 'red' : 'cyan')
+          }, dryRun ? '🔍 DRY RUN MODE - No changes will be made' : 
+             environment === 'production' ? '🚨 PRODUCTION DEPLOYMENT - This affects live users!' :
+             '🚀 Deployment ready to proceed')
+        )
       ]
     );
     
@@ -375,7 +375,7 @@ async function runPreDeploymentHealthChecks(environment: Environment, config: an
   
   console.log('\\n🏥 Pre-Deployment Health Checks\\n');
   
-  const healthChecks = [];
+  const healthChecks: Array<{ Check: string; Status: string; Details: string }> = [];
   let allPassed = true;
   
   // AWS credentials check
@@ -483,12 +483,12 @@ async function runPreDeploymentHealthChecks(environment: Environment, config: an
           columns: ['Check', 'Status', 'Details'],
           key: 'health-table'
         }),
-        React.createElement(Text, { 
-          color: allPassed ? 'green' : 'yellow', 
-          key: 'summary',
-          marginTop: 1
-        }, allPassed ? '🚀 Environment is ready for deployment' : 
-           '⚠️  Please resolve the issues above before proceeding')
+        React.createElement(Box, { key: 'summary', marginTop: 1 },
+          React.createElement(Text, { 
+            color: allPassed ? 'green' : 'yellow'
+          }, allPassed ? '🚀 Environment is ready for deployment' : 
+             '⚠️  Please resolve the issues above before proceeding')
+        )
       ]
     );
     
@@ -606,11 +606,9 @@ async function showLiveDeploymentProgress(options: DeployOptions): Promise<{ unm
         services: progress.services,
         key: 'service-status'
       }) : null,
-      React.createElement(Text, { 
-        color: 'yellow', 
-        key: 'status',
-        marginTop: 1
-      }, '⏳ Deployment in progress...')
+      React.createElement(Box, { key: 'status', marginTop: 1 },
+        React.createElement(Text, { color: 'yellow' }, '⏳ Deployment in progress...')
+      )
     ].filter(Boolean)
   );
   
@@ -662,11 +660,11 @@ function updateDeploymentProgress(
         services: progress.services,
         key: 'service-status'
       }) : null,
-      React.createElement(Text, { 
-        color: progress.currentStep >= progress.steps.length - 1 ? 'green' : 'yellow', 
-        key: 'status',
-        marginTop: 1
-      }, progress.currentStep >= progress.steps.length - 1 ? '✅ Deployment completed!' : '⏳ Deployment in progress...')
+      React.createElement(Box, { key: 'status', marginTop: 1 },
+        React.createElement(Text, { 
+          color: progress.currentStep >= progress.steps.length - 1 ? 'green' : 'yellow'
+        }, progress.currentStep >= progress.steps.length - 1 ? '✅ Deployment completed!' : '⏳ Deployment in progress...')
+      )
     ].filter(Boolean)
   );
   
@@ -900,7 +898,7 @@ async function startLocalFrontend(mock: boolean, verbose: boolean): Promise<bool
   }
 }
 
-async function deployStack(options: DeployOptions, config: any, onProgress?: (update: any) => void): Promise<boolean> {
+async function deployStack(options: DeployOptions, config: any, _onProgress?: (update: any) => void): Promise<boolean> {
   const { environment, service, dryRun, verbose } = options;
   
   // Handle local deployment separately
@@ -1309,7 +1307,7 @@ async function main(): Promise<void> {
     
     // Show deployment confirmation with impact analysis
     if (options.requireApproval !== false) {
-      const confirmed = await showDeploymentConfirmation(options, config);
+      const confirmed = await showDeploymentConfirmation(options);
       if (!confirmed) {
         error('Deployment cancelled by user');
         process.exit(1);

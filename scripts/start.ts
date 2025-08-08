@@ -11,7 +11,7 @@
 
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
-import { showError, showSuccess, showWarning } from './lib/ink-utils';
+import { showError } from './lib/ink-utils';
 
 // Valid environments
 type Environment = string;
@@ -58,13 +58,7 @@ async function handleError(message: string, details?: string): Promise<void> {
   await showError(message, details);
 }
 
-async function handleSuccess(message: string, details?: string[]): Promise<void> {
-  await showSuccess(message, details);
-}
-
-async function handleWarning(message: string, suggestions?: string[]): Promise<void> {
-  await showWarning(message, suggestions);
-}
+// Removed unused utility functions - can be re-added if needed
 
 async function validateEnvironment(env: string): Promise<Environment> {
   const validEnvironments = getAvailableEnvironments();

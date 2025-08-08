@@ -91,7 +91,7 @@ async function showRestartPlan(environment: Environment, service: Service): Prom
   });
 }
 
-async function showRestartResults(environment: Environment, service: Service): Promise<void> {
+async function showRestartResults(environment: Environment, _service: Service): Promise<void> {
   return new Promise((resolve) => {
     const isLocal = environment === 'local';
     const statusMessage = isLocal 

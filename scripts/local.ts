@@ -549,7 +549,7 @@ dbCommand
   .command('start')
   .description('Start local database container')
   .option('--seed', 'Add sample data after starting')
-  .action(async (options) => {
+  .action(async (options: any) => {
     try {
       await startDatabase({ seed: options.seed });
     } catch (err) {
@@ -572,7 +572,7 @@ dbCommand
   .command('reset')
   .description('Reset database (drop and recreate)')
   .option('--seed', 'Add sample data after reset')
-  .action(async (options) => {
+  .action(async (options: any) => {
     try {
       await startDatabase({ reset: true, seed: options.seed });
     } catch (err) {
@@ -589,7 +589,7 @@ backendCommand
   .command('start')
   .description('Start backend service')
   .option('--fresh', 'Start with fresh database')
-  .action(async (options) => {
+  .action(async (options: any) => {
     try {
       await startBackend({ fresh: options.fresh });
     } catch (err) {
@@ -617,7 +617,7 @@ frontendCommand
   .command('start')
   .description('Start frontend service')
   .option('--mock', 'Use mock API (no backend required)')
-  .action(async (options) => {
+  .action(async (options: any) => {
     try {
       await startFrontend({ mock: options.mock });
     } catch (err) {
@@ -641,7 +641,7 @@ program
   .command('start')
   .description('Start full development environment (db + backend + frontend)')
   .option('--reset', 'Start with fresh database')
-  .action(async (options) => {
+  .action(async (options: any) => {
     try {
       await startFullStack({ reset: options.reset });
       
