@@ -243,6 +243,7 @@ function showHelp(): void {
   console.log('Commands:');
   console.log('   show                          - Show current public configuration');
   console.log('   list                          - List all configurable items');
+  console.log('   validate                      - Validate configuration files');
   console.log('   <env> get <secret-path>       - Read a private secret (masked)');
   console.log('   <env> set <secret-path> [val] - Set a private secret\n');
   console.log('Examples:');
@@ -288,6 +289,17 @@ async function main() {
   
   if (firstArg === 'list') {
     await listConfigurable();
+    return;
+  }
+
+  if (firstArg === 'validate') {
+    try {
+      loadConfig('development'); // Test loading a config
+      console.log('✅ Configuration validation passed');
+    } catch (error) {
+      console.error('❌ Configuration validation failed:', error);
+      process.exit(1);
+    }
     return;
   }
   
