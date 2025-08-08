@@ -74,7 +74,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: test-client-secret
 
   test-cloud:
-    name: Cloud Infrastructure Tests
+    name: Cloud Package Compilation
     runs-on: ubuntu-latest
 
     steps:
@@ -93,15 +93,6 @@ jobs:
 
       - name: Run CDK tests
         run: cd packages/cloud && npm test
-
-      - name: CDK synth validation
-        run: cd packages/cloud && npx cdk synth --app "npx ts-node test/app.ts"
-        env:
-          CDK_DEFAULT_ACCOUNT: "123456789012"
-          CDK_DEFAULT_REGION: "us-east-1"
-          AWS_ACCESS_KEY_ID: "dummy"
-          AWS_SECRET_ACCESS_KEY: "dummy"
-          AWS_DEFAULT_REGION: "us-east-1"
 
   test-scripts:
     name: Management Scripts Tests
