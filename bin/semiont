@@ -13,8 +13,8 @@ if [ ! -d "$PROJECT_ROOT/node_modules" ]; then
     cd "$PROJECT_ROOT" && npm install
 fi
 
-# Build config first if needed
-CONFIG_DIR="$PROJECT_ROOT/packages/config"
+# Build config-loader first if needed
+CONFIG_DIR="$PROJECT_ROOT/packages/config-loader"
 if [ ! -d "$CONFIG_DIR/dist" ] || [ "$CONFIG_DIR/tsconfig.json" -nt "$CONFIG_DIR/dist" ] || find "$CONFIG_DIR" -name "*.ts" -newer "$CONFIG_DIR/dist" -print -quit | grep -q .; then
     echo "🔨 Building config..."
     cd "$CONFIG_DIR" && npm run build

@@ -17,6 +17,9 @@ import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';
 
+// Project root path resolution
+const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+
 // Color codes for output
 const colors = {
   reset: '\x1b[0m',
@@ -428,7 +431,7 @@ async function parseCoverageFromSummaryJson(cwd: string): Promise<{ total: Cover
 async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
   console.log('🎨 Running frontend tests...');
   
-  const frontendExists = await checkDirectoryExists('../apps/frontend');
+  const frontendExists = await checkDirectoryExists(path.join(PROJECT_ROOT, 'apps/frontend'));
   if (!frontendExists) {
     console.log('⚠️  Frontend directory not found, skipping frontend tests');
     return { name: 'Frontend', success: false, duration: 0 };
@@ -453,24 +456,24 @@ async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
     testCommand.push('test');
   }
 
-  const result = await runCommand(testCommand, '../apps/frontend', 'Frontend tests', options.verbose, options);
+  const result = await runCommand(testCommand, path.join(PROJECT_ROOT, 'apps/frontend'), 'Frontend tests', options.verbose, options);
   
   // Try to parse JSON results for better summary
   if (!options.verbose && result.success) {
-    const testStats = await parseTestResults('../apps/frontend');
+    const testStats = await parseTestResults(path.join(PROJECT_ROOT, 'apps/frontend'));
     displayTestSummary(testStats);
     
     // Show coverage report if coverage was requested
     if (options.coverage) {
       // Parse and display coverage table from JSON
-      const coverageData = await parseCoverageFromSummaryJson('../apps/frontend');
+      const coverageData = await parseCoverageFromSummaryJson(path.join(PROJECT_ROOT, 'apps/frontend'));
       if (coverageData) {
         // Use ink-table for rich coverage display
         await formatInkCoverageTable(coverageData, 'Frontend');
       }
       
       console.log(`\n📊 Coverage report generated at: apps/frontend/coverage/index.html`);
-      console.log(`   Open in browser: file://${process.cwd()}/../apps/frontend/coverage/index.html`);
+      console.log(`   Open in browser: file://${PROJECT_ROOT}/apps/frontend/coverage/index.html`);
     }
   }
   
@@ -485,7 +488,7 @@ async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
 async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
   console.log('🚀 Running backend tests...');
   
-  const backendExists = await checkDirectoryExists('../apps/backend');
+  const backendExists = await checkDirectoryExists(path.join(PROJECT_ROOT, 'apps/backend'));
   if (!backendExists) {
     console.log('⚠️  Backend directory not found, skipping backend tests');
     return { name: 'Backend', success: false, duration: 0 };
@@ -510,24 +513,24 @@ async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
     testCommand.push('test');
   }
 
-  const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose, options);
+  const result = await runCommand(testCommand, path.join(PROJECT_ROOT, 'apps/backend'), 'Backend tests', options.verbose, options);
   
   // Try to parse JSON results for better summary (same as frontend)
   if (!options.verbose && result.success) {
-    const testStats = await parseTestResults('../apps/backend');
+    const testStats = await parseTestResults(path.join(PROJECT_ROOT, 'apps/backend'));
     displayTestSummary(testStats);
     
     // Show coverage report if coverage was requested
     if (options.coverage) {
       // Parse and display coverage table from JSON
-      const coverageData = await parseCoverageFromSummaryJson('../apps/backend');
+      const coverageData = await parseCoverageFromSummaryJson(path.join(PROJECT_ROOT, 'apps/backend'));
       if (coverageData) {
         // Use ink-table for rich coverage display
         await formatInkCoverageTable(coverageData, 'Backend');
       }
       
       console.log(`\n📊 Coverage report generated at: apps/backend/coverage/index.html`);
-      console.log(`   Open in browser: file://${process.cwd()}/../apps/backend/coverage/index.html`);
+      console.log(`   Open in browser: file://${PROJECT_ROOT}/apps/backend/coverage/index.html`);
     }
   }
   
