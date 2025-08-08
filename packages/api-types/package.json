@@ -28,9 +28,10 @@
     "zod": "^3.22.4"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./auth": "./dist/auth.js",
-    "./user": "./dist/user.js",
-    "./common": "./dist/common.js"
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   }
 }
