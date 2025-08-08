@@ -1,14 +1,15 @@
 # Semiont Configuration
 
-This directory contains all configuration for the Semiont platform. Configuration is structured in TypeScript for type safety and validation.
+This directory contains all configuration for the Semiont platform. Configuration is structured as JSON files with inheritance support for type safety and validation.
 
 ## Quick Start
 
 To deploy Semiont to your own domain/AWS account:
 
-1. Copy `config/base/site.config.ts.example` to `config/base/site.config.ts`
-2. Update the values in `site.config.ts` with your settings
-3. Run deployment: `npm run deploy`
+1. Edit `config/environments/development.json` with your development settings
+2. Edit `config/environments/production.json` with your production settings  
+3. Validate configuration: `../scripts/semiont config validate`
+4. Run deployment: `../scripts/semiont deploy production`
 
 ## Configuration Structure
 
@@ -18,17 +19,50 @@ config/
 │   ├── site.config.ts   # Site-specific settings (domain, branding)
 │   ├── aws.config.ts    # AWS infrastructure settings
 │   └── app.config.ts    # Application settings
-├── environments/        # Environment-specific overrides
+├── environments/        # Environment-specific JSON configurations
+│   ├── development.json # Development environment settings
+│   ├── integration.json # Integration test environment
+│   ├── production.json  # Production environment settings
+│   ├── test.json       # Base test configuration
+│   ├── unit.json       # Unit test configuration
+│   └── *.json          # Custom environment configurations
 ├── schemas/            # TypeScript types and validation
-└── index.ts           # Main configuration export
+│   ├── config.schema.ts # Configuration interfaces
+│   └── validation.ts   # Runtime validation
+└── index.ts           # Main configuration export with JSON loading
 ```
 
-## Configuration Precedence
+## Configuration Precedence & Inheritance
 
 1. Environment variables (highest priority)
-2. Environment-specific config files
-3. Base configuration files
+2. JSON environment configuration with `_extends` inheritance
+3. Base configuration files (TypeScript)
 4. Default values
+
+### JSON Inheritance
+
+JSON configurations support inheritance using the `_extends` field:
+
+```json
+{
+  "_comment": "Development environment configuration", 
+  "_extends": "test",
+  "site": {
+    "domain": "dev.example.com"
+  },
+  "app": {
+    "features": {
+      "enableDebugLogging": true
+    }
+  }
+}
+```
+
+This allows:
+- **Base configurations**: Common settings shared across environments
+- **Environment-specific overrides**: Only specify what's different
+- **Test inheritance**: Unit and integration tests extend base test configuration
+- **Custom environments**: Create specialized environments for specific scenarios
 
 ## Production vs Development URLs
 
@@ -49,14 +83,16 @@ This separation keeps infrastructure concerns (CDK) separate from application co
 
 ## URL Configuration Examples
 
-```typescript
-// Development config (config/environments/development.ts)
-app: {
-  backend: { url: 'http://localhost:4000' },
-  frontend: { url: 'http://localhost:3000' }
+```json
+// Development config (config/environments/development.json)
+{
+  "app": {
+    "backend": { "url": "http://localhost:4000" },
+    "frontend": { "url": "http://localhost:3000" }
+  }
 }
 
-// Production config (config/environments/production.ts)
+// Production config (config/environments/production.json)
 // No backend/frontend URLs needed - CDK handles this via:
 // - config.site.domain → Load Balancer domain
 // - Environment variables set by CDK at runtime

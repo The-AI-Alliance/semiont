@@ -13,7 +13,7 @@ semiont/
 │   └── backend/          # Hono backend API with Prisma ORM
 │       ├── src/          # Type-safe API with JWT auth and validation
 │       └── README.md     # Backend development guide and patterns
-├── cdk/                  # AWS CDK infrastructure (two-stack model)
+├── cloud/cdk/            # AWS CDK infrastructure (two-stack model)  
 │   └── lib/
 │       ├── infra-stack.ts # Infrastructure stack (VPC, RDS, EFS)
 │       └── app-stack.ts   # Application stack (ECS, ALB, CloudFront)
@@ -138,7 +138,7 @@ npm run dev  # Frontend on :3000
 ./scripts/semiont config show
 
 # Edit configuration with your values
-# Update config/environments/development.ts and config/environments/production.ts with:
+# Update config/environments/development.json and config/environments/production.json with:
 # - Your domain name
 # - Site branding
 # - OAuth settings
@@ -153,11 +153,14 @@ npm run dev  # Frontend on :3000
 # Run comprehensive test suite
 ./scripts/semiont test
 
-# Run specific test types for targeted validation
+# Run specific test types for targeted validation  
 ./scripts/semiont test --service frontend --suite unit      # Fast frontend unit tests
 ./scripts/semiont test --service backend --suite integration # Backend integration tests
-./scripts/semiont test --suite integration        # Cross-service integration tests
-./scripts/semiont test --suite security           # Security-focused validation
+./scripts/semiont test --suite integration                  # Cross-service integration tests
+./scripts/semiont test --suite security                     # Security-focused validation
+
+# Run tests against custom environments
+./scripts/semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
 ### 5. AWS Deployment
@@ -216,7 +219,7 @@ npm run dev  # Frontend on :3000
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
 | [Scripts README](scripts/README.md) | Management scripts architecture, security features, and usage |
 | [Config README](config/README.md) | Configuration system architecture and environment management |
-| [CDK README](cdk/README.md) | Infrastructure as Code setup and deployment |
+| [CDK README](cloud/cdk/README.md) | Infrastructure as Code setup and deployment |
 
 ### System Documentation
 
@@ -263,18 +266,20 @@ For detailed architecture information, see [ARCHITECTURE.md](docs/ARCHITECTURE.m
 
 ### Configuration System
 
-Semiont uses a unified TypeScript-based configuration system that provides:
-- **Type Safety**: All configuration validated at compile time
-- **Environment Management**: Separate configs for development/production
+Semiont uses a unified JSON-based configuration system with inheritance that provides:
+- **Type Safety**: All configuration validated at runtime with TypeScript interfaces
+- **Environment Management**: Separate JSON configs for each environment with inheritance
+- **Configuration Inheritance**: Use `_extends` field to build on base configurations
 - **Centralized Settings**: Domain, OAuth, AWS resources all configured in one place
 - **Secure Secrets**: Local secrets managed via `semiont secrets` command (not in files)
 
 Both frontend and backend read from the same `config/` directory:
-- **Configuration**: Stored in `config/base/site.config.ts` (domain, branding, OAuth)
+- **Configuration**: JSON files in `config/environments/` (development.json, production.json)
+- **Inheritance**: JSON configurations extend base configs using `_extends` field
 - **Secrets**: Managed via `semiont secrets` command for local development
 - **Production**: Secrets automatically injected from AWS Secrets Manager
 
-No more `.env` files - everything is type-safe and centralized!
+No more `.env` files - everything is type-safe, centralized, and inheritable!
 
 ## 🛠️ Development
 

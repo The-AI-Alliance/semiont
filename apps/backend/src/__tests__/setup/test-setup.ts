@@ -1,6 +1,5 @@
 import { beforeAll, afterAll } from 'vitest';
 import { DatabaseTestSetup } from './database';
-import { readFileSync } from 'fs';
 
 // Global test setup and teardown
 let isDatabaseSetup = false;
@@ -9,26 +8,31 @@ beforeAll(async () => {
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';
   
-  // Load configuration from test orchestrator if available
-  const configPath = process.env.SEMIONT_TEST_CONFIG_PATH;
-  if (configPath) {
-    try {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      console.log('📋 Loaded test configuration from orchestrator');
-      
-      // Set DATABASE_URL from config if available (for integration tests)
-      if (config.app?.database?.url) {
-        process.env.DATABASE_URL = config.app.database.url;
-        console.log('🔗 Using DATABASE_URL from test configuration');
+  // Load configuration based on test environment
+  const testEnvironment = process.env.SEMIONT_ENV || 'unit';
+  try {
+    // Dynamic import of config based on environment
+    const { loadConfig } = await import('semiont-config');
+    const config = loadConfig(testEnvironment);
+    console.log(`📋 Loaded ${testEnvironment} test configuration`);
+    
+    // Set DATABASE_URL from config if available (for integration tests)
+    if (config.app?.backend?.database) {
+      const db = config.app.backend.database;
+      if (db.host && db.port && db.name && db.user && db.password) {
+        const databaseUrl = `postgresql://${db.user}:${db.password}@${db.host}:${db.port}/${db.name}`;
+        process.env.DATABASE_URL = databaseUrl;
+        console.log('🔗 Set DATABASE_URL from configuration');
       }
-      
-      // Set other test-specific config values if needed
-      if (config.site?.apiUrl) {
-        process.env.API_URL = config.site.apiUrl;
-      }
-    } catch (error) {
-      console.warn('⚠️  Could not load test config from orchestrator:', error);
     }
+    
+    // Set API URL if available
+    if (config.app?.backend?.url) {
+      process.env.API_URL = config.app.backend.url.toString();
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not load test config:', error);
+    console.warn(`Using defaults for environment: ${testEnvironment}`);
   }
   
   // Configure Testcontainers early to avoid Node.js crashes

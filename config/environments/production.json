@@ -1,0 +1,53 @@
+{
+  "_comment": "Production Environment Configuration - Production-specific overrides and settings",
+  "stacks": {
+    "infraStack": "SemiontInfraStack",
+    "appStack": "SemiontAppStack"
+  },
+  "site": {
+    "_comment": "Production-specific site configuration (example values - MUST BE CUSTOMIZED)",
+    "domain": "wiki.example.com",
+    "adminEmail": "admin@example.com",
+    "supportEmail": "support@example.com", 
+    "oauthAllowedDomains": ["example.com"]
+  },
+  "app": {
+    "_comment": "No backend/frontend URLs needed in production config. CDK infrastructure uses config.site.domain to create Load Balancer and sets NEXT_PUBLIC_API_URL, FRONTEND_URL via environment variables.",
+    "features": {
+      "enableAnalytics": true,
+      "enableMaintenanceMode": false,
+      "enableDebugLogging": false
+    },
+    "security": {
+      "sessionTimeout": 28800,
+      "_comment_sessionTimeout": "8 hours",
+      "maxLoginAttempts": 5
+    },
+    "performance": {
+      "enableCaching": true,
+      "cacheTimeout": 300,
+      "_comment_cacheTimeout": "5 minutes"
+    }
+  },
+  "aws": {
+    "_comment": "Production-specific AWS configuration (example values - MUST BE CUSTOMIZED)",
+    "accountId": "123456789012",
+    "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
+    "hostedZoneId": "Z1234567890ABC",
+    "rootDomain": "example.com",
+    "database": {
+      "multiAZ": true,
+      "_comment_multiAZ": "Enable Multi-AZ for production",
+      "backupRetentionDays": 7
+    },
+    "ecs": {
+      "desiredCount": 2,
+      "minCapacity": 2,
+      "maxCapacity": 10
+    },
+    "monitoring": {
+      "enableDetailedMonitoring": true,
+      "logRetentionDays": 30
+    }
+  }
+}

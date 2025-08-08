@@ -22,13 +22,10 @@ These scripts provide a comprehensive management interface for your Semiont depl
 The easiest way to use these scripts is through the unified `semiont` wrapper:
 
 ```bash
-# Set environment (development/production both use example values - customize in /config/environments/)
-export SEMIONT_ENV=development  # or production
-
 # Validate your configuration
 ./semiont config validate
 
-# Check deployment status
+# Check deployment status  
 ./semiont status
 
 # View recent logs
@@ -36,6 +33,9 @@ export SEMIONT_ENV=development  # or production
 
 # Follow logs in real-time
 ./semiont logs follow
+
+# Run tests with custom environment
+./scripts/semiont test --environment staging --suite integration
 ```
 
 ## Available Commands
@@ -196,11 +196,15 @@ export SEMIONT_ENV=production
 │   ├── site.config.ts          # Site settings (name, description)
 │   ├── aws.config.ts           # AWS defaults (region, stack names)
 │   └── app.config.ts           # Application settings
-├── environments/               # Environment-specific values
-│   ├── development.ts          # Example development values - customize for your deployment
-│   └── production.ts           # Example values - MUST BE CUSTOMIZED
+├── environments/               # Environment-specific JSON configurations
+│   ├── development.json        # Example development values - customize for your deployment
+│   ├── production.json         # Example values - MUST BE CUSTOMIZED
+│   ├── integration.json        # Integration test environment
+│   ├── test.json              # Base test configuration
+│   ├── unit.json              # Unit test configuration
+│   └── *.json                 # Custom environment configurations
 ├── schemas/                    # TypeScript interfaces and validation
-└── index.ts                   # Main configuration export with merging
+└── index.ts                   # Main configuration export with JSON loading
 ```
 
 ### Configuration Commands
@@ -450,20 +454,18 @@ Scripts use the centralized configuration system in `/config` which automaticall
 ### Customization Options
 
 **For Development** (customize the example values):
-1. Edit `/config/environments/development.ts`
+1. Edit `/config/environments/development.json`
 2. Replace all example.com values with your actual development settings
-3. Set environment and validate:
+3. Validate configuration:
 ```bash
-export SEMIONT_ENV=development
 ./semiont config validate
 ```
 
 **For Production** (customize the example values):
-1. Edit `/config/environments/production.ts`
+1. Edit `/config/environments/production.json`
 2. Replace all example.com values with your actual settings
-3. Set environment and validate:
+3. Validate configuration:
 ```bash
-export SEMIONT_ENV=production
 ./semiont config validate
 ```
 
@@ -483,14 +485,13 @@ export const awsConfig: AWSConfiguration = {
 ### Common Issues
 
 **"Configuration validation failed"**
-- Check your environment: `./semiont config env`
 - Validate configuration: `./semiont config validate`
-- For production, ensure `/config/environments/production.ts` is customized
-- Check environment variable: `echo $SEMIONT_ENV`
+- For production, ensure `/config/environments/production.json` is customized
+- Check that all required fields are present in your JSON configuration
 
 **"Invalid domain is required"**
-- Set `SEMIONT_ENV=development` for development
-- Or customize `/config/environments/production.ts` with your domain
+- For development, ensure `/config/environments/development.json` has valid domain settings
+- For production, customize `/config/environments/production.json` with your domain
 - Run `./semiont config validate` to verify
 
 **"No running tasks found"**

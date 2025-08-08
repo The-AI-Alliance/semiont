@@ -1,0 +1,51 @@
+{
+  "_comment": "Integration Test Environment Configuration - Extends base test configuration with integration-test-specific overrides",
+  "_extends": "test",
+  "_characteristics": [
+    "Real database (PostgreSQL in Testcontainers)",
+    "Real API endpoints (HTTP server)", 
+    "Real service interactions",
+    "End-to-end workflow testing"
+  ],
+  "app": {
+    "backend": {
+      "url": "http://localhost:3001",
+      "database": {
+        "_comment": "Integration tests use Testcontainers for real PostgreSQL",
+        "mockMode": false,
+        "useTestcontainers": true,
+        "_note": "Testcontainers will override these values dynamically",
+        "host": "testcontainer-host",
+        "_comment_host": "Will be replaced by container host",
+        "port": 5432,
+        "_comment_port": "Will be replaced by container port",
+        "name": "semiont_integration_test",
+        "user": "integration_test_user",
+        "password": "integration_test_password"
+      }
+    },
+    "frontend": {
+      "url": "http://localhost:3000"
+    },
+    "features": {
+      "enableAnalytics": false,
+      "_comment_enableAnalytics": "No analytics in tests",
+      "enableMaintenanceMode": false,
+      "enableDebugLogging": true,
+      "_comment_enableDebugLogging": "Helpful for integration debugging"
+    },
+    "performance": {
+      "enableCaching": true,
+      "_comment_enableCaching": "Enable caching for more realistic testing",
+      "cacheTimeout": 300,
+      "_comment_cacheTimeout": "5 minutes"
+    },
+    "security": {
+      "sessionTimeout": 7200,
+      "_comment_sessionTimeout": "2 hours for longer integration tests",
+      "maxLoginAttempts": 10,
+      "_comment_maxLoginAttempts": "Higher limit for test scenarios",
+      "corsAllowedOrigins": ["http://localhost:3000"]
+    }
+  }
+}

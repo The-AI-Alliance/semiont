@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 /**
  * Stop Command - Stop services in any environment

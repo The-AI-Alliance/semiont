@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 /**
  * Local Secrets Management for Development

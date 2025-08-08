@@ -64,11 +64,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
         preferences: true
       };
       
-      const result = setCookieConsent(fullConsent);
-      // If setCookieConsent returns a promise, await it
-      if (result && typeof result.then === 'function') {
-        await result;
-      }
+      await Promise.resolve(setCookieConsent(fullConsent));
       setIsVisible(false);
     } catch (error) {
       console.error('Failed to save cookie consent:', error);
@@ -88,11 +84,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
         preferences: false
       };
       
-      const result = setCookieConsent(minimalConsent);
-      // If setCookieConsent returns a promise, await it
-      if (result && typeof result.then === 'function') {
-        await result;
-      }
+      await Promise.resolve(setCookieConsent(minimalConsent));
       setIsVisible(false);
     } catch (error) {
       console.error('Failed to save cookie consent:', error);
@@ -105,11 +97,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
     setIsLoading(true);
     
     try {
-      const result = setCookieConsent(consent);
-      // If setCookieConsent returns a promise, await it
-      if (result && typeof result.then === 'function') {
-        await result;
-      }
+      await Promise.resolve(setCookieConsent(consent));
       setIsVisible(false);
     } catch (error) {
       console.error('Failed to save cookie consent:', error);

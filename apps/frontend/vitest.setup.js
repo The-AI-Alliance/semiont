@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 import { beforeAll, afterEach, afterAll, vi } from 'vitest'
-import { server } from './src/mocks/server.js'
+import { server } from './src/mocks/server'
 
 // Enable API mocking with MSW
 beforeAll(() => server.listen({

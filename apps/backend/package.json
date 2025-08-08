@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "test": "vitest run",

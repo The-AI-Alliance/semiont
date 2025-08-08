@@ -1,7 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import { CloudFormationClient, CreateStackCommand, UpdateStackCommand, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
-import { SemiontInfraStack } from '../../config/cdk/lib/infra-stack';
-import { SemiontAppStack } from '../../config/cdk/lib/app-stack';
+import { createStack } from './stack-factory';
 import type { SemiontConfiguration } from '../../config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -33,24 +32,15 @@ export class CdkDeployer {
   /**
    * Synthesize CDK app and return CloudFormation template
    */
-  private synthesizeStack(stackConstructor: typeof SemiontInfraStack | typeof SemiontAppStack, stackName: string, dependencies?: any, context?: Record<string, string>): string {
+  private synthesizeStack(stackTypeName: string, stackName: string, dependencies?: any, context?: Record<string, string>): string {
     const app = new cdk.App({
       outdir: './cdk.out.tmp',
       ...(context && { context })
     });
 
-    if (stackConstructor === SemiontInfraStack) {
-      new SemiontInfraStack(app, stackName, {
-        env: { account: this.account, region: this.region }
-      });
-    } else if (stackConstructor === SemiontAppStack && dependencies) {
-      new SemiontAppStack(app, stackName, {
-        ...dependencies,
-        env: { account: this.account, region: this.region }
-      });
-    } else {
-      throw new Error('Invalid stack constructor or missing dependencies');
-    }
+    createStack(stackTypeName, app, stackName, {
+      env: { account: this.account, region: this.region }
+    }, dependencies);
 
     // Synthesize the app
     const cloudAssembly = app.synth();
@@ -150,8 +140,9 @@ export class CdkDeployer {
       };
       
       // Synthesize the template
-      const template = this.synthesizeStack(SemiontInfraStack, 'SemiontInfraStack', undefined, context);
-      const stackExists = await this.stackExists('SemiontInfraStack');
+      const infraStackName = (this.config as any).stacks?.infraStack || 'SemiontInfraStack';
+      const template = this.synthesizeStack(infraStackName, infraStackName, undefined, context);
+      const stackExists = await this.stackExists(infraStackName);
 
       if (stackExists) {
         this.log('🔄 Updating existing infrastructure stack...');
@@ -240,8 +231,9 @@ export class CdkDeployer {
       };
       
       // Synthesize the template
-      const template = this.synthesizeStack(SemiontAppStack, 'SemiontAppStack', dependencies, context);
-      const stackExists = await this.stackExists('SemiontAppStack');
+      const appStackName = (this.config as any).stacks?.appStack || 'SemiontAppStack';
+      const template = this.synthesizeStack(appStackName, appStackName, dependencies, context);
+      const stackExists = await this.stackExists(appStackName);
 
       if (stackExists) {
         this.log('🔄 Updating existing application stack...');

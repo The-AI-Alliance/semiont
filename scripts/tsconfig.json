@@ -6,10 +6,12 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "declaration": true,
+    "noEmit": false,
     "verbatimModuleSyntax": false,
     
     // Core strictness (matching backend/frontend)

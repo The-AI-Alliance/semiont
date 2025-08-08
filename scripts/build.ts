@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
@@ -245,7 +244,6 @@ async function buildApplications(options: BuildOptions): Promise<boolean> {
 
 async function getDockerImageInfo(imageName: string): Promise<{ id: string; created: string; size: string } | null> {
   try {
-    const { spawn } = await import('child_process');
     return new Promise((resolve) => {
       const process = spawn('docker', ['images', '--format', 'json', imageName], { stdio: 'pipe' });
       let output = '';

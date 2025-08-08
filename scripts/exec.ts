@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';

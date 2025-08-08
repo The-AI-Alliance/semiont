@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { RDSClient, DescribeDBInstancesCommand, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';

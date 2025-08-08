@@ -403,14 +403,14 @@ In production, **all configuration comes from the centralized config system and 
 
 Modify environment-specific configuration files:
 
-```typescript
-// /config/environments/production.ts
-export const productionConfig: EnvironmentOverrides = {
-  site: {
-    // Update site settings
-    oauthAllowedDomains: ['company.com', 'newdomain.com'],
+```json
+// /config/environments/production.json
+{
+  "_comment": "Production environment configuration",
+  "site": {
+    "oauthAllowedDomains": ["company.com", "newdomain.com"]
   }
-};
+}
 ```
 
 After updating configuration, redeploy:
@@ -846,20 +846,69 @@ npm run build
 node -e "console.log('Config valid:', require('./config/dist/index').loadConfig('staging'))"
 ```
 
+## Testing with Custom Environments
+
+The testing system supports custom environment configurations:
+
+### Test Environment Configuration
+
+Create custom test environments using JSON configuration:
+
+```json
+// /config/environments/foo.json
+{
+  "_comment": "Custom test environment",
+  "_extends": "integration",
+  "site": {
+    "domain": "foo.test.example.com"
+  },
+  "app": {
+    "backend": {
+      "database": {
+        "name": "semiont_foo_test",
+        "user": "foo_test_user"
+      }
+    }
+  }
+}
+```
+
+### Running Tests with Custom Environments
+
+```bash
+# Run integration tests against custom environment
+./scripts/semiont test --environment foo --suite integration
+
+# Run unit tests (uses unit.json by default)
+./scripts/semiont test --suite unit
+
+# Run specific service tests
+./scripts/semiont test --environment foo --suite integration --service backend
+```
+
+The test command automatically sets `SEMIONT_ENV` based on:
+1. **Explicit `--environment`**: Uses specified config (e.g., `foo.json`)
+2. **Suite defaults**: `integration`/`e2e` → `integration.json`, others → `unit.json`
+3. **Local fallback**: `unit.json` when no specific environment
+
+For detailed testing information, see [TESTING.md](TESTING.md) and individual service README files.
+
 ## Best Practices
 
 1. **Use centralized configuration** - Define all settings in `/config`
 2. **Use environment-specific overrides** - Keep environment differences in `/config/environments/`
-3. **Use CDK for all infrastructure** - Avoid manual AWS console changes
-4. **Use semiont scripts** - Use `./scripts/semiont` commands for all operations
-5. **Test configuration changes** in development first
-6. **Use environment-specific values** - Never hardcode production URLs
-7. **Validate configuration** - Use `./scripts/semiont deploy --dry-run` to validate before deployment
-8. **Restart services after config changes** - Configuration is cached in containers
-9. **Rotate secrets regularly** using AWS Secrets Manager
-10. **Monitor configuration drift** with AWS Config or CloudFormation drift detection
-11. **Document configuration changes** in git commits and pull requests
-12. **Use service-specific commands** - Specify frontend/backend for exec and logs commands
+3. **Use JSON inheritance** - Leverage `_extends` field to reduce duplication
+4. **Use CDK for all infrastructure** - Avoid manual AWS console changes
+5. **Use semiont scripts** - Use `./scripts/semiont` commands for all operations
+6. **Test configuration changes** in development first
+7. **Create custom test environments** - Use `--environment` flag for specialized testing
+8. **Use environment-specific values** - Never hardcode production URLs
+9. **Validate configuration** - Use `./scripts/semiont deploy --dry-run` to validate before deployment
+10. **Restart services after config changes** - Configuration is cached in containers
+11. **Rotate secrets regularly** using AWS Secrets Manager
+12. **Monitor configuration drift** with AWS Config or CloudFormation drift detection
+13. **Document configuration changes** in git commits and pull requests
+14. **Use service-specific commands** - Specify frontend/backend for exec and logs commands
 
 ## Related Documentation
 

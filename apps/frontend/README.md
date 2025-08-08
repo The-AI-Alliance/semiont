@@ -605,6 +605,9 @@ The frontend uses **Vitest** with React Testing Library for testing React compon
 ./scripts/semiont test --service frontend --suite integration  # Integration tests only (~5 tests)
 ./scripts/semiont test --service frontend --suite security    # Security tests only (~5 tests)
 
+# Run tests against custom environment
+./scripts/semiont test --environment staging --service frontend --suite integration
+
 # Watch mode for development
 ./scripts/semiont test --service frontend --suite unit --watch
 

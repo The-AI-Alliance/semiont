@@ -1,4 +1,3 @@
-#!/usr/bin/env tsx
 
 /**
  * Benchmark Command - Performance benchmarking and analysis for Semiont

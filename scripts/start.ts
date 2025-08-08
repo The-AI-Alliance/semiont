@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 /**
  * Start Command - Start services in any environment

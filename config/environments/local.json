@@ -1,0 +1,44 @@
+{
+  "_comment": "Local Environment Configuration - Configuration for local development using Docker containers",
+  "_description": "For running services on your local machine with containers",
+  "site": {
+    "_comment": "Local development site configuration",
+    "domain": "localhost",
+    "adminEmail": "admin@localhost.dev",
+    "supportEmail": "support@localhost.dev",
+    "oauthAllowedDomains": ["localhost.dev", "gmail.com"]
+  },
+  "app": {
+    "features": {
+      "enableAnalytics": false,
+      "enableMaintenanceMode": false,
+      "enableDebugLogging": true
+    },
+    "security": {
+      "sessionTimeout": 28800,
+      "_comment_sessionTimeout": "8 hours for local development",
+      "maxLoginAttempts": 20,
+      "_comment_maxLoginAttempts": "Very lenient for local development",
+      "corsAllowedOrigins": ["http://localhost:3000", "http://localhost:3001"]
+    },
+    "performance": {
+      "enableCaching": false,
+      "_comment_enableCaching": "Disable caching for local development",
+      "cacheTimeout": 0
+    },
+    "backend": {
+      "url": "http://localhost:3001",
+      "_comment_url": "Local backend port (different from cloud dev)",
+      "database": {
+        "host": "localhost",
+        "port": 5432,
+        "name": "semiont_local",
+        "user": "postgres"
+      }
+    },
+    "frontend": {
+      "url": "http://localhost:3000"
+    }
+  },
+  "_note": "No AWS configuration - local environment uses Docker containers only"
+}

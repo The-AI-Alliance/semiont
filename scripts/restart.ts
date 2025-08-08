@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 /**
  * Restart Command - Restart services in any environment
@@ -13,6 +12,7 @@
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { execSync } from 'child_process';
+import { loadConfig } from '../config/dist/index.js';
 
 // Types
 type Environment = 'local' | 'development' | 'staging' | 'production';
@@ -51,34 +51,8 @@ function info(message: string): void {
 }
 
 async function loadEnvironmentConfig(environment: Environment): Promise<any> {
-  // Load config directly by importing and building it
-  const { siteConfig, awsConfig, appConfig } = await import('../config/base');
-  
-  // Load environment overrides
-  let overrides;
-  switch (environment) {
-    case 'development':
-      const { developmentConfig } = await import('../config/environments/development');
-      overrides = developmentConfig;
-      break;
-    case 'production':
-      const { productionConfig } = await import('../config/environments/production');
-      overrides = productionConfig;
-      break;
-    case 'staging':
-      const { productionConfig: stagingConfig } = await import('../config/environments/production');
-      overrides = stagingConfig; // Staging uses production-like config
-      break;
-    default:
-      const { developmentConfig: defaultConfig } = await import('../config/environments/development');
-      overrides = defaultConfig;
-  }
-  
-  return {
-    site: { ...siteConfig, ...(overrides.site || {}) },
-    aws: { ...awsConfig, ...(overrides.aws || {}) },
-    app: { ...appConfig, ...(overrides.app || {}) }
-  };
+  // Load configuration using the new JSON-based config loader
+  return loadConfig(environment);
 }
 
 async function restartLocalService(service: Service): Promise<boolean> {

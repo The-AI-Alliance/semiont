@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { config } from '../config/dist/index.js';
 import { requireValidAWSCredentials } from './utils/aws-validation';

@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 /**
  * Provision Command - Infrastructure provisioning for cloud environments
@@ -18,6 +17,7 @@
 // Remove unused imports
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
+import { loadConfig } from '../config/dist/index.js';
 
 // Valid environments for provisioning (excludes 'local')
 type CloudEnvironment = 'development' | 'staging' | 'production';
@@ -86,34 +86,8 @@ async function validateEnvironment(env: string): Promise<CloudEnvironment> {
 }
 
 async function loadEnvironmentConfig(environment: CloudEnvironment): Promise<any> {
-  // Load config directly by importing and building it
-  const { siteConfig, awsConfig, appConfig } = await import('../config/base');
-  
-  // Load environment overrides
-  let overrides;
-  switch (environment) {
-    case 'development':
-      const { developmentConfig } = await import('../config/environments/development');
-      overrides = developmentConfig;
-      break;
-    case 'production':
-      const { productionConfig } = await import('../config/environments/production');
-      overrides = productionConfig;
-      break;
-    case 'staging':
-      const { productionConfig: stagingConfig } = await import('../config/environments/production');
-      overrides = stagingConfig; // Staging uses production-like config
-      break;
-    default:
-      const { developmentConfig: defaultConfig } = await import('../config/environments/development');
-      overrides = defaultConfig;
-  }
-  
-  return {
-    site: { ...siteConfig, ...(overrides.site || {}) },
-    aws: { ...awsConfig, ...(overrides.aws || {}) },
-    app: { ...appConfig, ...(overrides.app || {}) }
-  };
+  // Load configuration using the new JSON-based config loader
+  return loadConfig(environment);
 }
 
 async function checkExistingInfrastructure(_environment: CloudEnvironment, _config: any): Promise<boolean> {

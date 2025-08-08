@@ -9,34 +9,59 @@ import { siteConfig, awsConfig, appConfig } from './base';
 import { validateConfiguration, ConfigurationError } from './schemas/validation';
 import type { SemiontConfiguration, EnvironmentOverrides } from './schemas/config.schema';
 
-// Dynamic environment loading
+// Dynamic environment loading from JSON files
 function getEnvironmentOverrides(environment: string): EnvironmentOverrides {
   try {
-    // Try to dynamically import the environment configuration
-    const envModule = require(`./environments/${environment}`);
+    const path = require('path');
+    const fs = require('fs');
     
-    // Look for the config export (e.g., localConfig, developmentConfig, fooConfig)
-    const configKey = `${environment}Config`;
-    if (envModule[configKey]) {
-      return envModule[configKey];
+    // Load JSON configuration (from source directory, not dist)
+    const jsonPath = path.resolve(__dirname, '../environments/', `${environment}.json`);
+    if (fs.existsSync(jsonPath)) {
+      const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
+      let config = JSON.parse(jsonContent);
+      
+      // Handle inheritance with _extends
+      if (config._extends) {
+        const baseConfig = getEnvironmentOverrides(config._extends);
+        config = deepMerge(baseConfig, config);
+      }
+      
+      // Remove comment fields
+      config = removeCommentFields(config);
+      
+      return config;
     }
     
-    // Fallback: look for any exported config
-    const exports = Object.keys(envModule);
-    const configExport = exports.find(key => key.endsWith('Config'));
-    if (configExport && envModule[configExport]) {
-      return envModule[configExport];
-    }
-    
-    throw new Error(`No configuration export found in environments/${environment}.ts`);
+    throw new Error(`Configuration file not found: environments/${environment}.json`);
   } catch (error) {
     console.warn(`Failed to load environment '${environment}': ${error instanceof Error ? error.message : String(error)}`);
     console.warn(`Using development config as fallback`);
     
     // Fallback to development
-    const devModule = require('./environments/development');
-    return devModule.developmentConfig;
+    return getEnvironmentOverrides('development');
   }
+}
+
+// Helper to remove comment fields from configuration
+function removeCommentFields(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(removeCommentFields);
+  }
+  
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip fields starting with _ (comments, metadata)
+    if (!key.startsWith('_')) {
+      result[key] = removeCommentFields(value);
+    }
+  }
+  
+  return result;
 }
 
 // Deep merge helper that handles partial types
@@ -122,6 +147,9 @@ export const { site, aws, app } = config;
 // Export types
 export * from './schemas/config.schema';
 export { ConfigurationError } from './schemas/validation';
+
+// Export sub-modules for direct access
+export * as base from './base';
 
 // Utility functions (work with default config)
 

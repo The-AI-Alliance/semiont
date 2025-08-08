@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { ECSClient, DescribeServicesCommand, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';

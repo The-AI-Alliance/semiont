@@ -1,4 +1,3 @@
-#!/usr/bin/env tsx
 
 /**
  * Local Development Environment Management

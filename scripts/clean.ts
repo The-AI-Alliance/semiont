@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';

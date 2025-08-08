@@ -5,10 +5,23 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Ensure dependencies are installed
+# Ensure dependencies are installed and scripts are built
 if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
     echo "📦 Installing dependencies..."
     cd "$SCRIPT_DIR" && npm install
+fi
+
+# Build config first if needed
+CONFIG_DIR="$SCRIPT_DIR/../config"
+if [ ! -d "$CONFIG_DIR/dist" ] || [ "$CONFIG_DIR/tsconfig.json" -nt "$CONFIG_DIR/dist" ] || find "$CONFIG_DIR" -name "*.ts" -newer "$CONFIG_DIR/dist" -print -quit | grep -q .; then
+    echo "🔨 Building config..."
+    cd "$CONFIG_DIR" && npm run build
+fi
+
+# Build scripts if needed (or if any .ts file is newer than dist)
+if [ ! -d "$SCRIPT_DIR/dist" ] || [ "$SCRIPT_DIR/tsconfig.json" -nt "$SCRIPT_DIR/dist" ] || find "$SCRIPT_DIR" -name "*.ts" -newer "$SCRIPT_DIR/dist" -print -quit | grep -q .; then
+    echo "🔨 Building scripts..."
+    cd "$SCRIPT_DIR" && npm run build
 fi
 
 COMMAND=${1:-help}
@@ -16,11 +29,11 @@ COMMAND=${1:-help}
 case $COMMAND in
   "watch")
     shift
-    cd "$SCRIPT_DIR" && npx tsx watch.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/watch.js "$@"
     ;;
   "check")
     shift  
-    cd "$SCRIPT_DIR" && npx tsx check.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/check.js "$@"
     ;;
   "configure")
     shift
@@ -29,54 +42,54 @@ case $COMMAND in
       if [[ "$1" == "local" ]]; then
         shift  # Remove 'local' from arguments
       fi
-      cd "$SCRIPT_DIR" && npx tsx local-secrets.ts "$@"
+      cd "$SCRIPT_DIR" && node dist/local-secrets.js "$@"
     else
-      cd "$SCRIPT_DIR" && npx tsx configure.ts "$@"
+      cd "$SCRIPT_DIR" && node dist/configure.js "$@"
     fi
     ;;
   "start")
     shift
-    cd "$SCRIPT_DIR" && npx tsx start.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/start.js "$@"
     ;;
   "stop")
     shift
-    cd "$SCRIPT_DIR" && npx tsx stop.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/stop.js "$@"
     ;;
   "restart")
     shift
-    cd "$SCRIPT_DIR" && npx tsx restart.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/restart.js "$@"
     ;;
   "exec")
     shift
-    cd "$SCRIPT_DIR" && npx tsx exec.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/exec.js "$@"
     ;;
   "backup")
     shift
-    cd "$SCRIPT_DIR" && npx tsx db-backup.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/db-backup.js "$@"
     ;;
   "provision")
     shift
-    cd "$SCRIPT_DIR" && npx tsx provision.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/provision.js "$@"
     ;;
   "deploy")
     shift
-    cd "$SCRIPT_DIR" && npx tsx deploy.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/deploy.js "$@"
     ;;
   "clean")
     shift
-    cd "$SCRIPT_DIR" && npx tsx clean.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/clean.js "$@"
     ;;
   "build")
     shift
-    cd "$SCRIPT_DIR" && npx tsx build.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/build.js "$@"
     ;;
   "test")
     shift
-    cd "$SCRIPT_DIR" && npx tsx test.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/test.js "$@"
     ;;
   "benchmark")
     shift
-    cd "$SCRIPT_DIR" && npx tsx benchmark.ts "$@"
+    cd "$SCRIPT_DIR" && node dist/benchmark.js "$@"
     ;;
   "help"|*)
     echo "🚀 Semiont Management Tool"

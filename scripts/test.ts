@@ -1,5 +1,3 @@
-#!/usr/bin/env -S npx tsx
-
 /**
  * Test Command - Environment-aware testing with consistent service-focused hierarchy
  * 
@@ -13,7 +11,10 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+// os import removed - no longer needed for temp files
+// Import React and ink components that don't have top-level await
+import React from 'react';
+import { render, Text, Box } from 'ink';
 
 // Color codes for output
 const colors = {
@@ -43,65 +44,6 @@ function info(message: string): void {
   console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
 }
 
-async function loadConfigForSuite(environment: Environment, suite?: TestSuite): Promise<any> {
-  // SMART CONFIG LOADING: Choose config based on test suite requirements
-  // This ensures integration tests always get real databases, even when run locally
-  
-  let config: any;
-  
-  // Dynamically import the appropriate config based on test suite requirements
-  if (suite === 'integration' || suite === 'e2e') {
-    // Integration tests need real database
-    const { integrationConfig } = await import('../config/environments/integration');
-    const { siteConfig, awsConfig, appConfig } = await import('../config/base');
-    
-    // Merge base config with integration overrides (simplified merge)
-    config = {
-      site: { ...siteConfig, ...integrationConfig.site },
-      aws: { ...awsConfig, ...integrationConfig.aws },
-      app: { ...appConfig, ...integrationConfig.app }
-    };
-  }
-  // Cloud environments default to integration-like behavior
-  else if (environment === 'development' || environment === 'staging' || environment === 'production') {
-    const { integrationConfig } = await import('../config/environments/integration');
-    const { siteConfig, awsConfig, appConfig } = await import('../config/base');
-    
-    config = {
-      site: { ...siteConfig, ...integrationConfig.site },
-      aws: { ...awsConfig, ...integrationConfig.aws },
-      app: { ...appConfig, ...integrationConfig.app }
-    };
-  }
-  // Unit and security tests can use mocked dependencies for speed
-  else {
-    const { unitConfig } = await import('../config/environments/unit');
-    const { siteConfig, awsConfig, appConfig } = await import('../config/base');
-    
-    config = {
-      site: { ...siteConfig, ...unitConfig.site },
-      aws: { ...awsConfig, ...unitConfig.aws },
-      app: { ...appConfig, ...unitConfig.app }
-    };
-  }
-  
-  // Build DATABASE_URL from database config components if present
-  if (config.app?.backend?.database) {
-    const db = config.app.backend.database;
-    if (db.host && db.port && db.name && db.user && db.password) {
-      // Construct PostgreSQL connection URL
-      const databaseUrl = `postgresql://${db.user}:${db.password}@${db.host}:${db.port}/${db.name}`;
-      
-      // Add the constructed URL to the config
-      if (!config.app.database) {
-        config.app.database = {};
-      }
-      config.app.database.url = databaseUrl;
-    }
-  }
-  
-  return config;
-}
 
 // Types following consistent patterns
 type Environment = 'local' | 'development' | 'staging' | 'production';
@@ -140,7 +82,7 @@ interface DirectoryCoverage {
   lines: { covered: number; total: number; pct: number };
 }
 
-async function runCommand(command: string[], cwd: string, description: string, verbose: boolean = false, testOptions?: TestOptions, config?: any): Promise<{ success: boolean; output: string; duration: number }> {
+async function runCommand(command: string[], cwd: string, description: string, verbose: boolean = false, testOptions?: TestOptions): Promise<{ success: boolean; output: string; duration: number }> {
   return new Promise(async (resolve) => {
     console.log(`🧪 ${description}...`);
     if (verbose) {
@@ -150,23 +92,27 @@ async function runCommand(command: string[], cwd: string, description: string, v
     
     const startTime = Date.now();
     let output = '';
-    let configPath: string | undefined;
     
     // Prepare environment variables for downstream test processes
     const processEnv = { ...process.env };
     
-    // Write configuration to temporary file if provided
-    if (config && testOptions) {
-      configPath = path.join(os.tmpdir(), `semiont-test-config-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.json`);
-      try {
-        await fs.writeFile(configPath, JSON.stringify(config, null, 2));
-        processEnv.SEMIONT_TEST_CONFIG_PATH = configPath;
-        
-        // Always show config file creation for transparency
-        console.log(`📋 Test config written to: ${configPath}`);
-      } catch (error) {
-        console.error(`⚠️  Failed to write test config: ${error}`);
+    // Pass environment name instead of temporary config file
+    if (testOptions) {
+      // Use explicit environment if provided, otherwise use suite-based defaults
+      let configEnv: string;
+      if (testOptions.environment !== 'local') {
+        // User specified a custom environment - use it
+        configEnv = testOptions.environment;
+      } else if (testOptions.suite === 'integration' || testOptions.suite === 'e2e') {
+        // Default to integration config for integration/e2e suites
+        configEnv = 'integration';
+      } else {
+        // Default to unit config for other suites
+        configEnv = 'unit';
       }
+      
+      processEnv.SEMIONT_ENV = configEnv;
+      console.log(`📋 Using configuration environment: ${configEnv}`);
     }
     
     const childProcess: ChildProcess = spawn(command[0]!, command.slice(1), {
@@ -208,19 +154,6 @@ async function runCommand(command: string[], cwd: string, description: string, v
     childProcess.on('close', async (code: number | null) => {
       const duration = Date.now() - startTime;
       
-      // Clean up temporary config file
-      if (configPath) {
-        try {
-          await fs.unlink(configPath);
-          console.log(`🗑️  Cleaned up test config: ${path.basename(configPath)}`);
-        } catch (error) {
-          // Ignore cleanup errors - temp files will be cleaned by OS eventually
-          if (verbose) {
-            console.log(`⚠️  Could not clean up config file: ${error}`);
-          }
-        }
-      }
-      
       if (code === 0) {
         console.log(`✅ ${description} completed`);
       } else {
@@ -237,16 +170,6 @@ async function runCommand(command: string[], cwd: string, description: string, v
 
     childProcess.on('error', async (error: Error) => {
       const duration = Date.now() - startTime;
-      
-      // Clean up temporary config file on error
-      if (configPath) {
-        try {
-          await fs.unlink(configPath);
-          console.log(`🗑️  Cleaned up test config: ${path.basename(configPath)}`);
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
       
       console.error(`❌ ${description} failed: ${error.message}`);
       resolve({ success: false, output: error.message, duration });
@@ -295,89 +218,166 @@ function displayTestSummary(testStats: { totalTests: number; passedTests: number
   }
 }
 
-function formatEnhancedCoverageTable(data: { total: CoverageSummary; directories: DirectoryCoverage[] }, title: string): void {
-  console.log(`\n📊 ${title} Coverage Summary`);
-  
-  // Overall totals first
-  console.log('\n🎯 Overall Coverage');
-  console.log('┌────────────┬──────────────────┐');
-  console.log('│ Metric     │ Coverage         │');
-  console.log('├────────────┼──────────────────┤');
-  
-  const formatRow = (name: string, metric: { covered: number; total: number; pct: number }) => {
-    const pctStr = `${metric.pct.toFixed(1)}%`;
-    const fractionStr = `of ${metric.total}`;
-    const displayStr = `${pctStr} ${fractionStr}`;
-    const paddedDisplayStr = displayStr.padStart(16);
-    
-    // Color coding based on coverage percentage - pad BEFORE adding color codes
-    let coverageDisplay = '';
-    if (metric.pct >= 90) {
-      coverageDisplay = `\x1b[32m${paddedDisplayStr}\x1b[0m`; // Green for excellent
-    } else if (metric.pct >= 80) {
-      coverageDisplay = `\x1b[33m${paddedDisplayStr}\x1b[0m`; // Yellow for good
-    } else {
-      coverageDisplay = `\x1b[31m${paddedDisplayStr}\x1b[0m`; // Red for needs improvement
-    }
-    
-    console.log(`│ ${name.padEnd(10)} │ ${coverageDisplay} │`);
-  };
-  
-  formatRow('Statements', data.total.statements);
-  formatRow('Branches', data.total.branches);
-  formatRow('Functions', data.total.functions);
-  formatRow('Lines', data.total.lines);
-  
-  console.log('└────────────┴──────────────────┘');
-  
-  // Overall assessment
-  const avgCoverage = (data.total.statements.pct + data.total.branches.pct + data.total.functions.pct + data.total.lines.pct) / 4;
-  let assessment = '';
-  if (avgCoverage >= 90) {
-    assessment = '🟢 Excellent coverage!';
-  } else if (avgCoverage >= 80) {
-    assessment = '🟡 Good coverage, room for improvement';
-  } else {
-    assessment = '🔴 Coverage needs improvement';
-  }
-  console.log(`${assessment} (Average: ${avgCoverage.toFixed(1)}%)`);
 
-  // Directory breakdown
-  if (data.directories.length > 0) {
-    console.log('\n📁 Coverage by Directory');
-    console.log('┌──────────────┬────────────────┬────────────────┬────────────────┬────────────────┐');
-    console.log('│ Directory    │ Stmts          │ Branch         │ Funcs          │ Lines          │');
-    console.log('├──────────────┼────────────────┼────────────────┼────────────────┼────────────────┤');
-    
-    const formatDirRow = (dir: DirectoryCoverage) => {
-      const name = dir.name.length > 12 ? dir.name.substring(0, 12) : dir.name;
-      const nameCell = name.padEnd(12);
-      
-      const formatMetric = (metric: { covered: number; total: number; pct: number }) => {
-        const pctStr = `${metric.pct.toFixed(1)}%`;
-        const fractionStr = `of ${metric.total}`;
-        const displayStr = `${pctStr} ${fractionStr}`;
-        const paddedDisplayStr = displayStr.padStart(14);
-        
-        // Apply color coding based on coverage percentage - pad BEFORE adding color codes
-        let coloredDisplay = '';
-        if (metric.pct >= 90) {
-          coloredDisplay = `\x1b[32m${paddedDisplayStr}\x1b[0m`; // Green for excellent
-        } else if (metric.pct >= 80) {
-          coloredDisplay = `\x1b[33m${paddedDisplayStr}\x1b[0m`; // Yellow for good
-        } else {
-          coloredDisplay = `\x1b[31m${paddedDisplayStr}\x1b[0m`; // Red for needs improvement
-        }
-        
-        return coloredDisplay;
-      };
-      
-      console.log(`│ ${nameCell} │ ${formatMetric(dir.statements)} │ ${formatMetric(dir.branches)} │ ${formatMetric(dir.functions)} │ ${formatMetric(dir.lines)} │`);
+// Simple table component using ink primitives
+function SimpleTable({ data, columns }: { data: Record<string, any>[], columns: string[] }) {
+  // Calculate column widths
+  const columnWidths: Record<string, number> = {};
+  columns.forEach(col => {
+    columnWidths[col] = col.length;
+    data.forEach(row => {
+      const value = String(row[col] || '');
+      columnWidths[col] = Math.max(columnWidths[col] || 0, value.length);
+    });
+  });
+
+  // Pad string to width
+  const pad = (str: string, width: number) => {
+    return str.padEnd(width);
+  };
+
+  // Create header row
+  const headerRow = React.createElement(
+    Box,
+    { key: 'header' },
+    columns.map((col, i) => 
+      React.createElement(
+        Text,
+        { key: col, bold: true, color: 'white' },
+        pad(col, columnWidths[col] || 0) + (i < columns.length - 1 ? '  ' : '')
+      )
+    )
+  );
+
+  // Create separator
+  const separator = React.createElement(
+    Box,
+    { key: 'separator' },
+    React.createElement(
+      Text,
+      { dimColor: true },
+      columns.map(col => '─'.repeat(columnWidths[col] || 0)).join('──')
+    )
+  );
+
+  // Create data rows
+  const dataRows = data.map((row, rowIndex) =>
+    React.createElement(
+      Box,
+      { key: `row-${rowIndex}` },
+      columns.map((col, i) => 
+        React.createElement(
+          Text,
+          { key: `${rowIndex}-${col}` },
+          pad(String(row[col] || ''), columnWidths[col] || 0) + (i < columns.length - 1 ? '  ' : '')
+        )
+      )
+    )
+  );
+
+  return React.createElement(
+    Box,
+    { flexDirection: 'column' },
+    [headerRow, separator, ...dataRows]
+  );
+}
+
+async function formatInkCoverageTable(data: { total: CoverageSummary; directories: DirectoryCoverage[] }, title: string): Promise<void> {
+  return new Promise((resolve) => {
+    // Helper function to format metric with percentage and counts
+    const formatMetric = (metric: { covered: number; total: number; pct: number }): string => {
+      return `${metric.pct.toFixed(1)}% of ${metric.total}`;
     };
+
+    // Overall coverage table data
+    const overallTableData = [
+      {
+        Metric: 'Statements',
+        Coverage: formatMetric(data.total.statements)
+      },
+      {
+        Metric: 'Branches',
+        Coverage: formatMetric(data.total.branches)
+      },
+      {
+        Metric: 'Functions',
+        Coverage: formatMetric(data.total.functions)
+      },
+      {
+        Metric: 'Lines',
+        Coverage: formatMetric(data.total.lines)
+      }
+    ];
+
+    // Directory coverage table data
+    const directoryTableData = data.directories.map(dir => ({
+      Directory: dir.name,
+      Statements: formatMetric(dir.statements),
+      Branches: formatMetric(dir.branches),
+      Functions: formatMetric(dir.functions),
+      Lines: formatMetric(dir.lines)
+    }));
+
+    // Calculate average coverage for assessment
+    const avgCoverage = (
+      data.total.statements.pct + 
+      data.total.branches.pct + 
+      data.total.functions.pct + 
+      data.total.lines.pct
+    ) / 4;
+
+    let assessment = '';
+    let assessmentColor: 'green' | 'yellow' | 'red' = 'red';
     
-    data.directories.forEach(formatDirRow);
-    console.log('└──────────────┴────────────────┴────────────────┴────────────────┴────────────────┘');
-  }
+    if (avgCoverage >= 90) {
+      assessment = '🟢 Excellent coverage!';
+      assessmentColor = 'green';
+    } else if (avgCoverage >= 80) {
+      assessment = '🟡 Good coverage, room for improvement';
+      assessmentColor = 'yellow';
+    } else {
+      assessment = '🔴 Coverage needs improvement';
+      assessmentColor = 'red';
+    }
+
+    // Create React elements using createElement to avoid JSX in .ts file
+    const coverageElements: any[] = [
+      React.createElement(Text, { bold: true, color: 'magenta', key: 'title' }, `📊 ${title} Coverage Summary`),
+      React.createElement(Text, { bold: true, color: 'cyan', key: 'overall-title' }, '\n🎯 Overall Coverage'),
+      React.createElement(SimpleTable, { 
+        data: overallTableData, 
+        columns: ['Metric', 'Coverage'],
+        key: 'overall-table' 
+      }),
+      React.createElement(Text, { color: assessmentColor, key: 'assessment' }, 
+        `\n${assessment} (Average: ${avgCoverage.toFixed(1)}%)`),
+    ];
+
+    // Add directory table if there are directories
+    if (directoryTableData.length > 0) {
+      coverageElements.push(
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'directory-title' }, '\n📁 Coverage by Directory'),
+        React.createElement(SimpleTable, { 
+          data: directoryTableData, 
+          columns: ['Directory', 'Statements', 'Branches', 'Functions', 'Lines'],
+          key: 'directory-table' 
+        })
+      );
+    }
+
+    // Add spacing at the end
+    coverageElements.push(React.createElement(Text, { key: 'spacing' }, '\n'));
+
+    const CoverageReport = React.createElement(Box, { flexDirection: 'column' }, coverageElements);
+
+    // Render the component and auto-unmount after a short delay
+    const { unmount } = render(CoverageReport);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
 }
 
 async function parseCoverageFromSummaryJson(cwd: string): Promise<{ total: CoverageSummary; directories: DirectoryCoverage[] } | null> {
@@ -485,7 +485,7 @@ async function parseCoverageFromSummaryJson(cwd: string): Promise<{ total: Cover
   }
 }
 
-async function runFrontendTestsImpl(options: TestOptions, config?: any): Promise<TestResult> {
+async function runFrontendTestsImpl(options: TestOptions): Promise<TestResult> {
   console.log('🎨 Running frontend tests...');
   
   const frontendExists = await checkDirectoryExists('../apps/frontend');
@@ -513,7 +513,7 @@ async function runFrontendTestsImpl(options: TestOptions, config?: any): Promise
     testCommand.push('test');
   }
 
-  const result = await runCommand(testCommand, '../apps/frontend', 'Frontend tests', options.verbose, options, config);
+  const result = await runCommand(testCommand, '../apps/frontend', 'Frontend tests', options.verbose, options);
   
   // Try to parse JSON results for better summary
   if (!options.verbose && result.success) {
@@ -525,7 +525,8 @@ async function runFrontendTestsImpl(options: TestOptions, config?: any): Promise
       // Parse and display coverage table from JSON
       const coverageData = await parseCoverageFromSummaryJson('../apps/frontend');
       if (coverageData) {
-        formatEnhancedCoverageTable(coverageData, 'Frontend');
+        // Use ink-table for rich coverage display
+        await formatInkCoverageTable(coverageData, 'Frontend');
       }
       
       console.log(`\n📊 Coverage report generated at: apps/frontend/coverage/index.html`);
@@ -541,7 +542,7 @@ async function runFrontendTestsImpl(options: TestOptions, config?: any): Promise
   };
 }
 
-async function runBackendTestsImpl(options: TestOptions, config?: any): Promise<TestResult> {
+async function runBackendTestsImpl(options: TestOptions): Promise<TestResult> {
   console.log('🚀 Running backend tests...');
   
   const backendExists = await checkDirectoryExists('../apps/backend');
@@ -569,7 +570,7 @@ async function runBackendTestsImpl(options: TestOptions, config?: any): Promise<
     testCommand.push('test');
   }
 
-  const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose, options, config);
+  const result = await runCommand(testCommand, '../apps/backend', 'Backend tests', options.verbose, options);
   
   // Try to parse JSON results for better summary (same as frontend)
   if (!options.verbose && result.success) {
@@ -581,7 +582,8 @@ async function runBackendTestsImpl(options: TestOptions, config?: any): Promise<
       // Parse and display coverage table from JSON
       const coverageData = await parseCoverageFromSummaryJson('../apps/backend');
       if (coverageData) {
-        formatEnhancedCoverageTable(coverageData, 'Backend');
+        // Use ink-table for rich coverage display
+        await formatInkCoverageTable(coverageData, 'Backend');
       }
       
       console.log(`\n📊 Coverage report generated at: apps/backend/coverage/index.html`);
@@ -604,15 +606,10 @@ function printHelp(): void {
 ${colors.bright}🧪 Semiont Test Command${colors.reset}
 
 ${colors.cyan}Usage:${colors.reset}
-  ./scripts/semiont test [environment] [options]
-
-${colors.cyan}Environments:${colors.reset}
-  local          Run tests locally (default, uses mocked dependencies)
-  development    Run tests against development environment
-  staging        Run tests against staging environment
-  production     Run tests against production environment (limited)
+  ./scripts/semiont test [options]
 
 ${colors.cyan}Options:${colors.reset}
+  --environment <env>  Environment config to use: local, development, staging, production, or custom (default: local)
   --suite <type>       Test suite: unit, integration, security, e2e, all (default: all)
   --service <services> Service to test: database, backend, frontend, all (default: all)
   --coverage           Enable coverage reporting (default: enabled)
@@ -629,8 +626,11 @@ ${colors.cyan}Examples:${colors.reset}
   ${colors.dim}# Run unit tests for frontend only${colors.reset}
   ./scripts/semiont test --suite unit --service frontend
 
+  ${colors.dim}# Run integration tests against custom 'foo' environment${colors.reset}
+  ./scripts/semiont test --environment foo --suite integration
+
   ${colors.dim}# Run integration tests against staging${colors.reset}
-  ./scripts/semiont test staging --suite integration
+  ./scripts/semiont test --environment staging --suite integration
 
   ${colors.dim}# Run security tests in watch mode${colors.reset}
   ./scripts/semiont test --suite security --service frontend --watch
@@ -660,7 +660,7 @@ ${colors.cyan}Notes:${colors.reset}
 }
 
 
-async function runTests(options: TestOptions, config: any): Promise<TestResult[]> {
+async function runTests(options: TestOptions): Promise<TestResult[]> {
   const { environment, suite, service, coverage, watch, verbose, dryRun } = options;
   
   log(`🧪 Running ${suite} tests for ${service} services in ${environment} environment`, colors.bright);
@@ -696,7 +696,7 @@ async function runTests(options: TestOptions, config: any): Promise<TestResult[]
         coverage: coverage ?? true, 
         watch: watch ?? false, 
         verbose: verbose ?? false 
-      }, config);
+      });
       results.push({
         name: 'Frontend',
         success: frontendResult.success,
@@ -711,7 +711,7 @@ async function runTests(options: TestOptions, config: any): Promise<TestResult[]
         coverage: coverage ?? true, 
         watch: watch ?? false, 
         verbose: verbose ?? false 
-      }, config);
+      });
       results.push({
         name: 'Backend',
         success: backendResult.success,
@@ -741,7 +741,7 @@ async function runTests(options: TestOptions, config: any): Promise<TestResult[]
   }
 }
 
-async function runFrontendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }, config?: any) {
+async function runFrontendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }) {
   // Delegate to existing frontend test logic
   return await runFrontendTestsImpl({
     environment: 'local',
@@ -750,10 +750,10 @@ async function runFrontendTests(suite: TestSuite, options: { coverage?: boolean;
     coverage: options.coverage ?? true,
     watch: options.watch ?? false,
     verbose: options.verbose ?? false
-  }, config);
+  });
 }
 
-async function runBackendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }, config?: any) {
+async function runBackendTests(suite: TestSuite, options: { coverage?: boolean; watch?: boolean; verbose?: boolean }) {
   // Delegate to existing backend test logic  
   return await runBackendTestsImpl({
     environment: 'local',
@@ -762,7 +762,7 @@ async function runBackendTests(suite: TestSuite, options: { coverage?: boolean; 
     coverage: options.coverage ?? true,
     watch: options.watch ?? false,
     verbose: options.verbose ?? false
-  }, config);
+  });
 }
 
 async function main(): Promise<void> {
@@ -774,17 +774,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
   
-  // Parse environment (first argument, optional)
-  let environment: Environment = 'local';  // Default to local
-  let argIndex = 0;
-  
-  if (args[0] && !args[0].startsWith('--')) {
-    const validEnvironments: Environment[] = ['local', 'development', 'staging', 'production'];
-    if (validEnvironments.includes(args[0] as Environment)) {
-      environment = args[0] as Environment;
-      argIndex = 1;
-    }
-  }
+  // Default environment
+  let environment: Environment = 'local';
   
   // Parse options
   const options: TestOptions = {
@@ -798,9 +789,18 @@ async function main(): Promise<void> {
   };
   
   // Process command line arguments
-  for (let i = argIndex; i < args.length; i++) {
+  for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
+      case '--environment':
+        const envArg = args[++i];
+        if (!envArg) {
+          throw new Error('--environment requires a value');
+        }
+        // Allow any environment name (not just predefined ones)
+        environment = envArg as Environment;
+        options.environment = environment;
+        break;
       case '--suite':
         const suite = args[++i];
         if (!suite) {
@@ -840,17 +840,12 @@ async function main(): Promise<void> {
         if (arg && arg.startsWith('--')) {
           error(`Unknown option: ${arg}`);
           process.exit(1);
-        } else if (arg && !arg.startsWith('--')) {
-          error(`Unknown argument: ${arg}. Use --suite and --service flags instead.`);
-          process.exit(1);
         }
         break;
     }
   }
   
   try {
-    // Load configuration for the environment and test suite
-    const config = await loadConfigForSuite(environment, options.suite);
     
     // Show test plan
     console.log('');
@@ -870,7 +865,7 @@ async function main(): Promise<void> {
     console.log('');
     
     // Execute tests
-    const results = await runTests(options, config);
+    const results = await runTests(options);
     
     // Show results  
     const allPassed = results.every((result: TestResult) => result.success);

@@ -64,7 +64,7 @@ export function useDropdown() {
 export function useLoadingState(minLoadingTime = 500) {
   const [isLoading, setIsLoading] = useState(false);
   const [showLoading, setShowLoading] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const startLoading = useCallback(() => {
     setIsLoading(true);

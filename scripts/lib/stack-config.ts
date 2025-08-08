@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { StackOutput, AWSError } from './types.js';
