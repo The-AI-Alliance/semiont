@@ -95,7 +95,7 @@ jobs:
         run: cd packages/cloud && npm test
 
       - name: CDK synth validation
-        run: cd packages/cloud && npx cdk synth --app "npx ts-node test/app.ts"
+        run: cd packages/cloud && npx cdk synth --app "npx ts-node test/app.ts" --context availability-zones:account=123456789012:region=us-east-1='["us-east-1a","us-east-1b"]'
         env:
           CDK_DEFAULT_ACCOUNT: "123456789012"
           CDK_DEFAULT_REGION: "us-east-1"
