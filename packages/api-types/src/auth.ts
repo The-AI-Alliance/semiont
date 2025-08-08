@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { EmailSchema, CuidSchema } from './common.js';
+import { EmailSchema, CuidSchema } from './common';
 
 // Authentication request schemas
 export const GoogleAuthSchema = z.object({

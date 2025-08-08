@@ -1,0 +1,52 @@
+{
+  "name": "@semiont/scripts",
+  "version": "1.0.0",
+  "description": "CLI management tools for Semiont on AWS",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "clean": "rm -rf dist",
+    "logs": "node dist/logs.mjs",
+    "status": "node dist/status.mjs",
+    "secrets": "node dist/secrets.mjs",
+    "restart": "node dist/restart.mjs",
+    "exec": "node dist/exec.mjs",
+    "maintenance": "node dist/maintenance.mjs",
+    "backup": "node dist/db-backup.mjs"
+  },
+  "dependencies": {
+    "@semiont/config": "*",
+    "@semiont/api-types": "*",
+    "@semiont/cloud": "*",
+    "@aws-sdk/client-cloudformation": "^3.600.0",
+    "@aws-sdk/client-cloudwatch": "^3.600.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.600.0",
+    "@aws-sdk/client-cost-explorer": "^3.600.0",
+    "@aws-sdk/client-ecr": "^3.600.0",
+    "@aws-sdk/client-ecs": "^3.600.0",
+    "@aws-sdk/client-efs": "^3.600.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "^3.848.0",
+    "@aws-sdk/client-rds": "^3.600.0",
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "@aws-sdk/client-sts": "^3.859.0",
+    "@aws-sdk/client-wafv2": "^3.848.0",
+    "@prisma/client": "^6.13.0",
+    "@testcontainers/postgresql": "^11.5.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "aws-cdk-lib": "^2.208.0",
+    "commander": "^14.0.0",
+    "constructs": "^10.4.2",
+    "esbuild": "^0.25.8",
+    "vitest": "^3.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18",
+    "@types/yargs": "^17.0.0",
+    "chalk": "^5.3.0",
+    "ink": "^4.4.1",
+    "react": "^18.3.1",
+    "typescript": "^5.0.0",
+    "yargs": "^17.7.0"
+  }
+}

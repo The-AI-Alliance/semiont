@@ -6,9 +6,9 @@
  */
 
 // Re-export all types from modules
-export * from './common.js';
-export * from './auth.js';
-export * from './user.js';
+export * from './common';
+export * from './auth';
+export * from './user';
 
 // Version information
 export const API_TYPES_VERSION = '0.1.0';

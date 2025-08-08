@@ -1,0 +1,49 @@
+# Compiled JavaScript from TypeScript
+*.js
+!jest.config.js
+*.js.map
+*.d.ts
+
+# Dependencies
+node_modules/
+
+# CDK specific
+.cdk.staging
+cdk.out/
+cdk.context.json
+
+# AWS credentials (security)
+.aws/
+aws-exports.js
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Cache
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
