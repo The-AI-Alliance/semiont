@@ -30,8 +30,8 @@ export function discoverEnvironments(): EnvironmentInfo[] {
   const environments: EnvironmentInfo[] = [];
   
   for (const file of files) {
-    if (file.endsWith('.ts') && !file.endsWith('.d.ts')) {
-      const name = path.basename(file, '.ts');
+    if (file.endsWith('.json')) {
+      const name = path.basename(file, '.json');
       const isLocal = name === 'local';
       const isCloud = !isLocal && name !== 'test' && name !== 'unit' && name !== 'integration';
       
