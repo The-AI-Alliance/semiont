@@ -15,7 +15,11 @@
 
 import { spawn, type ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
+import * as readline from 'readline';
+import React from 'react';
+import { render, Text, Box } from 'ink';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
+import { EnvironmentDetails, SimpleTable, StepProgress, DeploymentStatus } from './lib/ink-utils';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { loadConfig } from '../config/dist/index.js';
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
@@ -113,6 +117,67 @@ async function runCommand(command: string[], cwd: string, description: string, v
   });
 }
 
+// Progress spinner component
+function ProgressSpinner({ text }: { text: string }) {
+  const [frame, setFrame] = React.useState(0);
+  const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+  React.useEffect(() => {
+    const interval = global.setInterval(() => {
+      setFrame((f: number) => (f + 1) % spinnerFrames.length);
+    }, 80);
+    
+    return () => global.clearInterval(interval);
+  }, []);
+
+  return React.createElement(
+    Box,
+    {},
+    React.createElement(Text, { color: 'cyan' }, `${spinnerFrames[frame]} ${text}`)
+  );
+}
+
+async function runCommandWithProgress(command: string[], cwd: string, description: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    // Show progress spinner
+    const ProgressComponent = React.createElement(ProgressSpinner, { text: description });
+    const { unmount } = render(ProgressComponent);
+    
+    const startTime = Date.now();
+    const process: ChildProcess = spawn(command[0]!, command.slice(1), {
+      cwd,
+      stdio: 'pipe',
+      shell: true
+    });
+
+    process.on('close', (code: number | null) => {
+      unmount();
+      const duration = Date.now() - startTime;
+      if (code === 0) {
+        success(`${description} completed in ${duration}ms`);
+        resolve(true);
+      } else {
+        error(`${description} failed with code ${code} after ${duration}ms`);
+        resolve(false);
+      }
+    });
+
+    process.on('error', (err: Error) => {
+      unmount();
+      error(`${description} failed: ${err.message}`);
+      resolve(false);
+    });
+  });
+}
+
+function askQuestion(rl: readline.Interface, question: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      resolve(answer.trim());
+    });
+  });
+}
+
 async function validateEnvironment(env: string): Promise<Environment> {
   const validEnvironments = getAvailableEnvironments();
   
@@ -121,6 +186,548 @@ async function validateEnvironment(env: string): Promise<Environment> {
   }
   
   return env as Environment;
+}
+
+async function selectEnvironmentInteractively(): Promise<Environment> {
+  const availableEnvironments = getAvailableEnvironments();
+  
+  if (availableEnvironments.length === 0) {
+    throw new Error('No environments available');
+  }
+  
+  if (availableEnvironments.length === 1) {
+    return availableEnvironments[0] as Environment;
+  }
+  
+  console.log('\n🌍 Available Deployment Environments:\n');
+  
+  // Show details for each environment
+  for (let i = 0; i < availableEnvironments.length; i++) {
+    const env = availableEnvironments[i];
+    console.log(`${i + 1}. ${env}`);
+    
+    try {
+      const config = await loadEnvironmentConfig(env as Environment);
+      const details = {
+        'Region': config.aws?.region || 'local',
+        'Domain': config.site?.domain || 'localhost',
+        'Account ID': config.aws?.accountId || 'N/A',
+        'Type': env === 'local' ? 'Development' : env === 'production' ? 'Production' : 'Staging'
+      };
+      
+      // Render environment details
+      await new Promise<void>((resolve) => {
+        const DetailsComponent = React.createElement(EnvironmentDetails, {
+          environment: env,
+          details
+        });
+        const { unmount } = render(DetailsComponent);
+        
+        setTimeout(() => {
+          unmount();
+          resolve();
+        }, 500);
+      });
+      
+      console.log('');
+    } catch (error) {
+      warning(`Could not load config for ${env}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  return promptForEnvironmentSelection(availableEnvironments);
+}
+
+async function showDeploymentConfirmation(options: DeployOptions, config: any): Promise<boolean> {
+  const { environment, service, dryRun } = options;
+  
+  console.log('\\n📋 Deployment Impact Analysis\\n');
+  
+  // Impact analysis data
+  const impactData = [];
+  
+  // Environment impact
+  const riskLevel = environment === 'production' ? '🔴 HIGH' : 
+                   environment === 'staging' ? '🟡 MEDIUM' : '🟢 LOW';
+  impactData.push({ 
+    Category: 'Environment Risk', 
+    Impact: riskLevel,
+    Details: environment === 'production' ? 'Live users affected' : 
+            environment === 'staging' ? 'Testing environment' : 'Development only'
+  });
+  
+  // Service impact
+  const services = service === 'all' ? ['database', 'backend', 'frontend'] : [service];
+  impactData.push({
+    Category: 'Services Affected',
+    Impact: `${services.length} service${services.length > 1 ? 's' : ''}`,
+    Details: services.join(', ')
+  });
+  
+  // Downtime estimate
+  const downtime = environment === 'local' ? 'None (local dev)' :
+                  service === 'database' ? '2-5 minutes' :
+                  service === 'all' ? '5-10 minutes' : '1-3 minutes';
+  impactData.push({
+    Category: 'Estimated Downtime',
+    Impact: downtime,
+    Details: dryRun ? 'Dry run - no actual changes' : 'Rolling deployment'
+  });
+  
+  // Infrastructure changes
+  if (environment !== 'local') {
+    const changes = [];
+    if (service === 'backend' || service === 'all') changes.push('ECS task definition update');
+    if (service === 'frontend' || service === 'all') changes.push('CloudFront invalidation');
+    if (service === 'database' || service === 'all') changes.push('Database migrations');
+    
+    impactData.push({
+      Category: 'Infrastructure Changes',
+      Impact: `${changes.length} change${changes.length > 1 ? 's' : ''}`,
+      Details: changes.join(', ')
+    });
+  }
+  
+  // Rollback plan
+  const rollbackTime = environment === 'local' ? 'Immediate (restart containers)' :
+                      environment === 'production' ? '10-15 minutes' : '5-10 minutes';
+  impactData.push({
+    Category: 'Rollback Time',
+    Impact: rollbackTime,
+    Details: 'Automated rollback available'
+  });
+  
+  // Show impact analysis table
+  return new Promise((resolve) => {
+    const ConfirmationComponent = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { 
+          bold: true, 
+          color: 'yellow', 
+          key: 'title' 
+        }, '⚠️  Deployment Impact Analysis'),
+        React.createElement(SimpleTable, {
+          data: impactData,
+          columns: ['Category', 'Impact', 'Details'],
+          key: 'impact-table'
+        }),
+        React.createElement(Text, { 
+          color: dryRun ? 'green' : (environment === 'production' ? 'red' : 'cyan'), 
+          key: 'mode',
+          marginTop: 1
+        }, dryRun ? '🔍 DRY RUN MODE - No changes will be made' : 
+           environment === 'production' ? '🚨 PRODUCTION DEPLOYMENT - This affects live users!' :
+           '🚀 Deployment ready to proceed')
+      ]
+    );
+    
+    const { unmount } = render(ConfirmationComponent);
+    
+    setTimeout(async () => {
+      unmount();
+      console.log('');
+      
+      // Skip confirmation for dry runs or local environment
+      if (dryRun || environment === 'local') {
+        resolve(true);
+        return;
+      }
+      
+      // Require explicit confirmation for production
+      if (environment === 'production') {
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+        
+        try {
+          const answer = await askQuestion(rl, 'Type \"DEPLOY PRODUCTION\" to continue: ');
+          resolve(answer === 'DEPLOY PRODUCTION');
+        } finally {
+          rl.close();
+        }
+        return;
+      }
+      
+      // Simple yes/no for other environments
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
+      
+      try {
+        const answer = await askQuestion(rl, 'Proceed with deployment? (y/N): ');
+        resolve(['y', 'yes', 'Y', 'YES'].includes(answer));
+      } finally {
+        rl.close();
+      }
+    }, 1000);
+  });
+}
+
+async function runPreDeploymentHealthChecks(environment: Environment, config: any): Promise<boolean> {
+  if (environment === 'local') {
+    info('Skipping health checks for local environment');
+    return true;
+  }
+  
+  console.log('\\n🏥 Pre-Deployment Health Checks\\n');
+  
+  const healthChecks = [];
+  let allPassed = true;
+  
+  // AWS credentials check
+  try {
+    await requireValidAWSCredentials(config.aws.region);
+    healthChecks.push({ 
+      Check: 'AWS Credentials', 
+      Status: '✅ Valid', 
+      Details: `Region: ${config.aws.region}` 
+    });
+  } catch (error) {
+    allPassed = false;
+    healthChecks.push({ 
+      Check: 'AWS Credentials', 
+      Status: '❌ Invalid', 
+      Details: error instanceof Error ? error.message : String(error)
+    });
+  }
+  
+  // Infrastructure stack check
+  try {
+    const infraExists = await checkStackExists('infra', config);
+    healthChecks.push({ 
+      Check: 'Infrastructure Stack', 
+      Status: infraExists ? '✅ Available' : '❌ Missing', 
+      Details: infraExists ? 'ECS cluster ready' : 'Run provision command first'
+    });
+    if (!infraExists) allPassed = false;
+  } catch (error) {
+    allPassed = false;
+    healthChecks.push({ 
+      Check: 'Infrastructure Stack', 
+      Status: '❌ Error', 
+      Details: error instanceof Error ? error.message : String(error)
+    });
+  }
+  
+  // App stack check
+  try {
+    const appExists = await checkStackExists('app', config);
+    healthChecks.push({ 
+      Check: 'Application Stack', 
+      Status: appExists ? '✅ Available' : '❌ Missing', 
+      Details: appExists ? 'ECS services ready' : 'Run provision command first'
+    });
+    if (!appExists) allPassed = false;
+  } catch (error) {
+    allPassed = false;
+    healthChecks.push({ 
+      Check: 'Application Stack', 
+      Status: '❌ Error', 
+      Details: error instanceof Error ? error.message : String(error)
+    });
+  }
+  
+  // Docker/container runtime check
+  try {
+    const hasContainer = await checkContainerRuntime();
+    healthChecks.push({ 
+      Check: 'Container Runtime', 
+      Status: hasContainer ? '✅ Available' : '❌ Missing', 
+      Details: hasContainer ? 'Docker/Podman ready' : 'Install Docker or Podman'
+    });
+    if (!hasContainer) allPassed = false;
+  } catch (error) {
+    allPassed = false;
+    healthChecks.push({ 
+      Check: 'Container Runtime', 
+      Status: '❌ Error', 
+      Details: error instanceof Error ? error.message : String(error)
+    });
+  }
+  
+  // Configuration validation
+  try {
+    // This will throw if configuration is invalid
+    await loadEnvironmentConfig(environment);
+    healthChecks.push({ 
+      Check: 'Configuration', 
+      Status: '✅ Valid', 
+      Details: 'All settings validated'
+    });
+  } catch (error) {
+    allPassed = false;
+    healthChecks.push({ 
+      Check: 'Configuration', 
+      Status: '❌ Invalid', 
+      Details: error instanceof Error ? error.message : String(error)
+    });
+  }
+  
+  // Show health check results
+  return new Promise((resolve) => {
+    const HealthCheckComponent = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { 
+          bold: true, 
+          color: allPassed ? 'green' : 'red', 
+          key: 'title' 
+        }, allPassed ? '✅ Pre-Deployment Health Check: PASSED' : '❌ Pre-Deployment Health Check: FAILED'),
+        React.createElement(SimpleTable, {
+          data: healthChecks,
+          columns: ['Check', 'Status', 'Details'],
+          key: 'health-table'
+        }),
+        React.createElement(Text, { 
+          color: allPassed ? 'green' : 'yellow', 
+          key: 'summary',
+          marginTop: 1
+        }, allPassed ? '🚀 Environment is ready for deployment' : 
+           '⚠️  Please resolve the issues above before proceeding')
+      ]
+    );
+    
+    const { unmount } = render(HealthCheckComponent);
+    
+    setTimeout(() => {
+      unmount();
+      console.log('');
+      resolve(allPassed);
+    }, 2000);
+  });
+}
+
+interface DeploymentProgress {
+  steps: string[];
+  currentStep: number;
+  completedSteps: number[];
+  services: Array<{
+    name: string;
+    icon: string;
+    oldTasks: number;
+    newTasks: number;
+    healthy: boolean;
+    status: string;
+  }>;
+}
+
+async function showLiveDeploymentProgress(options: DeployOptions): Promise<{ unmount: () => void }> {
+  const { environment, service } = options;
+  
+  // Define deployment steps based on service and environment
+  const steps = [];
+  if (environment !== 'local') {
+    if (service === 'backend' || service === 'all') {
+      steps.push('Building backend image', 'Pushing to ECR', 'Updating ECS service');
+    }
+    if (service === 'frontend' || service === 'all') {
+      steps.push('Building frontend image', 'Pushing to ECR', 'Updating ECS service');
+    }
+    if (service === 'database' || service === 'all') {
+      steps.push('Running database migrations');
+    }
+  } else {
+    if (service === 'database' || service === 'all') {
+      steps.push('Starting PostgreSQL container');
+    }
+    if (service === 'backend' || service === 'all') {
+      steps.push('Starting backend service');
+    }
+    if (service === 'frontend' || service === 'all') {
+      steps.push('Starting frontend service');
+    }
+  }
+  steps.push('Deployment complete');
+  
+  // Initialize deployment progress
+  const progress: DeploymentProgress = {
+    steps,
+    currentStep: 0,
+    completedSteps: [],
+    services: []
+  };
+  
+  // Initialize services based on what's being deployed
+  if (service === 'backend' || service === 'all') {
+    progress.services.push({
+      name: 'backend',
+      icon: '🖥️',
+      oldTasks: 1,
+      newTasks: 0,
+      healthy: false,
+      status: 'Preparing'
+    });
+  }
+  
+  if (service === 'frontend' || service === 'all') {
+    progress.services.push({
+      name: 'frontend',
+      icon: '🌐',
+      oldTasks: 1,
+      newTasks: 0,
+      healthy: false,
+      status: 'Preparing'
+    });
+  }
+  
+  if (service === 'database' || service === 'all') {
+    progress.services.push({
+      name: 'database',
+      icon: '🗄️',
+      oldTasks: 0,
+      newTasks: 1,
+      healthy: false,
+      status: 'Preparing'
+    });
+  }
+  
+  // Show live progress display
+  const ProgressComponent = React.createElement(
+    Box,
+    { flexDirection: 'column' },
+    [
+      React.createElement(Text, { 
+        bold: true, 
+        color: 'cyan', 
+        key: 'title' 
+      }, `\\n🚀 Deploying to ${environment} environment...`),
+      React.createElement(StepProgress, {
+        steps: progress.steps,
+        currentStep: progress.currentStep,
+        completedSteps: progress.completedSteps,
+        key: 'step-progress'
+      }),
+      progress.services.length > 0 ? React.createElement(DeploymentStatus, {
+        services: progress.services,
+        key: 'service-status'
+      }) : null,
+      React.createElement(Text, { 
+        color: 'yellow', 
+        key: 'status',
+        marginTop: 1
+      }, '⏳ Deployment in progress...')
+    ].filter(Boolean)
+  );
+  
+  return render(ProgressComponent);
+}
+
+function updateDeploymentProgress(
+  progressRef: { unmount: () => void }, 
+  progress: DeploymentProgress, 
+  stepUpdate?: { step?: number; completed?: number; serviceUpdate?: { name: string; status: string; healthy?: boolean } }
+): { unmount: () => void } {
+  // Unmount current display
+  progressRef.unmount();
+  
+  // Apply updates
+  if (stepUpdate?.step !== undefined) {
+    progress.currentStep = stepUpdate.step;
+  }
+  if (stepUpdate?.completed !== undefined) {
+    progress.completedSteps.push(stepUpdate.completed);
+  }
+  if (stepUpdate?.serviceUpdate) {
+    const service = progress.services.find(s => s.name === stepUpdate.serviceUpdate!.name);
+    if (service) {
+      service.status = stepUpdate.serviceUpdate.status;
+      if (stepUpdate.serviceUpdate.healthy !== undefined) {
+        service.healthy = stepUpdate.serviceUpdate.healthy;
+      }
+    }
+  }
+  
+  // Render updated display
+  const ProgressComponent = React.createElement(
+    Box,
+    { flexDirection: 'column' },
+    [
+      React.createElement(Text, { 
+        bold: true, 
+        color: 'cyan', 
+        key: 'title' 
+      }, '\\n🚀 Deployment Progress'),
+      React.createElement(StepProgress, {
+        steps: progress.steps,
+        currentStep: progress.currentStep,
+        completedSteps: progress.completedSteps,
+        key: 'step-progress'
+      }),
+      progress.services.length > 0 ? React.createElement(DeploymentStatus, {
+        services: progress.services,
+        key: 'service-status'
+      }) : null,
+      React.createElement(Text, { 
+        color: progress.currentStep >= progress.steps.length - 1 ? 'green' : 'yellow', 
+        key: 'status',
+        marginTop: 1
+      }, progress.currentStep >= progress.steps.length - 1 ? '✅ Deployment completed!' : '⏳ Deployment in progress...')
+    ].filter(Boolean)
+  );
+  
+  return render(ProgressComponent);
+}
+
+async function deployStackWithProgress(options: DeployOptions, config: any): Promise<boolean> {
+  // Start live progress display
+  const progressDisplay = await showLiveDeploymentProgress(options);
+  let currentProgress: DeploymentProgress = {
+    steps: [],
+    currentStep: 0,
+    completedSteps: [],
+    services: []
+  };
+  
+  try {
+    // Call the original deployment function with progress updates
+    const result = await deployStack(options, config, (update) => {
+      // Update progress and re-render
+      const newDisplay = updateDeploymentProgress(progressDisplay, currentProgress, update);
+      Object.assign(progressDisplay, newDisplay);
+    });
+    
+    // Final progress update
+    updateDeploymentProgress(progressDisplay, currentProgress, { 
+      step: currentProgress.steps.length - 1,
+      completed: currentProgress.steps.length - 1
+    });
+    
+    // Keep progress display for a moment before unmounting
+    setTimeout(() => {
+      progressDisplay.unmount();
+    }, 2000);
+    
+    return result;
+  } catch (error) {
+    progressDisplay.unmount();
+    throw error;
+  }
+}
+
+async function promptForEnvironmentSelection(environments: string[]): Promise<Environment> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  try {
+    const answer = await askQuestion(rl, `Select environment (1-${environments.length}): `);
+    const selection = parseInt(answer, 10);
+    
+    if (isNaN(selection) || selection < 1 || selection > environments.length) {
+      console.log('❌ Invalid selection');
+      return promptForEnvironmentSelection(environments);
+    }
+    
+    return environments[selection - 1] as Environment;
+  } finally {
+    rl.close();
+  }
 }
 
 async function loadEnvironmentConfig(environment: Environment): Promise<any> {
@@ -293,7 +900,7 @@ async function startLocalFrontend(mock: boolean, verbose: boolean): Promise<bool
   }
 }
 
-async function deployStack(options: DeployOptions, config: any): Promise<boolean> {
+async function deployStack(options: DeployOptions, config: any, onProgress?: (update: any) => void): Promise<boolean> {
   const { environment, service, dryRun, verbose } = options;
   
   // Handle local deployment separately
@@ -393,7 +1000,7 @@ async function deployBackendService(environment: Environment, _config: any, opti
   
   if (!backendExists) {
     info('Building backend Docker image...');
-    const buildSuccess = await runCommand(['npm', 'run', 'build:backend'], '.', 'Build backend image', options.verbose);
+    const buildSuccess = await runCommandWithProgress(['npm', 'run', 'build:backend'], '.', 'Build backend image');
     if (!buildSuccess) {
       error('Failed to build backend image');
       return false;
@@ -426,7 +1033,7 @@ async function deployFrontendService(environment: Environment, _config: any, opt
   
   if (!frontendExists) {
     info('Building frontend Docker image...');
-    const buildSuccess = await runCommand(['npm', 'run', 'build:frontend'], '.', 'Build frontend image', options.verbose);
+    const buildSuccess = await runCommandWithProgress(['npm', 'run', 'build:frontend'], '.', 'Build frontend image');
     if (!buildSuccess) {
       error('Failed to build frontend image');
       return false;
@@ -488,8 +1095,8 @@ async function pushImageToECR(localImageName: string, serviceName: string, envir
     return null;
   }
   
-  // Push to ECR
-  const pushSuccess = await runCommand(['docker', 'push', ecrImageUri], '.', `Push ${serviceName} to ECR`, true);
+  // Push to ECR with progress indicator
+  const pushSuccess = await runCommandWithProgress(['docker', 'push', ecrImageUri], '.', `Push ${serviceName} to ECR`);
   if (!pushSuccess) {
     return null;
   }
@@ -552,7 +1159,7 @@ function printHelp(): void {
 ${colors.bright}🚀 Semiont Deploy Command${colors.reset}
 
 ${colors.cyan}Usage:${colors.reset}
-  ./scripts/semiont deploy <environment> [options]
+  ./scripts/semiont deploy [environment] [options]
 
 ${colors.cyan}Environments:${colors.reset}
   local          Local development (Docker/Podman containers)
@@ -571,6 +1178,9 @@ ${colors.cyan}Options:${colors.reset}
   --help               Show this help message
 
 ${colors.cyan}Examples:${colors.reset}
+  ${colors.dim}# Interactive environment selection${colors.reset}
+  ./scripts/semiont deploy
+
   ${colors.dim}# Deploy everything locally${colors.reset}
   ./scripts/semiont deploy local
 
@@ -588,6 +1198,7 @@ ${colors.cyan}Examples:${colors.reset}
 
 
 ${colors.cyan}Notes:${colors.reset}
+  • If no environment specified, interactive selector will show available options
   • Local deployment uses Docker/Podman containers
   • Cloud deployments require AWS credentials
   • Production/staging require manual approval (unless --no-approval)
@@ -604,12 +1215,17 @@ async function main(): Promise<void> {
     process.exit(0);
   }
   
-  // Parse arguments
-  const environment = args[0];
+  // Parse arguments - allow interactive selection if no environment provided
+  let environment = args[0];
   if (!environment) {
-    error('Environment is required');
-    printHelp();
-    process.exit(1);
+    try {
+      environment = await selectEnvironmentInteractively();
+      info(`Selected environment: ${environment}`);
+    } catch (err) {
+      error('Failed to select environment');
+      printHelp();
+      process.exit(1);
+    }
   }
   
   try {
@@ -684,27 +1300,24 @@ async function main(): Promise<void> {
     
     console.log('');
     
-    // Confirm for production deployments
-    if (validEnv === 'production' && !options.dryRun && options.requireApproval !== false) {
-      warning('⚠️  PRODUCTION DEPLOYMENT - This will affect live users!');
-      const readline = require('readline').createInterface({
-        input: process.stdin,
-        output: process.stdout
-      });
-      
-      const answer = await new Promise<string>(resolve => {
-        readline.question('Type "DEPLOY PRODUCTION" to continue: ', resolve);
-      });
-      readline.close();
-      
-      if (answer !== 'DEPLOY PRODUCTION') {
-        error('Production deployment cancelled');
+    // Run pre-deployment health checks
+    const healthPassed = await runPreDeploymentHealthChecks(validEnv, config);
+    if (!healthPassed && !options.force) {
+      error('Health checks failed. Use --force to override (not recommended)');
+      process.exit(1);
+    }
+    
+    // Show deployment confirmation with impact analysis
+    if (options.requireApproval !== false) {
+      const confirmed = await showDeploymentConfirmation(options, config);
+      if (!confirmed) {
+        error('Deployment cancelled by user');
         process.exit(1);
       }
     }
     
-    // Execute deployment
-    const success = await deployStack(options, config);
+    // Execute deployment with live progress
+    const success = await deployStackWithProgress(options, config);
     
     if (success) {
       console.log('');

@@ -13,6 +13,9 @@ import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { execSync } from 'child_process';
 import { loadConfig } from '../config/dist/index.js';
+import React from 'react';
+import { render, Text, Box } from 'ink';
+import { SimpleTable } from './lib/ink-utils';
 
 // Types
 type Environment = 'local' | 'development' | 'staging' | 'production';
@@ -48,6 +51,93 @@ function success(message: string): void {
 
 function info(message: string): void {
   console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+}
+
+// SimpleTable component is now imported from lib/ink-utils.ts
+
+async function showRestartPlan(environment: Environment, service: Service): Promise<void> {
+  return new Promise((resolve) => {
+    const planData = [{
+      Property: 'Environment',
+      Value: environment
+    }, {
+      Property: 'Service',
+      Value: service
+    }, {
+      Property: 'Action',
+      Value: 'Restart'
+    }];
+
+    const PlanTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n🔄 Restart Plan'),
+        React.createElement(SimpleTable, { 
+          data: planData, 
+          columns: ['Property', 'Value'],
+          key: 'plan-table' 
+        }),
+        React.createElement(Text, { key: 'spacing' }, '\n')
+      ]
+    );
+
+    const { unmount } = render(PlanTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
+}
+
+async function showRestartResults(environment: Environment, service: Service): Promise<void> {
+  return new Promise((resolve) => {
+    const isLocal = environment === 'local';
+    const statusMessage = isLocal 
+      ? 'Local service restart completed' 
+      : `Service restart initiated in ${environment}`;
+    
+    const timeMessage = isLocal 
+      ? 'Immediate' 
+      : '2-3 minutes';
+    
+    const monitorMessage = isLocal 
+      ? 'Check service logs locally' 
+      : './scripts/semiont watch logs';
+
+    const resultData = [{
+      Property: 'Status',
+      Value: '✅ ' + statusMessage
+    }, {
+      Property: 'Duration',
+      Value: timeMessage
+    }, {
+      Property: 'Monitoring',
+      Value: monitorMessage
+    }];
+
+    const ResultTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'green', key: 'title' }, '\n🎉 Restart Complete'),
+        React.createElement(SimpleTable, { 
+          data: resultData, 
+          columns: ['Property', 'Value'],
+          key: 'result-table' 
+        }),
+        React.createElement(Text, { key: 'spacing' }, '\n')
+      ]
+    );
+
+    const { unmount } = render(ResultTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
 }
 
 async function loadEnvironmentConfig(environment: Environment): Promise<any> {
@@ -198,12 +288,8 @@ async function main(): Promise<void> {
     // Load configuration for the environment
     const config = await loadEnvironmentConfig(validEnv);
     
-    // Show restart plan
-    console.log('');
-    info('Restart Plan:');
-    console.log(`  Environment: ${colors.bright}${validEnv}${colors.reset}`);
-    console.log(`  Service:     ${colors.bright}${options.service}${colors.reset}`);
-    console.log('');
+    // Show restart plan using ink table
+    await showRestartPlan(validEnv, options.service);
     
     // Execute restart
     let restartSuccess: boolean;
@@ -213,15 +299,9 @@ async function main(): Promise<void> {
       restartSuccess = await restartCloudService(options.service, config, validEnv);
     }
     
+    // Show results using ink
     if (restartSuccess) {
-      console.log('');
-      if (validEnv === 'local') {
-        console.log(`${colors.green}✅ Local service restart completed${colors.reset}`);
-      } else {
-        console.log(`${colors.green}✅ Service restart initiated in ${validEnv}${colors.reset}`);
-        info('⏱️  Restart will take 2-3 minutes to complete');
-        info(`Monitor progress: ./scripts/semiont watch logs`);
-      }
+      await showRestartResults(validEnv, options.service);
     } else {
       error('Service restart failed');
       process.exit(1);

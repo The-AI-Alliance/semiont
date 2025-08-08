@@ -3,6 +3,9 @@ import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { config } from '../config/dist/index.js';
 import { spawn } from 'child_process';
+import React from 'react';
+import { render, Text, Box } from 'ink';
+import { SimpleTable } from './lib/ink-utils';
 
 const stackConfig = new SemiontStackConfig();
 const ecsClient = new ECSClient({ region: config.aws.region });
@@ -44,10 +47,7 @@ async function executeCommand(service: 'frontend' | 'backend', command: string) 
     const taskId = await getLatestTaskId(service);
     const containerName = `semiont-${service}`;
 
-    console.log(`📊 Service: ${service}`);
-    console.log(`📊 Task: ${taskId}`);
-    console.log(`💻 Command: ${command}`);
-    console.log('');
+    await showExecutionInfo(service, taskId, command, clusterName, containerName);
 
     // Use AWS CLI for interactive commands since the SDK doesn't support interactive mode well
     const awsCommand = `aws ecs execute-command --cluster "${clusterName}" --task "${taskId}" --container "${containerName}" --command "${command}" --interactive --region "${config.aws.region}"`;
@@ -79,6 +79,41 @@ async function executeCommand(service: 'frontend' | 'backend', command: string) 
     console.error('❌ Failed to connect to container:', error);
     process.exit(1);
   }
+}
+
+// Table display function for execution info
+async function showExecutionInfo(service: string, taskId: string, command: string, clusterName: string, containerName: string): Promise<void> {
+  return new Promise((resolve) => {
+    const execData = [
+      { Property: 'Service', Value: `🚀 ${service}` },
+      { Property: 'Task ID', Value: taskId },
+      { Property: 'Container', Value: containerName },
+      { Property: 'Cluster', Value: clusterName },
+      { Property: 'Command', Value: command },
+      { Property: 'Region', Value: config.aws.region }
+    ];
+
+    const ExecutionTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n🐳 Container Execution Details'),
+        React.createElement(SimpleTable, { 
+          data: execData, 
+          columns: ['Property', 'Value'],
+          key: 'execution-table' 
+        }),
+        React.createElement(Text, { color: 'yellow', key: 'connecting' }, '\n🔗 Connecting to container...\n')
+      ]
+    );
+
+    const { unmount } = render(ExecutionTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 1000); // Show for 1 second before connecting
+  });
 }
 
 // Parse command line arguments

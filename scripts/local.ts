@@ -12,6 +12,9 @@ import { execSync, spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Command } from 'commander';
+import React from 'react';
+import { render, Text, Box } from 'ink';
+import { SimpleTable } from './lib/ink-utils';
 
 const program = new Command();
 
@@ -421,13 +424,7 @@ async function startFullStack(options: { reset?: boolean } = {}): Promise<void> 
   await startFrontend();
   
   success('🎉 Full development environment ready!');
-  console.log('');
-  console.log('📍 Services running at:');
-  console.log(`   Frontend: ${LOCAL_CONFIG.frontend.url}`);
-  console.log(`   Backend:  ${LOCAL_CONFIG.backend.url}`);
-  console.log(`   Database: Running in Docker container '${LOCAL_CONFIG.database.containerName}'`);
-  console.log('');
-  console.log('💡 Use Ctrl+C to stop all services');
+  await showServiceUrls();
 }
 
 async function stopAll(): Promise<void> {
@@ -436,6 +433,105 @@ async function stopAll(): Promise<void> {
   await stopBackend();
   await stopDatabase();
   success('All services stopped');
+}
+
+// Status display functions using ink tables
+async function showLocalStatus(): Promise<void> {
+  return new Promise((resolve) => {
+    const dbRunning = isContainerRunning(LOCAL_CONFIG.database.containerName);
+    const backendRunning = state.backend?.process && !state.backend.process.killed;
+    const frontendRunning = state.frontend?.process && !state.frontend.process.killed;
+    
+    const statusData = [
+      {
+        Service: 'Database',
+        Status: dbRunning ? '✅ Running' : '❌ Stopped',
+        Location: dbRunning ? `Container: ${LOCAL_CONFIG.database.containerName}` : 'Not started'
+      },
+      {
+        Service: 'Backend',
+        Status: backendRunning ? '✅ Running' : '❌ Stopped',
+        Location: backendRunning ? LOCAL_CONFIG.backend.url : 'Not started'
+      },
+      {
+        Service: 'Frontend',
+        Status: frontendRunning ? '✅ Running' : '❌ Stopped',
+        Location: frontendRunning ? LOCAL_CONFIG.frontend.url : 'Not started'
+      }
+    ];
+
+    if (dbRunning) {
+      statusData.push({
+        Service: 'Database URL',
+        Status: 'Available',
+        Location: `postgres://${LOCAL_CONFIG.database.user}:***@localhost:****/${LOCAL_CONFIG.database.name}`
+      });
+    }
+
+    const StatusTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n🔍 Local Development Environment Status'),
+        React.createElement(SimpleTable, { 
+          data: statusData, 
+          columns: ['Service', 'Status', 'Location'],
+          key: 'status-table' 
+        }),
+        React.createElement(Text, { key: 'spacing' }, '\n')
+      ]
+    );
+
+    const { unmount } = render(StatusTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
+}
+
+async function showServiceUrls(): Promise<void> {
+  return new Promise((resolve) => {
+    const urlData = [
+      {
+        Service: 'Frontend',
+        URL: LOCAL_CONFIG.frontend.url,
+        Description: 'Next.js development server'
+      },
+      {
+        Service: 'Backend',
+        URL: LOCAL_CONFIG.backend.url,
+        Description: 'Hono API server'
+      },
+      {
+        Service: 'Database',
+        URL: `Container: ${LOCAL_CONFIG.database.containerName}`,
+        Description: 'PostgreSQL 15 Alpine'
+      }
+    ];
+
+    const UrlTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'green', key: 'title' }, '\n📍 Services Running At:'),
+        React.createElement(SimpleTable, { 
+          data: urlData, 
+          columns: ['Service', 'URL', 'Description'],
+          key: 'url-table' 
+        }),
+        React.createElement(Text, { color: 'yellow', key: 'tip' }, '\n💡 Use Ctrl+C to stop all services\n')
+      ]
+    );
+
+    const { unmount } = render(UrlTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
 }
 
 // CLI Command Definitions
@@ -578,21 +674,8 @@ program
 program
   .command('status')
   .description('Show status of local services')
-  .action(() => {
-    console.log('🔍 Local Development Environment Status:');
-    console.log('');
-    
-    const dbRunning = isContainerRunning(LOCAL_CONFIG.database.containerName);
-    const backendRunning = state.backend?.process && !state.backend.process.killed;
-    const frontendRunning = state.frontend?.process && !state.frontend.process.killed;
-    
-    console.log(`   Database:  ${dbRunning ? '✅ Running' : '❌ Stopped'}`);
-    console.log(`   Backend:   ${backendRunning ? '✅ Running' : '❌ Stopped'}`);
-    console.log(`   Frontend:  ${frontendRunning ? '✅ Running' : '❌ Stopped'}`);
-    
-    if (dbRunning) {
-      console.log(`   Database URL: postgres://${LOCAL_CONFIG.database.user}:***@localhost:*****/${LOCAL_CONFIG.database.name}`);
-    }
+  .action(async () => {
+    await showLocalStatus();
   });
 
 // Parse CLI arguments

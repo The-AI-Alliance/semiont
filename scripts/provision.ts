@@ -15,6 +15,8 @@
  */
 
 // Remove unused imports
+import React from 'react';
+import { render, Text, Box } from 'ink';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 import { loadConfig } from '../config/dist/index.js';
@@ -69,6 +71,41 @@ function info(message: string): void {
 
 function warning(message: string): void {
   console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+}
+
+// Progress spinner component
+function ProgressSpinner({ text }: { text: string }) {
+  const [frame, setFrame] = React.useState(0);
+  const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setFrame((f: number) => (f + 1) % spinnerFrames.length);
+    }, 80);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  return React.createElement(
+    Box,
+    {},
+    React.createElement(Text, { color: 'cyan' }, `${spinnerFrames[frame]} ${text}`)
+  );
+}
+
+async function deployWithProgress<T>(description: string, deployFn: () => Promise<T>): Promise<T> {
+  // Show progress spinner
+  const ProgressComponent = React.createElement(ProgressSpinner, { text: description });
+  const { unmount } = render(ProgressComponent);
+  
+  try {
+    const result = await deployFn();
+    unmount();
+    return result;
+  } catch (error) {
+    unmount();
+    throw error;
+  }
 }
 
 async function validateEnvironment(env: string): Promise<CloudEnvironment> {
@@ -144,7 +181,7 @@ async function provisionInfrastructure(options: ProvisionOptions, config: any): 
       info('This includes: VPC, Subnets, RDS Database, EFS Storage, Security Groups');
       
       if (!dryRun) {
-        const infraSuccess = await deployer.deployInfraStack(deployOptions);
+        const infraSuccess = await deployWithProgress('Infrastructure stack', () => deployer.deployInfraStack(deployOptions));
         if (!infraSuccess) {
           error('Infrastructure provisioning failed');
           return false;
@@ -168,7 +205,7 @@ async function provisionInfrastructure(options: ProvisionOptions, config: any): 
       info('This includes: ECS Cluster, Load Balancer, ECR Repositories, CloudFront CDN');
       
       if (!dryRun) {
-        const appSuccess = await deployer.deployAppStack(deployOptions);
+        const appSuccess = await deployWithProgress('Application stack', () => deployer.deployAppStack(deployOptions));
         if (!appSuccess) {
           error('Application infrastructure provisioning failed');
           return false;

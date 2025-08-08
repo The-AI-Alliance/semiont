@@ -11,6 +11,7 @@
 
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
+import { showError, showSuccess, showWarning } from './lib/ink-utils';
 
 // Valid environments
 type Environment = string;
@@ -39,6 +40,7 @@ const colors = {
 
 
 
+// Legacy fallback functions (use ink-utils for enhanced formatting)
 function error(message: string): void {
   console.error(`${colors.red}❌ ${message}${colors.reset}`);
 }
@@ -51,11 +53,28 @@ function info(message: string): void {
   console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
 }
 
+// Enhanced error handling with ink
+async function handleError(message: string, details?: string): Promise<void> {
+  await showError(message, details);
+}
+
+async function handleSuccess(message: string, details?: string[]): Promise<void> {
+  await showSuccess(message, details);
+}
+
+async function handleWarning(message: string, suggestions?: string[]): Promise<void> {
+  await showWarning(message, suggestions);
+}
+
 async function validateEnvironment(env: string): Promise<Environment> {
   const validEnvironments = getAvailableEnvironments();
   
   if (!isValidEnvironment(env)) {
-    throw new Error(`Invalid environment: ${env}. Must be one of: ${validEnvironments.join(', ')}`);
+    await handleError(
+      `Invalid environment: ${env}`,
+      `Available environments: ${validEnvironments.join(', ')}`
+    );
+    throw new Error(`Invalid environment: ${env}`);
   }
   
   return env as Environment;

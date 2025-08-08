@@ -15,6 +15,7 @@ import * as path from 'path';
 // Import React and ink components that don't have top-level await
 import React from 'react';
 import { render, Text, Box } from 'ink';
+import { SimpleTable } from './lib/ink-utils';
 
 // Color codes for output
 const colors = {
@@ -219,68 +220,7 @@ function displayTestSummary(testStats: { totalTests: number; passedTests: number
 }
 
 
-// Simple table component using ink primitives
-function SimpleTable({ data, columns }: { data: Record<string, any>[], columns: string[] }) {
-  // Calculate column widths
-  const columnWidths: Record<string, number> = {};
-  columns.forEach(col => {
-    columnWidths[col] = col.length;
-    data.forEach(row => {
-      const value = String(row[col] || '');
-      columnWidths[col] = Math.max(columnWidths[col] || 0, value.length);
-    });
-  });
-
-  // Pad string to width
-  const pad = (str: string, width: number) => {
-    return str.padEnd(width);
-  };
-
-  // Create header row
-  const headerRow = React.createElement(
-    Box,
-    { key: 'header' },
-    columns.map((col, i) => 
-      React.createElement(
-        Text,
-        { key: col, bold: true, color: 'white' },
-        pad(col, columnWidths[col] || 0) + (i < columns.length - 1 ? '  ' : '')
-      )
-    )
-  );
-
-  // Create separator
-  const separator = React.createElement(
-    Box,
-    { key: 'separator' },
-    React.createElement(
-      Text,
-      { dimColor: true },
-      columns.map(col => '─'.repeat(columnWidths[col] || 0)).join('──')
-    )
-  );
-
-  // Create data rows
-  const dataRows = data.map((row, rowIndex) =>
-    React.createElement(
-      Box,
-      { key: `row-${rowIndex}` },
-      columns.map((col, i) => 
-        React.createElement(
-          Text,
-          { key: `${rowIndex}-${col}` },
-          pad(String(row[col] || ''), columnWidths[col] || 0) + (i < columns.length - 1 ? '  ' : '')
-        )
-      )
-    )
-  );
-
-  return React.createElement(
-    Box,
-    { flexDirection: 'column' },
-    [headerRow, separator, ...dataRows]
-  );
-}
+// SimpleTable component is now imported from lib/ink-utils.ts
 
 async function formatInkCoverageTable(data: { total: CoverageSummary; directories: DirectoryCoverage[] }, title: string): Promise<void> {
   return new Promise((resolve) => {

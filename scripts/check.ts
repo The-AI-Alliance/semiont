@@ -10,6 +10,9 @@ import { SemiontStackConfig } from './lib/stack-config';
 import { ServiceType, AWSError } from './lib/types.js';
 import { logger } from './lib/logger.js';
 import { config } from '../config/dist/index.js';
+import React from 'react';
+import { render, Text, Box } from 'ink';
+import { SimpleTable } from './lib/ink-utils';
 
 const stackConfig = new SemiontStackConfig();
 const ecsClient = new ECSClient({ region: config.aws.region });
@@ -478,22 +481,10 @@ async function showAppStackStatus() {
       logger.simple(`   Capacity: ${wafStatus.capacity} WCU`);
     }
 
-    // ECS Services Status
-    logger.simple('\n🐳 ECS Services:');
-    
-    // Frontend Service
-    logger.simple('\n   📱 Frontend Service:');
+    // ECS Services Status with table
     const frontendStatus = await getServiceStatus('frontend');
-    logger.simple(`      Status: ${frontendStatus.status}`);
-    logger.simple(`      Running: ${frontendStatus.runningCount}/${frontendStatus.desiredCount}`);
-    logger.simple(`      Deployment: ${frontendStatus.deploymentStatus}`);
-    
-    // Backend Service
-    logger.simple('\n   🚀 Backend Service:');
     const backendStatus = await getServiceStatus('backend');
-    logger.simple(`      Status: ${backendStatus.status}`);
-    logger.simple(`      Running: ${backendStatus.runningCount}/${backendStatus.desiredCount}`);
-    logger.simple(`      Deployment: ${backendStatus.deploymentStatus}`);
+    await showECSServicesTable([frontendStatus, backendStatus]);
     
     // Show deployment details for both services if needed
     for (const service of [frontendStatus, backendStatus]) {
@@ -607,50 +598,13 @@ async function showInfraStackStatus() {
   logger.simple('================');
 
   try {
-    // Database Status
-    logger.simple('\n🗃️  Database Status:');
+    // Database Status with table
     const dbStatus = await getDatabaseStatus();
-    logger.simple(`   Status: ${dbStatus.status}`);
-    logger.simple(`   Endpoint: ${dbStatus.endpoint}`);
-    if (dbStatus.engine) {
-      logger.simple(`   Engine: ${dbStatus.engine}`);
-    }
-    if (dbStatus.instanceClass) {
-      logger.simple(`   Instance: ${dbStatus.instanceClass}`);
-    }
-    if (dbStatus.allocatedStorage) {
-      logger.simple(`   Storage: ${dbStatus.allocatedStorage}GB ${dbStatus.storageEncrypted ? '(encrypted)' : '(unencrypted)'}`);
-    }
-    if (dbStatus.multiAZ !== undefined) {
-      logger.simple(`   Multi-AZ: ${dbStatus.multiAZ ? 'enabled' : 'disabled'}`);
-    }
-    if (dbStatus.backupRetentionPeriod !== undefined) {
-      logger.simple(`   Backup retention: ${dbStatus.backupRetentionPeriod} days`);
-    }
+    await showDatabaseStatusTable(dbStatus);
 
-    // EFS Status
-    logger.simple('\n💾 File System (EFS):');
+    // EFS Status with table
     const efsStatus = await getEFSStatus();
-    logger.simple(`   Status: ${efsStatus.status}`);
-    if (efsStatus.fileSystemId) {
-      logger.simple(`   File System ID: ${efsStatus.fileSystemId}`);
-    }
-    if (efsStatus.sizeInBytes !== undefined) {
-      const sizeGB = (efsStatus.sizeInBytes / (1024 * 1024 * 1024)).toFixed(2);
-      logger.simple(`   Size: ${sizeGB}GB`);
-    }
-    if (efsStatus.throughputMode) {
-      logger.simple(`   Throughput: ${efsStatus.throughputMode}`);
-    }
-    if (efsStatus.performanceMode) {
-      logger.simple(`   Performance: ${efsStatus.performanceMode}`);
-    }
-    if (efsStatus.encrypted !== undefined) {
-      logger.simple(`   Encryption: ${efsStatus.encrypted ? 'enabled' : 'disabled'}`);
-    }
-    if (efsStatus.mountTargets !== undefined) {
-      logger.simple(`   Mount targets: ${efsStatus.mountTargets}`);
-    }
+    await showEFSStatusTable(efsStatus);
 
     // Cost Information
     logger.simple('\n💰 Cost Estimate:');
@@ -693,6 +647,115 @@ async function showInfraStackStatus() {
   } catch (error) {
     logger.error('❌ Failed to get infra stack status:', { error });
   }
+}
+
+// Table display functions using ink
+async function showECSServicesTable(services: any[]): Promise<void> {
+  return new Promise((resolve) => {
+    const serviceData = services.map(service => ({
+      Service: service.type === 'frontend' ? '📱 Frontend' : '🚀 Backend',
+      Status: service.status,
+      Running: `${service.runningCount}/${service.desiredCount}`,
+      Deployment: service.deploymentStatus || 'N/A'
+    }));
+
+    const ServicesTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n🐳 ECS Services'),
+        React.createElement(SimpleTable, { 
+          data: serviceData, 
+          columns: ['Service', 'Status', 'Running', 'Deployment'],
+          key: 'services-table' 
+        }),
+        React.createElement(Text, { key: 'spacing' }, '\n')
+      ]
+    );
+
+    const { unmount } = render(ServicesTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
+}
+
+async function showDatabaseStatusTable(dbStatus: any): Promise<void> {
+  return new Promise((resolve) => {
+    const dbData = [
+      { Property: 'Status', Value: dbStatus.status },
+      { Property: 'Endpoint', Value: dbStatus.endpoint },
+      { Property: 'Engine', Value: dbStatus.engine || 'N/A' },
+      { Property: 'Instance', Value: dbStatus.instanceClass || 'N/A' },
+      { Property: 'Storage', Value: dbStatus.allocatedStorage ? 
+        `${dbStatus.allocatedStorage}GB ${dbStatus.storageEncrypted ? '(encrypted)' : '(unencrypted)'}` : 'N/A' },
+      { Property: 'Multi-AZ', Value: dbStatus.multiAZ !== undefined ? 
+        (dbStatus.multiAZ ? 'enabled' : 'disabled') : 'N/A' },
+      { Property: 'Backup Retention', Value: dbStatus.backupRetentionPeriod !== undefined ? 
+        `${dbStatus.backupRetentionPeriod} days` : 'N/A' }
+    ];
+
+    const DatabaseTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n🗃️ Database Status'),
+        React.createElement(SimpleTable, { 
+          data: dbData, 
+          columns: ['Property', 'Value'],
+          key: 'database-table' 
+        }),
+        React.createElement(Text, { key: 'spacing' }, '\n')
+      ]
+    );
+
+    const { unmount } = render(DatabaseTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
+}
+
+async function showEFSStatusTable(efsStatus: any): Promise<void> {
+  return new Promise((resolve) => {
+    const efsData = [
+      { Property: 'Status', Value: efsStatus.status },
+      { Property: 'File System ID', Value: efsStatus.fileSystemId || 'N/A' },
+      { Property: 'Size', Value: efsStatus.sizeInBytes !== undefined ? 
+        `${(efsStatus.sizeInBytes / (1024 * 1024 * 1024)).toFixed(2)}GB` : 'N/A' },
+      { Property: 'Throughput', Value: efsStatus.throughputMode || 'N/A' },
+      { Property: 'Performance', Value: efsStatus.performanceMode || 'N/A' },
+      { Property: 'Encryption', Value: efsStatus.encrypted !== undefined ? 
+        (efsStatus.encrypted ? 'enabled' : 'disabled') : 'N/A' },
+      { Property: 'Mount Targets', Value: efsStatus.mountTargets !== undefined ? 
+        efsStatus.mountTargets.toString() : 'N/A' }
+    ];
+
+    const EFSTable = React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      [
+        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n💾 File System (EFS)'),
+        React.createElement(SimpleTable, { 
+          data: efsData, 
+          columns: ['Property', 'Value'],
+          key: 'efs-table' 
+        }),
+        React.createElement(Text, { key: 'spacing' }, '\n')
+      ]
+    );
+
+    const { unmount } = render(EFSTable);
+    
+    setTimeout(() => {
+      unmount();
+      resolve();
+    }, 100);
+  });
 }
 
 async function showStatus(section: 'app' | 'infra' | 'both' = 'both') {
