@@ -17,8 +17,8 @@ import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';
 
-// Project root path resolution
-const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+// Project root path resolution (ES module compatible)
+const PROJECT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
 
 // Color codes for output
 const colors = {
