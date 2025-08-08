@@ -42,7 +42,7 @@
     "next-auth": "^4.24.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "semiont-config": "*",
+    "@semiont/config-loader": "*",
     "typescript": "^5",
     "zod": "^4.0.14"
   },

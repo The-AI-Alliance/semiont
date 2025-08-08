@@ -5,7 +5,7 @@ import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 
 // Import test config explicitly
-const { loadConfig } = require('semiont-config');
+const { loadConfig } = require('@semiont/config-loader');
 const testConfig = loadConfig('unit');
 const getBackendUrl = () => testConfig.app.backend?.url?.origin || 'http://localhost:3001';
 
