@@ -2,7 +2,6 @@
   "name": "@semiont/api-types",
   "version": "0.1.0",
   "description": "Shared API type definitions for Semiont frontend and backend",
-  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
