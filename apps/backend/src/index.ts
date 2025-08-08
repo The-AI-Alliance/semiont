@@ -162,7 +162,7 @@ const adminMiddleware = async (c: any, next: any) => {
   await authMiddleware(c, async () => {});
   
   const user = c.get('user');
-  if (!user.isAdmin) {
+  if (!user || !user.isAdmin) {
     return c.json({ error: 'Admin access required' }, 403);
   }
   
