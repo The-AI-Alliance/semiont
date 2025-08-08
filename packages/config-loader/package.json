@@ -1,5 +1,5 @@
 {
-  "name": "@semiont/config",
+  "name": "@semiont/config-loader",
   "version": "0.1.0",
   "description": "Semiont configuration loader - reads JSON config files from /config/environments/",
   "main": "dist/index.js",

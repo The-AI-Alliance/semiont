@@ -6,19 +6,25 @@ This guide provides comprehensive step-by-step instructions for deploying the Se
 
 **Local Development:**
 ```bash
-./scripts/semiont deploy local            # Start all services locally with Docker
+./bin/semiont start local                 # Start all services locally with Docker
 ```
 
 **Cloud Deployment (First-time setup):**
 ```bash
-./scripts/semiont provision production    # Create AWS infrastructure (10-15 min)
-./scripts/semiont deploy production       # Deploy applications (8-12 min)
+./bin/semiont provision production        # Create AWS infrastructure (10-15 min)
+./bin/semiont deploy production           # Deploy applications (8-12 min)
 ```
 
 **Code changes:**
 ```bash
-./scripts/semiont test                    # Run tests (1-3 min) - REQUIRED
-./scripts/semiont deploy production       # Deploy changes (2-5 min)
+./bin/semiont test                        # Run tests (1-3 min) - REQUIRED
+./bin/semiont deploy production           # Deploy changes (2-5 min)
+```
+
+**Real-time monitoring:**
+```bash
+./bin/semiont watch                       # Interactive dashboard with services, logs, and metrics
+./bin/semiont watch logs                  # Focus on log streaming
 ```
 
 ## Pre-Deployment Checklist

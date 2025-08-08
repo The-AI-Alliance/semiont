@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+// Mark this route as dynamic since it uses session data
+export const dynamic = 'force-dynamic';
+
 export interface CookieExportData {
   user: {
     id: string;

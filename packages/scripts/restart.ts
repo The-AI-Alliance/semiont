@@ -12,7 +12,7 @@
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { execSync } from 'child_process';
-import { loadConfig } from '@semiont/config';
+import { loadConfig } from '@semiont/config-loader';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';

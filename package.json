@@ -5,10 +5,7 @@
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "cloud/cdk",
-    "config",
-    "scripts"
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces",

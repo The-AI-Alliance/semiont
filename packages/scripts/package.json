@@ -15,7 +15,7 @@
     "backup": "node dist/db-backup.mjs"
   },
   "dependencies": {
-    "@semiont/config": "*",
+    "@semiont/config-loader": "*",
     "@semiont/api-types": "*",
     "@semiont/cloud": "*",
     "@aws-sdk/client-cloudformation": "^3.600.0",

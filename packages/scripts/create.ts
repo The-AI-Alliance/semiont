@@ -1,5 +1,5 @@
 
-import { config } from '@semiont/config';
+import { config } from '@semiont/config-loader';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 import * as fs from 'fs';

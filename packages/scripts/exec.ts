@@ -1,7 +1,7 @@
 
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
-import { config } from '@semiont/config';
+import { config } from '@semiont/config-loader';
 import { spawn } from 'child_process';
 import React from 'react';
 import { render, Text, Box } from 'ink';

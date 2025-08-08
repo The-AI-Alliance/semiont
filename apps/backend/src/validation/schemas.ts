@@ -5,35 +5,12 @@ import {
   GoogleAuthSchema, 
   HelloParamsSchema,
   EmailSchema,
-  CuidSchema 
+  CuidSchema,
+  JWTPayloadSchema
 } from '@semiont/api-types';
 
 // Re-export shared schemas for backward compatibility
-export { GoogleAuthSchema, HelloParamsSchema, EmailSchema, CuidSchema };
-
-// JWT Payload validation schema
-export const JWTPayloadSchema = z.object({
-  userId: CuidSchema,
-  email: EmailSchema,
-  name: z.string().min(1).max(255).optional(),
-  domain: z.string().min(1).max(100),
-  provider: z.string().min(1).max(50),
-  isAdmin: z.boolean(),
-  iat: z.number().int().positive(),
-  exp: z.number().int().positive(),
-}).refine(
-  (data) => data.exp > data.iat,
-  {
-    message: "Token expiration must be after issued time",
-    path: ["exp"],
-  }
-).refine(
-  (data) => data.exp > Math.floor(Date.now() / 1000),
-  {
-    message: "Token has expired",
-    path: ["exp"],
-  }
-);
+export { GoogleAuthSchema, HelloParamsSchema, EmailSchema, CuidSchema, JWTPayloadSchema };
 
 // Validation result types
 export type ValidationResult<T> = 
@@ -67,4 +44,3 @@ export function validateData<T>(
 // Type exports for use in API types
 export type GoogleAuthRequest = z.infer<typeof GoogleAuthSchema>;
 export type HelloParams = z.infer<typeof HelloParamsSchema>;
-export type ValidatedJWTPayload = z.infer<typeof JWTPayloadSchema>;

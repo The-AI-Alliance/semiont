@@ -4,16 +4,16 @@ This document describes how configuration is managed in the Semiont application,
 
 ## Overview
 
-Semiont uses a **centralized configuration system** located in `/config` with **configuration-as-code** deployment through AWS CDK. This ensures consistent configuration across environments and secure handling of sensitive data.
+Semiont uses a **centralized configuration system** located in `/packages/config` (previously `/config`) with **configuration-as-code** deployment through AWS CDK. This ensures consistent configuration across environments and secure handling of sensitive data.
 
 ## Configuration Architecture
 
 ### 1. **Centralized Configuration System**
 
-All configuration originates from the `/config` directory:
+All configuration originates from the `/packages/config` directory:
 
 ```
-/config/
+/packages/config/
 ├── README.md                    # Configuration documentation
 ├── base/                        # Base configurations
 │   ├── site.config.ts          # Site-specific settings
@@ -33,9 +33,9 @@ All configuration originates from the `/config` directory:
 
 The CDK infrastructure uses the centralized configuration:
 
-- **Infrastructure Stack** (`cdk/lib/infra-stack.ts`): Defines RDS, secrets, and core resources using centralized config
-- **Application Stack** (`cdk/lib/app-stack.ts`): Configures ECS tasks with environment variables from centralized config
-- **CDK Entry Point** (`cdk/bin/cdk.ts`): Imports configuration from `/config`
+- **Infrastructure Stack** (`packages/cloud/lib/infra-stack.ts`): Defines RDS, secrets, and core resources using centralized config
+- **Application Stack** (`packages/cloud/lib/app-stack.ts`): Configures ECS tasks with environment variables from centralized config
+- **CDK Entry Point** (`packages/cloud/bin/cdk.ts`): Imports configuration from `/packages/config`
 
 ### 3. **Dual-Service Architecture**
 

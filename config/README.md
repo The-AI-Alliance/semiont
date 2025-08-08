@@ -1,6 +1,6 @@
 # Semiont Configuration
 
-This directory contains all configuration for the Semiont platform. Configuration is structured as JSON files with inheritance support for type safety and validation.
+This directory contains the authoritative JSON configuration files for the Semiont platform. The configuration system separates data (this directory) from the loading logic (packages/config-loader) for better organization and maintainability.
 
 ## Quick Start
 
@@ -8,28 +8,31 @@ To deploy Semiont to your own domain/AWS account:
 
 1. Edit `config/environments/development.json` with your development settings
 2. Edit `config/environments/production.json` with your production settings  
-3. Validate configuration: `../scripts/semiont config validate`
-4. Run deployment: `../scripts/semiont deploy production`
+3. Validate configuration: `../bin/semiont configure validate`
+4. Run deployment: `../bin/semiont deploy production`
 
 ## Configuration Structure
 
 ```
-config/
+config/                     # Authoritative JSON configuration files
+├── environments/          # Environment-specific JSON configurations
+│   ├── development.json  # Development environment settings
+│   ├── integration.json  # Integration test environment
+│   ├── production.json   # Production environment settings
+│   ├── test.json         # Base test configuration
+│   ├── unit.json         # Unit test configuration
+│   └── *.json            # Custom environment configurations
+└── README.md             # This file
+
+packages/config-loader/   # Configuration loading and validation library
 ├── base/                 # Base configuration files
 │   ├── site.config.ts   # Site-specific settings (domain, branding)
 │   ├── aws.config.ts    # AWS infrastructure settings
 │   └── app.config.ts    # Application settings
-├── environments/        # Environment-specific JSON configurations
-│   ├── development.json # Development environment settings
-│   ├── integration.json # Integration test environment
-│   ├── production.json  # Production environment settings
-│   ├── test.json       # Base test configuration
-│   ├── unit.json       # Unit test configuration
-│   └── *.json          # Custom environment configurations
-├── schemas/            # TypeScript types and validation
+├── schemas/              # TypeScript types and validation
 │   ├── config.schema.ts # Configuration interfaces
-│   └── validation.ts   # Runtime validation
-└── index.ts           # Main configuration export with JSON loading
+│   └── validation.ts    # Runtime validation
+└── index.ts             # Main configuration export with JSON loading
 ```
 
 ## Configuration Precedence & Inheritance
@@ -100,7 +103,7 @@ This separation keeps infrastructure concerns (CDK) separate from application co
 
 ## Type Safety
 
-All configuration is strongly typed using TypeScript interfaces. Runtime validation ensures configuration integrity.
+All configuration is strongly typed using TypeScript interfaces defined in `packages/config-loader/schemas/`. The loading library provides runtime validation to ensure configuration integrity.
 
 ## URL Objects
 

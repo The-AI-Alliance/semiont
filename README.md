@@ -13,14 +13,16 @@ semiont/
 │   └── backend/          # Hono backend API with Prisma ORM
 │       ├── src/          # Type-safe API with JWT auth and validation
 │       └── README.md     # Backend development guide and patterns
-├── cloud/cdk/            # AWS CDK infrastructure (two-stack model)  
-│   └── lib/
-│       ├── infra-stack.ts # Infrastructure stack (VPC, RDS, EFS)
-│       └── app-stack.ts   # Application stack (ECS, ALB, CloudFront)
-├── scripts/              # Type-safe management and deployment scripts
-│   ├── lib/             # Security utilities (logging, validation, command execution)
-│   ├── semiont          # Main management CLI tool
-│   └── README.md        # Scripts architecture and security features
+├── packages/             # Shared workspace packages  
+│   ├── config-loader/   # Configuration loading and validation library
+│   ├── scripts/         # Type-safe management and deployment scripts
+│   ├── api-types/       # Shared TypeScript types
+│   └── cloud/           # AWS CDK infrastructure (two-stack model)  
+│       └── lib/
+│           ├── infra-stack.ts # Infrastructure stack (VPC, RDS, EFS)
+│           └── app-stack.ts   # Application stack (ECS, ALB, CloudFront)
+├── bin/                  # Executable scripts
+│   └── semiont          # Main management CLI tool
 ├── docs/                 # Comprehensive documentation
 │   ├── DEPLOYMENT.md     # Step-by-step deployment guide
 │   ├── ARCHITECTURE.md   # System architecture overview
@@ -32,9 +34,7 @@ semiont/
 │   ├── TESTING.md       # Testing strategy and guidelines
 │   ├── MAINTENANCE.md   # Operational maintenance procedures
 │   └── TROUBLESHOOTING.md # Common issues and solutions
-├── config/              # Configuration management
-│   └── README.md        # Configuration architecture and usage
-└── packages/            # Shared packages (future)
+└── config/              # JSON configuration files (authoritative configuration data)
 ```
 
 ## 🚀 Quickstart
@@ -57,7 +57,7 @@ npm install  # Installs all workspace dependencies
 #### 🚀 Complete Development Environment (Recommended)
 ```bash
 # One command starts everything!
-./scripts/semiont local start
+./bin/semiont start local
 
 # This automatically:
 # ✅ Starts PostgreSQL container with schema
@@ -74,7 +74,7 @@ npm install  # Installs all workspace dependencies
 #### 🎨 Frontend-Only Development (UI/UX Work)
 ```bash
 # No backend/database needed
-./scripts/semiont local frontend start --mock
+./bin/semiont start local --service frontend --mock
 
 # Perfect for:
 # - Component development and styling
@@ -85,16 +85,31 @@ npm install  # Installs all workspace dependencies
 #### ⚡ Service-Specific Development
 ```bash
 # Backend only (auto-starts database)
-./scripts/semiont local backend start
+./bin/semiont start local --service backend
 
-# Database only (with sample data)  
-./scripts/semiont local db start --seed
+# Check what's running with interactive dashboard
+./bin/semiont watch
 
-# Check what's running
-./scripts/semiont local status
+# Check specific service logs
+./bin/semiont watch logs frontend
 
 # Stop everything
-./scripts/semiont local stop
+./bin/semiont stop local
+```
+
+#### 📊 Real-time Monitoring (New!)
+```bash
+# Interactive dashboard with services, logs, and metrics
+./bin/semiont watch
+
+# Focus on log streaming
+./bin/semiont watch logs
+
+# Focus on performance metrics  
+./bin/semiont watch metrics
+
+# Filter to specific service
+./bin/semiont watch logs frontend
 ```
 
 ### 3. Alternative Manual Setup
@@ -111,8 +126,8 @@ npm run dev:mock  # Frontend on :3000 with mock API
 #### Full Stack Development (Manual)
 ```bash
 # Configure local secrets (first time only)
-./scripts/semiont secrets set database-password  # Enter: localpassword
-./scripts/semiont secrets set jwt-secret         # Generate with: openssl rand -base64 32
+./bin/semiont configure local set database-password  # Enter: localpassword
+./bin/semiont configure local set jwt-secret         # Generate with: openssl rand -base64 32
 
 # Start PostgreSQL (Docker or Podman)
 docker run --name semiont-postgres \
@@ -135,7 +150,7 @@ npm run dev  # Frontend on :3000
 
 ```bash
 # View current configuration
-./scripts/semiont config show
+./bin/semiont configure show
 
 # Edit configuration with your values
 # Update config/environments/development.json and config/environments/production.json with:
@@ -145,67 +160,71 @@ npm run dev  # Frontend on :3000
 # - Email addresses
 
 # Validate configuration
-./scripts/semiont config validate
+./bin/semiont configure validate
 ```
 
-### 4. Build and Test
+### 5. Build and Test
 ```bash
 # Run comprehensive test suite
-./scripts/semiont test
+./bin/semiont test
 
 # Run specific test types for targeted validation  
-./scripts/semiont test --service frontend --suite unit      # Fast frontend unit tests
-./scripts/semiont test --service backend --suite integration # Backend integration tests
-./scripts/semiont test --suite integration                  # Cross-service integration tests
-./scripts/semiont test --suite security                     # Security-focused validation
+./bin/semiont test --service frontend --suite unit      # Fast frontend unit tests
+./bin/semiont test --service backend --suite integration # Backend integration tests
+./bin/semiont test --suite integration                  # Cross-service integration tests
+./bin/semiont test --suite security                     # Security-focused validation
 
 # Run tests against custom environments
-./scripts/semiont test --environment staging --suite integration  # Custom environment testing
+./bin/semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
-### 5. AWS Deployment
+### 6. AWS Deployment
 ```bash
 # Provision AWS infrastructure (one-time setup)
-./scripts/semiont provision production
+./bin/semiont provision production
 
 # Deploy application code and configuration
-./scripts/semiont deploy production
+./bin/semiont deploy production
 
 # Start services (if needed)
-./scripts/semiont start production
+./bin/semiont start production
 
 # Configure OAuth secrets (after deployment)
-./scripts/semiont secrets set oauth/google
+./bin/semiont configure set oauth/google
+
+# Monitor deployment with real-time dashboard
+./bin/semiont watch
 ```
 
 **Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
-### 6. Service Management
+### 7. Service Management
 ```bash
 # Deploy application changes (code and configuration updates)
-./scripts/semiont deploy production
+./bin/semiont deploy production
 
 # Start/stop services
-./scripts/semiont start production --service backend
-./scripts/semiont stop staging --service frontend
-./scripts/semiont restart production --service all
+./bin/semiont start production --service backend
+./bin/semiont stop staging --service frontend
+./bin/semiont restart production --service all
 
 # Test before deployment
-./scripts/semiont test
+./bin/semiont test
 ```
 
-### 7. Verify Deployment
+### 8. Monitor & Verify Deployment
 ```bash
-# Check system status
-./scripts/semiont status
+# Interactive real-time dashboard (recommended)
+./bin/semiont watch
 
-# View logs
-./scripts/semiont logs follow
+# Focus on specific monitoring
+./bin/semiont watch logs          # Log streaming
+./bin/semiont watch metrics       # Performance metrics
 
-# Get application URLs
-./scripts/semiont info
+# Legacy status check
+./bin/semiont check
 ```
 
 ## 📖 Documentation
@@ -217,9 +236,9 @@ npm run dev  # Frontend on :3000
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
-| [Scripts README](scripts/README.md) | Management scripts architecture, security features, and usage |
-| [Config README](config/README.md) | Configuration system architecture and environment management |
-| [CDK README](cloud/cdk/README.md) | Infrastructure as Code setup and deployment |
+| [Scripts README](packages/scripts/README.md) | Management CLI architecture, security features, and interactive dashboards |
+| [Config Loader README](packages/config-loader/README.md) | Configuration system architecture and environment management |
+| [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure setup and deployment |
 
 ### System Documentation
 
@@ -271,12 +290,13 @@ Semiont uses a unified JSON-based configuration system with inheritance that pro
 - **Environment Management**: Separate JSON configs for each environment with inheritance
 - **Configuration Inheritance**: Use `_extends` field to build on base configurations
 - **Centralized Settings**: Domain, OAuth, AWS resources all configured in one place
-- **Secure Secrets**: Local secrets managed via `semiont secrets` command (not in files)
+- **Secure Secrets**: Local secrets managed via `./bin/semiont configure` command (not in files)
 
-Both frontend and backend read from the same `config/` directory:
-- **Configuration**: JSON files in `config/environments/` (development.json, production.json)
+The system uses a clear separation between configuration data and loading logic:
+- **Configuration Data**: JSON files in `config/environments/` (development.json, production.json)
+- **Configuration Loader**: TypeScript package in `packages/config-loader/` for loading and validation
 - **Inheritance**: JSON configurations extend base configs using `_extends` field
-- **Secrets**: Managed via `semiont secrets` command for local development
+- **Secrets**: Managed via `./bin/semiont configure` command for local development
 - **Production**: Secrets automatically injected from AWS Secrets Manager
 
 No more `.env` files - everything is type-safe, centralized, and inheritable!
@@ -330,9 +350,10 @@ Start with the [Backend README](apps/backend/README.md) to understand:
 - **Prisma Studio for database visualization**
 
 #### For Infrastructure & DevOps
-Start with the [Scripts README](scripts/README.md) to understand:
+Start with the [Scripts README](packages/scripts/README.md) to understand:
 - Management CLI architecture and security features
-- AWS resource management and monitoring
+- Interactive monitoring dashboards with React/Ink
+- AWS resource management and real-time monitoring
 - Deployment automation and health checks
 - Performance analysis and cost optimization
 
@@ -367,27 +388,27 @@ Semiont organizes tests into four distinct categories for targeted testing:
 
 ```bash
 # Run all tests with coverage (default)
-./scripts/semiont test
+./bin/semiont test
 
 # Run by service
-./scripts/semiont test --service frontend           # Frontend only
-./scripts/semiont test --service backend            # Backend only
-./scripts/semiont test --service all                # Both services (default)
+./bin/semiont test --service frontend           # Frontend only
+./bin/semiont test --service backend            # Backend only
+./bin/semiont test --service all                # Both services (default)
 
 # Run by test suite
-./scripts/semiont test --suite unit               # Unit tests only
-./scripts/semiont test --suite integration        # Integration tests only
-./scripts/semiont test --suite security          # Security tests only
-./scripts/semiont test --suite e2e               # End-to-end tests only
+./bin/semiont test --suite unit               # Unit tests only
+./bin/semiont test --suite integration        # Integration tests only
+./bin/semiont test --suite security          # Security tests only
+./bin/semiont test --suite e2e               # End-to-end tests only
 
 # Combine service and test suite
-./scripts/semiont test --service frontend --suite unit     # Frontend unit tests
-./scripts/semiont test --service backend --suite integration # Backend integration tests
+./bin/semiont test --service frontend --suite unit     # Frontend unit tests
+./bin/semiont test --service backend --suite integration # Backend integration tests
 
 # Additional options
-./scripts/semiont test --no-coverage     # Skip coverage for speed
-./scripts/semiont test --watch           # Watch mode
-./scripts/semiont test --verbose         # Detailed output
+./bin/semiont test --no-coverage     # Skip coverage for speed
+./bin/semiont test --watch           # Watch mode
+./bin/semiont test --verbose         # Detailed output
 ```
 
 #### Direct npm Scripts

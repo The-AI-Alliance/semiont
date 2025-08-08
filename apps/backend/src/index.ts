@@ -13,7 +13,9 @@ import {
   HelloResponse,
   StatusResponse,
   HealthResponse,
-  LogoutResponse
+  LogoutResponse,
+  HelloParams,
+  GoogleAuthRequest
 } from './types/api';
 import {
   GoogleAuthSchema,
@@ -47,7 +49,7 @@ app.get('/api/hello/:name?', (c) => {
     }, 400);
   }
   
-  const name = validation.data.name || 'World';
+  const name = (validation.data as HelloParams).name || 'World';
   
   return c.json<HelloResponse>({
     message: `Hello, ${name}! Welcome to Semiont.`,
@@ -83,7 +85,7 @@ app.post('/api/auth/google', async (c) => {
       }, 400);
     }
     
-    const { access_token } = validation.data;
+    const { access_token } = validation.data as GoogleAuthRequest;
 
     // Verify Google token and get user info
     const googleUser = await OAuthService.verifyGoogleToken(access_token);

@@ -13,7 +13,7 @@
 
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from './lib/stack-config';
-import { loadConfig, displayConfiguration, ConfigurationError } from '@semiont/config';
+import { loadConfig, displayConfiguration, ConfigurationError } from '@semiont/config-loader';
 import * as readline from 'readline';
 
 // Reserved for future secret management features

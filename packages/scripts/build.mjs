@@ -2,18 +2,21 @@
 
 import { build } from 'esbuild'
 import { readdir } from 'fs/promises'
+import { existsSync } from 'fs'
 import { join } from 'path'
 
 // Get all TypeScript files in the scripts directory (excluding lib/ subdirectory)
 const scriptFiles = (await readdir('.', { withFileTypes: true }))
-  .filter(dirent => dirent.isFile() && dirent.name.endsWith('.ts') && dirent.name !== 'build.ts')
-  .map(dirent => dirent.name.replace('.ts', ''))
+  .filter(dirent => dirent.isFile() && (dirent.name.endsWith('.ts') || dirent.name.endsWith('.tsx')) && dirent.name !== 'build.ts')
+  .map(dirent => dirent.name.replace(/\.tsx?$/, ''))
 
 console.log(`📦 Bundling ${scriptFiles.length} commands with esbuild...`)
 
 // Build each command as a separate bundle
 await Promise.all(scriptFiles.map(async (name) => {
-  const entryPoint = `${name}.ts`
+  // Check if .tsx exists first, then .ts
+  const tsxExists = existsSync(`${name}.tsx`);
+  const entryPoint = tsxExists ? `${name}.tsx` : `${name}.ts`;
   const outFile = `dist/${name}.mjs`
   
   try {
@@ -24,6 +27,8 @@ await Promise.all(scriptFiles.map(async (name) => {
       target: 'node20',
       format: 'esm',
       outfile: outFile,
+      jsx: 'automatic',
+      jsxImportSource: 'react',
       external: [
         // Don't bundle these Node.js built-ins and external binaries
         'aws-cli',
@@ -36,7 +41,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         // AWS SDK packages have complex CommonJS/ESM interactions
         '@aws-sdk/*',
         // Local workspace packages
-        '@semiont/config',
+        '@semiont/config-loader',
         '@semiont/api-types',
         '@semiont/cloud',
         // Native binaries that can't be bundled

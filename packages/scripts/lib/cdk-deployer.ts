@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { CloudFormationClient, CreateStackCommand, UpdateStackCommand, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { createStack } from './stack-factory.js';
-import type { SemiontConfiguration } from '@semiont/config';
+import type { SemiontConfiguration } from '@semiont/config-loader';
 import * as fs from 'fs';
 import * as path from 'path';
 

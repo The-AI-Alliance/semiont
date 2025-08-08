@@ -1,7 +1,7 @@
 import { prisma } from '../db';
 import { JWTService } from './jwt';
 import { User } from '@prisma/client';
-import { ValidatedJWTPayload } from '../validation/schemas';
+import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
 
 export interface GoogleUserInfo {
   id: string;

@@ -19,35 +19,65 @@ These scripts provide a comprehensive management interface for your Semiont depl
 
 ## Quick Start
 
-The easiest way to use these scripts is through the unified `semiont` wrapper:
+The easiest way to use these scripts is through the unified `semiont` wrapper located in `/bin`:
 
 ```bash
 # Validate your configuration
-./semiont config validate
+./bin/semiont configure validate
 
-# Check deployment status  
-./semiont status
+# Interactive real-time dashboard (New!)
+./bin/semiont watch
 
-# View recent logs
-./semiont logs
+# Focus on specific monitoring
+./bin/semiont watch logs              # Log streaming
+./bin/semiont watch metrics           # Performance metrics
 
-# Follow logs in real-time
-./semiont logs follow
+# Check deployment status (legacy)
+./bin/semiont check
 
 # Run tests with custom environment
-./scripts/semiont test --environment staging --suite integration
+./bin/semiont test --environment staging --suite integration
 ```
 
 ## Available Commands
 
+### 📊 Real-time Monitoring (New!)
+
+The `watch` command provides modern, interactive monitoring with React-powered terminal dashboards:
+
+```bash
+# Unified dashboard - recommended default view
+./bin/semiont watch
+
+# Focused log streaming with service status
+./bin/semiont watch logs
+
+# Performance metrics dashboard  
+./bin/semiont watch metrics
+
+# Filter to specific services
+./bin/semiont watch logs frontend
+./bin/semiont watch logs backend
+```
+
+**Interactive Controls:**
+- `q` - Quit dashboard
+- `r` - Force refresh data
+- `↑↓` - Scroll through logs
+- `Space` - Toggle auto-scroll
+- `g/G` - Jump to top/bottom of logs
+
 ### Service Management
 
 ```bash
-# Check comprehensive status of all components
-./semiont status
+# Interactive dashboard with services, logs, and metrics
+./bin/semiont watch
+
+# Check comprehensive status of all components (legacy)
+./bin/semiont check
 
 # Restart Semiont service (force new deployment)
-./semiont restart
+./bin/semiont restart production
 
 # View container logs
 ./semiont logs [tail|follow]

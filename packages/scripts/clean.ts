@@ -2,7 +2,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { config } from '@semiont/config';
+import { config } from '@semiont/config-loader';
 
 interface CleanOptions {
   docker?: boolean;

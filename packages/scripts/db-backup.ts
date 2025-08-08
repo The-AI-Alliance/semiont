@@ -2,7 +2,7 @@
 import { RDSClient, DescribeDBInstancesCommand, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 // SemiontStackConfig reserved for future use
-import { config } from '@semiont/config';
+import { config } from '@semiont/config-loader';
 
 // Reserved for future stack configuration needs
 const rdsClient = new RDSClient({ region: config.aws.region });

@@ -21,7 +21,7 @@ import { render, Text, Box } from 'ink';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { EnvironmentDetails, SimpleTable, StepProgress, DeploymentStatus } from './lib/ink-utils';
 import { requireValidAWSCredentials } from './utils/aws-validation';
-import { loadConfig } from '@semiont/config';
+import { loadConfig } from '@semiont/config-loader';
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
 import { SemiontStackConfig } from './lib/stack-config';

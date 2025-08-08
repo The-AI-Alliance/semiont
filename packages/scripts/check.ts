@@ -9,7 +9,7 @@ import { WAFV2Client, GetWebACLCommand } from '@aws-sdk/client-wafv2';
 import { SemiontStackConfig } from './lib/stack-config';
 import { ServiceType, AWSError } from './lib/types';
 import { logger } from './lib/logger';
-import { config } from '@semiont/config';
+import { config } from '@semiont/config-loader';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';

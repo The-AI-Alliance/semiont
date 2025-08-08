@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import path from 'path';
-import { config } from '@semiont/config';
+import { config } from '@semiont/config-loader';
 
 interface BuildOptions {
   target?: 'frontend' | 'backend' | 'docker' | 'all';

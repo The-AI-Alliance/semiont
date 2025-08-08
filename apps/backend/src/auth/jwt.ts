@@ -1,6 +1,7 @@
 import * as jwt from 'jsonwebtoken';
 import { CONFIG } from '../config';
-import { JWTPayloadSchema, validateData, ValidatedJWTPayload } from '../validation/schemas';
+import { JWTPayloadSchema, validateData } from '../validation/schemas';
+import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
 
 export interface JWTPayload {
   userId: string;
@@ -37,7 +38,7 @@ export class JWTService {
         throw new Error(`Invalid token payload: ${validation.error}`);
       }
       
-      return validation.data;
+      return validation.data as ValidatedJWTPayload;
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
         throw new Error('Invalid token signature');

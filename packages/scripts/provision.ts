@@ -19,7 +19,7 @@ import React from 'react';
 import { render, Text, Box } from 'ink';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
-import { loadConfig } from '@semiont/config';
+import { loadConfig } from '@semiont/config-loader';
 
 // Valid environments for provisioning (excludes 'local')
 type CloudEnvironment = 'development' | 'staging' | 'production';
