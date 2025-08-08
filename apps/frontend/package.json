@@ -45,7 +45,7 @@
     "react-dom": "18.3.1",
     "@semiont/config-loader": "*",
     "typescript": "^5",
-    "zod": "^4.0.14"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@lhci/cli": "^0.15.1",
