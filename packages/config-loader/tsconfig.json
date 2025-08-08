@@ -4,7 +4,6 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "lib": ["ES2022", "DOM"],
-    "types": ["node"],
     "outDir": "./dist",
     "rootDir": ".",
     
@@ -38,10 +37,7 @@
     // Advanced
     "skipLibCheck": true,
     "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    
-    // Type Roots
-    "typeRoots": ["./node_modules/@types", "../node_modules/@types"]
+    "allowUnreachableCode": false
   },
   "include": [
     "**/*.ts",
