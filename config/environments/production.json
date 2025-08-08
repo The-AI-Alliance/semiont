@@ -1,8 +1,7 @@
 {
   "_comment": "Production Environment Configuration - Production-specific overrides and settings",
-  "stacks": {
-    "infraStack": "SemiontInfraStack",
-    "appStack": "SemiontAppStack"
+  "deployment": {
+    "default": "aws"
   },
   "site": {
     "_comment": "Production-specific site configuration (example values - MUST BE CUSTOMIZED)",
@@ -12,7 +11,6 @@
     "oauthAllowedDomains": ["example.com"]
   },
   "app": {
-    "_comment": "No backend/frontend URLs needed in production config. CDK infrastructure uses config.site.domain to create Load Balancer and sets NEXT_PUBLIC_API_URL, FRONTEND_URL via environment variables.",
     "features": {
       "enableAnalytics": true,
       "enableMaintenanceMode": false,
@@ -29,25 +27,52 @@
       "_comment_cacheTimeout": "5 minutes"
     }
   },
-  "aws": {
-    "_comment": "Production-specific AWS configuration (example values - MUST BE CUSTOMIZED)",
-    "accountId": "123456789012",
-    "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
-    "hostedZoneId": "Z1234567890ABC",
-    "rootDomain": "example.com",
+  "services": {
+    "backend": {
+      "deployment": {
+        "type": "aws"
+      },
+      "command": "npm start",
+      "port": 3001
+    },
+    "frontend": {
+      "deployment": {
+        "type": "aws"
+      },
+      "command": "npm start",
+      "port": 3000
+    },
     "database": {
+      "deployment": {
+        "type": "aws"
+      },
+      "name": "semiont_prod",
       "multiAZ": true,
-      "_comment_multiAZ": "Enable Multi-AZ for production",
       "backupRetentionDays": 7
-    },
-    "ecs": {
-      "desiredCount": 2,
-      "minCapacity": 2,
-      "maxCapacity": 10
-    },
-    "monitoring": {
-      "enableDetailedMonitoring": true,
-      "logRetentionDays": 30
     }
-  }
+  },
+  "cloud": {
+    "aws": {
+      "stacks": {
+        "infra": "SemiontInfraStack",
+        "app": "SemiontAppStack"
+      }
+    }
+  },
+    "aws": {
+      "_comment": "Production-specific AWS configuration (example values - MUST BE CUSTOMIZED)",
+      "accountId": "123456789012",
+      "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
+      "hostedZoneId": "Z1234567890ABC",
+      "rootDomain": "example.com",
+      "ecs": {
+        "desiredCount": 2,
+        "minCapacity": 2,
+        "maxCapacity": 10
+      },
+      "monitoring": {
+        "enableDetailedMonitoring": true,
+        "logRetentionDays": 30
+      }
+    }
 }

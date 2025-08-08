@@ -116,6 +116,7 @@ async function runCommand(command: string[], cwd: string, description: string, v
       }
       
       processEnv.SEMIONT_ENV = configEnv;
+      processEnv.SEMIONT_ROOT = PROJECT_ROOT; // Ensure tests can find config directory
       console.log(`📋 Using configuration environment: ${configEnv}`);
     }
     

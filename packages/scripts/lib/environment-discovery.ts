@@ -32,14 +32,33 @@ export function discoverEnvironments(): EnvironmentInfo[] {
   for (const file of files) {
     if (file.endsWith('.json')) {
       const name = path.basename(file, '.json');
-      const isLocal = name === 'local';
-      const isCloud = !isLocal && name !== 'test' && name !== 'unit' && name !== 'integration';
+      const filePath = path.join(configDir, file);
       
-      environments.push({
-        name,
-        isLocal,
-        isCloud
-      });
+      // Read and parse the config to determine environment type
+      try {
+        const configContent = fs.readFileSync(filePath, 'utf-8');
+        const config = JSON.parse(configContent);
+        
+        // Check if this environment defines AWS infrastructure using new schema
+        const hasAwsConfig = config.aws && (config.aws.region || config.aws.accountId);
+        const hasCloudAwsConfig = config.cloud?.aws?.stacks;
+        const isCloud = hasCloudAwsConfig || (hasAwsConfig && config.deployment?.default === 'aws');
+        const isLocal = name === 'local';
+        
+        environments.push({
+          name,
+          isLocal,
+          isCloud
+        });
+      } catch (error) {
+        console.warn(`Failed to parse config file ${filePath}: ${error}`);
+        // Fallback: assume non-cloud if we can't parse it
+        environments.push({
+          name,
+          isLocal: name === 'local',
+          isCloud: false
+        });
+      }
     }
   }
   

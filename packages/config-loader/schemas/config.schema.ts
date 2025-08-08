@@ -178,12 +178,48 @@ export interface ApplicationConfigurationOverride {
   };
 }
 
-// Environment-specific override interface
-export interface EnvironmentOverrides {
-  // Stack references - for cloud environments only
-  stacks?: CloudStackReferences;
-  
-  site?: Partial<SiteConfiguration>;
-  aws?: DeepPartial<AWSConfiguration>;
-  app?: ApplicationConfigurationOverride;
+// New schema types
+export interface DeploymentConfiguration {
+  default: 'process' | 'container' | 'aws' | 'mock';
 }
+
+export interface ServiceConfiguration {
+  deployment?: {
+    type: 'process' | 'container' | 'aws' | 'mock' | 'external';
+  };
+  command?: string;
+  port?: number;
+  host?: string;
+  name?: string;
+  user?: string;
+  multiAZ?: boolean;
+  backupRetentionDays?: number;
+}
+
+export interface CloudConfiguration {
+  aws?: {
+    stacks?: {
+      infra?: string;
+      app?: string;
+    };
+  };
+}
+
+// Environment configuration interface
+export interface EnvironmentConfig {
+  _comment?: string;
+  _extends?: string;
+  deployment?: DeploymentConfiguration;
+  site?: Partial<SiteConfiguration>;
+  app?: ApplicationConfigurationOverride;
+  services?: {
+    backend?: ServiceConfiguration;
+    frontend?: ServiceConfiguration;
+    database?: ServiceConfiguration;
+  };
+  cloud?: CloudConfiguration;
+  aws?: DeepPartial<AWSConfiguration>;
+}
+
+// Environment-specific override interface
+export interface EnvironmentOverrides extends EnvironmentConfig {}

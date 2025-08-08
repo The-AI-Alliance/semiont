@@ -1,6 +1,9 @@
 {
   "_comment": "Local Environment Configuration - Configuration for local development using Docker containers",
   "_description": "For running services on your local machine with containers",
+  "deployment": {
+    "default": "container"
+  },
   "site": {
     "_comment": "Local development site configuration",
     "domain": "localhost",
@@ -26,18 +29,31 @@
       "_comment_enableCaching": "Disable caching for local development",
       "cacheTimeout": 0
     },
+    "_comment": "No backend/frontend URLs needed - services section defines these"
+  },
+  "services": {
     "backend": {
-      "url": "http://localhost:3001",
-      "_comment_url": "Local backend port (different from cloud dev)",
-      "database": {
-        "host": "localhost",
-        "port": 5432,
-        "name": "semiont_local",
-        "user": "postgres"
-      }
+      "deployment": {
+        "type": "container"
+      },
+      "command": "npm run dev",
+      "port": 3001
     },
     "frontend": {
-      "url": "http://localhost:3000"
+      "deployment": {
+        "type": "container"
+      },
+      "command": "npm run dev",
+      "port": 3000
+    },
+    "database": {
+      "deployment": {
+        "type": "container"
+      },
+      "host": "localhost",
+      "port": 5432,
+      "name": "semiont_local",
+      "user": "postgres"
     }
   },
   "_note": "No AWS configuration - local environment uses Docker containers only"

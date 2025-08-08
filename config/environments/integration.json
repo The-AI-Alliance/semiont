@@ -7,26 +7,31 @@
     "Real service interactions",
     "End-to-end workflow testing"
   ],
-  "app": {
+  "deployment": {
+    "default": "container"
+  },
+  "services": {
     "backend": {
-      "url": "http://localhost:3001",
-      "database": {
-        "_comment": "Integration tests use Testcontainers for real PostgreSQL",
-        "mockMode": false,
-        "useTestcontainers": true,
-        "_note": "Testcontainers will override these values dynamically",
-        "host": "testcontainer-host",
-        "_comment_host": "Will be replaced by container host",
-        "port": 5432,
-        "_comment_port": "Will be replaced by container port",
-        "name": "semiont_integration_test",
-        "user": "integration_test_user",
-        "password": "integration_test_password"
-      }
+      "command": "npm start",
+      "port": 3001
     },
     "frontend": {
-      "url": "http://localhost:3000"
+      "command": "npm start",
+      "port": 3000
     },
+    "database": {
+      "deployment": {
+        "type": "container"
+      },
+      "_comment": "Integration tests use Testcontainers for real PostgreSQL",
+      "_note": "Testcontainers will override these values dynamically",
+      "host": "testcontainer-host",
+      "port": 5432,
+      "name": "semiont_integration_test",
+      "user": "integration_test_user"
+    }
+  },
+  "app": {
     "features": {
       "enableAnalytics": false,
       "_comment_enableAnalytics": "No analytics in tests",

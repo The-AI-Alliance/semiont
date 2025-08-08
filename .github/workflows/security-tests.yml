@@ -171,6 +171,9 @@ jobs:
           cd ../..
           cat > config/environments/ci.json << 'EOF'
           {
+            "deployment": {
+              "default": "process"
+            },
             "site": {
               "domain": "localhost", 
               "adminEmail": "admin@test.local",
@@ -191,18 +194,25 @@ jobs:
               "performance": {
                 "enableCaching": false,
                 "cacheTimeout": 0
-              },
+              }
+            },
+            "services": {
               "backend": {
-                "url": "http://localhost:3001",
-                "database": {
-                  "host": "localhost",
-                  "port": 5432,
-                  "name": "testdb",
-                  "user": "testuser"
-                }
+                "command": "npm start",
+                "port": 3001
               },
               "frontend": {
-                "url": "http://localhost:3000"
+                "command": "npm start", 
+                "port": 3000
+              },
+              "database": {
+                "deployment": {
+                  "type": "external"
+                },
+                "host": "localhost",
+                "port": 5432,
+                "name": "testdb",
+                "user": "testuser"
               }
             }
           }

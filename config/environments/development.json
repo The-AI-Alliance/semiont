@@ -1,8 +1,7 @@
 {
   "_comment": "Development Environment Configuration - Configuration for cloud-based development environment (AWS)",
-  "stacks": {
-    "infraStack": "SemiontInfraStack",
-    "appStack": "SemiontAppStack"
+  "deployment": {
+    "default": "aws"
   },
   "site": {
     "_comment": "Cloud development environment site configuration (example values - MUST BE CUSTOMIZED)",
@@ -28,28 +27,54 @@
       "enableCaching": false,
       "_comment_enableCaching": "Disable caching for development",
       "cacheTimeout": 0
-    },
-    "_comment": "No backend/frontend URLs needed for cloud development config. AWS infrastructure determines URLs automatically from site.domain and sets environment variables in ECS containers."
-  },
-  "aws": {
-    "_comment": "Development AWS configuration (example values)",
-    "accountId": "123456789012",
-    "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/dev-cert-id",
-    "hostedZoneId": "ZDEVZONEID123",
-    "rootDomain": "example.com",
-    "database": {
-      "multiAZ": false,
-      "_comment_multiAZ": "Single AZ for development",
-      "backupRetentionDays": 1
-    },
-    "ecs": {
-      "desiredCount": 1,
-      "minCapacity": 1,
-      "maxCapacity": 2
-    },
-    "monitoring": {
-      "enableDetailedMonitoring": false,
-      "logRetentionDays": 3
     }
-  }
+  },
+  "services": {
+    "backend": {
+      "deployment": {
+        "type": "aws"
+      },
+      "command": "npm start",
+      "port": 3001
+    },
+    "frontend": {
+      "deployment": {
+        "type": "aws"
+      },
+      "command": "npm start",
+      "port": 3000
+    },
+    "database": {
+      "deployment": {
+        "type": "aws"
+      },
+      "name": "semiont_dev",
+      "multiAZ": false,
+      "backupRetentionDays": 1
+    }
+  },
+  "cloud": {
+    "aws": {
+      "stacks": {
+        "infra": "SemiontInfraStack",
+        "app": "SemiontAppStack"
+      }
+    }
+  },
+    "aws": {
+      "_comment": "Development AWS configuration (example values)",
+      "accountId": "123456789012",
+      "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/dev-cert-id",
+      "hostedZoneId": "ZDEVZONEID123",
+      "rootDomain": "example.com",
+      "ecs": {
+        "desiredCount": 1,
+        "minCapacity": 1,
+        "maxCapacity": 2
+      },
+      "monitoring": {
+        "enableDetailedMonitoring": false,
+        "logRetentionDays": 3
+      }
+    }
 }

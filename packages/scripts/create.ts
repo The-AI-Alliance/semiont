@@ -1,5 +1,6 @@
 
-import { config } from '@semiont/config-loader';
+import { loadConfig } from '@semiont/config-loader';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 import * as fs from 'fs';
@@ -13,13 +14,13 @@ interface DeployOptions {
   destroy?: boolean;
 }
 
-const region = config.aws.region;
 
 
 
-async function deployInfraStack(options: DeployOptions): Promise<boolean> {
+async function deployInfraStack(environment: string, options: DeployOptions): Promise<boolean> {
+  const config = loadConfig(environment);
   // Validate AWS credentials early
-  await requireValidAWSCredentials(region);
+  await requireValidAWSCredentials(config.aws.region);
   
   const deployer = new CdkDeployer(config);
   try {
@@ -30,9 +31,10 @@ async function deployInfraStack(options: DeployOptions): Promise<boolean> {
   }
 }
 
-async function deployAppStack(options: DeployOptions): Promise<boolean> {
+async function deployAppStack(environment: string, options: DeployOptions): Promise<boolean> {
+  const config = loadConfig(environment);
   // Validate AWS credentials early
-  await requireValidAWSCredentials(region);
+  await requireValidAWSCredentials(config.aws.region);
   
   const deployer = new CdkDeployer(config);
   try {
@@ -76,8 +78,8 @@ async function showDeploymentStatus() {
   console.log('💡 Check deployment status with: ./semiont check');
 }
 
-async function create(options: DeployOptions) {
-  console.log(`🚀 Starting ${config.site.siteName} stack creation...`);
+async function create(environment: string, options: DeployOptions) {
+  console.log(`🚀 Starting Semiont stack creation...`);
   console.log(`📋 Target: ${options.target}`);
   
   const startTime = Date.now();
@@ -94,17 +96,17 @@ async function create(options: DeployOptions) {
   try {
     switch (options.target) {
       case 'infra':
-        success = await deployInfraStack(options);
+        success = await deployInfraStack(environment, options);
         break;
         
       case 'app':
-        success = await deployAppStack(options);
+        success = await deployAppStack(environment, options);
         break;
         
       case 'all':
         console.log('📚 Deploying both stacks (infra first, then app)...');
         
-        const infraSuccess = await deployInfraStack(options);
+        const infraSuccess = await deployInfraStack(environment, options);
         if (!infraSuccess) {
           console.error('❌ Infrastructure deployment failed');
           success = false;
@@ -114,7 +116,7 @@ async function create(options: DeployOptions) {
         console.log('✅ Infrastructure deployment completed');
         console.log('');
         
-        const appSuccess = await deployAppStack(options);
+        const appSuccess = await deployAppStack(environment, options);
         if (!appSuccess) {
           console.error('❌ Application deployment failed');
           success = false;
@@ -135,7 +137,7 @@ async function create(options: DeployOptions) {
       console.log('');
       console.log('✅ Stack creation completed successfully!');
       console.log(`⏱️  Total time: ${Math.floor(duration / 60)}m ${duration % 60}s`);
-      console.log(`🌐 Your site should be available at: https://${config.site.domain}`);
+      console.log(`🌐 Check your site status with: ./semiont check ${environment}`);
       
       await showDeploymentStatus();
     } else {
@@ -157,10 +159,12 @@ async function create(options: DeployOptions) {
 }
 
 function showHelp() {
-  console.log(`🚀 ${config.site.siteName} Stack Creation Tool`);
+  console.log(`🚀 Semiont Stack Creation Tool`);
   console.log('');
-  console.log('Usage: npx tsx create.ts [target] [options]');
-  console.log('   or: ./semiont create [target] [options]');
+  console.log('Usage: ./semiont create <environment> [target] [options]');
+  console.log('');
+  console.log('Arguments:');
+  console.log(`   <environment>    Environment to create stacks for (${getAvailableEnvironments().join(', ')})`);
   console.log('');
   console.log('Targets:');
   console.log('   infra    Create infrastructure stack (VPC, RDS, EFS, Secrets)');
@@ -174,11 +178,11 @@ function showHelp() {
   console.log('   --help, -h      Show this help');
   console.log('');
   console.log('Examples:');
-  console.log('   ./semiont create                 # Create both stacks');
-  console.log('   ./semiont create infra           # Create infrastructure only');
-  console.log('   ./semiont create app             # Create application stack only');
-  console.log('   ./semiont create app --force     # Force CDK deployment');
-  console.log('   ./semiont create all --approval  # Create with manual approval');
+  console.log('   ./semiont create production                 # Create both stacks for production');
+  console.log('   ./semiont create staging infra             # Create infrastructure only for staging');
+  console.log('   ./semiont create production app            # Create application stack only for production');
+  console.log('   ./semiont create staging app --force       # Force CDK deployment for staging');
+  console.log('   ./semiont create production all --approval # Create with manual approval for production');
   console.log('');
   console.log('Notes:');
   console.log('   • Infrastructure stack must exist before creating application stack');
@@ -191,13 +195,26 @@ function showHelp() {
 async function main() {
   const args = process.argv.slice(2);
   
-  if (args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     showHelp();
     return;
   }
   
-  // Find the target (first non-flag argument)
-  const nonFlagArgs = args.filter(arg => !arg.startsWith('--'));
+  const environment = args[0];
+  if (!environment) {
+    console.error('❌ Environment is required');
+    showHelp();
+    process.exit(1);
+  }
+  
+  if (!isValidEnvironment(environment)) {
+    console.error(`❌ Invalid environment: ${environment}`);
+    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
+    process.exit(1);
+  }
+  
+  // Find the target (second non-flag argument)
+  const nonFlagArgs = args.slice(1).filter(arg => !arg.startsWith('--'));
   const target = (nonFlagArgs[0] as 'infra' | 'app' | 'all') || 'all';
   
   const requireApproval = args.includes('--approval');
@@ -211,7 +228,7 @@ async function main() {
     process.exit(1);
   }
   
-  await create({
+  await create(environment, {
     target,
     requireApproval,
     verbose,

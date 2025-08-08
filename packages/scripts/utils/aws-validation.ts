@@ -14,7 +14,7 @@ export interface AWSCredentialsValidationResult {
  * Validates AWS credentials by attempting to get caller identity
  * This is a quick, lightweight check that fails fast if credentials are invalid
  */
-export async function validateAWSCredentials(region: string = 'us-east-1'): Promise<AWSCredentialsValidationResult> {
+export async function validateAWSCredentials(region: string): Promise<AWSCredentialsValidationResult> {
   try {
     const stsClient = new STSClient({ region });
     const command = new GetCallerIdentityCommand({});
@@ -57,7 +57,7 @@ export async function validateAWSCredentials(region: string = 'us-east-1'): Prom
  * Validates AWS credentials and exits the process if invalid
  * Use this at the start of scripts that require AWS access
  */
-export async function requireValidAWSCredentials(region: string = 'us-east-1'): Promise<void> {
+export async function requireValidAWSCredentials(region: string): Promise<void> {
   console.log(`🔐 Validating AWS credentials...`);
   
   const result = await validateAWSCredentials(region);

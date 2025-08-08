@@ -11,7 +11,7 @@ import { SemiontStackConfig } from './stack-config';
 import { ServiceStatus, LogEntry, MetricData } from './dashboard-components';
 import { DashboardData } from './dashboard-layouts';
 import { ServiceType } from './types';
-import { config } from '@semiont/config-loader';
+import { loadConfig, type SemiontConfiguration } from '@semiont/config-loader';
 
 export class DashboardDataSource {
   private stackConfig: SemiontStackConfig;
@@ -20,12 +20,14 @@ export class DashboardDataSource {
   private cloudWatchClient: CloudWatchClient;
   private logCache: Map<string, LogEntry[]> = new Map();
   private lastLogTimestamp: Map<string, Date> = new Map();
+  private config: SemiontConfiguration;
 
-  constructor() {
+  constructor(environment: string) {
+    this.config = loadConfig(environment);
     this.stackConfig = new SemiontStackConfig();
-    this.ecsClient = new ECSClient({ region: config.aws.region });
-    this.logsClient = new CloudWatchLogsClient({ region: config.aws.region });
-    this.cloudWatchClient = new CloudWatchClient({ region: config.aws.region });
+    this.ecsClient = new ECSClient({ region: this.config.aws.region });
+    this.logsClient = new CloudWatchLogsClient({ region: this.config.aws.region });
+    this.cloudWatchClient = new CloudWatchClient({ region: this.config.aws.region });
   }
 
   // Get current services status

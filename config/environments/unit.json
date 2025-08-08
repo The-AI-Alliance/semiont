@@ -7,26 +7,30 @@
     "Mocked dependencies (Prisma, OAuth, external APIs)",
     "Focused on business logic testing"
   ],
-  "app": {
+  "deployment": {
+    "default": "process"
+  },
+  "services": {
     "backend": {
-      "url": "http://localhost:3001",
-      "_comment_url": "Ensure URL is available for unit tests",
-      "database": {
-        "mockMode": true,
-        "_comment_mockMode": "Unit tests mock the database - no real connection needed",
-        "useTestcontainers": false,
-        "_comment_mock": "Mock DATABASE_URL to prevent connection attempts",
-        "host": "mock-host",
-        "port": 5432,
-        "name": "mock_unit_test_db",
-        "user": "mock_user",
-        "password": "mock_password"
-      }
+      "command": "npm start",
+      "port": 3001
     },
     "frontend": {
-      "url": "http://localhost:3000",
-      "_comment_url": "Ensure URL is available for unit tests"
+      "command": "npm start",
+      "port": 3000
     },
+    "database": {
+      "deployment": {
+        "type": "mock"
+      },
+      "_comment_mockMode": "Unit tests mock the database - no real connection needed",
+      "host": "mock-host",
+      "port": 5432,
+      "name": "mock_unit_test_db",
+      "user": "mock_user"
+    }
+  },
+  "app": {
     "features": {
       "_comment": "Disable all external features for unit tests",
       "enableAnalytics": false,

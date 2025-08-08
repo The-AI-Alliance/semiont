@@ -18,8 +18,9 @@ type DashboardMode = 'unified' | 'logs' | 'metrics';
 const DashboardApp: React.FC<{ 
   mode: DashboardMode; 
   service?: ServiceType; 
-  refreshInterval?: number 
-}> = ({ mode, service, refreshInterval = 30 }) => {
+  refreshInterval?: number;
+  environment: string;
+}> = ({ mode, service, refreshInterval = 30, environment }) => {
   const [data, setData] = useState<DashboardData>({
     services: [],
     logs: [],
@@ -27,7 +28,7 @@ const DashboardApp: React.FC<{
     lastUpdate: new Date(),
     isRefreshing: false
   });
-  const [dataSource] = useState(() => new DashboardDataSource());
+  const [dataSource] = useState(() => new DashboardDataSource(environment));
   const { exit } = useApp();
 
   // Global keyboard shortcuts
@@ -97,47 +98,70 @@ const DashboardApp: React.FC<{
   }
 };
 
-// Simplified argument parsing
-function parseArgs(): { mode: DashboardMode; service?: ServiceType } {
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
+
+// Argument parsing with environment support
+function parseArgs(): { environment: string; mode: DashboardMode; service?: ServiceType } {
   const args = process.argv.slice(2);
+  
+  if (args.length === 0 || args[0] === 'help' || args[0] === '--help' || args[0] === '-h') {
+    showHelp();
+  }
+  
+  const environment = args[0];
+  if (!environment) {
+    console.error('Environment is required');
+    showHelp();
+  }
+  
+  if (!isValidEnvironment(environment)) {
+    console.error(`Invalid environment: ${environment}`);
+    console.log(`Available environments: ${getAvailableEnvironments().join(', ')}`);
+    process.exit(1);
+  }
+  
   let mode: DashboardMode = 'unified';
   let service: ServiceType | undefined;
 
-  // Parse mode
-  if (args[0] === 'logs') {
+  // Parse mode from remaining args
+  const remainingArgs = args.slice(1);
+  if (remainingArgs[0] === 'logs') {
     mode = 'logs';
-    if (args[1] && isServiceType(args[1])) {
-      service = args[1];
+    if (remainingArgs[1] && isServiceType(remainingArgs[1])) {
+      service = remainingArgs[1];
     }
-  } else if (args[0] === 'metrics') {
+  } else if (remainingArgs[0] === 'metrics') {
     mode = 'metrics';
-    if (args[1] && isServiceType(args[1])) {
-      service = args[1];
+    if (remainingArgs[1] && isServiceType(remainingArgs[1])) {
+      service = remainingArgs[1];
     }
-  } else if (args[0] && isServiceType(args[0])) {
+  } else if (remainingArgs[0] && isServiceType(remainingArgs[0])) {
     // Service specified first
-    service = args[0];
-    if (args[1] === 'logs') {
+    service = remainingArgs[0];
+    if (remainingArgs[1] === 'logs') {
       mode = 'logs';
-    } else if (args[1] === 'metrics') {
+    } else if (remainingArgs[1] === 'metrics') {
       mode = 'metrics';
     }
-  } else if (args[0] === 'help' || args[0] === '--help' || args[0] === '-h') {
-    showHelp();
-  } else if (args.length > 0 && args[0] !== 'unified') {
-    console.error(`Unknown argument: ${args[0]}`);
+  } else if (remainingArgs.length > 0 && remainingArgs[0] !== 'unified') {
+    console.error(`Unknown argument: ${remainingArgs[0]}`);
     showHelp();
   }
 
-  return { mode, service };
+  return { environment, mode, service };
 }
 
 function showHelp(): never {
   console.log('Semiont Watch - Interactive System Dashboard\n');
-  console.log('Usage: semiont watch [mode] [service]\n');
+  console.log('Usage: semiont watch <environment> [mode] [service]\n');
+  
+  console.log('Arguments:');
+  console.log(`  <environment>  Environment to watch (${getAvailableEnvironments().join(', ')})`);
+  console.log('  [mode]         Dashboard mode (default: unified)');
+  console.log('  [service]      Service filter (default: all)\n');
   
   console.log('Modes:');
-  console.log('  (none)    Unified dashboard with services, logs, and metrics (default)');
+  console.log('  unified   Unified dashboard with services, logs, and metrics (default)');
   console.log('  logs      Focus on log streaming');
   console.log('  metrics   Focus on performance metrics\n');
   
@@ -147,11 +171,11 @@ function showHelp(): never {
   console.log('  (none)    Show all services\n');
   
   console.log('Examples:');
-  console.log('  semiont watch              # Unified dashboard');
-  console.log('  semiont watch logs          # All service logs');
-  console.log('  semiont watch logs frontend # Frontend logs only');
-  console.log('  semiont watch metrics       # Performance dashboard');
-  console.log('  semiont watch frontend      # Frontend unified view\n');
+  console.log('  semiont watch production               # Unified dashboard');
+  console.log('  semiont watch staging logs             # All service logs');
+  console.log('  semiont watch development logs frontend # Frontend logs only');
+  console.log('  semiont watch production metrics        # Performance dashboard');
+  console.log('  semiont watch staging frontend          # Frontend unified view\n');
   
   console.log('Controls:');
   console.log('  q         Quit');
@@ -166,14 +190,15 @@ function showHelp(): never {
 // Main execution
 async function main() {
   try {
-    const { mode, service } = parseArgs();
+    const { environment, mode, service } = parseArgs();
     
     // Launch interactive dashboard
     render(
       <DashboardApp 
         mode={mode} 
         service={service} 
-        refreshInterval={30} 
+        refreshInterval={30}
+        environment={environment}
       />
     );
     
