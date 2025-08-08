@@ -12,29 +12,33 @@ import type { SemiontConfiguration, EnvironmentOverrides } from './schemas/confi
 import * as path from 'path';
 import * as fs from 'fs';
 
+/**
+ * Find project root by looking for config/environments directory
+ * This is the single source of truth for locating the config directory
+ */
+export function findProjectRoot(): string {
+  // Use SEMIONT_ROOT if set
+  if (process.env.SEMIONT_ROOT) {
+    return process.env.SEMIONT_ROOT;
+  }
+  
+  // Walk up from current directory to find config/environments
+  let currentDir = process.cwd();
+  while (currentDir !== '/' && currentDir) {
+    if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
+      return currentDir;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+  
+  // Fallback to current directory if not found
+  return process.cwd();
+}
+
 // Dynamic environment loading from JSON files
 function getEnvironmentOverrides(environment: string): EnvironmentOverrides {
   try {
-    
-    // Find project root - use SEMIONT_ROOT or walk up to find config directory
-    let projectRoot = process.env.SEMIONT_ROOT;
-    
-    if (!projectRoot) {
-      // Walk up from current directory to find config/environments
-      let currentDir = process.cwd();
-      while (currentDir !== '/' && currentDir) {
-        if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
-          projectRoot = currentDir;
-          break;
-        }
-        currentDir = path.dirname(currentDir);
-      }
-      
-      // Fallback to current directory if not found
-      if (!projectRoot) {
-        projectRoot = process.cwd();
-      }
-    }
+    const projectRoot = findProjectRoot();
     const jsonPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
     if (fs.existsSync(jsonPath)) {
       const jsonContent = fs.readFileSync(jsonPath, 'utf-8');

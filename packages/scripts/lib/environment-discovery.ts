@@ -6,10 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { findProjectRoot } from '@semiont/config-loader';
 
 export interface EnvironmentInfo {
   name: string;
@@ -21,7 +18,8 @@ export interface EnvironmentInfo {
  * Discover available environments by scanning config/environments directory
  */
 export function discoverEnvironments(): EnvironmentInfo[] {
-  const configDir = path.join(__dirname, '..', '..', 'config', 'environments');
+  const projectRoot = findProjectRoot();
+  const configDir = path.join(projectRoot, 'config', 'environments');
   
   if (!fs.existsSync(configDir)) {
     console.warn(`Config directory not found: ${configDir}`);
