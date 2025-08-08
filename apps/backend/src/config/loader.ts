@@ -7,35 +7,14 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadConfig as loadConfigFromPackage } from '@semiont/config-loader';
 
-// Load configuration from the config directory
+// Load configuration from the config loader package
 function loadConfig(environment = 'development') {
-  // Check if we're in the backend directory and adjust path accordingly
-  const currentDir = process.cwd();
-  let configDir: string;
-  
-  if (currentDir.endsWith('apps/backend')) {
-    configDir = path.join(currentDir, '..', '..', 'config');
-  } else if (currentDir.endsWith('semiont')) {
-    configDir = path.join(currentDir, 'config');
-  } else {
-    // Fallback to searching for config directory
-    configDir = path.join(currentDir, 'config');
-    if (!fs.existsSync(configDir)) {
-      configDir = path.join(currentDir, '..', 'config');
-      if (!fs.existsSync(configDir)) {
-        configDir = path.join(currentDir, '..', '..', 'config');
-      }
-    }
-  }
-  
-  // Import the config module dynamically
   try {
-    // Load the compiled config from dist directory using function approach
-    const configModule = require(path.join(configDir, 'dist', 'index'));
-    return configModule.loadConfig(environment);
+    return loadConfigFromPackage(environment);
   } catch (error) {
-    console.error('Failed to load configuration from', configDir);
+    console.error('Failed to load configuration');
     console.error('Make sure to run from the project root or apps/backend directory');
     throw error;
   }
