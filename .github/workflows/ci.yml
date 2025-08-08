@@ -122,7 +122,7 @@ jobs:
         run: |
           cd packages/scripts
           npm run build
-          npx tsc --noEmit
+          npx tsc --project tsconfig.check.json --noEmit
 
   test-comprehensive:
     name: Comprehensive Test Suite

@@ -10,7 +10,7 @@ import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cl
 import { SemiontStackConfig } from './stack-config';
 import { ServiceStatus, LogEntry, MetricData } from './dashboard-components';
 import { DashboardData } from './dashboard-layouts';
-import { ECSTask, ServiceType } from './types';
+import { ServiceType } from './types';
 import { config } from '@semiont/config-loader';
 
 export class DashboardDataSource {
@@ -349,7 +349,8 @@ export class DashboardDataSource {
   // Extract ALB name from DNS
   private extractALBName(albDns: string): string {
     const parts = albDns.split('-');
-    const id = albDns.split('.')[0].split('-').pop();
+    const firstPart = albDns.split('.')[0];
+    const id = firstPart ? firstPart.split('-').pop() : '';
     return `app/${parts[0]}-${parts[1]}-${parts[2]}/${id}`;
   }
 

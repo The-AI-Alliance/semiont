@@ -12,7 +12,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
 // Use project root for path resolution
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd().split('/packages')[0];
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd().split('/packages')[0] || process.cwd();
 const FRONTEND_DIR = join(PROJECT_ROOT, 'apps/frontend');
 
 const argv = yargs(hideBin(process.argv))
