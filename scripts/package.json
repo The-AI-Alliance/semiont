@@ -21,7 +21,7 @@
     "@aws-sdk/client-cost-explorer": "^3.600.0",
     "@aws-sdk/client-ecr": "^3.600.0",
     "@aws-sdk/client-ecs": "^3.600.0",
-    "@aws-sdk/client-efs": "^3.600.0",
+    "@aws-sdk/client-efs": "^3.863.0",
     "@aws-sdk/client-elastic-load-balancing-v2": "^3.848.0",
     "@aws-sdk/client-rds": "^3.600.0",
     "@aws-sdk/client-secrets-manager": "^3.600.0",
