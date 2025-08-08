@@ -12,3 +12,6 @@ export {
   getAvailableStacks,
   type StackConstructor 
 } from './lib/stack-factory';
+
+// Re-export CDK classes for consuming packages
+export { App } from 'aws-cdk-lib';

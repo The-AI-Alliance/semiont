@@ -1,6 +1,5 @@
-import * as cdk from 'aws-cdk-lib';
+import { App, createStack } from '@semiont/cloud';
 import { CloudFormationClient, CreateStackCommand, UpdateStackCommand, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
-import { createStack } from './stack-factory.js';
 import type { SemiontConfiguration } from '@semiont/config-loader';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -33,7 +32,7 @@ export class CdkDeployer {
    * Synthesize CDK app and return CloudFormation template
    */
   private synthesizeStack(stackTypeName: string, stackName: string, dependencies?: any, context?: Record<string, string>): string {
-    const app = new cdk.App({
+    const app = new App({
       outdir: './cdk.out.tmp',
       ...(context && { context })
     });
