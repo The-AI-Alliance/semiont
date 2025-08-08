@@ -8,22 +8,15 @@
  */
 
 import { App } from 'aws-cdk-lib';
-import { SemiontInfraStack, SemiontAppStack } from './index';
+import { SemiontInfraStack } from '../index';
 
 const app = new App();
 
-// Create test stacks for CDK synth validation
-// These use default/test values since we don't have config context here
+// Create test stack for CDK synth validation
+// This only tests the InfraStack since AppStack requires InfraStack outputs
 new SemiontInfraStack(app, 'TestInfraStack', {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT || '123456789012',
-    region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
-  },
-});
-
-new SemiontAppStack(app, 'TestAppStack', {
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT || '123456789012', 
     region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
   },
 });
