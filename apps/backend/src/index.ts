@@ -175,7 +175,12 @@ app.post('/api/auth/accept-terms', authMiddleware, async (c) => {
 // Admin middleware - ensures user is authenticated and is an admin
 const adminMiddleware = async (c: any, next: any) => {
   // First run auth middleware
-  await authMiddleware(c, async () => {});
+  const authResult = await authMiddleware(c, async () => {});
+  
+  // If auth middleware returned a response (failed auth), pass it through
+  if (authResult) {
+    return authResult;
+  }
   
   const user = c.get('user');
   if (!user || !user.isAdmin) {
