@@ -687,34 +687,34 @@ The recommended way to run tests is through the `semiont` CLI, which provides in
 
 ```bash
 # Run all tests with coverage (default behavior)
-./scripts/semiont test
+./bin/semiont test
 
 # Run tests by service and suite
-./scripts/semiont test --service frontend --suite unit     # Frontend unit tests
-./scripts/semiont test --service backend --suite integration # Backend integration tests  
-./scripts/semiont test --service all --suite security      # Security tests on all services
+./bin/semiont test --service frontend --suite unit     # Frontend unit tests
+./bin/semiont test --service backend --suite integration # Backend integration tests  
+./bin/semiont test --service all --suite security      # Security tests on all services
 
 # Run tests by environment
-./scripts/semiont test local              # Local tests (default, uses mocks)
-./scripts/semiont test staging --suite integration        # Integration tests against staging
-./scripts/semiont test production --suite e2e             # E2E tests on production
+./bin/semiont test local              # Local tests (default, uses mocks)
+./bin/semiont test staging --suite integration        # Integration tests against staging
+./bin/semiont test production --suite e2e             # E2E tests on production
 
 # Run tests by suite only (all services)
-./scripts/semiont test --suite unit               # Unit tests for all services
-./scripts/semiont test --suite integration        # Integration tests for all services
-./scripts/semiont test --suite security          # Security tests for all services
-./scripts/semiont test --suite e2e               # E2E tests for all services
+./bin/semiont test --suite unit               # Unit tests for all services
+./bin/semiont test --suite integration        # Integration tests for all services
+./bin/semiont test --suite security          # Security tests for all services
+./bin/semiont test --suite e2e               # E2E tests for all services
 
 # Run tests by service only (all suites)  
-./scripts/semiont test --service frontend         # All frontend tests
-./scripts/semiont test --service backend          # All backend tests
-./scripts/semiont test --service database         # Database-specific tests
+./bin/semiont test --service frontend         # All frontend tests
+./bin/semiont test --service backend          # All backend tests
+./bin/semiont test --service database         # Database-specific tests
 
 # Additional options
-./scripts/semiont test --no-coverage     # Skip coverage reporting
-./scripts/semiont test --watch           # Watch mode for development
-./scripts/semiont test --verbose         # Detailed output
-./scripts/semiont test --dry-run         # Show what would be tested
+./bin/semiont test --no-coverage     # Skip coverage reporting
+./bin/semiont test --watch           # Watch mode for development
+./bin/semiont test --verbose         # Detailed output
+./bin/semiont test --dry-run         # Show what would be tested
 ```
 
 ### Local Development Environment for Testing
@@ -723,7 +723,7 @@ For integration and API tests that require a database, the Semiont CLI provides 
 
 ```bash
 # 🚀 Quick start - full environment for integration tests
-./scripts/semiont local start
+./bin/semiont local start
 
 # This automatically starts:
 # ✅ PostgreSQL container with correct schema
@@ -731,10 +731,10 @@ For integration and API tests that require a database, the Semiont CLI provides 
 # ✅ Frontend connected to real API
 
 # Then run integration tests against real services
-./scripts/semiont test --suite integration
+./bin/semiont test --suite integration
 
 # Or run specific database-dependent tests
-./scripts/semiont test --service backend --suite integration
+./bin/semiont test --service backend --suite integration
 ```
 
 **Benefits for Testing:**
@@ -747,18 +747,18 @@ For integration and API tests that require a database, the Semiont CLI provides 
 
 1. **Start local environment**:
    ```bash
-   ./scripts/semiont local start --reset  # Fresh database with sample data
+   ./bin/semiont local start --reset  # Fresh database with sample data
    ```
 
 2. **Run tests against real services**:
    ```bash
-   ./scripts/semiont test --suite integration     # All integration tests
-   ./scripts/semiont test --service backend --suite integration # Backend-specific integration
+   ./bin/semiont test --suite integration     # All integration tests
+   ./bin/semiont test --service backend --suite integration # Backend-specific integration
    ```
 
 3. **Stop services when done**:
    ```bash
-   ./scripts/semiont local stop
+   ./bin/semiont local stop
    ```
 
 **Database-Only Testing:**
@@ -767,13 +767,13 @@ For backend tests that only need a database:
 
 ```bash
 # Start just the database
-./scripts/semiont local db start --seed
+./bin/semiont local db start --seed
 
 # Run backend tests
-./scripts/semiont test --service backend
+./bin/semiont test --service backend
 
 # Clean up
-./scripts/semiont local db stop
+./bin/semiont local db stop
 ```
 
 ### Container Runtime Support
@@ -796,7 +796,7 @@ export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
 export TESTCONTAINERS_RYUK_DISABLED=true
 
 # 3. Start development environment
-./scripts/semiont local start
+./bin/semiont local start
 ```
 
 **macOS:**
@@ -810,7 +810,7 @@ export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanS
 export TESTCONTAINERS_RYUK_DISABLED=true
 
 # 3. Start development environment  
-./scripts/semiont local start
+./bin/semiont local start
 ```
 
 **Alternative: .testcontainers.properties**

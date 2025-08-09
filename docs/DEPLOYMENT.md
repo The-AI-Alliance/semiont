@@ -110,16 +110,16 @@ Semiont uses AWS Secrets Manager to store sensitive credentials. Before deployme
 
 ```bash
 # List all available secrets
-./scripts/semiont secrets list
+./bin/semiont secrets list
 
 # Set OAuth credentials (interactive)
-./scripts/semiont secrets set oauth/google
+./bin/semiont secrets set oauth/google
 
 # Set JWT signing secret
-./scripts/semiont secrets set jwt-secret "your-32-character-secret-key"
+./bin/semiont secrets set jwt-secret "your-32-character-secret-key"
 
 # View secret status (values are masked)
-./scripts/semiont secrets get oauth/google
+./bin/semiont secrets get oauth/google
 ```
 
 #### Required Secrets
@@ -152,7 +152,7 @@ Semiont uses a simple two-step deployment model:
 
 ```bash
 # Create all AWS infrastructure for the specified environment
-./scripts/semiont provision production
+./bin/semiont provision production
 ```
 
 **Expected Deployment Time:** 10-15 minutes
@@ -175,8 +175,8 @@ After the initial deployment, code changes only require testing and deployment:
 
 ```bash
 # For code changes after initial setup:
-./scripts/semiont test           # Run tests - REQUIRED before deployment
-./scripts/semiont deploy production  # Deploy changes (builds and pushes automatically)
+./bin/semiont test           # Run tests - REQUIRED before deployment
+./bin/semiont deploy production  # Deploy changes (builds and pushes automatically)
 ```
 
 **Expected Time:** 3-8 minutes total (includes mandatory testing)
@@ -201,16 +201,16 @@ The `provision` command is only needed for:
 
 ```bash
 # Run all tests (required before deployment)
-./scripts/semiont test
+./bin/semiont test
 
 # Run specific test suites
-./scripts/semiont test frontend    # Frontend tests only
-./scripts/semiont test backend     # Backend tests only
-./scripts/semiont test security    # Security-focused tests
+./bin/semiont test frontend    # Frontend tests only
+./bin/semiont test backend     # Backend tests only
+./bin/semiont test security    # Security-focused tests
 
 # Advanced testing options
-./scripts/semiont test --coverage  # Generate coverage reports
-./scripts/semiont test --watch     # Development mode with file watching
+./bin/semiont test --coverage  # Generate coverage reports
+./bin/semiont test --watch     # Development mode with file watching
 ```
 
 ### Test Types
@@ -240,8 +240,8 @@ The test suite includes:
 If tests fail:
 
 1. **Fix the issues** - Review test output for specific failures
-2. **Re-run tests** - `./scripts/semiont test`
-3. **Only then deploy** - `./scripts/semiont deploy production`
+2. **Re-run tests** - `./bin/semiont test`
+3. **Only then deploy** - `./bin/semiont deploy production`
 
 **Deployment will be blocked until all tests pass.**
 
@@ -253,13 +253,13 @@ If tests fail:
 
 ```bash
 # Check overall deployment status
-./scripts/semiont status
+./bin/semiont status
 
 # View application logs
-./scripts/semiont logs follow
+./bin/semiont logs follow
 
 # Test application health
-./scripts/semiont health-check
+./bin/semiont health-check
 ```
 
 **Manual AWS CLI Verification:**
@@ -288,7 +288,7 @@ curl -I http://$ALB_DNS/api/health
 
    ```bash
    # Check backend service logs for migration status
-   ./scripts/semiont logs backend tail
+   ./bin/semiont logs backend tail
    
    # Look for migration success messages:
    # "📝 Running database migrations..."
@@ -299,11 +299,11 @@ curl -I http://$ALB_DNS/api/health
 
    ```bash
    # Check both services are running
-   ./scripts/semiont status
+   ./bin/semiont status
    
    # Monitor service startup logs
-   ./scripts/semiont logs frontend tail
-   ./scripts/semiont logs backend tail
+   ./bin/semiont logs frontend tail
+   ./bin/semiont logs backend tail
    
    # Verify health endpoints
    curl http://$ALB_DNS/api/health
@@ -331,7 +331,7 @@ curl -I http://$ALB_DNS/api/health
    echo "Semiont CloudFront URL: https://$CF_DNS"
    
    # Or use the management script
-   ./scripts/semiont info
+   ./bin/semiont info
    ```
 
 5. **Verify Installation:**
@@ -348,11 +348,11 @@ If services fail to start:
 
 ```bash
 # Check service status and events
-./scripts/semiont status
+./bin/semiont status
 
 # View detailed service logs
-./scripts/semiont logs backend tail
-./scripts/semiont logs frontend tail
+./bin/semiont logs backend tail
+./bin/semiont logs frontend tail
 
 # Common issues:
 # - Database connection failures (check security groups)
@@ -360,11 +360,11 @@ If services fail to start:
 # - Container startup timeout
 
 # Restart services if needed
-./scripts/semiont restart
+./bin/semiont restart
 
 # Or restart individual services
-./scripts/semiont restart backend
-./scripts/semiont restart frontend
+./bin/semiont restart backend
+./bin/semiont restart frontend
 ```
 
 ### 7. OAuth Configuration (Required)
@@ -377,13 +377,13 @@ Set up OAuth credentials using the secrets management system:
 
 ```bash
 # Set OAuth credentials
-./scripts/semiont secrets set oauth/google
+./bin/semiont secrets set oauth/google
 
 # Verify OAuth credentials
-./scripts/semiont secrets get oauth/google
+./bin/semiont secrets get oauth/google
 
 # List all secrets
-./scripts/semiont secrets list
+./bin/semiont secrets list
 ```
 
 For detailed OAuth setup, see the OAuth Configuration section in [CONFIGURATION.md](CONFIGURATION.md).
@@ -424,10 +424,10 @@ aws acm request-certificate --domain-name wiki.example.com --validation-method D
 ```bash
 # Update configuration via CDK (recommended)
 # Edit config/environments/production.ts
-./scripts/semiont deploy production
+./bin/semiont deploy production
 
 # Or force service restart to pick up new environment
-./scripts/semiont restart
+./bin/semiont restart
 ```
 
 #### Configure WAF (Optional)
@@ -480,11 +480,11 @@ aws efs describe-backup-policy --file-system-id $EFS_ID
 
 ```bash
 # Check service status
-./scripts/semiont status
+./bin/semiont status
 
 # Check ECS task logs for both services
-./scripts/semiont logs backend tail
-./scripts/semiont logs frontend tail
+./bin/semiont logs backend tail
+./bin/semiont logs frontend tail
 
 # Common causes:
 # - Database not ready (check security groups)
@@ -497,7 +497,7 @@ aws efs describe-backup-policy --file-system-id $EFS_ID
 
 ```bash
 # Check database connectivity from backend service
-./scripts/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
+./bin/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 
 # Check security group rules allow 5432 from ECS security group
 DB_SG_ID=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecurityGroupId`].OutputValue' --output text)
@@ -526,18 +526,18 @@ If deployment fails or issues arise:
 
 ```bash
 # Quick service rollback using management scripts
-./scripts/semiont restart
+./bin/semiont restart
 
 # Rollback application deployment only (preserves infrastructure)
-./scripts/semiont deploy production
+./bin/semiont deploy production
 
 # Full rollback (emergency only - destroys all infrastructure)
 cd cdk
 npx cdk destroy SemiontAppStack
 npx cdk destroy SemiontInfraStack
 # Then redeploy from scratch
-./scripts/semiont provision production
-./scripts/semiont deploy production
+./bin/semiont provision production
+./bin/semiont deploy production
 ```
 
 **Important:** RDS and EFS resources have deletion protection and retain policies. The two-stack model allows you to rollback application changes without affecting the database.
@@ -556,8 +556,8 @@ npx cdk destroy SemiontInfraStack
      --service semiont-backend --desired-count 2
    
    # Or use management scripts for easier scaling
-   ./scripts/semiont scale frontend 2
-   ./scripts/semiont scale backend 2
+   ./bin/semiont scale frontend 2
+   ./bin/semiont scale backend 2
    ```
 
 2. **RDS Performance:**
@@ -598,7 +598,7 @@ DB_ENDPOINT=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack 
 nmap -p 5432 $DB_ENDPOINT  # Should timeout
 
 # Test OAuth domain restrictions  
-./scripts/semiont secrets get oauth/google
+./bin/semiont secrets get oauth/google
 ```
 
 ## Cost Monitoring
