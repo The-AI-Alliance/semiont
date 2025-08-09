@@ -91,17 +91,11 @@ jobs:
           # Test 2: Verify no admin content in response body
           response=$(curl -s http://localhost:3000/admin)
           
-          # Debug: Show first 500 chars of response for debugging (remove in production)
-          echo "Debug - Response preview (first 500 chars):"
-          echo "$response" | head -c 500
-          echo ""
-          
           # Check for admin-specific content that should NOT be present
           # Note: The URL path "/admin" might appear in the 404 page, which is acceptable
           # We're looking for actual admin functionality content
           if echo "$response" | grep -qi "admin dashboard\|user management\|delete user\|admin control\|access denied"; then
             echo "❌ SECURITY FAILURE: Admin-related content leaked in response!"
-            echo "Leaked content found in response"
             exit 1
           fi
           echo "✅ No admin content leaked in 404 response"
