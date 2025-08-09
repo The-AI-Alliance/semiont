@@ -7,7 +7,7 @@ export default async function AdminPage() {
   
   // Show 404 for non-admin users or unauthenticated users
   // This hides the existence of admin routes for security
-  if (!session?.user?.isAdmin) {
+  if (!session?.backendUser?.isAdmin) {
     notFound();
   }
 
