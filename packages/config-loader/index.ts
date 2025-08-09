@@ -5,8 +5,7 @@
  * and provides a clean API for accessing configuration throughout the application.
  */
 
-import { ConfigurationError } from './schemas/validation';
-import type { EnvironmentOverrides, EnvironmentConfig } from './schemas/config.schema';
+import type { EnvironmentConfig } from './schemas/config.schema';
 
 import * as path from 'path';
 import * as fs from 'fs';
