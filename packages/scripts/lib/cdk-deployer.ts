@@ -1,7 +1,6 @@
-import * as cdk from 'aws-cdk-lib';
+import { App, createStack } from '@semiont/cloud';
 import { CloudFormationClient, CreateStackCommand, UpdateStackCommand, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
-import { createStack } from './stack-factory.js';
-import type { SemiontConfiguration } from '@semiont/config-loader';
+import type { EnvironmentConfig } from '@semiont/config-loader';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -16,10 +15,24 @@ export class CdkDeployer {
   private cloudFormationClient: CloudFormationClient;
   private region: string;
   private account: string;
-  private config: SemiontConfiguration;
+  private config: EnvironmentConfig;
 
-  constructor(config: SemiontConfiguration) {
+  constructor(config: EnvironmentConfig) {
     this.config = config;
+    
+    // Validate required configuration for CDK deployment
+    if (!config.aws) {
+      throw new Error('AWS configuration is required for CDK deployment');
+    }
+    
+    if (!config.site) {
+      throw new Error('Site configuration is required for CDK deployment');
+    }
+    
+    if (!config.aws.accountId) {
+      throw new Error('AWS account ID is required for CDK deployment');
+    }
+    
     this.region = config.aws.region;
     this.account = config.aws.accountId;
     this.cloudFormationClient = new CloudFormationClient({ region: this.region });
@@ -33,7 +46,7 @@ export class CdkDeployer {
    * Synthesize CDK app and return CloudFormation template
    */
   private synthesizeStack(stackTypeName: string, stackName: string, dependencies?: any, context?: Record<string, string>): string {
-    const app = new cdk.App({
+    const app = new App({
       outdir: './cdk.out.tmp',
       ...(context && { context })
     });
@@ -128,19 +141,19 @@ export class CdkDeployer {
    * Deploy infrastructure stack programmatically
    */
   async deployInfraStack(options: DeployOptions = {}): Promise<boolean> {
-    this.log(`📦 Deploying ${this.config.site.siteName} Infrastructure Stack...`);
+    this.log(`📦 Deploying ${this.config.site!.siteName || 'Semiont'} Infrastructure Stack...`);
     this.log('   Contains: VPC, RDS, EFS, Secrets Manager');
 
     try {
       // Build context from config
       const context = {
         ...options.context,
-        adminEmail: this.config.site.adminEmail,
-        databaseName: this.config.aws.database.name
+        adminEmail: this.config.site!.adminEmail || '',
+        databaseName: this.config.aws!.database?.name || 'semiont'
       };
       
       // Synthesize the template
-      const infraStackName = (this.config as any).stacks?.infraStack || 'SemiontInfraStack';
+      const infraStackName = this.config.cloud?.aws?.stacks?.infra || 'SemiontInfraStack';
       const template = this.synthesizeStack(infraStackName, infraStackName, undefined, context);
       const stackExists = await this.stackExists(infraStackName);
 
@@ -211,7 +224,7 @@ export class CdkDeployer {
    * Deploy application stack programmatically
    */
   async deployAppStack(options: DeployOptions = {}): Promise<boolean> {
-    this.log(`🏗️ Creating ${this.config.site.siteName} Application Stack...`);
+    this.log(`🏗️ Creating ${this.config.site!.siteName || 'Semiont'} Application Stack...`);
     this.log('   Contains: ECS, ALB, WAF, CloudWatch');
 
     try {
@@ -221,17 +234,17 @@ export class CdkDeployer {
       // Build context from config
       const context = {
         ...options.context,
-        siteName: this.config.site.siteName,
-        domain: this.config.site.domain,
-        rootDomain: this.config.aws.rootDomain,
-        oauthAllowedDomains: this.config.site.oauthAllowedDomains.join(','),
-        databaseName: this.config.aws.database.name,
-        certificateArn: this.config.aws.certificateArn,
-        hostedZoneId: this.config.aws.hostedZoneId
+        siteName: this.config.site!.siteName || 'Semiont',
+        domain: this.config.site!.domain || '',
+        rootDomain: this.config.aws!.rootDomain || '',
+        oauthAllowedDomains: this.config.site!.oauthAllowedDomains?.join(',') || '',
+        databaseName: this.config.aws!.database?.name || 'semiont',
+        certificateArn: this.config.aws!.certificateArn || '',
+        hostedZoneId: this.config.aws!.hostedZoneId || ''
       };
       
       // Synthesize the template
-      const appStackName = (this.config as any).stacks?.appStack || 'SemiontAppStack';
+      const appStackName = this.config.cloud?.aws?.stacks?.app || 'SemiontAppStack';
       const template = this.synthesizeStack(appStackName, appStackName, dependencies, context);
       const stackExists = await this.stackExists(appStackName);
 

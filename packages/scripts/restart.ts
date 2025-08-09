@@ -12,7 +12,7 @@
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
 import { execSync } from 'child_process';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';
@@ -140,11 +140,6 @@ async function showRestartResults(environment: Environment, _service: Service): 
   });
 }
 
-async function loadEnvironmentConfig(environment: Environment): Promise<any> {
-  // Load configuration using the new JSON-based config loader
-  return loadConfig(environment);
-}
-
 async function restartLocalService(service: Service): Promise<boolean> {
   log(`🔄 Restarting ${service} locally`, colors.bright);
   
@@ -183,7 +178,7 @@ async function restartCloudService(service: Service, config: any, environment: E
   log(`🔄 Restarting ${service} in ${environment} environment`, colors.bright);
   
   try {
-    const stackConfig = new SemiontStackConfig();
+    const stackConfig = new SemiontStackConfig(environment);
     const ecsClient = new ECSClient({ region: config.aws.region });
     
     if (service === 'database' || service === 'all') {

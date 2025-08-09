@@ -1,14 +1,11 @@
 import React from 'react';
-import { Metadata } from 'next';
-import { env } from '@/lib/env';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { AdminAuthWrapper } from '@/components/admin/AdminAuthWrapper';
 
-export const metadata: Metadata = {
-  title: `Admin Dashboard - ${env.NEXT_PUBLIC_SITE_NAME}`,
-  description: 'Administrative interface for managing the semantic knowledge platform',
-};
+// Note: Metadata removed from layout to prevent leaking admin information
+// when pages return 404 for security. Metadata should be set in individual
+// page components after authentication check.
 
 export default function AdminLayout({
   children,

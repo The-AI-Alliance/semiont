@@ -13,7 +13,7 @@
 
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from './lib/stack-config';
-import { loadConfig, displayConfiguration, ConfigurationError } from '@semiont/config-loader';
+import { loadEnvironmentConfig, displayConfiguration, ConfigurationError } from '@semiont/config-loader';
 import * as readline from 'readline';
 
 // Reserved for future secret management features
@@ -72,15 +72,19 @@ function maskSecretObject(obj: any): any {
 async function getSecretFullName(environment: string, secretPath: string): Promise<string> {
   // Convert path format to actual secret name
   // oauth/google -> semiont-production-oauth-google-secret (or similar based on stack config)
-  const envConfig = loadConfig(environment);
-  const stackConfig = new SemiontStackConfig(envConfig.aws.region);
+  const stackConfig = new SemiontStackConfig(environment);
   const config = await stackConfig.getConfig();
   const stackName = config.infraStack.name;
   return `${stackName}-${secretPath.replace('/', '-')}-secret`;
 }
 
 async function getCurrentSecret(environment: string, secretName: string): Promise<any> {
-  const envConfig = loadConfig(environment);
+  const envConfig = loadEnvironmentConfig(environment);
+  
+  if (!envConfig.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
   const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
   try {
     const response = await secretsClient.send(
@@ -98,7 +102,12 @@ async function getCurrentSecret(environment: string, secretName: string): Promis
 }
 
 async function updateSecret(environment: string, secretName: string, secretValue: any): Promise<void> {
-  const envConfig = loadConfig(environment);
+  const envConfig = loadEnvironmentConfig(environment);
+  
+  if (!envConfig.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
   const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
   const secretString = typeof secretValue === 'string' ? secretValue : JSON.stringify(secretValue);
   
@@ -221,8 +230,9 @@ async function setSecret(environment: string, secretPath: string, value?: string
 
 function showConfiguration(): void {
   try {
-    console.log('\n📋 Current Semiont Configuration:\n');
-    displayConfiguration();
+    console.log('\n📋 Current Semiont Configuration (development):\n');
+    const config = loadEnvironmentConfig('development');
+    displayConfiguration(config);
     console.log('\n✅ Configuration is valid\n');
   } catch (error) {
     if (error instanceof ConfigurationError) {
@@ -294,7 +304,7 @@ async function main() {
 
   if (firstArg === 'validate') {
     try {
-      loadConfig('development'); // Test loading a config
+      loadEnvironmentConfig('development'); // Test loading a config
       console.log('✅ Configuration validation passed');
     } catch (error) {
       console.error('❌ Configuration validation failed:', error);

@@ -117,16 +117,6 @@ export interface OAuthProvider {
 }
 
 // Complete configuration interface
-export interface SemiontConfiguration {
-  site: SiteConfiguration;
-  aws: AWSConfiguration;
-  app: ApplicationConfiguration;
-}
-
-// Deep partial type for nested overrides
-type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
 
 // Stack reference interface - using string names for runtime resolution
 export interface CloudStackReferences {
@@ -178,12 +168,60 @@ export interface ApplicationConfigurationOverride {
   };
 }
 
-// Environment-specific override interface
-export interface EnvironmentOverrides {
-  // Stack references - for cloud environments only
-  stacks?: CloudStackReferences;
-  
-  site?: Partial<SiteConfiguration>;
-  aws?: DeepPartial<AWSConfiguration>;
-  app?: ApplicationConfigurationOverride;
+// New schema types
+export interface DeploymentConfiguration {
+  default: 'process' | 'container' | 'aws' | 'mock';
 }
+
+export interface ServiceConfiguration {
+  deployment?: {
+    type: 'process' | 'container' | 'aws' | 'mock' | 'external';
+  };
+  command?: string;
+  port?: number;
+  host?: string;
+  name?: string;
+  user?: string;
+  multiAZ?: boolean;
+  backupRetentionDays?: number;
+}
+
+export interface CloudConfiguration {
+  aws?: {
+    stacks?: {
+      infra?: string;
+      app?: string;
+    };
+  };
+}
+
+// Environment configuration interface
+// AWS configuration that must include region when specified
+export interface AWSEnvironmentConfig {
+  region: string;  // Required - no defaults!
+  accountId: string;  // Required - no defaults!
+  certificateArn?: string;
+  hostedZoneId?: string;
+  rootDomain?: string;
+  database?: Partial<DatabaseConfig>;
+  ecs?: Partial<ECSConfig>;
+  monitoring?: Partial<MonitoringConfig>;
+}
+
+export interface EnvironmentConfig {
+  _comment?: string;
+  _extends?: string;
+  deployment?: DeploymentConfiguration;
+  site?: Partial<SiteConfiguration>;
+  app?: ApplicationConfigurationOverride;
+  services?: {
+    backend?: ServiceConfiguration;
+    frontend?: ServiceConfiguration;
+    database?: ServiceConfiguration;
+  };
+  cloud?: CloudConfiguration;
+  aws?: AWSEnvironmentConfig;  // If aws exists, region is required
+}
+
+// Environment-specific override interface
+export interface EnvironmentOverrides extends EnvironmentConfig {}

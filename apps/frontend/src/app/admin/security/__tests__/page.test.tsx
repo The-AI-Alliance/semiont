@@ -3,7 +3,7 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@testing-library/jest-dom'
-import AdminSecurity from '../page'
+import AdminSecurity from '../client'
 import { api } from '@/lib/api-client'
 
 // Mock the API client

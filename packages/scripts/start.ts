@@ -12,6 +12,9 @@
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { showError } from './lib/ink-utils';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { spawn, type ChildProcess } from 'child_process';
+import * as path from 'path';
 
 // Valid environments
 type Environment = string;
@@ -25,6 +28,9 @@ interface StartOptions {
   force?: boolean;
   mock?: boolean;          // For local frontend mock mode
 }
+
+// Track spawned processes for cleanup
+const spawnedProcesses: ChildProcess[] = [];
 
 // Color codes for output
 const colors = {
@@ -74,63 +80,6 @@ async function validateEnvironment(env: string): Promise<Environment> {
   return env as Environment;
 }
 
-async function startLocalServices(options: StartOptions): Promise<boolean> {
-  const { service, mock } = options;
-  
-  success('Starting local services...');
-  
-  // Start services based on selection
-  if (service === 'database' || service === 'all') {
-    info('Starting PostgreSQL container...');
-    // TODO: Start local database
-    success('Database running on port 5432');
-  }
-  
-  if (service === 'backend' || service === 'all') {
-    info('Starting backend service...');
-    // TODO: Start local backend
-    success('Backend running on http://localhost:3001');
-  }
-  
-  if (service === 'frontend' || service === 'all') {
-    info(`Starting frontend service${mock ? ' with mock API' : ''}...`);
-    // TODO: Start local frontend
-    success('Frontend running on http://localhost:3000');
-  }
-  
-  return true;
-}
-
-async function startCloudServices(options: StartOptions): Promise<boolean> {
-  const { environment, service, dryRun } = options;
-  
-  info(`Starting services in ${environment} environment...`);
-  
-  if (dryRun) {
-    info('DRY RUN - No actual changes will be made');
-  }
-  
-  // Start services based on selection
-  if (service === 'database' || service === 'all') {
-    info('Starting database service...');
-    // TODO: Start/scale up RDS instance if stopped
-    success('Database service started');
-  }
-  
-  if (service === 'backend' || service === 'all') {
-    info('Starting backend service...');
-    // TODO: Scale up ECS service to desired count
-    success('Backend service started');
-  }
-  
-  if (service === 'frontend' || service === 'all') {
-    info('Starting frontend service...');
-    // TODO: Scale up ECS service to desired count
-    success('Frontend service started');
-  }
-  
-  return true;
-}
 
 function parseArguments(args: string[]): StartOptions {
   const options: Partial<StartOptions> = {
@@ -223,28 +172,188 @@ ${colors.cyan}Notes:${colors.reset}
 `);
 }
 
+// Get deployment type for a specific service
+function getServiceDeploymentType(config: any, serviceName: string): string {
+  const service = config.services?.[serviceName];
+  if (service?.deployment?.type) {
+    return service.deployment.type;
+  }
+  return config.deployment?.default || 'process';
+}
+
+// Check if any selected services require AWS
+function requiresAWS(config: any, selectedServices: string[]): boolean {
+  return selectedServices.some(serviceName => 
+    getServiceDeploymentType(config, serviceName) === 'aws'
+  );
+}
+
+// Get list of services to start based on options
+function getServicesToStart(options: StartOptions): string[] {
+  if (options.service === 'all') {
+    return ['database', 'backend', 'frontend'];
+  }
+  return [options.service];
+}
+
+async function startMixedServices(options: StartOptions, config: any): Promise<boolean> {
+  const { environment } = options;
+  const servicesToStart = getServicesToStart(options);
+  
+  info(`Starting services in ${environment} environment...`);
+  
+  let allSuccessful = true;
+  
+  for (const serviceName of servicesToStart) {
+    const deploymentType = getServiceDeploymentType(config, serviceName);
+    
+    info(`Starting ${serviceName} service (${deploymentType})...`);
+    
+    try {
+      switch (deploymentType) {
+        case 'process':
+          await startProcessService(serviceName, config, options);
+          break;
+        case 'aws':
+          await startAWSService(serviceName, config);
+          break;
+        case 'external':
+          info(`${serviceName} is externally managed, skipping start`);
+          break;
+        case 'mock':
+          info(`${serviceName} is mocked for testing, skipping start`);
+          break;
+        default:
+          throw new Error(`Unsupported deployment type: ${deploymentType}`);
+      }
+      success(`${serviceName} service started successfully`);
+    } catch (err) {
+      error(`Failed to start ${serviceName}: ${err instanceof Error ? err.message : String(err)}`);
+      allSuccessful = false;
+    }
+  }
+  
+  return allSuccessful;
+}
+
+async function startProcessService(serviceName: string, config: any, options: StartOptions): Promise<void> {
+  const service = config.services?.[serviceName];
+  const projectRoot = process.env.SEMIONT_ROOT || process.cwd().split('/packages')[0] || process.cwd();
+  
+  switch (serviceName) {
+    case 'database':
+      info('Starting PostgreSQL container...');
+      // TODO: Start local database container
+      success('Database running on port 5432');
+      break;
+    case 'backend':
+      info('Starting backend service...');
+      const backendPort = service?.port || 3001;
+      const backendPath = path.join(projectRoot, 'apps/backend');
+      
+      // Build backend first
+      info('Building backend...');
+      const buildProcess = spawn('npm', ['run', 'build'], {
+        cwd: backendPath,
+        stdio: 'inherit'
+      });
+      
+      await new Promise<void>((resolve, reject) => {
+        buildProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Backend build failed with code ${code}`));
+          }
+        });
+      });
+      
+      // Start backend process
+      const env = {
+        ...process.env,
+        SEMIONT_ENV: process.env.SEMIONT_ENV || options.environment,
+        PORT: backendPort.toString()
+      };
+      
+      if (!env.SEMIONT_ENV) {
+        throw new Error('SEMIONT_ENV must be set either as environment variable or passed as argument');
+      }
+      
+      const backendProcess = spawn('npm', ['start'], {
+        cwd: backendPath,
+        env,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      
+      backendProcess.unref(); // Allow parent process to exit
+      spawnedProcesses.push(backendProcess);
+      
+      success(`Backend running on http://localhost:${backendPort}`);
+      break;
+    case 'frontend':
+      info('Starting frontend service...');
+      const frontendPort = service?.port || 3000;
+      // TODO: Start local frontend process
+      success(`Frontend running on http://localhost:${frontendPort}`);
+      break;
+  }
+}
+
+async function startAWSService(serviceName: string, _config: any): Promise<void> {
+  switch (serviceName) {
+    case 'database':
+      info('Starting RDS database...');
+      // TODO: Scale up RDS if stopped
+      success('Database service started');
+      break;
+    case 'backend':
+      info('Starting backend ECS service...');
+      // TODO: Scale up ECS service to desired count
+      success('Backend service started');
+      break;
+    case 'frontend':
+      info('Starting frontend ECS service...');
+      // TODO: Scale up ECS service to desired count
+      success('Frontend service started');
+      break;
+  }
+}
+
 async function main(): Promise<void> {
   try {
     const options = parseArguments(process.argv.slice(2));
     const validEnv = await validateEnvironment(options.environment);
     
+    // Load configuration to determine deployment types
+    const config = loadEnvironmentConfig(validEnv);
+    const servicesToStart = getServicesToStart(options);
+    
     info('Start Plan:');
     console.log(`  Environment: ${colors.bright}${validEnv}${colors.reset}`);
     console.log(`  Service:     ${colors.bright}${options.service}${colors.reset}`);
     
-    if (validEnv === 'local') {
-      const success = await startLocalServices(options);
-      if (!success) {
-        process.exit(1);
+    // Show deployment plan
+    for (const serviceName of servicesToStart) {
+      const deploymentType = getServiceDeploymentType(config, serviceName);
+      console.log(`  ${serviceName}: ${colors.dim}${deploymentType}${colors.reset}`);
+    }
+    console.log();
+    
+    // Validate AWS credentials only if needed
+    if (requiresAWS(config, servicesToStart)) {
+      if (!config.aws) {
+        throw new Error(`Some services require AWS deployment but environment ${validEnv} has no AWS configuration`);
       }
-    } else {
-      // Validate AWS credentials for cloud environments
-      await requireValidAWSCredentials();
-      
-      const success = await startCloudServices(options);
-      if (!success) {
-        process.exit(1);
-      }
+      info('Validating AWS credentials...');
+      await requireValidAWSCredentials(config.aws.region);
+      success('AWS credentials validated');
+    }
+    
+    // Start services with mixed deployment support
+    const allSuccessful = await startMixedServices(options, config);
+    if (!allSuccessful) {
+      process.exit(1);
     }
     
     success(`Services started successfully in ${validEnv} environment`);

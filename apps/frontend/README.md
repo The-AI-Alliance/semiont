@@ -28,10 +28,6 @@ A modern, type-safe React frontend built with Next.js 14, featuring comprehensiv
 # Install dependencies
 npm install
 
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your configuration
-
 # Start development server
 npm run dev
 
@@ -537,23 +533,29 @@ export default function AdminPage() {
 
 ### Environment Variables
 
-Add new environment variables in three places:
+Environment variables are configured automatically based on your environment configuration files in `/config/environments/`. 
 
-1. **Validation schema** in `src/lib/env.ts`:
+1. **Add to environment JSON** in `/config/environments/[env].json`:
+```json
+{
+  "services": {
+    "frontend": {
+      "url": "https://staging.example.com",
+      "port": 3000
+    }
+  }
+}
+```
+
+2. **Access in code** via validation schema in `src/lib/env.ts`:
 ```typescript
 const envSchema = z.object({
-  NEXT_PUBLIC_NEW_SERVICE_URL: z.string().url(),
-  NEW_SECRET_KEY: z.string().min(1),
+  NEXT_PUBLIC_API_URL: z.string().url(),
+  NEXTAUTH_URL: z.string().url(),
 });
 ```
 
-2. **Environment file** `.env.local`:
-```
-NEXT_PUBLIC_NEW_SERVICE_URL=https://api.newservice.com
-NEW_SECRET_KEY=your_secret_key_here
-```
-
-3. **Docker/deployment configuration** (if needed for build-time variables)
+3. **Deployment**: Environment variables are set automatically during deployment based on your configuration
 
 ## Performance Optimization
 

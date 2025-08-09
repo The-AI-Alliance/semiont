@@ -5,40 +5,44 @@
  * and provides a clean API for accessing configuration throughout the application.
  */
 
-import { siteConfig, awsConfig, appConfig } from './base';
-import { validateConfiguration, ConfigurationError } from './schemas/validation';
-import type { SemiontConfiguration, EnvironmentOverrides } from './schemas/config.schema';
+import type { EnvironmentConfig } from './schemas/config.schema';
 
 import * as path from 'path';
 import * as fs from 'fs';
 
-// Dynamic environment loading from JSON files
-function getEnvironmentOverrides(environment: string): EnvironmentOverrides {
-  try {
-    
-    // Find project root - use SEMIONT_ROOT or walk up to find config directory
-    let projectRoot = process.env.SEMIONT_ROOT;
-    
-    if (!projectRoot) {
-      // Walk up from current directory to find config/environments
-      let currentDir = process.cwd();
-      while (currentDir !== '/' && currentDir) {
-        if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
-          projectRoot = currentDir;
-          break;
-        }
-        currentDir = path.dirname(currentDir);
-      }
-      
-      // Fallback to current directory if not found
-      if (!projectRoot) {
-        projectRoot = process.cwd();
-      }
+/**
+ * Find project root by looking for config/environments directory
+ * This is the single source of truth for locating the config directory
+ */
+export function findProjectRoot(): string {
+  // Use SEMIONT_ROOT if set
+  if (process.env.SEMIONT_ROOT) {
+    return process.env.SEMIONT_ROOT;
+  }
+  
+  // Walk up from current directory to find config/environments
+  let currentDir = process.cwd();
+  while (currentDir !== '/' && currentDir) {
+    if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
+      return currentDir;
     }
+    currentDir = path.dirname(currentDir);
+  }
+  
+  // Fallback to current directory if not found
+  return process.cwd();
+}
+
+
+// Dynamic environment loading from JSON files
+function getEnvironmentOverrides(environment: string): EnvironmentConfig {
+  try {
+    const projectRoot = findProjectRoot();
     const jsonPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
     if (fs.existsSync(jsonPath)) {
       const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
       let config = JSON.parse(jsonContent);
+      
       
       // Handle inheritance with _extends
       if (config._extends) {
@@ -81,17 +85,14 @@ function removeCommentFields(obj: any): any {
   return result;
 }
 
-// Deep merge helper that handles partial types
+// Simple merge function for environment inheritance
 function deepMerge(target: any, source: any): any {
   const result = { ...target };
   
   for (const key in source) {
     if (source[key] !== undefined) {
-      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key]) && !(source[key] instanceof URL)) {
-        result[key] = deepMerge(
-          result[key] || {},
-          source[key]
-        );
+      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
+        result[key] = deepMerge(result[key] || {}, source[key]);
       } else {
         result[key] = source[key];
       }
@@ -101,65 +102,15 @@ function deepMerge(target: any, source: any): any {
   return result;
 }
 
-// Convert string URLs to URL objects
-function normalizeUrls(config: SemiontConfiguration): SemiontConfiguration {
-  const normalized = { ...config };
-  
-  if (normalized.app.backend?.url && typeof normalized.app.backend.url === 'string') {
-    normalized.app.backend.url = new URL(normalized.app.backend.url);
-  }
-  
-  if (normalized.app.frontend?.url && typeof normalized.app.frontend.url === 'string') {
-    normalized.app.frontend.url = new URL(normalized.app.frontend.url);
-  }
-  
-  return normalized;
+
+
+// Load environment config directly
+export function loadEnvironmentConfig(environment: string): EnvironmentConfig {
+  return getEnvironmentOverrides(environment);
 }
 
-// Build final configuration
-function buildConfiguration(environment: string): SemiontConfiguration {
-  const overrides = getEnvironmentOverrides(environment);
-  
-  let config: SemiontConfiguration = {
-    site: deepMerge(siteConfig, overrides.site || {}),
-    aws: deepMerge(awsConfig, overrides.aws || {}),
-    app: deepMerge(appConfig, overrides.app || {})
-  };
-  
-  // Normalize URLs (convert strings to URL objects)
-  config = normalizeUrls(config);
-  
-  // Validate configuration
-  try {
-    // Determine environment type based on presence of stack classes
-    const isCloudEnvironment = Boolean(overrides.stacks?.infraStack && overrides.stacks?.appStack);
-    const skipAWSValidation = !isCloudEnvironment;
-    validateConfiguration(config, { skipAWSValidation });
-  } catch (error: unknown) {
-    if (error instanceof ConfigurationError) {
-      console.error(`Configuration Error: ${error.message}`);
-      if (error.field) {
-        console.error(`Field: ${error.field}`);
-      }
-      throw error;
-    }
-    throw error;
-  }
-  
-  return config;
-}
-
-// Load configuration for a specific environment (clean API)
-export function loadConfig(environment: string = 'development'): SemiontConfiguration {
-  return buildConfiguration(environment);
-}
-
-// Default configuration - always use development unless explicitly specified
-const defaultEnvironment = 'development';
-export const config = buildConfiguration(defaultEnvironment);
-
-// Export individual sections for convenience
-export const { site, aws, app } = config;
+// No default configuration - always require explicit environment
+// Use loadConfig(environment) instead
 
 // Export types
 export * from './schemas/config.schema';
@@ -171,50 +122,12 @@ export * as base from './base';
 // Utility functions (work with default config)
 
 
-export function getEnvironment(): string {
-  return defaultEnvironment;
-}
+// Utility functions removed - use loadConfig(environment) instead and access properties directly
 
-export function getFullDomain(): string {
-  return config.site.subdomain 
-    ? `${config.site.subdomain}.${config.site.domain}`
-    : config.site.domain;
-}
+// URL utilities removed - use services configuration instead
 
-export function getBackendUrl(): string {
-  const backend = config.app.backend;
-  if (!backend?.url) {
-    throw new Error('Backend URL not configured');
-  }
-  return backend.url.origin; // Use origin instead of toString() to avoid trailing slash
-}
-
-export function getFrontendUrl(): string {
-  const frontend = config.app.frontend;
-  if (!frontend?.url) {
-    throw new Error('Frontend URL not configured');
-  }
-  return frontend.url.origin; // Use origin instead of toString() to avoid trailing slash
-}
-
-export function getBackendUrlObject(): URL {
-  const backend = config.app.backend;
-  if (!backend?.url) {
-    throw new Error('Backend URL not configured');
-  }
-  return backend.url;
-}
-
-export function getFrontendUrlObject(): URL {
-  const frontend = config.app.frontend;
-  if (!frontend?.url) {
-    throw new Error('Frontend URL not configured');
-  }
-  return frontend.url;
-}
-
-// Configuration display for debugging (masks sensitive data)
-export function displayConfiguration(): void {
+// Configuration display utility - pass in loaded config
+export function displayConfiguration(config: EnvironmentConfig): void {
   const safeConfig = JSON.parse(JSON.stringify(config, (_key, value) => {
     // Convert URL objects to strings for display
     if (value instanceof URL) {
@@ -224,9 +137,13 @@ export function displayConfiguration(): void {
   }));
   
   // Mask sensitive values
-  safeConfig.aws.certificateArn = safeConfig.aws.certificateArn.substring(0, 30) + '...';
-  safeConfig.aws.accountId = '****' + safeConfig.aws.accountId.substring(8);
+  if (safeConfig.aws?.certificateArn) {
+    safeConfig.aws.certificateArn = safeConfig.aws.certificateArn.substring(0, 30) + '...';
+  }
+  if (safeConfig.aws?.accountId) {
+    safeConfig.aws.accountId = '****' + safeConfig.aws.accountId.substring(8);
+  }
   
-  console.log('Current Configuration:');
+  console.log('Configuration:');
   console.log(JSON.stringify(safeConfig, null, 2));
 }

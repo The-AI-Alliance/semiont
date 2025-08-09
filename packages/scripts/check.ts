@@ -1,4 +1,14 @@
 
+/**
+ * Check Command - System health and status monitoring
+ * 
+ * Usage:
+ *   ./scripts/semiont check <environment> [section]
+ *   ./scripts/semiont check production
+ *   ./scripts/semiont check staging app
+ *   ./scripts/semiont check development infra
+ */
+
 import { ECSClient, DescribeServicesCommand, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand, DescribeMountTargetsCommand } from '@aws-sdk/client-efs';
@@ -9,19 +19,21 @@ import { WAFV2Client, GetWebACLCommand } from '@aws-sdk/client-wafv2';
 import { SemiontStackConfig } from './lib/stack-config';
 import { ServiceType, AWSError } from './lib/types';
 import { logger } from './lib/logger';
-import { config } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';
 
-const stackConfig = new SemiontStackConfig();
-const ecsClient = new ECSClient({ region: config.aws.region });
-const rdsClient = new RDSClient({ region: config.aws.region });
-const efsClient = new EFSClient({ region: config.aws.region });
-const cloudWatchClient = new CloudWatchClient({ region: config.aws.region });
-const costExplorerClient = new CostExplorerClient({ region: 'us-east-1' }); // Cost Explorer only works in us-east-1
-const albClient = new ElasticLoadBalancingV2Client({ region: config.aws.region });
-const wafClient = new WAFV2Client({ region: config.aws.region });
+// AWS clients will be initialized after loading config
+let stackConfig: SemiontStackConfig;
+let ecsClient: ECSClient;
+let rdsClient: RDSClient; 
+let efsClient: EFSClient;
+let cloudWatchClient: CloudWatchClient;
+let costExplorerClient: CostExplorerClient;
+let albClient: ElasticLoadBalancingV2Client;
+let wafClient: WAFV2Client;
 
 async function checkWebsiteHealth(url: string): Promise<{ status: number | string; healthy: boolean }> {
   try {
@@ -778,12 +790,12 @@ async function showStatus(section: 'app' | 'infra' | 'both' = 'both') {
   logger.simple('   Secrets:      npx tsx scripts/secrets.ts');
 }
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-const section = (args[0] as 'app' | 'infra' | 'both') || 'both';
-
-if (!['app', 'infra', 'both'].includes(section)) {
-  logger.simple('Usage: npx tsx status.ts [app|infra|both]');
+function printHelp(): void {
+  logger.simple('Usage: ./scripts/semiont check <environment> [section]');
+  logger.simple('');
+  logger.simple('Arguments:');
+  logger.simple(`  <environment>    Environment to check (${getAvailableEnvironments().join(', ')})`);
+  logger.simple('  [section]        Section to check: app, infra, both (default: both)');
   logger.simple('');
   logger.simple('Sections:');
   logger.simple('   app    Show Application Stack status (ALB, WAF, ECS, Website)');
@@ -791,10 +803,73 @@ if (!['app', 'infra', 'both'].includes(section)) {
   logger.simple('   both   Show both stacks (default)');
   logger.simple('');
   logger.simple('Examples:');
-  logger.simple('   npx tsx status.ts app');
-  logger.simple('   npx tsx status.ts infra');
-  logger.simple('   npx tsx status.ts both');
+  logger.simple('   ./scripts/semiont check production');
+  logger.simple('   ./scripts/semiont check staging app');
+  logger.simple('   ./scripts/semiont check development infra');
   process.exit(1);
 }
 
-showStatus(section).catch(error => logger.error('Status check failed', { error }));
+async function initializeClients(environment: string): Promise<void> {
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
+  if (!config.aws.region) {
+    throw new Error(`AWS region not configured for environment: ${environment}`);
+  }
+  
+  stackConfig = new SemiontStackConfig(environment);
+  ecsClient = new ECSClient({ region: config.aws.region });
+  rdsClient = new RDSClient({ region: config.aws.region });
+  efsClient = new EFSClient({ region: config.aws.region });
+  cloudWatchClient = new CloudWatchClient({ region: config.aws.region });
+  costExplorerClient = new CostExplorerClient({ region: 'us-east-1' }); // AWS Cost Explorer API is only available in us-east-1
+  albClient = new ElasticLoadBalancingV2Client({ region: config.aws.region });
+  wafClient = new WAFV2Client({ region: config.aws.region });
+}
+
+async function main(): Promise<void> {
+  // Parse command line arguments
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+    printHelp();
+  }
+  
+  const environment = args[0];
+  const section = (args[1] as 'app' | 'infra' | 'both') || 'both';
+  
+  if (!environment) {
+    logger.error('Environment is required');
+    printHelp();
+  }
+  
+  if (!isValidEnvironment(environment!)) {
+    logger.error(`Invalid environment: ${environment}`);
+    logger.simple(`Available environments: ${getAvailableEnvironments().join(', ')}`);
+    process.exit(1);
+  }
+  
+  if (!['app', 'infra', 'both'].includes(section)) {
+    logger.error(`Invalid section: ${section}`);
+    printHelp();
+  }
+  
+  try {
+    // Initialize AWS clients with environment config
+    await initializeClients(environment!);
+    
+    // Show status
+    await showStatus(section);
+  } catch (error) {
+    logger.error('Status check failed', { error });
+    process.exit(1);
+  }
+}
+
+main().catch(error => {
+  logger.error('Check command failed', { error });
+  process.exit(1);
+});

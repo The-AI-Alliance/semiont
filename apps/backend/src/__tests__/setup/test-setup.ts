@@ -8,27 +8,26 @@ beforeAll(async () => {
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';
   
-  // Load configuration based on test environment
+  // Set test environment for configuration loading
   const testEnvironment = process.env.SEMIONT_ENV || 'unit';
+  process.env.SEMIONT_ENV = testEnvironment;
+  
   try {
-    // Dynamic import of config based on environment
-    const { loadConfig } = await import('semiont-config');
-    const config = loadConfig(testEnvironment);
+    // Load environment configuration using the unified system
+    const { loadEnvironmentConfig } = await import('@semiont/config-loader');
+    const config = loadEnvironmentConfig(testEnvironment);
     console.log(`📋 Loaded ${testEnvironment} test configuration`);
     
     // Set DATABASE_URL from config if available (for integration tests)
-    if (config.app?.backend?.database) {
-      const db = config.app.backend.database;
-      if (db.host && db.port && db.name && db.user && db.password) {
-        const databaseUrl = `postgresql://${db.user}:${db.password}@${db.host}:${db.port}/${db.name}`;
+    if (config.services?.database) {
+      const db = config.services.database;
+      if (db.host && db.port && db.name && db.user) {
+        // For tests, we'll use the password from environment variables
+        const password = process.env.DATABASE_PASSWORD || 'integration_test_password';
+        const databaseUrl = `postgresql://${db.user}:${password}@${db.host}:${db.port}/${db.name}`;
         process.env.DATABASE_URL = databaseUrl;
         console.log('🔗 Set DATABASE_URL from configuration');
       }
-    }
-    
-    // Set API URL if available
-    if (config.app?.backend?.url) {
-      process.env.API_URL = config.app.backend.url.toString();
     }
   } catch (error) {
     console.warn('⚠️  Could not load test config:', error);
@@ -38,8 +37,8 @@ beforeAll(async () => {
   // Configure Testcontainers early to avoid Node.js crashes
   process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
   
-  // Set integration test secrets
-  process.env.JWT_SECRET = 'integration-test-jwt-secret-key-for-testing-environment';
+  // Set test secrets
+  process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
   process.env.DATABASE_PASSWORD = 'integration_test_password';
   process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
   process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';

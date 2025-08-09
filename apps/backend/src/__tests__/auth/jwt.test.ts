@@ -33,7 +33,7 @@ vi.mock('jsonwebtoken', () => ({
 // Mock CONFIG
 vi.mock('../../config', () => ({
   CONFIG: {
-    JWT_SECRET: 'test-secret-key-for-testing',
+    JWT_SECRET: 'test-secret-key-for-testing-32char',
     DOMAIN: 'test.example.com',
   }
 }));
@@ -89,7 +89,7 @@ describe('JWT Service', () => {
           provider: 'google',
           isAdmin: false,
         },
-        'test-secret-key-for-testing',
+        'test-secret-key-for-testing-32char',
         {
           expiresIn: '7d',
           issuer: 'test.example.com',
@@ -115,7 +115,7 @@ describe('JWT Service', () => {
         expect.objectContaining({
           isAdmin: true,
         }),
-        'test-secret-key-for-testing',
+        'test-secret-key-for-testing-32char',
         expect.any(Object)
       );
     });
@@ -141,7 +141,7 @@ describe('JWT Service', () => {
           provider: 'google',
           isAdmin: false,
         }),
-        'test-secret-key-for-testing',
+        'test-secret-key-for-testing-32char',
         expect.any(Object)
       );
     });
@@ -176,7 +176,7 @@ describe('JWT Service', () => {
       const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [, secret, options] = callArgs || [];
       
-      expect(secret).toBe('test-secret-key-for-testing');
+      expect(secret).toBe('test-secret-key-for-testing-32char');
       expect(options).toEqual({
         expiresIn: '7d',
         issuer: 'test.example.com',
@@ -210,7 +210,7 @@ describe('JWT Service', () => {
       expect(result).toEqual(validPayload);
       expect(vi.mocked(jwt.verify)).toHaveBeenCalledWith(
         'valid.jwt.token',
-        'test-secret-key-for-testing'
+        'test-secret-key-for-testing-32char'
       );
     });
 
@@ -275,8 +275,8 @@ describe('JWT Service', () => {
     });
 
     it('should allow configured domains', () => {
-      expect(JWTService.isAllowedDomain('user@example.com')).toBe(true);
-      expect(JWTService.isAllowedDomain('admin@test.org')).toBe(true);
+      expect(JWTService.isAllowedDomain('user@test.example.com')).toBe(true);
+      expect(JWTService.isAllowedDomain('admin@example.org')).toBe(true);
     });
 
     it('should reject non-configured domains', () => {

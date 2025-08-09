@@ -2,7 +2,6 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { config } from '@semiont/config-loader';
 
 interface CleanOptions {
   docker?: boolean;
@@ -188,7 +187,7 @@ async function runNpmClean(): Promise<boolean> {
 }
 
 async function clean(options: CleanOptions) {
-  console.log(`🧹 Starting ${config.site.siteName} cleanup...`);
+  console.log(`🧹 Starting Semiont cleanup...`);
   
   const startTime = Date.now();
   let overallSuccess = true;
@@ -245,7 +244,7 @@ async function clean(options: CleanOptions) {
 }
 
 function showHelp() {
-  console.log(`🧹 ${config.site.siteName} Cleanup Tool`);
+  console.log(`🧹 Semiont Cleanup Tool`);
   console.log('');
   console.log('Usage: npx tsx clean.ts [options]');
   console.log('   or: ./semiont clean [options]');

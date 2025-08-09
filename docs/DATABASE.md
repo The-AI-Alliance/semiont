@@ -104,7 +104,7 @@ DATABASE_URL="$DATABASE_URL" npx prisma studio
 
 ```bash
 # Access backend container
-./scripts/semiont exec backend /bin/sh
+./bin/semiont exec backend /bin/sh
 
 # Inside container, Prisma uses DATABASE_URL automatically
 npx prisma studio --port 5555 --hostname 0.0.0.0
@@ -116,16 +116,16 @@ npx prisma studio --port 5555 --hostname 0.0.0.0
 
 ```bash
 # Check database connection from backend
-./scripts/semiont exec backend "npx prisma db pull --print"
+./bin/semiont exec backend "npx prisma db pull --print"
 
 # View current schema
-./scripts/semiont exec backend "cat prisma/schema.prisma"
+./bin/semiont exec backend "cat prisma/schema.prisma"
 ```
 
 #### Manual Schema Changes
 
 1. **Update Schema**: Edit `/apps/backend/prisma/schema.prisma`
-2. **Deploy Changes**: Run `./scripts/semiont deploy app`
+2. **Deploy Changes**: Run `./bin/semiont deploy app`
 3. **Automatic Migration**: Backend container will apply changes on startup
 
 #### Prisma Studio (Database Browser)
@@ -135,7 +135,7 @@ npx prisma studio --port 5555 --hostname 0.0.0.0
 DATABASE_URL="postgresql://..." npx prisma studio
 
 # From ECS container (recommended)
-./scripts/semiont exec backend "npx prisma studio --port 5555 --hostname 0.0.0.0"
+./bin/semiont exec backend "npx prisma studio --port 5555 --hostname 0.0.0.0"
 # Then access via port forwarding or ALB
 ```
 
@@ -143,7 +143,7 @@ DATABASE_URL="postgresql://..." npx prisma studio
 
 ```bash
 # WARNING: This will delete all data
-./scripts/semiont exec backend "npx prisma db push --force-reset"
+./bin/semiont exec backend "npx prisma db push --force-reset"
 ```
 
 ## Schema Evolution
@@ -181,7 +181,7 @@ cd cdk && npx cdk deploy AppStackName --exclusively
 3. Verify migration in logs:
 
 ```bash
-./scripts/semiont logs backend tail
+./bin/semiont logs backend tail
 ```
 
 ### Modifying Existing Tables
@@ -202,7 +202,7 @@ For unsafe changes, use `--force-reset` or manual SQL:
 
 ```bash
 # For development environments only
-./scripts/semiont exec backend "npx prisma db push --force-reset"
+./bin/semiont exec backend "npx prisma db push --force-reset"
 ```
 
 ## Backup and Recovery
@@ -269,10 +269,10 @@ aws cloudwatch get-metric-statistics \
 
 ```bash
 # View database logs
-./scripts/semiont logs backend tail | grep -i database
+./bin/semiont logs backend tail | grep -i database
 
 # Check for connection issues
-./scripts/semiont logs backend tail | grep -i "prisma\|database\|connection"
+./bin/semiont logs backend tail | grep -i "prisma\|database\|connection"
 ```
 
 ## Security Considerations
@@ -314,20 +314,20 @@ aws rds describe-db-instances --db-instance-identifier your-db-instance
 
 ```bash
 # Check migration logs
-./scripts/semiont logs backend tail | grep -A 10 -B 10 "Running database migrations"
+./bin/semiont logs backend tail | grep -A 10 -B 10 "Running database migrations"
 
 # Manual migration
-./scripts/semiont exec backend "npx prisma db push --accept-data-loss"
+./bin/semiont exec backend "npx prisma db push --accept-data-loss"
 ```
 
 #### Schema Drift
 
 ```bash
 # Compare schema to database
-./scripts/semiont exec backend "npx prisma db pull"
+./bin/semiont exec backend "npx prisma db pull"
 
 # Reset to match schema
-./scripts/semiont exec backend "npx prisma db push --force-reset"
+./bin/semiont exec backend "npx prisma db push --force-reset"
 ```
 
 ### Emergency Procedures

@@ -1,918 +1,268 @@
 # Semiont Configuration Guide
 
-This document describes how configuration is managed in the Semiont application, including the centralized configuration system, environment variables, secrets, and deployment settings.
+This document describes how configuration is managed in the Semiont application using the environment-based configuration system.
 
 ## Overview
 
-Semiont uses a **centralized configuration system** located in `/packages/config` (previously `/config`) with **configuration-as-code** deployment through AWS CDK. This ensures consistent configuration across environments and secure handling of sensitive data.
+Semiont uses an **environment-based configuration system** located in `/config/environments/` with **configuration-as-code** deployment through AWS CDK. Each environment is completely self-contained with all required configuration.
 
 ## Configuration Architecture
 
-### 1. **Centralized Configuration System**
+### 1. **Environment Configuration System**
 
-All configuration originates from the `/packages/config` directory:
-
-```
-/packages/config/
-├── README.md                    # Configuration documentation
-├── base/                        # Base configurations
-│   ├── site.config.ts          # Site-specific settings
-│   ├── aws.config.ts           # AWS infrastructure settings
-│   ├── app.config.ts           # Application settings
-│   └── site.config.example.ts  # Example template
-├── environments/               # Environment-specific overrides
-│   ├── development.ts          # Development overrides
-│   └── production.ts           # Production settings
-├── schemas/                    # Type definitions
-│   ├── config.schema.ts       # TypeScript interfaces
-│   └── validation.ts          # Runtime validation
-└── index.ts                   # Main configuration export
-```
-
-### 2. **CDK Integration**
-
-The CDK infrastructure uses the centralized configuration:
-
-- **Infrastructure Stack** (`packages/cloud/lib/infra-stack.ts`): Defines RDS, secrets, and core resources using centralized config
-- **Application Stack** (`packages/cloud/lib/app-stack.ts`): Configures ECS tasks with environment variables from centralized config
-- **CDK Entry Point** (`packages/cloud/bin/cdk.ts`): Imports configuration from `/packages/config`
-
-### 3. **Dual-Service Architecture**
-
-Semiont runs as two separate ECS services:
-
-- **Frontend Service**: Next.js application with public environment variables
-- **Backend Service**: Node.js API with database access and secrets
-- **Service Communication**: Frontend communicates with backend via ALB routing
-
-### 4. **Configuration Flow**
+All configuration is defined in environment-specific JSON files:
 
 ```
-Centralized Config → CDK Infrastructure → ECS Task Definition → Container Environment → Application
+/config/
+├── environments/           # Environment configurations (JSON)
+│   ├── development.json    # Development environment
+│   ├── production.json     # Production environment
+│   ├── test.json          # Test environment base
+│   ├── unit.json          # Unit test configuration
+│   ├── integration.json   # Integration test configuration
+│   └── local.json         # Local development
+└── index.ts              # Environment exports
 ```
 
-1. Configuration defined in `/config` with environment-specific overrides
-2. CDK provisions AWS resources using centralized configuration
-3. CDK outputs are used to configure ECS task environment variables
-4. Containers receive environment variables at startup
-5. Applications use environment variables for configuration
+### 2. **Environment Structure**
+
+Each environment configuration contains:
+
+```json
+{
+  "_comment": "Environment description",
+  "deployment": {
+    "default": "aws"
+  },
+  "site": {
+    "domain": "wiki.example.com",
+    "adminEmail": "admin@example.com",
+    "oauthAllowedDomains": ["example.com"]
+  },
+  "app": {
+    "features": {
+      "enableAnalytics": true,
+      "enableDebugLogging": false
+    }
+  },
+  "services": {
+    "backend": {
+      "deployment": { "type": "aws" },
+      "port": 3001
+    }
+  },
+  "cloud": {
+    "aws": {
+      "stacks": {
+        "infra": "SemiontInfraStack", 
+        "app": "SemiontAppStack"
+      }
+    }
+  },
+  "aws": {
+    "region": "us-east-2",
+    "accountId": "123456789012",
+    "certificateArn": "arn:aws:acm:...",
+    "hostedZoneId": "Z1234567890ABC"
+  }
+}
+```
+
+### 3. **Configuration Inheritance**
+
+Environments can extend other environments using `_extends`:
+
+```json
+{
+  "_extends": "test",
+  "_comment": "Integration tests extend base test config",
+  "services": {
+    "database": {
+      "deployment": { "type": "container" },
+      "name": "semiont_integration_test"
+    }
+  }
+}
+```
 
 ## Quick Start
 
 ### For Development
 
-1. **Customize Development Environment**
-   Edit `/config/environments/development.ts` and replace all example values with your development-specific settings:
-   ```typescript
-   export const developmentConfig: EnvironmentOverrides = {
-     site: {
-       domain: 'your-dev-wiki.yourdomain.com',
-       adminEmail: 'admin@yourdomain.com',
-       supportEmail: 'support@yourdomain.com',
-       oauthAllowedDomains: ['yourdomain.com']
+1. **Ensure development environment has AWS region**:
+   ```bash
+   # Check that development.json includes:
+   # "aws": { "region": "us-east-2", ... }
+   ```
+
+2. **Deploy locally**:
+   ```bash
+   ./bin/semiont start local
+   ```
+
+### For Production
+
+1. **Customize production.json** with your values:
+   ```json
+   {
+     "site": {
+       "domain": "your-wiki.yourdomain.com",
+       "adminEmail": "admin@yourdomain.com"
      },
-     aws: {
-       accountId: 'your-aws-account-id',
-       certificateArn: 'your-development-certificate-arn',
-       hostedZoneId: 'your-development-hosted-zone-id',
-       rootDomain: 'yourdomain.com'
+     "aws": {
+       "region": "us-east-2",
+       "accountId": "your-aws-account-id",
+       "certificateArn": "your-certificate-arn"
      }
-   };
+   }
    ```
 
-3. **Deploy** (validates configuration automatically)
+2. **Deploy**:
    ```bash
-   ./scripts/semiont deploy local
+   ./bin/semiont deploy production
    ```
-
-   Note: Development configuration is used automatically for local development.
-
-### For Production (custom deployment)
-
-1. **Customize Production Environment**
-   Edit `/config/environments/production.ts` and replace all example values:
-   ```typescript
-   export const productionConfig: EnvironmentOverrides = {
-     site: {
-       domain: 'your-wiki.yourdomain.com',
-       adminEmail: 'admin@yourdomain.com',
-       supportEmail: 'support@yourdomain.com',
-       oauthAllowedDomains: ['yourdomain.com']
-     },
-     aws: {
-       accountId: 'your-aws-account-id',
-       certificateArn: 'your-certificate-arn',
-       hostedZoneId: 'your-hosted-zone-id',
-       rootDomain: 'yourdomain.com'
-     }
-   };
-   ```
-
-2. **Provision AWS infrastructure** (one-time setup)
-   ```bash
-   ./scripts/semiont provision production
-   ```
-
-3. **Deploy using the production environment**
-   ```bash
-   ./scripts/semiont deploy production
-   ```
-
-## Configuration Files
-
-### Base Configuration Files
-
-Base configuration files contain default settings and common values:
-
-- **`/config/base/site.config.ts`** - General site settings (site name, description)
-- **`/config/base/aws.config.ts`** - AWS infrastructure defaults (region, stack names)
-- **`/config/base/app.config.ts`** - Application runtime settings
-
-⚠️ **Important**: The base configurations no longer contain hardcoded values for deployment-specific settings. You must configure these in environment-specific files.
-
-### Environment-Specific Configuration
-
-All deployment-specific settings are configured in environment files:
-
-#### Development Environment (`/config/environments/development.ts`)
-
-Contains example values for local development that **MUST BE CUSTOMIZED** for your deployment:
-
-| Setting | Example Value | Description |
-|---------|---------------|-------------|
-| `site.domain` | `'wiki.dev.example.com'` | Your development domain |
-| `site.adminEmail` | `'admin@dev.example.com'` | Your development admin email |
-| `site.supportEmail` | `'support@dev.example.com'` | Your development support email |
-| `site.oauthAllowedDomains` | `['dev.example.com']` | Your allowed development domains |
-| `aws.accountId` | `'123456789012'` | Your AWS account ID |
-| `aws.certificateArn` | Example ARN | Your development SSL certificate ARN |
-| `aws.hostedZoneId` | `'ZDEVZONEID123'` | Your development Route 53 hosted zone ID |
-| `aws.rootDomain` | `'dev.example.com'` | Your development root domain |
-
-#### Production Environment (`/config/environments/production.ts`)
-
-Contains example values that **MUST BE CUSTOMIZED** for your deployment:
-
-| Setting | Example Value | Description |
-|---------|---------------|-------------|
-| `site.domain` | `'wiki.example.com'` | Your actual domain |
-| `site.adminEmail` | `'admin@example.com'` | Your admin email |
-| `site.supportEmail` | `'support@example.com'` | Your support email |
-| `site.oauthAllowedDomains` | `['example.com']` | Your allowed domains |
-| `aws.accountId` | `'123456789012'` | Your AWS account ID |
-| `aws.certificateArn` | Example ARN | Your SSL certificate ARN |
-| `aws.hostedZoneId` | `'Z1234567890ABC'` | Your Route 53 hosted zone ID |
-| `aws.rootDomain` | `'example.com'` | Your root domain |
-
-### Application Configuration (`/config/base/app.config.ts`)
-
-Runtime application settings:
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `nodeEnv` | Environment mode | `"production"` |
-| `features.enableAnalytics` | Enable analytics tracking | `false` |
-| `security.sessionTimeout` | Session timeout in seconds | `28800` (8 hours) |
-| `performance.enableCaching` | Enable application caching | `true` |
-
-## Configuration vs Secrets
-
-Semiont makes a clear distinction between **configuration** and **secrets**:
-
-### Configuration (Public Settings)
-- **Location**: `/config/environments/` files (checked into git)
-- **Purpose**: Business logic settings that can be public
-- **Examples**: 
-  - `oauthAllowedDomains` - Which email domains can sign in
-  - `sessionTimeout` - How long sessions last
-  - `enableAnalytics` - Feature flags
-  - Domain names and public settings
-
-### Secrets (Private Credentials)
-- **Location**: AWS Secrets Manager (never in git)
-- **Purpose**: Sensitive credentials and deployment-specific values
-- **Management**: `semiont secrets` command
-- **Examples**:
-  - `oauth/google` - OAuth client ID and secret
-  - `oauth/github` - GitHub OAuth credentials  
-  - `jwt-secret` - JWT signing key
-  - `app-secrets` - Session encryption keys
-
-### Managing Secrets
-
-Use the `semiont secrets` command to manage sensitive values:
-
-```bash
-# List all available secrets
-semiont secrets list
-
-# View a secret (values are masked for security)
-semiont secrets get oauth/google
-
-# Set OAuth credentials interactively
-semiont secrets set oauth/google
-
-# Set a simple secret with a value
-semiont secrets set jwt-secret "your-32-character-secret-key"
-
-# Set complex JSON secret
-semiont secrets set oauth/github '{"clientId":"...","clientSecret":"..."}'
-```
 
 ## Environment Variables
 
-### Configuration Selection
+### Configuration Loading
 
-Semiont configuration is selected through explicit parameters:
-
-- **Scripts**: Use explicit environment parameters (`./scripts/semiont deploy production`)
-- **Backend**: Automatically selects config based on `NODE_ENV` (`production` → `production.ts`, others → `local.ts`)
-- **Tests**: Use suite-specific configuration (`unit` → unit.ts, `integration` → integration.ts)
-
-This provides explicit control over configuration selection.
-
-#### Test Environment Hierarchy
-
-The test environments follow an inheritance pattern:
-
-```
-test.ts (base)
-├── unit.ts (extends test + mockMode: true)
-└── integration.ts (extends test + useTestcontainers: true)
-```
-
-- **test**: Base configuration with common test settings (disabled features, test domains)
-- **unit**: Fast, isolated tests with mocked database and external services
-- **integration**: Tests with real PostgreSQL database via Testcontainers
-
-### Environment Variable Overrides
-
-Configuration values can be overridden using environment variables:
+Scripts use explicit environment parameters:
 
 ```bash
-# Configuration is selected via explicit parameters to scripts
-# No environment variables needed for config selection
-
-# Site configuration
-export SITE_NAME="My Site"
-export DOMAIN="example.com"
-export ADMIN_EMAIL="admin@example.com"
-export OAUTH_ALLOWED_DOMAINS="example.com,partner.com"
-
-# AWS configuration  
-export AWS_REGION="us-east-1"
-export AWS_ACCOUNT_ID="123456789012"
-export CERTIFICATE_ARN="arn:aws:acm:..."
-
-# Application configuration
-export SESSION_TIMEOUT="28800"
+./bin/semiont start production    # Uses production.json
+./bin/semiont build development   # Uses development.json  
+./bin/semiont test unit          # Uses unit.json
 ```
 
-## Backend Configuration
+### Environment-Specific Properties
 
-The backend application receives the following environment variables (automatically configured by CDK from centralized config):
+Each environment specifies its deployment configuration:
 
-### Environment Variables
+- **Local environments**: Use Docker containers
+- **Cloud environments**: Use AWS ECS with required AWS config
+- **Test environments**: Use containers or mock services
 
-#### **Database Configuration**
-- `DATABASE_URL` - Complete PostgreSQL connection string (constructed from secrets)
-- `DB_HOST` - RDS endpoint from CDK
-- `DB_PORT` - PostgreSQL port (5432)
-- `DB_NAME` - Database name (semiont)
+## Managing Secrets
 
-#### **Application Settings**
-- `NODE_ENV` - Environment mode (production)
-- `PORT` - Server port (4000)
-- `AWS_REGION` - AWS region
-
-#### **CORS & Frontend Integration**
-- `CORS_ORIGIN` - Frontend domain for CORS
-- `FRONTEND_URL` - Frontend URL
-
-#### **OAuth Configuration**
-- `OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
-
-### Secrets (via AWS Secrets Manager)
-
-The backend receives secrets through AWS Secrets Manager:
-
-#### **Database Credentials Secret**
-- `DB_USER` - Database username
-- `DB_PASSWORD` - Database password (auto-generated)
-
-#### **JWT Secret**
-- `JWT_SECRET` - JWT signing secret for API authentication
-
-#### **Google OAuth Secret**
-- `GOOGLE_CLIENT_ID` - OAuth Google client ID
-- `GOOGLE_CLIENT_SECRET` - OAuth Google client secret
-
-#### **App Secrets**
-- `SESSION_SECRET` - Session encryption secret
-- `NEXTAUTH_SECRET` - NextAuth.js encryption secret
-
-### Database Connection
-
-The backend uses a complete `DATABASE_URL` constructed from the database credentials:
-
-```bash
-# Automatically constructed from AWS Secrets Manager
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require
-```
-
-## Frontend Configuration
-
-### Environment Variables
-
-The frontend (Next.js) receives these environment variables (automatically configured by CDK from centralized config):
-
-#### **Application Settings**
-- `NODE_ENV` - Build environment
-- `PORT` - Server port
-- `HOSTNAME` - Bind address
-
-#### **Public Variables** (Available to Browser)
-- `NEXT_PUBLIC_API_URL` - Backend API endpoint
-- `NEXT_PUBLIC_SITE_NAME` - Site name
-- `NEXT_PUBLIC_DOMAIN` - Site domain
-- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
-
-#### **NextAuth.js Configuration**
-- `NEXTAUTH_SECRET` - NextAuth.js encryption secret (from app secrets)
-- `NEXTAUTH_URL` - Full application URL for OAuth callbacks
-- `GOOGLE_CLIENT_ID` - Google OAuth client ID (from Google OAuth secret)
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret (from Google OAuth secret)
-
-### Type-Safe Environment Access
-
-The frontend uses a centralized environment configuration:
-
-```typescript
-// src/lib/env.ts
-export const env = {
-  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
-  SITE_NAME: process.env.NEXT_PUBLIC_SITE_NAME || 'Semiont',
-  DOMAIN: process.env.NEXT_PUBLIC_DOMAIN || 'localhost',
-  NODE_ENV: process.env.NODE_ENV || 'development',
-} as const;
-```
-
-## Configuration CLI
-
-Semiont provides a CLI for managing configuration:
-
-```bash
-# Check deployment status and configuration
-./scripts/semiont status
-
-# Validate configuration before deployment
-./scripts/semiont deploy development --dry-run
-
-# Deploy with automatic validation
-./scripts/semiont deploy development
-```
-
-## Development vs Production
-
-### Development Environment
-
-For local development, use `.env.example` files:
-
-```bash
-# Backend (.env)
-cp apps/backend/.env.example apps/backend/.env
-# Edit with local database credentials
-
-# Frontend (.env.local)  
-cp apps/frontend/.env.example apps/frontend/.env.local
-# Edit with local API URL
-```
-
-### Production Environment
-
-In production, **all configuration comes from the centralized config system and CDK**:
-
-- Configuration defined in `/config` with environment overrides
-- Environment variables are set by ECS task definitions using centralized config
-- Secrets are injected from AWS Secrets Manager
-- No manual configuration files needed
-
-## Configuration Management
-
-### 1. **Updating Site Configuration**
-
-Modify environment-specific configuration files:
-
-```json
-// /config/environments/production.json
-{
-  "_comment": "Production environment configuration",
-  "site": {
-    "oauthAllowedDomains": ["company.com", "newdomain.com"]
-  }
-}
-```
-
-After updating configuration, redeploy:
-```bash
-./scripts/semiont deploy development
-```
-
-### 2. **OAuth Configuration**
-
-#### Setting Up Google OAuth
-
-The Semiont platform supports OAuth authentication with Google using NextAuth.js. When configured, users can log in using their Google accounts with domain-based access restrictions.
-
-**Prerequisites:**
-- Semiont deployment must be complete and accessible via HTTPS
-- AWS CLI access to update Secrets Manager
-- Access to Google Cloud Console
-- Domain ownership verification (for OAuth consent screen)
-
-**Step 1: Create Google OAuth Application**
-
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Navigate to **APIs & Services** > **Credentials**
-4. Click **Create Credentials** > **OAuth 2.0 Client IDs**
-
-**Step 2: Configure OAuth Consent Screen**
-
-1. Go to **APIs & Services** > **OAuth consent screen**
-2. Choose **External** user type (unless using Google Workspace)
-3. Fill in required fields:
-   - **App name**: Your application name
-   - **User support email**: Your support email
-   - **Developer contact information**: Your contact email
-4. Add your domain to **Authorized domains**
-5. Configure **Publication status**:
-   - **Testing**: Only specified test users can sign in
-   - **In production**: Any Google user can sign in (requires verification for sensitive scopes)
-
-**Step 3: Create OAuth 2.0 Client ID**
-
-1. In **APIs & Services** > **Credentials**, click **Create Credentials** > **OAuth 2.0 Client IDs**
-2. Select **Web application** as the application type
-3. Configure the client:
-   - **Name**: A descriptive name for your OAuth client
-   - **Authorized JavaScript origins**: `https://your-domain.com`
-   - **Authorized redirect URIs**: `https://your-domain.com/api/auth/callback/google`
-4. Save the **Client ID** and **Client Secret**
-
-**Step 4: Required APIs**
-
-Ensure these APIs are enabled in **APIs & Services** > **Library**:
-- **Google+ API** (legacy but sometimes required)
-- **People API**
-- **Google Identity Services API**
-
-#### OAuth Management Tools
-
-Use the secrets management command for OAuth credentials:
+Configuration files contain public settings. Secrets are managed separately:
 
 ```bash
 # Set OAuth credentials
-./scripts/semiont secrets set oauth/google
+./bin/semiont configure production set oauth/google
 
-# Check OAuth credential status
-./scripts/semiont secrets get oauth/google
+# List all secrets
+./bin/semiont configure production list
 
-# List all secrets including OAuth
-./scripts/semiont secrets list
+# Check secret status
+./bin/semiont configure production get oauth/google
 ```
 
+## Environment Requirements
 
-### 3. **Environment-Specific Overrides**
+### Cloud Environments (AWS)
 
-Create environment-specific overrides in `/config/environments/`:
-
-```typescript
-// Example development override
-export const developmentConfig: EnvironmentOverrides = {
-  app: {
-    features: {
-      enableDebugLogging: true
-    },
-    security: {
-      sessionTimeout: 86400  // 24 hours for dev
-    }
-  }
-};
-```
-
-### 4. **Applying Configuration Changes**
-
-After any configuration change:
-
-```bash
-# Deploy changes (validates automatically)
-./scripts/semiont deploy development
-```
-
-## Health Checks & Monitoring
-
-### Backend Health Endpoint
-
-The backend provides comprehensive health information at `/api/health`.
-
-Response includes:
-- Application status
-- Database connectivity
-- Environment information
-- Version details
-
-### Configuration Validation
-
-The application validates configuration at startup:
-
-1. **Configuration schema validation** is performed
-2. **Database connectivity** is tested
-3. **Required environment variables** are checked
-4. **Health endpoints** verify configuration
-5. **Startup logs** show configuration status
-
-## Security Considerations
-
-### 1. **Secrets Management**
-- All sensitive data uses AWS Secrets Manager
-- No secrets in environment variables or code
-- Automatic secret rotation supported
-
-### 2. **Environment Isolation**
-- Development and production use separate resources
-- Configuration is environment-specific
-- No cross-environment data leakage
-
-### 3. **Access Control**
-- ECS tasks have minimal IAM permissions
-- Only necessary secrets are accessible
-- Database access is restricted by security groups
-
-### 4. **Configuration Security**
-- Never commit secrets to git
-- Use `.env.local` for local development (gitignored)
-- Validate domains - ensure `oauthAllowedDomains` is restrictive
-- Regular configuration reviews
-
-### 5. **OAuth Security**
-- Keep OAuth Client Secrets secure and rotate them regularly
-- Use specific redirect URIs, never wildcards
-- Review OAuth application permissions periodically
-- Monitor failed authentication attempts
-- Regularly review the allowed domains list
-- Consider additional authorization rules beyond domain checking
-- Monitor login attempts via application logs
-- Implement session management and timeout policies
-
-## Troubleshooting
-
-### Common Configuration Issues
-
-1. **Invalid Domain Configuration**
-   ```
-   Error: Valid domain is required
-   Field: site.domain
-   ```
-   **Solution**: Ensure domain follows format `subdomain.example.com`
-
-2. **Missing AWS Credentials**
-   ```
-   Error: Valid AWS account ID is required
-   Field: aws.accountId
-   ```
-   **Solution**: Find your 12-digit account ID in AWS Console
-
-3. **Certificate ARN Mismatch**
-   ```
-   Error: Certificate must be in us-east-1 for CloudFront
-   ```
-   **Solution**: Create certificate in us-east-1 region for CloudFront compatibility
-
-4. **Database Connection Failures**
-   ```bash
-   # Check database endpoint
-   ./scripts/semiont exec backend 'echo $DB_HOST'
-   
-   # Test database connectivity
-   ./scripts/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
-   
-   # Check complete DATABASE_URL
-   ./scripts/semiont exec backend 'echo $DATABASE_URL | sed "s/:.*@/:***@/"'
-   ```
-
-5. **Frontend API Connection Issues**
-   ```bash
-   # Check API URL configuration
-   curl https://your-domain.com/api/health
-   
-   # Check frontend environment variables
-   ./scripts/semiont exec frontend 'env | grep NEXT_PUBLIC'
-   ```
-
-6. **OAuth Configuration Issues**
-
-   **"invalid_client (Unauthorized)"**
-   - **Causes**: Incorrect Client ID/Secret, wrong redirect URI, OAuth app not configured
-   - **Solutions**: Verify credentials match exactly, ensure redirect URI is `https://your-domain.com/api/auth/callback/google`
-
-   **"Your email domain is not allowed"**
-   - **Causes**: User's email domain not in `OAUTH_ALLOWED_DOMAINS`, environment variable not set
-   - **Solutions**: Add domain to allowed domains list, verify environment variables, redeploy and restart services
-
-   **"This app isn't verified"**
-   - **Causes**: OAuth app in testing mode but user not in test users list
-   - **Solutions**: Add users to test users list (testing mode) or submit app for verification (production mode)
-
-   ```bash
-   # Check OAuth status
-   ./scripts/semiont secrets get oauth/google
-   
-   # Check OAuth environment variables
-   ./scripts/semiont exec frontend 'env | grep -E "(GOOGLE|NEXTAUTH|OAUTH)"'
-   
-   # View OAuth logs
-   ./scripts/semiont logs frontend tail
-   
-   # Follow logs during OAuth testing
-   ./scripts/semiont logs frontend follow
-   ```
-
-### Configuration Debugging
-
-Use the management scripts and configuration CLI to inspect configuration:
-
-```bash
-# Check deployment status and configuration
-./scripts/semiont status
-
-# View application logs (both services)
-./scripts/semiont logs follow
-
-# View service-specific logs
-./scripts/semiont logs frontend tail
-./scripts/semiont logs backend tail
-
-# Execute commands in specific containers
-./scripts/semiont exec frontend 'env'
-./scripts/semiont exec backend 'env'
-
-# Check OAuth configuration
-./scripts/semiont secrets get oauth/google
-
-# Restart services after configuration changes
-./scripts/semiont restart
-```
-
-## Creating New Environment Configurations
-
-Semiont's configuration system is designed for easy extensibility. You can create new environment configurations without modifying core Semiont code.
-
-### Step-by-Step Guide
-
-#### 1. **Create the Configuration File**
-
-Create a new file in `/config/environments/` with your environment name:
-
-```bash
-# Example: Create a staging environment
-touch config/environments/staging.ts
-```
-
-#### 2. **Define the Configuration**
-
-```typescript
-// config/environments/staging.ts
-import type { EnvironmentOverrides } from '../schemas/config.schema';
-
-export const stagingConfig: EnvironmentOverrides = {
-  // Environment metadata (REQUIRED) - declares the type of environment
-  _meta: {
-    type: 'cloud',  // 'local' | 'cloud' | 'test'
-    description: 'Staging environment for pre-production testing'
-  },
-  
-  site: {
-    domain: 'staging.example.com',
-    adminEmail: 'admin@staging.example.com',
-    supportEmail: 'support@staging.example.com',
-    oauthAllowedDomains: ['staging.example.com', 'example.com']
-  },
-  
-  app: {
-    features: {
-      enableAnalytics: true,       // Enable for realistic testing
-      enableMaintenanceMode: false,
-      enableDebugLogging: true     // Helpful for debugging
-    },
-    security: {
-      sessionTimeout: 14400,       // 4 hours
-      maxLoginAttempts: 5,
-      corsAllowedOrigins: ['https://staging.example.com']
-    },
-    performance: {
-      enableCaching: true,
-      cacheTimeout: 300           // 5 minutes
-    }
-    // Note: For cloud environments, URLs are set automatically by AWS infrastructure
-  },
-  
-  aws: {
-    accountId: '123456789012',
-    certificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/staging-cert-id',
-    hostedZoneId: 'ZSTAGINGZONEID123',
-    rootDomain: 'example.com',
-    database: {
-      multiAZ: false,            // Single AZ for staging cost savings
-      backupRetentionDays: 3
-    },
-    ecs: {
-      desiredCount: 1,           // Minimal resources for staging
-      minCapacity: 1,
-      maxCapacity: 3
-    },
-    monitoring: {
-      enableDetailedMonitoring: true,
-      logRetentionDays: 7
-    }
-  }
-};
-```
-
-#### 3. **Environment Types**
-
-Choose the appropriate `_meta.type` for your environment:
-
-| Type | Purpose | AWS Validation | Use Cases |
-|------|---------|----------------|-----------|
-| **`local`** | Local development | ❌ Skipped | Docker containers on developer machine |
-| **`cloud`** | Cloud infrastructure | ✅ Required | AWS-based environments (dev/staging/prod) |
-| **`test`** | Automated testing | ❌ Skipped | CI/CD testing environments |
-
-#### 4. **Environment-Specific Examples**
-
-**Local Environment Example:**
-```typescript
-// config/environments/local-experimental.ts
-export const localExperimentalConfig: EnvironmentOverrides = {
-  _meta: {
-    type: 'local',
-    description: 'Local development with experimental features'
-  },
-  site: {
-    domain: 'localhost',
-    adminEmail: 'admin@localhost.dev',
-    oauthAllowedDomains: ['localhost.dev', 'gmail.com']
-  },
-  app: {
-    backend: {
-      url: 'http://localhost:4001',    // Different port
-      database: {
-        name: 'semiont_experimental'   // Different database
-      }
-    },
-    frontend: {
-      url: 'http://localhost:4000'
-    }
-  }
-  // No AWS section needed for local environments
-};
-```
-
-**Cloud Environment Example:**
-```typescript
-// config/environments/preview.ts  
-export const previewConfig: EnvironmentOverrides = {
-  _meta: {
-    type: 'cloud',
-    description: 'Preview environment for feature branches'
-  },
-  // ... site, app, and aws configuration
-};
-```
-
-#### 5. **Use Your New Environment**
-
-Once created, your environment is immediately available:
-
-```bash
-# Deploy to your new environment
-./scripts/semiont deploy staging
-
-# Check configuration
-./scripts/semiont config show staging
-
-# Provision AWS infrastructure (for cloud environments)
-./scripts/semiont provision staging
-
-# View environment status
-./scripts/semiont status staging
-```
-
-### Key Benefits
-
-- ✅ **No core code changes** - Just create the config file
-- ✅ **Auto-discovery** - Scripts automatically detect new environments  
-- ✅ **Type safety** - Full TypeScript support and validation
-- ✅ **Inheritance** - Can extend existing configurations
-- ✅ **Flexible validation** - Metadata determines which validations apply
-
-### Advanced Patterns
-
-**Extending Existing Configurations:**
-```typescript
-import { productionConfig } from './production';
-
-export const productionEuConfig: EnvironmentOverrides = {
-  ...productionConfig,
-  _meta: {
-    type: 'cloud',
-    description: 'Production environment for EU region'
-  },
-  aws: {
-    ...productionConfig.aws,
-    region: 'eu-west-1',  // Override specific values
-    accountId: '987654321098'
-  }
-};
-```
-
-**Testing Your Configuration:**
-```bash
-# Validate configuration
-npm run build
-
-# Test loading
-node -e "console.log('Config valid:', require('./config/dist/index').loadConfig('staging'))"
-```
-
-## Testing with Custom Environments
-
-The testing system supports custom environment configurations:
-
-### Test Environment Configuration
-
-Create custom test environments using JSON configuration:
+Must include complete AWS configuration:
 
 ```json
-// /config/environments/foo.json
 {
-  "_comment": "Custom test environment",
-  "_extends": "integration",
-  "site": {
-    "domain": "foo.test.example.com"
-  },
-  "app": {
-    "backend": {
-      "database": {
-        "name": "semiont_foo_test",
-        "user": "foo_test_user"
-      }
-    }
+  "aws": {
+    "region": "us-east-2",              // Required - no defaults
+    "accountId": "123456789012",        // Required
+    "certificateArn": "arn:aws:acm:...", // Required for HTTPS
+    "hostedZoneId": "Z1234567890ABC",    // Required for DNS
+    "rootDomain": "example.com"          // Required for SSL
   }
 }
 ```
 
-### Running Tests with Custom Environments
+### Local Environments
 
-```bash
-# Run integration tests against custom environment
-./scripts/semiont test --environment foo --suite integration
+No AWS configuration needed:
 
-# Run unit tests (uses unit.json by default)
-./scripts/semiont test --suite unit
-
-# Run specific service tests
-./scripts/semiont test --environment foo --suite integration --service backend
+```json
+{
+  "site": {
+    "domain": "localhost",
+    "adminEmail": "admin@localhost.dev"
+  },
+  "services": {
+    "backend": { "port": 3001 },
+    "frontend": { "port": 3000 }
+  }
+}
 ```
 
-The test command automatically sets `SEMIONT_ENV` based on:
-1. **Explicit `--environment`**: Uses specified config (e.g., `foo.json`)
-2. **Suite defaults**: `integration`/`e2e` → `integration.json`, others → `unit.json`
-3. **Local fallback**: `unit.json` when no specific environment
+## Creating New Environments
 
-For detailed testing information, see [TESTING.md](TESTING.md) and individual service README files.
+1. **Create JSON file**:
+   ```bash
+   touch config/environments/staging.json
+   ```
+
+2. **Define configuration**:
+   ```json
+   {
+     "_comment": "Staging environment",
+     "deployment": { "default": "aws" },
+     "site": {
+       "domain": "staging.example.com",
+       "adminEmail": "admin@staging.example.com"
+     },
+     "aws": {
+       "region": "us-east-2",
+       "accountId": "123456789012"
+     }
+   }
+   ```
+
+3. **Use immediately**:
+   ```bash
+   ./bin/semiont deploy staging
+   ```
+
+## Deployment Types
+
+Each service can specify its deployment type:
+
+- **`aws`**: ECS Fargate service
+- **`container`**: Local Docker container  
+- **`process`**: Local process
+- **`mock`**: Mock/test service
+- **`external`**: External service
+
+## Configuration Validation
+
+The system validates configuration at load time:
+
+- **Required fields**: Environment must have required properties for its deployment type
+- **AWS validation**: Cloud environments must have complete AWS config
+- **No defaults**: Missing required config causes explicit errors
 
 ## Best Practices
 
-1. **Use centralized configuration** - Define all settings in `/config`
-2. **Use environment-specific overrides** - Keep environment differences in `/config/environments/`
-3. **Use JSON inheritance** - Leverage `_extends` field to reduce duplication
-4. **Use CDK for all infrastructure** - Avoid manual AWS console changes
-5. **Use semiont scripts** - Use `./scripts/semiont` commands for all operations
-6. **Test configuration changes** in development first
-7. **Create custom test environments** - Use `--environment` flag for specialized testing
-8. **Use environment-specific values** - Never hardcode production URLs
-9. **Validate configuration** - Use `./scripts/semiont deploy --dry-run` to validate before deployment
-10. **Restart services after config changes** - Configuration is cached in containers
-11. **Rotate secrets regularly** using AWS Secrets Manager
-12. **Monitor configuration drift** with AWS Config or CloudFormation drift detection
-13. **Document configuration changes** in git commits and pull requests
-14. **Use service-specific commands** - Specify frontend/backend for exec and logs commands
+1. **Always specify AWS region** - No defaults provided
+2. **Use complete environment configs** - Each environment is self-contained  
+3. **Use inheritance sparingly** - Prefer explicit configuration
+4. **Test configuration changes** - Use `--dry-run` flags
+5. **Keep secrets separate** - Use AWS Secrets Manager, not JSON files
 
-## Related Documentation
+## Troubleshooting
 
-- [Deployment Guide](DEPLOYMENT.md) - How to deploy configuration changes
-- [Development Setup](../README.md) - Local development configuration  
-- [Security Guide](./SECURITY.md) - Security best practices
-- [Troubleshooting Guide](TROUBLESHOOTING.md) - Configuration-related issues
+### Missing AWS Configuration
+```
+Error: Environment production does not have AWS configuration
+```
+**Solution**: Add `aws` section with required `region` field.
+
+### Invalid Region
+```
+Error: AWS region is required for deployment
+```  
+**Solution**: Ensure `aws.region` is specified in environment JSON.
+
+### Configuration Not Found
+```
+Error: Configuration file not found: environments/staging.json
+```
+**Solution**: Create the environment JSON file or use existing environment name.
+

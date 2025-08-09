@@ -3,7 +3,7 @@ import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-clo
 import { StackOutput, AWSError } from './types.js';
 import { validateAwsResourceName, assertValid } from './validators.js';
 import { logger } from './logger.js';
-import { config } from '@semiont/config-loader';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/config-loader';
 
 export interface SemiontConfig {
   region: string;
@@ -20,9 +20,19 @@ export interface SemiontConfig {
 export class SemiontStackConfig {
   private cfnClient: CloudFormationClient;
   private config: SemiontConfig | null = null;
+  private environmentConfig: EnvironmentConfig;
+  private environment: string;
 
-  constructor(region: string = config.aws.region) {
-    this.cfnClient = new CloudFormationClient({ region });
+  constructor(environment: string) {
+    this.environment = environment;
+    this.environmentConfig = loadEnvironmentConfig(environment);
+    
+    // AWS is required for stack configuration
+    if (!this.environmentConfig.aws) {
+      throw new Error(`Environment ${environment} does not have AWS configuration`);
+    }
+    
+    this.cfnClient = new CloudFormationClient({ region: this.environmentConfig.aws.region });
   }
 
   async getConfig(): Promise<SemiontConfig> {
@@ -30,56 +40,60 @@ export class SemiontStackConfig {
       return this.config;
     }
 
-    const infraStackName = assertValid(
-      validateAwsResourceName('SemiontInfraStack'),
+    // Get stack names from new schema
+    const infraStackName = this.environmentConfig.cloud?.aws?.stacks?.infra || 'SemiontInfraStack';
+    const appStackName = this.environmentConfig.cloud?.aws?.stacks?.app || 'SemiontAppStack';
+
+    const validatedInfraStackName = assertValid(
+      validateAwsResourceName(infraStackName),
       'Infrastructure stack name validation'
     );
-    const appStackName = assertValid(
-      validateAwsResourceName('SemiontAppStack'),
+    const validatedAppStackName = assertValid(
+      validateAwsResourceName(appStackName),
       'Application stack name validation'
     );
 
     try {
       logger.debug('Fetching CloudFormation stack configurations', {
-        infraStack: infraStackName,
-        appStack: appStackName
+        infraStack: validatedInfraStackName,
+        appStack: validatedAppStackName
       });
 
       // Get infrastructure stack outputs
       const infraResponse = await this.cfnClient.send(
-        new DescribeStacksCommand({ StackName: infraStackName })
+        new DescribeStacksCommand({ StackName: validatedInfraStackName })
       );
       
       if (!infraResponse.Stacks?.[0]) {
-        throw new AWSError(`Infrastructure stack ${infraStackName} not found`);
+        throw new AWSError(`Infrastructure stack ${validatedInfraStackName} not found`);
       }
       
       const infraOutputs = this.parseOutputs((infraResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       // Get application stack outputs
       const appResponse = await this.cfnClient.send(
-        new DescribeStacksCommand({ StackName: appStackName })
+        new DescribeStacksCommand({ StackName: validatedAppStackName })
       );
       
       if (!appResponse.Stacks?.[0]) {
-        throw new AWSError(`Application stack ${appStackName} not found`);
+        throw new AWSError(`Application stack ${validatedAppStackName} not found`);
       }
       
       const appOutputs = this.parseOutputs((appResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       this.config = {
-        region: config.aws.region,
+        region: this.environmentConfig.aws!.region,
         infraStack: {
-          name: infraStackName,
+          name: validatedInfraStackName,
           outputs: infraOutputs,
         },
         appStack: {
-          name: appStackName,
+          name: validatedAppStackName,
           outputs: appOutputs,
         },
       };
 
-      return this.config;
+      return this.config!;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to get stack configuration', { error: errorMessage });
@@ -98,6 +112,16 @@ export class SemiontStackConfig {
   }
 
   // Convenience getters with error handling
+  async getInfraStackName(): Promise<string> {
+    const config = await this.getConfig();
+    return config.infraStack.name;
+  }
+
+  async getAppStackName(): Promise<string> {
+    const config = await this.getConfig();
+    return config.appStack.name;
+  }
+
   async getClusterName(): Promise<string> {
     const config = await this.getConfig();
     const clusterName = config.appStack.outputs.ClusterName;
@@ -212,11 +236,17 @@ export class SemiontStackConfig {
   }
 
   async getSiteName(): Promise<string> {
-    return config.site.siteName;
+    if (!this.environmentConfig.site?.siteName) {
+      throw new Error(`Site name not configured for environment ${this.environment}`);
+    }
+    return this.environmentConfig.site.siteName;
   }
 
   async getDomainName(): Promise<string> {
-    return config.site.domain;
+    if (!this.environmentConfig.site?.domain) {
+      throw new Error(`Domain not configured for environment ${this.environment}`);
+    }
+    return this.environmentConfig.site.domain;
   }
 
   async getLoadBalancerDNS(): Promise<string> {

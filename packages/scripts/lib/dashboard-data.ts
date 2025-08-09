@@ -10,8 +10,8 @@ import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cl
 import { SemiontStackConfig } from './stack-config';
 import { ServiceStatus, LogEntry, MetricData } from './dashboard-components';
 import { DashboardData } from './dashboard-layouts';
-import { ECSTask, ServiceType } from './types';
-import { config } from '@semiont/config-loader';
+import { ServiceType } from './types';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/config-loader';
 
 export class DashboardDataSource {
   private stackConfig: SemiontStackConfig;
@@ -20,12 +20,20 @@ export class DashboardDataSource {
   private cloudWatchClient: CloudWatchClient;
   private logCache: Map<string, LogEntry[]> = new Map();
   private lastLogTimestamp: Map<string, Date> = new Map();
+  private config: EnvironmentConfig;
 
-  constructor() {
-    this.stackConfig = new SemiontStackConfig();
-    this.ecsClient = new ECSClient({ region: config.aws.region });
-    this.logsClient = new CloudWatchLogsClient({ region: config.aws.region });
-    this.cloudWatchClient = new CloudWatchClient({ region: config.aws.region });
+  constructor(environment: string) {
+    this.config = loadEnvironmentConfig(environment);
+    
+    // AWS is required for dashboard data (can't monitor local services with AWS CloudWatch)
+    if (!this.config.aws) {
+      throw new Error(`Environment ${environment} does not have AWS configuration`);
+    }
+    
+    this.stackConfig = new SemiontStackConfig(environment);
+    this.ecsClient = new ECSClient({ region: this.config.aws.region });
+    this.logsClient = new CloudWatchLogsClient({ region: this.config.aws.region });
+    this.cloudWatchClient = new CloudWatchClient({ region: this.config.aws.region });
   }
 
   // Get current services status
@@ -199,7 +207,9 @@ export class DashboardDataSource {
           .slice(0, maxEntries * 2); // Keep some history
 
         this.logCache.set(cacheKey, allServiceLogs);
-        this.lastLogTimestamp.set(cacheKey, newLogs[0].timestamp);
+        if (newLogs.length > 0 && newLogs[0]) {
+          this.lastLogTimestamp.set(cacheKey, newLogs[0].timestamp);
+        }
         return allServiceLogs;
       }
 
@@ -349,7 +359,8 @@ export class DashboardDataSource {
   // Extract ALB name from DNS
   private extractALBName(albDns: string): string {
     const parts = albDns.split('-');
-    const id = albDns.split('.')[0].split('-').pop();
+    const firstPart = albDns.split('.')[0];
+    const id = firstPart ? firstPart.split('-').pop() : '';
     return `app/${parts[0]}-${parts[1]}-${parts[2]}/${id}`;
   }
 

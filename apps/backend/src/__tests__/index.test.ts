@@ -136,8 +136,8 @@ describe('Main Application (index.ts)', () => {
     it('should require admin authentication', async () => {
       const response = await app.request('http://localhost/api/admin/users');
       
-      // Should return 401 (or 500 due to auth middleware error in test environment)
-      expect([401, 500]).toContain(response.status);
+      // Should return 401 for missing authentication
+      expect(response.status).toBe(401);
     });
   });
 

@@ -205,9 +205,13 @@ export class CommandRunner {
       PATH: process.env.PATH || '',
       HOME: process.env.HOME || '',
       USER: process.env.USER || '',
-      AWS_REGION: process.env.AWS_REGION || 'us-east-2',
       NODE_ENV: process.env.NODE_ENV || 'production',
     };
+
+    // Add AWS_REGION only if it's actually set
+    if (process.env.AWS_REGION) {
+      safeEnv.AWS_REGION = process.env.AWS_REGION;
+    }
 
     // Add AWS credentials if available
     const awsVars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_PROFILE'];

@@ -1,19 +1,17 @@
 
 import { RDSClient, DescribeDBInstancesCommand, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-// SemiontStackConfig reserved for future use
-import { config } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
+import { SemiontStackConfig } from './lib/stack-config';
 
-// Reserved for future stack configuration needs
-const rdsClient = new RDSClient({ region: config.aws.region });
-const cfnClient = new CloudFormationClient({ region: config.aws.region });
-
-async function findSemiontDatabase() {
+async function findSemiontDatabase(stackConfig: SemiontStackConfig, rdsClient: RDSClient, cfnClient: CloudFormationClient) {
   try {
     // Get database endpoint from CloudFormation stack
+    const infraStackName = await stackConfig.getInfraStackName();
     const stackResponse = await cfnClient.send(
       new DescribeStacksCommand({
-        StackName: 'SemiontInfraStack'
+        StackName: infraStackName
       })
     );
 
@@ -69,12 +67,21 @@ async function findSemiontDatabase() {
   }
 }
 
-async function createBackup(backupName?: string) {
+async function createBackup(environment: string, backupName?: string) {
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  const stackConfig = new SemiontStackConfig(environment);
+  const rdsClient = new RDSClient({ region: config.aws.region });
+  const cfnClient = new CloudFormationClient({ region: config.aws.region });
+  
   console.log('💾 Creating Semiont database backup...');
 
   try {
     // Find the database
-    const database = await findSemiontDatabase();
+    const database = await findSemiontDatabase(stackConfig, rdsClient, cfnClient);
     console.log(`📊 Database: ${database.identifier}`);
     console.log(`   Engine: ${database.engine}`);
     console.log(`   Status: ${database.status}`);
@@ -120,18 +127,21 @@ async function createBackup(backupName?: string) {
 }
 
 async function main() {
-  const backupName = process.argv[2];
+  const args = process.argv.slice(2);
   
-  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     console.log('💾 Semiont Database Backup Tool');
     console.log('');
-    console.log('Usage: npx tsx db-backup.ts [backup-name]');
-    console.log('   or: ./scripts/semiont backup [backup-name]');
+    console.log('Usage: ./semiont backup <environment> [backup-name]');
+    console.log('');
+    console.log('Arguments:');
+    console.log(`   <environment>    Environment to backup (${getAvailableEnvironments().join(', ')})`);
+    console.log('   [backup-name]    Custom backup name (optional)');
     console.log('');
     console.log('Examples:');
-    console.log('   ./scripts/semiont backup                           # Auto-generated timestamp name');
-    console.log('   ./scripts/semiont backup "pre-upgrade-20250127"    # Custom name');
-    console.log('   ./scripts/semiont backup "before-oauth-changes"    # Descriptive name');
+    console.log('   ./semiont backup production                       # Auto-generated timestamp name');
+    console.log('   ./semiont backup staging "pre-upgrade-20250127"   # Custom name for staging');
+    console.log('   ./semiont backup production "before-oauth-changes" # Descriptive name');
     console.log('');
     console.log('Notes:');
     console.log('   • Backup names must be unique');
@@ -140,8 +150,21 @@ async function main() {
     console.log('   • Database remains available during backup');
     return;
   }
-
-  await createBackup(backupName);
+  
+  const environment = args[0];
+  if (!environment) {
+    console.error('❌ Environment is required');
+    process.exit(1);
+  }
+  
+  if (!isValidEnvironment(environment)) {
+    console.error(`❌ Invalid environment: ${environment}`);
+    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
+    process.exit(1);
+  }
+  
+  const backupName = args[1];
+  await createBackup(environment, backupName);
 }
 
 main().catch(console.error);

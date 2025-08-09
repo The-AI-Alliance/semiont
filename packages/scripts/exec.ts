@@ -1,16 +1,14 @@
 
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { SemiontStackConfig } from './lib/stack-config';
-import { config } from '@semiont/config-loader';
 import { spawn } from 'child_process';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 
-const stackConfig = new SemiontStackConfig();
-const ecsClient = new ECSClient({ region: config.aws.region });
-
-async function getLatestTaskId(service: 'frontend' | 'backend'): Promise<string> {
+async function getLatestTaskId(service: 'frontend' | 'backend', stackConfig: SemiontStackConfig, ecsClient: ECSClient): Promise<string> {
   const clusterName = await stackConfig.getClusterName();
   const serviceName = service === 'frontend' 
     ? await stackConfig.getFrontendServiceName()
@@ -39,15 +37,15 @@ async function getLatestTaskId(service: 'frontend' | 'backend'): Promise<string>
   return taskId;
 }
 
-async function executeCommand(service: 'frontend' | 'backend', command: string) {
+async function executeCommand(service: 'frontend' | 'backend', command: string, config: any, stackConfig: SemiontStackConfig, ecsClient: ECSClient) {
   console.log(`🐳 Connecting to Semiont ${service} container...`);
 
   try {
     const clusterName = await stackConfig.getClusterName();
-    const taskId = await getLatestTaskId(service);
+    const taskId = await getLatestTaskId(service, stackConfig, ecsClient);
     const containerName = `semiont-${service}`;
 
-    await showExecutionInfo(service, taskId, command, clusterName, containerName);
+    await showExecutionInfo(service, taskId, command, clusterName, containerName, config);
 
     // Use AWS CLI for interactive commands since the SDK doesn't support interactive mode well
     const awsCommand = `aws ecs execute-command --cluster "${clusterName}" --task "${taskId}" --container "${containerName}" --command "${command}" --interactive --region "${config.aws.region}"`;
@@ -82,7 +80,7 @@ async function executeCommand(service: 'frontend' | 'backend', command: string) 
 }
 
 // Table display function for execution info
-async function showExecutionInfo(service: string, taskId: string, command: string, clusterName: string, containerName: string): Promise<void> {
+async function showExecutionInfo(service: string, taskId: string, command: string, clusterName: string, containerName: string, config: any): Promise<void> {
   return new Promise((resolve) => {
     const execData = [
       { Property: 'Service', Value: `🚀 ${service}` },
@@ -116,22 +114,71 @@ async function showExecutionInfo(service: string, taskId: string, command: strin
   });
 }
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-let service: 'frontend' | 'backend' = 'backend'; // default
-let command = '/bin/sh'; // default
-
-if (args.length === 0) {
-  // No arguments: default to backend bash
-  command = '/bin/sh';
-} else if (args[0] === 'frontend' || args[0] === 'backend') {
-  // First argument is service
-  service = args[0];
-  command = args[1] || '/bin/sh';
-} else {
-  // First argument is command, use default backend service
-  command = args[0] || '/bin/sh';
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+    console.log('🐳 Semiont Container Exec Tool');
+    console.log('');
+    console.log('Usage: ./semiont exec <environment> [service] [command]');
+    console.log('');
+    console.log('Arguments:');
+    console.log(`   <environment>    Environment to connect to (${getAvailableEnvironments().join(', ')})`);
+    console.log('   [service]        Service to connect to (frontend, backend) - default: backend');
+    console.log('   [command]        Command to execute - default: /bin/sh');
+    console.log('');
+    console.log('Examples:');
+    console.log('   ./semiont exec production                    # Connect to backend with shell');
+    console.log('   ./semiont exec staging frontend             # Connect to frontend with shell');
+    console.log('   ./semiont exec production backend "ls -la"   # Run specific command on backend');
+    console.log('');
+    console.log('Requirements:');
+    console.log('   • AWS CLI installed and configured');
+    console.log('   • Session Manager plugin installed');
+    console.log('   • ECS Exec enabled on target services');
+    return;
+  }
+  
+  const environment = args[0];
+  if (!environment) {
+    console.error('❌ Environment is required');
+    process.exit(1);
+  }
+  
+  if (!isValidEnvironment(environment)) {
+    console.error(`❌ Invalid environment: ${environment}`);
+    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
+    process.exit(1);
+  }
+  
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  const stackConfig = new SemiontStackConfig(environment);
+  const ecsClient = new ECSClient({ region: config.aws.region });
+  
+  // Parse service and command arguments
+  let service: 'frontend' | 'backend' = 'backend'; // default
+  let command = '/bin/sh'; // default
+  
+  if (args.length === 1) {
+    // Only environment provided: default to backend bash
+    service = 'backend';
+    command = '/bin/sh';
+  } else if (args[1] === 'frontend' || args[1] === 'backend') {
+    // Second argument is service
+    service = args[1];
+    command = args[2] || '/bin/sh';
+  } else {
+    // Second argument is command, use default backend service
+    service = 'backend';
+    command = args[1] || '/bin/sh';
+  }
+  
+  console.log(`🚀 Executing on ${service} service: ${command}`);
+  await executeCommand(service, command, config, stackConfig, ecsClient);
 }
 
-console.log(`🚀 Executing on ${service} service: ${command}`);
-executeCommand(service, command).catch(console.error);
+main().catch(console.error);

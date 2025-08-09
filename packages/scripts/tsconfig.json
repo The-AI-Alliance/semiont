@@ -13,12 +13,14 @@
     "declaration": true,
     "noEmit": false,
     "verbatimModuleSyntax": false,
+    "jsx": "react",
     
     // Core strictness (matching backend/frontend)
     "strict": true,
     
     // Enhanced strictness settings (matching backend/frontend)
-    "exactOptionalPropertyTypes": true,
+    // Disabled for CDK compatibility
+    "exactOptionalPropertyTypes": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,

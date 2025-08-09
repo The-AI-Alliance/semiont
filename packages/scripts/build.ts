@@ -1,9 +1,20 @@
 
+/**
+ * Build Command - Build applications and Docker images
+ * 
+ * Usage:
+ *   ./scripts/semiont build <environment> [target] [options]
+ *   ./scripts/semiont build production                    # Build everything for production
+ *   ./scripts/semiont build staging frontend             # Build frontend for staging
+ *   ./scripts/semiont build development backend --verbose # Build backend for development
+ */
+
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import path from 'path';
-import { config } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 
 interface BuildOptions {
   target?: 'frontend' | 'backend' | 'docker' | 'all';
@@ -278,7 +289,7 @@ async function getDockerImageInfo(imageName: string): Promise<{ id: string; crea
   }
 }
 
-async function buildDockerImages(): Promise<boolean> {
+async function buildDockerImages(environment: string): Promise<boolean> {
   log('🐳 Building Docker images...');
   
   let success = true;
@@ -371,11 +382,12 @@ async function buildDockerImages(): Promise<boolean> {
       return false;
     }
     
+    const config = loadEnvironmentConfig(environment);
     const buildArgs = [
-      `NEXT_PUBLIC_API_URL=https://${config.site.domain}`,
-      `NEXT_PUBLIC_SITE_NAME=${config.site.siteName}`,
-      `NEXT_PUBLIC_DOMAIN=${config.site.domain}`,
-      `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${config.site.oauthAllowedDomains.join(',')}`,
+      `NEXT_PUBLIC_API_URL=https://${config.site?.domain || 'localhost'}`,
+      `NEXT_PUBLIC_SITE_NAME=${config.site?.siteName || 'Semiont'}`,
+      `NEXT_PUBLIC_DOMAIN=${config.site?.domain || 'localhost'}`,
+      `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${config.site?.oauthAllowedDomains?.join(',') || ''}`,
       `CACHE_BUST=${cacheBust}`
     ];
     
@@ -447,8 +459,9 @@ async function validateBuild(): Promise<boolean> {
   return success;
 }
 
-async function build(options: BuildOptions) {
-  log(`🚀 Starting ${config.site.siteName} build process...`);
+async function build(environment: string, options: BuildOptions) {
+  const config = loadEnvironmentConfig(environment);
+  log(`🚀 Starting ${config.site?.siteName || 'Semiont'} build process...`);
   log(`🎯 Target: ${options.target || 'all'}`);
   log(`⚙️  Options: skipInstall=${options.skipInstall}, skipBuild=${options.skipBuild}, verbose=${options.verbose}`);
   
@@ -486,7 +499,7 @@ async function build(options: BuildOptions) {
     
     // Step 3: Build Docker images
     if (shouldBuildAll || options.target === 'docker') {
-      const dockerSuccess = await buildDockerImages();
+      const dockerSuccess = await buildDockerImages(environment);
       overallSuccess = overallSuccess && dockerSuccess;
     }
     
@@ -520,10 +533,9 @@ async function build(options: BuildOptions) {
 }
 
 function showHelp() {
-  console.log(`🔨 ${config.site.siteName} Build Tool`);
+  console.log(`🔨 Semiont Build Tool`);
   console.log('');
-  console.log('Usage: npx tsx build.ts [target] [options]');
-  console.log('   or: ./semiont build [target] [options]');
+  console.log('Usage: ./semiont build <environment> [target] [options]');
   console.log('');
   console.log('Targets:');
   console.log('   frontend         Build frontend application only');
@@ -538,12 +550,16 @@ function showHelp() {
   console.log('   --verbose        Show detailed output');
   console.log('   --help, -h       Show this help');
   console.log('');
+  console.log('Arguments:');
+  console.log(`   <environment>    Environment to build for (${getAvailableEnvironments().join(', ')})`);
+  console.log('   [target]         What to build (default: all)');
+  console.log('');
   console.log('Examples:');
-  console.log('   ./semiont build                    # Build everything');
-  console.log('   ./semiont build frontend           # Build frontend only');
-  console.log('   ./semiont build backend            # Build backend only');
-  console.log('   ./semiont build docker             # Build Docker images only');
-  console.log('   ./semiont build all --skip-install # Build everything, skip npm install');
+  console.log('   ./semiont build production                    # Build everything for production');
+  console.log('   ./semiont build staging frontend             # Build frontend for staging');
+  console.log('   ./semiont build development backend          # Build backend for development');
+  console.log('   ./semiont build production docker            # Build Docker images for production');
+  console.log('   ./semiont build staging all --skip-install   # Build everything, skip npm install');
   console.log('');
   console.log('Build process steps:');
   console.log('   1. 📦 Install dependencies (npm install in root workspace)');
@@ -558,13 +574,27 @@ function showHelp() {
 async function main() {
   const args = process.argv.slice(2);
   
-  if (args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     showHelp();
     return;
   }
   
-  // Get target from first non-flag argument
-  const target = args.find((arg: string) => !arg.startsWith('--')) as 'frontend' | 'backend' | 'docker' | 'all' | undefined;
+  const environment = args[0];
+  if (!environment) {
+    console.error('❌ Environment is required');
+    showHelp();
+    process.exit(1);
+  }
+  
+  if (!isValidEnvironment(environment)) {
+    console.error(`❌ Invalid environment: ${environment}`);
+    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
+    process.exit(1);
+  }
+  
+  // Get target from remaining arguments
+  const nonFlagArgs = args.slice(1).filter((arg: string) => !arg.startsWith('--'));
+  const target = nonFlagArgs[0] as 'frontend' | 'backend' | 'docker' | 'all' | undefined;
   
   // Validate target argument
   if (target && !['frontend', 'backend', 'docker', 'all'].includes(target)) {
@@ -581,7 +611,7 @@ async function main() {
     skipBuild: args.includes('--skip-build'),
   };
   
-  await build(options);
+  await build(environment, options);
 }
 
 main().catch(console.error);

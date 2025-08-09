@@ -6,6 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { findProjectRoot } from '@semiont/config-loader';
 
 export interface EnvironmentInfo {
   name: string;
@@ -17,7 +18,8 @@ export interface EnvironmentInfo {
  * Discover available environments by scanning config/environments directory
  */
 export function discoverEnvironments(): EnvironmentInfo[] {
-  const configDir = path.join(__dirname, '..', '..', 'config', 'environments');
+  const projectRoot = findProjectRoot();
+  const configDir = path.join(projectRoot, 'config', 'environments');
   
   if (!fs.existsSync(configDir)) {
     console.warn(`Config directory not found: ${configDir}`);
@@ -28,16 +30,35 @@ export function discoverEnvironments(): EnvironmentInfo[] {
   const environments: EnvironmentInfo[] = [];
   
   for (const file of files) {
-    if (file.endsWith('.ts') && !file.endsWith('.d.ts')) {
-      const name = path.basename(file, '.ts');
-      const isLocal = name === 'local';
-      const isCloud = !isLocal && name !== 'test' && name !== 'unit' && name !== 'integration';
+    if (file.endsWith('.json')) {
+      const name = path.basename(file, '.json');
+      const filePath = path.join(configDir, file);
       
-      environments.push({
-        name,
-        isLocal,
-        isCloud
-      });
+      // Read and parse the config to determine environment type
+      try {
+        const configContent = fs.readFileSync(filePath, 'utf-8');
+        const config = JSON.parse(configContent);
+        
+        // Check if this environment defines AWS infrastructure using new schema
+        const hasAwsConfig = config.aws && (config.aws.region || config.aws.accountId);
+        const hasCloudAwsConfig = config.cloud?.aws?.stacks;
+        const isCloud = hasCloudAwsConfig || (hasAwsConfig && config.deployment?.default === 'aws');
+        const isLocal = name === 'local';
+        
+        environments.push({
+          name,
+          isLocal,
+          isCloud
+        });
+      } catch (error) {
+        console.warn(`Failed to parse config file ${filePath}: ${error}`);
+        // Fallback: assume non-cloud if we can't parse it
+        environments.push({
+          name,
+          isLocal: name === 'local',
+          isCloud: false
+        });
+      }
     }
   }
   

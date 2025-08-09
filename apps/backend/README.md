@@ -28,10 +28,6 @@ A type-safe Node.js backend API built with modern development practices and comp
 # Install dependencies
 npm install
 
-# Configure secrets (from project root)
-../../scripts/semiont secrets set database-password  # Enter: localpassword
-../../scripts/semiont secrets set jwt-secret         # Generate with: openssl rand -base64 32
-
 # Run database migrations
 npx prisma db push
 
@@ -638,35 +634,42 @@ app.get('/api/protected-endpoint', authMiddleware, async (c) => {
 
 ### Configuration Management
 
-The backend uses a unified configuration system that reads from the shared `config/` directory:
+The backend uses environment-specific configuration files from `/config/environments/`:
 
-1. **Application Configuration** - Edit `config/base/app.config.ts`:
-```typescript
-backend: {
-  port: 4000,
-  database: {
-    host: 'localhost',
-    port: 5432,
-    name: 'semiont',
-    user: 'postgres'
+1. **Environment Configuration** - Edit `/config/environments/[env].json`:
+```json
+{
+  "services": {
+    "backend": {
+      "port": 3001,
+      "deployment": { "type": "aws" }
+    },
+    "database": {
+      "name": "semiont_prod",
+      "deployment": { "type": "aws" }
+    }
+  },
+  "aws": {
+    "region": "us-east-2",
+    "accountId": "123456789012"
   }
 }
 ```
 
 2. **Secrets Management** - Use the semiont CLI:
 ```bash
-# Local development secrets
-../../scripts/semiont secrets set database-password
-../../scripts/semiont secrets set jwt-secret
-
 # Production secrets (AWS Secrets Manager)
-../../scripts/semiont secrets set oauth/google
+./bin/semiont configure production set oauth/google
+./bin/semiont configure staging set jwt-secret
+
+# Check secret status
+./bin/semiont configure production get oauth/google
 ```
 
 3. **Adding New Configuration**:
-   - For non-secret config: Add to `config/schemas/config.schema.ts` and `config/base/app.config.ts`
-   - For secrets: Add to `scripts/local-secrets.ts` for local dev
-   - Update validation in `src/config/env.ts`
+   - Add to appropriate environment JSON file in `/config/environments/`
+   - Update validation in `src/config/env.ts` if needed
+   - Configuration is loaded automatically based on SEMIONT_ENV
 
 ## Testing
 
