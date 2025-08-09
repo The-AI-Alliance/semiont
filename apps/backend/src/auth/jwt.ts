@@ -1,7 +1,14 @@
 import * as jwt from 'jsonwebtoken';
-import { CONFIG } from '../config';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { JWTPayloadSchema, validateData } from '../validation/schemas';
 import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
+
+// Load configuration - environment name must be set by test runner or semiont CLI
+const environmentName = process.env.SEMIONT_ENV;
+if (!environmentName) {
+  throw new Error('SEMIONT_ENV environment variable is required');
+}
+const config = loadEnvironmentConfig(environmentName);
 
 export interface JWTPayload {
   userId: string;
@@ -15,13 +22,21 @@ export interface JWTPayload {
 
 export class JWTService {
   private static getSecret(): string {
-    return CONFIG.JWT_SECRET; // Now guaranteed to exist and be valid
+    // JWT secret comes from AWS Secrets Manager (injected as env var by ECS) or test setup
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET environment variable not found. This should be injected by AWS Secrets Manager in production or set in test setup.');
+    }
+    if (secret.length < 32) {
+      throw new Error('JWT_SECRET must be at least 32 characters long');
+    }
+    return secret;
   }
 
   static generateToken(payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>): string {
     return jwt.sign(payload, this.getSecret(), {
       expiresIn: '7d',
-      issuer: CONFIG.DOMAIN,
+      issuer: config.site?.domain || 'localhost',
     });
   }
 
@@ -61,6 +76,7 @@ export class JWTService {
       return false;
     }
     const domain = parts[1];
-    return CONFIG.OAUTH_ALLOWED_DOMAINS.includes(domain);
+    const allowedDomains = config.site?.oauthAllowedDomains || [];
+    return allowedDomains.includes(domain);
   }
 }
