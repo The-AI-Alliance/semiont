@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import AdminUsers from '../page';
+import AdminUsers from '../client';
 import { api } from '@/lib/api-client';
 
 // Mock the API client
