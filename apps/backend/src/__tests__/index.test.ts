@@ -136,8 +136,8 @@ describe('Main Application (index.ts)', () => {
     it('should require admin authentication', async () => {
       const response = await app.request('http://localhost/api/admin/users');
       
-      // Should return 403 for admin access required
-      expect(response.status).toBe(403);
+      // Should return 401 for missing authentication
+      expect(response.status).toBe(401);
     });
   });
 
