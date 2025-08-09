@@ -5,9 +5,9 @@ import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 
 // Import test config explicitly
-const { loadConfig } = require('@semiont/config-loader');
-const testConfig = loadConfig('unit');
-const getBackendUrl = () => testConfig.app.backend?.url?.origin || 'http://localhost:3001';
+const { loadEnvironmentConfig } = require('@semiont/config-loader');
+const testConfig = loadEnvironmentConfig(process.env.SEMIONT_ENV || 'unit');
+const getBackendUrl = () => testConfig.services?.backend ? `http://localhost:${testConfig.services.backend.port}` : 'http://localhost:3001';
 
 
 // Mock the validation module
