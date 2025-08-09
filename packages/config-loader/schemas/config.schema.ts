@@ -199,7 +199,7 @@ export interface CloudConfiguration {
 // AWS configuration that must include region when specified
 export interface AWSEnvironmentConfig {
   region: string;  // Required - no defaults!
-  accountId?: string;
+  accountId: string;  // Required - no defaults!
   certificateArn?: string;
   hostedZoneId?: string;
   rootDomain?: string;

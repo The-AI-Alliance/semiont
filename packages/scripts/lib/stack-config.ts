@@ -21,8 +21,10 @@ export class SemiontStackConfig {
   private cfnClient: CloudFormationClient;
   private config: SemiontConfig | null = null;
   private environmentConfig: EnvironmentConfig;
+  private environment: string;
 
   constructor(environment: string) {
+    this.environment = environment;
     this.environmentConfig = loadEnvironmentConfig(environment);
     
     // AWS is required for stack configuration
@@ -91,7 +93,7 @@ export class SemiontStackConfig {
         },
       };
 
-      return this.config;
+      return this.config!;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to get stack configuration', { error: errorMessage });
@@ -234,10 +236,16 @@ export class SemiontStackConfig {
   }
 
   async getSiteName(): Promise<string> {
+    if (!this.environmentConfig.site?.siteName) {
+      throw new Error(`Site name not configured for environment ${this.environment}`);
+    }
     return this.environmentConfig.site.siteName;
   }
 
   async getDomainName(): Promise<string> {
+    if (!this.environmentConfig.site?.domain) {
+      throw new Error(`Domain not configured for environment ${this.environment}`);
+    }
     return this.environmentConfig.site.domain;
   }
 

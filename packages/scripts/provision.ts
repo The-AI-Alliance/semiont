@@ -349,7 +349,7 @@ async function main(): Promise<void> {
     info(options!.destroy ? 'Destruction Plan:' : 'Provisioning Plan:');
     console.log(`  Environment: ${colors.bright}${validEnv}${colors.reset}`);
     console.log(`  Stack:       ${colors.bright}${options!.stack}${colors.reset}`);
-    console.log(`  Region:      ${colors.bright}${config.aws.region}${colors.reset}`);
+    console.log(`  Region:      ${colors.bright}${config.aws?.region || 'N/A'}${colors.reset}`);
     console.log(`  Action:      ${colors.bright}${options!.destroy ? 'DESTROY' : 'CREATE'}${colors.reset}`);
     
     if (options!.dryRun) {
