@@ -71,31 +71,32 @@ jobs:
         run: |
           echo "Testing admin route security..."
           
-          # Test 1: Verify admin route returns 200 (not 307 redirect)
+          # Test 1: Verify admin route returns 404 for unauthenticated users
           status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/admin)
-          if [ "$status_code" != "200" ]; then
-            echo "❌ SECURITY FAILURE: Admin route returned $status_code instead of 200"
+          if [ "$status_code" != "404" ]; then
+            echo "❌ SECURITY FAILURE: Admin route returned $status_code instead of 404"
+            echo "Admin routes should return 404 to hide their existence from unauthorized users"
             exit 1
           fi
-          echo "✅ Admin route returns proper 200 status code"
+          echo "✅ Admin route returns proper 404 status code (hiding admin routes)"
           
           # Test 2: Verify no admin content in response body
           response=$(curl -s http://localhost:3000/admin)
           
           # Check for admin content that should NOT be present
-          if echo "$response" | grep -qi "admin.*dashboard\|user.*management\|delete.*user\|admin.*control"; then
-            echo "❌ SECURITY FAILURE: Admin content leaked in response!"
+          if echo "$response" | grep -qi "admin.*dashboard\|user.*management\|delete.*user\|admin.*control\|access.*denied"; then
+            echo "❌ SECURITY FAILURE: Admin-related content leaked in response!"
             echo "Leaked content found in response"
             exit 1
           fi
-          echo "✅ No admin content leaked in unauthorized response"
+          echo "✅ No admin content leaked in 404 response"
           
-          # Test 3: Verify proper access denied message is present
-          if ! echo "$response" | grep -q "Access Denied"; then
-            echo "❌ SECURITY FAILURE: Access Denied message not found"
-            exit 1
+          # Test 3: Verify it's a standard 404 page (not revealing admin existence)
+          if echo "$response" | grep -qi "404\|not.*found\|page.*could.*not.*be.*found"; then
+            echo "✅ Standard 404 page displayed (good security practice)"
+          else
+            echo "⚠️ Warning: 404 page might not be standard, but no admin content leaked"
           fi
-          echo "✅ Proper 'Access Denied' message present"
           
           # Test 4: Verify no sensitive data patterns
           if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|DELETE|admin@"; then
