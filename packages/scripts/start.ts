@@ -13,6 +13,8 @@ import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { showError } from './lib/ink-utils';
 import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { spawn, type ChildProcess } from 'child_process';
+import * as path from 'path';
 
 // Valid environments
 type Environment = string;
@@ -26,6 +28,9 @@ interface StartOptions {
   force?: boolean;
   mock?: boolean;          // For local frontend mock mode
 }
+
+// Track spawned processes for cleanup
+const spawnedProcesses: ChildProcess[] = [];
 
 // Color codes for output
 const colors = {
@@ -207,7 +212,7 @@ async function startMixedServices(options: StartOptions, config: any): Promise<b
     try {
       switch (deploymentType) {
         case 'process':
-          await startProcessService(serviceName, config);
+          await startProcessService(serviceName, config, options);
           break;
         case 'aws':
           await startAWSService(serviceName, config);
@@ -231,8 +236,9 @@ async function startMixedServices(options: StartOptions, config: any): Promise<b
   return allSuccessful;
 }
 
-async function startProcessService(serviceName: string, config: any): Promise<void> {
+async function startProcessService(serviceName: string, config: any, options: StartOptions): Promise<void> {
   const service = config.services?.[serviceName];
+  const projectRoot = process.env.SEMIONT_ROOT || process.cwd().split('/packages')[0] || process.cwd();
   
   switch (serviceName) {
     case 'database':
@@ -243,7 +249,46 @@ async function startProcessService(serviceName: string, config: any): Promise<vo
     case 'backend':
       info('Starting backend service...');
       const backendPort = service?.port || 3001;
-      // TODO: Start local backend process
+      const backendPath = path.join(projectRoot, 'apps/backend');
+      
+      // Build backend first
+      info('Building backend...');
+      const buildProcess = spawn('npm', ['run', 'build'], {
+        cwd: backendPath,
+        stdio: 'inherit'
+      });
+      
+      await new Promise<void>((resolve, reject) => {
+        buildProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Backend build failed with code ${code}`));
+          }
+        });
+      });
+      
+      // Start backend process
+      const env = {
+        ...process.env,
+        SEMIONT_ENV: process.env.SEMIONT_ENV || options.environment,
+        PORT: backendPort.toString()
+      };
+      
+      if (!env.SEMIONT_ENV) {
+        throw new Error('SEMIONT_ENV must be set either as environment variable or passed as argument');
+      }
+      
+      const backendProcess = spawn('npm', ['start'], {
+        cwd: backendPath,
+        env,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      
+      backendProcess.unref(); // Allow parent process to exit
+      spawnedProcesses.push(backendProcess);
+      
       success(`Backend running on http://localhost:${backendPort}`);
       break;
     case 'frontend':
