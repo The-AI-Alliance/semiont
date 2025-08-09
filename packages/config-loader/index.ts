@@ -5,9 +5,8 @@
  * and provides a clean API for accessing configuration throughout the application.
  */
 
-import { siteConfig, awsConfig, appConfig } from './base';
-import { validateConfiguration, ConfigurationError } from './schemas/validation';
-import type { SemiontConfiguration, EnvironmentOverrides, EnvironmentConfig } from './schemas/config.schema';
+import { ConfigurationError } from './schemas/validation';
+import type { EnvironmentOverrides, EnvironmentConfig } from './schemas/config.schema';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -87,17 +86,14 @@ function removeCommentFields(obj: any): any {
   return result;
 }
 
-// Deep merge helper that handles partial types
+// Simple merge function for environment inheritance
 function deepMerge(target: any, source: any): any {
   const result = { ...target };
   
   for (const key in source) {
     if (source[key] !== undefined) {
-      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key]) && !(source[key] instanceof URL)) {
-        result[key] = deepMerge(
-          result[key] || {},
-          source[key]
-        );
+      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
+        result[key] = deepMerge(result[key] || {}, source[key]);
       } else {
         result[key] = source[key];
       }
@@ -108,40 +104,6 @@ function deepMerge(target: any, source: any): any {
 }
 
 
-// Build final configuration  
-function buildConfiguration(environment: string): SemiontConfiguration {
-  const overrides = getEnvironmentOverrides(environment);
-  
-  let config: SemiontConfiguration = {
-    site: deepMerge(siteConfig, overrides.site || {}),
-    aws: deepMerge(awsConfig, overrides.aws || {}),
-    app: deepMerge(appConfig, overrides.app || {})
-  };
-  
-  // Validate configuration
-  try {
-    // Determine environment type based on presence of cloud AWS stacks
-    const isCloudEnvironment = Boolean(overrides.cloud?.aws?.stacks);
-    const skipAWSValidation = !isCloudEnvironment;
-    validateConfiguration(config, { skipAWSValidation });
-  } catch (error: unknown) {
-    if (error instanceof ConfigurationError) {
-      console.error(`Configuration Error: ${error.message}`);
-      if (error.field) {
-        console.error(`Field: ${error.field}`);
-      }
-      throw error;
-    }
-    throw error;
-  }
-  
-  return config;
-}
-
-// Load configuration for a specific environment (clean API)
-export function loadConfig(environment: string = 'development'): SemiontConfiguration {
-  return buildConfiguration(environment);
-}
 
 // Load environment config directly
 export function loadEnvironmentConfig(environment: string): EnvironmentConfig {
@@ -166,7 +128,7 @@ export * as base from './base';
 // URL utilities removed - use services configuration instead
 
 // Configuration display utility - pass in loaded config
-export function displayConfiguration(config: SemiontConfiguration): void {
+export function displayConfiguration(config: EnvironmentConfig): void {
   const safeConfig = JSON.parse(JSON.stringify(config, (_key, value) => {
     // Convert URL objects to strings for display
     if (value instanceof URL) {
@@ -176,10 +138,10 @@ export function displayConfiguration(config: SemiontConfiguration): void {
   }));
   
   // Mask sensitive values
-  if (safeConfig.aws.certificateArn) {
+  if (safeConfig.aws?.certificateArn) {
     safeConfig.aws.certificateArn = safeConfig.aws.certificateArn.substring(0, 30) + '...';
   }
-  if (safeConfig.aws.accountId) {
+  if (safeConfig.aws?.accountId) {
     safeConfig.aws.accountId = '****' + safeConfig.aws.accountId.substring(8);
   }
   

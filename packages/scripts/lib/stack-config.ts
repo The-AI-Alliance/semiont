@@ -3,7 +3,7 @@ import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-clo
 import { StackOutput, AWSError } from './types.js';
 import { validateAwsResourceName, assertValid } from './validators.js';
 import { logger } from './logger.js';
-import { loadConfig, type SemiontConfiguration } from '@semiont/config-loader';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/config-loader';
 
 export interface SemiontConfig {
   region: string;
@@ -20,10 +20,16 @@ export interface SemiontConfig {
 export class SemiontStackConfig {
   private cfnClient: CloudFormationClient;
   private config: SemiontConfig | null = null;
-  private environmentConfig: SemiontConfiguration;
+  private environmentConfig: EnvironmentConfig;
 
   constructor(environment: string) {
-    this.environmentConfig = loadConfig(environment);
+    this.environmentConfig = loadEnvironmentConfig(environment);
+    
+    // AWS is required for stack configuration
+    if (!this.environmentConfig.aws) {
+      throw new Error(`Environment ${environment} does not have AWS configuration`);
+    }
+    
     this.cfnClient = new CloudFormationClient({ region: this.environmentConfig.aws.region });
   }
 
@@ -74,7 +80,7 @@ export class SemiontStackConfig {
       const appOutputs = this.parseOutputs((appResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       this.config = {
-        region: this.environmentConfig.aws.region,
+        region: this.environmentConfig.aws!.region,
         infraStack: {
           name: validatedInfraStackName,
           outputs: infraOutputs,

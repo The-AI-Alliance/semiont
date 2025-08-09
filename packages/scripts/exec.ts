@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './lib/ink-utils';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 
 async function getLatestTaskId(service: 'frontend' | 'backend', stackConfig: SemiontStackConfig, ecsClient: ECSClient): Promise<string> {
@@ -151,7 +151,11 @@ async function main() {
     process.exit(1);
   }
   
-  const config = loadConfig(environment);
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
   const stackConfig = new SemiontStackConfig(environment);
   const ecsClient = new ECSClient({ region: config.aws.region });
   

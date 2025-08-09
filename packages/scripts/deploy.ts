@@ -21,7 +21,7 @@ import { render, Text, Box } from 'ink';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { EnvironmentDetails, SimpleTable, StepProgress, DeploymentStatus } from './lib/ink-utils';
 import { requireValidAWSCredentials } from './utils/aws-validation';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
 import { SemiontStackConfig } from './lib/stack-config';
@@ -728,11 +728,6 @@ async function promptForEnvironmentSelection(environments: string[]): Promise<En
   }
 }
 
-async function loadEnvironmentConfig(environment: Environment): Promise<any> {
-  // Load configuration using the new JSON-based config loader
-  return loadConfig(environment);
-}
-
 async function deployLocal(options: DeployOptions): Promise<boolean> {
   const { service, verbose } = options;
   
@@ -1059,7 +1054,12 @@ async function deployFrontendService(environment: Environment, _config: any, opt
 
 // ECR and ECS deployment functions
 async function pushImageToECR(localImageName: string, serviceName: string, environment: string): Promise<string | null> {
-  const envConfig = loadConfig(environment);
+  const envConfig = loadEnvironmentConfig(environment);
+  
+  if (!envConfig.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
   const ecrClient = new ECRClient({ region: envConfig.aws.region });
   
   // Get ECR login token
@@ -1123,9 +1123,14 @@ async function ensureECRRepository(repositoryName: string, ecrClient: ECRClient)
 }
 
 async function updateECSService(serviceName: string, _imageUri: string, environment: string): Promise<boolean> {
-  const envConfig = loadConfig(environment);
+  const envConfig = loadEnvironmentConfig(environment);
+  
+  if (!envConfig.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
   const ecsClient = new ECSClient({ region: envConfig.aws.region });
-  const stackConfig = new SemiontStackConfig(envConfig.aws.region);
+  const stackConfig = new SemiontStackConfig(environment);
   
   try {
     const clusterName = await stackConfig.getClusterName();
@@ -1284,7 +1289,7 @@ async function main(): Promise<void> {
     info('Deployment Plan:');
     console.log(`  Environment: ${colors.bright}${validEnv}${colors.reset}`);
     console.log(`  Service:     ${colors.bright}${options.service}${colors.reset}`);
-    if (validEnv !== 'local') {
+    if (validEnv !== 'local' && config.aws) {
       console.log(`  Region:      ${colors.bright}${config.aws.region}${colors.reset}`);
       
       // Show required stacks

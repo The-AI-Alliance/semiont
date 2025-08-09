@@ -63,6 +63,7 @@
   },
     "aws": {
       "_comment": "Development AWS configuration (example values)",
+      "region": "us-east-2",
       "accountId": "123456789012",
       "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/dev-cert-id",
       "hostedZoneId": "ZDEVZONEID123",

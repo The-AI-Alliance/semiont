@@ -47,7 +47,8 @@
     }
   },
   "aws": {
-    "_comment": "Test-specific AWS configuration",
+    "_comment": "Test-specific AWS configuration", 
+    "region": "us-east-2",
     "accountId": "123456789012",
     "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/test-cert-id",
     "hostedZoneId": "ZTESTZONEID123",

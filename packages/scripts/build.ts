@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import path from 'path';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 
 interface BuildOptions {
@@ -382,12 +382,12 @@ async function buildDockerImages(environment: string): Promise<boolean> {
       return false;
     }
     
-    const config = loadConfig(environment);
+    const config = loadEnvironmentConfig(environment);
     const buildArgs = [
-      `NEXT_PUBLIC_API_URL=https://${config.site.domain}`,
-      `NEXT_PUBLIC_SITE_NAME=${config.site.siteName}`,
-      `NEXT_PUBLIC_DOMAIN=${config.site.domain}`,
-      `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${config.site.oauthAllowedDomains.join(',')}`,
+      `NEXT_PUBLIC_API_URL=https://${config.site?.domain || 'localhost'}`,
+      `NEXT_PUBLIC_SITE_NAME=${config.site?.siteName || 'Semiont'}`,
+      `NEXT_PUBLIC_DOMAIN=${config.site?.domain || 'localhost'}`,
+      `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${config.site?.oauthAllowedDomains?.join(',') || ''}`,
       `CACHE_BUST=${cacheBust}`
     ];
     
@@ -460,8 +460,8 @@ async function validateBuild(): Promise<boolean> {
 }
 
 async function build(environment: string, options: BuildOptions) {
-  const config = loadConfig(environment);
-  log(`🚀 Starting ${config.site.siteName} build process...`);
+  const config = loadEnvironmentConfig(environment);
+  log(`🚀 Starting ${config.site?.siteName || 'Semiont'} build process...`);
   log(`🎯 Target: ${options.target || 'all'}`);
   log(`⚙️  Options: skipInstall=${options.skipInstall}, skipBuild=${options.skipBuild}, verbose=${options.verbose}`);
   

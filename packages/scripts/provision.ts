@@ -19,7 +19,7 @@ import React from 'react';
 import { render, Text, Box } from 'ink';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 
 // Valid environments for provisioning (excludes 'local')
 type CloudEnvironment = 'development' | 'staging' | 'production';
@@ -120,11 +120,6 @@ async function validateEnvironment(env: string): Promise<CloudEnvironment> {
   }
   
   return env as CloudEnvironment;
-}
-
-async function loadEnvironmentConfig(environment: CloudEnvironment): Promise<any> {
-  // Load configuration using the new JSON-based config loader
-  return loadConfig(environment);
 }
 
 async function checkExistingInfrastructure(_environment: CloudEnvironment, _config: any): Promise<boolean> {
@@ -439,4 +434,4 @@ if (require.main === module) {
   });
 }
 
-export { provisionInfrastructure, loadEnvironmentConfig, type ProvisionOptions, type CloudEnvironment };
+export { provisionInfrastructure, type ProvisionOptions, type CloudEnvironment };

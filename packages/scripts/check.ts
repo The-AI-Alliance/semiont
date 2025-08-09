@@ -19,7 +19,7 @@ import { WAFV2Client, GetWebACLCommand } from '@aws-sdk/client-wafv2';
 import { SemiontStackConfig } from './lib/stack-config';
 import { ServiceType, AWSError } from './lib/types';
 import { logger } from './lib/logger';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import React from 'react';
 import { render, Text, Box } from 'ink';
@@ -810,7 +810,11 @@ function printHelp(): void {
 }
 
 async function initializeClients(environment: string): Promise<void> {
-  const config = loadConfig(environment);
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
   
   if (!config.aws.region) {
     throw new Error(`AWS region not configured for environment: ${environment}`);

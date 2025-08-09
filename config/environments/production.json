@@ -61,6 +61,7 @@
   },
     "aws": {
       "_comment": "Production-specific AWS configuration (example values - MUST BE CUSTOMIZED)",
+      "region": "us-east-2",
       "accountId": "123456789012",
       "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
       "hostedZoneId": "Z1234567890ABC",

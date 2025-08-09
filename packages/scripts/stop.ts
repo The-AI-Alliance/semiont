@@ -11,6 +11,7 @@
 
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 
 // Valid environments
 type Environment = string;
@@ -234,7 +235,11 @@ async function main(): Promise<void> {
       }
     } else {
       // Validate AWS credentials for cloud environments
-      await requireValidAWSCredentials();
+      const config = loadEnvironmentConfig(validEnv);
+      if (!config.aws) {
+        throw new Error(`Environment ${validEnv} does not have AWS configuration`);
+      }
+      await requireValidAWSCredentials(config.aws.region);
       
       const success = await stopCloudServices(options);
       if (!success) {

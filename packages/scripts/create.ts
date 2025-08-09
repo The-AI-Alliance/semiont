@@ -1,5 +1,5 @@
 
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
@@ -18,9 +18,14 @@ interface DeployOptions {
 
 
 async function deployInfraStack(environment: string, options: DeployOptions): Promise<boolean> {
-  const config = loadConfig(environment);
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
   // Validate AWS credentials early
-  await requireValidAWSCredentials(config.aws.region);
+  await requireValidAWSCredentials(config.aws!.region);
   
   const deployer = new CdkDeployer(config);
   try {
@@ -32,9 +37,14 @@ async function deployInfraStack(environment: string, options: DeployOptions): Pr
 }
 
 async function deployAppStack(environment: string, options: DeployOptions): Promise<boolean> {
-  const config = loadConfig(environment);
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
+  
   // Validate AWS credentials early
-  await requireValidAWSCredentials(config.aws.region);
+  await requireValidAWSCredentials(config.aws!.region);
   
   const deployer = new CdkDeployer(config);
   try {

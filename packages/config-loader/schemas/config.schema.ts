@@ -117,16 +117,6 @@ export interface OAuthProvider {
 }
 
 // Complete configuration interface
-export interface SemiontConfiguration {
-  site: SiteConfiguration;
-  aws: AWSConfiguration;
-  app: ApplicationConfiguration;
-}
-
-// Deep partial type for nested overrides
-type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
 
 // Stack reference interface - using string names for runtime resolution
 export interface CloudStackReferences {
@@ -206,6 +196,18 @@ export interface CloudConfiguration {
 }
 
 // Environment configuration interface
+// AWS configuration that must include region when specified
+export interface AWSEnvironmentConfig {
+  region: string;  // Required - no defaults!
+  accountId?: string;
+  certificateArn?: string;
+  hostedZoneId?: string;
+  rootDomain?: string;
+  database?: Partial<DatabaseConfig>;
+  ecs?: Partial<ECSConfig>;
+  monitoring?: Partial<MonitoringConfig>;
+}
+
 export interface EnvironmentConfig {
   _comment?: string;
   _extends?: string;
@@ -218,7 +220,7 @@ export interface EnvironmentConfig {
     database?: ServiceConfiguration;
   };
   cloud?: CloudConfiguration;
-  aws?: DeepPartial<AWSConfiguration>;
+  aws?: AWSEnvironmentConfig;  // If aws exists, region is required
 }
 
 // Environment-specific override interface

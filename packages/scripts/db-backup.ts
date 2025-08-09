@@ -1,7 +1,7 @@
 
 import { RDSClient, DescribeDBInstancesCommand, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { loadConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
 import { SemiontStackConfig } from './lib/stack-config';
 
@@ -68,7 +68,11 @@ async function findSemiontDatabase(stackConfig: SemiontStackConfig, rdsClient: R
 }
 
 async function createBackup(environment: string, backupName?: string) {
-  const config = loadConfig(environment);
+  const config = loadEnvironmentConfig(environment);
+  
+  if (!config.aws) {
+    throw new Error(`Environment ${environment} does not have AWS configuration`);
+  }
   const stackConfig = new SemiontStackConfig(environment);
   const rdsClient = new RDSClient({ region: config.aws.region });
   const cfnClient = new CloudFormationClient({ region: config.aws.region });
