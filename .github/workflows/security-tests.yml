@@ -34,13 +34,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: cd ../.. && npm install
-
-      - name: Build required packages
-        run: |
-          cd ../../packages/api-types && npm run build
-          cd ../config-loader && npm run build
+      - name: Install dependencies and setup CLI
+        run: cd ../.. && npm run setup
 
       - name: Run security tests
         run: npm run test:security
@@ -167,13 +162,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: cd ../.. && npm install
-
-      - name: Build required packages
-        run: |
-          cd ../../packages/api-types && npm run build
-          cd ../config-loader && npm run build
+      - name: Install dependencies and setup CLI
+        run: cd ../.. && npm run setup
 
       - name: Setup test database and config
         run: |
@@ -261,7 +251,7 @@ jobs:
       - name: Start backend for API security verification
         run: |
           cd ../..
-          ./bin/semiont start ci --service backend &
+          semiont start -e ci --service backend &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
           # Wait for backend to start

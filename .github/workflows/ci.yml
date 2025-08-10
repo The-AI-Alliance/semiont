@@ -23,11 +23,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
       - name: Run frontend tests with semiont CLI
-        run: ./bin/semiont test --service frontend --no-coverage
+        run: semiont test -e unit --service frontend --no-coverage
         env:
           CI: true
 
@@ -61,11 +61,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
       - name: Run backend tests with semiont CLI
-        run: ./bin/semiont test --service backend --no-coverage
+        run: semiont test -e unit --service backend --no-coverage
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -88,14 +88,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
       - name: Run CDK tests
         run: cd packages/cloud && npm test
 
-  test-scripts:
-    name: Management Scripts Tests
+  test-cli:
+    name: CLI Installation and Validation
     runs-on: ubuntu-latest
 
     steps:
@@ -109,19 +109,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
-      - name: Build dependencies
+      - name: Validate CLI installation
         run: |
-          cd packages/config-loader && npm run build || true
-          cd ../cloud && npm run build || true
-          
-      - name: Build and test scripts
-        run: |
-          cd packages/scripts
-          npm run build
-          npx tsc --noEmit --skipLibCheck
+          semiont --version
+          semiont --help
 
   test-comprehensive:
     name: Comprehensive Test Suite
@@ -153,11 +147,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
       - name: Run comprehensive test suite
-        run: ./bin/semiont test --no-coverage
+        run: semiont test -e unit --no-coverage
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -180,16 +174,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
       - name: Validate configuration
-        run: ./bin/semiont configure validate
+        run: semiont configure -e unit validate
 
   build-all:
     name: Build All Applications
     runs-on: ubuntu-latest
-    needs: [test-frontend, test-backend, test-cloud, test-scripts]
+    needs: [test-frontend, test-backend, test-cloud, test-cli]
 
     steps:
       - name: Checkout code
@@ -202,27 +196,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies and setup CLI
+        run: npm run setup
 
       - name: Build all applications
         run: |
-          # Build api-types (dependency for other packages)
-          cd packages/api-types && npm run build
-          cd ../..
-          
-          # Build frontend
-          cd apps/frontend && npm run build
-          cd ../..
-          
-          # Build backend  
-          cd apps/backend && npm run build
-          cd ../..
-          
-          # Build scripts
-          cd packages/scripts && npm run build
-          cd ../..
-          
-          # Build config-loader
-          cd packages/config-loader && npm run build
-          cd ../..
+          # Everything is already built by npm run setup
+          # Just validate the build worked
+          semiont --version
+          echo "All applications built successfully during setup"
