@@ -1,205 +1,93 @@
-# Semiont Management Scripts
+# Semiont Development Scripts
 
-TypeScript-based management scripts for Semiont on AWS that dynamically integrate with CDK stack definitions.
+Development and build tools for the Semiont monorepo. This package contains scripts used for building, testing, and developing Semiont itself.
+
+> **Note:** For user-facing CLI commands, see `packages/cli/` instead. This package is for development tools only.
 
 ## Overview
 
-These scripts provide a comprehensive management interface for your Semiont deployment on AWS. Unlike traditional bash scripts with hardcoded values, these TypeScript scripts dynamically discover resources from your CDK stack outputs, making them robust and maintainable.
+This package provides development and build automation for the Semiont monorepo, including TypeScript build tools, test runners, installation scripts, and performance benchmarking tools.
 
 ## Key Features
 
-✅ **No hardcoded values** - All resource names/ARNs are dynamically discovered from CDK stack outputs  
-✅ **Type safety** - Full TypeScript with AWS SDK v3 and strict type checking  
-✅ **Security first** - Command injection prevention, input validation, and sensitive data redaction  
-✅ **Better error handling** - Comprehensive error types and troubleshooting hints  
-✅ **Auto-discovery** - Scripts automatically find the right clusters, services, secrets, etc.  
-✅ **Unified interface** - Single `./semiont` command for all operations  
-✅ **Self-contained** - Auto-installs dependencies when needed  
-✅ **Structured logging** - Secure logging with automatic sensitive data filtering  
+✅ **Monorepo Build Tools** - TypeScript compilation and workspace management  
+✅ **Test Automation** - Vitest integration with coverage reporting  
+✅ **Installation Scripts** - Automated setup and dependency management  
+✅ **Performance Benchmarking** - Bundle analysis and performance monitoring  
+✅ **Development Utilities** - Local secrets management and environment setup  
 
-## Quick Start
+## User-Facing Commands
 
-The easiest way to use these scripts is through the unified `semiont` wrapper located in `/bin`:
+User-facing CLI commands are in `packages/cli/`. Use the global `semiont` command:
 
 ```bash
-# Validate your configuration
-./bin/semiont configure validate
+# Environment management
+semiont provision -e local        # Setup local environment  
+semiont start -e local            # Start services
+semiont publish -e staging        # Build and push images
+semiont update -e staging         # Update running services
+semiont check -e production       # Health checks
 
-# Interactive real-time dashboard (New!)
-./bin/semiont watch
-
-# Focus on specific monitoring
-./bin/semiont watch logs              # Log streaming
-./bin/semiont watch metrics           # Performance metrics
-
-# Check deployment status (legacy)
-./bin/semiont check
-
-# Run tests with custom environment
-./bin/semiont test --environment staging --suite integration
+# See all commands
+semiont --help
 ```
 
-## Available Commands
+## Development Scripts
 
-### 📊 Real-time Monitoring (New!)
+These scripts are for **developing Semiont itself**, not for end-users:
 
-The `watch` command provides modern, interactive monitoring with React-powered terminal dashboards:
-
+### Installation & Setup
 ```bash
-# Unified dashboard - recommended default view
-./bin/semiont watch
+# Install Semiont CLI globally (recommended)
+npm run setup                   # Full monorepo setup
+npm run setup -- --cli-only    # CLI only
 
-# Focused log streaming with service status
-./bin/semiont watch logs
-
-# Performance metrics dashboard  
-./bin/semiont watch metrics
-
-# Filter to specific services
-./bin/semiont watch logs frontend
-./bin/semiont watch logs backend
+# Direct installation script (rarely needed)
+npx tsx install.ts
 ```
 
-**Interactive Controls:**
-- `q` - Quit dashboard
-- `r` - Force refresh data
-- `↑↓` - Scroll through logs
-- `Space` - Toggle auto-scroll
-- `g/G` - Jump to top/bottom of logs
-
-### Service Management
-
+### Build Tools  
 ```bash
-# Interactive dashboard with services, logs, and metrics
-./bin/semiont watch
+# Build all packages
+npm run build
 
-# Check comprehensive status of all components (legacy)
-./bin/semiont check
-
-# Restart Semiont service (force new deployment)
-./bin/semiont restart production
-
-# View container logs
-./semiont logs [tail|follow]
-
-# Execute commands in running container
-./semiont exec [command]
-./semiont exec "cat /tmp/php-error.log"
-./semiont exec "/bin/bash"  # Interactive shell
+# Development utilities
+npx tsx local-secrets.ts        # Manage local dev secrets
+npx tsx benchmark.ts            # Performance benchmarking
 ```
 
-### Secrets Management
+
+## Development Tools Available
+
+### Local Development Utilities
 
 ```bash
-# List all available secrets
-./semiont secrets list
+# Local secrets management for development
+npx tsx local-secrets.ts list
+npx tsx local-secrets.ts set oauth/google
+npx tsx local-secrets.ts get jwt-secret
 
-# Configure Google OAuth
-./semiont secrets set oauth/google
+# Performance benchmarking tools  
+npx tsx benchmark.ts            # Run performance benchmarks
+npx tsx benchmark.ts --analysis # Generate bundle analysis
 
-# Configure GitHub OAuth  
-./semiont secrets set oauth/github
-
-# Set JWT signing secret
-./semiont secrets set jwt-secret "your-32-character-secret"
-
-# View secret status (masked)
-./semiont secrets get oauth/google
+# Build system
+npm run build                   # Build all packages
+npm run clean                   # Clean build artifacts  
+npm run typecheck              # Run TypeScript checks
 ```
 
-### Database Operations
+### Available Development Scripts
 
 ```bash
-# Create database backup with auto-generated name
-./semiont backup
+# Deployment utilities (for development/testing)
+semiont update -e staging      # Update services in staging environment
 
-# Create database backup with custom name
-./semiont backup "pre-upgrade-20250127"
-./semiont backup "before-oauth-changes"
+# Real-time monitoring dashboard
+semiont watch -e local         # Interactive monitoring dashboard
 
-# Show backup help and examples
-./semiont backup --help
-```
-
-### Configuration Management
-
-```bash
-# View current configuration (sensitive data masked)
-./semiont config show
-
-# Validate configuration for errors
-./semiont config validate
-
-# Show current environment and active overrides
-./semiont config env
-
-# Export configuration as environment variables
-./semiont config export > .env
-
-# Initialize configuration from example template
-./semiont config init
-```
-
-### Build & Deployment
-
-```bash
-# Build applications and Docker images
-./semiont build                    # Build everything
-./semiont build frontend           # Build frontend only
-./semiont build backend            # Build backend only
-./semiont build docker             # Build Docker images only
-
-# Create AWS infrastructure stacks
-./semiont create                   # Create both stacks
-./semiont create infra             # Create infrastructure only (VPC, RDS, EFS, Secrets)
-./semiont create app               # Create application only (ECS, ALB, WAF)
-
-# Deploy application code and images
-./semiont deploy <environment>      # Deploy application code and images
-
-# Deploy with manual approval for changes
-./semiont create --approval
-./semiont create app --approval
-
-# Show build/create help and options
-./semiont build --help
-./semiont create --help
-./semiont deploy --help
-```
-
-### Maintenance
-
-```bash
-# Run database maintenance commands
-./semiont maintenance [command]
-
-# Available maintenance commands:
-./semiont maint update        # Update database schema
-./semiont maint migrate       # Run database migrations
-./semiont maint cache-clear   # Clear application cache
-./semiont maint stats         # Show application statistics
-```
-
-### Performance Analysis
-
-```bash
-# Run comprehensive performance check
-./semiont perf check
-
-# Run bundle analysis with visual report
-./semiont perf analyze
-
-# Run performance monitoring
-./semiont perf monitor
-
-# Run Lighthouse CI tests
-./semiont perf lighthouse
-
-# View latest performance report
-./semiont perf report
-
-# Show performance command help
-./semiont perf --help
+# Environment provisioning
+semiont provision -e local     # Provision local development environment
 ```
 
 ## Configuration System
@@ -257,152 +145,105 @@ The `config` command provides configuration management:
 
 ## Architecture
 
-### Core Components
+### Core Development Libraries
 
-- **`lib/stack-config.ts`** - Dynamic CDK stack configuration reader
-  - Fetches outputs from CloudFormation stacks
-  - Provides typed access to resource names and ARNs
-  - Comprehensive error handling with proper AWS error types
-  - Caches configuration for performance
+- **`lib/installer.ts`** - Monorepo installation orchestrator
+  - Manages workspace dependencies and build order
+  - Handles CLI installation and global linking  
+  - Progress reporting and error handling
+  - Supports both full and CLI-only installation modes
 
-- **`lib/types.ts`** - Comprehensive type definitions
-  - Type-safe interfaces for all AWS resources and operations
-  - Custom error types (`ScriptError`, `AWSError`, `ValidationError`)
-  - Type guards and validation utilities
-  - Eliminates use of `any` types throughout the codebase
+- **`lib/dependency-graph.ts`** - Package dependency management
+  - Analyzes workspace dependencies
+  - Determines optimal build order
+  - Handles circular dependency detection
+  - TypeScript and build system integration
 
-- **`lib/logger.ts`** - Secure structured logging
-  - Automatic detection and redaction of sensitive data (API keys, passwords, emails)
-  - Structured logging with timestamps and context
-  - Multiple log levels (debug, info, warn, error)
-  - Colored output for better readability
+- **`lib/package-builder.ts`** - Build automation
+  - TypeScript compilation for all packages
+  - Handles different package types (apps, libs, CLI)
+  - Build caching and incremental builds
+  - Error reporting and build verification
 
-- **`lib/validators.ts`** - Input validation and sanitization
-  - Prevents command injection attacks
-  - Path traversal protection
-  - AWS resource name validation
-  - Email and JSON validation utilities
+- **`lib/progress-reporter.ts`** - Installation progress UI
+  - Colored terminal output for installation steps
+  - Step-by-step progress tracking
+  - Success/error reporting with helpful messages
+  - Verbose mode support for debugging
 
-- **`lib/command-runner.ts`** - Secure command execution
-  - Safe command execution with injection prevention
-  - Timeout handling and process management
-  - Specialized runners for AWS CLI, npm, and CDK commands
-  - Environment variable sanitization
+- **`lib/environment-validator.ts`** - Development environment checks
+  - Node.js version validation
+  - npm/yarn compatibility checks  
+  - TypeScript compiler availability
+  - Git repository validation
 
-- **`package.json`** - Dependencies and npm scripts
-  - AWS SDK v3 clients for all required services
-  - TypeScript execution via `tsx`
-  - Development dependencies for type checking
+### Development Scripts
 
-### Management Scripts
+- **`install.ts`** - Main installation entry point
+  - Orchestrates full monorepo setup
+  - CLI-only installation option
+  - Type-safe argument parsing with Zod
+  - Comprehensive error handling
 
-1. **`config.ts`** - Configuration management CLI
-   - View, validate, and export configuration settings
-   - Environment-aware configuration with SEMIONT_ENV support
-   - Sensitive data masking and validation
-   - Environment variable export for deployment
+- **`local-secrets.ts`** - Development secrets management
+  - Local OAuth credential setup
+  - JWT secret generation
+  - Environment variable management
+  - Development-only secret storage
 
-2. **`build.ts`** - Application and Docker image builder
-   - Build frontend and backend applications
-   - Create Docker images with proper tagging
-   - Input/output validation and hash verification
-   - Build artifact verification
+- **`benchmark.ts`** - Performance analysis tools
+  - Bundle size analysis
+  - Build time measurements
+  - Memory usage profiling
+  - Performance regression detection
 
-3. **`create.ts`** - AWS infrastructure stack creation
-   - Deploy CDK infrastructure and application stacks
-   - ECR repository management and image pushing
-   - Prerequisite checking and dependency validation
-   - Progress monitoring and error diagnostics
+- **`build.mjs`** - Build system orchestrator
+  - Coordinates workspace builds
+  - Handles TypeScript compilation
+  - Manages build artifacts
+  - Integration with npm scripts
 
-4. **`deploy.ts`** - Application code and container deployment
-   - Push local Docker images to ECR with timestamped tags
-   - Update ECS services with new container images
-   - Deployment verification and rollback support
-   - ECS task diagnostics and failure analysis
+### Development Scripts
 
-5. **`logs.ts`** - Container log viewer with security enhancements
-   - Dynamically discovers log groups and streams
-   - Supports both tail and follow modes with type-safe argument parsing
-   - Integrates with CloudWatch Logs API using secure command execution
-   - WAF and ALB log analysis with structured output
-   - Automatic task switching during deployments
-
-2. **`status.ts`** - Comprehensive status checker with enhanced reliability
-   - ECS service and task status with deployment history
-   - Website health checks with HTTP status and timeout handling
-   - Database connectivity and engine information with proper error handling
-   - Recent deployment progress and rollout state
-   - Cost estimation with both actual and projected costs
-   - Secure logging throughout all status checks
-
-3. **`secrets.ts`** - Secrets management (OAuth, JWT, etc.)
-   - List, get, and set secrets stored in AWS Secrets Manager
-   - Interactive credential setup for OAuth providers
-   - Path-based secret organization (oauth/google, jwt-secret, etc.)
-   - Secure value masking and validation
-   - Support for both JSON objects and simple strings
-
-4. **`restart.ts`** - Service restart utility
-   - Forces new ECS deployment
-   - Provides progress monitoring guidance
-
-5. **`exec.ts`** - Container command execution
-   - Interactive shell access
-   - Command execution in running containers
-   - Proper error handling for ECS Exec requirements
-
-6. **`db-backup.ts`** - Database backup utility
-   - Automatic database discovery
-   - Auto-generated timestamp names or custom names
-   - Comprehensive backup status and monitoring
-   - Progress tracking with AWS CLI commands
-
-7. **`deploy.ts`** - Infrastructure deployment manager
-   - Deploy infrastructure and/or application stacks
-   - Prerequisite checking and dependency installation
-   - Progress reporting with timing information
-   - Approval workflows and error handling
-
-8. **`performance.ts`** - Performance analysis utility
-   - Bundle size analysis with visual reports
-   - Performance monitoring with recommendations
-   - Lighthouse CI integration for Core Web Vitals
-   - Historical performance tracking and reports
+- **`deploy.ts`** - Development deployment utilities (use `semiont update` instead)
+- **`watch.tsx`** - Monitoring dashboard (use `semiont watch` instead)
+- **Legacy service scripts** - Use `semiont` CLI commands instead
 
 ## How It Works
 
-### Dynamic Resource Discovery
+### Monorepo Build System
 
-Instead of hardcoding cluster names and service ARNs, the scripts:
+The build system manages workspace dependencies and compilation:
 
-1. **Query CloudFormation** - Read stack outputs from `SemiontInfraStack` and `SemiontAppStack`
-2. **Cache Configuration** - Store resource information for the session
-3. **Type-Safe Access** - Provide strongly-typed getters for all resources
+1. **Dependency Analysis** - Parse package.json files to build dependency graph
+2. **Build Ordering** - Determine optimal build sequence based on dependencies
+3. **Incremental Builds** - Only rebuild packages that have changed
+4. **Type Safety** - Full TypeScript compilation with strict checking
 
-Example:
+Example build flow:
 ```typescript
-// Old approach (hardcoded)
-const clusterName = "SemiontAppStack-SemiontCluster82385F1E-3kHlZPAROgIe";
+// 1. Analyze dependencies
+const graph = new DependencyGraph();
+const buildOrder = graph.getBuildOrder();
 
-// New approach (dynamic)
-const clusterName = await config.getClusterName();
+// 2. Build in dependency order
+for (const pkg of buildOrder) {
+  await packageBuilder.buildPackage(pkg.path, pkg.name);
+}
+
+// 3. Link CLI globally
+await packageBuilder.linkCliGlobally();
 ```
 
-### CDK Integration
+### Installation System
 
-The scripts rely on CDK stack outputs that are automatically generated during deployment:
+The installer orchestrates the complete setup process:
 
-**From SemiontAppStack:**
-- `ClusterName` - ECS cluster name
-- `FrontendServiceName` - Frontend ECS service name
-- `BackendServiceName` - Backend ECS service name
-- `LogGroupName` - CloudWatch log group
-- `CustomDomainUrl` - Website URL
-
-**From SemiontInfraStack:**
-- `GoogleOAuthSecretName` - Google OAuth credentials
-- `AppSecretsName` - Application secrets
-- `DatabaseEndpoint` - RDS database endpoint
+1. **Environment Validation** - Check Node.js, npm, TypeScript
+2. **Dependency Installation** - Install root and workspace dependencies  
+3. **Package Building** - Build all packages in correct order
+4. **CLI Linking** - Install semiont CLI globally
+5. **Verification** - Test that installation worked correctly
 
 ### Security & Error Handling
 
@@ -556,30 +397,36 @@ export const awsConfig: AWSConfiguration = {
 ### Getting Help
 
 ```bash
-# Show available commands
-./semiont help
+# Check installation
+semiont --version
+semiont --help
 
-# Check configuration
-./semiont config validate
-./semiont config show
+# Development build issues
+npm run build                    # Build all packages
+npm run clean                    # Clean and rebuild
+npm run typecheck               # Check types only
 
-# Check service status
-./semiont status
-
-# View error logs
-./semiont logs
-./semiont exec "cat /tmp/php-error.log"
+# Installation issues  
+npm run setup -- --verbose      # Verbose installation
+npm run setup -- --cli-only     # CLI only setup
 ```
 
 ## Development
 
-### Adding New Scripts
+### Adding New Development Scripts
 
-1. Create a new TypeScript file in the `scripts/` directory
-2. Import and use `SemiontStackConfig` for resource discovery
-3. Add error handling and user-friendly output
-4. Update the `semiont` wrapper script to include the new command
-5. Document the new command in this README
+1. Create a new TypeScript file in `packages/scripts/`
+2. Use the existing patterns from `lib/` utilities
+3. Add proper error handling and progress reporting
+4. Update `package.json` scripts if needed
+5. Document the new script in this README
+
+### Contributing to Build System
+
+1. Modify `lib/package-builder.ts` for build logic changes
+2. Update `lib/dependency-graph.ts` for dependency management  
+3. Extend `lib/installer.ts` for installation flow changes
+4. Test with both `--cli-only` and full installation modes
 
 ### Example Script Structure
 

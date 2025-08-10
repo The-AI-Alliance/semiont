@@ -64,7 +64,7 @@ const TestArgsSchema = CommonArgsSchema.extend({
   '-p': z.literal('--parallel').optional(),
 });
 
-const DeployArgsSchema = CommonArgsSchema.extend({
+const UpdateArgsSchema = CommonArgsSchema.extend({
   '--skip-tests': z.boolean().optional(),
   '--skip-build': z.boolean().optional(),
   '--force': z.boolean().optional(),
@@ -122,72 +122,6 @@ interface CommandDefinition {
 }
 
 const COMMANDS: Record<string, CommandDefinition> = {
-  start: {
-    description: 'Start services in any environment',
-    schema: StartArgsSchema,
-    handler: 'commands/start.mjs',
-    requiresEnvironment: true,
-    examples: [
-      'semiont start --environment local',
-      'semiont start -e staging --service backend',
-      'semiont start -e local --service frontend',
-    ],
-  },
-  stop: {
-    description: 'Stop services in any environment',
-    schema: CommonArgsSchema.extend({
-      '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
-      '--force': z.boolean().optional(),
-      '-s': z.literal('--service').optional(),
-      '-f': z.literal('--force').optional(),
-    }),
-    handler: 'commands/stop.mjs',
-    requiresEnvironment: true,
-    examples: [
-      'semiont stop --environment local',
-      'semiont stop -e staging --service backend',
-      'semiont stop -e local --force --service all',
-    ],
-  },
-  restart: {
-    description: 'Restart services in any environment',
-    schema: StartArgsSchema.extend({
-      '--force': z.boolean().optional(),
-      '--grace-period': z.number().int().positive().optional(),
-      '-f': z.literal('--force').optional(),
-    }),
-    handler: 'commands/restart.mjs',
-    requiresEnvironment: true,
-    examples: [
-      'semiont restart --environment local',
-      'semiont restart -e staging --service backend',
-      'semiont restart -e local --grace-period 5 --service all',
-    ],
-  },
-  test: {
-    description: 'Run tests against environments',
-    schema: TestArgsSchema.extend({
-      '--timeout': z.number().int().positive().optional(),
-    }),
-    handler: 'commands/test.mjs',
-    requiresEnvironment: true,
-    examples: [
-      'semiont test -e local --suite integration',
-      'semiont test -e staging --suite e2e',
-      'semiont test -e production --suite health',
-    ],
-  },
-  deploy: {
-    description: 'Deploy services (update running infrastructure with pre-built images)',
-    schema: DeployArgsSchema,
-    handler: 'commands/deploy.mjs',
-    requiresEnvironment: true, // This command REQUIRES --environment
-    examples: [
-      'semiont deploy -e staging',
-      'semiont deploy -e production --dry-run',
-      'semiont deploy -e staging --skip-tests',
-    ],
-  },
   provision: {
     description: 'Provision infrastructure (containers or cloud)',
     schema: CommonArgsSchema.extend({
@@ -206,6 +140,42 @@ const COMMANDS: Record<string, CommandDefinition> = {
       'semiont provision -e production --stack infra',
       'semiont provision -e staging --dry-run',
       'semiont provision -e development --destroy',
+    ],
+  },
+  configure: {
+    description: 'Manage configuration and secrets',
+    schema: ConfigureArgsSchema,
+    handler: 'commands/configure.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont configure -e local show',
+      'semiont configure -e production list',
+      'semiont configure -e staging validate',
+      'semiont configure -e production get oauth/google',
+      'semiont configure -e staging set jwt-secret',
+    ],
+  },
+  publish: {
+    description: 'Build and push container images (for containerized services)',
+    schema: PublishArgsSchema,
+    handler: 'commands/publish.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont publish -e staging --service frontend',
+      'semiont publish -e production --service all',
+      'semiont publish -e staging --skip-build --tag v1.2.3',
+      'semiont publish -e production --dry-run',
+    ],
+  },
+  start: {
+    description: 'Start services in any environment',
+    schema: StartArgsSchema,
+    handler: 'commands/start.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont start --environment local',
+      'semiont start -e staging --service backend',
+      'semiont start -e local --service frontend',
     ],
   },
   check: {
@@ -230,6 +200,61 @@ const COMMANDS: Record<string, CommandDefinition> = {
       'semiont watch -e production --service backend --interval 10',
     ],
   },
+  test: {
+    description: 'Run tests against environments',
+    schema: TestArgsSchema.extend({
+      '--timeout': z.number().int().positive().optional(),
+    }),
+    handler: 'commands/test.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont test -e local --suite integration',
+      'semiont test -e staging --suite e2e',
+      'semiont test -e production --suite health',
+    ],
+  },
+  update: {
+    description: 'Update running services with pre-built images',
+    schema: UpdateArgsSchema,
+    handler: 'commands/update.mjs',
+    requiresEnvironment: true, // This command REQUIRES --environment
+    examples: [
+      'semiont update -e staging',
+      'semiont update -e production --dry-run',
+      'semiont update -e staging --skip-tests',
+    ],
+  },
+  restart: {
+    description: 'Restart services in any environment',
+    schema: StartArgsSchema.extend({
+      '--force': z.boolean().optional(),
+      '--grace-period': z.number().int().positive().optional(),
+      '-f': z.literal('--force').optional(),
+    }),
+    handler: 'commands/restart.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont restart --environment local',
+      'semiont restart -e staging --service backend',
+      'semiont restart -e local --grace-period 5 --service all',
+    ],
+  },
+  stop: {
+    description: 'Stop services in any environment',
+    schema: CommonArgsSchema.extend({
+      '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
+      '--force': z.boolean().optional(),
+      '-s': z.literal('--service').optional(),
+      '-f': z.literal('--force').optional(),
+    }),
+    handler: 'commands/stop.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont stop --environment local',
+      'semiont stop -e staging --service backend',
+      'semiont stop -e local --force --service all',
+    ],
+  },
   exec: {
     description: 'Execute commands in cloud containers',
     schema: ExecArgsSchema,
@@ -239,19 +264,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
       'semiont exec -e production',
       'semiont exec -e staging --service frontend',
       'semiont exec -e production --service backend --command "ls -la"',
-    ],
-  },
-  configure: {
-    description: 'Manage configuration and secrets',
-    schema: ConfigureArgsSchema,
-    handler: 'commands/configure.mjs',
-    requiresEnvironment: true,
-    examples: [
-      'semiont configure -e local show',
-      'semiont configure -e production list',
-      'semiont configure -e staging validate',
-      'semiont configure -e production get oauth/google',
-      'semiont configure -e staging set jwt-secret',
     ],
   },
   backup: {
@@ -264,18 +276,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
       'semiont backup -e staging --name "pre-upgrade"',
       'semiont backup -e production --name "before-migration" --verbose',
       'semiont backup -e staging --dry-run',
-    ],
-  },
-  publish: {
-    description: 'Build and push container images (for containerized services)',
-    schema: PublishArgsSchema,
-    handler: 'commands/publish.mjs',
-    requiresEnvironment: true,
-    examples: [
-      'semiont publish -e staging --service frontend',
-      'semiont publish -e production --service all',
-      'semiont publish -e staging --skip-build --tag v1.2.3',
-      'semiont publish -e production --dry-run',
     ],
   },
 };
@@ -338,7 +338,8 @@ ${colors.bright}Examples:${colors.reset}
 
   # Cloud Environments  
   semiont provision -e production           # Create infrastructure
-  semiont deploy -e staging                 # Deploy to staging
+  semiont publish -e staging                # Build and push images
+  semiont update -e staging                 # Update running services
   semiont test -e production --suite health # Test production health
 
 ${colors.bright}For command-specific help:${colors.reset}
@@ -404,7 +405,7 @@ async function parseArguments(
           '-s': '--section',
         } : {}),
         
-        ...(command === 'deploy' ? {
+        ...(command === 'update' ? {
           '--skip-tests': Boolean,
           '--skip-build': Boolean,
           '--force': Boolean,
