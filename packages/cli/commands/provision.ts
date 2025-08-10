@@ -20,6 +20,7 @@ import { render, Text, Box } from 'ink';
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { CdkDeployer } from './lib/cdk-deployer';
 import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { provisionLocalEnvironment, type LocalEnvironmentConfig } from './lib/local-provisioner';
 
 // Valid environments for provisioning (excludes 'local')
 type CloudEnvironment = 'development' | 'staging' | 'production';
@@ -108,18 +109,34 @@ async function deployWithProgress<T>(description: string, deployFn: () => Promis
   }
 }
 
-async function validateEnvironment(env: string): Promise<CloudEnvironment> {
-  const validEnvironments: CloudEnvironment[] = ['development', 'staging', 'production'];
+type ProvisionEnvironment = string; // Any environment name is valid
+
+async function validateEnvironment(env: string): Promise<ProvisionEnvironment> {
+  if (!env) {
+    throw new Error('Environment is required');
+  }
+  return env;
+}
+
+function analyzeServices(config: any): { hasContainers: boolean; hasAWS: boolean; services: Record<string, any> } {
+  const services = config.services || {};
+  let hasContainers = false;
+  let hasAWS = false;
   
-  if (env === 'local') {
-    throw new Error('Local environment does not require provisioning. Use: ./scripts/semiont deploy local');
+  for (const [serviceName, serviceConfig] of Object.entries(services)) {
+    const deploymentType = (serviceConfig as any)?.deployment?.type || config.deployment?.default;
+    
+    switch (deploymentType) {
+      case 'container':
+        hasContainers = true;
+        break;
+      case 'aws':
+        hasAWS = true;
+        break;
+    }
   }
   
-  if (!validEnvironments.includes(env as CloudEnvironment)) {
-    throw new Error(`Invalid environment: ${env}. Must be one of: ${validEnvironments.join(', ')}`);
-  }
-  
-  return env as CloudEnvironment;
+  return { hasContainers, hasAWS, services };
 }
 
 async function checkExistingInfrastructure(_environment: CloudEnvironment, _config: any): Promise<boolean> {
@@ -130,6 +147,92 @@ async function checkExistingInfrastructure(_environment: CloudEnvironment, _conf
 }
 
 async function provisionInfrastructure(options: ProvisionOptions, config: any): Promise<boolean> {
+  const { environment, stack, dryRun, verbose, destroy } = options;
+  
+  // Analyze services to determine what needs to be provisioned
+  const { hasContainers, hasAWS, services } = analyzeServices(config);
+  
+  log(`🏗️  Provisioning environment: ${environment}`, colors.bright);
+  
+  if (hasContainers) {
+    log(`📦 Found container services - provisioning local containers`, colors.cyan);
+    const success = await provisionContainerServices(services, options, config);
+    if (!success) return false;
+  }
+  
+  if (hasAWS) {
+    log(`☁️  Found AWS services - provisioning cloud infrastructure`, colors.cyan);
+    const success = await provisionAWSServices(services, options, config);
+    if (!success) return false;
+  }
+  
+  if (!hasContainers && !hasAWS) {
+    log(`⚠️  No services found to provision`, colors.yellow);
+    return true;
+  }
+  
+  return true;
+}
+
+async function provisionContainerServices(services: Record<string, any>, options: ProvisionOptions, config: any): Promise<boolean> {
+  const { environment, dryRun, verbose, destroy } = options;
+  
+  // Build LocalEnvironmentConfig from services
+  const containerConfig: any = { containers: {}, processes: {} };
+  
+  for (const [serviceName, serviceConfig] of Object.entries(services)) {
+    const deploymentType = serviceConfig?.deployment?.type || config.deployment?.default;
+    
+    if (deploymentType === 'container') {
+      if (serviceName === 'database') {
+        containerConfig.containers.database = {
+          name: serviceConfig.name || `semiont_${environment}`,
+          user: serviceConfig.user || 'postgres',
+          password: serviceConfig.password || 'dev_password',
+          containerName: `semiont-postgres-${environment}`,
+          image: serviceConfig.image || 'postgres:15-alpine'
+        };
+      } else {
+        // Backend/frontend as processes
+        containerConfig.processes[serviceName] = {
+          port: serviceConfig.port,
+          url: `http://localhost:${serviceConfig.port}`,
+          command: serviceConfig.command?.split(' ')[0] || 'npm',
+          args: serviceConfig.command?.split(' ').slice(1) || ['run', 'dev']
+        };
+      }
+    }
+  }
+  
+  const localConfig: LocalEnvironmentConfig = {
+    infrastructure: { type: 'hybrid' },
+    containers: containerConfig.containers,
+    processes: containerConfig.processes
+  };
+  
+  const localOptions = {
+    environment,
+    reset: (options as any).reset ?? false,
+    seed: (options as any).seed ?? !destroy,
+    verbose: verbose ?? false,
+    dryRun: dryRun ?? false,
+    destroy: destroy ?? false
+  };
+  
+  return await provisionLocalEnvironment(localConfig, localOptions);
+}
+
+async function provisionAWSServices(services: Record<string, any>, options: ProvisionOptions, config: any): Promise<boolean> {
+  // Only proceed if we have AWS configuration
+  if (!config.aws) {
+    throw new Error(`AWS services found but no AWS configuration in environment ${options.environment}`);
+  }
+  
+  // Call existing AWS provisioning logic
+  return await provisionCloudInfrastructure(options, config);
+}
+
+async function provisionCloudInfrastructure(options: ProvisionOptions, config: any): Promise<boolean> {
   const { environment, stack, dryRun, verbose, destroy } = options;
   
   if (destroy) {
@@ -230,14 +333,13 @@ function printHelp(): void {
 ${colors.bright}🏗️  Semiont Provision Command${colors.reset}
 
 ${colors.cyan}Usage:${colors.reset}
-  ./scripts/semiont provision <environment> [options]
+  semiont provision --environment <env> [options]
 
-${colors.cyan}Environments:${colors.reset}
-  development    Development cloud environment
-  staging        Staging environment (production-like)
-  production     Production environment
-
-  Note: 'local' doesn't require provisioning - use 'deploy local' directly
+${colors.cyan}How it works:${colors.reset}
+  Provision analyzes each service in your environment configuration:
+  • Services with "type": "container" → Sets up local containers/processes  
+  • Services with "type": "aws" → Creates cloud infrastructure via CDK
+  • Mixed environments are supported (some container, some AWS services)
 
 ${colors.cyan}Options:${colors.reset}
   --stack <target>     Stack to provision: infra, app, or all (default: all)
@@ -249,17 +351,17 @@ ${colors.cyan}Options:${colors.reset}
   --help               Show this help message
 
 ${colors.cyan}Examples:${colors.reset}
-  ${colors.dim}# Provision all infrastructure for development${colors.reset}
-  ./scripts/semiont provision development
+  ${colors.dim}# Provision local development environment (containers)${colors.reset}
+  semiont provision --environment local
 
-  ${colors.dim}# Provision only base infrastructure for production${colors.reset}
-  ./scripts/semiont provision production --stack infra
+  ${colors.dim}# Provision cloud environment (AWS infrastructure)${colors.reset}
+  semiont provision -e production --stack infra
 
   ${colors.dim}# Dry run to see what would be created${colors.reset}
-  ./scripts/semiont provision staging --dry-run
+  semiont provision -e staging --dry-run
 
-  ${colors.dim}# Destroy development environment${colors.reset}
-  ./scripts/semiont provision development --destroy
+  ${colors.dim}# Destroy any environment${colors.reset}
+  semiont provision -e development --destroy
 
 ${colors.cyan}Infrastructure Stacks:${colors.reset}
   infra    VPC, Database, Storage, Networking
@@ -284,10 +386,17 @@ async function main(): Promise<void> {
     process.exit(0);
   }
   
-  // Parse arguments
-  const environment = args[0];
+  // Parse --environment argument
+  let environment: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--environment' || args[i] === '-e') {
+      environment = args[i + 1];
+      break;
+    }
+  }
+  
   if (!environment) {
-    error('Environment is required');
+    error('--environment is required');
     printHelp();
     process.exit(1);
   }

@@ -34,14 +34,16 @@
       "deployment": {
         "type": "aws"
       },
-      "command": "npm start",
+      "image": "semiont-backend",
+      "tag": "development",
       "port": 3001
     },
     "frontend": {
       "deployment": {
         "type": "aws"
       },
-      "command": "npm start",
+      "image": "semiont-frontend",
+      "tag": "development",
       "port": 3000
     },
     "database": {

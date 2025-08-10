@@ -1,14 +1,14 @@
 {
-  "name": "@semiont/scripts",
+  "name": "@semiont/cli",
   "version": "0.0.1",
-  "description": "Development tools and utilities for Semiont",
+  "description": "Semiont CLI - Unified environment management tool",
   "type": "module",
+  "bin": {
+    "semiont": "./dist/cli.mjs"
+  },
   "scripts": {
     "build": "node build.mjs",
-    "clean": "rm -rf dist",
-    "install": "node dist/install.mjs",
-    "secrets": "node dist/local-secrets.mjs",
-    "benchmark": "node dist/benchmark.mjs"
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@semiont/config-loader": "*",
