@@ -8,41 +8,25 @@
 import { z } from 'zod';
 import { spawn, type ChildProcess } from 'child_process';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
-// Removed problematic imports for simpler CLI
+import { getProjectRoot } from '../lib/cli-paths.js';
+import { CliLogger, printWarning } from '../lib/cli-logger.js';
+import { parseCommandArgs, BaseOptionsSchema } from '../lib/argument-parser.js';
+import { colors } from '../lib/cli-colors.js';
 
-// Get directory paths
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
+const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StartOptionsSchema = z.object({
-  environment: z.string(),
+const StartOptionsSchema = BaseOptionsSchema.extend({
   service: z.enum(['all', 'frontend', 'backend', 'database']).default('all'),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
 });
 
 type StartOptions = z.infer<typeof StartOptionsSchema>;
 
 // Track spawned processes for cleanup
 const spawnedProcesses: ChildProcess[] = [];
-
-// Color utilities
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-};
 
 // =====================================================================
 // HELPER FUNCTIONS

@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Database Backup Command V2 - AWS RDS backup management for Semiont
  * 
@@ -15,8 +13,8 @@ import { z } from 'zod';
 import { RDSClient, DescribeDBInstancesCommand, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { loadEnvironmentConfig } from '@semiont/config-loader';
-import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
-import { SemiontStackConfig } from './lib/stack-config';
+import { getAvailableEnvironments, isValidEnvironment } from '../lib/environment-discovery.js';
+import { SemiontStackConfig } from '../lib/stack-config.js';
 
 // =====================================================================
 // ARGUMENT PARSING WITH ZOD

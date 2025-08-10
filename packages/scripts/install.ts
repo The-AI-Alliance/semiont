@@ -79,7 +79,7 @@ function printHelp(): void {
 🚀 Semiont Installation Script
 ================================
 
-Usage: npm run install [OPTIONS]
+Usage: npm run setup [OPTIONS]
 
 Options:
   --cli-only    Build and install only the CLI tools
@@ -92,9 +92,9 @@ Default behavior (no options):
   • Install the semiont CLI globally
 
 Examples:
-  npm run install              # Full installation
-  npm run install -- --cli-only   # CLI tools only
-  npm run install -- --verbose    # Detailed output
+  npm run setup              # Full installation
+  npm run setup -- --cli-only   # CLI tools only
+  npm run setup -- --verbose    # Detailed output
 
 After installation:
   semiont provision -e local   # Setup local environment

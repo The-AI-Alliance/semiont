@@ -30,16 +30,7 @@ try {
   VERSION = '1.0.0';
 }
 
-// Color utilities for output
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-};
+import { colors } from './lib/cli-colors.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -78,6 +69,39 @@ const DeployArgsSchema = CommonArgsSchema.extend({
   '--skip-build': z.boolean().optional(),
   '--force': z.boolean().optional(),
   '-f': z.literal('--force').optional(),
+});
+
+const WatchArgsSchema = CommonArgsSchema.extend({
+  '--target': z.enum(['all', 'logs', 'metrics', 'services']).optional(),
+  '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
+  '--no-follow': z.boolean().optional(),
+  '--interval': z.number().int().positive().optional(),
+  '-t': z.literal('--target').optional(),
+  '-s': z.literal('--service').optional(),
+  '-i': z.literal('--interval').optional(),
+});
+
+const ExecArgsSchema = CommonArgsSchema.extend({
+  '--service': z.enum(['frontend', 'backend']).optional(),
+  '--command': z.string().optional(),
+  '-s': z.literal('--service').optional(),
+  '-c': z.literal('--command').optional(),
+});
+
+const ConfigureArgsSchema = CommonArgsSchema.extend({
+  '--secret-path': z.string().optional(),
+  '--value': z.string().optional(),
+  '-s': z.literal('--secret-path').optional(),
+});
+
+const BackupArgsSchema = CommonArgsSchema.extend({
+  '--name': z.string().optional(),
+  '-n': z.literal('--name').optional(),
+});
+
+const CheckArgsSchema = CommonArgsSchema.extend({
+  '--section': z.enum(['all', 'services', 'health', 'logs']).optional(),
+  '-s': z.literal('--section').optional(),
 });
 
 // Command registry with metadata
@@ -173,10 +197,7 @@ const COMMANDS: Record<string, CommandDefinition> = {
   },
   check: {
     description: 'Check system health and status',
-    schema: CommonArgsSchema.extend({
-      '--section': z.enum(['all', 'services', 'health', 'logs']).optional(),
-      '-s': z.literal('--section').optional(),
-    }),
+    schema: CheckArgsSchema,
     handler: 'commands/check.mjs',
     requiresEnvironment: true,
     examples: [
@@ -187,15 +208,7 @@ const COMMANDS: Record<string, CommandDefinition> = {
   },
   watch: {
     description: 'Monitor logs and system metrics',
-    schema: CommonArgsSchema.extend({
-      '--target': z.enum(['all', 'logs', 'metrics', 'services']).optional(),
-      '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
-      '--no-follow': z.boolean().optional(),
-      '--interval': z.number().int().positive().optional(),
-      '-t': z.literal('--target').optional(),
-      '-s': z.literal('--service').optional(),
-      '-i': z.literal('--interval').optional(),
-    }),
+    schema: WatchArgsSchema,
     handler: 'commands/watch.mjs',
     requiresEnvironment: true,
     examples: [
@@ -206,12 +219,7 @@ const COMMANDS: Record<string, CommandDefinition> = {
   },
   exec: {
     description: 'Execute commands in cloud containers',
-    schema: CommonArgsSchema.extend({
-      '--service': z.enum(['frontend', 'backend']).optional(),
-      '--command': z.string().optional(),
-      '-s': z.literal('--service').optional(),
-      '-c': z.literal('--command').optional(),
-    }),
+    schema: ExecArgsSchema,
     handler: 'commands/exec.mjs',
     requiresEnvironment: true,
     examples: [
@@ -222,11 +230,7 @@ const COMMANDS: Record<string, CommandDefinition> = {
   },
   configure: {
     description: 'Manage configuration and secrets',
-    schema: CommonArgsSchema.extend({
-      '--secret-path': z.string().optional(),
-      '--value': z.string().optional(),
-      '-s': z.literal('--secret-path').optional(),
-    }),
+    schema: ConfigureArgsSchema,
     handler: 'commands/configure.mjs',
     requiresEnvironment: true,
     examples: [
@@ -239,10 +243,7 @@ const COMMANDS: Record<string, CommandDefinition> = {
   },
   backup: {
     description: 'Create database backups',
-    schema: CommonArgsSchema.extend({
-      '--name': z.string().optional(),
-      '-n': z.literal('--name').optional(),
-    }),
+    schema: BackupArgsSchema,
     handler: 'commands/backup.mjs',
     requiresEnvironment: true,
     examples: [

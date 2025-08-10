@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "install": "npm run install -w @semiont/scripts",
+    "setup": "npm run setup -w @semiont/scripts",
     "dev": "npm run dev --workspaces",
     "build": "npm run build --workspaces",
     "frontend:dev": "npm run dev -w semiont-frontend",

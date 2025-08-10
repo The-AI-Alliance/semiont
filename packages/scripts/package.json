@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "clean": "rm -rf dist",
-    "install": "node dist/install.mjs",
+    "setup": "node dist/install.mjs",
     "secrets": "node dist/local-secrets.mjs",
     "benchmark": "node dist/benchmark.mjs"
   },

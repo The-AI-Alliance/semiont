@@ -36,7 +36,7 @@ export class ProgressReporter {
       console.log('  • Build all packages (api-types, config-loader, backend, frontend, cli)');
       console.log('  • Install the semiont CLI globally');
       console.log('');
-      console.log('For CLI-only installation, run: npm run install -- --cli-only');
+      console.log('For CLI-only installation, run: npm run setup -- --cli-only');
     }
     console.log('');
   }
