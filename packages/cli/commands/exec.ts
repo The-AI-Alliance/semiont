@@ -1,14 +1,14 @@
-#!/usr/bin/env node
-
 import { z } from 'zod';
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
-import { SemiontStackConfig } from './lib/stack-config';
+import { SemiontStackConfig } from '../lib/lib/stack-config.js';
 import { spawn } from 'child_process';
 import React from 'react';
 import { render, Text, Box } from 'ink';
-import { SimpleTable } from './lib/ink-utils';
+import { SimpleTable } from '../lib/lib/ink-utils.js';
 import { loadEnvironmentConfig } from '@semiont/config-loader';
-import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
+import { getAvailableEnvironments, isValidEnvironment } from '../lib/lib/environment-discovery.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { colors } from '../lib/cli-colors.js';
 
 // =====================================================================
 // ARGUMENT PARSING WITH ZOD
@@ -16,7 +16,7 @@ import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-
 
 const ExecOptionsSchema = z.object({
   environment: z.enum(['development', 'staging', 'production']),
-  service: z.enum(['frontend', 'backend']).default('backend'),
+  service: z.string().default('backend'), // Will be validated at runtime against executable services
   command: z.string().default('/bin/sh'),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),

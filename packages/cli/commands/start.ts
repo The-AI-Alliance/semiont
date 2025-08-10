@@ -12,6 +12,7 @@ import { getProjectRoot } from '../lib/cli-paths.js';
 import { CliLogger, printWarning } from '../lib/cli-logger.js';
 import { parseCommandArgs, BaseOptionsSchema } from '../lib/argument-parser.js';
 import { colors } from '../lib/cli-colors.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -20,7 +21,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const StartOptionsSchema = BaseOptionsSchema.extend({
-  service: z.enum(['all', 'frontend', 'backend', 'database']).default('all'),
+  service: z.string().default('all'), // Will be validated at runtime against startable services
 });
 
 type StartOptions = z.infer<typeof StartOptionsSchema>;
@@ -219,31 +220,35 @@ async function main(): Promise<void> {
   // Validate environment
   await validateEnvironment(options);
   
-  // Start services based on selection (all in detached mode)
   try {
-    switch (options.service) {
-      case 'database':
-        await startDatabase(options);
-        break;
-      
-      case 'backend':
-        if (options.environment === 'local') {
-          await startDatabase(options); // Backend needs database
-        }
-        await startBackend(options);
-        break;
-      
-      case 'frontend':
-        await startFrontend(options);
-        break;
-      
-      case 'all':
-        if (options.environment === 'local') {
+    // Validate service selector and resolve to actual services
+    await validateServiceSelector(options.service, 'start', options.environment);
+    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
+    
+    printDebug(`Resolved services: ${resolvedServices.join(', ')}`, options);
+    
+    // Start services based on resolved selection
+    for (const service of resolvedServices) {
+      switch (service) {
+        case 'database':
           await startDatabase(options);
+          break;
+        
+        case 'backend':
+          if (options.environment === 'local' && !resolvedServices.includes('database')) {
+            await startDatabase(options); // Backend needs database
+          }
           await startBackend(options);
-        }
-        await startFrontend(options);
-        break;
+          break;
+        
+        case 'frontend':
+          await startFrontend(options);
+          break;
+        
+        default:
+          printWarning(`Unknown service '${service}' - skipping`);
+          break;
+      }
     }
     
     printSuccess('All services started successfully');

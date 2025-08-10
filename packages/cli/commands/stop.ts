@@ -6,6 +6,8 @@
 
 import { z } from 'zod';
 import { spawn } from 'child_process';
+import { colors } from '../lib/cli-colors.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -13,7 +15,7 @@ import { spawn } from 'child_process';
 
 const StopOptionsSchema = z.object({
   environment: z.string(),
-  service: z.enum(['all', 'frontend', 'backend', 'database']).default('all'),
+  service: z.string().default('all'), // Will be validated at runtime against stoppable services
   force: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
@@ -21,17 +23,7 @@ const StopOptionsSchema = z.object({
 
 type StopOptions = z.infer<typeof StopOptionsSchema>;
 
-// Color utilities
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-};
+// Colors are now imported from centralized module
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -274,27 +266,38 @@ async function main(): Promise<void> {
   await validateEnvironment(options);
   
   try {
-    switch (options.service) {
-      case 'database':
-        await stopDatabase(options);
-        break;
-      
-      case 'backend':
-        await stopBackend(options);
-        break;
-      
-      case 'frontend':
-        await stopFrontend(options);
-        break;
-      
-      case 'all':
-        // Stop in reverse order from start
-        await stopFrontend(options);
-        await stopBackend(options);
-        if (options.environment === 'local') {
+    // Validate service selector and resolve to actual services
+    await validateServiceSelector(options.service, 'stop', options.environment);
+    const resolvedServices = await resolveServiceSelector(options.service, 'stop', options.environment);
+    
+    printDebug(`Resolved services: ${resolvedServices.join(', ')}`, options);
+    
+    // Stop services in reverse order from start for clean shutdown
+    const stopOrder = ['frontend', 'backend', 'database'];
+    const servicesToStop = resolvedServices.sort((a, b) => {
+      const aIndex = stopOrder.indexOf(a);
+      const bIndex = stopOrder.indexOf(b);
+      return bIndex - aIndex; // Reverse order
+    });
+    
+    for (const service of servicesToStop) {
+      switch (service) {
+        case 'database':
           await stopDatabase(options);
-        }
-        break;
+          break;
+        
+        case 'backend':
+          await stopBackend(options);
+          break;
+        
+        case 'frontend':
+          await stopFrontend(options);
+          break;
+        
+        default:
+          printWarning(`Unknown service '${service}' - skipping`);
+          break;
+      }
     }
     
     printSuccess('Services stopped successfully');

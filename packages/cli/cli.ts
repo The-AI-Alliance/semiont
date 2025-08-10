@@ -13,6 +13,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
+// Service enums are now validated at runtime for flexibility
 
 // Get directory paths (ES modules compatible)
 const __filename = fileURLToPath(import.meta.url);
@@ -51,13 +52,13 @@ const CommonArgsSchema = z.object({
 
 // Command-specific schemas
 const StartArgsSchema = CommonArgsSchema.extend({
-  '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
+  '--service': z.string().optional(), // Will be validated at runtime against available services
   '-s': z.literal('--service').optional(),
 });
 
 const TestArgsSchema = CommonArgsSchema.extend({
   '--suite': z.enum(['all', 'integration', 'e2e', 'health', 'security']).optional(),
-  '--service': z.enum(['all', 'frontend', 'backend']).optional(),
+  '--service': z.string().optional(), // Will be validated at runtime against testable services
   '--coverage': z.boolean().optional(),
   '--parallel': z.boolean().optional(),
   '-s': z.literal('--suite').optional(),
@@ -73,7 +74,7 @@ const UpdateArgsSchema = CommonArgsSchema.extend({
 
 const WatchArgsSchema = CommonArgsSchema.extend({
   '--target': z.enum(['all', 'logs', 'metrics', 'services']).optional(),
-  '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
+  '--service': z.string().optional(), // Will be validated at runtime against watchable services
   '--no-follow': z.boolean().optional(),
   '--interval': z.number().int().positive().optional(),
   '-t': z.literal('--target').optional(),
@@ -82,7 +83,7 @@ const WatchArgsSchema = CommonArgsSchema.extend({
 });
 
 const ExecArgsSchema = CommonArgsSchema.extend({
-  '--service': z.enum(['frontend', 'backend']).optional(),
+  '--service': z.string().optional(), // Will be validated at runtime against executable services
   '--command': z.string().optional(),
   '-s': z.literal('--service').optional(),
   '-c': z.literal('--command').optional(),
@@ -105,7 +106,7 @@ const CheckArgsSchema = CommonArgsSchema.extend({
 });
 
 const PublishArgsSchema = CommonArgsSchema.extend({
-  '--service': z.enum(['all', 'frontend', 'backend']).optional(),
+  '--service': z.string().optional(), // Will be validated at runtime against publishable services
   '--tag': z.string().optional(),
   '--skip-build': z.boolean().optional(),
   '-s': z.literal('--service').optional(),
@@ -226,9 +227,11 @@ const COMMANDS: Record<string, CommandDefinition> = {
   },
   restart: {
     description: 'Restart services in any environment',
-    schema: StartArgsSchema.extend({
+    schema: CommonArgsSchema.extend({
+      '--service': z.string().optional(), // Will be validated at runtime against restartable services
       '--force': z.boolean().optional(),
       '--grace-period': z.number().int().positive().optional(),
+      '-s': z.literal('--service').optional(),
       '-f': z.literal('--force').optional(),
     }),
     handler: 'commands/restart.mjs',
@@ -242,7 +245,7 @@ const COMMANDS: Record<string, CommandDefinition> = {
   stop: {
     description: 'Stop services in any environment',
     schema: CommonArgsSchema.extend({
-      '--service': z.enum(['all', 'frontend', 'backend', 'database']).optional(),
+      '--service': z.string().optional(), // Will be validated at runtime against stoppable services
       '--force': z.boolean().optional(),
       '-s': z.literal('--service').optional(),
       '-f': z.literal('--force').optional(),

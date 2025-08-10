@@ -11,6 +11,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
 
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
@@ -26,7 +27,7 @@ interface PublishOptions {
   verbose: boolean;
   dryRun: boolean;
   help: boolean;
-  service: 'all' | 'frontend' | 'backend';
+  service: string; // Will be validated against services that support publish capability
   tag: string;
   skipBuild: boolean;
 }
@@ -109,13 +110,14 @@ async function loadEnvironmentConfig(environment: string): Promise<EnvironmentCo
   }
 }
 
-function getServicesForPublish(config: EnvironmentConfig, requestedService: string): Array<{ name: string; config: ServiceConfig; deploymentType: string }> {
+async function getServicesForPublish(config: EnvironmentConfig, requestedServices: string[]): Promise<Array<{ name: string; config: ServiceConfig; deploymentType: string }>> {
   const services: Array<{ name: string; config: ServiceConfig; deploymentType: string }> = [];
   const defaultDeploymentType = config.deployment?.default || 'container';
   
-  for (const [serviceName, serviceConfig] of Object.entries(config.services)) {
-    // Skip if specific service requested and this isn't it
-    if (requestedService !== 'all' && serviceName !== requestedService) {
+  for (const serviceName of requestedServices) {
+    const serviceConfig = config.services[serviceName];
+    if (!serviceConfig) {
+      // Skip services not defined in this environment (might be from another environment)
       continue;
     }
     
@@ -398,8 +400,8 @@ function parseArguments(): PublishOptions {
       }
     } else if (arg === '--service' || arg === '-s') {
       const next = args[i + 1];
-      if (next && ['all', 'frontend', 'backend'].includes(next)) {
-        service = next as 'all' | 'frontend' | 'backend';
+      if (next) {
+        service = next;
         i++; // Skip next arg
       }
     } else if (arg === '--tag' || arg === '-t') {
@@ -447,14 +449,21 @@ async function main(): Promise<void> {
   }
   
   try {
+    // Validate service selector
+    await validateServiceSelector(options.service, 'publish', options.environment);
+    
+    // Resolve services to publish
+    const resolvedServices = await resolveServiceSelector(options.service, 'publish', options.environment);
+    
     // Load environment configuration
     const config = await loadEnvironmentConfig(options.environment);
     
-    // Get services to publish
-    const servicesToPublish = getServicesForPublish(config, options.service);
+    // Get services to publish with their configs
+    const servicesToPublish = await getServicesForPublish(config, resolvedServices);
     
     if (servicesToPublish.length === 0) {
       printInfo('No containerized services found to publish');
+      printInfo(`Requested: ${options.service} → Resolved: ${resolvedServices.join(', ')}`);
       return;
     }
     
