@@ -104,6 +104,14 @@ const CheckArgsSchema = CommonArgsSchema.extend({
   '-s': z.literal('--section').optional(),
 });
 
+const PublishArgsSchema = CommonArgsSchema.extend({
+  '--service': z.enum(['all', 'frontend', 'backend']).optional(),
+  '--tag': z.string().optional(),
+  '--skip-build': z.boolean().optional(),
+  '-s': z.literal('--service').optional(),
+  '-t': z.literal('--tag').optional(),
+});
+
 // Command registry with metadata
 interface CommandDefinition {
   description: string;
@@ -170,10 +178,15 @@ const COMMANDS: Record<string, CommandDefinition> = {
     ],
   },
   deploy: {
-    description: 'Deploy application code and configuration',
+    description: 'Deploy services (update running infrastructure with pre-built images)',
     schema: DeployArgsSchema,
     handler: 'commands/deploy.mjs',
     requiresEnvironment: true, // This command REQUIRES --environment
+    examples: [
+      'semiont deploy -e staging',
+      'semiont deploy -e production --dry-run',
+      'semiont deploy -e staging --skip-tests',
+    ],
   },
   provision: {
     description: 'Provision infrastructure (containers or cloud)',
@@ -251,6 +264,18 @@ const COMMANDS: Record<string, CommandDefinition> = {
       'semiont backup -e staging --name "pre-upgrade"',
       'semiont backup -e production --name "before-migration" --verbose',
       'semiont backup -e staging --dry-run',
+    ],
+  },
+  publish: {
+    description: 'Build and push container images (for containerized services)',
+    schema: PublishArgsSchema,
+    handler: 'commands/publish.mjs',
+    requiresEnvironment: true,
+    examples: [
+      'semiont publish -e staging --service frontend',
+      'semiont publish -e production --service all',
+      'semiont publish -e staging --skip-build --tag v1.2.3',
+      'semiont publish -e production --dry-run',
     ],
   },
 };
@@ -422,6 +447,14 @@ async function parseArguments(
         ...(command === 'backup' ? {
           '--name': String,
           '-n': '--name',
+        } : {}),
+        
+        ...(command === 'publish' ? {
+          '--service': String,
+          '--tag': String,
+          '--skip-build': Boolean,
+          '-s': '--service',
+          '-t': '--tag',
         } : {}),
       },
       { argv }

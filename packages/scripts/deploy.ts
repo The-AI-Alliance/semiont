@@ -23,7 +23,7 @@ import { EnvironmentDetails, SimpleTable, StepProgress, DeploymentStatus } from 
 import { requireValidAWSCredentials } from './utils/aws-validation';
 import { loadEnvironmentConfig } from '@semiont/config-loader';
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
-import { ECRClient, DescribeRepositoriesCommand, CreateRepositoryCommand, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
+// ECR imports removed - now handled by publish command
 import { SemiontStackConfig } from './lib/stack-config';
 
 // Valid environments
@@ -988,27 +988,25 @@ async function deployDatabaseService(_environment: Environment, _config: any, _o
 async function deployBackendService(environment: Environment, _config: any, options: any): Promise<boolean> {
   info('Deploying backend service...');
   
-  // Build backend image if it doesn't exist
+  // Check if backend image exists (should be built and pushed via 'semiont publish')
   const backendExists = await runCommand(['docker', 'image', 'inspect', 'semiont-backend:latest'], '.', 'Check backend image exists', options.verbose);
   
   if (!backendExists) {
-    info('Building backend Docker image...');
-    const buildSuccess = await runCommandWithProgress(['npm', 'run', 'build:backend'], '.', 'Build backend image');
-    if (!buildSuccess) {
-      error('Failed to build backend image');
-      return false;
-    }
-  }
-  
-  // Push to ECR and update ECS service
-  const ecrImage = await pushImageToECR('semiont-backend:latest', 'backend', environment);
-  if (!ecrImage) {
-    error('Failed to push backend image to ECR');
+    error('Backend image not found. Run "semiont publish -e ' + environment + ' --service backend" first');
     return false;
   }
   
-  // Update ECS service with new image
-  const updateSuccess = await updateECSService('backend', ecrImage, environment);
+  // Get the ECR image URI (assume image was already pushed)
+  const envConfig = loadEnvironmentConfig(environment);
+  if (!envConfig.aws) {
+    error('AWS configuration not found for environment: ' + environment);
+    return false;
+  }
+  
+  const ecrImageUri = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-backend:latest`;
+  
+  // Update ECS service with image
+  const updateSuccess = await updateECSService('backend', ecrImageUri, environment);
   if (!updateSuccess) {
     error('Failed to update backend ECS service');
     return false;
@@ -1021,27 +1019,25 @@ async function deployBackendService(environment: Environment, _config: any, opti
 async function deployFrontendService(environment: Environment, _config: any, options: any): Promise<boolean> {
   info('Deploying frontend service...');
   
-  // Build frontend image if it doesn't exist
+  // Check if frontend image exists (should be built and pushed via 'semiont publish')
   const frontendExists = await runCommand(['docker', 'image', 'inspect', 'semiont-frontend:latest'], '.', 'Check frontend image exists', options.verbose);
   
   if (!frontendExists) {
-    info('Building frontend Docker image...');
-    const buildSuccess = await runCommandWithProgress(['npm', 'run', 'build:frontend'], '.', 'Build frontend image');
-    if (!buildSuccess) {
-      error('Failed to build frontend image');
-      return false;
-    }
-  }
-  
-  // Push to ECR and update ECS service
-  const ecrImage = await pushImageToECR('semiont-frontend:latest', 'frontend', environment);
-  if (!ecrImage) {
-    error('Failed to push frontend image to ECR');
+    error('Frontend image not found. Run "semiont publish -e ' + environment + ' --service frontend" first');
     return false;
   }
   
-  // Update ECS service with new image
-  const updateSuccess = await updateECSService('frontend', ecrImage, environment);
+  // Get the ECR image URI (assume image was already pushed)
+  const envConfig = loadEnvironmentConfig(environment);
+  if (!envConfig.aws) {
+    error('AWS configuration not found for environment: ' + environment);
+    return false;
+  }
+  
+  const ecrImageUri = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-frontend:latest`;
+  
+  // Update ECS service with image
+  const updateSuccess = await updateECSService('frontend', ecrImageUri, environment);
   if (!updateSuccess) {
     error('Failed to update frontend ECS service');
     return false;
@@ -1052,75 +1048,7 @@ async function deployFrontendService(environment: Environment, _config: any, opt
   return true;
 }
 
-// ECR and ECS deployment functions
-async function pushImageToECR(localImageName: string, serviceName: string, environment: string): Promise<string | null> {
-  const envConfig = loadEnvironmentConfig(environment);
-  
-  if (!envConfig.aws) {
-    throw new Error(`Environment ${environment} does not have AWS configuration`);
-  }
-  
-  const ecrClient = new ECRClient({ region: envConfig.aws.region });
-  
-  // Get ECR login token
-  const authResponse = await ecrClient.send(new GetAuthorizationTokenCommand({}));
-  const authToken = authResponse.authorizationData?.[0]?.authorizationToken;
-  const registryUrl = authResponse.authorizationData?.[0]?.proxyEndpoint;
-  
-  if (!authToken || !registryUrl) {
-    error('Failed to get ECR authorization');
-    return null;
-  }
-  
-  const repositoryName = `semiont-${serviceName}`;
-  const accountId = envConfig.aws.accountId;
-  const region = envConfig.aws.region;
-  const ecrImageUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}:latest`;
-  
-  // Ensure ECR repository exists
-  await ensureECRRepository(repositoryName, ecrClient);
-  
-  // Docker login to ECR
-  const loginCommand = ['docker', 'login', '--username', 'AWS', '--password', Buffer.from(authToken, 'base64').toString(), registryUrl];
-  const loginSuccess = await runCommand(loginCommand, '.', `ECR login for ${serviceName}`, false);
-  if (!loginSuccess) {
-    return null;
-  }
-  
-  // Tag image for ECR
-  const tagSuccess = await runCommand(['docker', 'tag', localImageName, ecrImageUri], '.', `Tag ${serviceName} image`, false);
-  if (!tagSuccess) {
-    return null;
-  }
-  
-  // Push to ECR with progress indicator
-  const pushSuccess = await runCommandWithProgress(['docker', 'push', ecrImageUri], '.', `Push ${serviceName} to ECR`);
-  if (!pushSuccess) {
-    return null;
-  }
-  
-  return ecrImageUri;
-}
-
-async function ensureECRRepository(repositoryName: string, ecrClient: ECRClient): Promise<boolean> {
-  try {
-    await ecrClient.send(new DescribeRepositoriesCommand({ repositoryNames: [repositoryName] }));
-    return true;
-  } catch (error: any) {
-    if (error.name === 'RepositoryNotFoundException') {
-      info(`Creating ECR repository: ${repositoryName}`);
-      try {
-        await ecrClient.send(new CreateRepositoryCommand({ repositoryName }));
-        return true;
-      } catch (createError) {
-        error(`Failed to create ECR repository: ${createError}`);
-        return false;
-      }
-    }
-    error(`Error checking ECR repository: ${error}`);
-    return false;
-  }
-}
+// ECS deployment functions
 
 async function updateECSService(serviceName: string, _imageUri: string, environment: string): Promise<boolean> {
   const envConfig = loadEnvironmentConfig(environment);

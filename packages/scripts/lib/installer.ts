@@ -23,7 +23,7 @@ export class SemiontInstaller {
 
   async install(cliOnly: boolean = false): Promise<void> {
     const packages = this.dependencyGraph.getBuildOrder(!cliOnly);
-    const totalSteps = cliOnly ? 3 : 6;
+    const totalSteps = cliOnly ? 3 : 8;
     let currentStep = 1;
 
     try {
