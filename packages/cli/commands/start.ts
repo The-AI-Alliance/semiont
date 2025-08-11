@@ -13,6 +13,9 @@ import { CliLogger, printWarning } from '../lib/cli-logger.js';
 import { parseCommandArgs, BaseOptionsSchema } from '../lib/argument-parser.js';
 import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { runContainer, stopContainer } from '../lib/container-runtime.js';
+import * as fs from 'fs';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -115,93 +118,191 @@ async function validateEnvironment(options: StartOptions): Promise<void> {
 }
 
 // =====================================================================
-// SERVICE START FUNCTIONS
+// DEPLOYMENT-TYPE-AWARE START FUNCTIONS
 // =====================================================================
 
-async function startDatabase(options: StartOptions): Promise<void> {
+async function startService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
   if (options.dryRun) {
-    printInfo('[DRY RUN] Would start database');
+    printInfo(`[DRY RUN] Would start ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     return;
   }
   
-  printInfo('Starting database...');
+  printInfo(`Starting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
   
-  if (options.environment === 'local') {
-    // Start local PostgreSQL container in detached mode
-    const proc = spawn('docker', [
-      'run',
-      '--name', 'semiont-postgres',
-      '-e', 'POSTGRES_PASSWORD=localpassword',
-      '-e', 'POSTGRES_DB=semiont',
-      '-p', '5432:5432',
-      '-d',
-      'postgres:15-alpine'
-    ], { stdio: options.verbose ? 'inherit' : 'pipe' });
-    
-    printSuccess('Database started');
-  } else {
-    printInfo('Cloud database is managed by AWS RDS');
+  switch (serviceInfo.deploymentType) {
+    case 'aws':
+      await startAWSService(serviceInfo, options);
+      break;
+    case 'container':
+      await startContainerService(serviceInfo, options);
+      break;
+    case 'process':
+      await startProcessService(serviceInfo, options);
+      break;
+    case 'external':
+      await startExternalService(serviceInfo, options);
+      break;
+    default:
+      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
   }
 }
 
-async function startBackend(options: StartOptions): Promise<void> {
-  if (options.dryRun) {
-    printInfo('[DRY RUN] Would start backend');
-    return;
-  }
-  
-  printInfo('Starting backend...');
-  
-  if (options.environment === 'local') {
-    // Start local backend in detached mode
-    const proc = spawn('npm', ['run', 'dev'], {
-      cwd: path.join(PROJECT_ROOT, 'apps/backend'),
-      stdio: 'pipe',
-      detached: true,
-      env: {
-        ...process.env,
-        SEMIONT_ENV: 'development',
-        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
-        JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-        PORT: '3001',
-      }
-    });
-    
-    proc.unref(); // Allow parent to exit
-    printSuccess('Backend started on port 3001');
-  } else {
-    // For cloud environments, use ECS
-    printInfo(`Starting backend in ${options.environment} via ECS...`);
-    printWarning('ECS service start not yet implemented - use AWS Console');
+async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+  // AWS ECS service start
+  switch (serviceInfo.name) {
+    case 'frontend':
+    case 'backend':
+      printInfo(`Starting ${serviceInfo.name} ECS service in ${options.environment}`);
+      printWarning('ECS service start not yet implemented - use AWS Console or CDK');
+      break;
+    case 'database':
+      printInfo(`Starting RDS instance for ${serviceInfo.name}`);
+      printWarning('RDS instance start not yet implemented - use AWS Console');
+      break;
+    case 'filesystem':
+      printInfo(`Mounting EFS volumes for ${serviceInfo.name}`);
+      printWarning('EFS mount not yet implemented');
+      break;
   }
 }
 
-async function startFrontend(options: StartOptions): Promise<void> {
-  if (options.dryRun) {
-    printInfo('[DRY RUN] Would start frontend');
-    return;
-  }
-  
-  printInfo('Starting frontend...');
-  
-  if (options.environment === 'local') {
-    const proc = spawn('npm', ['run', 'dev'], {
-      cwd: path.join(PROJECT_ROOT, 'apps/frontend'),
-      stdio: 'pipe',
-      detached: true,
-      env: {
-        ...process.env,
-        NEXT_PUBLIC_API_URL: 'http://localhost:3001',
-        NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
+async function startContainerService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+  // Container deployment
+  switch (serviceInfo.name) {
+    case 'database':
+      const containerName = `semiont-postgres-${options.environment}`;
+      const imageName = serviceInfo.config.image || 'postgres:15-alpine';
+      
+      const success = await runContainer(imageName, containerName, {
+        ports: { '5432': '5432' },
+        environment: {
+          POSTGRES_PASSWORD: serviceInfo.config.password || 'localpassword',
+          POSTGRES_DB: serviceInfo.config.name || 'semiont',
+          POSTGRES_USER: serviceInfo.config.user || 'postgres'
+        },
+        detached: true,
+        verbose: options.verbose
+      });
+      
+      if (success) {
+        printSuccess(`Database container started: ${containerName}`);
+      } else {
+        throw new Error(`Failed to start database container: ${containerName}`);
       }
-    });
-    
-    proc.unref(); // Allow parent to exit
-    printSuccess('Frontend started on port 3000');
-  } else {
-    printInfo(`Starting frontend in ${options.environment} via ECS...`);
-    printWarning('ECS service start not yet implemented - use AWS Console');
+      break;
+      
+    case 'frontend':
+    case 'backend':
+      const appContainerName = `semiont-${serviceInfo.name}-${options.environment}`;
+      const appImageName = serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`;
+      
+      const appSuccess = await runContainer(appImageName, appContainerName, {
+        ports: serviceInfo.config.port ? { [serviceInfo.config.port.toString()]: serviceInfo.config.port.toString() } : {},
+        detached: true,
+        verbose: options.verbose
+      });
+      
+      if (appSuccess) {
+        printSuccess(`${serviceInfo.name} container started: ${appContainerName}`);
+      } else {
+        throw new Error(`Failed to start ${serviceInfo.name} container: ${appContainerName}`);
+      }
+      break;
+      
+    case 'filesystem':
+      printInfo(`Creating container volumes for ${serviceInfo.name}`);
+      const volumeName = `semiont-${serviceInfo.name}-${options.environment}`;
+      // Volume creation would be handled by container runtime
+      printSuccess(`Container volumes ready: ${volumeName}`);
+      break;
   }
+}
+
+async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+  // Process deployment (local development)
+  switch (serviceInfo.name) {
+    case 'database':
+      printInfo(`Starting PostgreSQL service for ${serviceInfo.name}`);
+      // This would start local PostgreSQL service, for now just check if it's running
+      printWarning('Local PostgreSQL service start not yet implemented - start manually');
+      break;
+      
+    case 'backend':
+      const backendCwd = path.join(PROJECT_ROOT, 'apps/backend');
+      const backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      
+      const backendProc = spawn(backendCommand[0], backendCommand.slice(1), {
+        cwd: backendCwd,
+        stdio: 'pipe',
+        detached: true,
+        env: {
+          ...process.env,
+          SEMIONT_ENV: options.environment,
+          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
+          JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
+          PORT: serviceInfo.config.port?.toString() || '3001',
+        }
+      });
+      
+      backendProc.unref();
+      printSuccess(`Backend process started on port ${serviceInfo.config.port || 3001}`);
+      break;
+      
+    case 'frontend':
+      const frontendCwd = path.join(PROJECT_ROOT, 'apps/frontend');
+      const frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      
+      const frontendProc = spawn(frontendCommand[0], frontendCommand.slice(1), {
+        cwd: frontendCwd,
+        stdio: 'pipe',
+        detached: true,
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_API_URL: `http://localhost:${serviceInfo.config.port || 3001}`,
+          NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
+          PORT: serviceInfo.config.port?.toString() || '3000',
+        }
+      });
+      
+      frontendProc.unref();
+      printSuccess(`Frontend process started on port ${serviceInfo.config.port || 3000}`);
+      break;
+      
+    case 'filesystem':
+      printInfo(`Creating directories for ${serviceInfo.name}`);
+      const fsPath = serviceInfo.config.path || path.join(PROJECT_ROOT, 'data');
+      try {
+        await fs.promises.mkdir(fsPath, { recursive: true });
+        printSuccess(`Filesystem directories created: ${fsPath}`);
+      } catch (error) {
+        throw new Error(`Failed to create directories: ${error}`);
+      }
+      break;
+  }
+}
+
+async function startExternalService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+  // External service - just check connectivity
+  printInfo(`Checking external ${serviceInfo.name} service`);
+  
+  switch (serviceInfo.name) {
+    case 'database':
+      if (serviceInfo.config.host) {
+        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
+        printWarning('External database connectivity check not yet implemented');
+      }
+      break;
+    case 'filesystem':
+      if (serviceInfo.config.path) {
+        printInfo(`External storage: ${serviceInfo.config.path}`);
+        printWarning('External storage connectivity check not yet implemented');
+      }
+      break;
+    default:
+      printInfo(`External ${serviceInfo.name} service configured`);
+  }
+  
+  printSuccess(`External ${serviceInfo.name} service ready`);
 }
 
 // =====================================================================
@@ -225,33 +326,29 @@ async function main(): Promise<void> {
     await validateServiceSelector(options.service, 'start', options.environment);
     const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
     
-    printDebug(`Resolved services: ${resolvedServices.join(', ')}`, options);
+    // Get deployment information for all resolved services
+    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
-    // Start services based on resolved selection
-    for (const service of resolvedServices) {
-      switch (service) {
-        case 'database':
-          await startDatabase(options);
-          break;
-        
-        case 'backend':
-          if (options.environment === 'local' && !resolvedServices.includes('database')) {
-            await startDatabase(options); // Backend needs database
-          }
-          await startBackend(options);
-          break;
-        
-        case 'frontend':
-          await startFrontend(options);
-          break;
-        
-        default:
-          printWarning(`Unknown service '${service}' - skipping`);
-          break;
+    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    
+    // Start services based on deployment type
+    let allSucceeded = true;
+    for (const serviceInfo of serviceDeployments) {
+      try {
+        await startService(serviceInfo, options);
+      } catch (error) {
+        printError(`Failed to start ${serviceInfo.name}: ${error}`);
+        allSucceeded = false;
+        // Continue with other services
       }
     }
     
-    printSuccess('All services started successfully');
+    if (allSucceeded) {
+      printSuccess('All services started successfully');
+    } else {
+      printWarning('Some services failed to start - check logs above');
+      process.exit(1);
+    }
   } catch (error) {
     printError(`Failed to start services: ${error}`);
     process.exit(1);

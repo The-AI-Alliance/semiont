@@ -9,7 +9,7 @@ import * as path from 'path';
 import { getProjectRoot } from './cli-paths.js';
 
 // Built-in services that are always available
-export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database'] as const;
+export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;
 
 export type BuiltInService = typeof BUILT_IN_SERVICES[number];
 export type ServiceName = BuiltInService | string; // Allow custom services
@@ -80,15 +80,18 @@ export async function getServicesWithCapability(
   
   switch (capability) {
     case 'publish':
-      // Only containerized services can be published
+      // Only containerized services can be published (frontend, backend)
+      // filesystem and database don't get "published" in the build/push sense
       return allServices.filter(service => 
         service === 'frontend' || service === 'backend'
         // TODO: Check deployment.type from config to determine if service is containerized
       );
     
     case 'backup':
-      // Only database services can be backed up
-      return allServices.filter(service => service === 'database');
+      // Database and filesystem services can be backed up
+      return allServices.filter(service => 
+        service === 'database' || service === 'filesystem'
+      );
     
     case 'start':
     case 'stop':
@@ -141,7 +144,7 @@ export function createServiceEnum(capability?: 'publish' | 'start' | 'stop' | 'r
   if (capability === 'publish') {
     return ['all', 'frontend', 'backend'] as const;
   } else if (capability === 'backup') {
-    return ['all', 'database'] as const;  
+    return ['all', 'database', 'filesystem'] as const;  
   } else {
     return baseServices as readonly string[];
   }

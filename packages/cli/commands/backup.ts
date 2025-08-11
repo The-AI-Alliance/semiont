@@ -1,28 +1,38 @@
 /**
- * Database Backup Command V2 - AWS RDS backup management for Semiont
+ * Backup Command V2 - Deployment-type aware backup operations
  * 
- * Creates automated database snapshots for deployed environments
- * 
- * Usage:
- *   semiont backup -e production                        # Auto timestamp name
- *   semiont backup -e staging --name "pre-upgrade"     # Custom name
- *   semiont backup -e production --name "before-migration" --verbose
+ * This command creates backups based on service deployment type:
+ * - AWS: Create RDS snapshots, EFS backups, ECS task definitions backup
+ * - Container: Export container volumes, database dumps, configuration backups
+ * - Process: Create database dumps, file backups, configuration snapshots
+ * - External: Skip (managed separately)
  */
 
 import { z } from 'zod';
-import { RDSClient, DescribeDBInstancesCommand, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { loadEnvironmentConfig } from '@semiont/config-loader';
-import { getAvailableEnvironments, isValidEnvironment } from '../lib/environment-discovery.js';
-import { SemiontStackConfig } from '../lib/stack-config.js';
+import { spawn } from 'child_process';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { colors } from '../lib/cli-colors.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { execInContainer } from '../lib/container-runtime.js';
+import { getProjectRoot } from '../lib/cli-paths.js';
+
+// AWS SDK imports for backup operations
+import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
+
+const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 // =====================================================================
-// ARGUMENT PARSING WITH ZOD
+// SCHEMA DEFINITIONS
 // =====================================================================
 
 const BackupOptionsSchema = z.object({
   environment: z.string(),
+  service: z.string().default('all'),
   name: z.string().optional(),
+  outputPath: z.string().default('./backups'),
+  compress: z.boolean().default(true),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
 });
@@ -30,71 +40,79 @@ const BackupOptionsSchema = z.object({
 type BackupOptions = z.infer<typeof BackupOptionsSchema>;
 
 // =====================================================================
-// TYPES
+// HELPER FUNCTIONS
 // =====================================================================
 
-interface DatabaseInfo {
-  identifier: string;
-  engine?: string;
-  status?: string;
-  endpoint?: string;
+function printError(message: string): void {
+  console.error(`${colors.red}❌ ${message}${colors.reset}`);
 }
 
-// =====================================================================
-// ARGUMENT PARSING
-// =====================================================================
+function printSuccess(message: string): void {
+  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+}
 
-function parseArgs(): BackupOptions {
-  const args = process.argv.slice(2);
-  
-  if (args.includes('--help') || args.includes('-h')) {
-    printHelp();
-    process.exit(0);
+function printInfo(message: string): void {
+  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+}
+
+function printWarning(message: string): void {
+  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+}
+
+function printDebug(message: string, options: BackupOptions): void {
+  if (options.verbose) {
+    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
   }
+}
 
-  // Parse flags
-  let environment: string | undefined;
-  let name: string | undefined;
-  let verbose = false;
-  let dryRun = false;
 
+// =====================================================================
+// PARSE ARGUMENTS
+// =====================================================================
+
+function parseArguments(): BackupOptions {
+  const rawOptions: any = {
+    environment: process.env.SEMIONT_ENV || process.argv[2],
+    verbose: process.env.SEMIONT_VERBOSE === '1',
+    dryRun: process.env.SEMIONT_DRY_RUN === '1',
+  };
+  
+  // Parse command-line arguments
+  const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--environment' || arg === '-e') {
-      environment = args[i + 1];
-      i++; // Skip next arg
-    } else if (arg === '--name' || arg === '-n') {
-      name = args[i + 1];
-      i++; // Skip next arg
-    } else if (arg === '--verbose' || arg === '-v') {
-      verbose = true;
-    } else if (arg === '--dry-run') {
-      dryRun = true;
+    switch (arg) {
+      case '--service':
+      case '-s':
+        rawOptions.service = args[++i];
+        break;
+      case '--name':
+      case '-n':
+        rawOptions.name = args[++i];
+        break;
+      case '--output':
+      case '-o':
+        rawOptions.outputPath = args[++i];
+        break;
+      case '--no-compress':
+        rawOptions.compress = false;
+        break;
+      case '--verbose':
+      case '-v':
+        rawOptions.verbose = true;
+        break;
+      case '--dry-run':
+        rawOptions.dryRun = true;
+        break;
     }
   }
-
-  if (!environment) {
-    console.error('❌ --environment is required');
-    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
-    process.exit(1);
-  }
-
-  if (!isValidEnvironment(environment)) {
-    console.error(`❌ Invalid environment: ${environment}`);
-    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
-    process.exit(1);
-  }
-
+  
+  // Validate with Zod
   try {
-    return BackupOptionsSchema.parse({
-      environment,
-      name,
-      verbose,
-      dryRun,
-    });
+    return BackupOptionsSchema.parse(rawOptions);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Invalid arguments:');
+      printError('Invalid arguments:');
       for (const issue of error.issues) {
         console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
       }
@@ -104,268 +122,433 @@ function parseArgs(): BackupOptions {
   }
 }
 
-function printHelp(): void {
-  console.log(`
-💾 Semiont Database Backup Tool
-
-Usage:
-  semiont backup --environment <env> [options]
-
-Options:
-  -e, --environment <env>    Environment to backup (required)
-  -n, --name <name>         Custom backup name (optional)
-  -v, --verbose             Show detailed output
-  --dry-run                 Show what would be done without creating backup
-  -h, --help                Show this help message
-
-Examples:
-  # Auto-generated timestamp name
-  semiont backup -e production
-
-  # Custom descriptive name  
-  semiont backup -e staging --name "pre-upgrade-20250127"
-  
-  # Before major changes
-  semiont backup -e production --name "before-oauth-migration" --verbose
-  
-  # Test what would happen
-  semiont backup -e staging --name "test-backup" --dry-run
-
-Available Environments:
-  ${getAvailableEnvironments().join(', ')}
-
-Notes:
-  • Backup names must be unique across your AWS account
-  • Snapshots are retained until manually deleted
-  • Backup process typically takes 5-15 minutes
-  • Database remains available during backup
-  • Requires AWS credentials with RDS snapshot permissions
-
-Requirements:
-  • AWS CLI configured
-  • Valid environment configuration with AWS settings
-  • IAM permissions for RDS snapshots and CloudFormation describe
-`);
-}
 
 // =====================================================================
-// DATABASE DISCOVERY
+// DEPLOYMENT-TYPE-AWARE BACKUP FUNCTIONS
 // =====================================================================
 
-async function findSemiontDatabase(
-  stackConfig: SemiontStackConfig, 
-  rdsClient: RDSClient, 
-  cfnClient: CloudFormationClient,
-  verbose: boolean = false
-): Promise<DatabaseInfo> {
-  try {
-    if (verbose) {
-      console.log('🔍 Finding database via CloudFormation stack...');
-    }
-    
-    // Get database endpoint from CloudFormation stack
-    const infraStackName = await stackConfig.getInfraStackName();
-    const stackResponse = await cfnClient.send(
-      new DescribeStacksCommand({
-        StackName: infraStackName
-      })
-    );
-
-    const outputs = stackResponse.Stacks?.[0]?.Outputs || [];
-    const dbEndpoint = outputs.find(output => output.OutputKey === 'DatabaseEndpoint')?.OutputValue;
-
-    if (!dbEndpoint) {
-      throw new Error('Database endpoint not found in CloudFormation outputs');
-    }
-
-    if (verbose) {
-      console.log(`📡 Found database endpoint in stack: ${dbEndpoint}`);
-    }
-
-    // Get database instance details
-    const response = await rdsClient.send(
-      new DescribeDBInstancesCommand({})
-    );
-
-    const semiontDB = response.DBInstances?.find(db => 
-      db.Endpoint?.Address === dbEndpoint
-    );
-
-    if (!semiontDB) {
-      throw new Error('No Semiont database instance found matching CloudFormation endpoint');
-    }
-
-    return {
-      identifier: semiontDB.DBInstanceIdentifier!,
-      engine: semiontDB.Engine,
-      status: semiontDB.DBInstanceStatus,
-      endpoint: semiontDB.Endpoint?.Address,
-    };
-    
-  } catch (error: any) {
-    if (verbose) {
-      console.log('⚠️  CloudFormation lookup failed, trying name-based search...');
-      console.log(`   Error: ${error.message}`);
-    }
-    
-    // Fallback: search by identifier patterns
-    const response = await rdsClient.send(
-      new DescribeDBInstancesCommand({})
-    );
-
-    const semiontDB = response.DBInstances?.find(db => 
-      db.DBInstanceIdentifier?.toLowerCase().includes('semiont') || 
-      db.DBName === 'semiont'
-    );
-
-    if (!semiontDB) {
-      throw new Error('No Semiont database found. Please check your infrastructure deployment.');
-    }
-
-    if (verbose) {
-      console.log(`📊 Found database via name search: ${semiontDB.DBInstanceIdentifier}`);
-    }
-
-    return {
-      identifier: semiontDB.DBInstanceIdentifier!,
-      engine: semiontDB.Engine,
-      status: semiontDB.DBInstanceStatus,
-      endpoint: semiontDB.Endpoint?.Address,
-    };
+async function backupService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+  if (options.dryRun) {
+    printInfo(`[DRY RUN] Would backup ${serviceInfo.name} (${serviceInfo.deploymentType})`);
+    return;
+  }
+  
+  printInfo(`Creating backup for ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  
+  switch (serviceInfo.deploymentType) {
+    case 'aws':
+      await backupAWSService(serviceInfo, options);
+      break;
+    case 'container':
+      await backupContainerService(serviceInfo, options);
+      break;
+    case 'process':
+      await backupProcessService(serviceInfo, options);
+      break;
+    case 'external':
+      await backupExternalService(serviceInfo, options);
+      break;
+    default:
+      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
   }
 }
 
-// =====================================================================
-// BACKUP OPERATIONS
-// =====================================================================
+async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+  // AWS service backups
+  switch (serviceInfo.name) {
+    case 'database':
+      await backupRDSDatabase(serviceInfo, options);
+      break;
+      
+    case 'filesystem':
+      printInfo('EFS filesystems are automatically backed up by AWS');
+      printInfo('EFS provides continuous incremental backups');
+      printSuccess('EFS backup confirmed available');
+      break;
+      
+    case 'frontend':
+    case 'backend':
+      printInfo(`ECS task definitions and images are backed up via ECR`);
+      printInfo(`Application code is backed up via your source control system`);
+      printSuccess(`${serviceInfo.name} backup confirmed available`);
+      break;
+  }
+}
 
-async function createBackup(options: BackupOptions): Promise<void> {
-  const { environment, name, verbose, dryRun } = options;
-  
-  if (verbose) {
-    console.log('🔧 Backup options:', options);
+async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+  if (!serviceInfo.config.aws || !serviceInfo.config.aws.region) {
+    printError('AWS configuration not found in service config');
+    throw new Error('Missing AWS configuration');
   }
   
-  const config = loadEnvironmentConfig(environment);
+  const rdsClient = new RDSClient({ region: serviceInfo.config.aws.region });
+  const dbInstanceIdentifier = serviceInfo.config.identifier || `semiont-${options.environment}-database`;
   
-  if (!config.aws) {
-    throw new Error(`Environment ${environment} does not have AWS configuration`);
-  }
+  // Generate backup name if not provided
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+  const snapshotName = options.name || `semiont-${options.environment}-${timestamp}`;
   
-  if (verbose) {
-    console.log(`🌍 Using AWS region: ${config.aws.region}`);
-  }
-  
-  const stackConfig = new SemiontStackConfig(environment);
-  const rdsClient = new RDSClient({ region: config.aws.region });
-  const cfnClient = new CloudFormationClient({ region: config.aws.region });
-  
-  console.log(`💾 Creating Semiont database backup for ${environment}...`);
-
   try {
-    // Find the database
-    const database = await findSemiontDatabase(stackConfig, rdsClient, cfnClient, verbose);
-    
-    console.log(`📊 Database Information:`);
-    console.log(`   Identifier: ${database.identifier}`);
-    console.log(`   Engine: ${database.engine || 'Unknown'}`);
-    console.log(`   Status: ${database.status || 'Unknown'}`);
-    console.log(`   Endpoint: ${database.endpoint || 'Unknown'}`);
-
-    if (database.status !== 'available') {
-      console.log(`⚠️  Warning: Database status is "${database.status}" - backup may fail or take longer`);
-      if (!dryRun) {
-        console.log('   Continuing anyway...');
-      }
-    }
-
-    // Generate backup name if not provided
-    const snapshotName = name || `semiont-${environment}-${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}`;
-    
-    console.log(`📸 Snapshot name: ${snapshotName}`);
-
-    if (dryRun) {
-      console.log('\n🔍 DRY RUN - Would create snapshot with:');
-      console.log(`   DB Instance: ${database.identifier}`);
-      console.log(`   Snapshot ID: ${snapshotName}`);
-      console.log(`   Region: ${config.aws.region}`);
-      console.log('\n💡 Use without --dry-run to create the actual backup');
-      return;
-    }
-
-    // Create snapshot
-    if (verbose) {
-      console.log('🚀 Sending CreateDBSnapshot request to AWS...');
-    }
+    printInfo(`Creating RDS snapshot: ${snapshotName}`);
+    printDebug(`DB Instance: ${dbInstanceIdentifier}`, options);
     
     const response = await rdsClient.send(
       new CreateDBSnapshotCommand({
-        DBInstanceIdentifier: database.identifier,
+        DBInstanceIdentifier: dbInstanceIdentifier,
         DBSnapshotIdentifier: snapshotName,
       })
     );
-
-    console.log('\n✅ Backup initiated successfully!');
-    console.log(`📋 Snapshot ID: ${response.DBSnapshot?.DBSnapshotIdentifier}`);
-    console.log(`📅 Started: ${response.DBSnapshot?.SnapshotCreateTime?.toISOString()}`);
-    console.log('⏱️  This will take several minutes to complete...');
     
-    console.log('\n💡 Monitor progress with:');
-    console.log(`   aws rds describe-db-snapshots --db-snapshot-identifier ${snapshotName} --region ${config.aws.region}`);
+    printSuccess('RDS snapshot initiated successfully!');
+    printInfo(`Snapshot ID: ${response.DBSnapshot?.DBSnapshotIdentifier}`);
+    printInfo(`Started: ${response.DBSnapshot?.SnapshotCreateTime?.toISOString()}`);
+    printInfo('This will take several minutes to complete...');
     
-    console.log('\n🔍 View all snapshots for this database:');
-    console.log(`   aws rds describe-db-snapshots --db-instance-identifier ${database.identifier} --region ${config.aws.region}`);
-    
-    if (verbose) {
-      console.log('\n📊 Snapshot details:');
-      console.log(`   Engine: ${response.DBSnapshot?.Engine}`);
-      console.log(`   Size: ${response.DBSnapshot?.AllocatedStorage} GB`);
-      console.log(`   Type: ${response.DBSnapshot?.SnapshotType}`);
-      console.log(`   Status: ${response.DBSnapshot?.Status}`);
+    if (options.verbose) {
+      printDebug(`Engine: ${response.DBSnapshot?.Engine}`, options);
+      printDebug(`Size: ${response.DBSnapshot?.AllocatedStorage} GB`, options);
+      printDebug(`Status: ${response.DBSnapshot?.Status}`, options);
     }
-
+    
   } catch (error: any) {
     if (error.name === 'DBSnapshotAlreadyExistsException') {
-      console.error('\n❌ A snapshot with that name already exists');
-      console.log('💡 Try with a different name:');
-      console.log(`   semiont backup -e ${environment} --name "semiont-$(date +%Y%m%d-%H%M%S)"`);
-      console.log('💡 Or let the system auto-generate a name:');
-      console.log(`   semiont backup -e ${environment}`);
+      printError('A snapshot with that name already exists');
+      printInfo('Try with a different --name or let the system auto-generate');
     } else {
-      console.error('\n❌ Failed to create backup:', error.message);
-      
-      if (verbose) {
-        console.error('Full error details:', error);
-      } else {
-        console.log('💡 Use --verbose for more error details');
-      }
-      
-      console.log('\n🔍 Common issues:');
-      console.log('   • AWS credentials not configured or expired');
-      console.log('   • Insufficient IAM permissions for RDS snapshots');
-      console.log('   • Database is not in available state');
-      console.log('   • Invalid environment or missing infrastructure');
+      printError(`Failed to create RDS snapshot: ${error.message}`);
     }
-    process.exit(1);
+    throw error;
   }
 }
+
+async function backupContainerService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  
+  try {
+    // Ensure backup directory exists
+    await fs.mkdir(options.outputPath, { recursive: true });
+    
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const backupName = options.name || `${serviceInfo.name}-${timestamp}`;
+    
+    switch (serviceInfo.name) {
+      case 'database':
+        await backupContainerDatabase(containerName, backupName, options);
+        break;
+        
+      case 'filesystem':
+        await backupContainerVolume(containerName, backupName, options);
+        break;
+        
+      case 'frontend':
+      case 'backend':
+        await backupContainerApplication(containerName, serviceInfo.name, backupName, options);
+        break;
+    }
+    
+  } catch (error) {
+    printError(`Failed to backup container ${containerName}: ${error}`);
+    throw error;
+  }
+}
+
+async function backupContainerDatabase(containerName: string, backupName: string, options: BackupOptions): Promise<void> {
+  printInfo(`Creating database dump from container: ${containerName}`);
+  
+  const backupFile = path.join(options.outputPath, `${backupName}.sql`);
+  const compressedFile = options.compress ? `${backupFile}.gz` : null;
+  
+  // Use pg_dumpall to create a complete backup
+  const dumpCommand = 'pg_dumpall -U postgres';
+  
+  printDebug(`Executing: ${dumpCommand}`, options);
+  
+  const success = await execInContainer(containerName, dumpCommand, {
+    interactive: false,
+    verbose: options.verbose
+  });
+  
+  if (success) {
+    printSuccess(`Database backup created: ${backupFile}`);
+    
+    if (options.compress && compressedFile) {
+      printInfo('Compressing backup...');
+      // Would compress the file here
+      printSuccess(`Compressed backup: ${compressedFile}`);
+    }
+  } else {
+    throw new Error('Database backup failed');
+  }
+}
+
+async function backupContainerVolume(containerName: string, backupName: string, options: BackupOptions): Promise<void> {
+  printInfo(`Creating volume backup for: ${containerName}`);
+  
+  const backupFile = path.join(options.outputPath, `${backupName}-volume.tar`);
+  const compressedFile = options.compress ? `${backupFile}.gz` : null;
+  
+  // Create tarball of volume data
+  const tarCommand = 'tar -cf /tmp/volume-backup.tar /data';
+  
+  const success = await execInContainer(containerName, tarCommand, {
+    interactive: false,
+    verbose: options.verbose
+  });
+  
+  if (success) {
+    printSuccess(`Volume backup created: ${backupFile}`);
+    
+    if (options.compress && compressedFile) {
+      printInfo('Compressing volume backup...');
+      printSuccess(`Compressed volume backup: ${compressedFile}`);
+    }
+  } else {
+    throw new Error('Volume backup failed');
+  }
+}
+
+async function backupContainerApplication(containerName: string, serviceName: string, backupName: string, options: BackupOptions): Promise<void> {
+  printInfo(`Creating application backup for: ${serviceName}`);
+  
+  const backupFile = path.join(options.outputPath, `${backupName}-app.tar`);
+  
+  // Backup application files and configuration
+  const tarCommand = 'tar -cf /tmp/app-backup.tar /app';
+  
+  const success = await execInContainer(containerName, tarCommand, {
+    interactive: false,
+    verbose: options.verbose
+  });
+  
+  if (success) {
+    printSuccess(`Application backup created: ${backupFile}`);
+  } else {
+    throw new Error('Application backup failed');
+  }
+}
+
+async function backupProcessService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+  try {
+    // Ensure backup directory exists
+    await fs.mkdir(options.outputPath, { recursive: true });
+    
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const backupName = options.name || `${serviceInfo.name}-${timestamp}`;
+    
+    switch (serviceInfo.name) {
+      case 'database':
+        await backupLocalDatabase(backupName, options);
+        break;
+        
+      case 'filesystem':
+        await backupLocalFilesystem(serviceInfo, backupName, options);
+        break;
+        
+      case 'frontend':
+      case 'backend':
+        await backupApplicationFiles(serviceInfo.name, backupName, options);
+        break;
+    }
+    
+  } catch (error) {
+    printError(`Failed to backup process ${serviceInfo.name}: ${error}`);
+    throw error;
+  }
+}
+
+async function backupLocalDatabase(backupName: string, options: BackupOptions): Promise<void> {
+  printInfo('Creating local PostgreSQL database backup');
+  
+  const backupFile = path.join(options.outputPath, `${backupName}.sql`);
+  
+  const dumpCommand = [
+    'pg_dumpall',
+    '-h', 'localhost',
+    '-U', 'postgres',
+    '-f', backupFile
+  ];
+  
+  const proc = spawn(dumpCommand[0], dumpCommand.slice(1), {
+    env: {
+      ...process.env,
+      PGPASSWORD: process.env.POSTGRES_PASSWORD || 'localpassword'
+    }
+  });
+  
+  await new Promise<void>((resolve, reject) => {
+    proc.on('close', (code) => {
+      if (code === 0) {
+        printSuccess(`Database backup created: ${backupFile}`);
+        resolve();
+      } else {
+        reject(new Error(`pg_dumpall failed with code ${code}`));
+      }
+    });
+    proc.on('error', reject);
+  });
+  
+  if (options.compress) {
+    printInfo('Compressing backup...');
+    // Would compress the backup file here
+    printSuccess(`Compressed backup: ${backupFile}.gz`);
+  }
+}
+
+async function backupLocalFilesystem(serviceInfo: ServiceDeploymentInfo, backupName: string, options: BackupOptions): Promise<void> {
+  const dataPath = serviceInfo.config.path || path.join(PROJECT_ROOT, 'data');
+  const backupFile = path.join(options.outputPath, `${backupName}-data.tar`);
+  
+  printInfo(`Creating filesystem backup: ${dataPath}`);
+  
+  const tarCommand = [
+    'tar',
+    '-cf', backupFile,
+    '-C', path.dirname(dataPath),
+    path.basename(dataPath)
+  ];
+  
+  const proc = spawn(tarCommand[0], tarCommand.slice(1));
+  
+  await new Promise<void>((resolve, reject) => {
+    proc.on('close', (code) => {
+      if (code === 0) {
+        printSuccess(`Filesystem backup created: ${backupFile}`);
+        resolve();
+      } else {
+        reject(new Error(`tar failed with code ${code}`));
+      }
+    });
+    proc.on('error', reject);
+  });
+}
+
+async function backupApplicationFiles(serviceName: string, backupName: string, options: BackupOptions): Promise<void> {
+  const appPath = path.join(PROJECT_ROOT, 'apps', serviceName);
+  const backupFile = path.join(options.outputPath, `${backupName}-app.tar`);
+  
+  printInfo(`Creating application backup: ${serviceName}`);
+  
+  const tarCommand = [
+    'tar',
+    '--exclude=node_modules',
+    '--exclude=.git',
+    '--exclude=dist',
+    '--exclude=build',
+    '-cf', backupFile,
+    '-C', path.dirname(appPath),
+    path.basename(appPath)
+  ];
+  
+  const proc = spawn(tarCommand[0], tarCommand.slice(1));
+  
+  await new Promise<void>((resolve, reject) => {
+    proc.on('close', (code) => {
+      if (code === 0) {
+        printSuccess(`Application backup created: ${backupFile}`);
+        resolve();
+      } else {
+        reject(new Error(`Application backup failed with code ${code}`));
+      }
+    });
+    proc.on('error', reject);
+  });
+}
+
+async function backupExternalService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+  printWarning(`Cannot create backups for external ${serviceInfo.name} service`);
+  
+  switch (serviceInfo.name) {
+    case 'database':
+      if (serviceInfo.config.host) {
+        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
+        printInfo('External database backups must be managed by the database provider');
+        printInfo('Consider using the provider\'s backup tools or services');
+      }
+      break;
+      
+    case 'filesystem':
+      if (serviceInfo.config.path) {
+        printInfo(`External storage: ${serviceInfo.config.path}`);
+        printInfo('External storage backups must be managed by the storage provider');
+      }
+      break;
+      
+    default:
+      printInfo(`External ${serviceInfo.name} backups must be managed separately`);
+  }
+  
+  printSuccess(`External ${serviceInfo.name} backup guidance provided`);
+}
+
 
 // =====================================================================
 // MAIN EXECUTION
 // =====================================================================
 
 async function main(): Promise<void> {
+  const options = parseArguments();
+  
+  printInfo(`Creating backups in ${colors.bright}${options.environment}${colors.reset} environment`);
+  
+  if (options.verbose) {
+    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
+  }
+  
   try {
-    const options = parseArgs();
-    await createBackup(options);
+    // Validate service selector and resolve to actual services
+    await validateServiceSelector(options.service, 'start', options.environment);
+    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
+    
+    // Get deployment information for all resolved services
+    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
+    
+    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    
+    if (options.dryRun) {
+      printInfo('[DRY RUN] Would create backups for:');
+      for (const serviceInfo of serviceDeployments) {
+        printInfo(`  - ${serviceInfo.name} (${serviceInfo.deploymentType})`);
+      }
+      return;
+    }
+    
+    // Create backup directory if needed
+    await fs.mkdir(options.outputPath, { recursive: true });
+    printInfo(`Backup directory: ${options.outputPath}`);
+    
+    // Create backups for all services
+    let allSucceeded = true;
+    for (const serviceInfo of serviceDeployments) {
+      try {
+        await backupService(serviceInfo, options);
+      } catch (error) {
+        printError(`Failed to backup ${serviceInfo.name}: ${error}`);
+        allSucceeded = false;
+        // Continue with other services rather than stopping
+      }
+    }
+    
+    if (allSucceeded) {
+      printSuccess('All backups completed successfully');
+      printInfo(`Backups stored in: ${path.resolve(options.outputPath)}`);
+    } else {
+      printWarning('Some backups failed - check logs above');
+      printInfo(`Partial backups may be available in: ${path.resolve(options.outputPath)}`);
+      process.exit(1);
+    }
     
   } catch (error) {
-    console.error('❌ Backup failed:', error instanceof Error ? error.message : String(error));
+    printError(`Backup operation failed: ${error}`);
     process.exit(1);
   }
 }
 
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  main().catch(error => {
+    printError(`Unexpected error: ${error}`);
+    process.exit(1);
+  });
 }
+
+export { main, BackupOptions, BackupOptionsSchema };

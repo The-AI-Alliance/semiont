@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { stopContainer } from '../lib/container-runtime.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -119,51 +121,117 @@ async function validateEnvironment(options: StopOptions): Promise<void> {
 // SERVICE STOP FUNCTIONS
 // =====================================================================
 
-async function stopDatabase(options: StopOptions): Promise<void> {
+async function stopService(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<void> {
   if (options.dryRun) {
-    printInfo('[DRY RUN] Would stop database');
+    printInfo(`[DRY RUN] Would stop ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     return;
   }
   
-  printInfo('Stopping database...');
+  printInfo(`Stopping ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
   
-  if (options.environment === 'local') {
-    try {
-      // Stop and remove PostgreSQL container
-      const stopCmd = spawn('docker', ['stop', 'semiont-postgres'], {
-        stdio: options.verbose ? 'inherit' : 'pipe'
-      });
-      
-      await new Promise((resolve, reject) => {
-        stopCmd.on('exit', (code) => {
-          if (code === 0 || code === 1) { // 1 = container not found
-            resolve(void 0);
-          } else {
-            reject(new Error(`Failed to stop database: exit code ${code}`));
-          }
-        });
-      });
-      
-      // Remove container
-      const rmCmd = spawn('docker', ['rm', 'semiont-postgres'], {
-        stdio: options.verbose ? 'inherit' : 'pipe'
-      });
-      
-      await new Promise((resolve) => {
-        rmCmd.on('exit', () => resolve(void 0)); // Ignore errors
-      });
-      
-      printSuccess('Database stopped');
-    } catch (error) {
-      if (options.force) {
-        printWarning(`Failed to stop database: ${error}`);
-      } else {
-        throw error;
-      }
-    }
-  } else {
-    printInfo('Cloud database (RDS) cannot be stopped via CLI - use AWS Console');
+  switch (serviceInfo.deploymentType) {
+    case 'aws':
+      await stopAWSService(serviceInfo, options);
+      break;
+    case 'container':
+      await stopContainerService(serviceInfo, options);
+      break;
+    case 'process':
+      await stopProcessService(serviceInfo, options);
+      break;
+    case 'external':
+      await stopExternalService(serviceInfo, options);
+      break;
+    default:
+      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
   }
+}
+
+async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<void> {
+  // AWS ECS service stop
+  switch (serviceInfo.name) {
+    case 'frontend':
+    case 'backend':
+      printInfo(`Stopping ${serviceInfo.name} ECS service`);
+      printWarning('ECS service stop not yet implemented - use AWS Console');
+      break;
+    case 'database':
+      printInfo(`Stopping RDS instance for ${serviceInfo.name}`);
+      printWarning('RDS instance stop not yet implemented - use AWS Console');
+      break;
+    case 'filesystem':
+      printInfo(`Unmounting EFS volumes for ${serviceInfo.name}`);
+      printWarning('EFS unmount not yet implemented');
+      break;
+  }
+}
+
+async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<void> {
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  
+  try {
+    const success = await stopContainer(containerName, {
+      force: options.force,
+      verbose: options.verbose,
+      timeout: 10
+    });
+    
+    if (success) {
+      printSuccess(`Container stopped: ${containerName}`);
+    } else {
+      throw new Error(`Failed to stop container: ${containerName}`);
+    }
+  } catch (error) {
+    if (options.force) {
+      printWarning(`Failed to stop ${serviceInfo.name} container: ${error}`);
+    } else {
+      throw error;
+    }
+  }
+}
+
+async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<void> {
+  // Process deployment (local development)
+  switch (serviceInfo.name) {
+    case 'database':
+      printInfo(`Stopping PostgreSQL service for ${serviceInfo.name}`);
+      printWarning('Local PostgreSQL service stop not yet implemented');
+      break;
+      
+    case 'frontend':
+    case 'backend':
+      // Kill process on the service's port
+      const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
+      await findAndKillProcess(`:${port}`, serviceInfo.name, options);
+      break;
+      
+    case 'filesystem':
+      printInfo(`No process to stop for filesystem service`);
+      printSuccess(`Filesystem service ${serviceInfo.name} stopped`);
+      break;
+  }
+}
+
+async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<void> {
+  // External service - can't actually stop, just report
+  printInfo(`Cannot stop external ${serviceInfo.name} service`);
+  
+  switch (serviceInfo.name) {
+    case 'database':
+      if (serviceInfo.config.host) {
+        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
+      }
+      break;
+    case 'filesystem':
+      if (serviceInfo.config.path) {
+        printInfo(`External storage: ${serviceInfo.config.path}`);
+      }
+      break;
+    default:
+      printInfo(`External ${serviceInfo.name} service`);
+  }
+  
+  printSuccess(`External ${serviceInfo.name} service acknowledged`);
 }
 
 async function findAndKillProcess(pattern: string, name: string, options: StopOptions): Promise<void> {
@@ -217,37 +285,6 @@ async function findAndKillProcess(pattern: string, name: string, options: StopOp
   }
 }
 
-async function stopBackend(options: StopOptions): Promise<void> {
-  if (options.environment === 'local') {
-    // Kill process on port 3001
-    await findAndKillProcess(':3001', 'Backend', options);
-  } else {
-    // For cloud environments, use ECS
-    if (options.dryRun) {
-      printInfo('[DRY RUN] Would stop backend ECS service');
-      return;
-    }
-    
-    printInfo(`Stopping backend in ${options.environment} via ECS...`);
-    printWarning('ECS service stop not yet implemented - use AWS Console');
-  }
-}
-
-async function stopFrontend(options: StopOptions): Promise<void> {
-  if (options.environment === 'local') {
-    // Kill process on port 3000
-    await findAndKillProcess(':3000', 'Frontend', options);
-  } else {
-    // For cloud environments, use ECS
-    if (options.dryRun) {
-      printInfo('[DRY RUN] Would stop frontend ECS service');
-      return;
-    }
-    
-    printInfo(`Stopping frontend in ${options.environment} via ECS...`);
-    printWarning('ECS service stop not yet implemented - use AWS Console');
-  }
-}
 
 // =====================================================================
 // MAIN EXECUTION
@@ -270,37 +307,41 @@ async function main(): Promise<void> {
     await validateServiceSelector(options.service, 'stop', options.environment);
     const resolvedServices = await resolveServiceSelector(options.service, 'stop', options.environment);
     
-    printDebug(`Resolved services: ${resolvedServices.join(', ')}`, options);
+    // Get deployment information for all resolved services
+    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
+    
+    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     
     // Stop services in reverse order from start for clean shutdown
-    const stopOrder = ['frontend', 'backend', 'database'];
-    const servicesToStop = resolvedServices.sort((a, b) => {
-      const aIndex = stopOrder.indexOf(a);
-      const bIndex = stopOrder.indexOf(b);
+    const stopOrder = ['frontend', 'backend', 'database', 'filesystem'];
+    const servicesToStop = serviceDeployments.sort((a, b) => {
+      const aIndex = stopOrder.indexOf(a.name);
+      const bIndex = stopOrder.indexOf(b.name);
       return bIndex - aIndex; // Reverse order
     });
     
-    for (const service of servicesToStop) {
-      switch (service) {
-        case 'database':
-          await stopDatabase(options);
-          break;
-        
-        case 'backend':
-          await stopBackend(options);
-          break;
-        
-        case 'frontend':
-          await stopFrontend(options);
-          break;
-        
-        default:
-          printWarning(`Unknown service '${service}' - skipping`);
-          break;
+    let allSucceeded = true;
+    for (const serviceInfo of servicesToStop) {
+      try {
+        await stopService(serviceInfo, options);
+      } catch (error) {
+        printError(`Failed to stop ${serviceInfo.name}: ${error}`);
+        allSucceeded = false;
+        if (!options.force) {
+          break; // Stop on first error unless --force
+        }
       }
     }
     
-    printSuccess('Services stopped successfully');
+    if (allSucceeded) {
+      printSuccess('Services stopped successfully');
+    } else {
+      printWarning('Some services failed to stop - check logs above');
+      if (!options.force) {
+        printInfo('Use --force to ignore errors and continue');
+      }
+      process.exit(1);
+    }
   } catch (error) {
     printError(`Failed to stop services: ${error}`);
     if (!options.force) {

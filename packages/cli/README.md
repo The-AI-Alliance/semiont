@@ -231,6 +231,61 @@ Add command-specific argument parsing to the `parseArguments` function:
 | `exec` | Execute commands in containers | `-e` |
 | `test` | Run test suites | `-e` |
 
+## Service-Command Matrix
+
+This table shows what actions each command takes for each service across different deployment types:
+
+| Command | Service | AWS ECS | Container | Process | External |
+|---------|---------|---------|-----------|---------|----------|
+| **provision** | frontend | Create ECS service + ALB | Create container network | Install dependencies | Configure external endpoint |
+| | backend | Create ECS service + ALB | Create container | Install dependencies | Configure external endpoint |
+| | database | Create RDS instance | Create PostgreSQL container | Install PostgreSQL locally | Use external database |
+| | filesystem | Create EFS mount | Create container volumes | Create local directories | Use external storage |
+| **configure** | frontend | Update ECS environment vars | Update container env file | Update .env file | Update external config |
+| | backend | Update ECS environment vars | Update container env file | Update .env file | Update external config |
+| | database | Update RDS parameters | Update container env vars | Update local config | Update external config |
+| | filesystem | Configure EFS permissions | Set volume permissions | Set directory permissions | Configure external access |
+| **publish** | frontend | Build + push to ECR | Build container image | N/A (no build needed) | N/A |
+| | backend | Build + push to ECR | Build container image | N/A (no build needed) | N/A |
+| | database | N/A | N/A | N/A | N/A |
+| | filesystem | N/A | N/A | N/A | N/A |
+| **start** | frontend | Start ECS service | Start container | Start process (npm/pm2) | Check external service |
+| | backend | Start ECS service | Start container | Start process (npm/pm2) | Check external service |
+| | database | Start RDS instance | Start container | Start PostgreSQL service | Check external connection |
+| | filesystem | Mount EFS volumes | Mount container volumes | Create directories | Check external mount |
+| **check** | frontend | Query ECS service status | Check container health | Check process status | HTTP health check |
+| | backend | Query ECS service status | Check container health | Check process status | HTTP health check |
+| | database | Check RDS status | Check container health | Check service status | Test connection |
+| | filesystem | Check EFS mount status | Check volume mounts | Check directory access | Check external storage |
+| **watch** | frontend | Stream CloudWatch logs | Stream container logs | Tail log files | Monitor external logs |
+| | backend | Stream CloudWatch logs | Stream container logs | Tail log files | Monitor external logs |
+| | database | Stream RDS logs | Stream container logs | Tail PostgreSQL logs | Monitor external logs |
+| | filesystem | Monitor CloudWatch metrics | Monitor volume usage | Monitor disk usage | Monitor external storage |
+| **test** | frontend | Run tests against ECS | Run tests in container | Run local tests | Run tests against external |
+| | backend | Run tests against ECS | Run tests in container | Run local tests | Run tests against external |
+| | database | Test RDS connections | Test container DB | Test local DB | Test external DB |
+| | filesystem | Test EFS operations | Test volume operations | Test file operations | Test external storage |
+| **update** | frontend | Update ECS service | Update container image | Restart process | Update external service |
+| | backend | Update ECS service | Update container image | Restart process | Update external service |
+| | database | Apply RDS updates | Update container | Update local install | Update external database |
+| | filesystem | Update EFS configuration | Update volume config | Update permissions | Update external config |
+| **restart** | frontend | Restart ECS tasks | Restart container | Restart process | Restart external service |
+| | backend | Restart ECS tasks | Restart container | Restart process | Restart external service |
+| | database | Restart RDS instance | Restart container | Restart PostgreSQL | Restart external database |
+| | filesystem | Remount EFS | Remount volumes | No action needed | Remount external storage |
+| **stop** | frontend | Stop ECS service | Stop container | Stop process | Stop external service |
+| | backend | Stop ECS service | Stop container | Stop process | Stop external service |
+| | database | Stop RDS instance | Stop container | Stop PostgreSQL | Stop external database |
+| | filesystem | Unmount EFS | Remove volumes | No action needed | Unmount external storage |
+| **exec** | frontend | ECS exec into task | Exec into container | N/A (direct access) | SSH to external service |
+| | backend | ECS exec into task | Exec into container | N/A (direct access) | SSH to external service |
+| | database | RDS session manager | Exec into container | psql direct connection | Connect to external DB |
+| | filesystem | N/A | Access via container | Direct file access | Mount external storage |
+| **backup** | frontend | N/A | N/A | N/A | N/A |
+| | backend | N/A | N/A | N/A | N/A |
+| | database | Create RDS snapshot | Export container data | pg_dump to file | Backup external database |
+| | filesystem | Create EFS backup | Create volume snapshot | rsync/tar backup | Backup external storage |
+
 ## Common Options
 
 All commands support these common options:

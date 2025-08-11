@@ -12,6 +12,7 @@ import * as path from 'path';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { buildImage, tagImage, pushImage } from '../lib/container-runtime.js';
 
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
@@ -140,7 +141,7 @@ async function getServicesForPublish(config: EnvironmentConfig, requestedService
 // BUILD FUNCTIONS
 // =====================================================================
 
-async function buildDockerImage(
+async function buildContainerImage(
   serviceName: string,
   serviceConfig: ServiceConfig,
   tag: string,
@@ -151,35 +152,32 @@ async function buildDockerImage(
     return `semiont-${serviceName}:${tag}`;
   }
 
-  printInfo(`Building Docker image for ${serviceName}...`);
+  printInfo(`Building container image for ${serviceName}...`);
 
   const imageName = serviceConfig.image || `semiont-${serviceName}`;
-  const imageTag = `${imageName}:${tag}`;
+  const dockerfile = `apps/${serviceName}/Dockerfile`;
   
-  // Build the Docker image
-  const buildCommand = [
-    'docker', 'build',
-    '-t', imageTag,
-    '-f', `apps/${serviceName}/Dockerfile`,
-    '.'
-  ];
+  printDebug(`Building image: ${imageName}:${tag}`, options);
   
-  printDebug(`Running: ${buildCommand.join(' ')}`, options);
-  
-  const buildSuccess = await runCommand(
-    buildCommand,
+  const buildSuccess = await buildImage(
+    imageName,
+    tag,
+    dockerfile,
     PROJECT_ROOT,
-    `Build ${serviceName} Docker image`,
-    options.verbose
+    {
+      verbose: options.verbose,
+      buildArgs: {} // Could add build args from config if needed
+    }
   );
   
   if (!buildSuccess) {
-    printError(`Failed to build Docker image for ${serviceName}`);
+    printError(`Failed to build container image for ${serviceName}`);
     return null;
   }
   
-  printSuccess(`Built Docker image: ${imageTag}`);
-  return imageTag;
+  const fullImageName = `${imageName}:${tag}`;
+  printSuccess(`Built container image: ${fullImageName}`);
+  return fullImageName;
 }
 
 // =====================================================================
@@ -266,12 +264,9 @@ async function pushImageToECR(
     const ecrImageUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}:latest`;
     printInfo(`Tagging image for ECR: ${ecrImageUri}`);
     
-    const tagSuccess = await runCommand(
-      ['docker', 'tag', localImageName, ecrImageUri],
-      PROJECT_ROOT,
-      `Tag ${serviceName} for ECR`,
-      options.verbose
-    );
+    const tagSuccess = await tagImage(localImageName, ecrImageUri, {
+      verbose: options.verbose
+    });
     
     if (!tagSuccess) {
       printError(`Failed to tag image for ECR`);
@@ -280,12 +275,9 @@ async function pushImageToECR(
     
     // Push to ECR
     printInfo(`Pushing ${serviceName} to ECR...`);
-    const pushSuccess = await runCommand(
-      ['docker', 'push', ecrImageUri],
-      PROJECT_ROOT,
-      `Push ${serviceName} to ECR`,
-      options.verbose
-    );
+    const pushSuccess = await pushImage(ecrImageUri, {
+      verbose: options.verbose
+    });
     
     if (!pushSuccess) {
       printError(`Failed to push ${serviceName} to ECR`);
@@ -317,12 +309,9 @@ async function tagForLocalRegistry(
   
   printInfo(`Tagging for local registry: ${finalImageName}`);
   
-  const tagSuccess = await runCommand(
-    ['docker', 'tag', localImageName, finalImageName],
-    PROJECT_ROOT,
-    `Tag ${serviceName} for local registry`,
-    options.verbose
-  );
+  const tagSuccess = await tagImage(localImageName, finalImageName, {
+    verbose: options.verbose
+  });
   
   if (!tagSuccess) {
     printError(`Failed to tag image for local registry`);
@@ -351,8 +340,8 @@ async function publishService(
     return true;
   }
   
-  // Build the Docker image
-  const builtImage = await buildDockerImage(serviceName, serviceConfig, options.tag, options);
+  // Build the container image
+  const builtImage = await buildContainerImage(serviceName, serviceConfig, options.tag, options);
   if (!builtImage) {
     return false;
   }

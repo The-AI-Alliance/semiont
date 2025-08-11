@@ -1,23 +1,32 @@
+/**
+ * Exec Command V2 - Deployment-type aware command execution
+ * 
+ * This command executes commands in services based on deployment type:
+ * - AWS: Execute commands in ECS tasks using AWS ECS Exec
+ * - Container: Execute commands in local containers using container runtime
+ * - Process: Execute commands in local processes or spawn new processes
+ * - External: Cannot execute (managed separately)
+ */
+
 import { z } from 'zod';
-import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
-import { SemiontStackConfig } from '../lib/lib/stack-config.js';
 import { spawn } from 'child_process';
-import React from 'react';
-import { render, Text, Box } from 'ink';
-import { SimpleTable } from '../lib/lib/ink-utils.js';
-import { loadEnvironmentConfig } from '@semiont/config-loader';
-import { getAvailableEnvironments, isValidEnvironment } from '../lib/lib/environment-discovery.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
 import { colors } from '../lib/cli-colors.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { execInContainer } from '../lib/container-runtime.js';
+
+// AWS SDK imports for ECS operations
+import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 
 // =====================================================================
-// ARGUMENT PARSING WITH ZOD
+// SCHEMA DEFINITIONS
 // =====================================================================
 
 const ExecOptionsSchema = z.object({
-  environment: z.enum(['development', 'staging', 'production']),
-  service: z.string().default('backend'), // Will be validated at runtime against executable services
+  environment: z.string(),
+  service: z.string().default('backend'),
   command: z.string().default('/bin/sh'),
+  interactive: z.boolean().default(true),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
 });
@@ -25,68 +34,74 @@ const ExecOptionsSchema = z.object({
 type ExecOptions = z.infer<typeof ExecOptionsSchema>;
 
 // =====================================================================
-// ARGUMENT PARSING
+// HELPER FUNCTIONS
 // =====================================================================
 
-function parseArgs(): ExecOptions {
-  const args = process.argv.slice(2);
+function printError(message: string): void {
+  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+}
+
+function printSuccess(message: string): void {
+  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+}
+
+function printInfo(message: string): void {
+  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+}
+
+function printWarning(message: string): void {
+  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+}
+
+function printDebug(message: string, options: ExecOptions): void {
+  if (options.verbose) {
+    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
+  }
+}
+
+// =====================================================================
+// PARSE ARGUMENTS
+// =====================================================================
+
+function parseArguments(): ExecOptions {
+  const rawOptions: any = {
+    environment: process.env.SEMIONT_ENV || process.argv[2],
+    verbose: process.env.SEMIONT_VERBOSE === '1',
+    dryRun: process.env.SEMIONT_DRY_RUN === '1',
+  };
   
-  if (args.includes('--help') || args.includes('-h')) {
-    printHelp();
-    process.exit(0);
-  }
-
-  // First positional argument is environment
-  const environment = args[0];
-  if (!environment) {
-    console.error('❌ Environment is required');
-    console.log(`💡 Available environments: ${getAvailableEnvironments().filter(env => env !== 'local').join(', ')}`);
-    process.exit(1);
-  }
-
-  if (environment === 'local') {
-    console.error('❌ Exec command is not available for local environment');
-    console.log('💡 For local development, use:');
-    console.log('   docker exec -it semiont-postgres bash   # Database');
-    console.log('   # Frontend and backend run directly in your terminal');
-    process.exit(1);
-  }
-
-  if (!isValidEnvironment(environment)) {
-    console.error(`❌ Invalid environment: ${environment}`);
-    console.log(`💡 Available cloud environments: ${getAvailableEnvironments().filter(env => env !== 'local').join(', ')}`);
-    process.exit(1);
-  }
-
-  // Parse service and command from remaining arguments
-  let service: 'frontend' | 'backend' = 'backend';
-  let command = '/bin/sh';
-
-  if (args.length > 1) {
-    if (args[1] === 'frontend' || args[1] === 'backend') {
-      service = args[1];
-      command = args[2] || '/bin/sh';
-    } else {
-      // Second argument is command, use default backend service
-      command = args[1];
+  // Parse command-line arguments
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    switch (arg) {
+      case '--service':
+      case '-s':
+        rawOptions.service = args[++i];
+        break;
+      case '--command':
+      case '-c':
+        rawOptions.command = args[++i];
+        break;
+      case '--no-interactive':
+        rawOptions.interactive = false;
+        break;
+      case '--verbose':
+      case '-v':
+        rawOptions.verbose = true;
+        break;
+      case '--dry-run':
+        rawOptions.dryRun = true;
+        break;
     }
   }
-
-  // Parse flags
-  const verbose = args.includes('--verbose') || args.includes('-v');
-  const dryRun = args.includes('--dry-run');
-
+  
+  // Validate with Zod
   try {
-    return ExecOptionsSchema.parse({
-      environment: environment as 'development' | 'staging' | 'production',
-      service,
-      command,
-      verbose,
-      dryRun,
-    });
+    return ExecOptionsSchema.parse(rawOptions);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Invalid arguments:');
+      printError('Invalid arguments:');
       for (const issue of error.issues) {
         console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
       }
@@ -96,208 +111,311 @@ function parseArgs(): ExecOptions {
   }
 }
 
-function printHelp(): void {
-  console.log(`
-🐳 Semiont Container Exec Tool
-
-Usage:
-  semiont exec <environment> [service] [command] [options]
-
-Arguments:
-  <environment>    Cloud environment (${getAvailableEnvironments().filter(env => env !== 'local').join(', ')})
-  [service]        Service to connect to (frontend, backend) - default: backend  
-  [command]        Command to execute - default: /bin/sh
-
-Options:
-  -v, --verbose    Show detailed output
-  --dry-run        Show what would be executed without connecting
-  -h, --help       Show this help message
-
-Examples:
-  semiont exec production                      # Connect to backend with shell
-  semiont exec staging frontend               # Connect to frontend with shell  
-  semiont exec production backend "ls -la"   # Run specific command on backend
-  semiont exec staging "cat /app/package.json" # Run command on default backend
-
-Requirements:
-  • AWS CLI installed and configured
-  • Session Manager plugin installed
-  • ECS Exec enabled on target services
-  • Valid AWS credentials for the target environment
-
-Installation:
-  Session Manager plugin: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
-`);
-}
 
 // =====================================================================
-// CORE FUNCTIONALITY 
+// DEPLOYMENT-TYPE-AWARE EXEC FUNCTIONS
 // =====================================================================
 
-async function getLatestTaskId(service: 'frontend' | 'backend', stackConfig: SemiontStackConfig, ecsClient: ECSClient): Promise<string> {
-  const clusterName = await stackConfig.getClusterName();
-  const serviceName = service === 'frontend' 
-    ? await stackConfig.getFrontendServiceName()
-    : await stackConfig.getBackendServiceName();
-
-  const response = await ecsClient.send(
-    new ListTasksCommand({
-      cluster: clusterName,
-      serviceName: serviceName,
-      desiredStatus: 'RUNNING',
-    })
-  );
-
-  if (!response.taskArns || response.taskArns.length === 0) {
-    throw new Error(`No running ${service} tasks found`);
+async function execInService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+  if (options.dryRun) {
+    printInfo(`[DRY RUN] Would execute "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})`);
+    return;
   }
-
-  const taskArn = response.taskArns[0];
-  if (!taskArn) {
-    throw new Error(`Invalid task ARN received for ${service}`);
-  }
-  const taskId = taskArn.split('/').pop();
-  if (!taskId) {
-    throw new Error(`Could not extract task ID from ARN: ${taskArn}`);
-  }
-  return taskId;
-}
-
-async function showExecutionInfo(
-  service: string,
-  taskId: string,
-  command: string,
-  clusterName: string,
-  containerName: string,
-  config: any
-): Promise<void> {
-  return new Promise((resolve) => {
-    const execData = [
-      { Property: 'Service', Value: `🚀 ${service}` },
-      { Property: 'Task ID', Value: taskId },
-      { Property: 'Container', Value: containerName },
-      { Property: 'Cluster', Value: clusterName },
-      { Property: 'Command', Value: command },
-      { Property: 'Region', Value: config.aws.region }
-    ];
-
-    const ExecutionTable = React.createElement(
-      Box,
-      { flexDirection: 'column' },
-      [
-        React.createElement(Text, { bold: true, color: 'cyan', key: 'title' }, '\n🐳 Container Execution Details'),
-        React.createElement(SimpleTable, { 
-          data: execData, 
-          columns: ['Property', 'Value'],
-          key: 'execution-table' 
-        }),
-        React.createElement(Text, { color: 'yellow', key: 'connecting' }, '\n🔗 Connecting to container...\n')
-      ]
-    );
-
-    const { unmount } = render(ExecutionTable);
-    
-    setTimeout(() => {
-      unmount();
-      resolve();
-    }, 1000); // Show for 1 second before connecting
-  });
-}
-
-async function executeCommand(
-  options: ExecOptions,
-  config: any,
-  stackConfig: SemiontStackConfig,
-  ecsClient: ECSClient
-): Promise<void> {
-  const { service, command } = options;
   
-  console.log(`🐳 Connecting to Semiont ${service} container...`);
-
-  try {
-    const clusterName = await stackConfig.getClusterName();
-    const taskId = await getLatestTaskId(service, stackConfig, ecsClient);
-    const containerName = `semiont-${service}`;
-
-    await showExecutionInfo(service, taskId, command, clusterName, containerName, config);
-
-    if (options.dryRun) {
-      console.log('🔍 DRY RUN - Would execute:');
-      console.log(`   aws ecs execute-command \\`);
-      console.log(`     --cluster "${clusterName}" \\`);
-      console.log(`     --task "${taskId}" \\`);
-      console.log(`     --container "${containerName}" \\`);
-      console.log(`     --command "${command}" \\`);
-      console.log(`     --interactive \\`);
-      console.log(`     --region "${config.aws.region}"`);
-      return;
-    }
-
-    // Use AWS CLI for interactive commands since the SDK doesn't support interactive mode well
-    const awsCommand = `aws ecs execute-command --cluster "${clusterName}" --task "${taskId}" --container "${containerName}" --command "${command}" --interactive --region "${config.aws.region}"`;
-
-    const awsProcess = spawn('bash', ['-c', awsCommand], {
-      stdio: 'inherit'
-    });
-
-    awsProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.log('');
-        console.log('❌ Command execution failed. Possible causes:');
-        console.log('   • ECS Exec not enabled on service');
-        console.log('   • Session Manager plugin not installed');
-        console.log('   • Insufficient IAM permissions');
-        console.log('');
-        console.log('💡 To install Session Manager plugin:');
-        console.log('   https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html');
-        process.exit(code || 1);
-      }
-    });
-
-    awsProcess.on('error', (error) => {
-      console.error('❌ Failed to execute command:', error);
-      process.exit(1);
-    });
-
-  } catch (error) {
-    console.error('❌ Failed to connect to container:', error);
-    process.exit(1);
+  printInfo(`Executing "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  
+  switch (serviceInfo.deploymentType) {
+    case 'aws':
+      await execInAWSService(serviceInfo, options);
+      break;
+    case 'container':
+      await execInContainerService(serviceInfo, options);
+      break;
+    case 'process':
+      await execInProcessService(serviceInfo, options);
+      break;
+    case 'external':
+      await execInExternalService(serviceInfo, options);
+      break;
+    default:
+      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
   }
 }
+
+async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+  // AWS ECS exec
+  switch (serviceInfo.name) {
+    case 'frontend':
+    case 'backend':
+      if (!serviceInfo.config.aws || !serviceInfo.config.aws.region) {
+        printError('AWS configuration not found in service config');
+        throw new Error('Missing AWS configuration');
+      }
+      
+      const ecsClient = new ECSClient({ region: serviceInfo.config.aws.region });
+      const clusterName = `semiont-${options.environment}`;
+      const serviceName = `semiont-${options.environment}-${serviceInfo.name}`;
+      
+      try {
+        // Get running tasks
+        const response = await ecsClient.send(
+          new ListTasksCommand({
+            cluster: clusterName,
+            serviceName: serviceName,
+            desiredStatus: 'RUNNING',
+          })
+        );
+        
+        if (!response.taskArns || response.taskArns.length === 0) {
+          throw new Error(`No running ${serviceInfo.name} tasks found`);
+        }
+        
+        const taskArn = response.taskArns[0]!;
+        const taskId = taskArn.split('/').pop()!;
+        const containerName = `semiont-${serviceInfo.name}`;
+        
+        printInfo(`Connecting to task: ${taskId}`);
+        printDebug(`Cluster: ${clusterName}, Container: ${containerName}`, options);
+        
+        // Use AWS CLI for interactive commands
+        const awsCommand = [
+          'aws', 'ecs', 'execute-command',
+          '--cluster', clusterName,
+          '--task', taskId,
+          '--container', containerName,
+          '--command', options.command,
+          '--region', serviceInfo.config.aws.region
+        ];
+        
+        if (options.interactive) {
+          awsCommand.push('--interactive');
+        }
+        
+        printDebug(`Executing: ${awsCommand.join(' ')}`, options);
+        
+        const proc = spawn(awsCommand[0], awsCommand.slice(1), {
+          stdio: 'inherit'
+        });
+        
+        await new Promise<void>((resolve, reject) => {
+          proc.on('close', (code) => {
+            if (code === 0) {
+              resolve();
+            } else {
+              printError('ECS exec failed. Possible causes:');
+              printInfo('  • ECS Exec not enabled on service');
+              printInfo('  • Session Manager plugin not installed');
+              printInfo('  • Insufficient IAM permissions');
+              reject(new Error(`ECS exec failed with code ${code}`));
+            }
+          });
+          
+          proc.on('error', (error) => {
+            reject(error);
+          });
+        });
+        
+      } catch (error) {
+        printError(`Failed to execute in ECS ${serviceInfo.name}: ${error}`);
+        throw error;
+      }
+      break;
+      
+    case 'database':
+      printError('Cannot execute commands directly in RDS instances');
+      printInfo('Use database client tools to connect to RDS');
+      throw new Error('RDS exec not supported');
+      
+    case 'filesystem':
+      printError('Cannot execute commands in EFS filesystems');
+      throw new Error('EFS exec not supported');
+      
+    default:
+      printError(`Exec not supported for AWS service: ${serviceInfo.name}`);
+      throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
+  }
+}
+
+async function execInContainerService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  
+  try {
+    printInfo(`Executing in container: ${containerName}`);
+    
+    const success = await execInContainer(containerName, options.command, {
+      interactive: options.interactive,
+      verbose: options.verbose
+    });
+    
+    if (success) {
+      printSuccess(`Command executed successfully in ${containerName}`);
+    } else {
+      printError(`Command execution failed in ${containerName}`);
+      throw new Error('Container exec failed');
+    }
+  } catch (error) {
+    printError(`Failed to execute in container ${containerName}: ${error}`);
+    throw error;
+  }
+}
+
+async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+  // For process deployments, we can either:
+  // 1. Execute in the context of the running process (limited)
+  // 2. Spawn a new process with the same environment
+  
+  switch (serviceInfo.name) {
+    case 'database':
+      // Connect to PostgreSQL
+      printInfo('Connecting to local PostgreSQL database');
+      const psqlCommand = ['psql', '-h', 'localhost', '-U', 'postgres', '-d', 'semiont'];
+      
+      const proc = spawn(psqlCommand[0], psqlCommand.slice(1), {
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          PGPASSWORD: serviceInfo.config.password || 'localpassword'
+        }
+      });
+      
+      await new Promise<void>((resolve, reject) => {
+        proc.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`psql failed with code ${code}`));
+          }
+        });
+        proc.on('error', reject);
+      });
+      break;
+      
+    case 'frontend':
+    case 'backend':
+      printInfo(`Executing command in ${serviceInfo.name} process context`);
+      
+      const command = options.command === '/bin/sh' 
+        ? (process.platform === 'win32' ? 'cmd' : 'bash')
+        : options.command;
+        
+      const appProc = spawn(command, {
+        stdio: 'inherit',
+        shell: true,
+        cwd: `apps/${serviceInfo.name}`,
+        env: {
+          ...process.env,
+          PORT: serviceInfo.config.port?.toString() || (serviceInfo.name === 'frontend' ? '3000' : '3001')
+        }
+      });
+      
+      await new Promise<void>((resolve, reject) => {
+        appProc.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Command failed with code ${code}`));
+          }
+        });
+        appProc.on('error', reject);
+      });
+      break;
+      
+    case 'filesystem':
+      printInfo('Opening filesystem location');
+      const dataPath = serviceInfo.config.path || './data';
+      
+      const explorerCommand = process.platform === 'darwin' 
+        ? ['open', dataPath]
+        : process.platform === 'win32' 
+          ? ['explorer', dataPath]
+          : ['ls', '-la', dataPath];
+          
+      const fsProc = spawn(explorerCommand[0], explorerCommand.slice(1), {
+        stdio: 'inherit'
+      });
+      
+      await new Promise<void>((resolve, reject) => {
+        fsProc.on('close', () => resolve());
+        fsProc.on('error', reject);
+      });
+      break;
+  }
+}
+
+async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+  printError(`Cannot execute commands in external ${serviceInfo.name} service`);
+  
+  switch (serviceInfo.name) {
+    case 'database':
+      if (serviceInfo.config.host) {
+        printInfo('To connect to external database, use:');
+        printInfo(`  psql -h ${serviceInfo.config.host} -p ${serviceInfo.config.port || 5432} -U ${serviceInfo.config.user || 'postgres'} -d ${serviceInfo.config.name || 'semiont'}`);
+      }
+      break;
+      
+    case 'filesystem':
+      if (serviceInfo.config.path) {
+        printInfo(`External storage path: ${serviceInfo.config.path}`);
+        printInfo('Access this path through your system\'s file manager or appropriate tools');
+      }
+      break;
+      
+    default:
+      printInfo(`External ${serviceInfo.name} must be accessed through its own interface`);
+  }
+  
+  throw new Error(`Cannot exec into external ${serviceInfo.name}`);
+}
+
 
 // =====================================================================
 // MAIN EXECUTION
 // =====================================================================
 
 async function main(): Promise<void> {
+  const options = parseArguments();
+  
+  printInfo(`Executing "${options.command}" in ${colors.bright}${options.environment}${colors.reset} environment`);
+  
+  if (options.verbose) {
+    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
+  }
+  
   try {
-    const options = parseArgs();
+    // Validate service selector and resolve to actual services
+    await validateServiceSelector(options.service, 'start', options.environment);
+    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
     
-    if (options.verbose) {
-      console.log('🔧 Parsed options:', options);
+    if (resolvedServices.length > 1) {
+      printError('Can only execute commands in one service at a time');
+      printInfo(`Resolved to multiple services: ${resolvedServices.join(', ')}`);
+      printInfo('Please specify a single service with --service');
+      process.exit(1);
     }
     
-    // Load environment configuration
-    const config = loadEnvironmentConfig(options.environment);
+    // Get deployment information for the service
+    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
+    const serviceInfo = serviceDeployments[0]!;
     
-    if (!config.aws) {
-      throw new Error(`Environment ${options.environment} does not have AWS configuration`);
-    }
+    printDebug(`Target service: ${serviceInfo.name}(${serviceInfo.deploymentType})`, options);
     
-    // Initialize AWS clients
-    const stackConfig = new SemiontStackConfig(options.environment);
-    const ecsClient = new ECSClient({ region: config.aws.region });
+    // Execute command in the service
+    await execInService(serviceInfo, options);
     
-    console.log(`🚀 Executing on ${options.service} service: ${options.command}`);
-    await executeCommand(options, config, stackConfig, ecsClient);
+    printSuccess('Command execution completed');
     
   } catch (error) {
-    console.error('❌ Exec failed:', error instanceof Error ? error.message : String(error));
+    printError(`Execution failed: ${error}`);
     process.exit(1);
   }
 }
 
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  main().catch(error => {
+    printError(`Unexpected error: ${error}`);
+    process.exit(1);
+  });
 }
+
+export { main, ExecOptions, ExecOptionsSchema };
