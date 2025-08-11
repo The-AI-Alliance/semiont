@@ -63,61 +63,6 @@ function printDebug(message: string, options: CheckOptions): void {
   }
 }
 
-// =====================================================================
-// PARSE ARGUMENTS
-// =====================================================================
-
-function parseArguments(): CheckOptions {
-  const rawOptions: any = {
-    environment: process.env.SEMIONT_ENV,
-    verbose: process.env.SEMIONT_VERBOSE === '1',
-    dryRun: process.env.SEMIONT_DRY_RUN === '1',
-  };
-  
-  // Parse command-line arguments
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case '--environment':
-      case '-e':
-        rawOptions.environment = args[++i];
-        break;
-      case '--service':
-        rawOptions.service = args[++i];
-        break;
-      case '--section':
-      case '-s':
-        rawOptions.section = args[++i];
-        break;
-      case '--verbose':
-      case '-v':
-        rawOptions.verbose = true;
-        break;
-      case '--dry-run':
-        rawOptions.dryRun = true;
-        break;
-      case '--output':
-      case '-o':
-        rawOptions.output = args[++i];
-        break;
-    }
-  }
-  
-  // Validate with Zod
-  try {
-    return CheckOptionsSchema.parse(rawOptions);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      printError('Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
 
 // =====================================================================
 // DEPLOYMENT-TYPE-AWARE CHECK FUNCTIONS
@@ -752,9 +697,7 @@ export async function check(options: CheckOptions): Promise<CommandResults> {
   }
 }
 
-async function main(): Promise<void> {
-  const options = parseArguments();
-  
+async function main(options: CheckOptions): Promise<void> {
   printInfo(`🔍 Checking system status in ${colors.bright}${options.environment}${colors.reset} environment`);
   
   if (options.verbose) {

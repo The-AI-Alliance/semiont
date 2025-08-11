@@ -74,81 +74,6 @@ function printDebug(message: string, options: ProvisionOptions): void {
   }
 }
 
-// =====================================================================
-// PARSE ARGUMENTS FROM CLI
-// =====================================================================
-
-function parseArguments(): ProvisionOptions {
-  const rawOptions: any = {
-    environment: process.env.SEMIONT_ENV,
-    verbose: process.env.SEMIONT_VERBOSE === '1',
-    dryRun: process.env.SEMIONT_DRY_RUN === '1',
-    output: process.env.SEMIONT_OUTPUT || 'summary',
-  };
-  
-  // Parse command-line arguments
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case '--environment':
-      case '-e':
-        rawOptions.environment = args[++i];
-        break;
-      case '--service':
-      case '-s':
-        rawOptions.service = args[++i];
-        break;
-      case '--output':
-      case '-o':
-        rawOptions.output = args[++i];
-        break;
-      case '--stack':
-        rawOptions.stack = args[++i];
-        break;
-      case '--force':
-      case '-f':
-        rawOptions.force = true;
-        break;
-      case '--destroy':
-        rawOptions.destroy = true;
-        break;
-      case '--reset':
-        rawOptions.reset = true;
-        break;
-      case '--seed':
-        rawOptions.seed = true;
-        break;
-      case '--require-approval':
-        rawOptions.requireApproval = true;
-        break;
-      case '--no-approval':
-        rawOptions.requireApproval = false;
-        break;
-      case '--verbose':
-      case '-v':
-        rawOptions.verbose = true;
-        break;
-      case '--dry-run':
-        rawOptions.dryRun = true;
-        break;
-    }
-  }
-  
-  // Validate with Zod
-  try {
-    return ProvisionOptionsSchema.parse(rawOptions);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      printError('Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
 
 // =====================================================================
 // DEPLOYMENT-TYPE-AWARE PROVISION FUNCTIONS
@@ -1243,9 +1168,7 @@ export async function provision(options: ProvisionOptions): Promise<CommandResul
 // MAIN EXECUTION
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
-  
+async function main(options: ProvisionOptions): Promise<void> {
   try {
     const results = await provision(options);
     

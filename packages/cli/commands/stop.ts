@@ -61,78 +61,7 @@ function printDebug(message: string, options: StopOptions): void {
   }
 }
 
-// =====================================================================
-// PARSE ARGUMENTS
-// =====================================================================
 
-function parseArguments(): StopOptions {
-  const rawOptions: any = {
-    environment: process.env.SEMIONT_ENV,
-    verbose: process.env.SEMIONT_VERBOSE === '1',
-    dryRun: process.env.SEMIONT_DRY_RUN === '1',
-    output: process.env.SEMIONT_OUTPUT || 'summary',
-  };
-  
-  // Parse command-line arguments
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case '--environment':
-      case '-e':
-        rawOptions.environment = args[++i];
-        break;
-      case '--service':
-      case '-s':
-        rawOptions.service = args[++i];
-        break;
-      case '--output':
-      case '-o':
-        rawOptions.output = args[++i];
-        break;
-      case '--force':
-      case '-f':
-        rawOptions.force = true;
-        break;
-      case '--verbose':
-      case '-v':
-        rawOptions.verbose = true;
-        break;
-      case '--dry-run':
-        rawOptions.dryRun = true;
-        break;
-    }
-  }
-  
-  try {
-    return StopOptionsSchema.parse(rawOptions);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      printError('Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
-
-// =====================================================================
-// ENVIRONMENT VALIDATION
-// =====================================================================
-
-async function validateEnvironment(options: StopOptions): Promise<void> {
-  const validEnvironments = ['local', 'development', 'staging', 'production'];
-  
-  if (!validEnvironments.includes(options.environment)) {
-    printError(`Invalid environment: ${options.environment}`);
-    printInfo(`Available environments: ${validEnvironments.join(', ')}`);
-    process.exit(1);
-  }
-  
-  printDebug(`Validated environment: ${options.environment}`, options);
-}
 
 // =====================================================================
 // SERVICE STOP FUNCTIONS
@@ -585,8 +514,7 @@ export async function stop(options: StopOptions): Promise<CommandResults> {
     printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
   }
   
-  // Validate environment
-  await validateEnvironment(options);
+  // Environment validation is now handled by the main CLI
   
   try {
     // Validate service selector and resolve to actual services
@@ -694,9 +622,7 @@ export async function stop(options: StopOptions): Promise<CommandResults> {
 // MAIN EXECUTION
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
-  
+async function main(options: StopOptions): Promise<void> {
   try {
     const results = await stop(options);
     

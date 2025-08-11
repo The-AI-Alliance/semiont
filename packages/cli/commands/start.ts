@@ -70,66 +70,6 @@ function printWarning(message: string): void {
   console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
 }
 
-// =====================================================================
-// PARSE ARGUMENTS FROM CLI
-// =====================================================================
-
-function parseArguments(): StartOptions {
-  // Build arguments object from both environment variables and CLI args
-  const rawOptions: any = {
-    // Environment variable takes precedence (set by main CLI)
-    environment: process.env.SEMIONT_ENV,
-    output: process.env.SEMIONT_OUTPUT || 'summary',
-    quiet: process.env.SEMIONT_QUIET === '1',
-    verbose: process.env.SEMIONT_VERBOSE === '1',
-    dryRun: process.env.SEMIONT_DRY_RUN === '1',
-  };
-  
-  // Parse command-line arguments
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case '--environment':
-      case '-e':
-        rawOptions.environment = args[++i];
-        break;
-      case '--service':
-      case '-s':
-        rawOptions.service = args[++i];
-        break;
-      case '--output':
-      case '-o':
-        rawOptions.output = args[++i];
-        break;
-      case '--quiet':
-      case '-q':
-        rawOptions.quiet = true;
-        break;
-      case '--verbose':
-      case '-v':
-        rawOptions.verbose = true;
-        break;
-      case '--dry-run':
-        rawOptions.dryRun = true;
-        break;
-    }
-  }
-  
-  // Validate with Zod
-  try {
-    return StartOptionsSchema.parse(rawOptions);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      printError('Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
 
 // =====================================================================
 // ENVIRONMENT VALIDATION
@@ -736,9 +676,7 @@ export async function start(options: StartOptions): Promise<CommandResults> {
 // MAIN EXECUTION
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
-  
+async function main(options: StartOptions): Promise<void> {
   try {
     const results = await start(options);
     

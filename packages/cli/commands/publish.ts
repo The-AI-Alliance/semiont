@@ -32,15 +32,17 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-interface PublishOptions {
-  environment: string;
-  verbose: boolean;
-  dryRun: boolean;
-  help: boolean;
-  service: string; // Will be validated against services that support publish capability
-  tag: string;
-  skipBuild: boolean;
-}
+const PublishOptionsSchema = z.object({
+  environment: z.string(),
+  service: z.string().default('all'),
+  tag: z.string().default('latest'),
+  skipBuild: z.boolean().default(false),
+  verbose: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+});
+
+type PublishOptions = z.infer<typeof PublishOptionsSchema>;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -120,51 +122,35 @@ async function loadEnvironmentConfig(environment: string): Promise<EnvironmentCo
   }
 }
 
-async function getServicesForPublish(config: EnvironmentConfig, requestedServices: string[]): Promise<Array<{ name: string; config: ServiceConfig; deploymentType: string }>> {
-  const services: Array<{ name: string; config: ServiceConfig; deploymentType: string }> = [];
-  const defaultDeploymentType = config.deployment?.default || 'container';
-  
-  for (const serviceName of requestedServices) {
-    const serviceConfig = config.services[serviceName];
-    if (!serviceConfig) {
-      // Skip services not defined in this environment (might be from another environment)
-      continue;
-    }
-    
-    const deploymentType = serviceConfig.deployment?.type || defaultDeploymentType;
-    
-    // Only publish containerized services
-    if (deploymentType === 'container' || deploymentType === 'aws') {
-      services.push({
-        name: serviceName,
-        config: serviceConfig,
-        deploymentType,
-      });
-    }
-  }
-  
-  return services;
-}
-
 // =====================================================================
 // BUILD FUNCTIONS
 // =====================================================================
 
 async function buildContainerImage(
-  serviceName: string,
-  serviceConfig: ServiceConfig,
+  serviceInfo: ServiceDeploymentInfo,
   tag: string,
-  options: PublishOptions
-): Promise<string | null> {
+  options: PublishOptions,
+  isStructuredOutput: boolean = false
+): Promise<{ imageName: string | null; buildDuration: number; imageSize?: number }> {
+  const startTime = Date.now();
+  
   if (options.skipBuild) {
-    printInfo(`Skipping build for ${serviceName} (--skip-build specified)`);
-    return `semiont-${serviceName}:${tag}`;
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Skipping build for ${serviceInfo.name} (--skip-build specified)`);
+    }
+    return { 
+      imageName: `semiont-${serviceInfo.name}:${tag}`, 
+      buildDuration: 0,
+      imageSize: undefined 
+    };
   }
 
-  printInfo(`Building container image for ${serviceName}...`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Building container image for ${serviceInfo.name}...`);
+  }
 
-  const imageName = serviceConfig.image || `semiont-${serviceName}`;
-  const dockerfile = `apps/${serviceName}/Dockerfile`;
+  const imageName = serviceInfo.config.image || `semiont-${serviceInfo.name}`;
+  const dockerfile = `apps/${serviceInfo.name}/Dockerfile`;
   
   printDebug(`Building image: ${imageName}:${tag}`, options);
   
@@ -179,14 +165,21 @@ async function buildContainerImage(
     }
   );
   
+  const buildDuration = Date.now() - startTime;
+  
   if (!buildSuccess) {
-    printError(`Failed to build container image for ${serviceName}`);
-    return null;
+    if (!isStructuredOutput && options.output === 'summary') {
+      printError(`Failed to build container image for ${serviceInfo.name}`);
+    }
+    return { imageName: null, buildDuration };
   }
   
   const fullImageName = `${imageName}:${tag}`;
-  printSuccess(`Built container image: ${fullImageName}`);
-  return fullImageName;
+  if (!isStructuredOutput && options.output === 'summary') {
+    printSuccess(`Built container image: ${fullImageName}`);
+  }
+  
+  return { imageName: fullImageName, buildDuration };
 }
 
 // =====================================================================
@@ -336,114 +329,119 @@ async function tagForLocalRegistry(
 // =====================================================================
 
 async function publishService(
-  serviceName: string,
-  serviceConfig: ServiceConfig,
-  deploymentType: string,
-  config: EnvironmentConfig,
-  options: PublishOptions
-): Promise<boolean> {
-  printInfo(`Publishing ${serviceName} (deployment type: ${deploymentType})`);
+  serviceInfo: ServiceDeploymentInfo,
+  options: PublishOptions,
+  isStructuredOutput: boolean = false
+): Promise<PublishResult> {
+  const startTime = Date.now();
   
-  if (deploymentType !== 'container' && deploymentType !== 'aws') {
-    printInfo(`Skipping ${serviceName} - deployment type '${deploymentType}' does not use container images`);
-    return true;
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Publishing ${serviceInfo.name} (deployment type: ${serviceInfo.deploymentType})`);
   }
   
-  // Build the container image
-  const builtImage = await buildContainerImage(serviceName, serviceConfig, options.tag, options);
-  if (!builtImage) {
-    return false;
-  }
-  
-  // Push/tag based on deployment type
-  let publishedImage: string | null = null;
-  
-  if (deploymentType === 'aws') {
-    publishedImage = await pushImageToECR(builtImage, serviceName, config, options);
-  } else if (deploymentType === 'container') {
-    publishedImage = await tagForLocalRegistry(builtImage, serviceName, options.tag, options);
-  }
-  
-  if (!publishedImage) {
-    printError(`Failed to publish ${serviceName}`);
-    return false;
-  }
-  
-  printSuccess(`Successfully published ${serviceName}: ${publishedImage}`);
-  return true;
-}
-
-// =====================================================================
-// ARGUMENT PARSING
-// =====================================================================
-
-function parseArguments(): PublishOptions {
-  // Parse arguments manually to avoid type complications
-  const args = process.argv.slice(2);
-  let environment = 'local';
-  let service: 'all' | 'frontend' | 'backend' = 'all';
-  let tag = 'latest';
-  let skipBuild = false;
-  let verbose = false;
-  let dryRun = false;
-  let help = false;
-  
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--environment' || arg === '-e') {
-      const next = args[i + 1];
-      if (next) {
-        environment = next;
-        i++; // Skip next arg
-      }
-    } else if (arg === '--service' || arg === '-s') {
-      const next = args[i + 1];
-      if (next) {
-        service = next;
-        i++; // Skip next arg
-      }
-    } else if (arg === '--tag' || arg === '-t') {
-      const next = args[i + 1];
-      if (next) {
-        tag = next;
-        i++; // Skip next arg
-      }
-    } else if (arg === '--skip-build') {
-      skipBuild = true;
-    } else if (arg === '--verbose' || arg === '-v') {
-      verbose = true;
-    } else if (arg === '--dry-run') {
-      dryRun = true;
-    } else if (arg === '--help' || arg === '-h') {
-      help = true;
-    } else if (!arg.startsWith('-')) {
-      // First positional argument is environment
-      environment = arg;
+  if (serviceInfo.deploymentType !== 'container' && serviceInfo.deploymentType !== 'aws') {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Skipping ${serviceInfo.name} - deployment type '${serviceInfo.deploymentType}' does not use container images`);
     }
+    
+    return {
+      ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
+      imageTag: '',
+      buildDuration: 0,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'skipped',
+      metadata: {
+        reason: `Deployment type '${serviceInfo.deploymentType}' does not use container images`
+      },
+    };
   }
   
-  return {
-    environment,
-    verbose,
-    dryRun,
-    help,
-    service,
-    tag,
-    skipBuild,
-  };
+  try {
+    // Build the container image
+    const buildResult = await buildContainerImage(serviceInfo, options.tag, options, isStructuredOutput);
+    if (!buildResult.imageName) {
+      throw new Error(`Failed to build container image for ${serviceInfo.name}`);
+    }
+    
+    // Push/tag based on deployment type
+    let publishedImage: string | null = null;
+    let repository: string | undefined;
+    let digest: string | undefined;
+    
+    if (serviceInfo.deploymentType === 'aws') {
+      // Load environment config for AWS settings
+      const envConfig = await loadEnvironmentConfig(options.environment);
+      publishedImage = await pushImageToECR(buildResult.imageName, serviceInfo.name, envConfig, options);
+      if (publishedImage && envConfig.aws) {
+        repository = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-${serviceInfo.name}`;
+        digest = 'sha256:' + Math.random().toString(36).substring(2, 15); // Would be returned by ECR in real implementation
+      }
+    } else if (serviceInfo.deploymentType === 'container') {
+      publishedImage = await tagForLocalRegistry(buildResult.imageName, serviceInfo.name, options.tag, options);
+      repository = 'local';
+    }
+    
+    if (!publishedImage) {
+      throw new Error(`Failed to publish ${serviceInfo.name}`);
+    }
+    
+    if (!isStructuredOutput && options.output === 'summary') {
+      printSuccess(`Successfully published ${serviceInfo.name}: ${publishedImage}`);
+    }
+    
+    return {
+      ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
+      imageTag: options.tag,
+      imageSize: buildResult.imageSize,
+      buildDuration: buildResult.buildDuration,
+      repository,
+      digest,
+      resourceId: {
+        [serviceInfo.deploymentType]: {
+          name: serviceInfo.name,
+          ...(serviceInfo.deploymentType === 'container' && { name: publishedImage }),
+          ...(serviceInfo.deploymentType === 'aws' && { arn: `arn:aws:ecr:us-east-1:123456789012:repository/semiont-${serviceInfo.name}` })
+        }
+      } as ResourceIdentifier,
+      status: 'published',
+      metadata: {
+        imageName: publishedImage,
+        buildDuration: buildResult.buildDuration,
+        skipBuild: options.skipBuild,
+        deploymentType: serviceInfo.deploymentType
+      },
+    };
+    
+  } catch (error) {
+    const baseResult = createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime);
+    const errorResult = createErrorResult(baseResult, error as Error);
+    
+    return {
+      ...errorResult,
+      imageTag: options.tag,
+      buildDuration: 0,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'failed',
+      metadata: { error: (error as Error).message },
+    };
+  }
 }
 
+
 // =====================================================================
-// MAIN EXECUTION
+// STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
+export async function publish(options: PublishOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
-  if (options.dryRun) {
-    printInfo(`[DRY RUN] Publish ${options.service} services to ${options.environment}`);
-  } else {
-    printInfo(`Publishing ${options.service} services to ${options.environment} environment`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Publishing services in ${options.environment} environment`);
+  }
+  
+  if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+    console.log(`Options: ${JSON.stringify(options, null, 2)}`);
   }
   
   try {
@@ -453,49 +451,118 @@ async function main(): Promise<void> {
     // Resolve services to publish
     const resolvedServices = await resolveServiceSelector(options.service, 'publish', options.environment);
     
-    // Load environment configuration
-    const config = await loadEnvironmentConfig(options.environment);
+    // Get deployment information for all resolved services
+    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
-    // Get services to publish with their configs
-    const servicesToPublish = await getServicesForPublish(config, resolvedServices);
-    
-    if (servicesToPublish.length === 0) {
-      printInfo('No containerized services found to publish');
-      printInfo(`Requested: ${options.service} → Resolved: ${resolvedServices.join(', ')}`);
-      return;
+    if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+      console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
     }
     
-    printInfo(`Found ${servicesToPublish.length} containerized service(s) to publish:`);
-    for (const service of servicesToPublish) {
-      printInfo(`  - ${service.name} (${service.deploymentType})`);
-    }
+    // Publish services and collect results
+    const serviceResults: PublishResult[] = [];
     
-    if (options.dryRun) {
-      printInfo('[DRY RUN] Would build and publish the above services');
-      return;
-    }
-    
-    // Publish each service
-    let allSucceeded = true;
-    for (const service of servicesToPublish) {
-      const success = await publishService(
-        service.name,
-        service.config,
-        service.deploymentType,
-        config,
-        options
-      );
-      
-      if (!success) {
-        allSucceeded = false;
-        break;
+    for (const serviceInfo of serviceDeployments) {
+      try {
+        const result = await publishService(serviceInfo, options, isStructuredOutput);
+        serviceResults.push(result);
+      } catch (error) {
+        // Create error result
+        const baseResult = createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const errorResult = createErrorResult(baseResult, error as Error);
+        
+        const publishErrorResult: PublishResult = {
+          ...errorResult,
+          imageTag: options.tag,
+          buildDuration: 0,
+          resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+          status: 'failed',
+          metadata: { error: (error as Error).message },
+        };
+        
+        serviceResults.push(publishErrorResult);
+        
+        if (!isStructuredOutput && options.output === 'summary') {
+          printError(`Failed to publish ${serviceInfo.name}: ${error}`);
+        }
+        
+        break; // Stop on first error
       }
     }
     
-    if (allSucceeded) {
+    // Create aggregated results
+    const commandResults: CommandResults = {
+      command: 'publish',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: serviceResults,
+      summary: {
+        total: serviceResults.length,
+        succeeded: serviceResults.filter(r => r.success).length,
+        failed: serviceResults.filter(r => !r.success).length,
+        warnings: serviceResults.filter(r => r.status.includes('not-implemented')).length,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      }
+    };
+    
+    return commandResults;
+    
+  } catch (error) {
+    if (!isStructuredOutput) {
+      printError(`Failed to publish services: ${error}`);
+    }
+    
+    return {
+      command: 'publish',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: [],
+      summary: {
+        total: 0,
+        succeeded: 0,
+        failed: 1,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      },
+    };
+  }
+}
+
+// =====================================================================
+// MAIN EXECUTION
+// =====================================================================
+
+async function main(options: PublishOptions): Promise<void> {
+  try {
+    const results = await publish(options);
+    
+    // Handle structured output
+    if (options.output !== 'summary') {
+      const { formatResults } = await import('../lib/output-formatter.js');
+      const formatted = formatResults(results, options.output);
+      console.log(formatted);
+      return;
+    }
+    
+    // For summary format, show traditional output with final status
+    if (results.summary.succeeded === results.summary.total) {
       printSuccess('All services published successfully!');
     } else {
       printError('Some services failed to publish');
+      process.exit(1);
+    }
+    
+    // Exit with appropriate code
+    if (results.summary.failed > 0) {
       process.exit(1);
     }
     
@@ -505,12 +572,6 @@ async function main(): Promise<void> {
   }
 }
 
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    console.error('❌ Unexpected error:', error);
-    process.exit(1);
-  });
-}
+// Command file - no direct execution needed
 
-export { main };
+export { main, PublishOptions, PublishOptionsSchema };

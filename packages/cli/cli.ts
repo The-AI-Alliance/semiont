@@ -521,11 +521,8 @@ async function executeCommand(
   }
   
   try {
-    // Format and output results based on requested format
-    const outputFormat = args['--output'] || 'table';
-  
-  if (['json', 'yaml', 'table'].includes(outputFormat)) {
-    // Structured output path
+    // Single unified execution path - all commands return CommandResults
+    const outputFormat = args['--output'] || 'summary';  // Changed default to summary
     let results: CommandResults;
     
     switch (command) {
@@ -586,54 +583,148 @@ async function executeCommand(
         break;
       }
       
+      case 'provision': {
+        const { provision } = await import('./commands/provision.js');
+        const provisionOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          stack: args['--stack'] || 'all',
+          destroy: args['--destroy'] || false,
+          force: args['--force'] || false,
+          requireApproval: args['--no-approval'] ? false : undefined,
+          reset: args['--reset'] || false,
+          seed: args['--seed'] || false,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await provision(provisionOptions);
+        break;
+      }
+      
+      case 'publish': {
+        const { publish } = await import('./commands/publish.js');
+        const publishOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          output: outputFormat,
+          tag: args['--tag'] || 'latest',
+          skipBuild: args['--skip-build'] || false,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false
+        };
+        results = await publish(publishOptions);
+        break;
+      }
+      
+      case 'update': {
+        const { update } = await import('./commands/update.js');
+        const updateOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          skipTests: args['--skip-tests'] || false,
+          skipBuild: args['--skip-build'] || false,
+          force: args['--force'] || false,
+          gracePeriod: args['--grace-period'] || 3,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await update(updateOptions);
+        break;
+      }
+      
+      case 'test': {
+        const { test } = await import('./commands/test.js');
+        const testOptions = {
+          environment: args['--environment'] || 'local',
+          suite: args['--suite'] || 'all',
+          service: args['--service'] || 'all',
+          coverage: args['--coverage'] || false,
+          parallel: args['--parallel'] || false,
+          timeout: args['--timeout'] || 300,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await test(testOptions);
+        break;
+      }
+      
+      // Commands that need their structured functions implemented:
+      case 'watch': 
+      case 'exec': 
+      case 'backup': 
+      case 'configure': {
+        // For now, fall back to main() functions for these commands
+        // TODO: Implement structured functions for these commands
+        const { main } = await import(`./commands/${command}.js`);
+        
+        // Build options object based on command type
+        let cmdOptions: any = {
+          environment: args['--environment'] || 'local',
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: 'summary' as const
+        };
+        
+        // Add command-specific options
+        switch (command) {
+          case 'watch':
+            cmdOptions = {
+              ...cmdOptions,
+              service: args['--service'] || 'all',
+              target: args['--target'] || 'all',
+              noFollow: args['--no-follow'] || false,
+              interval: args['--interval'] || 5
+            };
+            break;
+          case 'exec':
+            cmdOptions = {
+              ...cmdOptions,
+              service: args['--service'] || 'all',
+              command: args['--command'] || ''
+            };
+            break;
+          case 'backup':
+            cmdOptions = {
+              ...cmdOptions,
+              name: args['--name'] || ''
+            };
+            break;
+          case 'configure':
+            cmdOptions = {
+              ...cmdOptions,
+              secretPath: args['--secret-path'] || '',
+              value: args['--value'] || '',
+              action: args._.length > 0 ? args._[0] : 'list'
+            };
+            break;
+        }
+        
+        // Call main() function directly and exit
+        await main(cmdOptions);
+        return;
+      }
+      
       default:
         throw new Error(`Command '${command}' is not yet implemented`);
     }
     
-    // Format and output structured results
+    // Format and output results (works for all formats including summary)
     const { formatResults } = await import('./lib/output-formatter.js');
     const formatted = formatResults(results, outputFormat);
     console.log(formatted);
     
-    // Exit with appropriate code for structured output
+    // Exit with appropriate code
     if (results.summary && results.summary.failed > 0) {
       process.exit(1);
     }
     
-  } else if (outputFormat === 'summary') {
-    // Traditional summary output path - use main() functions
-    switch (command) {
-      case 'check': {
-        const { main } = await import('./commands/check.js');
-        await main();
-        return; // main() handles exit codes
-      }
-      case 'start': {
-        const { main } = await import('./commands/start.js');
-        await main();
-        return; // main() handles exit codes
-      }
-      case 'stop': {
-        const { main } = await import('./commands/stop.js');
-        await main();
-        return; // main() handles exit codes
-      }
-      case 'restart': {
-        const { main } = await import('./commands/restart.js');
-        await main();
-        return; // main() handles exit codes
-      }
-      default:
-        throw new Error(`Command '${command}' is not yet implemented`);
-    }
-  } else {
-    throw new Error(`Unknown output format: ${outputFormat}`);
+  } catch (error) {
+    printError(`Command failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
   }
-  
-} catch (error) {
-  printError(`Command failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-}
 }
 
 // =====================================================================

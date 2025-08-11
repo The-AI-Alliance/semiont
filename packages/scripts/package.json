@@ -8,7 +8,6 @@
     "clean": "rm -rf dist",
     "setup": "npm run build && node dist/install.mjs",
     "setup:cli": "npm run build && node dist/install.mjs --cli-only",
-    "secrets": "node dist/local-secrets.mjs",
     "benchmark": "node dist/benchmark.mjs"
   },
   "dependencies": {

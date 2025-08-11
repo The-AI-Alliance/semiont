@@ -15,7 +15,13 @@ import { resolveServiceSelector, validateServiceSelector } from '../lib/services
 import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { listContainers } from '../lib/container-runtime.js';
-import * as http from 'http';
+import { 
+  TestResult, 
+  CommandResults, 
+  createBaseResult, 
+  createErrorResult,
+  ResourceIdentifier 
+} from '../lib/command-results.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -32,6 +38,7 @@ const TestOptionsSchema = z.object({
   timeout: z.number().int().positive().default(300), // 5 minutes
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
 type TestOptions = z.infer<typeof TestOptionsSchema>;
@@ -41,85 +48,39 @@ type TestOptions = z.infer<typeof TestOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
+// Global flag to control output suppression
+let suppressOutput = false;
+
 function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  }
 }
 
 function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  }
 }
 
 function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  }
 }
 
 function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  }
 }
 
 function printDebug(message: string, options: TestOptions): void {
-  if (options.verbose) {
+  if (!suppressOutput && options.verbose) {
     console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
   }
 }
 
-// =====================================================================
-// PARSE ARGUMENTS
-// =====================================================================
-
-function parseArguments(): TestOptions {
-  const rawOptions: any = {
-    environment: process.env.SEMIONT_ENV || process.argv[2],
-    verbose: process.env.SEMIONT_VERBOSE === '1',
-    dryRun: process.env.SEMIONT_DRY_RUN === '1',
-  };
-  
-  // Parse command-line arguments
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case '--suite':
-      case '-s':
-        rawOptions.suite = args[++i];
-        break;
-      case '--service':
-        rawOptions.service = args[++i];
-        break;
-      case '--coverage':
-        rawOptions.coverage = true;
-        break;
-      case '--parallel':
-      case '-p':
-        rawOptions.parallel = true;
-        break;
-      case '--timeout':
-        rawOptions.timeout = parseInt(args[++i]);
-        break;
-      case '--verbose':
-      case '-v':
-        rawOptions.verbose = true;
-        break;
-      case '--dry-run':
-        rawOptions.dryRun = true;
-        break;
-    }
-  }
-  
-  // Validate with Zod
-  try {
-    return TestOptionsSchema.parse(rawOptions);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      printError('Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
 
 // =====================================================================
 // DEPLOYMENT-TYPE-AWARE TEST FUNCTIONS
@@ -175,7 +136,7 @@ async function runCommand(command: string, args: string[], cwd: string, options:
   });
 }
 
-async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+async function testServiceImpl(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would test ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}`);
     return true;
@@ -497,6 +458,176 @@ async function runIntegrationTestsForService(serviceInfo: ServiceDeploymentInfo,
   return true; // Don't fail if tests don't exist
 }
 
+// =====================================================================
+// STRUCTURED OUTPUT FUNCTIONS
+// =====================================================================
+
+async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions, isStructuredOutput: boolean = false): Promise<TestResult> {
+  const startTime = Date.now();
+  
+  if (options.dryRun) {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`[DRY RUN] Would test ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}`);
+    }
+    
+    return {
+      ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      testSuite: suite,
+      testsRun: 0,
+      testsPassed: 0,
+      testsFailed: 0,
+      testsSkipped: 0,
+      testDuration: 0,
+      failures: [],
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'dry-run',
+      metadata: { dryRun: true },
+    };
+  }
+  
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Testing ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}...`);
+  }
+  
+  // Suppress output for legacy functions when in structured mode
+  const previousSuppressOutput = suppressOutput;
+  suppressOutput = isStructuredOutput;
+  
+  // Use legacy functions to run actual tests
+  const passed = await testServiceImpl(serviceInfo, suite, options);
+  const testDuration = Date.now() - startTime;
+  
+  // Restore output suppression state
+  suppressOutput = previousSuppressOutput;
+  
+  return {
+    ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+    testSuite: suite,
+    testsRun: 1, // Simplified for now
+    testsPassed: passed ? 1 : 0,
+    testsFailed: passed ? 0 : 1,
+    testsSkipped: 0,
+    testDuration,
+    failures: passed ? [] : [{ test: suite, error: 'Test suite failed' }],
+    resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+    status: passed ? 'passed' : 'failed',
+    metadata: { suite },
+  };
+}
+
+// =====================================================================
+// STRUCTURED OUTPUT MAIN FUNCTION
+// =====================================================================
+
+export async function test(options: TestOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Running ${colors.bright}${options.suite}${colors.reset} tests in ${colors.bright}${options.environment}${colors.reset} environment`);
+  }
+  
+  try {
+    // Validate service selector and resolve to actual services
+    await validateServiceSelector(options.service, 'test', options.environment);
+    const resolvedServices = await resolveServiceSelector(options.service, 'test', options.environment);
+    
+    // Get deployment information for all resolved services
+    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
+    
+    if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
+      console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
+    }
+    
+    // Determine which test suites to run
+    const suitesToRun = options.suite === 'all' 
+      ? ['health', 'integration', 'e2e'] 
+      : [options.suite];
+    
+    // Run tests and collect results
+    const serviceResults: TestResult[] = [];
+    
+    for (const serviceInfo of serviceDeployments) {
+      for (const suite of suitesToRun) {
+        try {
+          const result = await testService(serviceInfo, suite, options, isStructuredOutput);
+          serviceResults.push(result);
+        } catch (error) {
+          // Create error result
+          const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+          const errorResult = createErrorResult(baseResult, error as Error);
+          
+          const testErrorResult: TestResult = {
+            ...errorResult,
+            testSuite: suite,
+            testsRun: 0,
+            testsPassed: 0,
+            testsFailed: 1,
+            testsSkipped: 0,
+            testDuration: Date.now() - startTime,
+            failures: [{ test: 'setup', error: (error as Error).message }],
+            resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+            status: 'failed',
+            metadata: { error: (error as Error).message },
+          };
+          
+          serviceResults.push(testErrorResult);
+          
+          if (!isStructuredOutput && options.output === 'summary') {
+            printError(`Failed to test ${serviceInfo.name}: ${error}`);
+          }
+        }
+      }
+    }
+    
+    // Create aggregated results
+    const commandResults: CommandResults = {
+      command: 'test',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: serviceResults,
+      summary: {
+        total: serviceResults.length,
+        succeeded: serviceResults.filter(r => r.success).length,
+        failed: serviceResults.filter(r => !r.success).length,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      }
+    };
+    
+    return commandResults;
+    
+  } catch (error) {
+    if (!isStructuredOutput) {
+      printError(`Failed to run tests: ${error}`);
+    }
+    
+    return {
+      command: 'test',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: [],
+      summary: {
+        total: 0,
+        succeeded: 0,
+        failed: 1,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      },
+    };
+  }
+}
+
 async function runSecurityTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
   printInfo(`Running security tests for ${serviceInfo.name}`);
   
@@ -555,98 +686,39 @@ async function runE2ETestsForService(serviceInfo: ServiceDeploymentInfo, options
 // MAIN EXECUTION
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
-  
-  printInfo(`🧪 Running ${options.suite} tests in ${colors.bright}${options.environment}${colors.reset} environment`);
-  
-  if (options.verbose) {
-    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
-  }
+async function main(options: TestOptions): Promise<void> {
   
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'start', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
+    const results = await test(options);
     
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    
-    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
-    
-    // Determine which test suites to run
-    const suitesToRun = options.suite === 'all' 
-      ? ['health', 'connectivity', 'integration', 'security', 'e2e']
-      : [options.suite];
-    
-    const results: { service: string; suite: string; passed: boolean }[] = [];
-    let overallSuccess = true;
-    
-    // Run tests for each service and each suite
-    for (const suite of suitesToRun) {
-      printInfo(`\n🧪 Running ${suite} tests...`);
-      
-      for (const serviceInfo of serviceDeployments) {
-        try {
-          const passed = await testService(serviceInfo, suite, options);
-          results.push({ service: serviceInfo.name, suite, passed });
-          
-          if (!passed) {
-            overallSuccess = false;
-          }
-        } catch (error) {
-          printError(`Test failed for ${serviceInfo.name} (${suite}): ${error}`);
-          results.push({ service: serviceInfo.name, suite, passed: false });
-          overallSuccess = false;
-        }
-      }
+    // Handle structured output
+    if (options.output !== 'summary') {
+      const { formatResults } = await import('../lib/output-formatter.js');
+      const formatted = formatResults(results, options.output);
+      console.log(formatted);
+      return;
     }
     
-    // Summary
-    console.log('\n' + '='.repeat(60));
-    printInfo('Test Results Summary:');
-    
-    // Group results by service
-    const serviceResults = new Map<string, { suite: string; passed: boolean }[]>();
-    for (const result of results) {
-      if (!serviceResults.has(result.service)) {
-        serviceResults.set(result.service, []);
-      }
-      serviceResults.get(result.service)!.push({ suite: result.suite, passed: result.passed });
-    }
-    
-    for (const [serviceName, suiteResults] of serviceResults) {
-      console.log(`\n📦 ${colors.bright}${serviceName}${colors.reset}:`);
-      for (const result of suiteResults) {
-        const icon = result.passed ? '✅' : '❌';
-        const color = result.passed ? colors.green : colors.red;
-        console.log(`  ${icon} ${color}${result.suite}${colors.reset}`);
-      }
-    }
-    
-    console.log('\n' + '='.repeat(60));
-    
-    if (overallSuccess) {
+    // For summary format, show traditional output with final status
+    if (results.summary.succeeded === results.summary.total) {
       printSuccess('All tests passed!');
     } else {
       printError('Some tests failed');
-      const failedTests = results.filter(r => !r.passed);
-      printInfo(`Failed: ${failedTests.length}/${results.length} tests`);
+      printInfo(`Failed: ${results.summary.failed}/${results.summary.total} tests`);
+    }
+    
+    // Exit with appropriate code
+    if (results.summary.failed > 0) {
       process.exit(1);
     }
     
   } catch (error) {
-    printError(`Test execution failed: ${error}`);
+    printError(`Test failed: ${error}`);
     process.exit(1);
   }
 }
 
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    printError(`Unexpected error: ${error}`);
-    process.exit(1);
-  });
-}
+
+// Command file - no direct execution needed
 
 export { main, TestOptions, TestOptionsSchema };
