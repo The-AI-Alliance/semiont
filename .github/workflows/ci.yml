@@ -27,7 +27,9 @@ jobs:
         run: npm run setup
 
       - name: Run frontend tests with semiont CLI
-        run: semiont test -e unit --service frontend --no-coverage
+        run: |
+          echo "Running frontend unit tests..."
+          semiont test -e unit --service frontend --suite integration --output summary
         env:
           CI: true
 
@@ -65,7 +67,9 @@ jobs:
         run: npm run setup
 
       - name: Run backend tests with semiont CLI
-        run: semiont test -e unit --service backend --no-coverage
+        run: |
+          echo "Running backend unit tests..."
+          semiont test -e unit --service backend --suite integration --output summary
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -95,7 +99,7 @@ jobs:
         run: cd packages/cloud && npm test
 
   test-cli:
-    name: CLI Installation and Validation
+    name: CLI Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -116,6 +120,27 @@ jobs:
         run: |
           semiont --version
           semiont --help
+      
+      - name: Run CLI unit tests
+        run: |
+          echo "Running CLI package unit tests..."
+          cd packages/cli && npm test
+        env:
+          CI: true
+      
+      - name: Test CLI commands with structured output
+        run: |
+          echo "Testing CLI commands with different output formats..."
+          # Test with JSON output
+          semiont check -e local --service all --dry-run --output json
+          # Test with table output
+          semiont check -e local --service all --dry-run --output table
+          # Test with YAML output
+          semiont check -e local --service all --dry-run --output yaml
+          # Test the test command itself
+          semiont test -e local --suite health --service all --dry-run --output summary
+        env:
+          CI: true
 
   test-comprehensive:
     name: Comprehensive Test Suite
@@ -151,13 +176,26 @@ jobs:
         run: npm run setup
 
       - name: Run comprehensive test suite
-        run: semiont test -e unit --no-coverage
+        run: |
+          echo "Running comprehensive test suite..."
+          semiont test -e unit --suite all --service all --output summary
+          
+          # Also run with JSON output for artifact storage
+          echo "Generating test results in JSON format..."
+          semiont test -e unit --suite all --service all --output json > test-results.json
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: test-results.json
 
   validate-config:
     name: Configuration Validation
