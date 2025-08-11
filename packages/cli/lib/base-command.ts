@@ -40,12 +40,6 @@ export abstract class BaseCommand<TOptions extends z.ZodRawShape> {
       process.exit(1);
     }
 
-    const validEnvironments = ['local', 'development', 'staging', 'production'];
-    if (!validEnvironments.includes(this.options.environment)) {
-      this.logger.error(`Invalid environment: ${this.options.environment}`);
-      this.logger.info(`Available environments: ${validEnvironments.join(', ')}`);
-      process.exit(1);
-    }
   }
 
   /**

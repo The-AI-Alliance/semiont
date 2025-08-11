@@ -41,10 +41,7 @@ export class PackageBuilder {
     }
 
     try {
-      // Install dependencies first
-      await this.runNpmCommand(fullPath, ['install', '--silent']);
-      
-      // Check if build script exists
+      // Check if build script exists (dependencies already installed)
       const packageJsonPath = path.join(fullPath, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));

@@ -8,13 +8,20 @@
 import { z } from 'zod';
 import { spawn, type ChildProcess } from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
-import { CliLogger, printWarning } from '../lib/cli-logger.js';
-import { parseCommandArgs, BaseOptionsSchema } from '../lib/argument-parser.js';
 import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
 import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { runContainer, stopContainer } from '../lib/container-runtime.js';
+import { 
+  StartResult, 
+  CommandResults, 
+  createBaseResult, 
+  createErrorResult,
+  ResourceIdentifier 
+} from '../lib/command-results.js';
+import { OutputFormatter } from '../lib/output-formatter.js';
 import * as fs from 'fs';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
@@ -23,8 +30,13 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StartOptionsSchema = BaseOptionsSchema.extend({
-  service: z.string().default('all'), // Will be validated at runtime against startable services
+const StartOptionsSchema = z.object({
+  environment: z.string(),
+  service: z.string().default('all'),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  quiet: z.boolean().default(false),
+  verbose: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
 });
 
 type StartOptions = z.infer<typeof StartOptionsSchema>;
@@ -54,6 +66,10 @@ function printDebug(message: string, options: StartOptions): void {
   }
 }
 
+function printWarning(message: string): void {
+  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+}
+
 // =====================================================================
 // PARSE ARGUMENTS FROM CLI
 // =====================================================================
@@ -62,7 +78,9 @@ function parseArguments(): StartOptions {
   // Build arguments object from both environment variables and CLI args
   const rawOptions: any = {
     // Environment variable takes precedence (set by main CLI)
-    environment: process.env.SEMIONT_ENV || process.argv[2],
+    environment: process.env.SEMIONT_ENV,
+    output: process.env.SEMIONT_OUTPUT || 'summary',
+    quiet: process.env.SEMIONT_QUIET === '1',
     verbose: process.env.SEMIONT_VERBOSE === '1',
     dryRun: process.env.SEMIONT_DRY_RUN === '1',
   };
@@ -72,9 +90,21 @@ function parseArguments(): StartOptions {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
+      case '--environment':
+      case '-e':
+        rawOptions.environment = args[++i];
+        break;
       case '--service':
       case '-s':
         rawOptions.service = args[++i];
+        break;
+      case '--output':
+      case '-o':
+        rawOptions.output = args[++i];
+        break;
+      case '--quiet':
+      case '-q':
+        rawOptions.quiet = true;
         break;
       case '--verbose':
       case '-v':
@@ -106,67 +136,149 @@ function parseArguments(): StartOptions {
 // =====================================================================
 
 async function validateEnvironment(options: StartOptions): Promise<void> {
-  const validEnvironments = ['local', 'development', 'staging', 'production'];
-  
-  if (!validEnvironments.includes(options.environment)) {
-    printError(`Invalid environment: ${options.environment}`);
-    printInfo(`Available environments: ${validEnvironments.join(', ')}`);
-    process.exit(1);
+  // Environment validation is now handled by the main CLI
+  // This function is kept for any additional start-specific validation
+  if (options.verbose && options.output === 'summary') {
+    printDebug(`Using environment: ${options.environment}`, options);
   }
-  
-  printDebug(`Validated environment: ${options.environment}`, options);
 }
 
 // =====================================================================
 // DEPLOYMENT-TYPE-AWARE START FUNCTIONS
 // =====================================================================
 
-async function startService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+async function startService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, isStructuredOutput: boolean = false): Promise<StartResult> {
+  const startTime = Date.now();
+  
   if (options.dryRun) {
-    printInfo(`[DRY RUN] Would start ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    return;
+    if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      printInfo(`[DRY RUN] Would start ${serviceInfo.name} (${serviceInfo.deploymentType})`);
+    }
+    
+    return {
+      ...createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      startTime: new Date(),
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'dry-run',
+      metadata: { dryRun: true },
+    };
   }
   
-  printInfo(`Starting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+    printInfo(`Starting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  }
   
-  switch (serviceInfo.deploymentType) {
-    case 'aws':
-      await startAWSService(serviceInfo, options);
-      break;
-    case 'container':
-      await startContainerService(serviceInfo, options);
-      break;
-    case 'process':
-      await startProcessService(serviceInfo, options);
-      break;
-    case 'external':
-      await startExternalService(serviceInfo, options);
-      break;
-    default:
-      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+  try {
+    switch (serviceInfo.deploymentType) {
+      case 'aws':
+        return await startAWSService(serviceInfo, options, startTime, isStructuredOutput);
+      case 'container':
+        return await startContainerService(serviceInfo, options, startTime, isStructuredOutput);
+      case 'process':
+        return await startProcessService(serviceInfo, options, startTime, isStructuredOutput);
+      case 'external':
+        return await startExternalService(serviceInfo, options, startTime, isStructuredOutput);
+      default:
+        throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+    }
+  } catch (error) {
+    const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const errorResult = createErrorResult(baseResult, error as Error);
+    
+    return {
+      ...errorResult,
+      startTime: new Date(),
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'failed',
+      metadata: { error: (error as Error).message },
+    };
   }
 }
 
-async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   // AWS ECS service start
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      printInfo(`Starting ${serviceInfo.name} ECS service in ${options.environment}`);
-      printWarning('ECS service start not yet implemented - use AWS Console or CDK');
-      break;
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printInfo(`Starting ${serviceInfo.name} ECS service in ${options.environment}`);
+        printWarning('ECS service start not yet implemented - use AWS Console or CDK');
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        resourceId: {
+          aws: {
+            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
+            id: `semiont-${options.environment}-${serviceInfo.name}`,
+            name: `semiont-${options.environment}-${serviceInfo.name}`
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          serviceName: `semiont-${options.environment}-${serviceInfo.name}`,
+          cluster: `semiont-${options.environment}`,
+          implementation: 'pending'
+        },
+      };
+      
     case 'database':
-      printInfo(`Starting RDS instance for ${serviceInfo.name}`);
-      printWarning('RDS instance start not yet implemented - use AWS Console');
-      break;
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printInfo(`Starting RDS instance for ${serviceInfo.name}`);
+        printWarning('RDS instance start not yet implemented - use AWS Console');
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        resourceId: {
+          aws: {
+            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
+            id: `semiont-${options.environment}-db`,
+            name: `semiont-${options.environment}-database`
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          instanceIdentifier: `semiont-${options.environment}-db`,
+          implementation: 'pending'
+        },
+      };
+      
     case 'filesystem':
-      printInfo(`Mounting EFS volumes for ${serviceInfo.name}`);
-      printWarning('EFS mount not yet implemented');
-      break;
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printInfo(`Mounting EFS volumes for ${serviceInfo.name}`);
+        printWarning('EFS mount not yet implemented');
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        resourceId: {
+          aws: {
+            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
+            id: `fs-semiont${options.environment}`,
+            name: `semiont-${options.environment}-efs`
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          fileSystemId: `fs-semiont${options.environment}`,
+          implementation: 'pending'
+        },
+      };
+      
+    default:
+      throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
   }
 }
 
-async function startContainerService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+async function startContainerService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   // Container deployment
   switch (serviceInfo.name) {
     case 'database':
@@ -185,51 +297,131 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       });
       
       if (success) {
-        printSuccess(`Database container started: ${containerName}`);
+        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+          printSuccess(`Database container started: ${containerName}`);
+        }
+        
+        return {
+          ...baseResult,
+          startTime: new Date(),
+          endpoint: 'postgresql://localhost:5432/semiont',
+          resourceId: {
+            container: {
+              id: containerName, // Would be actual container ID in real implementation
+              name: containerName
+            }
+          },
+          status: 'running',
+          metadata: {
+            containerName,
+            image: imageName,
+            ports: { '5432': '5432' },
+            database: serviceInfo.config.name || 'semiont'
+          },
+        };
       } else {
         throw new Error(`Failed to start database container: ${containerName}`);
       }
-      break;
       
     case 'frontend':
     case 'backend':
       const appContainerName = `semiont-${serviceInfo.name}-${options.environment}`;
       const appImageName = serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`;
+      const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
       
       const appSuccess = await runContainer(appImageName, appContainerName, {
-        ports: serviceInfo.config.port ? { [serviceInfo.config.port.toString()]: serviceInfo.config.port.toString() } : {},
+        ports: { [port.toString()]: port.toString() },
         detached: true,
         verbose: options.verbose
       });
       
       if (appSuccess) {
-        printSuccess(`${serviceInfo.name} container started: ${appContainerName}`);
+        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+          printSuccess(`${serviceInfo.name} container started: ${appContainerName}`);
+        }
+        
+        return {
+          ...baseResult,
+          startTime: new Date(),
+          endpoint: `http://localhost:${port}`,
+          resourceId: {
+            container: {
+              id: appContainerName, // Would be actual container ID in real implementation
+              name: appContainerName
+            }
+          },
+          status: 'running',
+          metadata: {
+            containerName: appContainerName,
+            image: appImageName,
+            port: port.toString()
+          },
+        };
       } else {
         throw new Error(`Failed to start ${serviceInfo.name} container: ${appContainerName}`);
       }
-      break;
       
     case 'filesystem':
-      printInfo(`Creating container volumes for ${serviceInfo.name}`);
       const volumeName = `semiont-${serviceInfo.name}-${options.environment}`;
-      // Volume creation would be handled by container runtime
-      printSuccess(`Container volumes ready: ${volumeName}`);
-      break;
+      
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printInfo(`Creating container volumes for ${serviceInfo.name}`);
+        printSuccess(`Container volumes ready: ${volumeName}`);
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        resourceId: {
+          container: {
+            name: volumeName,
+            id: volumeName
+          }
+        },
+        status: 'ready',
+        metadata: {
+          volumeName,
+          type: 'named-volume'
+        },
+      };
+      
+    default:
+      throw new Error(`Unsupported container service: ${serviceInfo.name}`);
   }
 }
 
-async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   // Process deployment (local development)
   switch (serviceInfo.name) {
     case 'database':
-      printInfo(`Starting PostgreSQL service for ${serviceInfo.name}`);
-      // This would start local PostgreSQL service, for now just check if it's running
-      printWarning('Local PostgreSQL service start not yet implemented - start manually');
-      break;
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printInfo(`Starting PostgreSQL service for ${serviceInfo.name}`);
+        printWarning('Local PostgreSQL service start not yet implemented - start manually');
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        endpoint: 'postgresql://localhost:5432/semiont',
+        resourceId: {
+          process: {
+            path: '/usr/local/var/postgres',
+            port: 5432
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          implementation: 'pending',
+          service: 'postgresql'
+        },
+      };
       
     case 'backend':
       const backendCwd = path.join(PROJECT_ROOT, 'apps/backend');
       const backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      const backendPort = serviceInfo.config.port || 3001;
       
       const backendProc = spawn(backendCommand[0], backendCommand.slice(1), {
         cwd: backendCwd,
@@ -240,17 +432,39 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           SEMIONT_ENV: options.environment,
           DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
           JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-          PORT: serviceInfo.config.port?.toString() || '3001',
+          PORT: backendPort.toString(),
         }
       });
       
       backendProc.unref();
-      printSuccess(`Backend process started on port ${serviceInfo.config.port || 3001}`);
-      break;
+      
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printSuccess(`Backend process started on port ${backendPort}`);
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        endpoint: `http://localhost:${backendPort}`,
+        resourceId: {
+          process: {
+            pid: backendProc.pid || 0,
+            port: backendPort,
+            path: backendCwd
+          }
+        },
+        status: 'running',
+        metadata: {
+          command: backendCommand.join(' '),
+          workingDirectory: backendCwd,
+          port: backendPort
+        },
+      };
       
     case 'frontend':
       const frontendCwd = path.join(PROJECT_ROOT, 'apps/frontend');
       const frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      const frontendPort = serviceInfo.config.port || 3000;
       
       const frontendProc = spawn(frontendCommand[0], frontendCommand.slice(1), {
         cwd: frontendCwd,
@@ -258,63 +472,169 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         detached: true,
         env: {
           ...process.env,
-          NEXT_PUBLIC_API_URL: `http://localhost:${serviceInfo.config.port || 3001}`,
+          NEXT_PUBLIC_API_URL: `http://localhost:3001`,
           NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
-          PORT: serviceInfo.config.port?.toString() || '3000',
+          PORT: frontendPort.toString(),
         }
       });
       
       frontendProc.unref();
-      printSuccess(`Frontend process started on port ${serviceInfo.config.port || 3000}`);
-      break;
+      
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printSuccess(`Frontend process started on port ${frontendPort}`);
+      }
+      
+      return {
+        ...baseResult,
+        startTime: new Date(),
+        endpoint: `http://localhost:${frontendPort}`,
+        resourceId: {
+          process: {
+            pid: frontendProc.pid || 0,
+            port: frontendPort,
+            path: frontendCwd
+          }
+        },
+        status: 'running',
+        metadata: {
+          command: frontendCommand.join(' '),
+          workingDirectory: frontendCwd,
+          port: frontendPort
+        },
+      };
       
     case 'filesystem':
-      printInfo(`Creating directories for ${serviceInfo.name}`);
       const fsPath = serviceInfo.config.path || path.join(PROJECT_ROOT, 'data');
+      
       try {
         await fs.promises.mkdir(fsPath, { recursive: true });
-        printSuccess(`Filesystem directories created: ${fsPath}`);
+        
+        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+          printInfo(`Creating directories for ${serviceInfo.name}`);
+          printSuccess(`Filesystem directories created: ${fsPath}`);
+        }
+        
+        return {
+          ...baseResult,
+          startTime: new Date(),
+          resourceId: {
+            process: {
+              path: fsPath
+            }
+          },
+          status: 'ready',
+          metadata: {
+            path: fsPath,
+            type: 'local-directory'
+          },
+        };
       } catch (error) {
         throw new Error(`Failed to create directories: ${error}`);
       }
-      break;
+      
+    default:
+      throw new Error(`Unsupported process service: ${serviceInfo.name}`);
   }
 }
 
-async function startExternalService(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<void> {
+async function startExternalService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   // External service - just check connectivity
-  printInfo(`Checking external ${serviceInfo.name} service`);
+  if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+    printInfo(`Checking external ${serviceInfo.name} service`);
+  }
   
   switch (serviceInfo.name) {
     case 'database':
       if (serviceInfo.config.host) {
-        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
-        printWarning('External database connectivity check not yet implemented');
+        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+          printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
+          printWarning('External database connectivity check not yet implemented');
+        }
+        
+        return {
+          ...baseResult,
+          startTime: new Date(),
+          endpoint: `postgresql://${serviceInfo.config.host}:${serviceInfo.config.port || 5432}/${serviceInfo.config.name || 'semiont'}`,
+          resourceId: {
+            external: {
+              endpoint: `${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`
+            }
+          },
+          status: 'external',
+          metadata: {
+            host: serviceInfo.config.host,
+            port: serviceInfo.config.port || 5432,
+            database: serviceInfo.config.name || 'semiont',
+            connectivityCheck: 'not-implemented'
+          },
+        };
       }
       break;
+      
     case 'filesystem':
       if (serviceInfo.config.path) {
-        printInfo(`External storage: ${serviceInfo.config.path}`);
-        printWarning('External storage connectivity check not yet implemented');
+        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+          printInfo(`External storage: ${serviceInfo.config.path}`);
+          printWarning('External storage connectivity check not yet implemented');
+        }
+        
+        return {
+          ...baseResult,
+          startTime: new Date(),
+          resourceId: {
+            external: {
+              path: serviceInfo.config.path
+            }
+          },
+          status: 'external',
+          metadata: {
+            path: serviceInfo.config.path,
+            connectivityCheck: 'not-implemented'
+          },
+        };
       }
       break;
+      
     default:
-      printInfo(`External ${serviceInfo.name} service configured`);
+      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        printInfo(`External ${serviceInfo.name} service configured`);
+      }
   }
   
-  printSuccess(`External ${serviceInfo.name} service ready`);
+  if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+    printSuccess(`External ${serviceInfo.name} service ready`);
+  }
+  
+  return {
+    ...baseResult,
+    startTime: new Date(),
+    resourceId: {
+      external: {
+        endpoint: (serviceInfo.config as any).endpoint || 'configured'
+      }
+    },
+    status: 'external',
+    metadata: {
+      configured: true
+    },
+  };
 }
 
 // =====================================================================
-// MAIN EXECUTION
+// STRUCTURED OUTPUT FUNCTION  
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
+export async function start(options: StartOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
-  printInfo(`Starting services in ${colors.bright}${options.environment}${colors.reset} environment`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Starting services in ${colors.bright}${options.environment}${colors.reset} environment`);
+  }
   
-  if (options.verbose) {
+  if (options.verbose && !isStructuredOutput && options.output === 'summary') {
     printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
   }
   
@@ -329,38 +649,128 @@ async function main(): Promise<void> {
     // Get deployment information for all resolved services
     const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
-    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    }
     
-    // Start services based on deployment type
-    let allSucceeded = true;
+    // Start services based on deployment type and collect results
+    const serviceResults: StartResult[] = [];
+    
     for (const serviceInfo of serviceDeployments) {
       try {
-        await startService(serviceInfo, options);
+        const result = await startService(serviceInfo, options, isStructuredOutput);
+        serviceResults.push(result);
+        
+        // Results are now collected for structured output
+        // Individual service functions handle their own immediate feedback
       } catch (error) {
-        printError(`Failed to start ${serviceInfo.name}: ${error}`);
-        allSucceeded = false;
-        // Continue with other services
+        // Create error result
+        const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const errorResult = createErrorResult(baseResult, error as Error);
+        
+        const startErrorResult: StartResult = {
+          ...errorResult,
+          startTime: new Date(),
+          resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+          status: 'failed',
+          metadata: { error: (error as Error).message },
+        };
+        
+        serviceResults.push(startErrorResult);
+        
+        if (!isStructuredOutput && options.output === 'summary') {
+          printError(`Failed to start ${serviceInfo.name}: ${error}`);
+        }
       }
     }
     
-    if (allSucceeded) {
-      printSuccess('All services started successfully');
-    } else {
-      printWarning('Some services failed to start - check logs above');
+    // Create aggregated results
+    const commandResults: CommandResults = {
+      command: 'start',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: serviceResults,
+      summary: {
+        total: serviceResults.length,
+        succeeded: serviceResults.filter(r => r.success).length,
+        failed: serviceResults.filter(r => !r.success).length,
+        warnings: serviceResults.filter(r => r.status.includes('not-implemented')).length,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      }
+    };
+    
+    return commandResults;
+    
+  } catch (error) {
+    if (!isStructuredOutput) {
+      printError(`Failed to start services: ${error}`);
+    }
+    
+    return {
+      command: 'start',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: [],
+      summary: {
+        total: 0,
+        succeeded: 0,
+        failed: 1,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      },
+    };
+  }
+}
+
+// =====================================================================
+// MAIN EXECUTION
+// =====================================================================
+
+async function main(): Promise<void> {
+  const options = parseArguments();
+  
+  try {
+    const results = await start(options);
+    
+    // Handle structured output
+    if (options.output !== 'summary') {
+      const { formatResults } = await import('../lib/output-formatter.js');
+      const formatted = formatResults(results, options.output);
+      console.log(formatted);
+      return;
+    }
+    
+    // For summary format, use OutputFormatter
+    const output = OutputFormatter.format(results, {
+      format: options.output,
+      quiet: options.quiet,
+      verbose: options.verbose,
+      colors: true
+    });
+    
+    console.log(output);
+    
+    // Exit with appropriate code
+    if (results.summary.failed > 0) {
       process.exit(1);
     }
+    
   } catch (error) {
-    printError(`Failed to start services: ${error}`);
+    printError(`Start failed: ${error}`);
     process.exit(1);
   }
 }
 
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    printError(`Unexpected error: ${error}`);
-    process.exit(1);
-  });
-}
+// Command file - no direct execution needed
 
 export { main, StartOptions, StartOptionsSchema };

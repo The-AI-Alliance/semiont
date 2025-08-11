@@ -9,18 +9,16 @@
 
 import arg from 'arg';
 import { z } from 'zod';
-import { spawn } from 'child_process';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
+import { getAvailableEnvironments, isValidEnvironment } from './lib/deployment-resolver.js';
+import { CommandResults } from './lib/command-results.js';
 // Service enums are now validated at runtime for flexibility
 
-// Get directory paths (ES modules compatible)
+// Get version from package.json
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SCRIPTS_DIR = __dirname; // We're already in packages/scripts/dist
-
-// Get version from package.json
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
 let VERSION = 'unknown';
 try {
@@ -39,13 +37,17 @@ import { colors } from './lib/cli-colors.js';
 
 // Common arguments available to ALL commands
 const CommonArgsSchema = z.object({
-  '--environment': z.enum(['local', 'development', 'staging', 'production']).optional(),
+  '--environment': z.string().optional(),
+  '--output': z.enum(['summary', 'table', 'json', 'yaml']).optional(),
+  '--quiet': z.boolean().optional(),
   '--verbose': z.boolean().optional(),
   '--dry-run': z.boolean().optional(),
   '--help': z.boolean().optional(),
   
   // Aliases
   '-e': z.literal('--environment').optional(),
+  '-o': z.literal('--output').optional(),
+  '-q': z.literal('--quiet').optional(),
   '-v': z.literal('--verbose').optional(),
   '-h': z.literal('--help').optional(),
 });
@@ -101,6 +103,7 @@ const BackupArgsSchema = CommonArgsSchema.extend({
 });
 
 const CheckArgsSchema = CommonArgsSchema.extend({
+  '--service': z.string().optional(),
   '--section': z.enum(['all', 'services', 'health', 'logs']).optional(),
   '-s': z.literal('--section').optional(),
 });
@@ -117,7 +120,6 @@ const PublishArgsSchema = CommonArgsSchema.extend({
 interface CommandDefinition {
   description: string;
   schema: z.ZodType<any>;
-  handler: string;
   examples?: string[];
   requiresEnvironment?: boolean;
 }
@@ -134,7 +136,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
       '--seed': z.boolean().optional(),
       '-f': z.literal('--force').optional(),
     }),
-    handler: 'commands/provision.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont provision -e local --seed',
@@ -146,7 +147,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   configure: {
     description: 'Manage configuration and secrets',
     schema: ConfigureArgsSchema,
-    handler: 'commands/configure.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont configure -e local show',
@@ -159,7 +159,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   publish: {
     description: 'Build and push container images (for containerized services)',
     schema: PublishArgsSchema,
-    handler: 'commands/publish.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont publish -e staging --service frontend',
@@ -171,7 +170,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   start: {
     description: 'Start services in any environment',
     schema: StartArgsSchema,
-    handler: 'commands/start.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont start --environment local',
@@ -182,7 +180,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   check: {
     description: 'Check system health and status',
     schema: CheckArgsSchema,
-    handler: 'commands/check.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont check -e local',
@@ -193,7 +190,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   watch: {
     description: 'Monitor logs and system metrics',
     schema: WatchArgsSchema,
-    handler: 'commands/watch.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont watch -e local',
@@ -206,7 +202,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
     schema: TestArgsSchema.extend({
       '--timeout': z.number().int().positive().optional(),
     }),
-    handler: 'commands/test.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont test -e local --suite integration',
@@ -217,7 +212,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   update: {
     description: 'Update running services with pre-built images',
     schema: UpdateArgsSchema,
-    handler: 'commands/update.mjs',
     requiresEnvironment: true, // This command REQUIRES --environment
     examples: [
       'semiont update -e staging',
@@ -234,7 +228,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
       '-s': z.literal('--service').optional(),
       '-f': z.literal('--force').optional(),
     }),
-    handler: 'commands/restart.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont restart --environment local',
@@ -250,7 +243,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
       '-s': z.literal('--service').optional(),
       '-f': z.literal('--force').optional(),
     }),
-    handler: 'commands/stop.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont stop --environment local',
@@ -261,7 +253,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   exec: {
     description: 'Execute commands in cloud containers',
     schema: ExecArgsSchema,
-    handler: 'commands/exec.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont exec -e production',
@@ -272,7 +263,6 @@ const COMMANDS: Record<string, CommandDefinition> = {
   backup: {
     description: 'Create database backups',
     schema: BackupArgsSchema,
-    handler: 'commands/backup.mjs',
     requiresEnvironment: true,
     examples: [
       'semiont backup -e production',
@@ -319,7 +309,9 @@ ${colors.bright}Usage:${colors.reset}
   semiont <command> [options]
 
 ${colors.bright}Common Options:${colors.reset}
-  -e, --environment <env>  Environment (local, development, staging, production)
+  -e, --environment <env>  Environment (${getAvailableEnvironments().join(', ') || 'none found'})
+  -o, --output <format>   Output format (summary, table, json, yaml) [default: summary]
+  -q, --quiet            Suppress output except errors
   -v, --verbose           Verbose output
   --dry-run              Preview changes without applying
   -h, --help             Show help
@@ -370,10 +362,14 @@ async function parseArguments(
       {
         // Common arguments
         '--environment': String,
+        '--output': String,
+        '--quiet': Boolean,
         '--verbose': Boolean,
         '--dry-run': Boolean,
         '--help': Boolean,
         '-e': '--environment',
+        '-o': '--output',
+        '-q': '--quiet',
         '-v': '--verbose',
         '-h': '--help',
         
@@ -404,6 +400,7 @@ async function parseArguments(
         } : {}),
         
         ...(command === 'check' ? {
+          '--service': String,
           '--section': String,
           '-s': '--section',
         } : {}),
@@ -473,9 +470,23 @@ async function parseArguments(
     // Validate with Zod schema
     const validated = commandDef.schema.parse(rawArgs);
     
+    // Validate environment dynamically against filesystem
+    if (validated['--environment']) {
+      const availableEnvironments = getAvailableEnvironments();
+      if (!isValidEnvironment(validated['--environment'])) {
+        if (availableEnvironments.length === 0) {
+          throw new Error(`No environment configurations found. Create files in config/environments/`);
+        } else {
+          throw new Error(`Unknown environment '${validated['--environment']}'. Available: ${availableEnvironments.join(', ')}`);
+        }
+      }
+    }
+    
     // Check required environment
     if (commandDef.requiresEnvironment && !validated['--environment']) {
-      throw new Error(`--environment is required for '${command}' command`);
+      const availableEnvironments = getAvailableEnvironments();
+      const envList = availableEnvironments.length > 0 ? availableEnvironments.join(', ') : 'none found';
+      throw new Error(`--environment is required for '${command}' command. Available: ${envList}`);
     }
     
     return validated;
@@ -499,6 +510,7 @@ async function ensureBuilt(): Promise<void> {
   return;
 }
 
+// Unified command dispatcher - handles all commands with single execution path
 async function executeCommand(
   command: CommandName,
   args: Record<string, any>
@@ -507,41 +519,121 @@ async function executeCommand(
   if (!commandDef) {
     throw new Error(`Command not found: ${command}`);
   }
-  const handlerPath = path.join(SCRIPTS_DIR, commandDef.handler);
   
-  // Convert arguments to command line format
-  const cliArgs: string[] = [];
+  try {
+    // Format and output results based on requested format
+    const outputFormat = args['--output'] || 'table';
   
-  // Environment is often positional for legacy scripts
-  if (args['--environment']) {
-    cliArgs.push(args['--environment']);
-  }
-  
-  // Add other arguments
-  for (const [key, value] of Object.entries(args)) {
-    if (key.startsWith('--') && key !== '--environment' && value !== undefined) {
-      if (typeof value === 'boolean') {
-        if (value) cliArgs.push(key);
-      } else {
-        cliArgs.push(key, String(value));
+  if (['json', 'yaml', 'table'].includes(outputFormat)) {
+    // Structured output path
+    let results: CommandResults;
+    
+    switch (command) {
+      case 'check': {
+        const { check } = await import('./commands/check.js');
+        const checkOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          section: args['--section'] || 'all',
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await check(checkOptions);
+        break;
       }
+      
+      case 'start': {
+        const { start } = await import('./commands/start.js');
+        const startOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          output: outputFormat,
+          quiet: args['--quiet'] || false,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false
+        };
+        results = await start(startOptions);
+        break;
+      }
+      
+      case 'stop': {
+        const { stop } = await import('./commands/stop.js');
+        const stopOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          output: outputFormat,
+          force: args['--force'] || false,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false
+        };
+        results = await stop(stopOptions);
+        break;
+      }
+      
+      case 'restart': {
+        const { restart } = await import('./commands/restart.js');
+        const restartOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          output: outputFormat,
+          force: args['--force'] || false,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          gracePeriod: args['--grace-period'] || 3
+        };
+        results = await restart(restartOptions);
+        break;
+      }
+      
+      default:
+        throw new Error(`Command '${command}' is not yet implemented`);
     }
+    
+    // Format and output structured results
+    const { formatResults } = await import('./lib/output-formatter.js');
+    const formatted = formatResults(results, outputFormat);
+    console.log(formatted);
+    
+    // Exit with appropriate code for structured output
+    if (results.summary && results.summary.failed > 0) {
+      process.exit(1);
+    }
+    
+  } else if (outputFormat === 'summary') {
+    // Traditional summary output path - use main() functions
+    switch (command) {
+      case 'check': {
+        const { main } = await import('./commands/check.js');
+        await main();
+        return; // main() handles exit codes
+      }
+      case 'start': {
+        const { main } = await import('./commands/start.js');
+        await main();
+        return; // main() handles exit codes
+      }
+      case 'stop': {
+        const { main } = await import('./commands/stop.js');
+        await main();
+        return; // main() handles exit codes
+      }
+      case 'restart': {
+        const { main } = await import('./commands/restart.js');
+        await main();
+        return; // main() handles exit codes
+      }
+      default:
+        throw new Error(`Command '${command}' is not yet implemented`);
+    }
+  } else {
+    throw new Error(`Unknown output format: ${outputFormat}`);
   }
   
-  // Execute the command
-  const proc = spawn('node', [handlerPath, ...cliArgs], {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      SEMIONT_ENV: args['--environment'] || process.env.SEMIONT_ENV || 'local',
-      SEMIONT_VERBOSE: args['--verbose'] ? '1' : '0',
-      SEMIONT_DRY_RUN: args['--dry-run'] ? '1' : '0',
-    },
-  });
-  
-  proc.on('exit', (code) => {
-    process.exit(code || 0);
-  });
+} catch (error) {
+  printError(`Command failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
 }
 
 // =====================================================================

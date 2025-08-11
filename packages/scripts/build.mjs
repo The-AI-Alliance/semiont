@@ -67,12 +67,3 @@ await Promise.all(scriptFiles.map(async (name) => {
 }))
 
 console.log(`🎉 All commands bundled successfully!`)
-
-// Make cli.mjs executable for npm bin
-import { chmod } from 'fs/promises'
-try {
-  await chmod('dist/cli.mjs', 0o755)
-  console.log('✅ Made cli.mjs executable')
-} catch (error) {
-  console.warn('⚠️  Could not make cli.mjs executable:', error.message)
-}

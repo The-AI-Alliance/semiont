@@ -14,6 +14,13 @@ import { resolveServiceSelector, validateServiceSelector } from '../lib/services
 import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
+import { 
+  RestartResult, 
+  CommandResults, 
+  createBaseResult, 
+  createErrorResult,
+  ResourceIdentifier 
+} from '../lib/command-results.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -26,6 +33,7 @@ const RestartOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   gracePeriod: z.number().int().positive().default(3), // seconds to wait between stop and start
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
 type RestartOptions = z.infer<typeof RestartOptionsSchema>;
@@ -62,9 +70,10 @@ function printDebug(message: string, options: RestartOptions): void {
 
 function parseArguments(): RestartOptions {
   const rawOptions: any = {
-    environment: process.env.SEMIONT_ENV || process.argv[2],
+    environment: process.env.SEMIONT_ENV,
     verbose: process.env.SEMIONT_VERBOSE === '1',
     dryRun: process.env.SEMIONT_DRY_RUN === '1',
+    output: process.env.SEMIONT_OUTPUT || 'summary',
   };
   
   // Parse command-line arguments
@@ -72,9 +81,17 @@ function parseArguments(): RestartOptions {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
+      case '--environment':
+      case '-e':
+        rawOptions.environment = args[++i];
+        break;
       case '--service':
       case '-s':
         rawOptions.service = args[++i];
+        break;
+      case '--output':
+      case '-o':
+        rawOptions.output = args[++i];
         break;
       case '--force':
       case '-f':
@@ -112,57 +129,165 @@ function parseArguments(): RestartOptions {
 // DEPLOYMENT-TYPE-AWARE RESTART FUNCTIONS
 // =====================================================================
 
-async function restartService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions): Promise<void> {
+async function restartService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, isStructuredOutput: boolean = false): Promise<RestartResult> {
+  const startTime = Date.now();
+  const stopTime = new Date();
+  
   if (options.dryRun) {
-    printInfo(`[DRY RUN] Would restart ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    return;
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`[DRY RUN] Would restart ${serviceInfo.name} (${serviceInfo.deploymentType})`);
+    }
+    
+    return {
+      ...createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      stopTime,
+      startTime: new Date(Date.now() + options.gracePeriod * 1000),
+      downtime: options.gracePeriod * 1000,
+      gracefulRestart: true,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'dry-run',
+      metadata: { dryRun: true, gracePeriod: options.gracePeriod },
+    };
   }
   
-  printInfo(`Restarting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Restarting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  }
   
-  switch (serviceInfo.deploymentType) {
-    case 'aws':
-      await restartAWSService(serviceInfo, options);
-      break;
-    case 'container':
-      await restartContainerService(serviceInfo, options);
-      break;
-    case 'process':
-      await restartProcessService(serviceInfo, options);
-      break;
-    case 'external':
-      await restartExternalService(serviceInfo, options);
-      break;
-    default:
-      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+  try {
+    switch (serviceInfo.deploymentType) {
+      case 'aws':
+        return await restartAWSService(serviceInfo, options, startTime, isStructuredOutput);
+      case 'container':
+        return await restartContainerService(serviceInfo, options, startTime, isStructuredOutput);
+      case 'process':
+        return await restartProcessService(serviceInfo, options, startTime, isStructuredOutput);
+      case 'external':
+        return await restartExternalService(serviceInfo, options, startTime, isStructuredOutput);
+      default:
+        throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+    }
+  } catch (error) {
+    const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const errorResult = createErrorResult(baseResult, error as Error);
+    
+    return {
+      ...errorResult,
+      stopTime,
+      startTime: stopTime,
+      downtime: 0,
+      gracefulRestart: false,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'failed',
+      metadata: { error: (error as Error).message },
+    };
   }
 }
 
-async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions): Promise<void> {
+async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<RestartResult> {
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const stopTime = new Date();
+  
   // AWS ECS task restart
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      printInfo(`Restarting ECS tasks for ${serviceInfo.name}`);
-      printWarning('ECS task restart not yet implemented - use AWS Console');
-      break;
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Restarting ECS tasks for ${serviceInfo.name}`);
+        printWarning('ECS task restart not yet implemented - use AWS Console');
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: new Date(Date.now() + options.gracePeriod * 1000),
+        downtime: options.gracePeriod * 1000,
+        gracefulRestart: true,
+        resourceId: {
+          aws: {
+            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
+            id: `semiont-${options.environment}-${serviceInfo.name}`,
+            name: `semiont-${options.environment}-${serviceInfo.name}`
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          serviceName: `semiont-${options.environment}-${serviceInfo.name}`,
+          cluster: `semiont-${options.environment}`,
+          implementation: 'pending',
+          gracePeriod: options.gracePeriod
+        },
+      };
+      
     case 'database':
-      printInfo(`Restarting RDS instance for ${serviceInfo.name}`);
-      printWarning('RDS instance restart not yet implemented - use AWS Console');
-      break;
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Restarting RDS instance for ${serviceInfo.name}`);
+        printWarning('RDS instance restart not yet implemented - use AWS Console');
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: new Date(Date.now() + options.gracePeriod * 1000),
+        downtime: options.gracePeriod * 1000,
+        gracefulRestart: true,
+        resourceId: {
+          aws: {
+            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
+            id: `semiont-${options.environment}-db`,
+            name: `semiont-${options.environment}-database`
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          instanceIdentifier: `semiont-${options.environment}-db`,
+          implementation: 'pending',
+          gracePeriod: options.gracePeriod
+        },
+      };
+      
     case 'filesystem':
-      printInfo(`Remounting EFS volumes for ${serviceInfo.name}`);
-      printWarning('EFS remount not yet implemented');
-      break;
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Remounting EFS volumes for ${serviceInfo.name}`);
+        printWarning('EFS remount not yet implemented');
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: new Date(Date.now() + options.gracePeriod * 1000),
+        downtime: options.gracePeriod * 1000,
+        gracefulRestart: true,
+        resourceId: {
+          aws: {
+            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
+            id: `fs-semiont${options.environment}`,
+            name: `semiont-${options.environment}-efs`
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          fileSystemId: `fs-semiont${options.environment}`,
+          implementation: 'pending',
+          gracePeriod: options.gracePeriod
+        },
+      };
+      
+    default:
+      throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
   }
 }
 
-async function restartContainerService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions): Promise<void> {
+async function restartContainerService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<RestartResult> {
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  const stopTime = new Date();
   
   try {
     // Stop the container
-    printInfo(`Stopping container: ${containerName}`);
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Stopping container: ${containerName}`);
+    }
     const stopSuccess = await stopContainer(containerName, {
       force: options.force,
       verbose: options.verbose,
@@ -180,8 +305,11 @@ async function restartContainerService(serviceInfo: ServiceDeploymentInfo, optio
     }
     
     // Start the container again
-    printInfo(`Starting container: ${containerName}`);
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Starting container: ${containerName}`);
+    }
     let startSuccess = false;
+    const actualStartTime = new Date();
     
     switch (serviceInfo.name) {
       case 'database':
@@ -210,32 +338,105 @@ async function restartContainerService(serviceInfo: ServiceDeploymentInfo, optio
         
       case 'filesystem':
         // Volumes don't need restarting
-        printInfo(`Container volumes don't require restart`);
+        if (!isStructuredOutput && options.output === 'summary') {
+          printInfo(`Container volumes don't require restart`);
+        }
         startSuccess = true;
         break;
     }
     
     if (startSuccess) {
-      printSuccess(`Container restarted: ${containerName}`);
+      if (!isStructuredOutput && options.output === 'summary') {
+        printSuccess(`Container restarted: ${containerName}`);
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: actualStartTime,
+        downtime: actualStartTime.getTime() - stopTime.getTime(),
+        gracefulRestart: !options.force,
+        resourceId: {
+          container: {
+            id: containerName,
+            name: containerName
+          }
+        },
+        status: 'restarted',
+        metadata: {
+          containerName,
+          image: serviceInfo.name === 'database' ? 
+            (serviceInfo.config.image || 'postgres:15-alpine') : 
+            (serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`),
+          gracePeriod: options.gracePeriod,
+          forced: options.force
+        },
+      };
     } else {
       throw new Error(`Failed to restart container: ${containerName}`);
     }
   } catch (error) {
     if (options.force) {
-      printWarning(`Failed to restart ${serviceInfo.name} container: ${error}`);
+      if (!isStructuredOutput && options.output === 'summary') {
+        printWarning(`Failed to restart ${serviceInfo.name} container: ${error}`);
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: new Date(),
+        downtime: 0,
+        gracefulRestart: false,
+        resourceId: {
+          container: {
+            id: containerName,
+            name: containerName
+          }
+        },
+        status: 'force-continued',
+        metadata: {
+          containerName,
+          error: (error as Error).message,
+          forced: true
+        },
+      };
     } else {
       throw error;
     }
   }
 }
 
-async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions): Promise<void> {
+async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<RestartResult> {
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const stopTime = new Date();
+  
   // Process deployment restart
   switch (serviceInfo.name) {
     case 'database':
-      printInfo(`Restarting PostgreSQL service for ${serviceInfo.name}`);
-      printWarning('Local PostgreSQL service restart not yet implemented');
-      break;
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Restarting PostgreSQL service for ${serviceInfo.name}`);
+        printWarning('Local PostgreSQL service restart not yet implemented');
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: new Date(Date.now() + options.gracePeriod * 1000),
+        downtime: options.gracePeriod * 1000,
+        gracefulRestart: true,
+        resourceId: {
+          process: {
+            path: '/usr/local/var/postgres',
+            port: 5432
+          }
+        },
+        status: 'not-implemented',
+        metadata: {
+          implementation: 'pending',
+          service: 'postgresql',
+          gracePeriod: options.gracePeriod
+        },
+      };
       
     case 'frontend':
     case 'backend':
@@ -243,8 +444,10 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
       const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
       
       // Find and kill existing process
-      printInfo(`Stopping process on port ${port}`);
-      await findAndKillProcess(`:${port}`, serviceInfo.name, options);
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Stopping process on port ${port}`);
+      }
+      await findAndKillProcess(`:${port}`, serviceInfo.name, options, isStructuredOutput);
       
       // Wait for grace period
       if (options.gracePeriod > 0) {
@@ -253,7 +456,10 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
       }
       
       // Start new process
-      printInfo(`Starting new process for ${serviceInfo.name}`);
+      const actualStartTime = new Date();
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Starting new process for ${serviceInfo.name}`);
+      }
       const command = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const proc = spawn(command[0], command.slice(1), {
         cwd: `apps/${serviceInfo.name}`,
@@ -266,44 +472,159 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
       });
       
       proc.unref();
-      printSuccess(`Process restarted on port ${port}`);
-      break;
+      if (!isStructuredOutput && options.output === 'summary') {
+        printSuccess(`Process restarted on port ${port}`);
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: actualStartTime,
+        downtime: actualStartTime.getTime() - stopTime.getTime(),
+        gracefulRestart: !options.force,
+        resourceId: {
+          process: {
+            pid: proc.pid || 0,
+            port: port,
+            path: `apps/${serviceInfo.name}`
+          }
+        },
+        status: 'restarted',
+        metadata: {
+          command: command.join(' '),
+          port,
+          workingDirectory: `apps/${serviceInfo.name}`,
+          gracePeriod: options.gracePeriod
+        },
+      };
       
     case 'filesystem':
-      printInfo(`No process to restart for filesystem service`);
-      printSuccess(`Filesystem service ${serviceInfo.name} unchanged`);
-      break;
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`No process to restart for filesystem service`);
+        printSuccess(`Filesystem service ${serviceInfo.name} unchanged`);
+      }
+      
+      return {
+        ...baseResult,
+        stopTime,
+        startTime: stopTime, // No restart needed
+        downtime: 0,
+        gracefulRestart: true,
+        resourceId: {
+          process: {
+            path: serviceInfo.config.path || '/tmp/filesystem'
+          }
+        },
+        status: 'no-action-needed',
+        metadata: {
+          reason: 'No process to restart for filesystem service'
+        },
+      };
+      
+    default:
+      throw new Error(`Unsupported process service: ${serviceInfo.name}`);
   }
 }
 
-async function restartExternalService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions): Promise<void> {
+async function restartExternalService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<RestartResult> {
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const stopTime = new Date();
+  
   // External service - can't actually restart, just verify
-  printInfo(`Cannot restart external ${serviceInfo.name} service`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Cannot restart external ${serviceInfo.name} service`);
+  }
   
   switch (serviceInfo.name) {
     case 'database':
       if (serviceInfo.config.host) {
-        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
-        printWarning('External database connectivity check not yet implemented');
+        if (!isStructuredOutput && options.output === 'summary') {
+          printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
+          printWarning('External database connectivity check not yet implemented');
+        }
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: stopTime, // No restart needed
+          downtime: 0,
+          gracefulRestart: true,
+          resourceId: {
+            external: {
+              endpoint: `${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`
+            }
+          },
+          status: 'external',
+          metadata: {
+            host: serviceInfo.config.host,
+            port: serviceInfo.config.port || 5432,
+            reason: 'External services cannot be restarted remotely'
+          },
+        };
       }
       break;
+      
     case 'filesystem':
       if (serviceInfo.config.path) {
-        printInfo(`External storage: ${serviceInfo.config.path}`);
-        printWarning('External storage validation not yet implemented');
+        if (!isStructuredOutput && options.output === 'summary') {
+          printInfo(`External storage: ${serviceInfo.config.path}`);
+          printWarning('External storage validation not yet implemented');
+        }
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: stopTime, // No restart needed
+          downtime: 0,
+          gracefulRestart: true,
+          resourceId: {
+            external: {
+              path: serviceInfo.config.path
+            }
+          },
+          status: 'external',
+          metadata: {
+            path: serviceInfo.config.path,
+            reason: 'External storage cannot be restarted remotely'
+          },
+        };
       }
       break;
+      
     default:
-      printInfo(`External ${serviceInfo.name} service`);
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`External ${serviceInfo.name} service`);
+      }
   }
   
-  printSuccess(`External ${serviceInfo.name} service verified`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printSuccess(`External ${serviceInfo.name} service verified`);
+  }
+  
+  return {
+    ...baseResult,
+    stopTime,
+    startTime: stopTime, // No restart needed
+    downtime: 0,
+    gracefulRestart: true,
+    resourceId: {
+      external: {
+        endpoint: 'external-service'
+      }
+    },
+    status: 'external',
+    metadata: {
+      reason: 'External services cannot be restarted remotely'
+    },
+  };
 }
 
-async function findAndKillProcess(pattern: string, name: string, options: RestartOptions): Promise<void> {
+async function findAndKillProcess(pattern: string, name: string, options: RestartOptions, isStructuredOutput: boolean = false): Promise<boolean> {
   if (options.dryRun) {
-    printInfo(`[DRY RUN] Would stop ${name}`);
-    return;
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`[DRY RUN] Would stop ${name}`);
+    }
+    return true;
   }
   
   try {
@@ -332,26 +653,32 @@ async function findAndKillProcess(pattern: string, name: string, options: Restar
         }
       }
       printDebug(`Stopped ${name} process(es)`, options);
+      return true;
     } else {
       printDebug(`${name} not running`, options);
+      return false;
     }
   } catch (error) {
     if (!options.force) {
       throw error;
     }
+    return false;
   }
 }
 
 // =====================================================================
-// MAIN EXECUTION
+// STRUCTURED OUTPUT FUNCTION  
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
+export async function restart(options: RestartOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
-  printInfo(`Restarting services in ${colors.bright}${options.environment}${colors.reset} environment`);
+  if (!isStructuredOutput && options.output === 'summary') {
+    printInfo(`Restarting services in ${colors.bright}${options.environment}${colors.reset} environment`);
+  }
   
-  if (options.verbose) {
+  if (options.verbose && !isStructuredOutput && options.output === 'summary') {
     printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
   }
   
@@ -363,23 +690,113 @@ async function main(): Promise<void> {
     // Get deployment information for all resolved services
     const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
-    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    }
     
-    // Restart services (can be done in parallel for different services)
-    let allSucceeded = true;
+    // Restart services and collect results
+    const serviceResults: RestartResult[] = [];
+    
     for (const serviceInfo of serviceDeployments) {
       try {
-        await restartService(serviceInfo, options);
+        const result = await restartService(serviceInfo, options, isStructuredOutput);
+        serviceResults.push(result);
       } catch (error) {
-        printError(`Failed to restart ${serviceInfo.name}: ${error}`);
-        allSucceeded = false;
+        // Create error result
+        const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const errorResult = createErrorResult(baseResult, error as Error);
+        
+        const restartErrorResult: RestartResult = {
+          ...errorResult,
+          stopTime: new Date(),
+          startTime: new Date(),
+          downtime: 0,
+          gracefulRestart: false,
+          resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+          status: 'failed',
+          metadata: { error: (error as Error).message },
+        };
+        
+        serviceResults.push(restartErrorResult);
+        
+        if (!isStructuredOutput && options.output === 'summary') {
+          printError(`Failed to restart ${serviceInfo.name}: ${error}`);
+        }
+        
         if (!options.force) {
           break; // Stop on first error unless --force
         }
       }
     }
     
-    if (allSucceeded) {
+    // Create aggregated results
+    const commandResults: CommandResults = {
+      command: 'restart',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: serviceResults,
+      summary: {
+        total: serviceResults.length,
+        succeeded: serviceResults.filter(r => r.success).length,
+        failed: serviceResults.filter(r => !r.success).length,
+        warnings: serviceResults.filter(r => r.status.includes('not-implemented')).length,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      }
+    };
+    
+    return commandResults;
+    
+  } catch (error) {
+    if (!isStructuredOutput) {
+      printError(`Failed to restart services: ${error}`);
+    }
+    
+    return {
+      command: 'restart',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: [],
+      summary: {
+        total: 0,
+        succeeded: 0,
+        failed: 1,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      },
+    };
+  }
+}
+
+// =====================================================================
+// MAIN EXECUTION
+// =====================================================================
+
+async function main(): Promise<void> {
+  const options = parseArguments();
+  
+  try {
+    const results = await restart(options);
+    
+    // Handle structured output
+    if (options.output !== 'summary') {
+      const { formatResults } = await import('../lib/output-formatter.js');
+      const formatted = formatResults(results, options.output);
+      console.log(formatted);
+      return;
+    }
+    
+    // For summary format, show traditional output with final status
+    if (results.summary.succeeded === results.summary.total) {
       printSuccess('All services restarted successfully');
     } else {
       printWarning('Some services failed to restart - check logs above');
@@ -388,18 +805,18 @@ async function main(): Promise<void> {
       }
       process.exit(1);
     }
+    
+    // Exit with appropriate code
+    if (results.summary.failed > 0) {
+      process.exit(1);
+    }
+    
   } catch (error) {
-    printError(`Failed to restart services: ${error}`);
+    printError(`Restart failed: ${error}`);
     process.exit(1);
   }
 }
 
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    printError(`Unexpected error: ${error}`);
-    process.exit(1);
-  });
-}
+// Command file - no direct execution needed
 
 export { main, RestartOptions, RestartOptionsSchema };

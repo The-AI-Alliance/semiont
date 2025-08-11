@@ -8,10 +8,11 @@
   },
   "scripts": {
     "build": "node build.mjs",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
-    "@semiont/config-loader": "*",
     "@semiont/api-types": "*",
     "@semiont/cloud": "*",
     "arg": "^5.0.2",

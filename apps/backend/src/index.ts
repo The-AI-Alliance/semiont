@@ -5,7 +5,7 @@ import { prisma } from './db';
 import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
-import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 
 // Load configuration - environment name must be set by semiont CLI via SEMIONT_ENV
 const environmentName = process.env.SEMIONT_ENV;

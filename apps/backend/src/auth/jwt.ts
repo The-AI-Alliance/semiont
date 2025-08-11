@@ -1,5 +1,5 @@
 import * as jwt from 'jsonwebtoken';
-import { loadEnvironmentConfig } from '@semiont/config-loader';
+import { loadEnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 import { JWTPayloadSchema, validateData } from '../validation/schemas';
 import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
 

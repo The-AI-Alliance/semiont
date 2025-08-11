@@ -54,6 +54,12 @@
       "port": 5432,
       "name": "semiont_local",
       "user": "postgres"
+    },
+    "filesystem": {
+      "deployment": {
+        "type": "container"
+      },
+      "path": "/data"
     }
   },
   "_note": "No AWS configuration - local environment uses Docker containers only"

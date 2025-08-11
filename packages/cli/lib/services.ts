@@ -6,7 +6,33 @@
  */
 
 import * as path from 'path';
-import { getProjectRoot } from './cli-paths.js';
+import * as fs from 'fs';
+
+// Walk up from current directory to find project root
+function findProjectRoot(): string {
+  // Common project markers - look for any of these
+  const projectMarkers = ['package.json', '.git', 'config/environments'];
+  
+  let currentDir = process.cwd();
+  while (currentDir !== '/' && currentDir) {
+    for (const marker of projectMarkers) {
+      if (fs.existsSync(path.join(currentDir, marker))) {
+        // For config/environments specifically, this is definitely the right directory
+        if (marker === 'config/environments') {
+          return currentDir;
+        }
+        // For package.json and .git, check if config/environments also exists
+        if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
+          return currentDir;
+        }
+      }
+    }
+    currentDir = path.dirname(currentDir);
+  }
+  
+  // Fallback to current directory if not found
+  return process.cwd();
+}
 
 // Built-in services that are always available
 export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;
@@ -27,19 +53,41 @@ async function loadEnvironmentServices(environment: string): Promise<string[]> {
   }
 
   try {
-    const PROJECT_ROOT = getProjectRoot(import.meta.url);
+    const PROJECT_ROOT = findProjectRoot();
     const configPath = path.join(PROJECT_ROOT, 'config', 'environments', `${environment}.json`);
     
-    // Dynamic import with type assertion since we can't use import assertions in compiled code
-    const configModule = await import(configPath);
-    const config = configModule.default || configModule;
+    if (!fs.existsSync(configPath)) {
+      console.warn(`❌ Environment configuration missing: ${configPath}`);
+      console.warn(`   To fix: Create the configuration file with service definitions`);
+      console.warn(`   You can copy from another environment or use: semiont configure --environment ${environment}`);
+      console.warn(`   Using built-in services only: ${BUILT_IN_SERVICES.join(', ')}`);
+      console.warn('');
+      return [...BUILT_IN_SERVICES];
+    }
+    
+    const jsonContent = fs.readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(jsonContent);
     
     const services = config.services ? Object.keys(config.services) : [];
     environmentServicesCache.set(environment, services);
     return services;
   } catch (error) {
     // If we can't load the environment config, return built-in services
-    console.warn(`Warning: Could not load services from environment '${environment}', using built-in services only`);
+    const PROJECT_ROOT = findProjectRoot();
+    const configPath = path.join(PROJECT_ROOT, 'config', 'environments', `${environment}.json`);
+    
+    console.warn(`❌ Failed to load environment configuration for '${environment}'`);
+    console.warn(`   Config file: ${configPath}`);
+    if (error instanceof Error) {
+      if (error.message.includes('JSON')) {
+        console.warn(`   Error: Invalid JSON syntax in configuration file`);
+        console.warn(`   Tip: Check for missing commas, quotes, or brackets`);
+      } else {
+        console.warn(`   Error: ${error.message}`);
+      }
+    }
+    console.warn(`   Using built-in services only: ${BUILT_IN_SERVICES.join(', ')}`);
+    console.warn('');
     return [...BUILT_IN_SERVICES];
   }
 }
@@ -73,7 +121,7 @@ export async function isValidService(service: string, environment?: string): Pro
  * Get services that support a specific capability
  */
 export async function getServicesWithCapability(
-  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup',
+  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check',
   environment?: string
 ): Promise<string[]> {
   const allServices = await getAvailableServices(environment);
@@ -97,6 +145,7 @@ export async function getServicesWithCapability(
     case 'stop':
     case 'restart':
     case 'test':
+    case 'check':
       // All services support these capabilities
       return allServices;
     
@@ -110,7 +159,7 @@ export async function getServicesWithCapability(
  */
 export async function resolveServiceSelector(
   selector: ServiceSelector,
-  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup',
+  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check',
   environment?: string
 ): Promise<string[]> {
   if (selector === 'all') {
@@ -128,7 +177,16 @@ export async function resolveServiceSelector(
     }
   } else {
     const availableServices = await getAvailableServices(environment);
-    throw new Error(`Unknown service '${selector}'. Available services: ${availableServices.join(', ')}`);
+    const configPath = path.join(findProjectRoot(), 'config', 'environments', `${environment || 'default'}.json`);
+    
+    const errorMessage = [
+      `❌ Unknown service '${selector}' in environment '${environment}'`,
+      `   Available services: ${availableServices.join(', ')}`,
+      `   To fix: Add '${selector}' service to ${configPath}`,
+      `   Or choose from available services: ${availableServices.join(', ')}`
+    ].join('\n');
+    
+    throw new Error(errorMessage);
   }
 }
 
@@ -136,7 +194,7 @@ export async function resolveServiceSelector(
  * Create a Zod enum schema for services based on capability and environment
  * This is used for runtime validation but allows dynamic service discovery
  */
-export function createServiceEnum(capability?: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup') {
+export function createServiceEnum(capability?: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check') {
   // For static schema definition, we use the built-in services
   // Runtime validation will check against actual available services
   const baseServices = ['all', ...BUILT_IN_SERVICES];
@@ -155,7 +213,7 @@ export function createServiceEnum(capability?: 'publish' | 'start' | 'stop' | 'r
  */
 export async function validateServiceSelector(
   selector: ServiceSelector,
-  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup',
+  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check',
   environment?: string
 ): Promise<void> {
   try {

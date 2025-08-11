@@ -15,10 +15,9 @@
 
 import { z } from 'zod';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
-import { SemiontStackConfig } from './lib/stack-config';
-import { loadEnvironmentConfig, displayConfiguration, ConfigurationError } from '@semiont/config-loader';
+import { SemiontStackConfig } from '../lib/stack-config.js';
+import { loadEnvironmentConfig, displayConfiguration, getAvailableEnvironments, ConfigurationError } from '../lib/deployment-resolver.js';
 import * as readline from 'readline';
-import { getAvailableEnvironments } from './lib/environment-discovery';
 
 // =====================================================================
 // ARGUMENT PARSING WITH ZOD

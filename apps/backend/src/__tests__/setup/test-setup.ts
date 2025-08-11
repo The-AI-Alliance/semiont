@@ -14,7 +14,7 @@ beforeAll(async () => {
   
   try {
     // Load environment configuration using the unified system
-    const { loadEnvironmentConfig } = await import('@semiont/config-loader');
+    const { loadEnvironmentConfig } = await import('@semiont/cli/lib/deployment-resolver.js');
     const config = loadEnvironmentConfig(testEnvironment);
     console.log(`📋 Loaded ${testEnvironment} test configuration`);
     

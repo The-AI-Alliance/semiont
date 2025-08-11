@@ -5,7 +5,8 @@
  * output formats while maintaining backward compatibility with human-readable output.
  */
 
-import { CommandResults, ServiceResult, AnyServiceResult } from './command-results.js';
+import { CommandResults } from './command-results.js';
+import { createStringTable } from './string-utils.js';
 
 export type OutputFormat = 'summary' | 'table' | 'json' | 'yaml';
 
@@ -17,13 +18,6 @@ export interface OutputOptions {
   colors?: boolean; // Whether to include color codes
 }
 
-export interface TableColumn {
-  header: string;
-  key: string;
-  width?: number;
-  align?: 'left' | 'right' | 'center';
-  format?: (value: any) => string;
-}
 
 export class OutputFormatter {
   private static readonly colors = {
@@ -161,85 +155,59 @@ export class OutputFormatter {
   }
 
   /**
-   * ASCII table format
+   * ASCII table format using custom ink table utility
    */
   private static formatTable(results: CommandResults, options: OutputOptions): string {
     if (results.services.length === 0) {
       return 'No services to display\n';
     }
 
-    const columns: TableColumn[] = [
-      { header: 'Service', key: 'service', width: 12 },
-      { header: 'Type', key: 'deploymentType', width: 10 },
-      { header: 'Status', key: 'status', width: 15 },
-      { header: 'Duration', key: 'duration', width: 10, format: (ms) => `${ms}ms` },
-    ];
-
+    // Determine columns to display
+    const columns = ['Service', 'Type', 'Status', 'Duration'];
+    
     // Add endpoint column if any service has an endpoint
     const hasEndpoints = results.services.some(s => (s as any).endpoint);
     if (hasEndpoints) {
-      columns.push({ header: 'Endpoint', key: 'endpoint', width: 25 });
+      columns.push('Endpoint');
     }
 
     // Add resource ID column in verbose mode
     if (options.verbose) {
-      columns.push({ header: 'Resource', key: 'resourceId', width: 20, format: (r) => this.formatResourceId(r) });
+      columns.push('Resource');
     }
 
-    return this.createTable(results.services, columns, options);
+    // Transform service data for table
+    const tableData = results.services.map(service => {
+      const row: Record<string, any> = {
+        Service: service.service,
+        Type: service.deploymentType,
+        Status: service.success ? '✅ ' + service.status : '❌ ' + service.status,
+        Duration: `${service.duration}ms`,
+      };
+
+      // Add endpoint if available
+      const startResult = service as any;
+      if (hasEndpoints && startResult.endpoint) {
+        row.Endpoint = startResult.endpoint;
+      } else if (hasEndpoints) {
+        row.Endpoint = '-';
+      }
+
+      // Add resource ID in verbose mode
+      if (options.verbose) {
+        row.Resource = this.formatResourceId(service.resourceId);
+      }
+
+      return row;
+    });
+
+    return createStringTable(tableData, columns, {
+      colors: options.colors !== false,
+      borders: true,
+      padding: 1
+    });
   }
 
-  /**
-   * Create ASCII table from data
-   */
-  private static createTable(data: ServiceResult[], columns: TableColumn[], options: OutputOptions): string {
-    const c = options.colors !== false ? this.colors : this.createNoColorMap();
-    
-    // Calculate column widths
-    const widths = columns.map(col => {
-      const dataWidth = Math.max(...data.map(row => {
-        const value = this.getNestedValue(row, col.key);
-        const formatted = col.format ? col.format(value) : String(value || '');
-        return formatted.length;
-      }));
-      return Math.max(col.width || 0, col.header.length, dataWidth);
-    });
-
-    let output = '';
-    
-    // Header
-    output += '┌' + widths.map(w => '─'.repeat(w + 2)).join('┬') + '┐\n';
-    output += '│';
-    columns.forEach((col, i) => {
-      const header = ` ${c.bright}${col.header}${c.reset} `;
-      const padding = widths[i] + 2 - col.header.length;
-      output += header + ' '.repeat(padding) + '│';
-    });
-    output += '\n';
-    
-    // Separator
-    output += '├' + widths.map(w => '─'.repeat(w + 2)).join('┼') + '┤\n';
-    
-    // Data rows
-    data.forEach((row, rowIndex) => {
-      output += '│';
-      columns.forEach((col, colIndex) => {
-        const value = this.getNestedValue(row, col.key);
-        const formatted = col.format ? col.format(value) : String(value || '');
-        const padding = widths[colIndex] + 2 - formatted.length;
-        
-        // Color based on success status
-        const colored = row.success ? formatted : `${c.red}${formatted}${c.reset}`;
-        output += ` ${colored}` + ' '.repeat(padding) + '│';
-      });
-      output += '\n';
-    });
-    
-    // Footer
-    output += '└' + widths.map(w => '─'.repeat(w + 2)).join('┴') + '┘\n';
-    
-    return output;
-  }
 
   /**
    * Select specific fields from results

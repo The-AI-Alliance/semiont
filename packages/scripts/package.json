@@ -6,12 +6,12 @@
   "scripts": {
     "build": "node build.mjs",
     "clean": "rm -rf dist",
-    "setup": "node dist/install.mjs",
+    "setup": "npm run build && node dist/install.mjs",
+    "setup:cli": "npm run build && node dist/install.mjs --cli-only",
     "secrets": "node dist/local-secrets.mjs",
     "benchmark": "node dist/benchmark.mjs"
   },
   "dependencies": {
-    "@semiont/config-loader": "*",
     "@semiont/api-types": "*",
     "@semiont/cloud": "*",
     "arg": "^5.0.2",

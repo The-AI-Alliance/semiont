@@ -7,9 +7,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { render, useApp, useInput } from 'ink';
-import { ServiceType, isServiceType } from './lib/types';
-import { DashboardDataSource } from './lib/dashboard-data';
-import { UnifiedDashboard, LogsOnlyDashboard, MetricsOnlyDashboard, DashboardData } from './lib/dashboard-layouts';
+import { ServiceType, isServiceType } from '../lib/types.js';
+import { DashboardDataSource } from '../lib/dashboard-data.js';
+import { UnifiedDashboard, LogsOnlyDashboard, MetricsOnlyDashboard, DashboardData } from '../lib/dashboard-layouts.js';
 
 // Dashboard mode types
 type DashboardMode = 'unified' | 'logs' | 'metrics';
@@ -98,7 +98,7 @@ const DashboardApp: React.FC<{
   }
 };
 
-import { getAvailableEnvironments, isValidEnvironment } from './lib/environment-discovery';
+import { getAvailableEnvironments, isValidEnvironment } from '../lib/environment-discovery.js';
 
 // Argument parsing with environment support
 function parseArgs(): { environment: string; mode: DashboardMode; service?: ServiceType } {

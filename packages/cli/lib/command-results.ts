@@ -9,7 +9,7 @@
 export interface BaseCommandResult {
   command: string;
   service: string;
-  deploymentType: 'aws' | 'container' | 'process' | 'external';
+  deploymentType: 'aws' | 'container' | 'process' | 'external' | 'mock';
   environment: string;
   timestamp: Date;
   success: boolean;
@@ -23,6 +23,7 @@ export interface ResourceIdentifier {
   container?: { id?: string; name?: string };
   process?: { pid?: number; port?: number; path?: string };
   external?: { endpoint?: string; path?: string };
+  mock?: { id?: string; name?: string };
 }
 
 // Base service result that includes resource identification
@@ -230,9 +231,9 @@ export interface ProcessServiceResult extends ServiceResult {
     process: { pid: number; port?: number; path: string };
   };
   workingDirectory: string;
-  command: string;
-  arguments?: string[];
-  environment?: Record<string, string>;
+  processCommand: string;
+  processArguments?: string[];
+  processEnvironment?: Record<string, string>;
 }
 
 // External service result extensions
@@ -316,7 +317,7 @@ export type ResultByCommand<T extends string> =
 export function createBaseResult(
   command: string,
   service: string,
-  deploymentType: 'aws' | 'container' | 'process' | 'external',
+  deploymentType: 'aws' | 'container' | 'process' | 'external' | 'mock',
   environment: string,
   startTime: number
 ): BaseCommandResult {

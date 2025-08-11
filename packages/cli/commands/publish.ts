@@ -9,10 +9,19 @@
 
 import { spawn } from 'child_process';
 import * as path from 'path';
+import { z } from 'zod';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { buildImage, tagImage, pushImage } from '../lib/container-runtime.js';
+import { 
+  PublishResult, 
+  CommandResults, 
+  createBaseResult, 
+  createErrorResult,
+  ResourceIdentifier 
+} from '../lib/command-results.js';
 
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';

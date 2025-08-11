@@ -1,6 +1,6 @@
 import { App, createStack } from '@semiont/cloud';
 import { CloudFormationClient, CreateStackCommand, UpdateStackCommand, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
-import type { EnvironmentConfig } from '@semiont/config-loader';
+import type { EnvironmentConfig } from './deployment-resolver.js';
 import * as fs from 'fs';
 import * as path from 'path';
 

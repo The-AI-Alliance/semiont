@@ -7,11 +7,11 @@
 import { ECSClient, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
 import { CloudWatchLogsClient, GetLogEventsCommand, DescribeLogStreamsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
-import { SemiontStackConfig } from './stack-config';
-import { ServiceStatus, LogEntry, MetricData } from './dashboard-components';
-import { DashboardData } from './dashboard-layouts';
-import { ServiceType } from './types';
-import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/config-loader';
+import { SemiontStackConfig } from './stack-config.js';
+import { ServiceStatus, LogEntry, MetricData } from './dashboard-components.js';
+import { DashboardData } from './dashboard-layouts.js';
+import { ServiceType } from './types.js';
+import { loadEnvironmentConfig, type EnvironmentConfig } from './deployment-resolver.js';
 
 export class DashboardDataSource {
   private stackConfig: SemiontStackConfig;

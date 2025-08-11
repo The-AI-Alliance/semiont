@@ -360,3 +360,121 @@ export function EnvironmentDetails({
     ]
   );
 }
+
+// String-based table utility for CLI output (non-React)
+export function createStringTable(
+  data: Record<string, any>[], 
+  columns: string[], 
+  options: { 
+    colors?: boolean;
+    padding?: number;
+    borders?: boolean;
+  } = {}
+): string {
+  if (data.length === 0) {
+    return 'No data to display\n';
+  }
+
+  const { colors = true, padding = 1, borders = true } = options;
+  
+  // Color utilities
+  const c = colors ? {
+    bright: '\x1b[1m',
+    dim: '\x1b[2m',
+    reset: '\x1b[0m',
+    white: '\x1b[37m'
+  } : {
+    bright: '', dim: '', reset: '', white: ''
+  };
+
+  // Calculate column widths
+  const columnWidths: Record<string, number> = {};
+  columns.forEach(col => {
+    columnWidths[col] = col.length;
+    data.forEach(row => {
+      const value = String(row[col] || '');
+      columnWidths[col] = Math.max(columnWidths[col] || 0, value.length);
+    });
+  });
+
+  const pad = (str: string, width: number) => str.padEnd(width);
+  const spacer = ' '.repeat(padding);
+
+  let output = '';
+
+  if (borders) {
+    // Top border
+    output += '┌';
+    columns.forEach((col, i) => {
+      output += '─'.repeat(columnWidths[col] + padding * 2);
+      if (i < columns.length - 1) output += '┬';
+    });
+    output += '┐\n';
+
+    // Header row
+    output += '│';
+    columns.forEach((col) => {
+      const headerText = `${spacer}${c.bright}${c.white}${col}${c.reset}${spacer}`;
+      const plainHeader = `${spacer}${col}${spacer}`;
+      const paddingSpaces = columnWidths[col] + padding * 2 - plainHeader.length;
+      output += headerText + ' '.repeat(paddingSpaces) + '│';
+    });
+    output += '\n';
+
+    // Separator
+    output += '├';
+    columns.forEach((col, i) => {
+      output += '─'.repeat(columnWidths[col] + padding * 2);
+      if (i < columns.length - 1) output += '┼';
+    });
+    output += '┤\n';
+
+    // Data rows
+    data.forEach(row => {
+      output += '│';
+      columns.forEach(col => {
+        const value = String(row[col] || '');
+        const cellText = `${spacer}${pad(value, columnWidths[col])}${spacer}`;
+        output += cellText + '│';
+      });
+      output += '\n';
+    });
+
+    // Bottom border
+    output += '└';
+    columns.forEach((col, i) => {
+      output += '─'.repeat(columnWidths[col] + padding * 2);
+      if (i < columns.length - 1) output += '┴';
+    });
+    output += '┘\n';
+
+  } else {
+    // No borders - simple format
+    
+    // Header
+    columns.forEach((col, i) => {
+      output += `${c.bright}${c.white}${pad(col, columnWidths[col])}${c.reset}`;
+      if (i < columns.length - 1) output += '  ';
+    });
+    output += '\n';
+
+    // Separator
+    columns.forEach((col, i) => {
+      output += '─'.repeat(columnWidths[col]);
+      if (i < columns.length - 1) output += '  ';
+    });
+    output += '\n';
+
+    // Data rows  
+    data.forEach(row => {
+      columns.forEach((col, i) => {
+        const value = String(row[col] || '');
+        output += pad(value, columnWidths[col]);
+        if (i < columns.length - 1) output += '  ';
+      });
+      output += '\n';
+    });
+  }
+
+  return output;
+}

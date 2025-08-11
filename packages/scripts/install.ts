@@ -88,7 +88,7 @@ Options:
 
 Default behavior (no options):
   • Install all dependencies
-  • Build all packages (api-types, config-loader, backend, frontend, cli)
+  • Build all packages (api-types, backend, frontend, cli)
   • Install the semiont CLI globally
 
 Examples:

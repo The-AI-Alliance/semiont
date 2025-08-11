@@ -27,7 +27,7 @@ semiont --help
 
 ```
 packages/cli/
-├── bin/semiont               # CLI entry point
+├── cli.ts.                   # CLI entry point
 ├── commands/                 # Command implementations (deployment-type aware)
 │   ├── start.ts             # Start services based on deployment type
 │   ├── stop.ts              # Stop services based on deployment type
@@ -500,12 +500,12 @@ npm run build
 
 ```bash
 # Test commands with dry-run (safe)
-semiont start local --dry-run --verbose
-semiont provision staging --service backend --dry-run
+semiont start -e local --dry-run --verbose
+semiont provision -e staging --service backend --dry-run
 
 # Test specific deployment types
-semiont check local --service database --verbose  # Container deployment
-semiont watch production --service frontend       # AWS deployment
+semiont check -e local --service database --verbose  # Container deployment
+semiont watch -e production --service frontend       # AWS deployment
 
 # Test with environment variables
 SEMIONT_ENV=local SEMIONT_VERBOSE=1 semiont start
