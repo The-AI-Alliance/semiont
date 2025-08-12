@@ -684,8 +684,23 @@ async function executeCommand(
         break;
       }
       
+      case 'watch': {
+        const { watch } = await import('./commands/watch.js');
+        const watchOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          target: args['--target'] || 'all',
+          noFollow: args['--no-follow'] || false,
+          interval: args['--interval'] || 5,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await watch(watchOptions);
+        break;
+      }
+      
       // Commands that need their structured functions implemented:
-      case 'watch': 
       case 'configure': {
         // For now, fall back to main() functions for these commands
         // TODO: Implement structured functions for these commands
@@ -700,25 +715,12 @@ async function executeCommand(
         };
         
         // Add command-specific options
-        switch (command) {
-          case 'watch':
-            cmdOptions = {
-              ...cmdOptions,
-              service: args['--service'] || 'all',
-              target: args['--target'] || 'all',
-              noFollow: args['--no-follow'] || false,
-              interval: args['--interval'] || 5
-            };
-            break;
-          case 'configure':
-            cmdOptions = {
-              ...cmdOptions,
-              secretPath: args['--secret-path'] || '',
-              value: args['--value'] || '',
-              action: args._.length > 0 ? args._[0] : 'list'
-            };
-            break;
-        }
+        cmdOptions = {
+          ...cmdOptions,
+          secretPath: args['--secret-path'] || '',
+          value: args['--value'] || '',
+          action: args._.length > 0 ? args._[0] : 'list'
+        };
         
         // Call main() function directly and exit
         await main(cmdOptions);
