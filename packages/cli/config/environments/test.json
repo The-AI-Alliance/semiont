@@ -1,0 +1,28 @@
+{
+  "_comment": "Test environment for automated testing",
+  "deployment": {
+    "default": "mock"
+  },
+  "env": {
+    "NODE_ENV": "test"
+  },
+  "services": {
+    "frontend": {
+      "command": "npm test"
+    },
+    "backend": {
+      "command": "npm test"
+    },
+    "database": {
+      "deployment": {
+        "type": "mock"
+      }
+    },
+    "filesystem": {
+      "deployment": {
+        "type": "mock"
+      },
+      "path": "./test-data"
+    }
+  }
+}

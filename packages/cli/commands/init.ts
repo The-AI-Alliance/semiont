@@ -105,6 +105,12 @@ function generateEnvironmentConfig(environment: string): any {
           image: "postgres:15-alpine",
           name: "semiont_local",
           password: "localpass"
+        },
+        filesystem: {
+          deployment: {
+            type: "process"
+          },
+          path: "./data"
         }
       }
     },
@@ -127,6 +133,12 @@ function generateEnvironmentConfig(environment: string): any {
           deployment: {
             type: "mock"
           }
+        },
+        filesystem: {
+          deployment: {
+            type: "mock"
+          },
+          path: "./test-data"
         }
       }
     },
@@ -158,6 +170,12 @@ function generateEnvironmentConfig(environment: string): any {
       services: {
         database: {
           name: "semiont_staging"
+        },
+        filesystem: {
+          deployment: {
+            type: "aws"
+          },
+          path: "/mnt/efs/staging"
         }
       }
     },
@@ -193,6 +211,12 @@ function generateEnvironmentConfig(environment: string): any {
       services: {
         database: {
           name: "semiont_production"
+        },
+        filesystem: {
+          deployment: {
+            type: "aws"
+          },
+          path: "/mnt/efs/production"
         }
       }
     }
@@ -206,7 +230,14 @@ function generateEnvironmentConfig(environment: string): any {
     env: {
       NODE_ENV: "development"
     },
-    services: {}
+    services: {
+      filesystem: {
+        deployment: {
+          type: "container"
+        },
+        path: "./data"
+      }
+    }
   };
 }
 

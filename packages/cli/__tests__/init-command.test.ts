@@ -142,6 +142,8 @@ describe('init command', () => {
       expect(localConfig.deployment.default).toBe('process');
       expect(localConfig.env.NODE_ENV).toBe('development');
       expect(localConfig.services.database.deployment.type).toBe('container');
+      expect(localConfig.services.filesystem).toBeDefined();
+      expect(localConfig.services.filesystem.path).toBe('./data');
     });
 
     it('should generate correct production environment config', async () => {
@@ -168,6 +170,9 @@ describe('init command', () => {
       expect(prodConfig.aws).toBeDefined();
       expect(prodConfig.aws.ecs.desiredCount).toBe(2);
       expect(prodConfig.aws.database.multiAZ).toBe(true);
+      expect(prodConfig.services.filesystem).toBeDefined();
+      expect(prodConfig.services.filesystem.deployment.type).toBe('aws');
+      expect(prodConfig.services.filesystem.path).toBe('/mnt/efs/production');
     });
 
     it('should generate correct test environment config', async () => {
@@ -307,6 +312,8 @@ describe('init command', () => {
       expect(semiontJson.defaults.services.frontend.port).toBe(3000);
       expect(semiontJson.defaults.services.backend.port).toBe(3001);
       expect(semiontJson.defaults.services.database.port).toBe(5432);
+      // Filesystem should NOT be in defaults - it's environment-specific
+      expect(semiontJson.defaults.services.filesystem).toBeUndefined();
     });
   });
 

@@ -1,0 +1,31 @@
+{
+  "_comment": "Local development environment",
+  "deployment": {
+    "default": "process"
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "services": {
+    "frontend": {
+      "command": "npm run dev"
+    },
+    "backend": {
+      "command": "npm run dev"
+    },
+    "database": {
+      "deployment": {
+        "type": "container"
+      },
+      "image": "postgres:15-alpine",
+      "name": "semiont_local",
+      "password": "localpass"
+    },
+    "filesystem": {
+      "deployment": {
+        "type": "process"
+      },
+      "path": "./data"
+    }
+  }
+}

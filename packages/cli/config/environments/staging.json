@@ -1,0 +1,37 @@
+{
+  "_comment": "Staging environment - pre-production testing",
+  "deployment": {
+    "default": "aws"
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "aws": {
+    "accountId": "123456789012",
+    "stacks": {
+      "infra": "semiont-staging-infra",
+      "app": "semiont-staging-app"
+    },
+    "database": {
+      "instanceClass": "db.t3.small",
+      "multiAZ": false,
+      "backupRetentionDays": 7
+    },
+    "ecs": {
+      "desiredCount": 1,
+      "minCapacity": 1,
+      "maxCapacity": 2
+    }
+  },
+  "services": {
+    "database": {
+      "name": "semiont_staging"
+    },
+    "filesystem": {
+      "deployment": {
+        "type": "aws"
+      },
+      "path": "/mnt/efs/staging"
+    }
+  }
+}
