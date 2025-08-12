@@ -12,7 +12,7 @@ import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
 import { runContainer, stopContainer } from '../lib/container-runtime.js';
 import { 
   StartResult, 
@@ -271,6 +271,10 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       
       const appSuccess = await runContainer(appImageName, appContainerName, {
         ports: { [port.toString()]: port.toString() },
+        environment: {
+          NODE_ENV: getNodeEnvForEnvironment(options.environment),
+          SEMIONT_ENV: options.environment
+        },
         detached: true,
         verbose: options.verbose
       });
@@ -369,6 +373,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         detached: true,
         env: {
           ...process.env,
+          NODE_ENV: getNodeEnvForEnvironment(options.environment),
           SEMIONT_ENV: options.environment,
           DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
           JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
@@ -412,6 +417,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         detached: true,
         env: {
           ...process.env,
+          NODE_ENV: getNodeEnvForEnvironment(options.environment),
           NEXT_PUBLIC_API_URL: `http://localhost:3001`,
           NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
           PORT: frontendPort.toString(),
@@ -587,7 +593,7 @@ export async function start(options: StartOptions): Promise<CommandResults> {
     const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
     
     // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
+    const serviceDeployments = resolveServiceDeployments(resolvedServices, options.environment);
     
     if (options.verbose && !isStructuredOutput && options.output === 'summary') {
       printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);

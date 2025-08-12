@@ -5,6 +5,10 @@
   "deployment": {
     "default": "process"
   },
+  "env": {
+    "_comment": "Environment variables to set for services",
+    "NODE_ENV": "test"
+  },
   "site": {
     "domain": "test.example.com",
     "adminEmail": "admin@test.example.com",

@@ -4,6 +4,10 @@
   "deployment": {
     "default": "container"
   },
+  "env": {
+    "_comment": "Environment variables to set for services",
+    "NODE_ENV": "development"
+  },
   "site": {
     "_comment": "Local development site configuration",
     "domain": "localhost",

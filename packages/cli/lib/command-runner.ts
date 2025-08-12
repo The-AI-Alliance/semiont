@@ -7,6 +7,7 @@ import { execSync, spawn, type ChildProcessWithoutNullStreams } from 'child_proc
 import { CommandOptions, CommandResult, ScriptError } from './types.js';
 import { validateCommand } from './validators.js';
 import { logger } from './logger.js';
+import { getNodeEnvForEnvironment } from './deployment-resolver.js';
 
 export class CommandRunner {
   private defaultTimeout: number;
@@ -199,13 +200,13 @@ export class CommandRunner {
   /**
    * Get safe environment for command execution
    */
-  getSafeEnv(additionalVars: Record<string, string> = {}): Record<string, string> {
+  getSafeEnv(additionalVars: Record<string, string> = {}, environment?: string): Record<string, string> {
     // Start with clean environment
     const safeEnv: Record<string, string> = {
       PATH: process.env.PATH || '',
       HOME: process.env.HOME || '',
       USER: process.env.USER || '',
-      NODE_ENV: process.env.NODE_ENV || 'production',
+      NODE_ENV: environment ? getNodeEnvForEnvironment(environment) : (process.env.NODE_ENV || 'production'),
     };
 
     // Add AWS_REGION only if it's actually set

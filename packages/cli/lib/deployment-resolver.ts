@@ -100,6 +100,10 @@ export interface EnvironmentConfig {
   aws?: AWSConfig;
   site?: SiteConfig;
   app?: AppConfig;
+  env?: {
+    NODE_ENV?: 'development' | 'production' | 'test';
+    [key: string]: string | undefined;  // Allow other env vars in future
+  };
   cloud?: {
     aws?: {
       stacks?: {
@@ -108,6 +112,32 @@ export interface EnvironmentConfig {
       };
     };
   };
+}
+
+/**
+ * Get NODE_ENV value from environment config with validation
+ */
+export function getNodeEnvForEnvironment(environment: string): 'development' | 'production' | 'test' {
+  const config = loadEnvironmentConfig(environment);
+  const nodeEnv = config.env?.NODE_ENV;
+  
+  // Validate NODE_ENV value
+  if (nodeEnv && !['development', 'production', 'test'].includes(nodeEnv)) {
+    throw new ConfigurationError(
+      `Invalid NODE_ENV value: ${nodeEnv}`,
+      environment,
+      `NODE_ENV must be one of: development, production, test`
+    );
+  }
+  
+  // Default based on deployment type if not specified
+  if (!nodeEnv) {
+    // Default to production for AWS, development for local/container
+    const deploymentType = config.deployment?.default || 'container';
+    return deploymentType === 'aws' ? 'production' : 'development';
+  }
+  
+  return nodeEnv;
 }
 
 /**

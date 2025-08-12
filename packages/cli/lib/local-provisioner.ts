@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import React from 'react';
 import { render, Text, Box } from 'ink';
 import { SimpleTable } from './ink-utils';
+import { getNodeEnvForEnvironment } from './deployment-resolver';
 
 // =====================================================================
 // TYPES AND INTERFACES
@@ -402,7 +403,7 @@ async function provisionProcesses(
         const backendPath = backendConfig.cwd || path.join(projectRoot, 'apps/backend');
         const env = {
           ...process.env,
-          NODE_ENV: 'development',
+          NODE_ENV: getNodeEnvForEnvironment(options.environment),
           SEMIONT_ENV: options.environment,
           PORT: backendConfig.port.toString(),
           DATABASE_URL: localState.database?.connectionString || process.env.DATABASE_URL
@@ -449,7 +450,7 @@ async function provisionProcesses(
         const frontendPath = frontendConfig.cwd || path.join(projectRoot, 'apps/frontend');
         const env = {
           ...process.env,
-          NODE_ENV: 'development',
+          NODE_ENV: getNodeEnvForEnvironment(options.environment),
           SEMIONT_ENV: options.environment,
           PORT: frontendConfig.port.toString()
         };

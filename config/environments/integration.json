@@ -10,6 +10,10 @@
   "deployment": {
     "default": "container"
   },
+  "env": {
+    "_comment": "Environment variables to set for services",
+    "NODE_ENV": "test"
+  },
   "services": {
     "backend": {
       "command": "npm start",

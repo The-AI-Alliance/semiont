@@ -3,6 +3,10 @@
   "deployment": {
     "default": "aws"
   },
+  "env": {
+    "_comment": "Environment variables to set for services",
+    "NODE_ENV": "development"
+  },
   "site": {
     "_comment": "Cloud development environment site configuration (example values - MUST BE CUSTOMIZED)",
     "domain": "dev.example.com",
