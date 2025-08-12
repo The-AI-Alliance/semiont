@@ -49,6 +49,27 @@ packages/cli/
     └── container-runtime.ts  # Container operations (Docker/Podman)
 ```
 
+### Environment Selection
+
+The CLI determines the environment using the following precedence:
+
+1. **Command-line flag** (`-e` or `--environment`) - highest priority
+2. **Environment variable** (`SEMIONT_ENV`) - fallback
+3. **Default** (`local`) - if neither is specified
+
+Example:
+```bash
+# Set default environment via SEMIONT_ENV
+export SEMIONT_ENV=staging
+
+# Commands will use staging by default
+semiont start                    # Uses staging
+semiont check --service backend  # Uses staging
+
+# Override with -e flag when needed
+semiont start -e production      # Uses production
+```
+
 ### Core Architecture: Deployment-Type Awareness
 
 The CLI is built around the concept that **services have deployment types**, not environments:
@@ -507,8 +528,11 @@ semiont provision -e staging --service backend --dry-run
 semiont check -e local --service database --verbose  # Container deployment
 semiont watch -e production --service frontend       # AWS deployment
 
-# Test with environment variables
-SEMIONT_ENV=local SEMIONT_VERBOSE=1 semiont start
+# Use environment variables to avoid repetitive -e flags
+export SEMIONT_ENV=staging
+semiont start                    # Uses staging environment
+semiont check                    # Uses staging environment
+semiont start -e production      # Override with -e flag
 ```
 
 ### Code Style Guidelines

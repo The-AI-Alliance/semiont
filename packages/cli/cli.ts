@@ -283,6 +283,11 @@ function printError(message: string): void {
   console.error(`${colors.red}❌ ${message}${colors.reset}`);
 }
 
+// Get environment with fallback: --environment > SEMIONT_ENV > 'local'
+function getEnvironmentWithFallback(args: Record<string, any>): string {
+  return args['--environment'] || process.env.SEMIONT_ENV || 'local';
+}
+
 
 function printHelp(command?: CommandName): void {
   if (command && COMMANDS[command]) {
@@ -309,7 +314,7 @@ ${colors.bright}Usage:${colors.reset}
   semiont <command> [options]
 
 ${colors.bright}Common Options:${colors.reset}
-  -e, --environment <env>  Environment (${getAvailableEnvironments().join(', ') || 'none found'})
+  -e, --environment <env>  Environment (${getAvailableEnvironments().join(', ') || 'none found'}) [default: $SEMIONT_ENV or 'local']
   -o, --output <format>   Output format (summary, table, json, yaml) [default: summary]
   -q, --quiet            Suppress output except errors
   -v, --verbose           Verbose output
@@ -336,6 +341,12 @@ ${colors.bright}Examples:${colors.reset}
   semiont publish -e staging                # Build and push images
   semiont update -e staging                 # Update running services
   semiont test -e production --suite health # Test production health
+
+${colors.bright}Environment Selection:${colors.reset}
+  Set SEMIONT_ENV environment variable to avoid typing -e every time:
+    export SEMIONT_ENV=staging
+    semiont start                          # Uses staging environment
+    semiont start -e production             # Override with -e flag
 
 ${colors.bright}For command-specific help:${colors.reset}
   semiont <command> --help
@@ -472,6 +483,11 @@ async function parseArguments(
     // Validate with Zod schema
     const validated = commandDef.schema.parse(rawArgs);
     
+    // Handle environment: --environment overrides SEMIONT_ENV
+    if (!validated['--environment'] && process.env.SEMIONT_ENV) {
+      validated['--environment'] = process.env.SEMIONT_ENV;
+    }
+    
     // Validate environment dynamically against filesystem
     if (validated['--environment']) {
       const availableEnvironments = getAvailableEnvironments();
@@ -488,7 +504,7 @@ async function parseArguments(
     if (commandDef.requiresEnvironment && !validated['--environment']) {
       const availableEnvironments = getAvailableEnvironments();
       const envList = availableEnvironments.length > 0 ? availableEnvironments.join(', ') : 'none found';
-      throw new Error(`--environment is required for '${command}' command. Available: ${envList}`);
+      throw new Error(`--environment is required for '${command}' command. Available: ${envList}\nYou can also set the SEMIONT_ENV environment variable.`);
     }
     
     return validated;
@@ -531,7 +547,7 @@ async function executeCommand(
       case 'check': {
         const { check } = await import('./commands/check.js');
         const checkOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           section: args['--section'] || 'all',
           verbose: args['--verbose'] || false,
@@ -545,7 +561,7 @@ async function executeCommand(
       case 'start': {
         const { start } = await import('./commands/start.js');
         const startOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           output: outputFormat,
           quiet: args['--quiet'] || false,
@@ -559,7 +575,7 @@ async function executeCommand(
       case 'stop': {
         const { stop } = await import('./commands/stop.js');
         const stopOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           output: outputFormat,
           force: args['--force'] || false,
@@ -573,7 +589,7 @@ async function executeCommand(
       case 'restart': {
         const { restart } = await import('./commands/restart.js');
         const restartOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           output: outputFormat,
           force: args['--force'] || false,
@@ -588,7 +604,7 @@ async function executeCommand(
       case 'provision': {
         const { provision } = await import('./commands/provision.js');
         const provisionOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           stack: args['--stack'] || 'all',
           destroy: args['--destroy'] || false,
@@ -607,7 +623,7 @@ async function executeCommand(
       case 'publish': {
         const { publish } = await import('./commands/publish.js');
         const publishOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           output: outputFormat,
           tag: args['--tag'] || 'latest',
@@ -622,7 +638,7 @@ async function executeCommand(
       case 'update': {
         const { update } = await import('./commands/update.js');
         const updateOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           skipTests: args['--skip-tests'] || false,
           skipBuild: args['--skip-build'] || false,
@@ -639,7 +655,7 @@ async function executeCommand(
       case 'test': {
         const { test } = await import('./commands/test.js');
         const testOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           suite: args['--suite'] || 'all',
           service: args['--service'] || 'all',
           coverage: args['--coverage'] || false,
@@ -656,7 +672,7 @@ async function executeCommand(
       case 'backup': {
         const { backup } = await import('./commands/backup.js');
         const backupOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           name: args['--name'],
           outputPath: args['--output-path'] || './backups',
@@ -672,7 +688,7 @@ async function executeCommand(
       case 'exec': {
         const { exec } = await import('./commands/exec.js');
         const execOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'backend',
           command: args['--command'] || '/bin/sh',
           interactive: true,
@@ -687,7 +703,7 @@ async function executeCommand(
       case 'watch': {
         const { watch } = await import('./commands/watch.js');
         const watchOptions = {
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           service: args['--service'] || 'all',
           target: args['--target'] || 'all',
           noFollow: args['--no-follow'] || false,
@@ -706,7 +722,7 @@ async function executeCommand(
         const action = args._?.length > 0 ? args._[0] : 'show';
         const configureOptions = {
           action: action as 'show' | 'list' | 'validate' | 'get' | 'set',
-          environment: args['--environment'] || 'local',
+          environment: getEnvironmentWithFallback(args),
           secretPath: args['--secret-path'],
           value: args['--value'],
           verbose: args['--verbose'] || false,
