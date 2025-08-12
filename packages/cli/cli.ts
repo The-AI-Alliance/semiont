@@ -669,9 +669,23 @@ async function executeCommand(
         break;
       }
       
+      case 'exec': {
+        const { exec } = await import('./commands/exec.js');
+        const execOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'backend',
+          command: args['--command'] || '/bin/sh',
+          interactive: true,
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await exec(execOptions);
+        break;
+      }
+      
       // Commands that need their structured functions implemented:
       case 'watch': 
-      case 'exec': 
       case 'configure': {
         // For now, fall back to main() functions for these commands
         // TODO: Implement structured functions for these commands
@@ -694,13 +708,6 @@ async function executeCommand(
               target: args['--target'] || 'all',
               noFollow: args['--no-follow'] || false,
               interval: args['--interval'] || 5
-            };
-            break;
-          case 'exec':
-            cmdOptions = {
-              ...cmdOptions,
-              service: args['--service'] || 'all',
-              command: args['--command'] || ''
             };
             break;
           case 'configure':

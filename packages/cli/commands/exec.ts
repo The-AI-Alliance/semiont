@@ -14,6 +14,13 @@ import { colors } from '../lib/cli-colors.js';
 import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
 import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
+import { 
+  ExecResult, 
+  CommandResults, 
+  createBaseResult, 
+  createErrorResult,
+  ResourceIdentifier 
+} from '../lib/command-results.js';
 
 // AWS SDK imports for ECS operations
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
@@ -29,6 +36,7 @@ const ExecOptionsSchema = z.object({
   interactive: z.boolean().default(true),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
 type ExecOptions = z.infer<typeof ExecOptionsSchema>;
@@ -37,112 +45,97 @@ type ExecOptions = z.infer<typeof ExecOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
+// Global flag to control output suppression
+let suppressOutput = false;
+
 function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  }
 }
 
 function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  }
 }
 
 function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  }
 }
 
 function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  }
 }
 
 function printDebug(message: string, options: ExecOptions): void {
-  if (options.verbose) {
+  if (!suppressOutput && options.verbose) {
     console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
   }
 }
 
-// =====================================================================
-// PARSE ARGUMENTS
-// =====================================================================
-
-function parseArguments(): ExecOptions {
-  const rawOptions: any = {
-    environment: process.env.SEMIONT_ENV || process.argv[2],
-    verbose: process.env.SEMIONT_VERBOSE === '1',
-    dryRun: process.env.SEMIONT_DRY_RUN === '1',
-  };
-  
-  // Parse command-line arguments
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case '--service':
-      case '-s':
-        rawOptions.service = args[++i];
-        break;
-      case '--command':
-      case '-c':
-        rawOptions.command = args[++i];
-        break;
-      case '--no-interactive':
-        rawOptions.interactive = false;
-        break;
-      case '--verbose':
-      case '-v':
-        rawOptions.verbose = true;
-        break;
-      case '--dry-run':
-        rawOptions.dryRun = true;
-        break;
-    }
-  }
-  
-  // Validate with Zod
-  try {
-    return ExecOptionsSchema.parse(rawOptions);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      printError('Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
 
 
 // =====================================================================
 // DEPLOYMENT-TYPE-AWARE EXEC FUNCTIONS
 // =====================================================================
 
-async function execInService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<ExecResult> {
+  const startTime = Date.now();
+  
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would execute "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    return;
+    return {
+      ...createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      command: options.command,
+      exitCode: 0,
+      output: '[DRY RUN] Command not executed',
+      interactive: options.interactive,
+      executionTime: 0,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'dry-run',
+      metadata: { dryRun: true },
+    };
   }
   
   printInfo(`Executing "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
   
-  switch (serviceInfo.deploymentType) {
-    case 'aws':
-      await execInAWSService(serviceInfo, options);
-      break;
-    case 'container':
-      await execInContainerService(serviceInfo, options);
-      break;
-    case 'process':
-      await execInProcessService(serviceInfo, options);
-      break;
-    case 'external':
-      await execInExternalService(serviceInfo, options);
-      break;
-    default:
-      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+  try {
+    switch (serviceInfo.deploymentType) {
+      case 'aws':
+        return await execInAWSService(serviceInfo, options, startTime);
+      case 'container':
+        return await execInContainerService(serviceInfo, options, startTime);
+      case 'process':
+        return await execInProcessService(serviceInfo, options, startTime);
+      case 'external':
+        return await execInExternalService(serviceInfo, options, startTime);
+      default:
+        throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+    }
+  } catch (error) {
+    const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const errorResult = createErrorResult(baseResult, error as Error);
+    
+    return {
+      ...errorResult,
+      command: options.command,
+      exitCode: -1,
+      error: (error as Error).message,
+      interactive: options.interactive,
+      executionTime: Date.now() - startTime,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'failed',
+      metadata: { error: (error as Error).message },
+    };
   }
 }
 
-async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
   // AWS ECS exec
   switch (serviceInfo.name) {
     case 'frontend':
@@ -236,7 +229,7 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
   }
 }
 
-async function execInContainerService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+async function execInContainerService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
   
   try {
@@ -259,7 +252,7 @@ async function execInContainerService(serviceInfo: ServiceDeploymentInfo, option
   }
 }
 
-async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
   // For process deployments, we can either:
   // 1. Execute in the context of the running process (limited)
   // 2. Spawn a new process with the same environment
@@ -342,7 +335,7 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
   }
 }
 
-async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<void> {
+async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
   printError(`Cannot execute commands in external ${serviceInfo.name} service`);
   
   switch (serviceInfo.name) {
@@ -369,40 +362,100 @@ async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options
 
 
 // =====================================================================
-// MAIN EXECUTION
+// STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-async function main(): Promise<void> {
-  const options = parseArguments();
+export async function exec(options: ExecOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
-  printInfo(`Executing "${options.command}" in ${colors.bright}${options.environment}${colors.reset} environment`);
-  
-  if (options.verbose) {
-    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
-  }
+  // Suppress output for structured formats
+  const previousSuppressOutput = suppressOutput;
+  suppressOutput = isStructuredOutput;
   
   try {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Executing command in ${colors.bright}${options.environment}${colors.reset} environment`);
+    }
+    
     // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'start', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
+    await validateServiceSelector(options.service, 'exec', options.environment);
+    const resolvedServices = await resolveServiceSelector(options.service, 'exec', options.environment);
     
     if (resolvedServices.length > 1) {
-      printError('Can only execute commands in one service at a time');
-      printInfo(`Resolved to multiple services: ${resolvedServices.join(', ')}`);
-      printInfo('Please specify a single service with --service');
-      process.exit(1);
+      throw new Error(`Can only execute commands in one service at a time. Resolved to: ${resolvedServices.join(', ')}`);
     }
     
     // Get deployment information for the service
     const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    const serviceInfo = serviceDeployments[0]!;
+    const serviceInfo = serviceDeployments[0];
     
-    printDebug(`Target service: ${serviceInfo.name}(${serviceInfo.deploymentType})`, options);
+    if (!serviceInfo) {
+      throw new Error('No service found');
+    }
+    
+    if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
+      printDebug(`Target service: ${serviceInfo.name}(${serviceInfo.deploymentType})`, options);
+    }
     
     // Execute command in the service
-    await execInService(serviceInfo, options);
+    const result = await execInServiceImpl(serviceInfo, options);
     
-    printSuccess('Command execution completed');
+    // Create aggregated results
+    const commandResults: CommandResults = {
+      command: 'exec',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: [result],
+      summary: {
+        total: 1,
+        succeeded: result.success ? 1 : 0,
+        failed: result.success ? 0 : 1,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      }
+    };
+    
+    return commandResults;
+    
+  } finally {
+    // Restore output suppression state
+    suppressOutput = previousSuppressOutput;
+  }
+}
+
+// =====================================================================
+// MAIN EXECUTION
+// =====================================================================
+
+async function main(options: ExecOptions): Promise<void> {
+  try {
+    const results = await exec(options);
+    
+    // Handle structured output
+    if (options.output !== 'summary') {
+      const { formatResults } = await import('../lib/output-formatter.js');
+      const formatted = formatResults(results, options.output);
+      console.log(formatted);
+      return;
+    }
+    
+    // For summary format, show execution status
+    if (results.summary.succeeded === 1) {
+      printSuccess('Command execution completed');
+    } else {
+      printError('Command execution failed');
+    }
+    
+    // Exit with appropriate code
+    if (results.summary.failed > 0) {
+      process.exit(1);
+    }
     
   } catch (error) {
     printError(`Execution failed: ${error}`);
