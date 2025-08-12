@@ -1,16 +1,8 @@
-#!/usr/bin/env node
-
 /**
- * Configure Command V2 - Unified configuration management for Semiont
+ * Configure Command V2 - Unified configuration management with structured output
  * 
  * Manages both public configuration (domains, settings) and private secrets (OAuth, JWT)
- * 
- * Usage:
- *   semiont configure show                       # Show public configuration
- *   semiont configure list                       # List all configurable items  
- *   semiont configure validate                   # Validate configuration
- *   semiont configure -e production get oauth/google    # Get secret
- *   semiont configure -e staging set oauth/google       # Set secret
+ * Now supports structured output for programmatic access.
  */
 
 import { z } from 'zod';
@@ -18,18 +10,29 @@ import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from
 import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, displayConfiguration, getAvailableEnvironments, ConfigurationError } from '../lib/deployment-resolver.js';
 import * as readline from 'readline';
+import { colors } from '../lib/cli-colors.js';
+import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
+import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { 
+  ConfigureResult, 
+  CommandResults, 
+  createBaseResult,
+  createErrorResult,
+  ResourceIdentifier 
+} from '../lib/command-results.js';
 
 // =====================================================================
 // ARGUMENT PARSING WITH ZOD
 // =====================================================================
 
 const ConfigureOptionsSchema = z.object({
-  command: z.enum(['show', 'list', 'validate', 'get', 'set']),
-  environment: z.string().optional(), // Required for get/set operations
-  secretPath: z.string().optional(),  // Required for get/set operations  
-  value: z.string().optional(),       // Optional for set operations
+  action: z.enum(['show', 'list', 'validate', 'get', 'set']).default('show'),
+  environment: z.string().default('local'),
+  secretPath: z.string().optional(),
+  value: z.string().optional(),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
 type ConfigureOptions = z.infer<typeof ConfigureOptionsSchema>;
@@ -45,6 +48,43 @@ const KNOWN_SECRETS: Record<string, string> = {
   'jwt-secret': 'JWT signing secret for API authentication',
   'app-secrets': 'Application secrets (session, NextAuth, etc.)'
 };
+
+// =====================================================================
+// HELPER FUNCTIONS
+// =====================================================================
+
+// Global flag to control output suppression
+let suppressOutput = false;
+
+function printError(message: string): void {
+  if (!suppressOutput) {
+    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  }
+}
+
+function printSuccess(message: string): void {
+  if (!suppressOutput) {
+    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  }
+}
+
+function printInfo(message: string): void {
+  if (!suppressOutput) {
+    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  }
+}
+
+function printWarning(message: string): void {
+  if (!suppressOutput) {
+    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  }
+}
+
+function printDebug(message: string, options: ConfigureOptions): void {
+  if (!suppressOutput && options.verbose) {
+    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
+  }
+}
 
 // =====================================================================
 // ARGUMENT PARSING
@@ -117,7 +157,7 @@ function parseArgs(): ConfigureOptions {
 
   try {
     return ConfigureOptionsSchema.parse({
-      command: command as 'show' | 'list' | 'validate' | 'get' | 'set',
+      action: command as 'show' | 'list' | 'validate' | 'get' | 'set',
       environment,
       secretPath,
       value,
@@ -278,7 +318,7 @@ async function updateSecret(environment: string, secretName: string, secretValue
 // =====================================================================
 
 async function showConfiguration(): Promise<void> {
-  console.log('📋 Semiont Configuration Overview\n');
+  printInfo('📋 Semiont Configuration Overview\n');
   
   const environments = getAvailableEnvironments();
   for (const env of environments) {
@@ -315,7 +355,7 @@ async function showConfiguration(): Promise<void> {
 }
 
 async function listConfigurable(): Promise<void> {
-  console.log('📋 Configurable Items\n');
+  printInfo('📋 Configurable Items\n');
   
   console.log('🔐 Available Secrets:');
   for (const [path, description] of Object.entries(KNOWN_SECRETS)) {
@@ -335,7 +375,7 @@ async function listConfigurable(): Promise<void> {
 }
 
 async function validateConfiguration(): Promise<void> {
-  console.log('✅ Validating Semiont configuration...\n');
+  printInfo('✅ Validating Semiont configuration...\n');
   
   const environments = getAvailableEnvironments();
   let errors = 0;
@@ -511,18 +551,279 @@ async function setSecret(options: ConfigureOptions): Promise<void> {
 }
 
 // =====================================================================
+// STRUCTURED OUTPUT FUNCTION
+// =====================================================================
+
+export async function configure(options: ConfigureOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  
+  // Suppress output for structured formats
+  const previousSuppressOutput = suppressOutput;
+  suppressOutput = isStructuredOutput;
+  
+  try {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Executing configure ${options.action} for ${colors.bright}${options.environment}${colors.reset} environment`);
+    }
+    
+    // Create configuration results
+    const configureResults: ConfigureResult[] = [];
+    
+    // Execute the appropriate action
+    try {
+      switch (options.action) {
+        case 'show': {
+          const environments = getAvailableEnvironments();
+          for (const env of environments) {
+            try {
+              const config = loadEnvironmentConfig(env);
+              const result: ConfigureResult = {
+                ...createBaseResult('configure', 'configuration', 'external', env, startTime),
+                configurationChanges: [],
+                restartRequired: false,
+                resourceId: { external: { endpoint: 'config-file' } },
+                status: 'shown',
+                metadata: {
+                  action: 'show',
+                  domain: config.site?.domain || 'Not configured',
+                  deployment: config.deployment?.default || 'Not specified',
+                  services: Object.keys(config.services || {}),
+                  awsRegion: config.aws?.region,
+                },
+              };
+              configureResults.push(result);
+            } catch (error) {
+              const errorResult = createErrorResult(
+                createBaseResult('configure', 'configuration', 'external', env, startTime),
+                error as Error
+              ) as ConfigureResult;
+              errorResult.configurationChanges = [];
+              errorResult.restartRequired = false;
+              errorResult.resourceId = { external: {} };
+              errorResult.status = 'failed';
+              errorResult.metadata = { action: 'show', error: (error as Error).message };
+              configureResults.push(errorResult);
+            }
+          }
+          break;
+        }
+        
+        case 'list': {
+          const result: ConfigureResult = {
+            ...createBaseResult('configure', 'secrets', 'external', options.environment, startTime),
+            configurationChanges: [],
+            restartRequired: false,
+            resourceId: { external: { endpoint: 'secrets-list' } },
+            status: 'listed',
+            metadata: {
+              action: 'list',
+              availableSecrets: Object.keys(KNOWN_SECRETS),
+              secretDescriptions: KNOWN_SECRETS,
+            },
+          };
+          configureResults.push(result);
+          break;
+        }
+        
+        case 'validate': {
+          const environments = getAvailableEnvironments();
+          let validationErrors = 0;
+          
+          for (const env of environments) {
+            try {
+              const config = loadEnvironmentConfig(env);
+              const issues: string[] = [];
+              
+              if (!config.services) {
+                issues.push('No services defined');
+              }
+              
+              if (config.deployment?.default === 'aws' && !config.aws) {
+                issues.push('AWS deployment specified but no AWS configuration');
+                validationErrors++;
+              }
+              
+              const result: ConfigureResult = {
+                ...createBaseResult('configure', 'validation', 'external', env, startTime),
+                configurationChanges: [],
+                restartRequired: false,
+                resourceId: { external: { endpoint: 'validation' } },
+                status: issues.length === 0 ? 'valid' : 'invalid',
+                success: issues.length === 0,
+                metadata: {
+                  action: 'validate',
+                  issues,
+                  servicesCount: Object.keys(config.services || {}).length,
+                  hasAwsConfig: !!config.aws,
+                },
+              };
+              configureResults.push(result);
+            } catch (error) {
+              validationErrors++;
+              const errorResult = createErrorResult(
+                createBaseResult('configure', 'validation', 'external', env, startTime),
+                error as Error
+              ) as ConfigureResult;
+              errorResult.configurationChanges = [];
+              errorResult.restartRequired = false;
+              errorResult.resourceId = { external: {} };
+              errorResult.status = 'failed';
+              errorResult.metadata = { action: 'validate', error: (error as Error).message };
+              configureResults.push(errorResult);
+            }
+          }
+          break;
+        }
+        
+        case 'get': {
+          if (!options.secretPath) {
+            throw new Error('Secret path is required for get operation');
+          }
+          
+          const fullName = await getSecretFullName(options.environment, options.secretPath);
+          const secret = await getCurrentSecret(options.environment, fullName);
+          
+          const result: ConfigureResult = {
+            ...createBaseResult('configure', options.secretPath, 'aws', options.environment, startTime),
+            configurationChanges: [],
+            restartRequired: false,
+            resourceId: { aws: { name: fullName } },
+            status: secret ? 'retrieved' : 'not-found',
+            success: !!secret,
+            metadata: {
+              action: 'get',
+              secretPath: options.secretPath,
+              exists: !!secret,
+              type: typeof secret,
+              masked: secret ? maskSecretObject(secret) : null,
+            },
+          };
+          configureResults.push(result);
+          break;
+        }
+        
+        case 'set': {
+          if (!options.secretPath) {
+            throw new Error('Secret path is required for set operation');
+          }
+          
+          const fullName = await getSecretFullName(options.environment, options.secretPath);
+          let currentSecret;
+          try {
+            currentSecret = await getCurrentSecret(options.environment, fullName);
+          } catch {
+            currentSecret = null;
+          }
+          
+          let newValue = options.value;
+          if (!newValue && !options.dryRun && !isStructuredOutput) {
+            // Interactive prompt for value
+            const rl = createReadlineInterface();
+            
+            if (KNOWN_SECRETS[options.secretPath]?.includes('OAuth')) {
+              const clientId = await askQuestion(rl, 'Client ID: ');
+              const clientSecret = await askQuestion(rl, 'Client Secret: ');
+              newValue = JSON.stringify({ clientId, clientSecret });
+            } else {
+              newValue = await askQuestion(rl, 'Enter secret value: ');
+            }
+            rl.close();
+          }
+          
+          if (!options.dryRun && newValue) {
+            await updateSecret(options.environment, fullName, newValue);
+          }
+          
+          const result: ConfigureResult = {
+            ...createBaseResult('configure', options.secretPath, 'aws', options.environment, startTime),
+            configurationChanges: [
+              {
+                key: options.secretPath,
+                oldValue: currentSecret ? maskSecretObject(currentSecret) : undefined,
+                newValue: newValue ? maskSecretObject(newValue) : undefined,
+                source: 'aws-secrets-manager',
+              },
+            ],
+            restartRequired: true,
+            resourceId: { aws: { name: fullName } },
+            status: options.dryRun ? 'dry-run' : 'updated',
+            metadata: {
+              action: 'set',
+              secretPath: options.secretPath,
+              wasExisting: !!currentSecret,
+              dryRun: options.dryRun,
+            },
+          };
+          configureResults.push(result);
+          break;
+        }
+      }
+    } catch (error) {
+      const errorResult = createErrorResult(
+        createBaseResult('configure', options.action, 'external', options.environment, startTime),
+        error as Error
+      ) as ConfigureResult;
+      errorResult.configurationChanges = [];
+      errorResult.restartRequired = false;
+      errorResult.resourceId = { external: {} };
+      errorResult.status = 'failed';
+      errorResult.metadata = { action: options.action, error: (error as Error).message };
+      configureResults.push(errorResult);
+    }
+    
+    // Create aggregated results
+    const commandResults: CommandResults = {
+      command: 'configure',
+      environment: options.environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      services: configureResults,
+      summary: {
+        total: configureResults.length,
+        succeeded: configureResults.filter(r => r.success).length,
+        failed: configureResults.filter(r => !r.success).length,
+        warnings: 0,
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun,
+      }
+    };
+    
+    return commandResults;
+    
+  } finally {
+    // Restore output suppression state
+    suppressOutput = previousSuppressOutput;
+  }
+}
+
+// =====================================================================
 // MAIN EXECUTION
 // =====================================================================
 
-async function main(): Promise<void> {
+export async function main(options?: ConfigureOptions): Promise<void> {
   try {
-    const options = parseArgs();
+    const opts = options || parseArgs();
     
-    if (options.verbose) {
-      console.log('🔧 Configure options:', options);
+    const results = await configure(opts);
+    
+    // Handle structured output
+    if (opts.output !== 'summary') {
+      const { formatResults } = await import('../lib/output-formatter.js');
+      const formatted = formatResults(results, opts.output);
+      console.log(formatted);
+      return;
     }
     
-    switch (options.command) {
+    // For summary format, show human-readable output
+    if (opts.verbose) {
+      printDebug(`Configure options: ${JSON.stringify(opts)}`, opts);
+    }
+    
+    switch (opts.action) {
       case 'show':
         await showConfiguration();
         break;
@@ -536,25 +837,35 @@ async function main(): Promise<void> {
         break;
         
       case 'get':
-        await getSecret(options);
+        await getSecret(opts);
         break;
         
       case 'set':
-        await setSecret(options);
+        await setSecret(opts);
         break;
         
       default:
-        console.error(`❌ Unknown command: ${options.command}`);
+        printError(`Unknown action: ${opts.action}`);
         process.exit(1);
     }
     
+    // Exit with appropriate code
+    if (results.summary && results.summary.failed > 0) {
+      process.exit(1);
+    }
+    
   } catch (error) {
-    console.error('❌ Configure failed:', error instanceof Error ? error.message : String(error));
+    printError(`Configure failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }
 
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  main().catch(error => {
+    printError(`Unexpected error: ${error}`);
+    process.exit(1);
+  });
 }
+
+export { ConfigureOptions, ConfigureOptionsSchema };

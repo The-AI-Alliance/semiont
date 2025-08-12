@@ -700,31 +700,21 @@ async function executeCommand(
         break;
       }
       
-      // Commands that need their structured functions implemented:
       case 'configure': {
-        // For now, fall back to main() functions for these commands
-        // TODO: Implement structured functions for these commands
-        const { main } = await import(`./commands/${command}.js`);
-        
-        // Build options object based on command type
-        let cmdOptions: any = {
+        const { configure } = await import('./commands/configure.js');
+        // Parse the action from positional arguments
+        const action = args._?.length > 0 ? args._[0] : 'show';
+        const configureOptions = {
+          action: action as 'show' | 'list' | 'validate' | 'get' | 'set',
           environment: args['--environment'] || 'local',
+          secretPath: args['--secret-path'],
+          value: args['--value'],
           verbose: args['--verbose'] || false,
           dryRun: args['--dry-run'] || false,
-          output: 'summary' as const
+          output: outputFormat
         };
-        
-        // Add command-specific options
-        cmdOptions = {
-          ...cmdOptions,
-          secretPath: args['--secret-path'] || '',
-          value: args['--value'] || '',
-          action: args._.length > 0 ? args._[0] : 'list'
-        };
-        
-        // Call main() function directly and exit
-        await main(cmdOptions);
-        return;
+        results = await configure(configureOptions);
+        break;
       }
       
       default:
