@@ -447,6 +447,8 @@ async function parseArguments(
         
         ...(command === 'backup' ? {
           '--name': String,
+          '--output-path': String,
+          '--no-compress': Boolean,
           '-n': '--name',
         } : {}),
         
@@ -651,10 +653,25 @@ async function executeCommand(
         break;
       }
       
+      case 'backup': {
+        const { backup } = await import('./commands/backup.js');
+        const backupOptions = {
+          environment: args['--environment'] || 'local',
+          service: args['--service'] || 'all',
+          name: args['--name'],
+          outputPath: args['--output-path'] || './backups',
+          compress: !args['--no-compress'],
+          verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
+          output: outputFormat
+        };
+        results = await backup(backupOptions);
+        break;
+      }
+      
       // Commands that need their structured functions implemented:
       case 'watch': 
       case 'exec': 
-      case 'backup': 
       case 'configure': {
         // For now, fall back to main() functions for these commands
         // TODO: Implement structured functions for these commands
@@ -684,12 +701,6 @@ async function executeCommand(
               ...cmdOptions,
               service: args['--service'] || 'all',
               command: args['--command'] || ''
-            };
-            break;
-          case 'backup':
-            cmdOptions = {
-              ...cmdOptions,
-              name: args['--name'] || ''
             };
             break;
           case 'configure':
