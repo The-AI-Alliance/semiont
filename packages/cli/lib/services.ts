@@ -132,7 +132,6 @@ export async function getServicesWithCapability(
       // filesystem and database don't get "published" in the build/push sense
       return allServices.filter(service => 
         service === 'frontend' || service === 'backend'
-        // TODO: Check deployment.type from config to determine if service is containerized
       );
     
     case 'backup':

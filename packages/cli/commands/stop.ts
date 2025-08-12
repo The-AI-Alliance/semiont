@@ -1,5 +1,5 @@
 /**
- * Stop Command V2 - Stop services with type-safe argument parsing
+ * Stop Command - Stop services with type-safe argument parsing
  * 
  * This version works with the new CLI structure using Zod validation
  */

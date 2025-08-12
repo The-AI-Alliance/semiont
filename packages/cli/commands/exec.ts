@@ -1,5 +1,5 @@
 /**
- * Exec Command V2 - Deployment-type aware command execution
+ * Exec Command - Deployment-type aware command execution
  * 
  * This command executes commands in services based on deployment type:
  * - AWS: Execute commands in ECS tasks using AWS ECS Exec

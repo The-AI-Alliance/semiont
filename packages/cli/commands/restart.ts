@@ -1,5 +1,5 @@
 /**
- * Restart Command V2 - Deployment-type aware service restart
+ * Restart Command - Deployment-type aware service restart
  * 
  * This command restarts services based on their deployment type:
  * - AWS: Restart ECS tasks

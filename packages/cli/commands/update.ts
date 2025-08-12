@@ -1,5 +1,5 @@
 /**
- * Update Command V2 - Deployment-type aware service updates
+ * Update Command - Deployment-type aware service updates
  * 
  * This command updates running services based on deployment type:
  * - AWS: Force new ECS deployments to pick up latest ECR images
@@ -166,8 +166,8 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
       }
       
       try {
-        // Get AWS region from environment or default (would need proper config loading)
-        const awsRegion = 'us-east-1'; // TODO: Load from environment config
+        // Get AWS region from service configuration or use default
+        const awsRegion = (serviceInfo.config as any).aws?.region || 'us-east-1';
         const ecsClient = new ECSClient({ region: awsRegion });
         const clusterName = `semiont-${options.environment}`;
         const fullServiceName = `semiont-${options.environment}-${serviceInfo.name}`;

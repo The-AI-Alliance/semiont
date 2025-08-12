@@ -1,5 +1,5 @@
 /**
- * Configure Command V2 - Unified configuration management with structured output
+ * Configure Command - Unified configuration management with structured output
  * 
  * Manages both public configuration (domains, settings) and private secrets (OAuth, JWT)
  * Now supports structured output for programmatic access.

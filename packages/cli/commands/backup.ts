@@ -1,5 +1,5 @@
 /**
- * Backup Command V2 - Deployment-type aware backup operations
+ * Backup Command - Deployment-type aware backup operations
  * 
  * This command creates backups based on service deployment type:
  * - AWS: Create RDS snapshots, EFS backups, ECS task definitions backup

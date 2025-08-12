@@ -1,5 +1,5 @@
 /**
- * Watch Command V2 - Interactive monitoring with structured output support
+ * Watch Command - Interactive monitoring with structured output support
  * 
  * This command provides real-time monitoring through an interactive dashboard.
  * When the session ends, it returns structured output about the monitoring session.

@@ -1,5 +1,5 @@
 /**
- * Test Command V2 - Deployment-type aware service testing
+ * Test Command - Deployment-type aware service testing
  * 
  * This command runs tests against services based on deployment type:
  * - AWS: Integration tests against AWS endpoints, health checks, performance tests
@@ -489,11 +489,11 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
     printInfo(`Testing ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}...`);
   }
   
-  // Suppress output for legacy functions when in structured mode
+  // Suppress output when in structured mode
   const previousSuppressOutput = suppressOutput;
   suppressOutput = isStructuredOutput;
   
-  // Use legacy functions to run actual tests
+  // Run the actual tests
   const passed = await testServiceImpl(serviceInfo, suite, options);
   const testDuration = Date.now() - startTime;
   

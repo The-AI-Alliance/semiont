@@ -167,7 +167,7 @@ export class SemiontStackConfig {
     return serviceArn;
   }
 
-  // Legacy method for backward compatibility - defaults to backend
+  // Service name defaults to backend for simplicity
   async getServiceName(): Promise<string> {
     return this.getBackendServiceName();
   }
@@ -195,8 +195,8 @@ export class SemiontStackConfig {
   }
 
   async getGitHubOAuthSecretName(): Promise<string> {
-    // GitHub OAuth is no longer supported, but keeping method for backward compatibility
-    throw new AWSError('GitHub OAuth is no longer supported. Only Google OAuth is available.', { feature: 'DEPRECATED_FEATURE' });
+    // GitHub OAuth is not currently supported
+    throw new AWSError('GitHub OAuth is not supported. Only Google OAuth is available.', { feature: 'UNSUPPORTED_FEATURE' });
   }
 
   async getAdminEmailsSecretName(): Promise<string> {

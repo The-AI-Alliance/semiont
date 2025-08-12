@@ -1,5 +1,5 @@
 /**
- * Provision Command V2 - Service-deployment-type aware infrastructure provisioning
+ * Provision Command - Service-deployment-type aware infrastructure provisioning
  * 
  * This command provisions infrastructure based on each service's deployment type:
  * - AWS: Creates ECS services, RDS instances, EFS volumes, ALBs

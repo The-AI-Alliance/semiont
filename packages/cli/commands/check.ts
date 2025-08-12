@@ -1,5 +1,5 @@
 /**
- * Check Command V2 - Deployment-type aware system health and status monitoring
+ * Check Command - Deployment-type aware system health and status monitoring
  * 
  * This command checks service health based on deployment type:
  * - AWS: Query ECS service status, RDS status, EFS mount status

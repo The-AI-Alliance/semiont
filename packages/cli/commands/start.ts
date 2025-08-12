@@ -1,5 +1,5 @@
 /**
- * Start Command V2 - Refactored to work with new CLI structure
+ * Start Command - Refactored to work with new CLI structure
  * 
  * This version expects arguments to be passed via environment variables
  * and command-line flags from the main CLI entry point.
