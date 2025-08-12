@@ -38,6 +38,7 @@ import { colors } from './lib/cli-colors.js';
 // Common arguments available to ALL commands
 const CommonArgsSchema = z.object({
   '--environment': z.string().optional(),
+  '--config-file': z.string().optional(),  // Path to semiont.json
   '--output': z.enum(['summary', 'table', 'json', 'yaml']).optional(),
   '--quiet': z.boolean().optional(),
   '--verbose': z.boolean().optional(),
@@ -46,6 +47,7 @@ const CommonArgsSchema = z.object({
   
   // Aliases
   '-e': z.literal('--environment').optional(),
+  '-f': z.literal('--config-file').optional(),
   '-o': z.literal('--output').optional(),
   '-q': z.literal('--quiet').optional(),
   '-v': z.literal('--verbose').optional(),
@@ -95,6 +97,19 @@ const ConfigureArgsSchema = CommonArgsSchema.extend({
   '--secret-path': z.string().optional(),
   '--value': z.string().optional(),
   '-s': z.literal('--secret-path').optional(),
+});
+
+const InitArgsSchema = z.object({
+  '--name': z.string().optional(),
+  '--directory': z.string().optional(),
+  '--force': z.boolean().optional(),
+  '--environments': z.string().optional(), // Comma-separated list
+  '--output': z.enum(['summary', 'json', 'yaml']).optional(),
+  '--quiet': z.boolean().optional(),
+  '--verbose': z.boolean().optional(),
+  '-n': z.literal('--name').optional(),
+  '-d': z.literal('--directory').optional(),
+  '-f': z.literal('--force').optional(),
 });
 
 const BackupArgsSchema = CommonArgsSchema.extend({
@@ -154,6 +169,17 @@ const COMMANDS: Record<string, CommandDefinition> = {
       'semiont configure -e staging validate',
       'semiont configure -e production get oauth/google',
       'semiont configure -e staging set jwt-secret',
+    ],
+  },
+  init: {
+    description: 'Initialize a new Semiont project',
+    schema: InitArgsSchema,
+    requiresEnvironment: false,
+    examples: [
+      'semiont init',
+      'semiont init --name my-project',
+      'semiont init --environments local,staging,production',
+      'semiont init --directory ./my-app',
     ],
   },
   publish: {
@@ -455,6 +481,16 @@ async function parseArguments(
           '--value': String,
           '-s': '--secret-path',
         } : {}),
+
+        ...(command === 'init' ? {
+          '--name': String,
+          '--directory': String,
+          '--force': Boolean,
+          '--environments': String,
+          '-n': '--name',
+          '-d': '--directory',
+          '-f': '--force',
+        } : {}),
         
         ...(command === 'backup' ? {
           '--name': String,
@@ -730,6 +766,21 @@ async function executeCommand(
           output: outputFormat
         };
         results = await configure(configureOptions);
+        break;
+      }
+
+      case 'init': {
+        const { init } = await import('./commands/init.js');
+        const initOptions = {
+          name: args['--name'],
+          directory: args['--directory'],
+          force: args['--force'] || false,
+          environments: args['--environments']?.split(',') || ['local', 'test', 'staging', 'production'],
+          output: outputFormat,
+          quiet: args['--quiet'] || false,
+          verbose: args['--verbose'] || false,
+        };
+        results = await init(initOptions);
         break;
       }
       

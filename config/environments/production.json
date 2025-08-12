@@ -7,13 +7,6 @@
     "_comment": "Environment variables to set for services",
     "NODE_ENV": "production"
   },
-  "site": {
-    "_comment": "Production-specific site configuration (example values - MUST BE CUSTOMIZED)",
-    "domain": "wiki.example.com",
-    "adminEmail": "admin@example.com",
-    "supportEmail": "support@example.com", 
-    "oauthAllowedDomains": ["example.com"]
-  },
   "app": {
     "features": {
       "enableAnalytics": true,

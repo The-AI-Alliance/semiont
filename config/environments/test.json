@@ -9,12 +9,6 @@
     "_comment": "Environment variables to set for services",
     "NODE_ENV": "test"
   },
-  "site": {
-    "domain": "test.example.com",
-    "adminEmail": "admin@test.example.com",
-    "supportEmail": "support@test.example.com",
-    "oauthAllowedDomains": ["test.example.com", "example.org"]
-  },
   "app": {
     "features": {
       "enableAnalytics": false,

@@ -7,13 +7,6 @@
     "_comment": "Environment variables to set for services",
     "NODE_ENV": "development"
   },
-  "site": {
-    "_comment": "Cloud development environment site configuration (example values - MUST BE CUSTOMIZED)",
-    "domain": "dev.example.com",
-    "adminEmail": "admin@example.com",
-    "supportEmail": "support@example.com",
-    "oauthAllowedDomains": ["example.com", "gmail.com"]
-  },
   "app": {
     "features": {
       "enableAnalytics": false,

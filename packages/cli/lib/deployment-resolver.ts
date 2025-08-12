@@ -141,7 +141,7 @@ export function getNodeEnvForEnvironment(environment: string): 'development' | '
 }
 
 /**
- * Find project root by looking for config/environments directory
+ * Find project root by looking for semiont.json
  */
 export function findProjectRoot(): string {
   // Use SEMIONT_ROOT if set
@@ -149,8 +149,17 @@ export function findProjectRoot(): string {
     return process.env.SEMIONT_ROOT;
   }
   
-  // Walk up from current directory to find config/environments
+  // Walk up from current directory to find semiont.json
   let currentDir = process.cwd();
+  while (currentDir !== '/' && currentDir) {
+    if (fs.existsSync(path.join(currentDir, 'semiont.json'))) {
+      return currentDir;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+  
+  // Fallback: look for config/environments (backward compatibility)
+  currentDir = process.cwd();
   while (currentDir !== '/' && currentDir) {
     if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
       return currentDir;
@@ -158,46 +167,92 @@ export function findProjectRoot(): string {
     currentDir = path.dirname(currentDir);
   }
   
-  // Fallback to current directory if not found
-  return process.cwd();
+  // If not found, throw an error
+  throw new ConfigurationError(
+    'Not in a Semiont project',
+    undefined,
+    'Run "semiont init" to initialize a new project'
+  );
 }
 
 /**
- * Load environment configuration - Simple JSON loading without inheritance
+ * Deep merge utility for configuration objects
  */
-export function loadEnvironmentConfig(environment: string): EnvironmentConfig {
+function deepMerge(target: any, ...sources: any[]): any {
+  if (!sources.length) return target;
+  const source = sources.shift();
+
+  if (isObject(target) && isObject(source)) {
+    for (const key in source) {
+      if (isObject(source[key])) {
+        if (!target[key]) Object.assign(target, { [key]: {} });
+        deepMerge(target[key], source[key]);
+      } else {
+        Object.assign(target, { [key]: source[key] });
+      }
+    }
+  }
+
+  return deepMerge(target, ...sources);
+}
+
+function isObject(item: any): boolean {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+/**
+ * Load environment configuration - Merges semiont.json with environment-specific config
+ */
+export function loadEnvironmentConfig(environment: string, configFile?: string): EnvironmentConfig {
   try {
     const projectRoot = findProjectRoot();
-    const jsonPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
     
-    if (!fs.existsSync(jsonPath)) {
+    // Load base semiont.json
+    const baseConfigPath = configFile || path.join(projectRoot, 'semiont.json');
+    let baseConfig: any = {};
+    if (fs.existsSync(baseConfigPath)) {
+      const baseContent = fs.readFileSync(baseConfigPath, 'utf-8');
+      baseConfig = JSON.parse(baseContent);
+    }
+    
+    // Load environment-specific config
+    const envPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
+    if (!fs.existsSync(envPath)) {
       throw new ConfigurationError(
-        `Environment configuration missing: ${jsonPath}`, 
+        `Environment configuration missing: ${envPath}`, 
         environment,
-        `Create the configuration file or use: semiont configure --environment ${environment}`
+        `Create the configuration file or use: semiont init`
       );
     }
     
-    const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
-    const config = JSON.parse(jsonContent) as EnvironmentConfig;
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const envConfig = JSON.parse(envContent);
+    
+    // Merge configurations: base defaults -> environment config
+    const merged = deepMerge(
+      {},
+      { site: baseConfig.site },           // Site config from semiont.json
+      baseConfig.defaults || {},           // Default config from semiont.json
+      envConfig                            // Environment-specific overrides
+    );
     
     // Ensure services exists (even if empty)
-    if (!config.services) {
-      config.services = {};
+    if (!merged.services) {
+      merged.services = {};
     }
     
-    return config;
+    return merged as EnvironmentConfig;
   } catch (error) {
     if (error instanceof ConfigurationError) {
       throw error; // Re-throw our custom errors
     }
     
     const projectRoot = findProjectRoot();
-    const jsonPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
+    const envPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
     
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
       throw new ConfigurationError(
-        `Invalid JSON syntax in configuration file: ${jsonPath}`,
+        `Invalid JSON syntax in configuration file`,
         environment,
         `Check for missing commas, quotes, or brackets. Use a JSON validator to verify syntax.`
       );
@@ -207,7 +262,7 @@ export function loadEnvironmentConfig(environment: string): EnvironmentConfig {
     throw new ConfigurationError(
       `Failed to load environment configuration: ${message}`,
       environment,
-      `Check the configuration file: ${jsonPath}`
+      `Check the configuration files: semiont.json and ${envPath}`
     );
   }
 }
