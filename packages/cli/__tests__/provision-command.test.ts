@@ -172,7 +172,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -215,7 +215,7 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'backend',
         status: expect.stringMatching(/(destroyed|not-implemented)/),
         metadata: expect.objectContaining({
@@ -258,7 +258,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'database',
         metadata: expect.objectContaining({
           seed: true
@@ -306,8 +306,8 @@ describe('Provision Command', () => {
 
       expect(result.services).toHaveLength(2);
       
-      const dbService = result.services.find(s => s.service === 'database');
-      const backendService = result.services.find(s => s.service === 'backend');
+      const dbService = result.services.find(s => s.service === 'database')!;
+      const backendService = result.services.find(s => s.service === 'backend')!;
       
       expect(dbService).toBeDefined();
       expect(backendService).toBeDefined();
@@ -391,7 +391,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'backend',
         deploymentType: 'container'
       });
@@ -429,7 +429,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'frontend',
         deploymentType: 'process',
         success: true
@@ -595,7 +595,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      const provisionResult = result.services[0] as any;
+      const provisionResult = result.services[0]! as any;
       expect(provisionResult.resources).toBeDefined();
       expect(provisionResult.resources).toBeInstanceOf(Array);
     });
@@ -631,7 +631,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      const provisionResult = result.services[0] as any;
+      const provisionResult = result.services[0]! as any;
       expect(provisionResult.resources).toEqual([]);
     });
   });
@@ -668,7 +668,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'invalid-service',
         success: false,
         status: 'failed'
@@ -797,7 +797,7 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'database',
         deploymentType: 'container',
         success: true
@@ -837,7 +837,7 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         service: 'filesystem',
         deploymentType: 'container',
         success: true

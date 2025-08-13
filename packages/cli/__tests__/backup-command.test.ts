@@ -73,7 +73,7 @@ describe('backup command with structured output', () => {
       expect(results.environment).toBe('production');
       expect(results.services).toHaveLength(1);
       
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.service).toBe('database');
       expect(dbResult.deploymentType).toBe('aws');
       expect(dbResult.backupName).toBe('test-backup');
@@ -98,7 +98,7 @@ describe('backup command with structured output', () => {
       const results = await backup(deployments, options);
 
       expect(results.services).toHaveLength(1);
-      const efsResult = results.services[0] as BackupResult;
+      const efsResult = results.services[0]! as BackupResult;
       expect(efsResult.backupLocation).toBe('AWS EFS Backup Vault');
       expect(efsResult.backupType).toBe('incremental');
       expect(efsResult.metadata).toHaveProperty('automatic', true);
@@ -123,7 +123,7 @@ describe('backup command with structured output', () => {
       const results = await backup(deployments, options);
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.deploymentType).toBe('container');
       expect(dbResult.backupName).toBe('local-backup');
       expect(dbResult.compressed).toBe(false);
@@ -151,7 +151,7 @@ describe('backup command with structured output', () => {
       const results = await backup(deployments, options);
 
       expect(results.services).toHaveLength(1);
-      const fsResult = results.services[0] as BackupResult;
+      const fsResult = results.services[0]! as BackupResult;
       expect(fsResult.backupName).toBe('volume-backup');
       
       expect(mockExecInContainer).toHaveBeenCalledWith(
@@ -193,7 +193,7 @@ describe('backup command with structured output', () => {
       const results = await backupPromise;
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.backupName).toBe('postgres-backup');
       
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -221,7 +221,7 @@ describe('backup command with structured output', () => {
       const results = await backup(deployments, options);
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.status).toBe('skipped');
       expect(dbResult.metadata).toHaveProperty('guidance');
     });
@@ -279,7 +279,7 @@ describe('backup command with structured output', () => {
       const results = await backup(deployments, options);
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.status).toBe('failed');
       expect(dbResult.error).toContain('Snapshot already exists');
     });
@@ -333,7 +333,7 @@ describe('backup command with structured output', () => {
 
       const results = await backupPromise;
 
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.compressed).toBe(true);
       expect(dbResult.backupLocation).toContain('.gz');
     });
@@ -355,7 +355,7 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.backupName).toBe('custom-backup-name');
     });
 
@@ -374,7 +374,7 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      const dbResult = results.services[0] as BackupResult;
+      const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.backupName).toMatch(/database-\d{8}T\d{6}/);
     });
   });

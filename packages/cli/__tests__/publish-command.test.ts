@@ -173,7 +173,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -212,7 +212,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         imageTag: 'v2.0.0',
         metadata: expect.objectContaining({
           skipBuild: true,
@@ -267,7 +267,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'aws',
         imageTag: 'v1.0.0',
         repository: expect.stringContaining('.dkr.ecr.'),
@@ -358,7 +358,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'container',
         imageTag: 'dev',
         repository: 'localhost:5000',
@@ -395,7 +395,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'process',
         status: expect.stringMatching(/(not-applicable|skipped)/),
         success: true,
@@ -432,7 +432,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'external',
         status: 'external',
         success: true,
@@ -553,7 +553,7 @@ describe('Publish Command', () => {
 
       // Build should not be called with skipBuild=true
       expect(dockerBuildCalled).toBe(false);
-      expect(result.services[0].metadata.skipBuild).toBe(true);
+      expect(result.services[0]!.metadata.skipBuild).toBe(true);
     });
   });
 
@@ -630,7 +630,7 @@ describe('Publish Command', () => {
       const result = await publish(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('backend');
+      expect(result.services[0]!.service).toBe('backend');
       expect(result.summary.total).toBe(1);
     });
   });
@@ -668,7 +668,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         success: false,
         status: 'failed',
         error: expect.stringContaining('ECR authentication failed')
@@ -721,7 +721,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0].success).toBe(false);
+      expect(result.services[0]!.success).toBe(false);
       expect(result.summary.failed).toBe(1);
     });
   });
@@ -793,8 +793,8 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0].metadata?.tag).toBe('v3.2.1-release');
-      expect(result.services[0].metadata?.tag).toBe('v3.2.1-release');
+      expect(result.services[0]!.metadata?.tag).toBe('v3.2.1-release');
+      expect(result.services[0]!.metadata?.tag).toBe('v3.2.1-release');
     });
 
     it('should use default tag when not provided', async () => {
@@ -821,7 +821,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0].metadata?.tag).toBe('latest');
+      expect(result.services[0]!.metadata?.tag).toBe('latest');
     });
   });
 });

@@ -34,7 +34,7 @@
     
     // Additional strict checking
     "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": false,    // TODO: Enable after adding null checks
+    "noUncheckedIndexedAccess": true,
     "noPropertyAccessFromIndexSignature": false,
     
     // Code Quality (warnings, not errors in development)

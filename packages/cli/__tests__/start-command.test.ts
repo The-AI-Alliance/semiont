@@ -166,7 +166,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -226,7 +226,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'aws',
         service: 'backend',
         status: 'not-implemented'
@@ -260,7 +260,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'container',
         service: 'database',
         command: 'start'
@@ -295,7 +295,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'process',
         service: 'backend',
         resourceId: expect.objectContaining({
@@ -335,7 +335,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'external',
         service: 'database',
         status: 'external',
@@ -443,7 +443,7 @@ describe('Start Command', () => {
       const result = await start(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('backend');
+      expect(result.services[0]!.service).toBe('backend');
     });
   });
 });

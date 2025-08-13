@@ -168,7 +168,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -212,7 +212,7 @@ describe('Restart Command', () => {
       const result = await restart(serviceDeployments, options);
 
       // With force=true, should continue despite stop failure
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'force-continued',
         success: true,
         metadata: expect.objectContaining({
@@ -261,7 +261,7 @@ describe('Restart Command', () => {
       // Allow some margin for test execution
       expect(endTime - startTime).toBeGreaterThanOrEqual(gracePeriod * 900); // 90% of expected time
       
-      expect(result.services[0].metadata.gracePeriod).toBe(gracePeriod);
+      expect(result.services[0]!.metadata.gracePeriod).toBe(gracePeriod);
     });
   });
 
@@ -284,7 +284,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'aws',
         status: 'not-implemented',
         resourceId: expect.objectContaining({
@@ -329,7 +329,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'container',
         status: 'restarted',
         resourceId: expect.objectContaining({
@@ -369,7 +369,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'process',
         status: 'restarted',
         resourceId: expect.objectContaining({
@@ -414,7 +414,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'external',
         status: 'external',
         downtime: 0, // External services don't have downtime
@@ -502,7 +502,7 @@ describe('Restart Command', () => {
       const result = await restart(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('backend');
+      expect(result.services[0]!.service).toBe('backend');
       expect(result.summary.total).toBe(1);
     });
   });
@@ -537,7 +537,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         success: false,
         status: 'failed',
         error: expect.stringContaining('Failed')
@@ -576,7 +576,7 @@ describe('Restart Command', () => {
 
       const result = await restart(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         success: false,
         status: 'failed',
         error: expect.stringContaining('Failed')
@@ -624,8 +624,8 @@ describe('Restart Command', () => {
       expect(result.services).toHaveLength(3);
       expect(result.summary.total).toBe(3);
       // First one continues despite stop failure (force mode)
-      expect(result.services[0].status).toBe('force-continued');
-      expect(result.services[0].success).toBe(true);
+      expect(result.services[0]!.status).toBe('force-continued');
+      expect(result.services[0]!.success).toBe(true);
     });
   });
 

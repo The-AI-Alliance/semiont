@@ -166,7 +166,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -205,7 +205,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         command: 'stop',
         service: 'database',
         forcedTermination: true
@@ -231,7 +231,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'aws',
         service: 'backend',
         status: 'not-implemented'
@@ -268,7 +268,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'container',
         service: 'database',
         command: 'stop'
@@ -303,7 +303,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'process',
         service: 'backend',
         resourceId: expect.objectContaining({
@@ -343,7 +343,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'external',
         service: 'database',
         status: 'external',
@@ -433,9 +433,9 @@ describe('Stop Command', () => {
       expect(result.summary.total).toBe(3);
       
       // Services should be stopped in reverse order: frontend, backend, database
-      expect(result.services[0].service).toBe('frontend');
-      expect(result.services[1].service).toBe('backend');
-      expect(result.services[2].service).toBe('database');
+      expect(result.services[0]!.service).toBe('frontend');
+      expect(result.services[1]!.service).toBe('backend');
+      expect(result.services[2]!.service).toBe('database');
     });
 
     it('should stop specific service when named', async () => {
@@ -467,7 +467,7 @@ describe('Stop Command', () => {
       const result = await stop(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('backend');
+      expect(result.services[0]!.service).toBe('backend');
     });
   });
 
@@ -499,7 +499,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         success: false,
         status: 'failed'
       });

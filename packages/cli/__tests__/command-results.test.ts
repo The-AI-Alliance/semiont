@@ -131,7 +131,7 @@ describe('Command Result Type System', () => {
 
       expect(checkResult.healthStatus).toBe('healthy');
       expect(checkResult.checks).toHaveLength(2);
-      expect(checkResult.checks[0].status).toBe('passed');
+      expect(checkResult.checks[0]!.status).toBe('passed');
     });
 
     it('should support UpdateResult structure', () => {
@@ -161,7 +161,7 @@ describe('Command Result Type System', () => {
 
       expect(updateResult.rollbackAvailable).toBe(true);
       expect(updateResult.changesApplied).toHaveLength(2);
-      expect(updateResult.changesApplied[0].type).toBe('infrastructure');
+      expect(updateResult.changesApplied[0]!.type).toBe('infrastructure');
     });
   });
 
@@ -251,9 +251,9 @@ describe('Command Result Type System', () => {
 
       expect(commandResults.summary.succeeded).toBe(1);
       expect(commandResults.summary.failed).toBe(1);
-      expect(services[0].success).toBe(true);
-      expect(services[1].success).toBe(false);
-      expect(services[1].error).toBe('Port already in use');
+      expect(services[0]!.success).toBe(true);
+      expect(services[1]!.success).toBe(false);
+      expect(services[1]!.error).toBe('Port already in use');
     });
   });
 });

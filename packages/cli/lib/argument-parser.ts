@@ -36,7 +36,7 @@ export function parseCommandArgs<T extends BaseOptions>(
   // Additional arguments come from process.argv
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     
     // Parse common arguments that might be passed directly
     switch (arg) {
@@ -78,7 +78,7 @@ export function parseKeyValueArgs(args: string[]): Record<string, string | boole
   const result: Record<string, string | boolean> = {};
   
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     
     if (arg.startsWith('--')) {
       const key = arg.slice(2);

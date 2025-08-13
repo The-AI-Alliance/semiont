@@ -387,7 +387,7 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
       const actualStartTime = new Date();
       printInfo(`Starting new process for ${serviceInfo.name}`);
       const command = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
-      const proc = spawn(command[0], command.slice(1), {
+      const proc = spawn(command[0]!, command.slice(1), {
         cwd: `apps/${serviceInfo.name}`,
         stdio: 'pipe',
         detached: true,

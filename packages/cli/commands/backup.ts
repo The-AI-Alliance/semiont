@@ -528,7 +528,7 @@ async function backupLocalDatabase(backupName: string, options: BackupOptions): 
     '-f', backupFile
   ];
   
-  const proc = spawn(dumpCommand[0], dumpCommand.slice(1), {
+  const proc = spawn(dumpCommand[0]!, dumpCommand.slice(1), {
     env: {
       ...process.env,
       PGPASSWORD: process.env.POSTGRES_PASSWORD || 'localpassword'
@@ -536,7 +536,7 @@ async function backupLocalDatabase(backupName: string, options: BackupOptions): 
   });
   
   await new Promise<void>((resolve, reject) => {
-    proc.on('close', (code) => {
+    proc.on('close', (code: number | null) => {
       if (code === 0) {
         printSuccess(`Database backup created: ${backupFile}`);
         resolve();
@@ -544,7 +544,7 @@ async function backupLocalDatabase(backupName: string, options: BackupOptions): 
         reject(new Error(`pg_dumpall failed with code ${code}`));
       }
     });
-    proc.on('error', reject);
+    proc.on('error', (error: Error) => reject(error));
   });
   
   if (options.compress) {
@@ -591,10 +591,10 @@ async function backupLocalFilesystem(serviceInfo: ServiceDeploymentInfo, backupN
     path.basename(dataPath)
   ];
   
-  const proc = spawn(tarCommand[0], tarCommand.slice(1));
+  const proc = spawn(tarCommand[0]!, tarCommand.slice(1));
   
   await new Promise<void>((resolve, reject) => {
-    proc.on('close', (code) => {
+    proc.on('close', (code: number | null) => {
       if (code === 0) {
         printSuccess(`Filesystem backup created: ${backupFile}`);
         resolve();
@@ -602,7 +602,7 @@ async function backupLocalFilesystem(serviceInfo: ServiceDeploymentInfo, backupN
         reject(new Error(`tar failed with code ${code}`));
       }
     });
-    proc.on('error', reject);
+    proc.on('error', (error: Error) => reject(error));
   });
   
   if (options.compress && compressedFile) {
@@ -652,10 +652,10 @@ async function backupApplicationFiles(serviceName: string, backupName: string, o
     path.basename(appPath)
   ];
   
-  const proc = spawn(tarCommand[0], tarCommand.slice(1));
+  const proc = spawn(tarCommand[0]!, tarCommand.slice(1));
   
   await new Promise<void>((resolve, reject) => {
-    proc.on('close', (code) => {
+    proc.on('close', (code: number | null) => {
       if (code === 0) {
         printSuccess(`Application backup created: ${backupFile}`);
         resolve();
@@ -663,7 +663,7 @@ async function backupApplicationFiles(serviceName: string, backupName: string, o
         reject(new Error(`Application backup failed with code ${code}`));
       }
     });
-    proc.on('error', reject);
+    proc.on('error', (error: Error) => reject(error));
   });
   
   if (options.compress && compressedFile) {

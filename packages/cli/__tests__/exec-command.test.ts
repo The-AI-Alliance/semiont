@@ -75,7 +75,7 @@ describe('exec command with structured output', () => {
       expect(results.environment).toBe('production');
       expect(results.services).toHaveLength(1);
       
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.service).toBe('backend');
       expect(execResult.deploymentType).toBe('aws');
       expect(execResult.command).toBe('/bin/sh');
@@ -110,7 +110,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as ExecResult;
+      const dbResult = results.services[0]! as ExecResult;
       expect(dbResult.status).toBe('failed');
       expect(dbResult.error).toContain('RDS exec not supported');
     });
@@ -128,7 +128,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const fsResult = results.services[0] as ExecResult;
+      const fsResult = results.services[0]! as ExecResult;
       expect(fsResult.status).toBe('failed');
       expect(fsResult.error).toContain('EFS exec not supported');
     });
@@ -154,7 +154,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
       expect(execResult.error).toContain('No running backend tasks found');
     });
@@ -176,7 +176,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.deploymentType).toBe('container');
       expect(execResult.command).toBe('ls -la');
       expect(execResult.status).toBe('success');
@@ -207,7 +207,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as ExecResult;
+      const dbResult = results.services[0]! as ExecResult;
       expect(dbResult.deploymentType).toBe('container');
       expect(dbResult.status).toBe('success');
       
@@ -234,7 +234,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
       expect(execResult.error).toContain('Container exec failed');
     });
@@ -254,7 +254,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
       expect(execResult.error).toContain('Container not running');
     });
@@ -285,7 +285,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.deploymentType).toBe('process');
       expect(execResult.status).toBe('success');
       
@@ -324,7 +324,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
 
       expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0] as ExecResult;
+      const dbResult = results.services[0]! as ExecResult;
       expect(dbResult.deploymentType).toBe('process');
       expect(dbResult.status).toBe('success');
       
@@ -364,7 +364,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
 
       expect(results.services).toHaveLength(1);
-      const fsResult = results.services[0] as ExecResult;
+      const fsResult = results.services[0]! as ExecResult;
       expect(fsResult.deploymentType).toBe('process');
       expect(fsResult.status).toBe('success');
       
@@ -400,7 +400,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
       expect(execResult.error).toContain('Command not found');
     });
@@ -429,7 +429,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
 
       expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
       expect(execResult.error).toContain('Command failed with code 1');
     });
@@ -454,7 +454,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const extResult = results.services[0] as ExecResult;
+      const extResult = results.services[0]! as ExecResult;
       expect(extResult.deploymentType).toBe('external');
       expect(extResult.status).toBe('failed');
       expect(extResult.error).toContain('Cannot exec into external database');
@@ -476,7 +476,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
-      const fsResult = results.services[0] as ExecResult;
+      const fsResult = results.services[0]! as ExecResult;
       expect(fsResult.deploymentType).toBe('external');
       expect(fsResult.status).toBe('failed');
       expect(fsResult.error).toContain('Cannot exec into external filesystem');
@@ -500,7 +500,7 @@ describe('exec command with structured output', () => {
       expect(results.executionContext.dryRun).toBe(true);
       expect(results.services).toHaveLength(1);
       
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('dry-run');
       expect(execResult.metadata).toHaveProperty('dryRun', true);
       expect(execResult.exitCode).toBe(0);
@@ -617,7 +617,7 @@ describe('exec command with structured output', () => {
 
       const results = await execPromise;
 
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.interactive).toBe(true);
       
       // Verify --interactive flag was passed to AWS CLI
@@ -642,7 +642,7 @@ describe('exec command with structured output', () => {
 
       const results = await exec(deployment, options);
 
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.interactive).toBe(false);
       
       // Verify interactive: false was passed
@@ -670,7 +670,7 @@ describe('exec command with structured output', () => {
 
       const results = await exec(deployment, options);
 
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.command).toBe('/bin/sh');
     });
 
@@ -687,7 +687,7 @@ describe('exec command with structured output', () => {
 
       const results = await exec(deployment, options);
 
-      const execResult = results.services[0] as ExecResult;
+      const execResult = results.services[0]! as ExecResult;
       expect(execResult.command).toBe('npm run test');
     });
   });

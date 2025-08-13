@@ -181,7 +181,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -226,7 +226,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       // With force=true, should continue despite failures
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'force-continued',
         success: true,
         rollbackAvailable: false,
@@ -277,11 +277,11 @@ describe('Update Command', () => {
       const updateCommands = (UpdateServiceCommand as any).mock.calls;
       expect(updateCommands).toHaveLength(2);
       
-      expect(updateCommands[0][0]).toMatchObject({
+      expect(updateCommands[0]![0]).toMatchObject({
         cluster: 'semiont-production',        forceNewDeployment: true
       });
       
-      expect(updateCommands[1][0]).toMatchObject({
+      expect(updateCommands[1]![0]).toMatchObject({
         cluster: 'semiont-production',        forceNewDeployment: true
       });
     });
@@ -314,7 +314,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'aws',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'aws',
         status: 'not-applicable',
         success: true,
         previousVersion: 'postgres-15',
@@ -361,7 +361,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'aws',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'aws',
         status: 'no-action-needed',
         success: true,
         previousVersion: 'efs-standard',
@@ -416,7 +416,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'container',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'container',
         status: 'updated',
         success: true,
         rollbackAvailable: true,
@@ -488,7 +488,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'container',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'container',
         status: 'updated',
         success: true
       });
@@ -533,7 +533,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'container',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'container',
         status: 'updated',
         success: true,
         previousVersion: 'volume',
@@ -577,7 +577,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'process',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'process',
         status: 'updated',
         success: true,
         previousVersion: 'development',
@@ -632,7 +632,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'process',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'process',
         status: 'not-applicable',
         success: true,
         previousVersion: 'postgres-local',
@@ -676,7 +676,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'external',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'external',
         status: 'external',
         success: true,
         previousVersion: 'external',
@@ -725,7 +725,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({        deploymentType: 'external',
+      expect(result.services[0]!).toMatchObject({        deploymentType: 'external',
         status: 'external',
         success: true,
         resourceId: expect.objectContaining({
@@ -776,7 +776,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         success: false,
         status: 'failed',
         error: 'AWS credentials not configured',
@@ -821,7 +821,7 @@ describe('Update Command', () => {
 
       // Should have stopped after first failure
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].success).toBe(false);
+      expect(result.services[0]!.success).toBe(false);
       expect(result.summary.failed).toBe(1);
       expect(result.summary.total).toBe(1);
     });

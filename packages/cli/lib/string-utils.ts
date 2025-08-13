@@ -46,7 +46,7 @@ export function createStringTable(
       const value = String(row[col] || '');
       // Account for emojis which take 2 display units but only count as 1 in string length
       const displayWidth = getDisplayWidth(value);
-      columnWidths[col] = Math.max(columnWidths[col] || 0, displayWidth);
+      columnWidths[col] = Math.max((columnWidths[col] ?? 0) || 0, displayWidth);
     });
   });
 
@@ -63,7 +63,7 @@ export function createStringTable(
     // Top border
     output += '┌';
     columns.forEach((col, i) => {
-      output += '─'.repeat(columnWidths[col] + padding * 2);
+      output += '─'.repeat((columnWidths[col] ?? 0) + padding * 2);
       if (i < columns.length - 1) output += '┬';
     });
     output += '┐\n';
@@ -73,7 +73,7 @@ export function createStringTable(
     columns.forEach((col) => {
       const headerText = `${spacer}${c.bright}${c.white}${col}${c.reset}${spacer}`;
       const plainHeader = `${spacer}${col}${spacer}`;
-      const paddingSpaces = columnWidths[col] + padding * 2 - plainHeader.length;
+      const paddingSpaces = (columnWidths[col] ?? 0) + padding * 2 - plainHeader.length;
       output += headerText + ' '.repeat(paddingSpaces) + '│';
     });
     output += '\n';
@@ -81,7 +81,7 @@ export function createStringTable(
     // Separator
     output += '├';
     columns.forEach((col, i) => {
-      output += '─'.repeat(columnWidths[col] + padding * 2);
+      output += '─'.repeat((columnWidths[col] ?? 0) + padding * 2);
       if (i < columns.length - 1) output += '┼';
     });
     output += '┤\n';
@@ -91,7 +91,7 @@ export function createStringTable(
       output += '│';
       columns.forEach(col => {
         const value = String(row[col] || '');
-        const cellText = `${spacer}${pad(value, columnWidths[col])}${spacer}`;
+        const cellText = `${spacer}${pad(value, (columnWidths[col] ?? 0))}${spacer}`;
         output += cellText + '│';
       });
       output += '\n';
@@ -100,7 +100,7 @@ export function createStringTable(
     // Bottom border
     output += '└';
     columns.forEach((col, i) => {
-      output += '─'.repeat(columnWidths[col] + padding * 2);
+      output += '─'.repeat((columnWidths[col] ?? 0) + padding * 2);
       if (i < columns.length - 1) output += '┴';
     });
     output += '┘\n';
@@ -110,14 +110,14 @@ export function createStringTable(
     
     // Header
     columns.forEach((col, i) => {
-      output += `${c.bright}${c.white}${pad(col, columnWidths[col])}${c.reset}`;
+      output += `${c.bright}${c.white}${pad(col, (columnWidths[col] ?? 0))}${c.reset}`;
       if (i < columns.length - 1) output += '  ';
     });
     output += '\n';
 
     // Separator
     columns.forEach((col, i) => {
-      output += '─'.repeat(columnWidths[col]);
+      output += '─'.repeat((columnWidths[col] ?? 0));
       if (i < columns.length - 1) output += '  ';
     });
     output += '\n';
@@ -126,7 +126,7 @@ export function createStringTable(
     data.forEach(row => {
       columns.forEach((col, i) => {
         const value = String(row[col] || '');
-        output += pad(value, columnWidths[col]);
+        output += pad(value, (columnWidths[col] ?? 0));
         if (i < columns.length - 1) output += '  ';
       });
       output += '\n';

@@ -193,7 +193,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -264,7 +264,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'aws',
         status: expect.any(String),
         resourceId: expect.objectContaining({
@@ -303,7 +303,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'container',
         resourceId: expect.objectContaining({
           container: expect.objectContaining({
@@ -341,7 +341,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'process',
         resourceId: expect.objectContaining({
           process: expect.any(Object)
@@ -377,7 +377,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'external',
         checks: expect.arrayContaining([
           expect.objectContaining({
@@ -414,7 +414,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
+      expect(result.services[0]!).toMatchObject({
         deploymentType: 'mock',
         healthStatus: 'healthy',
         checks: expect.arrayContaining([
@@ -458,7 +458,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0] as any;
+      const service = result.services[0]! as any;
       expect(service.checks).toBeDefined();
       expect(service.checks.some((c: any) => c.name === 'container-running')).toBe(true);
     });
@@ -490,7 +490,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0] as any; // CheckResult type
+      const service = result.services[0]! as any; // CheckResult type
       
       expect(service).toBeDefined();
       expect(service.checks).toBeDefined();
@@ -528,7 +528,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0] as any;
+      const service = result.services[0]! as any;
       expect(service.checks).toBeDefined();
       const fsCheck = service.checks.find((c: any) => c.name === 'filesystem-access');
       expect(fsCheck).toBeDefined();
@@ -563,7 +563,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0] as any;
+      const service = result.services[0]! as any;
       expect(service.checks).toBeDefined();
       expect(service.healthStatus).toBeDefined();
     });
@@ -638,7 +638,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('backend');
+      expect(result.services[0]!.service).toBe('backend');
     });
   });
 

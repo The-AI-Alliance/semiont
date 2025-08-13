@@ -316,7 +316,7 @@ export const SimpleTable: React.FC<{
       {/* Headers */}
       <Box>
         {headers.map((header, index) => (
-          <Box key={index} width={columnWidths[index]}>
+          <Box key={index} {...(columnWidths[index] !== undefined ? { width: columnWidths[index] } : {})}>
             <Text bold color="blue">{header.padEnd(columnWidths[index]! - 1)}</Text>
           </Box>
         ))}
@@ -333,7 +333,7 @@ export const SimpleTable: React.FC<{
       {rows.map((row, rowIndex) => (
         <Box key={rowIndex}>
           {row.map((cell, colIndex) => (
-            <Box key={colIndex} width={columnWidths[colIndex]}>
+            <Box key={colIndex} {...(columnWidths[colIndex] !== undefined ? { width: columnWidths[colIndex] } : {})}>
               <Text>{(cell || '').padEnd(columnWidths[colIndex]! - 1)}</Text>
             </Box>
           ))}

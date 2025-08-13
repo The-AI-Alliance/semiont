@@ -359,7 +359,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       const backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
       
-      const backendProc = spawn(backendCommand[0], backendCommand.slice(1), {
+      const backendProc = spawn(backendCommand[0]!, backendCommand.slice(1), {
         cwd: backendCwd,
         stdio: 'pipe',
         detached: true,
@@ -403,7 +403,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       const frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const frontendPort = serviceInfo.config.port || 3000;
       
-      const frontendProc = spawn(frontendCommand[0], frontendCommand.slice(1), {
+      const frontendProc = spawn(frontendCommand[0]!, frontendCommand.slice(1), {
         cwd: frontendCwd,
         stdio: 'pipe',
         detached: true,

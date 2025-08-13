@@ -145,7 +145,7 @@ describe('configure command with structured output', () => {
 
       expect(results.services).toHaveLength(3);
       
-      const stagingResult = results.services.find(s => s.environment === 'staging') as ConfigureResult;
+      const stagingResult = results.services.find(s => s.environment === 'staging')! as ConfigureResult;
       expect(stagingResult).toBeDefined();
       expect(stagingResult.success).toBe(false);
       expect(stagingResult.status).toBe('failed');
@@ -169,7 +169,7 @@ describe('configure command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       
-      const listResult = results.services[0] as ConfigureResult;
+      const listResult = results.services[0]! as ConfigureResult;
       expect(listResult.service).toBe('secrets');
       expect(listResult.status).toBe('listed');
       expect(listResult.metadata).toHaveProperty('action', 'list');
@@ -237,7 +237,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const productionResult = results.services.find(s => s.environment === 'production') as ConfigureResult;
+      const productionResult = results.services.find(s => s.environment === 'production')! as ConfigureResult;
       expect(productionResult).toBeDefined();
       expect(productionResult.status).toBe('invalid');
       expect(productionResult.success).toBe(false);
@@ -305,7 +305,7 @@ describe('configure command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.service).toBe('oauth/google');
       expect(getResult.deploymentType).toBe('aws');
       expect(getResult.status).toBe('retrieved');
@@ -351,7 +351,7 @@ describe('configure command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.status).toBe('not-found');
       expect(getResult.success).toBe(false);
       expect(getResult.metadata).toHaveProperty('exists', false);
@@ -371,7 +371,7 @@ describe('configure command with structured output', () => {
       const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(1);
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.success).toBe(false);
       expect(getResult.error).toContain('Secret path is required');
     });
@@ -414,12 +414,12 @@ describe('configure command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       
-      const setResult = results.services[0] as ConfigureResult;
+      const setResult = results.services[0]! as ConfigureResult;
       expect(setResult.service).toBe('jwt-secret');
       expect(setResult.status).toBe('updated');
       expect(setResult.success).toBe(true);
       expect(setResult.configurationChanges).toHaveLength(1);
-      expect(setResult.configurationChanges[0]).toMatchObject({
+      expect(setResult.configurationChanges[0]!).toMatchObject({
         key: 'jwt-secret',
         source: 'aws-secrets-manager'
       });
@@ -461,7 +461,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const setResult = results.services[0] as ConfigureResult;
+      const setResult = results.services[0]! as ConfigureResult;
       expect(setResult.status).toBe('updated');
       expect(setResult.metadata).toHaveProperty('wasExisting', true);
     });
@@ -498,7 +498,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const setResult = results.services[0] as ConfigureResult;
+      const setResult = results.services[0]! as ConfigureResult;
       expect(setResult.status).toBe('dry-run');
       expect(setResult.metadata).toHaveProperty('dryRun', true);
       
@@ -540,10 +540,10 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const setResult = results.services[0] as ConfigureResult;
+      const setResult = results.services[0]! as ConfigureResult;
       expect(setResult.status).toBe('updated');
       expect(setResult.metadata).toHaveProperty('wasExisting', false);
-      expect(setResult.configurationChanges[0].oldValue).toBeUndefined();
+      expect(setResult.configurationChanges[0]!.oldValue).toBeUndefined();
     });
   });
 
@@ -568,7 +568,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.success).toBe(false);
       expect(getResult.error).toContain('does not have AWS configuration');
     });
@@ -599,7 +599,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.success).toBe(false);
       expect(getResult.status).toBe('failed');
       expect(getResult.error).toContain('AccessDeniedException');
@@ -711,7 +711,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const showResult = results.services[0] as ConfigureResult;
+      const showResult = results.services[0]! as ConfigureResult;
       expect(showResult.metadata).toHaveProperty('awsRegion', 'us-east-1');
     });
   });
@@ -794,7 +794,7 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.metadata.masked).toBeDefined();
       expect(getResult.metadata.masked).not.toContain('super-secret-jwt-token-12345');
       expect(getResult.metadata.masked).toMatch(/\*+/); // Should contain asterisks
@@ -830,11 +830,11 @@ describe('configure command with structured output', () => {
       ]);
       const results = await configure(serviceDeployments, options);
 
-      const getResult = results.services[0] as ConfigureResult;
+      const getResult = results.services[0]! as ConfigureResult;
       expect(getResult.metadata.masked).toBeDefined();
-      expect(getResult.metadata.masked.clientId).toMatch(/\*+/);
-      expect(getResult.metadata.masked.clientSecret).toMatch(/\*+/);
-      expect(getResult.metadata.masked.clientId).not.toContain('github-client-id-12345');
+      expect(getResult.metadata.masked!.clientId).toMatch(/\*+/);
+      expect(getResult.metadata.masked!.clientSecret).toMatch(/\*+/);
+      expect(getResult.metadata.masked!.clientId).not.toContain('github-client-id-12345');
     });
   });
 });

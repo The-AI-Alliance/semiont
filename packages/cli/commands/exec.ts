@@ -188,12 +188,12 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
         
         printDebug(`Executing: ${awsCommand.join(' ')}`, options);
         
-        const proc = spawn(awsCommand[0], awsCommand.slice(1), {
+        const proc = spawn(awsCommand[0]!, awsCommand.slice(1), {
           stdio: 'inherit'
         });
         
         const exitCode = await new Promise<number>((resolve, reject) => {
-          proc.on('close', (code) => {
+          proc.on('close', (code: number | null) => {
             if (code === 0) {
               resolve(code);
             } else {
@@ -205,7 +205,7 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
             }
           });
           
-          proc.on('error', (error) => {
+          proc.on('error', (error: Error) => {
             reject(error);
           });
         });
@@ -309,7 +309,7 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
       printInfo('Connecting to local PostgreSQL database');
       const psqlCommand = ['psql', '-h', 'localhost', '-U', 'postgres', '-d', 'semiont'];
       
-      const proc = spawn(psqlCommand[0], psqlCommand.slice(1), {
+      const proc = spawn(psqlCommand[0]!, psqlCommand.slice(1), {
         stdio: 'inherit',
         env: {
           ...process.env,
@@ -318,7 +318,7 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
       });
       
       const dbExitCode = await new Promise<number>((resolve, reject) => {
-        proc.on('close', (code) => {
+        proc.on('close', (code: number | null) => {
           if (code === 0) {
             resolve(code);
           } else {
@@ -366,7 +366,7 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
       });
       
       const appExitCode = await new Promise<number>((resolve, reject) => {
-        appProc.on('close', (code) => {
+        appProc.on('close', (code: number | null) => {
           if (code === 0) {
             resolve(code);
           } else {
@@ -406,7 +406,7 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
           ? ['explorer', dataPath]
           : ['ls', '-la', dataPath];
           
-      const fsProc = spawn(explorerCommand[0], explorerCommand.slice(1), {
+      const fsProc = spawn(explorerCommand[0]!, explorerCommand.slice(1), {
         stdio: 'inherit'
       });
       
