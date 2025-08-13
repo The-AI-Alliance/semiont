@@ -80,23 +80,25 @@ describe('configure command with structured output', () => {
     it('should show configuration for all environments and return structured output', async () => {
       const options: ConfigureOptions = {
         action: 'show',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'json'
       };
 
-      mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
-        site: createSiteConfig(`${env}.example.com`),
-        deployment: { default: env === 'production' ? 'aws' : 'container' },
-        services: {
-          frontend: { deployment: { type: 'container' } },
-          backend: { deployment: { type: 'container' } }
-        },
-        aws: env === 'production' ? createAWSConfig() : undefined
-      }));
+      mockLoadEnvironmentConfig.mockImplementation((env: string) => {
+        const config: any = {
+          site: createSiteConfig(`${env}.example.com`),
+          deployment: { default: env === 'production' ? 'aws' : 'container' },
+          services: {
+            frontend: { deployment: { type: 'container' } },
+            backend: { deployment: { type: 'container' } }
+          }
+        };
+        if (env === 'production') {
+          config.aws = createAWSConfig();
+        }
+        return config;
+      });
 
       const serviceDeployments = createServiceDeployments([
         { name: 'dummy', type: 'external' }
@@ -120,10 +122,7 @@ describe('configure command with structured output', () => {
     it('should handle configuration errors gracefully', async () => {
       const options: ConfigureOptions = {
         action: 'show',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'yaml'
       };
@@ -158,10 +157,7 @@ describe('configure command with structured output', () => {
     it('should list all configurable secrets', async () => {
       const options: ConfigureOptions = {
         action: 'list',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -188,10 +184,7 @@ describe('configure command with structured output', () => {
     it('should validate all environment configurations', async () => {
       const options: ConfigureOptions = {
         action: 'validate',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'table'
       };
@@ -225,10 +218,7 @@ describe('configure command with structured output', () => {
     it('should detect AWS configuration issues', async () => {
       const options: ConfigureOptions = {
         action: 'validate',
-        environment: 'production',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'production',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -257,10 +247,7 @@ describe('configure command with structured output', () => {
     it('should detect missing services', async () => {
       const options: ConfigureOptions = {
         action: 'validate',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -289,9 +276,7 @@ describe('configure command with structured output', () => {
       const options: ConfigureOptions = {
         action: 'get',
         environment: 'production',
-        secretPath: 'oauth/google',
-        value: undefined,
-        verbose: false,
+        secretPath: 'oauth/google',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -339,9 +324,7 @@ describe('configure command with structured output', () => {
       const options: ConfigureOptions = {
         action: 'get',
         environment: 'staging',
-        secretPath: 'non-existent',
-        value: undefined,
-        verbose: false,
+        secretPath: 'non-existent',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -377,10 +360,7 @@ describe('configure command with structured output', () => {
     it('should require secret path for get action', async () => {
       const options: ConfigureOptions = {
         action: 'get',
-        environment: 'production',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'production',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -572,9 +552,7 @@ describe('configure command with structured output', () => {
       const options: ConfigureOptions = {
         action: 'get',
         environment: 'local',
-        secretPath: 'oauth/google',
-        value: undefined,
-        verbose: false,
+        secretPath: 'oauth/google',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -599,9 +577,7 @@ describe('configure command with structured output', () => {
       const options: ConfigureOptions = {
         action: 'get',
         environment: 'production',
-        secretPath: 'oauth/google',
-        value: undefined,
-        verbose: false,
+        secretPath: 'oauth/google',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -634,10 +610,7 @@ describe('configure command with structured output', () => {
     it('should support JSON output format', async () => {
       const options: ConfigureOptions = {
         action: 'list',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -656,10 +629,7 @@ describe('configure command with structured output', () => {
     it('should support YAML output format', async () => {
       const options: ConfigureOptions = {
         action: 'show',
-        environment: 'staging',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'staging',        verbose: false,
         dryRun: false,
         output: 'yaml'
       };
@@ -681,10 +651,7 @@ describe('configure command with structured output', () => {
     it('should support table output format', async () => {
       const options: ConfigureOptions = {
         action: 'validate',
-        environment: 'production',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'production',        verbose: false,
         dryRun: false,
         output: 'table'
       };
@@ -707,10 +674,7 @@ describe('configure command with structured output', () => {
     it('should support summary output format', async () => {
       const options: ConfigureOptions = {
         action: 'list',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'summary'
       };
@@ -730,10 +694,7 @@ describe('configure command with structured output', () => {
     it('should include additional metadata in verbose mode', async () => {
       const options: ConfigureOptions = {
         action: 'show',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: true,
+        environment: 'local',        verbose: true,
         dryRun: false,
         output: 'json'
       };
@@ -759,10 +720,7 @@ describe('configure command with structured output', () => {
     it('should process all environments for show action', async () => {
       const options: ConfigureOptions = {
         action: 'show',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -785,10 +743,7 @@ describe('configure command with structured output', () => {
     it('should process all environments for validate action', async () => {
       const options: ConfigureOptions = {
         action: 'validate',
-        environment: 'local',
-        secretPath: undefined,
-        value: undefined,
-        verbose: false,
+        environment: 'local',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -814,9 +769,7 @@ describe('configure command with structured output', () => {
       const options: ConfigureOptions = {
         action: 'get',
         environment: 'production',
-        secretPath: 'jwt-secret',
-        value: undefined,
-        verbose: false,
+        secretPath: 'jwt-secret',        verbose: false,
         dryRun: false,
         output: 'json'
       };
@@ -851,9 +804,7 @@ describe('configure command with structured output', () => {
       const options: ConfigureOptions = {
         action: 'get',
         environment: 'staging',
-        secretPath: 'oauth/github',
-        value: undefined,
-        verbose: false,
+        secretPath: 'oauth/github',        verbose: false,
         dryRun: false,
         output: 'json'
       };

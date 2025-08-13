@@ -80,7 +80,7 @@ const DashboardApp: React.FC<{
           logs={filteredLogs}
           services={filteredServices}
           title={service ? `${service.charAt(0).toUpperCase() + service.slice(1)} Logs` : 'All Service Logs'}
-          serviceFilter={service && service !== 'both' ? [service] : undefined}
+          {...(service && service !== 'both' && { serviceFilter: [service] })}
         />
       );
       
@@ -149,7 +149,7 @@ function parseArgs(): { environment: string; mode: DashboardMode; service?: Serv
     showHelp();
   }
 
-  return { environment, mode, service };
+  return { environment, mode, ...(service && { service }) };
 }
 
 function showHelp(): never {
@@ -197,7 +197,7 @@ async function main() {
     render(
       <DashboardApp 
         mode={mode} 
-        service={service} 
+        {...(service && { service })}
         refreshInterval={30}
         environment={environment}
       />

@@ -32,8 +32,8 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     
-    // These cause the most errors - enable after fixing basics
-    "exactOptionalPropertyTypes": false,  // TODO: Enable after fixing optional props
+    // Additional strict checking
+    "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": false,    // TODO: Enable after adding null checks
     "noPropertyAccessFromIndexSignature": false,
     

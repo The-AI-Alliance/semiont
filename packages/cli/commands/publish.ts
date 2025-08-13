@@ -143,8 +143,7 @@ async function buildContainerImage(
     }
     return { 
       imageName: `semiont-${serviceInfo.name}:${tag}`, 
-      buildDuration: 0,
-      imageSize: undefined 
+      buildDuration: 0
     };
   }
 
@@ -163,7 +162,7 @@ async function buildContainerImage(
     dockerfile,
     PROJECT_ROOT,
     {
-      verbose: options.verbose,
+      verbose: options.verbose ?? false,
       buildArgs: {} // Could add build args from config if needed
     }
   );
@@ -270,7 +269,7 @@ async function pushImageToECR(
     printInfo(`Tagging image for ECR: ${ecrImageUri}`);
     
     const tagSuccess = await tagImage(localImageName, ecrImageUri, {
-      verbose: options.verbose
+      verbose: options.verbose ?? false
     });
     
     if (!tagSuccess) {
@@ -281,7 +280,7 @@ async function pushImageToECR(
     // Push to ECR
     printInfo(`Pushing ${serviceName} to ECR...`);
     const pushSuccess = await pushImage(ecrImageUri, {
-      verbose: options.verbose
+      verbose: options.verbose ?? false
     });
     
     if (!pushSuccess) {
@@ -315,7 +314,7 @@ async function tagForLocalRegistry(
   printInfo(`Tagging for local registry: ${finalImageName}`);
   
   const tagSuccess = await tagImage(localImageName, finalImageName, {
-    verbose: options.verbose
+    verbose: options.verbose ?? false
   });
   
   if (!tagSuccess) {
@@ -395,10 +394,10 @@ async function publishService(
     return {
       ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
       imageTag: options.tag,
-      imageSize: buildResult.imageSize,
+      ...(buildResult.imageSize !== undefined && { imageSize: buildResult.imageSize }),
       buildDuration: buildResult.buildDuration,
-      repository,
-      digest,
+      ...(repository && { repository }),
+      ...(digest && { digest }),
       resourceId: {
         [serviceInfo.deploymentType]: {
           name: serviceInfo.name,

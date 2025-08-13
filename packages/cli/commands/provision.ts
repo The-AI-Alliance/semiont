@@ -889,7 +889,7 @@ async function provisionExternalService(serviceInfo: ServiceDeploymentInfo, opti
           dependencies: ['filesystem-access'],
           resourceId: {
             external: {
-              path: externalPath
+              ...(externalPath && { path: externalPath })
             }
           },
           status: 'configured',

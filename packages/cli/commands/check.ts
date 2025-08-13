@@ -134,7 +134,7 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
         healthStatus = 'unhealthy';
     }
     
-    return {
+    const result: CheckResult = {
       ...baseResult,
       resourceId: {
         [serviceInfo.deploymentType]: {
@@ -152,9 +152,11 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
       },
       healthStatus,
       checks,
-      uptime,
+      ...(uptime !== undefined && { uptime }),
       lastCheck: new Date(),
     };
+    
+    return result;
     
   } catch (error) {
     const errorResult = createErrorResult(baseResult, error instanceof Error ? error : String(error));

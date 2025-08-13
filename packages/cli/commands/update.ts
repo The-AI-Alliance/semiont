@@ -268,8 +268,8 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
       printInfo(`Stopping container: ${containerName}`);
     }
     const stopSuccess = await stopContainer(containerName, {
-      force: options.force,
-      verbose: options.verbose,
+      force: options.force ?? false,
+      verbose: options.verbose ?? false,
       timeout: 10
     });
     
@@ -302,7 +302,7 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
             POSTGRES_USER: serviceInfo.config.user || 'postgres'
           },
           detached: true,
-          verbose: options.verbose
+          verbose: options.verbose ?? false
         });
         break;
         
@@ -312,7 +312,7 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
         startSuccess = await runContainer(imageName, containerName, {
           ports: serviceInfo.config.port ? { [serviceInfo.config.port.toString()]: serviceInfo.config.port.toString() } : {},
           detached: true,
-          verbose: options.verbose
+          verbose: options.verbose ?? false
         });
         break;
         
