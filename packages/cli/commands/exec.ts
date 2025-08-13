@@ -11,8 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
 import { 
   ExecResult, 
@@ -31,7 +30,6 @@ import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 
 const ExecOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('backend'),
   command: z.string().default('/bin/sh'),
   interactive: z.boolean().default(true),
   verbose: z.boolean().default(false),
@@ -102,7 +100,7 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
     };
   }
   
-  printInfo(`Executing "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+  printInfo(`Executing command in ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
   
   try {
     switch (serviceInfo.deploymentType) {
@@ -124,8 +122,8 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
     return {
       ...errorResult,
       command: options.command,
-      exitCode: -1,
-      error: (error as Error).message,
+      exitCode: 1,
+      output: '',
       interactive: options.interactive,
       executionTime: Date.now() - startTime,
       resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
@@ -136,6 +134,8 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
 }
 
 async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
+  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   // AWS ECS exec
   switch (serviceInfo.name) {
     case 'frontend':
@@ -190,10 +190,10 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
           stdio: 'inherit'
         });
         
-        await new Promise<void>((resolve, reject) => {
+        const exitCode = await new Promise<number>((resolve, reject) => {
           proc.on('close', (code) => {
             if (code === 0) {
-              resolve();
+              resolve(code);
             } else {
               printError('ECS exec failed. Possible causes:');
               printInfo('  • ECS Exec not enabled on service');
@@ -208,11 +208,33 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
           });
         });
         
+        // Return successful result
+        return {
+          ...baseResult,
+          command: options.command,
+          exitCode,
+          output: '',
+          interactive: options.interactive,
+          executionTime: Date.now() - startTime,
+          resourceId: {
+            aws: {
+              taskId,
+              containerName,
+              cluster: clusterName
+            }
+          } as ResourceIdentifier,
+          status: 'success',
+          metadata: {
+            taskArn,
+            cluster: clusterName,
+            service: serviceName
+          }
+        };
+        
       } catch (error) {
         printError(`Failed to execute in ECS ${serviceInfo.name}: ${error}`);
         throw error;
       }
-      break;
       
     case 'database':
       printError('Cannot execute commands directly in RDS instances');
@@ -230,18 +252,38 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
 }
 
 async function execInContainerService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
+  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
   
   try {
     printInfo(`Executing in container: ${containerName}`);
     
-    const success = await execInContainer(containerName, options.command, {
+    const success = await execInContainer(containerName, [options.command], {
       interactive: options.interactive,
       verbose: options.verbose
     });
     
     if (success) {
       printSuccess(`Command executed successfully in ${containerName}`);
+      
+      // Return successful result
+      return {
+        ...baseResult,
+        command: options.command,
+        exitCode: 0,
+        output: '',
+        interactive: options.interactive,
+        executionTime: Date.now() - startTime,
+        resourceId: {
+          container: {
+            name: containerName
+          }
+        } as ResourceIdentifier,
+        status: 'success',
+        metadata: {
+          containerName
+        }
+      };
     } else {
       printError(`Command execution failed in ${containerName}`);
       throw new Error('Container exec failed');
@@ -253,6 +295,8 @@ async function execInContainerService(serviceInfo: ServiceDeploymentInfo, option
 }
 
 async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
+  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   // For process deployments, we can either:
   // 1. Execute in the context of the running process (limited)
   // 2. Spawn a new process with the same environment
@@ -271,17 +315,35 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
         }
       });
       
-      await new Promise<void>((resolve, reject) => {
+      const dbExitCode = await new Promise<number>((resolve, reject) => {
         proc.on('close', (code) => {
           if (code === 0) {
-            resolve();
+            resolve(code);
           } else {
             reject(new Error(`psql failed with code ${code}`));
           }
         });
         proc.on('error', reject);
       });
-      break;
+      
+      // Return successful result for database
+      return {
+        ...baseResult,
+        command: 'psql',
+        exitCode: dbExitCode,
+        output: '',
+        interactive: true,
+        executionTime: Date.now() - startTime,
+        resourceId: {
+          process: {
+            path: 'localhost:5432'
+          }
+        } as ResourceIdentifier,
+        status: 'success',
+        metadata: {
+          method: 'psql'
+        }
+      };
       
     case 'frontend':
     case 'backend':
@@ -301,17 +363,36 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
         }
       });
       
-      await new Promise<void>((resolve, reject) => {
+      const appExitCode = await new Promise<number>((resolve, reject) => {
         appProc.on('close', (code) => {
           if (code === 0) {
-            resolve();
+            resolve(code);
           } else {
             reject(new Error(`Command failed with code ${code}`));
           }
         });
         appProc.on('error', reject);
       });
-      break;
+      
+      // Return successful result for app
+      return {
+        ...baseResult,
+        command: command,
+        exitCode: appExitCode,
+        output: '',
+        interactive: options.interactive,
+        executionTime: Date.now() - startTime,
+        resourceId: {
+          process: {
+            path: `apps/${serviceInfo.name}`
+          }
+        } as ResourceIdentifier,
+        status: 'success',
+        metadata: {
+          method: 'spawn',
+          cwd: `apps/${serviceInfo.name}`
+        }
+      };
       
     case 'filesystem':
       printInfo('Opening filesystem location');
@@ -331,7 +412,29 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
         fsProc.on('close', () => resolve());
         fsProc.on('error', reject);
       });
-      break;
+      
+      // Return result for filesystem
+      return {
+        ...baseResult,
+        command: explorerCommand.join(' '),
+        exitCode: 0,
+        output: '',
+        interactive: false,
+        executionTime: Date.now() - startTime,
+        resourceId: {
+          process: {
+            path: dataPath
+          }
+        } as ResourceIdentifier,
+        status: 'success',
+        metadata: {
+          method: 'file-explorer',
+          path: dataPath
+        }
+      };
+      
+    default:
+      throw new Error(`Unsupported process service: ${serviceInfo.name}`);
   }
 }
 
@@ -341,8 +444,8 @@ async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options
   switch (serviceInfo.name) {
     case 'database':
       if (serviceInfo.config.host) {
-        printInfo('To connect to external database, use:');
-        printInfo(`  psql -h ${serviceInfo.config.host} -p ${serviceInfo.config.port || 5432} -U ${serviceInfo.config.user || 'postgres'} -d ${serviceInfo.config.name || 'semiont'}`);
+        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
+        printInfo('Use database client tools to connect to the external database');
       }
       break;
       
@@ -365,7 +468,10 @@ async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export async function exec(options: ExecOptions): Promise<CommandResults> {
+export async function exec(
+  serviceDeployment: ServiceDeploymentInfo,
+  options: ExecOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -378,28 +484,12 @@ export async function exec(options: ExecOptions): Promise<CommandResults> {
       printInfo(`Executing command in ${colors.bright}${options.environment}${colors.reset} environment`);
     }
     
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'exec', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'exec', options.environment);
-    
-    if (resolvedServices.length > 1) {
-      throw new Error(`Can only execute commands in one service at a time. Resolved to: ${resolvedServices.join(', ')}`);
-    }
-    
-    // Get deployment information for the service
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    const serviceInfo = serviceDeployments[0];
-    
-    if (!serviceInfo) {
-      throw new Error('No service found');
-    }
-    
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      printDebug(`Target service: ${serviceInfo.name}(${serviceInfo.deploymentType})`, options);
+      printDebug(`Target service: ${serviceDeployment.name}(${serviceDeployment.deploymentType})`, options);
     }
     
     // Execute command in the service
-    const result = await execInServiceImpl(serviceInfo, options);
+    const result = await execInServiceImpl(serviceDeployment, options);
     
     // Create aggregated results
     const commandResults: CommandResults = {
@@ -429,46 +519,5 @@ export async function exec(options: ExecOptions): Promise<CommandResults> {
   }
 }
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
-
-async function main(options: ExecOptions): Promise<void> {
-  try {
-    const results = await exec(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show execution status
-    if (results.summary.succeeded === 1) {
-      printSuccess('Command execution completed');
-    } else {
-      printError('Command execution failed');
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Execution failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    printError(`Unexpected error: ${error}`);
-    process.exit(1);
-  });
-}
-
-export { main, ExecOptions, ExecOptionsSchema };
+// Export the schema for use by CLI
+export { ExecOptions, ExecOptionsSchema };

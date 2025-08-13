@@ -733,16 +733,37 @@ async function executeCommand(
       
       case 'exec': {
         const { exec } = await import('./commands/exec.js');
+        const { validateServiceSelector, resolveServiceSelector } = await import('./lib/services.js');
+        const { resolveServiceDeployments } = await import('./lib/deployment-resolver.js');
+        
+        const environment = getEnvironmentWithFallback(args);
+        const service = args['--service'] || 'backend';
+        
+        // Validate and resolve service for exec (single service only)
+        await validateServiceSelector(service, 'exec', environment);
+        const resolvedServices = await resolveServiceSelector(service, 'exec', environment);
+        
+        if (resolvedServices.length > 1) {
+          throw new Error(`Can only execute commands in one service at a time. Resolved to: ${resolvedServices.join(', ')}`);
+        }
+        
+        const serviceDeployments = await resolveServiceDeployments(resolvedServices, environment);
+        const serviceDeployment = serviceDeployments[0];
+        
+        if (!serviceDeployment) {
+          throw new Error('No service found');
+        }
+        
         const execOptions = {
-          environment: getEnvironmentWithFallback(args),
-          service: args['--service'] || 'backend',
+          environment,
           command: args['--command'] || '/bin/sh',
           interactive: true,
           verbose: args['--verbose'] || false,
           dryRun: args['--dry-run'] || false,
           output: outputFormat
         };
-        results = await exec(execOptions);
+        
+        results = await exec(serviceDeployment, execOptions);
         break;
       }
       
