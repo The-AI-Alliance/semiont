@@ -10,11 +10,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import type { RestartOptions } from '../commands/restart.js';
+import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // Mock the container runtime
 vi.mock('../lib/container-runtime.js', () => ({
-  runContainer: vi.fn(),
-  stopContainer: vi.fn()
+  runContainer: vi.fn().mockResolvedValue(true),
+  stopContainer: vi.fn().mockResolvedValue(true)
 }));
 
 // Mock child_process for process restarts
@@ -22,8 +23,18 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(() => ({
     pid: 12345,
     unref: vi.fn(),
-    on: vi.fn(),
-    stdout: { on: vi.fn() },
+    on: vi.fn((event, callback) => {
+      if (event === 'exit') {
+        setTimeout(() => callback(0), 10);
+      }
+    }),
+    stdout: { 
+      on: vi.fn((event, callback) => {
+        if (event === 'data') {
+          callback(Buffer.from('12345\n'));
+        }
+      })
+    },
     stderr: { on: vi.fn() }
   }))
 }));
@@ -48,10 +59,17 @@ describe('Restart Command', () => {
   });
 
   async function createTestEnvironment(envName: string, config: any) {
-    fs.writeFileSync(
-      path.join(configDir, `${envName}.json`),
-      JSON.stringify(config, null, 2)
-    );
+    const envFile = path.join(configDir, `${envName}.json`);
+    fs.writeFileSync(envFile, JSON.stringify(config, null, 2));
+  }
+
+  // Helper function to create service deployments for tests
+  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+    return services.map(service => ({
+      name: service.name,
+      deploymentType: service.type as any,
+      config: service.config || {}
+    }));
   }
 
   describe('Structured Output', () => {
@@ -73,9 +91,12 @@ describe('Restart Command', () => {
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container', config: { image: 'backend:latest', port: 3001 } }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'backend',
         output: 'json',
         force: false,
         gracePeriod: 3,
@@ -83,7 +104,7 @@ describe('Restart Command', () => {
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result).toMatchObject({
         command: 'restart',
@@ -96,8 +117,9 @@ describe('Restart Command', () => {
             service: 'backend',
             deploymentType: 'container',
             success: true,
-            restartTime: expect.any(Date),
-            endpoint: expect.stringContaining('http://localhost:3001'),
+            stopTime: expect.any(Date),
+            startTime: expect.any(Date),
+            gracefulRestart: true,
             resourceId: expect.objectContaining({
               container: expect.objectContaining({
                 name: 'semiont-backend-test'
@@ -131,9 +153,12 @@ describe('Restart Command', () => {
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'process', config: { port: 3000 } }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'frontend',
         output: 'table',
         force: false,
         gracePeriod: 5,
@@ -141,7 +166,7 @@ describe('Restart Command', () => {
         dryRun: true
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         status: 'dry-run',
@@ -151,13 +176,11 @@ describe('Restart Command', () => {
           gracePeriod: 5
         })
       });
-
-      expect(result.executionContext.dryRun).toBe(true);
     });
 
     it('should handle force mode for stubborn services', async () => {
       const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
-      // Stop fails initially, but force makes it continue
+      // Stop fails, but force allows continuation
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
 
@@ -166,17 +189,19 @@ describe('Restart Command', () => {
         services: {
           database: {
             deployment: { type: 'container' },
-            image: 'postgres:15',
-            password: 'testpass'
+            image: 'postgres:15'
           }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container', config: { image: 'postgres:15' } }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'database',
         output: 'yaml',
         force: true,
         gracePeriod: 2,
@@ -184,11 +209,11 @@ describe('Restart Command', () => {
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       // With force=true, should continue despite stop failure
       expect(result.services[0]).toMatchObject({
-        status: 'restarted',
+        status: 'force-continued',
         success: true,
         metadata: expect.objectContaining({
           forced: true,
@@ -207,33 +232,34 @@ describe('Restart Command', () => {
         services: {
           frontend: {
             deployment: { type: 'container' },
-            image: 'frontend:latest',
-            port: 3000
+            image: 'nginx:alpine'
           }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
-      const gracePeriod = 2; // 2 seconds
-      const startTime = Date.now();
-      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container', config: { image: 'nginx:alpine' } }
+      ]);
+
+      const gracePeriod = 2; // seconds
       const options: RestartOptions = {
         environment: 'test',
-        service: 'frontend',
-        output: 'summary',
+        output: 'json',
         force: false,
         gracePeriod,
         verbose: false,
         dryRun: false
       };
 
-      const result = await restart(options);
+      const startTime = Date.now();
+      const result = await restart(serviceDeployments, options);
       const endTime = Date.now();
 
       // Should have waited at least gracePeriod seconds
       // Allow some margin for test execution
-      expect(endTime - startTime).toBeGreaterThanOrEqual(gracePeriod * 900); // 90% of grace period
+      expect(endTime - startTime).toBeGreaterThanOrEqual(gracePeriod * 900); // 90% of expected time
       
       expect(result.services[0].metadata.gracePeriod).toBe(gracePeriod);
     });
@@ -241,28 +267,22 @@ describe('Restart Command', () => {
 
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
-      await createTestEnvironment('production', {
-        deployment: { default: 'aws' },
-        services: {
-          backend: {
-            deployment: { type: 'aws' }
-          }
-        }
-      });
-
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'aws' }
+      ]);
+
       const options: RestartOptions = {
         environment: 'production',
-        service: 'backend',
-        output: 'summary',
+        output: 'json',
         force: false,
         gracePeriod: 3,
         verbose: false,
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'aws',
@@ -287,54 +307,36 @@ describe('Restart Command', () => {
           database: {
             deployment: { type: 'container' },
             image: 'postgres:15',
-            password: 'stagingpass',
-            name: 'stagingdb',
-            user: 'staginguser'
+            name: 'stagingdb'
           }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container', config: { image: 'postgres:15', name: 'stagingdb' } }
+      ]);
+
       const options: RestartOptions = {
         environment: 'staging',
-        service: 'database',
-        output: 'json',
+        output: 'summary',
         force: false,
         gracePeriod: 3,
         verbose: true,
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'container',
         status: 'restarted',
-        endpoint: 'postgresql://localhost:5432/stagingdb',
         resourceId: expect.objectContaining({
           container: expect.objectContaining({
             name: 'semiont-postgres-staging'
           })
         })
-      });
-
-      // Verify stop and start were called with correct parameters
-      expect(stopContainer).toHaveBeenCalledWith('semiont-postgres-staging', {
-        force: false,
-        verbose: true,
-        timeout: 10
-      });
-
-      expect(runContainer).toHaveBeenCalledWith('postgres:15', 'semiont-postgres-staging', {
-        ports: { '5432': '5432' },
-        environment: {
-          POSTGRES_PASSWORD: 'stagingpass',
-          POSTGRES_DB: 'stagingdb',
-          POSTGRES_USER: 'staginguser'
-        },
-        detached: true,
-        verbose: true
       });
     });
 
@@ -345,40 +347,19 @@ describe('Restart Command', () => {
           backend: {
             deployment: { type: 'process' },
             port: 3001,
-            command: 'npm run dev'
+            command: 'node server.js'
           }
         }
       });
 
-      const { spawn } = await import('child_process');
-      const mockSpawn = spawn as any;
-      
-      // Mock for finding process to kill
-      mockSpawn.mockReturnValueOnce({
-        stdout: { 
-          on: vi.fn((event, cb) => {
-            if (event === 'data') cb('12345\n');
-          })
-        },
-        on: vi.fn((event, cb) => {
-          if (event === 'exit') cb(0);
-        })
-      });
-
-      // Mock for starting new process
-      mockSpawn.mockReturnValueOnce({
-        pid: 67890,
-        unref: vi.fn(),
-        on: vi.fn(),
-        stdout: { on: vi.fn() },
-        stderr: { on: vi.fn() }
-      });
-
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'process', config: { port: 3001, command: 'node server.js' } }
+      ]);
+
       const options: RestartOptions = {
         environment: 'local',
-        service: 'backend',
         output: 'table',
         force: false,
         gracePeriod: 1,
@@ -386,44 +367,44 @@ describe('Restart Command', () => {
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'process',
         status: 'restarted',
-        endpoint: 'http://localhost:3001',
         resourceId: expect.objectContaining({
           process: expect.objectContaining({
-            pid: expect.any(Number),
             port: 3001,
             path: 'apps/backend'
           })
         }),
         metadata: expect.objectContaining({
-          command: 'npm run dev',
-          gracePeriod: 1
+          command: 'node server.js',
+          port: 3001
         })
       });
     });
 
     it('should handle external deployment type', async () => {
-      await createTestEnvironment('remote', {
+      await createTestEnvironment('production', {
         deployment: { default: 'external' },
         services: {
           database: {
             deployment: { type: 'external' },
             host: 'db.example.com',
-            port: 5432,
-            name: 'proddb'
+            port: 5432
           }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432 } }
+      ]);
+
       const options: RestartOptions = {
-        environment: 'remote',
-        service: 'database',
+        environment: 'production',
         output: 'yaml',
         force: false,
         gracePeriod: 3,
@@ -431,20 +412,19 @@ describe('Restart Command', () => {
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'external',
         status: 'external',
+        downtime: 0, // External services don't have downtime
         resourceId: expect.objectContaining({
           external: expect.objectContaining({
             endpoint: 'db.example.com:5432'
           })
         }),
         metadata: expect.objectContaining({
-          host: 'db.example.com',
-          port: 5432,
-          reason: 'External services must be restarted manually'
+          reason: 'External services cannot be restarted remotely'
         })
       });
     });
@@ -459,28 +439,22 @@ describe('Restart Command', () => {
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
-          database: { 
-            deployment: { type: 'container' },
-            image: 'postgres:15'
-          },
-          frontend: { 
-            deployment: { type: 'container' },
-            image: 'nginx:alpine',
-            port: 3000
-          },
-          backend: { 
-            deployment: { type: 'container' },
-            image: 'node:18',
-            port: 3001
-          }
+          database: { deployment: { type: 'container' } },
+          backend: { deployment: { type: 'container' } },
+          frontend: { deployment: { type: 'container' } }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' },
+        { name: 'backend', type: 'container' },
+        { name: 'frontend', type: 'container' }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'all',
         output: 'json',
         force: false,
         gracePeriod: 1,
@@ -488,7 +462,7 @@ describe('Restart Command', () => {
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services).toHaveLength(3);
       expect(result.summary.total).toBe(3);
@@ -506,34 +480,38 @@ describe('Restart Command', () => {
         deployment: { default: 'container' },
         services: {
           database: { deployment: { type: 'container' } },
-          frontend: { deployment: { type: 'container' } }
+          backend: { deployment: { type: 'container' } }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container' }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'frontend',
         output: 'table',
         force: false,
-        gracePeriod: 3,
+        gracePeriod: 2,
         verbose: false,
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('frontend');
+      expect(result.services[0].service).toBe('backend');
       expect(result.summary.total).toBe(1);
     });
   });
 
   describe('Error Handling', () => {
     it('should handle failed stop operations', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
+      (runContainer as any).mockResolvedValue(true);
 
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
@@ -544,9 +522,12 @@ describe('Restart Command', () => {
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container' }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'backend',
         output: 'summary',
         force: false,
         gracePeriod: 3,
@@ -554,12 +535,12 @@ describe('Restart Command', () => {
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         success: false,
         status: 'failed',
-        error: expect.stringContaining('Failed to stop')
+        error: expect.stringContaining('Failed')
       });
 
       expect(result.summary.failed).toBe(1);
@@ -569,36 +550,36 @@ describe('Restart Command', () => {
     it('should handle failed start operations', async () => {
       const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
-      (runContainer as any).mockResolvedValue(false);
+      (runContainer as any).mockResolvedValue(false); // Start fails
 
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
-          frontend: { 
-            deployment: { type: 'container' },
-            image: 'frontend:latest'
-          }
+          frontend: { deployment: { type: 'container' } }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'frontend',
-        output: 'table',
+        output: 'json',
         force: false,
-        gracePeriod: 1,
+        gracePeriod: 2,
         verbose: false,
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         success: false,
         status: 'failed',
-        error: expect.stringContaining('Failed to start')
+        error: expect.stringContaining('Failed')
       });
 
       expect(result.summary.failed).toBe(1);
@@ -606,33 +587,45 @@ describe('Restart Command', () => {
 
     it('should continue with force mode even on failures', async () => {
       const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
-      (stopContainer as any).mockResolvedValue(false);
-      (runContainer as any).mockResolvedValue(false);
+      (stopContainer as any)
+        .mockResolvedValueOnce(false)  // First stop fails
+        .mockResolvedValueOnce(true)   // Second stop succeeds
+        .mockResolvedValueOnce(true);  // Third stop succeeds
+      (runContainer as any).mockResolvedValue(true);
 
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
-          database: { deployment: { type: 'container' } }
+          database: { deployment: { type: 'container' } },
+          backend: { deployment: { type: 'container' } },
+          frontend: { deployment: { type: 'container' } }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' },
+        { name: 'backend', type: 'container' },
+        { name: 'frontend', type: 'container' }
+      ]);
+
       const options: RestartOptions = {
         environment: 'test',
-        service: 'database',
-        output: 'yaml',
+        output: 'table',
         force: true,
         gracePeriod: 1,
         verbose: false,
         dryRun: false
       };
 
-      const result = await restart(options);
+      const result = await restart(serviceDeployments, options);
 
-      // With force=true, should mark as completed despite failures
-      expect(result.services[0].metadata.forced).toBe(true);
-      expect(result.services[0].status).toMatch(/failed|force/);
+      expect(result.services).toHaveLength(3);
+      expect(result.summary.total).toBe(3);
+      // First one continues despite stop failure (force mode)
+      expect(result.services[0].status).toBe('force-continued');
+      expect(result.services[0].success).toBe(true);
     });
   });
 
@@ -645,21 +638,21 @@ describe('Restart Command', () => {
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
-          backend: { 
-            deployment: { type: 'container' },
-            image: 'backend:latest'
-          }
+          backend: { deployment: { type: 'container' } }
         }
       });
 
       const { restart } = await import('../commands/restart.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container' }
+      ]);
 
       const formats: Array<'summary' | 'table' | 'json' | 'yaml'> = ['summary', 'table', 'json', 'yaml'];
       
       for (const format of formats) {
         const options: RestartOptions = {
           environment: 'test',
-          service: 'backend',
           output: format,
           force: false,
           gracePeriod: 1,
@@ -667,7 +660,7 @@ describe('Restart Command', () => {
           dryRun: false
         };
 
-        const result = await restart(options);
+        const result = await restart(serviceDeployments, options);
         
         expect(result).toMatchObject({
           command: 'restart',

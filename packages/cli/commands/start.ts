@@ -11,8 +11,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
 import { runContainer, stopContainer } from '../lib/container-runtime.js';
 import { 
   StartResult, 
@@ -21,7 +20,6 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
-import { OutputFormatter } from '../lib/output-formatter.js';
 import * as fs from 'fs';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
@@ -32,7 +30,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const StartOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
@@ -41,59 +38,54 @@ const StartOptionsSchema = z.object({
 
 type StartOptions = z.infer<typeof StartOptionsSchema>;
 
-// Track spawned processes for cleanup
-const spawnedProcesses: ChildProcess[] = [];
-
 // =====================================================================
 // HELPER FUNCTIONS
 // =====================================================================
 
+// Global flag to control output suppression
+let suppressOutput = false;
+
 function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  }
 }
 
 function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  }
 }
 
 function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  }
 }
 
 function printDebug(message: string, options: StartOptions): void {
-  if (options.verbose) {
+  if (!suppressOutput && options.verbose) {
     console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
   }
 }
 
 function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-}
-
-
-// =====================================================================
-// ENVIRONMENT VALIDATION
-// =====================================================================
-
-async function validateEnvironment(options: StartOptions): Promise<void> {
-  // Environment validation is now handled by the main CLI
-  // This function is kept for any additional start-specific validation
-  if (options.verbose && options.output === 'summary') {
-    printDebug(`Using environment: ${options.environment}`, options);
+  if (!suppressOutput) {
+    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
   }
 }
+
+
 
 // =====================================================================
 // DEPLOYMENT-TYPE-AWARE START FUNCTIONS
 // =====================================================================
 
-async function startService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, isStructuredOutput: boolean = false): Promise<StartResult> {
+async function startServiceImpl(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<StartResult> {
   const startTime = Date.now();
   
   if (options.dryRun) {
-    if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
-      printInfo(`[DRY RUN] Would start ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    }
+    printInfo(`[DRY RUN] Would start ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     
     return {
       ...createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
@@ -104,20 +96,20 @@ async function startService(serviceInfo: ServiceDeploymentInfo, options: StartOp
     };
   }
   
-  if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+  if (!options.quiet) {
     printInfo(`Starting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
   }
   
   try {
     switch (serviceInfo.deploymentType) {
       case 'aws':
-        return await startAWSService(serviceInfo, options, startTime, isStructuredOutput);
+        return await startAWSService(serviceInfo, options, startTime);
       case 'container':
-        return await startContainerService(serviceInfo, options, startTime, isStructuredOutput);
+        return await startContainerService(serviceInfo, options, startTime);
       case 'process':
-        return await startProcessService(serviceInfo, options, startTime, isStructuredOutput);
+        return await startProcessService(serviceInfo, options, startTime);
       case 'external':
-        return await startExternalService(serviceInfo, options, startTime, isStructuredOutput);
+        return await startExternalService(serviceInfo, options, startTime);
       default:
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
@@ -135,14 +127,14 @@ async function startService(serviceInfo: ServiceDeploymentInfo, options: StartOp
   }
 }
 
-async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
   const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // AWS ECS service start
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printInfo(`Starting ${serviceInfo.name} ECS service in ${options.environment}`);
         printWarning('ECS service start not yet implemented - use AWS Console or CDK');
       }
@@ -166,7 +158,7 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
       };
       
     case 'database':
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printInfo(`Starting RDS instance for ${serviceInfo.name}`);
         printWarning('RDS instance start not yet implemented - use AWS Console');
       }
@@ -189,7 +181,7 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
       };
       
     case 'filesystem':
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printInfo(`Mounting EFS volumes for ${serviceInfo.name}`);
         printWarning('EFS mount not yet implemented');
       }
@@ -216,7 +208,7 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
   }
 }
 
-async function startContainerService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+async function startContainerService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
   const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // Container deployment
@@ -237,7 +229,7 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       });
       
       if (success) {
-        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        if (!options.quiet) {
           printSuccess(`Database container started: ${containerName}`);
         }
         
@@ -280,7 +272,7 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       });
       
       if (appSuccess) {
-        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        if (!options.quiet) {
           printSuccess(`${serviceInfo.name} container started: ${appContainerName}`);
         }
         
@@ -308,7 +300,7 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
     case 'filesystem':
       const volumeName = `semiont-${serviceInfo.name}-${options.environment}`;
       
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printInfo(`Creating container volumes for ${serviceInfo.name}`);
         printSuccess(`Container volumes ready: ${volumeName}`);
       }
@@ -334,13 +326,13 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
   }
 }
 
-async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
   const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // Process deployment (local development)
   switch (serviceInfo.name) {
     case 'database':
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printInfo(`Starting PostgreSQL service for ${serviceInfo.name}`);
         printWarning('Local PostgreSQL service start not yet implemented - start manually');
       }
@@ -383,7 +375,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
       backendProc.unref();
       
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printSuccess(`Backend process started on port ${backendPort}`);
       }
       
@@ -426,7 +418,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
       frontendProc.unref();
       
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printSuccess(`Frontend process started on port ${frontendPort}`);
       }
       
@@ -455,7 +447,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       try {
         await fs.promises.mkdir(fsPath, { recursive: true });
         
-        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        if (!options.quiet) {
           printInfo(`Creating directories for ${serviceInfo.name}`);
           printSuccess(`Filesystem directories created: ${fsPath}`);
         }
@@ -483,18 +475,18 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
   }
 }
 
-async function startExternalService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StartResult> {
+async function startExternalService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
   const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // External service - just check connectivity
-  if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+  if (!options.quiet) {
     printInfo(`Checking external ${serviceInfo.name} service`);
   }
   
   switch (serviceInfo.name) {
     case 'database':
       if (serviceInfo.config.host) {
-        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        if (!options.quiet) {
           printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
           printWarning('External database connectivity check not yet implemented');
         }
@@ -521,7 +513,7 @@ async function startExternalService(serviceInfo: ServiceDeploymentInfo, options:
       
     case 'filesystem':
       if (serviceInfo.config.path) {
-        if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+        if (!options.quiet) {
           printInfo(`External storage: ${serviceInfo.config.path}`);
           printWarning('External storage connectivity check not yet implemented');
         }
@@ -544,12 +536,12 @@ async function startExternalService(serviceInfo: ServiceDeploymentInfo, options:
       break;
       
     default:
-      if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+      if (!options.quiet) {
         printInfo(`External ${serviceInfo.name} service configured`);
       }
   }
   
-  if (!options.quiet && !isStructuredOutput && options.output === 'summary') {
+  if (!options.quiet) {
     printSuccess(`External ${serviceInfo.name} service ready`);
   }
   
@@ -572,30 +564,23 @@ async function startExternalService(serviceInfo: ServiceDeploymentInfo, options:
 // STRUCTURED OUTPUT FUNCTION  
 // =====================================================================
 
-export async function start(options: StartOptions): Promise<CommandResults> {
+export async function start(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: StartOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Starting services in ${colors.bright}${options.environment}${colors.reset} environment`);
-  }
-  
-  if (options.verbose && !isStructuredOutput && options.output === 'summary') {
-    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
-  }
-  
-  // Validate environment
-  await validateEnvironment(options);
+  // Suppress output for structured formats
+  const previousSuppressOutput = suppressOutput;
+  suppressOutput = isStructuredOutput;
   
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'start', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Starting services in ${colors.bright}${options.environment}${colors.reset} environment`);
+    }
     
-    // Get deployment information for all resolved services
-    const serviceDeployments = resolveServiceDeployments(resolvedServices, options.environment);
-    
-    if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+    if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
       printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
@@ -604,7 +589,7 @@ export async function start(options: StartOptions): Promise<CommandResults> {
     
     for (const serviceInfo of serviceDeployments) {
       try {
-        const result = await startService(serviceInfo, options, isStructuredOutput);
+        const result = await startServiceImpl(serviceInfo, options);
         serviceResults.push(result);
         
         // Results are now collected for structured output
@@ -678,43 +663,5 @@ export async function start(options: StartOptions): Promise<CommandResults> {
   }
 }
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
-
-async function main(options: StartOptions): Promise<void> {
-  try {
-    const results = await start(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, use OutputFormatter
-    const output = OutputFormatter.format(results, {
-      format: options.output,
-      quiet: options.quiet,
-      verbose: options.verbose,
-      colors: true
-    });
-    
-    console.log(output);
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Start failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, StartOptions, StartOptionsSchema };
+// Export the schema for use by CLI
+export { StartOptions, StartOptionsSchema };

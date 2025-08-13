@@ -7,8 +7,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer } from '../lib/container-runtime.js';
 import { 
   StopResult, 
@@ -24,7 +23,6 @@ import {
 
 const StopOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'), // Will be validated at runtime against stoppable services
   force: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
@@ -39,24 +37,35 @@ type StopOptions = z.infer<typeof StopOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
+// Global flag to control output suppression
+let suppressOutput = false;
+
 function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  }
 }
 
 function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  }
 }
 
 function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  }
 }
 
 function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  }
 }
 
 function printDebug(message: string, options: StopOptions): void {
-  if (options.verbose) {
+  if (!suppressOutput && options.verbose) {
     console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
   }
 }
@@ -67,13 +76,11 @@ function printDebug(message: string, options: StopOptions): void {
 // SERVICE STOP FUNCTIONS
 // =====================================================================
 
-async function stopService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, isStructuredOutput: boolean = false): Promise<StopResult> {
+async function stopServiceImpl(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<StopResult> {
   const startTime = Date.now();
   
   if (options.dryRun) {
-    if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`[DRY RUN] Would stop ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    }
+    printInfo(`[DRY RUN] Would stop ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     
     return {
       ...createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
@@ -85,20 +92,18 @@ async function stopService(serviceInfo: ServiceDeploymentInfo, options: StopOpti
     };
   }
   
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Stopping ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
-  }
+  printInfo(`Stopping ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
   
   try {
     switch (serviceInfo.deploymentType) {
       case 'aws':
-        return await stopAWSService(serviceInfo, options, startTime, isStructuredOutput);
+        return await stopAWSService(serviceInfo, options, startTime);
       case 'container':
-        return await stopContainerService(serviceInfo, options, startTime, isStructuredOutput);
+        return await stopContainerService(serviceInfo, options, startTime);
       case 'process':
-        return await stopProcessService(serviceInfo, options, startTime, isStructuredOutput);
+        return await stopProcessService(serviceInfo, options, startTime);
       case 'external':
-        return await stopExternalService(serviceInfo, options, startTime, isStructuredOutput);
+        return await stopExternalService(serviceInfo, options, startTime);
       default:
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
@@ -118,14 +123,14 @@ async function stopService(serviceInfo: ServiceDeploymentInfo, options: StopOpti
   }
 }
 
-async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StopResult> {
+async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
   const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // AWS ECS service stop
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`Stopping ${serviceInfo.name} ECS service`);
         printWarning('ECS service stop not yet implemented - use AWS Console');
       }
@@ -150,7 +155,7 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
       };
       
     case 'database':
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`Stopping RDS instance for ${serviceInfo.name}`);
         printWarning('RDS instance stop not yet implemented - use AWS Console');
       }
@@ -174,7 +179,7 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
       };
       
     case 'filesystem':
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`Unmounting EFS volumes for ${serviceInfo.name}`);
         printWarning('EFS unmount not yet implemented');
       }
@@ -202,7 +207,7 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
   }
 }
 
-async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StopResult> {
+async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
   const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
   
@@ -214,7 +219,7 @@ async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options:
     });
     
     if (success) {
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printSuccess(`Container stopped: ${containerName}`);
       }
       
@@ -241,12 +246,13 @@ async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options:
     }
   } catch (error) {
     if (options.force) {
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printWarning(`Failed to stop ${serviceInfo.name} container: ${error}`);
       }
       
       return {
         ...baseResult,
+        success: false,
         stopTime: new Date(),
         gracefulShutdown: false,
         forcedTermination: true,
@@ -269,13 +275,13 @@ async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options:
   }
 }
 
-async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StopResult> {
+async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
   const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // Process deployment (local development)
   switch (serviceInfo.name) {
     case 'database':
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`Stopping PostgreSQL service for ${serviceInfo.name}`);
         printWarning('Local PostgreSQL service stop not yet implemented');
       }
@@ -301,7 +307,7 @@ async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: S
     case 'backend':
       // Kill process on the service's port
       const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
-      const killed = await findAndKillProcess(`:${port}`, serviceInfo.name, options, isStructuredOutput);
+      const killed = await findAndKillProcess(`:${port}`, serviceInfo.name, options);
       
       return {
         ...baseResult,
@@ -324,7 +330,7 @@ async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: S
       };
       
     case 'filesystem':
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`No process to stop for filesystem service`);
         printSuccess(`Filesystem service ${serviceInfo.name} stopped`);
       }
@@ -349,18 +355,18 @@ async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: S
   }
 }
 
-async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number, isStructuredOutput: boolean = false): Promise<StopResult> {
+async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
   const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   // External service - can't actually stop, just report
-  if (!isStructuredOutput && options.output === 'summary') {
+  {
     printInfo(`Cannot stop external ${serviceInfo.name} service`);
   }
   
   switch (serviceInfo.name) {
     case 'database':
       if (serviceInfo.config.host) {
-        if (!isStructuredOutput && options.output === 'summary') {
+        {
           printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
         }
         
@@ -385,7 +391,7 @@ async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: 
       
     case 'filesystem':
       if (serviceInfo.config.path) {
-        if (!isStructuredOutput && options.output === 'summary') {
+        {
           printInfo(`External storage: ${serviceInfo.config.path}`);
         }
         
@@ -408,12 +414,12 @@ async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: 
       break;
       
     default:
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`External ${serviceInfo.name} service`);
       }
   }
   
-  if (!isStructuredOutput && options.output === 'summary') {
+  {
     printSuccess(`External ${serviceInfo.name} service acknowledged`);
   }
   
@@ -433,15 +439,15 @@ async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: 
   };
 }
 
-async function findAndKillProcess(pattern: string, name: string, options: StopOptions, isStructuredOutput: boolean = false): Promise<boolean> {
+async function findAndKillProcess(pattern: string, name: string, options: StopOptions): Promise<boolean> {
   if (options.dryRun) {
-    if (!isStructuredOutput && options.output === 'summary') {
+    {
       printInfo(`[DRY RUN] Would stop ${name}`);
     }
     return true;
   }
   
-  if (!isStructuredOutput && options.output === 'summary') {
+  {
     printInfo(`Stopping ${name}...`);
   }
   
@@ -475,19 +481,19 @@ async function findAndKillProcess(pattern: string, name: string, options: StopOp
         }
       }
       
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printSuccess(`${name} stopped`);
       }
       return true;
     } else {
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printInfo(`${name} not running`);
       }
       return false;
     }
   } catch (error) {
     if (options.force) {
-      if (!isStructuredOutput && options.output === 'summary') {
+      {
         printWarning(`Failed to stop ${name}: ${error}`);
       }
       return false;
@@ -502,34 +508,28 @@ async function findAndKillProcess(pattern: string, name: string, options: StopOp
 // STRUCTURED OUTPUT FUNCTION  
 // =====================================================================
 
-export async function stop(options: StopOptions): Promise<CommandResults> {
+export async function stop(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: StopOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Stopping services in ${colors.bright}${options.environment}${colors.reset} environment`);
-  }
-  
-  if (options.verbose && !isStructuredOutput && options.output === 'summary') {
-    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
-  }
-  
-  // Environment validation is now handled by the main CLI
+  // Suppress output for structured formats
+  const previousSuppressOutput = suppressOutput;
+  suppressOutput = isStructuredOutput;
   
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'stop', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'stop', options.environment);
+    if (options.output === 'summary') {
+      printInfo(`Stopping services in ${colors.bright}${options.environment}${colors.reset} environment`);
+    }
     
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    
-    if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+    if (options.output === 'summary' && options.verbose) {
       printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Stop services in reverse order from start for clean shutdown
-    const stopOrder = ['frontend', 'backend', 'database', 'filesystem'];
+    const stopOrder = ['database', 'filesystem', 'backend', 'frontend'];
     const servicesToStop = serviceDeployments.sort((a, b) => {
       const aIndex = stopOrder.indexOf(a.name);
       const bIndex = stopOrder.indexOf(b.name);
@@ -541,7 +541,7 @@ export async function stop(options: StopOptions): Promise<CommandResults> {
     
     for (const serviceInfo of servicesToStop) {
       try {
-        const result = await stopService(serviceInfo, options, isStructuredOutput);
+        const result = await stopServiceImpl(serviceInfo, options);
         serviceResults.push(result);
       } catch (error) {
         // Create error result
@@ -560,7 +560,7 @@ export async function stop(options: StopOptions): Promise<CommandResults> {
         
         serviceResults.push(stopErrorResult);
         
-        if (!isStructuredOutput && options.output === 'summary') {
+        {
           printError(`Failed to stop ${serviceInfo.name}: ${error}`);
         }
         
@@ -592,70 +592,11 @@ export async function stop(options: StopOptions): Promise<CommandResults> {
     
     return commandResults;
     
-  } catch (error) {
-    if (!isStructuredOutput) {
-      printError(`Failed to stop services: ${error}`);
-    }
-    
-    return {
-      command: 'stop',
-      environment: options.environment,
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      services: [],
-      summary: {
-        total: 0,
-        succeeded: 0,
-        failed: 1,
-        warnings: 0,
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
-      },
-    };
+  } finally {
+    // Restore output suppression state
+    suppressOutput = previousSuppressOutput;
   }
 }
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
-
-async function main(options: StopOptions): Promise<void> {
-  try {
-    const results = await stop(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show traditional output with final status
-    if (results.summary.succeeded === results.summary.total) {
-      printSuccess('Services stopped successfully');
-    } else {
-      printWarning('Some services failed to stop - check logs above');
-      if (!options.force) {
-        printInfo('Use --force to ignore errors and continue');
-      }
-      process.exit(1);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Stop failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, StopOptions, StopOptionsSchema };
+// Export schema
+export { StopOptions, StopOptionsSchema };

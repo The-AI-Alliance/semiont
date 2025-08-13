@@ -130,7 +130,7 @@ describe('backup command with structured output', () => {
       
       expect(mockExecInContainer).toHaveBeenCalledWith(
         expect.stringContaining('postgres'),
-        expect.stringContaining('pg_dumpall'),
+        expect.arrayContaining(['pg_dumpall', '-U', 'postgres']),
         expect.any(Object)
       );
     });
@@ -156,7 +156,7 @@ describe('backup command with structured output', () => {
       
       expect(mockExecInContainer).toHaveBeenCalledWith(
         expect.stringContaining('filesystem'),
-        expect.stringContaining('tar'),
+        expect.arrayContaining(['tar', '-cf']),
         expect.any(Object)
       );
     });

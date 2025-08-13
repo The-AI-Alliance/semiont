@@ -14,8 +14,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';
 import * as http from 'http';
 import { CheckResult, CommandResults, createBaseResult, createErrorResult } from '../lib/command-results.js';
@@ -28,7 +27,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const CheckOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'),
   section: z.enum(['all', 'services', 'health', 'logs']).default('all'),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
@@ -41,24 +39,35 @@ type CheckOptions = z.infer<typeof CheckOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
+// Global flag to control output suppression
+let suppressOutput = false;
+
 function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+  }
 }
 
 function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+  }
 }
 
 function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+  }
 }
 
 function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  if (!suppressOutput) {
+    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  }
 }
 
 function printDebug(message: string, options: CheckOptions): void {
-  if (options.verbose) {
+  if (!suppressOutput && options.verbose) {
     console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
   }
 }
@@ -68,13 +77,32 @@ function printDebug(message: string, options: CheckOptions): void {
 // DEPLOYMENT-TYPE-AWARE CHECK FUNCTIONS
 // =====================================================================
 
-async function checkService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number, isStructuredOutput: boolean = false): Promise<CheckResult> {
+async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number): Promise<CheckResult> {
   const baseResult = createBaseResult('check', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
   try {
-    if (!isStructuredOutput) {
-      printInfo(`Checking ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
+    if (options.dryRun) {
+      printInfo(`[DRY RUN] Would check ${serviceInfo.name} (${serviceInfo.deploymentType})`);
+      return {
+        ...baseResult,
+        resourceId: {
+          [serviceInfo.deploymentType]: {
+            name: serviceInfo.name,
+          }
+        },
+        status: 'dry-run',
+        metadata: { dryRun: true },
+        healthStatus: 'unknown',
+        checks: [{
+          name: 'dry-run',
+          status: 'pass',
+          message: 'Dry run mode - no actual checks performed',
+        }],
+        lastCheck: new Date(),
+      };
     }
+    
+    printInfo(`Checking ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
     
     let checks: CheckResult['checks'] = [];
     let healthStatus: CheckResult['healthStatus'] = 'unknown';
@@ -82,19 +110,19 @@ async function checkService(serviceInfo: ServiceDeploymentInfo, options: CheckOp
     
     switch (serviceInfo.deploymentType) {
       case 'aws':
-        ({ checks, healthStatus, uptime } = await checkAWSService(serviceInfo, options, isStructuredOutput));
+        ({ checks, healthStatus, uptime } = await checkAWSService(serviceInfo, options));
         break;
       case 'container':
-        ({ checks, healthStatus, uptime } = await checkContainerService(serviceInfo, options, isStructuredOutput));
+        ({ checks, healthStatus, uptime } = await checkContainerService(serviceInfo, options));
         break;
       case 'process':
-        ({ checks, healthStatus, uptime } = await checkProcessService(serviceInfo, options, isStructuredOutput));
+        ({ checks, healthStatus, uptime } = await checkProcessService(serviceInfo, options));
         break;
       case 'external':
-        ({ checks, healthStatus, uptime } = await checkExternalService(serviceInfo, options, isStructuredOutput));
+        ({ checks, healthStatus, uptime } = await checkExternalService(serviceInfo, options));
         break;
       case 'mock':
-        ({ checks, healthStatus, uptime } = await checkMockService(serviceInfo, options, isStructuredOutput));
+        ({ checks, healthStatus, uptime } = await checkMockService(serviceInfo, options));
         break;
       default:
         printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
@@ -112,7 +140,7 @@ async function checkService(serviceInfo: ServiceDeploymentInfo, options: CheckOp
         [serviceInfo.deploymentType]: {
           name: serviceInfo.name,
           ...(serviceInfo.deploymentType === 'process' && { path: serviceInfo.config.path || '' }),
-          ...(serviceInfo.deploymentType === 'container' && { name: `semiont-${serviceInfo.name}-${options.environment}` }),
+          ...(serviceInfo.deploymentType === 'container' && { name: `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}` }),
           ...(serviceInfo.deploymentType === 'external' && { endpoint: serviceInfo.config.host || '' }),
           ...(serviceInfo.deploymentType === 'mock' && { id: `mock-${serviceInfo.name}-${options.environment}` }),
         }
@@ -130,6 +158,7 @@ async function checkService(serviceInfo: ServiceDeploymentInfo, options: CheckOp
     
   } catch (error) {
     const errorResult = createErrorResult(baseResult, error instanceof Error ? error : String(error));
+    printDebug(`Error checking service ${serviceInfo.name}: ${error}`, options);
     return {
       ...errorResult,
       resourceId: {
@@ -150,7 +179,7 @@ async function checkService(serviceInfo: ServiceDeploymentInfo, options: CheckOp
   }
 }
 
-async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, isStructuredOutput: boolean = false): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   
@@ -197,7 +226,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
   return { checks, healthStatus };
 }
 
-async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, isStructuredOutput: boolean = false): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
@@ -208,9 +237,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
     const isRunning = containers.some(c => c.includes(containerName));
     
     if (isRunning) {
-      if (!isStructuredOutput) {
-        printSuccess(`Container ${containerName} is running`);
-      }
+      printSuccess(`Container ${containerName} is running`);
       checks.push({
         name: 'container-running',
         status: 'pass',
@@ -236,9 +263,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
           const responseTime = Date.now() - startTime;
           
           if (healthCheck) {
-            if (!isStructuredOutput) {
-              printSuccess(`${serviceInfo.name} health endpoint responding`);
-            }
+            printSuccess(`${serviceInfo.name} health endpoint responding`);
             checks.push({
               name: 'http-health',
               status: 'pass',
@@ -246,9 +271,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
               responseTime,
             });
           } else {
-            if (!isStructuredOutput) {
-              printWarning(`${serviceInfo.name} health endpoint not responding`);
-            }
+            printWarning(`${serviceInfo.name} health endpoint not responding`);
             checks.push({
               name: 'http-health',
               status: 'warn',
@@ -269,9 +292,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
           break;
       }
     } else {
-      if (!isStructuredOutput) {
-        printWarning(`Container ${containerName} is not running`);
-      }
+      printWarning(`Container ${containerName} is not running`);
       checks.push({
         name: 'container-running',
         status: 'fail',
@@ -292,7 +313,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
   return { checks, healthStatus };
 }
 
-async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, isStructuredOutput: boolean = false): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   
@@ -398,7 +419,7 @@ async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: 
   return { checks, healthStatus };
 }
 
-async function checkExternalService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, isStructuredOutput: boolean = false): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkExternalService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   
@@ -508,7 +529,7 @@ async function checkExternalService(serviceInfo: ServiceDeploymentInfo, options:
   return { checks, healthStatus };
 }
 
-async function checkMockService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, isStructuredOutput: boolean = false): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkMockService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   
@@ -570,32 +591,30 @@ async function checkHttpHealth(url: string): Promise<boolean> {
 // MAIN EXECUTION
 // =====================================================================
 
-export async function check(options: CheckOptions): Promise<CommandResults> {
+export async function check(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: CheckOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
+  // Suppress output for structured formats
+  const previousSuppressOutput = suppressOutput;
+  suppressOutput = isStructuredOutput;
+  
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'check', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'check', options.environment);
-    
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    
-    if (!isStructuredOutput) {
-      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
-    }
+    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     
     // Check services and collect results
     const serviceResults: CheckResult[] = [];
     
-    if (options.section === 'all' || options.section === 'services') {
-      if (!isStructuredOutput) {
+    if (options.section === 'all' || options.section === 'services' || options.section === 'health') {
+      if (options.section === 'all' || options.section === 'services') {
         printInfo('\n📊 Service Status:');
       }
       
       for (const serviceInfo of serviceDeployments) {
-        const result = await checkService(serviceInfo, options, startTime, isStructuredOutput);
+        const result = await checkServiceImpl(serviceInfo, options, startTime);
         serviceResults.push(result);
       }
     }
@@ -619,17 +638,13 @@ export async function check(options: CheckOptions): Promise<CommandResults> {
     }
     
     if (options.section === 'all' || options.section === 'health') {
-      if (!isStructuredOutput) {
-        printInfo('\n💚 Health Checks:');
-        printInfo(`Overall system health: ${overallHealth}`);
-      }
+      printInfo('\n💚 Health Checks:');
+      printInfo(`Overall system health: ${overallHealth}`);
     }
     
     if (options.section === 'all' || options.section === 'logs') {
-      if (!isStructuredOutput) {
-        printInfo('\n📝 Recent Logs:');
-        printWarning('Log aggregation not yet implemented');
-      }
+      printInfo('\n📝 Recent Logs:');
+      printWarning('Log aggregation not yet implemented');
     }
     
     // Create aggregated results
@@ -657,16 +672,14 @@ export async function check(options: CheckOptions): Promise<CommandResults> {
     };
     
     // Print summary if not using structured output
-    if (!isStructuredOutput) {
-      printInfo('\n📋 Summary:');
-      if (succeeded === serviceResults.length) {
-        printSuccess(`All ${serviceResults.length} services are healthy`);
-      } else {
-        printWarning(`${succeeded}/${serviceResults.length} services are healthy`);
-        const unhealthy = serviceResults.filter(r => !r.success || r.healthStatus === 'unhealthy');
-        for (const service of unhealthy) {
-          printError(`  - ${service.service} is not healthy`);
-        }
+    printInfo('\n📋 Summary:');
+    if (succeeded === serviceResults.length) {
+      printSuccess(`All ${serviceResults.length} services are healthy`);
+    } else {
+      printWarning(`${succeeded}/${serviceResults.length} services are healthy`);
+      const unhealthy = serviceResults.filter(r => !r.success || r.healthStatus === 'unhealthy');
+      for (const service of unhealthy) {
+        printError(`  - ${service.service} is not healthy`);
       }
     }
     
@@ -694,38 +707,11 @@ export async function check(options: CheckOptions): Promise<CommandResults> {
         dryRun: options.dryRun,
       },
     };
+  } finally {
+    // Restore output suppression state
+    suppressOutput = previousSuppressOutput;
   }
 }
 
-async function main(options: CheckOptions): Promise<void> {
-  printInfo(`🔍 Checking system status in ${colors.bright}${options.environment}${colors.reset} environment`);
-  
-  if (options.verbose) {
-    printDebug(`Options: ${JSON.stringify(options, null, 2)}`, options);
-  }
-  
-  try {
-    const results = await check(options);
-    
-    // Handle structured output
-    if (options.output !== 'table') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // Exit with error code if any services are unhealthy
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Check failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, CheckOptions, CheckOptionsSchema };
+// Export the schema for use by CLI
+export { CheckOptions, CheckOptionsSchema };

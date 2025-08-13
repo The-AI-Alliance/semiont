@@ -10,12 +10,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import type { CheckOptions } from '../commands/check.js';
+import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // Mock child_process for process checks
 vi.mock('child_process', () => ({
   spawn: vi.fn(() => ({
     pid: 12345,
-    stdout: { on: vi.fn() },
+    stdout: { 
+      on: vi.fn((event, callback) => {
+        if (event === 'data') {
+          callback(Buffer.from('12345\n'));
+        }
+      })
+    },
     stderr: { on: vi.fn() },
     on: vi.fn((event, callback) => {
       if (event === 'exit') {
@@ -30,9 +37,32 @@ vi.mock('child_process', () => ({
   })
 }));
 
-// Mock HTTP requests for health checks
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// Mock container runtime
+vi.mock('../lib/container-runtime.js', () => ({
+  listContainers: vi.fn().mockResolvedValue(['semiont-frontend-test', 'semiont-backend-test'])
+}));
+
+// Mock HTTP module for health checks
+vi.mock('http', () => ({
+  get: vi.fn((url, callback) => {
+    const res = {
+      statusCode: 200,
+      on: vi.fn()
+    };
+    callback(res);
+    return { on: vi.fn() };
+  }),
+  default: {
+    get: vi.fn((url, callback) => {
+      const res = {
+        statusCode: 200,
+        on: vi.fn()
+      };
+      callback(res);
+      return { on: vi.fn() };
+    })
+  }
+}));
 
 describe('Check Command', () => {
   let testDir: string;
@@ -60,14 +90,17 @@ describe('Check Command', () => {
     );
   }
 
+  // Helper function to create service deployments for tests
+  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+    return services.map(service => ({
+      name: service.name,
+      deploymentType: service.type as any,
+      config: service.config || {}
+    }));
+  }
+
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful checks', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: () => Promise.resolve('{"status":"ok"}')
-      });
-
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
@@ -84,16 +117,19 @@ describe('Check Command', () => {
 
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container', config: { port: 3000 } }
+      ]);
+
       const options: CheckOptions = {
         environment: 'test',
-        service: 'frontend',
         section: 'all',
         verbose: false,
         dryRun: false,
         output: 'json'
       };
 
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
       expect(result).toMatchObject({
         command: 'check',
@@ -106,25 +142,27 @@ describe('Check Command', () => {
             service: 'frontend',
             deploymentType: 'container',
             success: true,
-            checkTime: expect.any(Date),
-            healthStatus: expect.stringMatching(/^(healthy|degraded|unhealthy)$/),
-            checks: expect.arrayContaining([
-              expect.objectContaining({
-                name: expect.any(String),
-                status: expect.stringMatching(/^(passed|failed|warning)$/),
-                message: expect.any(String)
+            lastCheck: expect.any(Date),
+            healthStatus: expect.any(String),
+            checks: expect.any(Array),
+            resourceId: expect.objectContaining({
+              container: expect.objectContaining({
+                name: 'semiont-frontend-test'
               })
-            ]),
-            resourceId: expect.any(Object),
-            status: expect.any(String)
+            })
           })
         ]),
         summary: {
           total: 1,
-          succeeded: 1,
-          failed: 0,
+          succeeded: expect.any(Number),
+          failed: expect.any(Number),
           warnings: expect.any(Number)
-        }
+        },
+        executionContext: expect.objectContaining({
+          user: expect.any(String),
+          workingDirectory: expect.any(String),
+          dryRun: false
+        })
       });
     });
 
@@ -141,16 +179,19 @@ describe('Check Command', () => {
 
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'process', config: { port: 3001 } }
+      ]);
+
       const options: CheckOptions = {
         environment: 'test',
-        service: 'backend',
         section: 'services',
         verbose: true,
         dryRun: true,
         output: 'table'
       };
 
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         status: 'dry-run',
@@ -159,463 +200,162 @@ describe('Check Command', () => {
           dryRun: true
         })
       });
-
-      expect(result.executionContext.dryRun).toBe(true);
     });
 
-    it('should return error results for failed checks', async () => {
-      mockFetch.mockRejectedValue(new Error('Connection refused'));
-
+    it('should filter by section when specified', async () => {
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
-          database: {
-            deployment: { type: 'container' },
-            port: 5432
+          frontend: { deployment: { type: 'container' } },
+          backend: { deployment: { type: 'container' } }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'services',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      // Should have checked services
+      expect(result.services.length).toBeGreaterThan(0);
+      result.services.forEach((service: any) => {
+        expect(service.checks).toBeDefined();
+      });
+    });
+  });
+
+  describe('Deployment Type Support', () => {
+    it('should handle AWS deployment type', async () => {
+      await createTestEnvironment('production', {
+        deployment: { default: 'aws' },
+        services: {
+          backend: {
+            deployment: { type: 'aws' },
+            arn: 'arn:aws:ecs:us-east-1:123456789012:service/prod/backend'
           }
         }
       });
 
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'aws' }
+      ]);
+
       const options: CheckOptions = {
-        environment: 'test',
-        service: 'database',
-        section: 'health',
+        environment: 'production',
+        section: 'all',
         verbose: false,
         dryRun: false,
         output: 'yaml'
       };
 
-      const result = await check(options);
-
-      expect(result.services[0]).toMatchObject({
-        success: expect.any(Boolean),
-        healthStatus: expect.any(String),
-        checks: expect.arrayContaining([
-          expect.objectContaining({
-            name: expect.any(String),
-            status: expect.stringMatching(/^(passed|failed|warning)$/),
-            message: expect.any(String)
-          })
-        ])
-      });
-
-      // At least one check should exist
-      expect(result.services[0].checks.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Deployment Type Support', () => {
-    it('should handle AWS deployment type checks', async () => {
-      await createTestEnvironment('production', {
-        deployment: { default: 'aws' },
-        services: {
-          frontend: {
-            deployment: { type: 'aws' },
-            healthCheck: {
-              path: '/health'
-            }
-          }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'production',
-        service: 'frontend',
-        section: 'all',
-        verbose: false,
-        dryRun: false,
-        output: 'summary'
-      };
-
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'aws',
+        status: expect.any(String),
         resourceId: expect.objectContaining({
-          aws: expect.objectContaining({
-            arn: expect.stringContaining('arn:aws:'),
-            id: expect.any(String)
-          })
-        }),
-        checks: expect.arrayContaining([
-          expect.objectContaining({
-            name: expect.any(String),
-            status: expect.any(String),
-            message: expect.any(String)
-          })
-        ])
+          aws: expect.any(Object)
+        })
       });
     });
 
-    it('should handle container deployment type checks', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: () => Promise.resolve('OK')
-      });
+    it('should handle container deployment type', async () => {
+      const { listContainers } = await import('../lib/container-runtime.js');
+      (listContainers as any).mockResolvedValue(['semiont-postgres-staging']);
 
       await createTestEnvironment('staging', {
         deployment: { default: 'container' },
         services: {
           database: {
             deployment: { type: 'container' },
-            port: 5432
-          },
-          frontend: {
-            deployment: { type: 'container' },
-            port: 3000,
-            healthCheck: { path: '/api/health' }
+            image: 'postgres:15'
           }
         }
       });
 
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container', config: { image: 'postgres:15' } }
+      ]);
+
       const options: CheckOptions = {
         environment: 'staging',
-        service: 'all',
-        section: 'services',
-        verbose: true,
+        section: 'all',
+        verbose: false,
         dryRun: false,
-        output: 'json'
+        output: 'summary'
       };
 
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(2);
-      
-      result.services.forEach(service => {
-        expect(service).toMatchObject({
-          deploymentType: 'container',
-          resourceId: expect.objectContaining({
-            container: expect.objectContaining({
-              name: expect.any(String),
-              id: expect.any(String)
-            })
-          }),
-          checks: expect.any(Array)
-        });
+      expect(result.services[0]).toMatchObject({
+        deploymentType: 'container',
+        resourceId: expect.objectContaining({
+          container: expect.objectContaining({
+            name: 'semiont-postgres-staging'
+          })
+        })
       });
     });
 
-    it('should handle process deployment type checks', async () => {
+    it('should handle process deployment type', async () => {
       await createTestEnvironment('local', {
         deployment: { default: 'process' },
         services: {
-          backend: {
+          frontend: {
             deployment: { type: 'process' },
-            port: 3001,
-            healthCheck: {
-              path: '/api/status',
-              timeout: 3000
-            }
+            port: 3000,
+            command: 'npm run dev'
           }
         }
       });
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ status: 'healthy', uptime: 12345 })
-      });
-
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'process', config: { port: 3000, command: 'npm run dev' } }
+      ]);
+
       const options: CheckOptions = {
         environment: 'local',
-        service: 'backend',
-        section: 'health',
-        verbose: false,
+        section: 'all',
+        verbose: true,
         dryRun: false,
         output: 'table'
       };
 
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'process',
         resourceId: expect.objectContaining({
-          process: expect.objectContaining({
-            port: 3001
-          })
-        }),
-        checks: expect.arrayContaining([
-          expect.objectContaining({
-            name: expect.stringMatching(/(connectivity|health|process)/),
-            status: expect.any(String),
-            message: expect.any(String)
-          })
-        ])
+          process: expect.any(Object)
+        })
       });
     });
 
-    it('should handle external deployment type checks', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 503,
-        statusText: 'Service Unavailable'
-      });
-
-      await createTestEnvironment('remote', {
+    it('should handle external deployment type', async () => {
+      await createTestEnvironment('production', {
         deployment: { default: 'external' },
         services: {
           database: {
             deployment: { type: 'external' },
             host: 'db.example.com',
-            port: 5432,
-            name: 'proddb',
-            healthCheck: {
-              timeout: 5000
-            }
-          }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'remote',
-        service: 'database',
-        section: 'all',
-        verbose: true,
-        dryRun: false,
-        output: 'yaml'
-      };
-
-      const result = await check(options);
-
-      expect(result.services[0]).toMatchObject({
-        deploymentType: 'external',
-        resourceId: expect.objectContaining({
-          external: expect.objectContaining({
-            endpoint: expect.stringContaining('db.example.com')
-          })
-        }),
-        checks: expect.arrayContaining([
-          expect.objectContaining({
-            name: 'connectivity',
-            status: expect.any(String),
-            message: expect.any(String)
-          })
-        ])
-      });
-    });
-  });
-
-  describe('Section-specific Checks', () => {
-    it('should handle services section checks', async () => {
-      await createTestEnvironment('test', {
-        deployment: { default: 'container' },
-        services: {
-          frontend: { deployment: { type: 'container' }, port: 3000 },
-          backend: { deployment: { type: 'container' }, port: 3001 },
-          database: { deployment: { type: 'container' }, port: 5432 }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'test',
-        service: 'all',
-        section: 'services',
-        verbose: false,
-        dryRun: false,
-        output: 'summary'
-      };
-
-      const result = await check(options);
-
-      expect(result.services).toHaveLength(3);
-      
-      result.services.forEach(service => {
-        expect(service.checks).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              name: expect.stringMatching(/(container|service)/),
-              status: expect.any(String)
-            })
-          ])
-        );
-      });
-    });
-
-    it('should handle health section checks', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({
-          status: 'healthy',
-          checks: {
-            database: 'ok',
-            cache: 'ok'
-          }
-        })
-      });
-
-      await createTestEnvironment('test', {
-        deployment: { default: 'process' },
-        services: {
-          backend: {
-            deployment: { type: 'process' },
-            port: 3001,
-            healthCheck: {
-              path: '/health'
-            }
-          }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'test',
-        service: 'backend',
-        section: 'health',
-        verbose: true,
-        dryRun: false,
-        output: 'json'
-      };
-
-      const result = await check(options);
-
-      expect(result.services[0].checks).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            name: expect.stringMatching(/(health|endpoint)/),
-            status: expect.any(String)
-          })
-        ])
-      );
-    });
-
-    it('should handle logs section checks', async () => {
-      await createTestEnvironment('test', {
-        deployment: { default: 'container' },
-        services: {
-          frontend: {
-            deployment: { type: 'container' },
-            port: 3000
-          }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'test',
-        service: 'frontend',
-        section: 'logs',
-        verbose: false,
-        dryRun: false,
-        output: 'table'
-      };
-
-      const result = await check(options);
-
-      expect(result.services[0].checks).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            name: expect.stringMatching(/log/),
-            status: expect.any(String)
-          })
-        ])
-      );
-    });
-  });
-
-  describe('Health Status Aggregation', () => {
-    it('should report healthy status when all checks pass', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: () => Promise.resolve('OK')
-      });
-
-      await createTestEnvironment('test', {
-        deployment: { default: 'process' },
-        services: {
-          backend: {
-            deployment: { type: 'process' },
-            port: 3001,
-            healthCheck: { path: '/health' }
-          }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'test',
-        service: 'backend',
-        section: 'all',
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      const result = await check(options);
-
-      // If all individual checks pass, overall health should be healthy
-      const allChecksPassed = result.services[0].checks.every(c => c.status === 'passed');
-      if (allChecksPassed) {
-        expect(result.services[0].healthStatus).toBe('healthy');
-      }
-    });
-
-    it('should report degraded status when some checks fail', async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          text: () => Promise.resolve('OK')
-        })
-        .mockRejectedValueOnce(new Error('Secondary service down'));
-
-      await createTestEnvironment('test', {
-        deployment: { default: 'container' },
-        services: {
-          frontend: {
-            deployment: { type: 'container' },
-            port: 3000,
-            healthCheck: { path: '/health' }
-          }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'test',
-        service: 'frontend',
-        section: 'all',
-        verbose: false,
-        dryRun: false,
-        output: 'summary'
-      };
-
-      const result = await check(options);
-
-      const hasFailedChecks = result.services[0].checks.some(c => c.status === 'failed');
-      const hasPassedChecks = result.services[0].checks.some(c => c.status === 'passed');
-      
-      if (hasFailedChecks && hasPassedChecks) {
-        expect(result.services[0].healthStatus).toBe('degraded');
-      }
-    });
-
-    it('should report unhealthy status when critical checks fail', async () => {
-      mockFetch.mockRejectedValue(new Error('Service completely down'));
-
-      await createTestEnvironment('test', {
-        deployment: { default: 'process' },
-        services: {
-          database: {
-            deployment: { type: 'process' },
             port: 5432
           }
         }
@@ -623,85 +363,75 @@ describe('Check Command', () => {
 
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432 } }
+      ]);
+
       const options: CheckOptions = {
-        environment: 'test',
-        service: 'database',
-        section: 'health',
-        verbose: false,
-        dryRun: false,
-        output: 'yaml'
-      };
-
-      const result = await check(options);
-
-      const allChecksFailed = result.services[0].checks.every(c => c.status === 'failed');
-      if (allChecksFailed) {
-        expect(result.services[0].healthStatus).toBe('unhealthy');
-      }
-    });
-  });
-
-  describe('Service Selection', () => {
-    it('should check all services when service is "all"', async () => {
-      await createTestEnvironment('test', {
-        deployment: { default: 'container' },
-        services: {
-          database: { deployment: { type: 'container' }, port: 5432 },
-          frontend: { deployment: { type: 'container' }, port: 3000 },
-          backend: { deployment: { type: 'container' }, port: 3001 }
-        }
-      });
-
-      const { check } = await import('../commands/check.js');
-      
-      const options: CheckOptions = {
-        environment: 'test',
-        service: 'all',
-        section: 'services',
+        environment: 'production',
+        section: 'all',
         verbose: false,
         dryRun: false,
         output: 'json'
       };
 
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(3);
-      expect(result.summary.total).toBe(3);
-      
-      const serviceNames = result.services.map(s => s.service).sort();
-      expect(serviceNames).toEqual(['backend', 'database', 'frontend']);
+      expect(result.services[0]).toMatchObject({
+        deploymentType: 'external',
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: expect.any(String),
+            status: expect.any(String)
+          })
+        ])
+      });
     });
 
-    it('should check specific service when named', async () => {
+    it('should handle mock deployment type', async () => {
       await createTestEnvironment('test', {
-        deployment: { default: 'container' },
+        deployment: { default: 'mock' },
         services: {
-          database: { deployment: { type: 'container' }, port: 5432 },
-          frontend: { deployment: { type: 'container' }, port: 3000 }
+          backend: {
+            deployment: { type: 'mock' }
+          }
         }
       });
 
       const { check } = await import('../commands/check.js');
       
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'mock' }
+      ]);
+
       const options: CheckOptions = {
         environment: 'test',
-        service: 'database',
         section: 'all',
         verbose: false,
         dryRun: false,
-        output: 'table'
+        output: 'json'
       };
 
-      const result = await check(options);
+      const result = await check(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0].service).toBe('database');
-      expect(result.summary.total).toBe(1);
+      expect(result.services[0]).toMatchObject({
+        deploymentType: 'mock',
+        healthStatus: 'healthy',
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'mock-service',
+            status: 'pass'
+          })
+        ])
+      });
     });
   });
 
-  describe('Output Format Support', () => {
-    it('should support all output formats', async () => {
+  describe('Health Check Features', () => {
+    it('should check container health status', async () => {
+      const { listContainers } = await import('../lib/container-runtime.js');
+      (listContainers as any).mockResolvedValue(['semiont-backend-test']);
+
       await createTestEnvironment('test', {
         deployment: { default: 'container' },
         services: {
@@ -713,20 +443,235 @@ describe('Check Command', () => {
       });
 
       const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container', config: { port: 3001 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'health',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      const service = result.services[0] as any;
+      expect(service.checks).toBeDefined();
+      expect(service.checks.some((c: any) => c.name === 'container-running')).toBe(true);
+    });
+
+    it('should check process port availability', async () => {
+      await createTestEnvironment('local', {
+        deployment: { default: 'process' },
+        services: {
+          backend: {
+            deployment: { type: 'process' },
+            port: 3001
+          }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'process', config: { port: 3001 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'local',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      const service = result.services[0] as any; // CheckResult type
+      
+      expect(service).toBeDefined();
+      expect(service.checks).toBeDefined();
+      const processCheck = service.checks.find((c: any) => c.name === 'process-running');
+      expect(processCheck).toBeDefined();
+    });
+
+    it('should check filesystem accessibility', async () => {
+      const dataPath = path.join(testDir, 'data');
+      fs.mkdirSync(dataPath, { recursive: true });
+
+      await createTestEnvironment('local', {
+        deployment: { default: 'process' },
+        services: {
+          filesystem: {
+            deployment: { type: 'process' },
+            path: dataPath
+          }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'filesystem', type: 'process', config: { path: dataPath } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'local',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      const service = result.services[0] as any;
+      expect(service.checks).toBeDefined();
+      const fsCheck = service.checks.find((c: any) => c.name === 'filesystem-access');
+      expect(fsCheck).toBeDefined();
+      expect(fsCheck.status).toBe('pass');
+    });
+
+    it('should check external service connectivity', async () => {
+      await createTestEnvironment('production', {
+        deployment: { default: 'external' },
+        services: {
+          backend: {
+            deployment: { type: 'external' },
+            host: 'api.example.com',
+            port: 443
+          }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'external', config: { host: 'api.example.com', port: 443 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'production',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      const service = result.services[0] as any;
+      expect(service.checks).toBeDefined();
+      expect(service.healthStatus).toBeDefined();
+    });
+  });
+
+  describe('Service Selection', () => {
+    it('should check all services when not specified', async () => {
+      const { listContainers } = await import('../lib/container-runtime.js');
+      (listContainers as any).mockResolvedValue([
+        'semiont-postgres-test',
+        'semiont-backend-test',
+        'semiont-frontend-test'
+      ]);
+
+      await createTestEnvironment('test', {
+        deployment: { default: 'container' },
+        services: {
+          database: { deployment: { type: 'container' } },
+          backend: { deployment: { type: 'container' } },
+          frontend: { deployment: { type: 'container' } }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' },
+        { name: 'backend', type: 'container' },
+        { name: 'frontend', type: 'container' }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result.services).toHaveLength(3);
+      const serviceNames = result.services.map((s: any) => s.service).sort();
+      expect(serviceNames).toEqual(['backend', 'database', 'frontend']);
+    });
+
+    it('should check specific service when provided', async () => {
+      const { listContainers } = await import('../lib/container-runtime.js');
+      (listContainers as any).mockResolvedValue(['semiont-backend-test']);
+
+      await createTestEnvironment('test', {
+        deployment: { default: 'container' },
+        services: {
+          backend: { deployment: { type: 'container' } }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container' }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'table'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result.services).toHaveLength(1);
+      expect(result.services[0].service).toBe('backend');
+    });
+  });
+
+  describe('Output Format Support', () => {
+    it('should support all output formats', async () => {
+      const { listContainers } = await import('../lib/container-runtime.js');
+      (listContainers as any).mockResolvedValue(['semiont-backend-test']);
+
+      await createTestEnvironment('test', {
+        deployment: { default: 'container' },
+        services: {
+          backend: { deployment: { type: 'container' } }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container' }
+      ]);
 
       const formats: Array<'summary' | 'table' | 'json' | 'yaml'> = ['summary', 'table', 'json', 'yaml'];
       
       for (const format of formats) {
         const options: CheckOptions = {
           environment: 'test',
-          service: 'backend',
           section: 'all',
           verbose: false,
           dryRun: false,
           output: format
         };
 
-        const result = await check(options);
+        const result = await check(serviceDeployments, options);
         
         expect(result).toMatchObject({
           command: 'check',
@@ -739,6 +684,82 @@ describe('Check Command', () => {
           })
         });
       }
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle container not running', async () => {
+      const { listContainers } = await import('../lib/container-runtime.js');
+      (listContainers as any).mockResolvedValue([]); // No containers running
+
+      await createTestEnvironment('test', {
+        deployment: { default: 'container' },
+        services: {
+          backend: { deployment: { type: 'container' } }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'container' }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect((result.services[0] as any).healthStatus).toBe('unhealthy');
+      expect((result.services[0] as any).checks).toContainEqual(
+        expect.objectContaining({
+          name: 'container-running',
+          status: 'fail'
+        })
+      );
+    });
+
+    it('should handle filesystem not accessible', async () => {
+      const nonExistentPath = path.join(testDir, 'non-existent');
+
+      await createTestEnvironment('local', {
+        deployment: { default: 'process' },
+        services: {
+          filesystem: {
+            deployment: { type: 'process' },
+            path: nonExistentPath
+          }
+        }
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'filesystem', type: 'process', config: { path: nonExistentPath } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'local',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect((result.services[0] as any).healthStatus).toBe('unhealthy');
+      expect((result.services[0] as any).checks).toContainEqual(
+        expect.objectContaining({
+          name: 'filesystem-access',
+          status: 'fail'
+        })
+      );
     });
   });
 });

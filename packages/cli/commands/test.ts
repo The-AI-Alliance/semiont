@@ -11,8 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { listContainers } from '../lib/container-runtime.js';
 import { 
@@ -32,7 +31,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 const TestOptionsSchema = z.object({
   environment: z.string(),
   suite: z.enum(['all', 'integration', 'e2e', 'health', 'security', 'connectivity']).default('all'),
-  service: z.string().default('all'),
   coverage: z.boolean().default(false),
   parallel: z.boolean().default(false),
   timeout: z.number().int().positive().default(300), // 5 minutes
@@ -51,34 +49,44 @@ type TestOptions = z.infer<typeof TestOptionsSchema>;
 // Global flag to control output suppression
 let suppressOutput = false;
 
-function printError(message: string): void {
+function printError(message: string): string {
+  const msg = `${colors.red}❌ ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+    console.error(msg);
   }
+  return msg;
 }
 
-function printSuccess(message: string): void {
+function printSuccess(message: string): string {
+  const msg = `${colors.green}✅ ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-function printInfo(message: string): void {
+function printInfo(message: string): string {
+  const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-function printWarning(message: string): void {
+function printWarning(message: string): string {
+  const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-function printDebug(message: string, options: TestOptions): void {
+function printDebug(message: string, options: TestOptions): string {
+  const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
   if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
 
@@ -519,7 +527,10 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
 // STRUCTURED OUTPUT MAIN FUNCTION
 // =====================================================================
 
-export async function test(options: TestOptions): Promise<CommandResults> {
+export async function test(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: TestOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -528,12 +539,6 @@ export async function test(options: TestOptions): Promise<CommandResults> {
   }
   
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'test', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'test', options.environment);
-    
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
       console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
@@ -682,43 +687,8 @@ async function runE2ETestsForService(serviceInfo: ServiceDeploymentInfo, options
 
 
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
+// Note: The main function is removed as cli.ts now handles service resolution and output formatting
+// The test function now accepts pre-resolved services and returns CommandResults
 
-async function main(options: TestOptions): Promise<void> {
-  
-  try {
-    const results = await test(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show traditional output with final status
-    if (results.summary.succeeded === results.summary.total) {
-      printSuccess('All tests passed!');
-    } else {
-      printError('Some tests failed');
-      printInfo(`Failed: ${results.summary.failed}/${results.summary.total} tests`);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Test failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-
-// Command file - no direct execution needed
-
-export { main, TestOptions, TestOptionsSchema };
+// Export the schema for use by CLI
+export { TestOptions, TestOptionsSchema };

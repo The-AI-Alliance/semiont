@@ -11,8 +11,7 @@
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { createVolume, runContainer, listContainers } from '../lib/container-runtime.js';
 import { CdkDeployer } from '../lib/cdk-deployer.js';
 import { spawn } from 'child_process';
@@ -34,7 +33,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const ProvisionOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'),
   stack: z.enum(['infra', 'app', 'all']).default('all'),
   force: z.boolean().default(false),
   destroy: z.boolean().default(false),
@@ -52,26 +50,36 @@ type ProvisionOptions = z.infer<typeof ProvisionOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
+function printError(message: string): string {
+  const msg = `${colors.red}❌ ${message}${colors.reset}`;
+  console.error(msg);
+  return msg;
 }
 
-function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
+function printSuccess(message: string): string {
+  const msg = `${colors.green}✅ ${message}${colors.reset}`;
+  console.log(msg);
+  return msg;
 }
 
-function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+function printInfo(message: string): string {
+  const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
+  console.log(msg);
+  return msg;
 }
 
-function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+function printWarning(message: string): string {
+  const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
+  console.log(msg);
+  return msg;
 }
 
-function printDebug(message: string, options: ProvisionOptions): void {
+function printDebug(message: string, options: ProvisionOptions): string {
+  const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
   if (options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
 
@@ -940,7 +948,10 @@ async function provisionExternalService(serviceInfo: ServiceDeploymentInfo, opti
 // STRUCTURED OUTPUT FUNCTION  
 // =====================================================================
 
-export async function provision(options: ProvisionOptions): Promise<CommandResults> {
+export async function provision(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: ProvisionOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -950,23 +961,20 @@ export async function provision(options: ProvisionOptions): Promise<CommandResul
       if (!options.force) {
         printWarning('This will permanently delete infrastructure and data!');
         printInfo('Use --force to confirm destruction');
-        // For structured output, we still need to return results
-        if (isStructuredOutput) {
-          return {
-            command: 'provision',
-            environment: options.environment,
-            timestamp: new Date(),
-            duration: Date.now() - startTime,
-            services: [],
-            summary: { total: 0, succeeded: 0, failed: 1, warnings: 1 },
-            executionContext: {
-              user: process.env.USER || 'unknown',
-              workingDirectory: process.cwd(),
-              dryRun: options.dryRun,
-            },
-          };
-        }
-        process.exit(1);
+        // Return appropriate result instead of exiting
+        return {
+          command: 'provision',
+          environment: options.environment,
+          timestamp: new Date(),
+          duration: Date.now() - startTime,
+          services: [],
+          summary: { total: 0, succeeded: 0, failed: 1, warnings: 1 },
+          executionContext: {
+            user: process.env.USER || 'unknown',
+            workingDirectory: process.cwd(),
+            dryRun: options.dryRun,
+          },
+        };
       }
     } else {
       printInfo(`🏗️  Provisioning infrastructure in ${colors.bright}${options.environment}${colors.reset} environment`);
@@ -982,12 +990,6 @@ export async function provision(options: ProvisionOptions): Promise<CommandResul
   }
   
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'start', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
-    
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
     if (options.verbose && !isStructuredOutput && options.output === 'summary') {
       printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
@@ -1164,46 +1166,8 @@ export async function provision(options: ProvisionOptions): Promise<CommandResul
   }
 }
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
+// Note: The main function is removed as cli.ts now handles service resolution and output formatting
+// The provision function now accepts pre-resolved services and returns CommandResults
 
-async function main(options: ProvisionOptions): Promise<void> {
-  try {
-    const results = await provision(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show traditional output with final status
-    if (results.summary.succeeded === results.summary.total) {
-      if (options.destroy) {
-        printSuccess('Infrastructure destroyed successfully');
-      } else {
-        printSuccess('Infrastructure provisioned successfully');
-        printInfo('Use `semiont start` to start services');
-      }
-    } else {
-      printWarning('Some services failed to provision - check logs above');
-      process.exit(1);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Provision failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, ProvisionOptions, ProvisionOptionsSchema };
+// Export the schema for use by CLI
+export { ProvisionOptions, ProvisionOptionsSchema };
