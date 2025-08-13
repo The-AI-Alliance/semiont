@@ -317,7 +317,7 @@ export async function listContainers(options: {
   format?: string;
   verbose?: boolean;
 } = {}): Promise<string[]> {
-  const { all = false, format, verbose = false } = options;
+  const { all = false, format } = options;
 
   const args = ['ps'];
 

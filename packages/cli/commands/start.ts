@@ -6,13 +6,12 @@
  */
 
 import { z } from 'zod';
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import * as path from 'path';
-import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { type ServiceDeploymentInfo, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
-import { runContainer, stopContainer } from '../lib/container-runtime.js';
+import { runContainer } from '../lib/container-runtime.js';
 import { 
   StartResult, 
   CommandResults, 
@@ -572,7 +571,7 @@ export async function start(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
+  // const previousSuppressOutput = suppressOutput;
   suppressOutput = isStructuredOutput;
   
   try {

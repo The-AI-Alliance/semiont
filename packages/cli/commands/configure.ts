@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from '../lib/stack-config.js';
-import { loadEnvironmentConfig, displayConfiguration, getAvailableEnvironments, ConfigurationError } from '../lib/deployment-resolver.js';
+import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
 import * as readline from 'readline';
 import { colors } from '../lib/cli-colors.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
@@ -16,8 +16,7 @@ import {
   ConfigureResult, 
   CommandResults, 
   createBaseResult,
-  createErrorResult,
-  ResourceIdentifier 
+  createErrorResult 
 } from '../lib/command-results.js';
 import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
 
@@ -60,21 +59,21 @@ const KNOWN_SECRETS: Record<string, string> = {
 // Global flag to control output suppression
 let suppressOutput = false;
 
-function printError(message: string): string {
-  const msg = `${colors.red}❌ ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.error(msg);
-  }
-  return msg;
-}
+// function printError(message: string): string {
+//   const msg = `${colors.red}❌ ${message}${colors.reset}`;
+//   if (!suppressOutput) {
+//     console.error(msg);
+//   }
+//   return msg;
+// }
 
-function printSuccess(message: string): string {
-  const msg = `${colors.green}✅ ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
+// function printSuccess(message: string): string {
+//   const msg = `${colors.green}✅ ${message}${colors.reset}`;
+//   if (!suppressOutput) {
+//     console.log(msg);
+//   }
+//   return msg;
+// }
 
 function printInfo(message: string): string {
   const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
@@ -84,21 +83,21 @@ function printInfo(message: string): string {
   return msg;
 }
 
-function printWarning(message: string): string {
-  const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
+// function printWarning(message: string): string {
+//   const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
+//   if (!suppressOutput) {
+//     console.log(msg);
+//   }
+//   return msg;
+// }
 
-function printDebug(message: string, options: ConfigureOptions): string {
-  const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
-  if (!suppressOutput && options.verbose) {
-    console.log(msg);
-  }
-  return msg;
-}
+// function printDebug(message: string, options: ConfigureOptions): string {
+//   const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
+//   if (!suppressOutput && options.verbose) {
+//     console.log(msg);
+//   }
+//   return msg;
+// }
 
 // Note: Argument parsing is now handled by cli.ts
 

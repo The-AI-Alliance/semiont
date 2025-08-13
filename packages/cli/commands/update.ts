@@ -13,7 +13,7 @@ import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
-import { getProjectRoot } from '../lib/cli-paths.js';
+// import { getProjectRoot } from '../lib/cli-paths.js';
 import { 
   UpdateResult, 
   CommandResults, 
@@ -26,7 +26,7 @@ import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
 // AWS SDK imports for ECS operations
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+// const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 // =====================================================================
 // SCHEMA DEFINITIONS

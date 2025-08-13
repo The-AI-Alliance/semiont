@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { test, TestOptions } from '../commands/test.js';
-import { TestResult, CommandResults } from '../lib/command-results.js';
+import { TestResult } from '../lib/command-results.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import * as containerRuntime from '../lib/container-runtime.js';
 import { spawn } from 'child_process';

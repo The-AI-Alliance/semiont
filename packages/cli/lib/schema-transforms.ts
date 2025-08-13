@@ -4,7 +4,6 @@
  */
 
 import { z } from 'zod';
-import { BaseOptionsSchema } from './argument-parser.js';
 
 /**
  * Standard command options schema with clean property names

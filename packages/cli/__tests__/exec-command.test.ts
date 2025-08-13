@@ -67,9 +67,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('close', 0);
       }, 10);
-
       const results = await execPromise;
-
       expect(results).toBeDefined();
       expect(results.command).toBe('exec');
       expect(results.environment).toBe('production');
@@ -106,9 +104,7 @@ describe('exec command with structured output', () => {
         interactive: false,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as ExecResult;
       expect(dbResult.status).toBe('failed');
@@ -124,9 +120,7 @@ describe('exec command with structured output', () => {
         interactive: false,
         output: 'yaml'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0]! as ExecResult;
       expect(fsResult.status).toBe('failed');
@@ -150,9 +144,7 @@ describe('exec command with structured output', () => {
         taskArns: []
       });
       mockECSClient.prototype.send = mockSend;
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
@@ -172,9 +164,7 @@ describe('exec command with structured output', () => {
       });
 
       mockExecInContainer.mockResolvedValue(true);
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.deploymentType).toBe('container');
@@ -203,9 +193,7 @@ describe('exec command with structured output', () => {
       });
 
       mockExecInContainer.mockResolvedValue(true);
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as ExecResult;
       expect(dbResult.deploymentType).toBe('container');
@@ -230,9 +218,7 @@ describe('exec command with structured output', () => {
       });
 
       mockExecInContainer.mockResolvedValue(false);
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
@@ -250,9 +236,7 @@ describe('exec command with structured output', () => {
       });
 
       mockExecInContainer.mockRejectedValue(new Error('Container not running'));
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
@@ -281,9 +265,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('close', 0);
       }, 10);
-
       const results = await execPromise;
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.deploymentType).toBe('process');
@@ -320,9 +302,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('close', 0);
       }, 10);
-
       const results = await execPromise;
-
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as ExecResult;
       expect(dbResult.deploymentType).toBe('process');
@@ -360,9 +340,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('close', 0);
       }, 10);
-
       const results = await execPromise;
-
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0]! as ExecResult;
       expect(fsResult.deploymentType).toBe('process');
@@ -396,9 +374,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('error', new Error('Command not found'));
       }, 10);
-
       const results = await execPromise;
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
@@ -425,9 +401,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('close', 1);
       }, 10);
-
       const results = await execPromise;
-
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.status).toBe('failed');
@@ -450,9 +424,7 @@ describe('exec command with structured output', () => {
         interactive: false,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const extResult = results.services[0]! as ExecResult;
       expect(extResult.deploymentType).toBe('external');
@@ -472,9 +444,7 @@ describe('exec command with structured output', () => {
         interactive: false,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0]! as ExecResult;
       expect(fsResult.deploymentType).toBe('external');
@@ -494,9 +464,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.executionContext.dryRun).toBe(true);
       expect(results.services).toHaveLength(1);
       
@@ -524,9 +492,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       expect(results).toBeDefined();
       expect(results.command).toBe('exec');
       expect(results.environment).toBe('local');
@@ -543,9 +509,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'summary'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.command).toBe('exec');
       // Summary format still returns structured data
       expect(results.summary.total).toBe(1);
@@ -561,9 +525,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'table'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.command).toBe('exec');
       expect(results.services).toHaveLength(1);
     });
@@ -578,9 +540,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'yaml'
       });
-
       const results = await exec(deployment, options);
-
       expect(results.command).toBe('exec');
       expect(results.services).toHaveLength(1);
     });
@@ -614,9 +574,7 @@ describe('exec command with structured output', () => {
       setTimeout(() => {
         mockProcess.emit('close', 0);
       }, 10);
-
       const results = await execPromise;
-
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.interactive).toBe(true);
       
@@ -639,9 +597,7 @@ describe('exec command with structured output', () => {
       });
 
       mockExecInContainer.mockResolvedValue(true);
-
       const results = await exec(deployment, options);
-
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.interactive).toBe(false);
       
@@ -667,9 +623,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.command).toBe('/bin/sh');
     });
@@ -684,9 +638,7 @@ describe('exec command with structured output', () => {
         dryRun: true,
         output: 'json'
       });
-
       const results = await exec(deployment, options);
-
       const execResult = results.services[0]! as ExecResult;
       expect(execResult.command).toBe('npm run test');
     });
@@ -705,9 +657,7 @@ describe('exec command with structured output', () => {
       });
 
       mockExecInContainer.mockResolvedValue(true);
-
-      const results = await exec(deployment, options);
-
+      await exec(deployment, options);
       // Verify verbose was passed through
       expect(mockExecInContainer).toHaveBeenCalledWith(
         expect.any(String),

@@ -38,7 +38,7 @@
     "noPropertyAccessFromIndexSignature": false,
     
     // Code Quality (warnings, not errors in development)
-    "noUnusedLocals": false,               // TODO: Enable after cleanup
+    "noUnusedLocals": true,
     "noUnusedParameters": false,           // TODO: Enable after cleanup
     
     // Additional Type Checking

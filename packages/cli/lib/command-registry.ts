@@ -5,7 +5,7 @@
  * the standard CommandFunction signature.
  */
 
-import { CommandFunction, BaseCommandOptions, CommandRegistryEntry } from './command-types.js';
+import { CommandFunction, BaseCommandOptions } from './command-types.js';
 
 /**
  * Registry of all CLI commands

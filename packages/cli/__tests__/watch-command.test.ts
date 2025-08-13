@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { watch, WatchOptions } from '../commands/watch.js';
-import { WatchResult, CommandResults } from '../lib/command-results.js';
+import { WatchResult } from '../lib/command-results.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // Mock dependencies

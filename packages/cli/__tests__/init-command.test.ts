@@ -4,9 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 import { init } from '../commands/init';
-import { CommandResults } from '../lib/command-results';
 import { ServiceDeploymentInfo } from '../lib/deployment-resolver';
 
 // Mock fs module
@@ -59,9 +57,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
       const result = await init(serviceDeployments, options);
-
       expect(result.command).toBe('init');
       expect(result.summary.succeeded).toBe(1);
       expect(result.summary.failed).toBe(0);
@@ -92,10 +88,8 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
-      const result = await init(serviceDeployments, options);
-
-      // Note: metadata is no longer part of CommandResults, so we can't check projectName directly
+      await init(serviceDeployments, options);
+      // Note: metadata is no longer part of so we can't check projectName directly
       // We verify by checking the write calls
       
       // Check that project name is in semiont.json
@@ -117,9 +111,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
       const result = await init(serviceDeployments, options);
-
       expect(result.command).toBe('init');
       expect(result.summary.succeeded).toBe(1);
       
@@ -193,9 +185,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
       const result = await init(serviceDeployments, options);
-
       expect(result.summary.failed).toBe(1);
       expect(result.summary.succeeded).toBe(0);
     });
@@ -245,9 +235,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
-      const result = await init(serviceDeployments, options);
-
+      await init(serviceDeployments, options);
       // Check local environment config
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('config/environments/local.json'),
@@ -282,9 +270,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
-      const result = await init(serviceDeployments, options);
-
+      await init(serviceDeployments, options);
       // Quiet mode should not log anything
       expect(consoleLogSpy).not.toHaveBeenCalled();
       
@@ -304,9 +290,7 @@ describe('init command', () => {
         verbose: true,
         dryRun: false,
       };
-
       const result = await init(serviceDeployments, options);
-
       // Verbose mode should log additional details
       // Note: The exact logging behavior depends on implementation
       expect(result.summary.succeeded).toBe(1);
@@ -325,9 +309,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: true,
       };
-
       const result = await init(serviceDeployments, options);
-
       // In dry run mode, files should not be written
       // (Though current implementation doesn't check dryRun for init)
       // This test is here for future implementation
@@ -347,9 +329,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
       const result = await init(serviceDeployments, options);
-
       expect(result).toBeDefined();
       expect(result.command).toBe('init');
     });
@@ -365,9 +345,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-
       const result = await init(serviceDeployments, options);
-
       // Verify CommandResults structure
       expect(result).toHaveProperty('command');
       expect(result).toHaveProperty('environment');
@@ -396,9 +374,7 @@ describe('init command', () => {
           verbose: false,
           dryRun: false,
         };
-
-        const result = await init(serviceDeployments, options);
-
+      const result = await init(serviceDeployments, options);
         expect(result.command).toBe('init');
         expect(result.summary.succeeded).toBe(1);
       }

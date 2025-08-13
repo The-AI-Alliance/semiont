@@ -12,8 +12,7 @@ import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { createVolume, runContainer, listContainers } from '../lib/container-runtime.js';
-import { CdkDeployer } from '../lib/cdk-deployer.js';
+import { createVolume, listContainers } from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -994,7 +993,7 @@ export async function provision(
     
     // Provision infrastructure in logical order and collect results
     const serviceResults: ProvisionResult[] = [];
-    let allSucceeded = true;
+    // let allSucceeded = true;
     
     // 1. External services first (just validation)
     for (const service of externalServices) {
@@ -1019,7 +1018,7 @@ export async function provision(
         if (!isStructuredOutput && options.output === 'summary') {
           printError(`Failed to configure ${service.name}: ${error}`);
         }
-        allSucceeded = false;
+        // allSucceeded = false;
       }
     }
     
@@ -1050,7 +1049,7 @@ export async function provision(
           if (!isStructuredOutput && options.output === 'summary') {
             printError(`Failed to provision AWS ${service.name}: ${error}`);
           }
-          allSucceeded = false;
+          // allSucceeded = false;
         }
       }
     }
@@ -1078,7 +1077,7 @@ export async function provision(
         if (!isStructuredOutput && options.output === 'summary') {
           printError(`Failed to provision container ${service.name}: ${error}`);
         }
-        allSucceeded = false;
+        // allSucceeded = false;
       }
     }
     
@@ -1105,7 +1104,7 @@ export async function provision(
         if (!isStructuredOutput && options.output === 'summary') {
           printError(`Failed to provision process ${service.name}: ${error}`);
         }
-        allSucceeded = false;
+        // allSucceeded = false;
       }
     }
     

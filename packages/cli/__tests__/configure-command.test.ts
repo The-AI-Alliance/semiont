@@ -4,13 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { configure, ConfigureOptions } from '../commands/configure.js';
-import { ConfigureResult, CommandResults } from '../lib/command-results.js';
+import { ConfigureResult } from '../lib/command-results.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import * as deploymentResolver from '../lib/deployment-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
-import * as readline from 'readline';
-import { EventEmitter } from 'events';
-
+// import * as readline from 'readline';
 // Mock dependencies
 vi.mock('../lib/deployment-resolver.js');
 vi.mock('../lib/stack-config.js', () => ({
@@ -42,9 +40,7 @@ function createServiceDeployments(services: Array<{name: string, type: string, c
 describe('configure command with structured output', () => {
   const mockLoadEnvironmentConfig = vi.mocked(deploymentResolver.loadEnvironmentConfig);
   const mockGetAvailableEnvironments = vi.mocked(deploymentResolver.getAvailableEnvironments);
-  const mockSecretsManagerClient = vi.mocked(SecretsManagerClient);
-  const mockCreateInterface = vi.mocked(readline.createInterface);
-
+    
   // Helper to create valid site config
   function createSiteConfig(domain: string) {
     return {

@@ -10,8 +10,7 @@ import {
   OutputFormatter, 
   formatResults, 
   formatResultsQuiet, 
-  formatResultsVerbose,
-  type OutputFormat 
+  formatResultsVerbose 
 } from '../lib/output-formatter.js';
 import { 
   createBaseResult, 

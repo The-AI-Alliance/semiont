@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { CliLogger } from './cli-logger.js';
 import { getProjectRoot } from './cli-paths.js';
-import { parseCommandArgs, BaseOptionsSchema } from './argument-parser.js';
+import { parseCommandArgs } from './argument-parser.js';
 
 export abstract class BaseCommand<TOptions extends z.ZodRawShape> {
   protected logger: CliLogger;

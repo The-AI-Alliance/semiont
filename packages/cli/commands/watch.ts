@@ -5,8 +5,7 @@
  * When the session ends, it returns structured output about the monitoring session.
  */
 
-import React from 'react';
-import { render } from 'ink';
+// import React from 'react';
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
@@ -18,7 +17,6 @@ import {
 } from '../lib/command-results.js';
 
 // Re-export the React component from watch.tsx
-import { default as WatchDashboard } from './watch.tsx';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -43,21 +41,21 @@ type WatchOptions = z.infer<typeof WatchOptionsSchema>;
 // Global flag to control output suppression
 let suppressOutput = false;
 
-function printError(message: string): string {
-  const msg = `${colors.red}❌ ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.error(msg);
-  }
-  return msg;
-}
+// function printError(message: string): string {
+//   const msg = `${colors.red}❌ ${message}${colors.reset}`;
+//   if (!suppressOutput) {
+//     console.error(msg);
+//   }
+//   return msg;
+// }
 
-function printSuccess(message: string): string {
-  const msg = `${colors.green}✅ ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
+// function printSuccess(message: string): string {
+//   const msg = `${colors.green}✅ ${message}${colors.reset}`;
+//   if (!suppressOutput) {
+//     console.log(msg);
+//   }
+//   return msg;
+// }
 
 function printInfo(message: string): string {
   const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
@@ -85,7 +83,7 @@ async function launchDashboard(
   services: string[],
   interval: number
 ): Promise<{ duration: number; exitReason: string }> {
-  const startTime = Date.now();
+  // const startTime = Date.now();
   
   return new Promise((resolve) => {
     // In production, this would launch the full React/Ink dashboard

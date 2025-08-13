@@ -64,11 +64,11 @@ function printInfo(message: string): void {
   }
 }
 
-function printWarning(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-  }
-}
+// function printWarning(message: string): void {
+//   if (!suppressOutput) {
+//     console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+//   }
+// }
 
 function printDebug(message: string, options: ExecOptions): void {
   if (!suppressOutput && options.verbose) {

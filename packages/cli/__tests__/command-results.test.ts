@@ -12,10 +12,6 @@ import {
   type CommandResults,
   type StartResult,
   type CheckResult,
-  type StopResult,
-  type RestartResult,
-  type ProvisionResult,
-  type PublishResult,
   type UpdateResult
 } from '../lib/command-results.js';
 
