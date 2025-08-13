@@ -78,10 +78,10 @@ function printDebug(message: string, options: WatchOptions): string {
 // =====================================================================
 
 async function launchDashboard(
-  environment: string, 
-  target: string, 
-  services: string[],
-  interval: number
+  _environment: string, 
+  _target: string, 
+  _services: string[],
+  _interval: number
 ): Promise<{ duration: number; exitReason: string }> {
   // const startTime = Date.now();
   

@@ -167,7 +167,7 @@ async function testServiceImpl(serviceInfo: ServiceDeploymentInfo, suite: string
   }
 }
 
-async function testAWSService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+async function testAWSService(serviceInfo: ServiceDeploymentInfo, suite: string, _options: TestOptions): Promise<boolean> {
   // AWS service testing
   switch (suite) {
     case 'health':
@@ -328,7 +328,7 @@ async function testProcessService(serviceInfo: ServiceDeploymentInfo, suite: str
   }
 }
 
-async function testExternalService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+async function testExternalService(serviceInfo: ServiceDeploymentInfo, suite: string, _options: TestOptions): Promise<boolean> {
   switch (suite) {
     case 'health':
     case 'connectivity':
@@ -633,7 +633,7 @@ export async function test(
   }
 }
 
-async function runSecurityTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+async function runSecurityTestsForService(serviceInfo: ServiceDeploymentInfo, _options: TestOptions): Promise<boolean> {
   printInfo(`Running security tests for ${serviceInfo.name}`);
   
   switch (serviceInfo.name) {

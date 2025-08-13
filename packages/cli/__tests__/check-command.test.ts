@@ -31,7 +31,7 @@ vi.mock('child_process', () => ({
       }
     })
   })),
-  exec: vi.fn((cmd, callback) => {
+  exec: vi.fn((_, callback) => {
     // Mock successful command execution
     callback(null, 'mock output', '');
   })
@@ -44,7 +44,7 @@ vi.mock('../lib/container-runtime.js', () => ({
 
 // Mock HTTP module for health checks
 vi.mock('http', () => ({
-  get: vi.fn((url, callback) => {
+  get: vi.fn((_, callback) => {
     const res = {
       statusCode: 200,
       on: vi.fn()
@@ -53,7 +53,7 @@ vi.mock('http', () => ({
     return { on: vi.fn() };
   }),
   default: {
-    get: vi.fn((url, callback) => {
+    get: vi.fn((_, callback) => {
       const res = {
         statusCode: 200,
         on: vi.fn()

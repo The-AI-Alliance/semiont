@@ -39,7 +39,7 @@
     
     // Code Quality (warnings, not errors in development)
     "noUnusedLocals": true,
-    "noUnusedParameters": false,           // TODO: Enable after cleanup
+    "noUnusedParameters": true,
     
     // Additional Type Checking
     "allowUnreachableCode": false,

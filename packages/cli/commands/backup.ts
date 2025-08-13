@@ -207,7 +207,7 @@ async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: Bac
   }
 }
 
-async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, backupName: string): Promise<BackupResult> {
+async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, _backupName: string): Promise<BackupResult> {
   // For AWS deployments, we need to get the region from environment config or use a default
   // In a real implementation, this would be passed from the caller
   const region = process.env.AWS_REGION || 'us-east-1';

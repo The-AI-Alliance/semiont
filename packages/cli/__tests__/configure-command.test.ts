@@ -105,7 +105,7 @@ describe('configure command with structured output', () => {
       expect(results.command).toBe('configure');
       expect(results.services).toHaveLength(3); // One for each environment
       
-      results.services.forEach((service, index) => {
+      results.services.forEach((service) => {
         const configResult = service as ConfigureResult;
         expect(configResult.status).toBe('shown');
         expect(configResult.metadata).toHaveProperty('action', 'show');
@@ -745,7 +745,7 @@ describe('configure command with structured output', () => {
       };
 
       mockGetAvailableEnvironments.mockReturnValue(['alpha', 'beta']);
-      mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
+      mockLoadEnvironmentConfig.mockImplementation(() => ({
         deployment: { default: 'container' },
         services: { api: {} }
       }));

@@ -212,7 +212,7 @@ async function updateSecret(environment: string, secretName: string, secretValue
 
 // Type assertion to ensure this function matches the CommandFunction signature
 export const configure: CommandFunction<ConfigureOptions> = async (
-  serviceDeployments: ServiceDeploymentInfo[], // Not used but kept for API consistency
+  _serviceDeployments: ServiceDeploymentInfo[], // Not used but kept for API consistency
   options: ConfigureOptions
 ): Promise<CommandResults> => {
   const startTime = Date.now();

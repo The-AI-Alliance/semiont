@@ -440,7 +440,7 @@ async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options:
   }
 }
 
-async function execInExternalService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
+async function execInExternalService(serviceInfo: ServiceDeploymentInfo, _options: ExecOptions, _startTime: number): Promise<ExecResult> {
   printError(`Cannot execute commands in external ${serviceInfo.name} service`);
   
   switch (serviceInfo.name) {

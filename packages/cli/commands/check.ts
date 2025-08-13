@@ -421,7 +421,7 @@ async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: 
   return { checks, healthStatus };
 }
 
-async function checkExternalService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkExternalService(serviceInfo: ServiceDeploymentInfo, _options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   
@@ -531,7 +531,7 @@ async function checkExternalService(serviceInfo: ServiceDeploymentInfo, options:
   return { checks, healthStatus };
 }
 
-async function checkMockService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkMockService(serviceInfo: ServiceDeploymentInfo, _options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   
