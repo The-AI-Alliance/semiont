@@ -1,40 +1,36 @@
 /**
  * Unit tests for the exec command with structured output support
+ * 
+ * These tests pass deployments directly to exec() instead of mocking service resolution
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { exec, ExecOptions } from '../commands/exec.js';
-import { ExecResult, CommandResults } from '../lib/command-results.js';
-import * as deploymentResolver from '../lib/deployment-resolver.js';
-import * as services from '../lib/services.js';
+import { exec } from '../commands/exec.js';
+import { ExecResult } from '../lib/command-results.js';
 import * as containerRuntime from '../lib/container-runtime.js';
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import {
+  createAWSDeployment,
+  createContainerDeployment,
+  createProcessDeployment,
+  createExternalDeployment,
+  createExecOptions
+} from './exec-test-helpers.js';
 
-// Mock dependencies
-vi.mock('../lib/deployment-resolver.js');
-vi.mock('../lib/services.js');
+// Mock only external dependencies
 vi.mock('../lib/container-runtime.js');
 vi.mock('@aws-sdk/client-ecs');
 vi.mock('child_process');
 
 describe('exec command with structured output', () => {
-  const mockResolveServiceSelector = vi.mocked(services.resolveServiceSelector);
-  const mockValidateServiceSelector = vi.mocked(services.validateServiceSelector);
-  const mockResolveServiceDeployments = vi.mocked(deploymentResolver.resolveServiceDeployments);
   const mockExecInContainer = vi.mocked(containerRuntime.execInContainer);
   const mockECSClient = vi.mocked(ECSClient);
   const mockSpawn = vi.mocked(spawn);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Default mocks for service resolution
-    mockValidateServiceSelector.mockResolvedValue(undefined);
-    mockResolveServiceSelector.mockResolvedValue(['backend']);
-    
-    // Mock process environment
     process.env.USER = 'testuser';
   });
 
@@ -44,26 +40,16 @@ describe('exec command with structured output', () => {
 
   describe('AWS exec', () => {
     it('should execute commands in ECS tasks and return structured output', async () => {
-      const options: ExecOptions = {
+      const deployment = createAWSDeployment('backend', {
+        aws: { region: 'us-east-1' }
+      });
+      
+      const options = createExecOptions({
         environment: 'production',
-        service: 'backend',
         command: '/bin/sh',
         interactive: true,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'aws',
-          deployment: { type: 'aws' },
-          config: {
-            aws: { region: 'us-east-1' }
-          }
-        }
-      ]);
+      });
 
       // Mock ECS client
       const mockSend = vi.fn().mockResolvedValue({
@@ -75,7 +61,7 @@ describe('exec command with structured output', () => {
       const mockProcess = new EventEmitter() as any;
       mockSpawn.mockReturnValue(mockProcess);
 
-      const execPromise = exec(options);
+      const execPromise = exec(deployment, options);
       
       // Simulate successful exec
       setTimeout(() => {
@@ -94,6 +80,7 @@ describe('exec command with structured output', () => {
       expect(execResult.deploymentType).toBe('aws');
       expect(execResult.command).toBe('/bin/sh');
       expect(execResult.interactive).toBe(true);
+      expect(execResult.status).toBe('success');
       
       // Verify ECS list tasks was called
       expect(mockSend).toHaveBeenCalledWith(
@@ -109,101 +96,95 @@ describe('exec command with structured output', () => {
     });
 
     it('should handle RDS exec attempts appropriately', async () => {
-      const options: ExecOptions = {
+      const deployment = createAWSDeployment('database', {
+        aws: { region: 'us-east-1' }
+      });
+      
+      const options = createExecOptions({
         environment: 'staging',
-        service: 'database',
         command: 'psql',
         interactive: false,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
+      });
 
-      mockResolveServiceSelector.mockResolvedValue(['database']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'database',
-          deploymentType: 'aws',
-          deployment: { type: 'aws' },
-          config: {
-            aws: { region: 'us-east-1' }
-          }
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0] as ExecResult;
-      expect(dbResult.success).toBe(false);
+      expect(dbResult.status).toBe('failed');
       expect(dbResult.error).toContain('RDS exec not supported');
     });
 
     it('should handle EFS exec attempts appropriately', async () => {
-      const options: ExecOptions = {
+      const deployment = createAWSDeployment('filesystem');
+      
+      const options = createExecOptions({
         environment: 'production',
-        service: 'filesystem',
         command: 'ls',
         interactive: false,
-        verbose: false,
-        dryRun: false,
         output: 'yaml'
-      };
+      });
 
-      mockResolveServiceSelector.mockResolvedValue(['filesystem']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'filesystem',
-          deploymentType: 'aws',
-          deployment: { type: 'aws' },
-          config: {}
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0] as ExecResult;
-      expect(fsResult.success).toBe(false);
+      expect(fsResult.status).toBe('failed');
       expect(fsResult.error).toContain('EFS exec not supported');
+    });
+
+    it('should handle ECS task not found', async () => {
+      const deployment = createAWSDeployment('backend', {
+        aws: { region: 'us-east-1' }
+      });
+      
+      const options = createExecOptions({
+        environment: 'production',
+        command: '/bin/sh',
+        interactive: false,
+        output: 'json'
+      });
+
+      // Mock ECS client returning no tasks
+      const mockSend = vi.fn().mockResolvedValue({
+        taskArns: []
+      });
+      mockECSClient.prototype.send = mockSend;
+
+      const results = await exec(deployment, options);
+
+      expect(results.services).toHaveLength(1);
+      const execResult = results.services[0] as ExecResult;
+      expect(execResult.status).toBe('failed');
+      expect(execResult.error).toContain('No running backend tasks found');
     });
   });
 
   describe('Container exec', () => {
     it('should execute commands in containers', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'backend',
         command: 'ls -la',
         interactive: false,
-        verbose: false,
-        dryRun: false,
         output: 'table'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
+      });
 
       mockExecInContainer.mockResolvedValue(true);
 
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0] as ExecResult;
       expect(execResult.deploymentType).toBe('container');
       expect(execResult.command).toBe('ls -la');
-      expect(execResult.success).toBe(true);
+      expect(execResult.status).toBe('success');
       
-      // Verify container exec was called
+      // Verify container exec was called with array of commands
       expect(mockExecInContainer).toHaveBeenCalledWith(
         'semiont-backend-local',
-        'ls -la',
+        ['ls -la'],
         expect.objectContaining({
           interactive: false,
           verbose: false
@@ -212,70 +193,89 @@ describe('exec command with structured output', () => {
     });
 
     it('should handle database container exec', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('database');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'database',
         command: 'psql -U postgres',
         interactive: true,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
-
-      mockResolveServiceSelector.mockResolvedValue(['database']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'database',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
+      });
 
       mockExecInContainer.mockResolvedValue(true);
 
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0] as ExecResult;
       expect(dbResult.deploymentType).toBe('container');
+      expect(dbResult.status).toBe('success');
       
       // Verify correct container name for database
       expect(mockExecInContainer).toHaveBeenCalledWith(
         'semiont-postgres-local',
-        'psql -U postgres',
+        ['psql -U postgres'],
         expect.any(Object)
       );
+    });
+
+    it('should handle container exec failures', async () => {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: 'invalid-command',
+        interactive: false,
+        output: 'json'
+      });
+
+      mockExecInContainer.mockResolvedValue(false);
+
+      const results = await exec(deployment, options);
+
+      expect(results.services).toHaveLength(1);
+      const execResult = results.services[0] as ExecResult;
+      expect(execResult.status).toBe('failed');
+      expect(execResult.error).toContain('Container exec failed');
+    });
+
+    it('should handle container exec exceptions', async () => {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: 'test-cmd',
+        interactive: false,
+        output: 'json'
+      });
+
+      mockExecInContainer.mockRejectedValue(new Error('Container not running'));
+
+      const results = await exec(deployment, options);
+
+      expect(results.services).toHaveLength(1);
+      const execResult = results.services[0] as ExecResult;
+      expect(execResult.status).toBe('failed');
+      expect(execResult.error).toContain('Container not running');
     });
   });
 
   describe('Process exec', () => {
     it('should execute commands in process context', async () => {
-      const options: ExecOptions = {
+      const deployment = createProcessDeployment('frontend', { port: 3000 });
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'frontend',
         command: '/bin/sh',
         interactive: true,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
-
-      mockResolveServiceSelector.mockResolvedValue(['frontend']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'frontend',
-          deploymentType: 'process',
-          deployment: { type: 'process' },
-          config: { port: 3000 }
-        }
-      ]);
+      });
 
       // Mock spawn for shell
       const mockProcess = new EventEmitter() as any;
       mockSpawn.mockReturnValue(mockProcess);
 
-      const execPromise = exec(options);
+      const execPromise = exec(deployment, options);
       
       // Simulate successful execution
       setTimeout(() => {
@@ -287,7 +287,7 @@ describe('exec command with structured output', () => {
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0] as ExecResult;
       expect(execResult.deploymentType).toBe('process');
-      expect(execResult.success).toBe(true);
+      expect(execResult.status).toBe('success');
       
       // Verify spawn was called with appropriate shell
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -301,31 +301,20 @@ describe('exec command with structured output', () => {
     });
 
     it('should connect to local PostgreSQL database', async () => {
-      const options: ExecOptions = {
+      const deployment = createProcessDeployment('database', { password: 'testpass' });
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'database',
         command: '/bin/sh',
         interactive: true,
-        verbose: false,
-        dryRun: false,
         output: 'summary'
-      };
-
-      mockResolveServiceSelector.mockResolvedValue(['database']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'database',
-          deploymentType: 'process',
-          deployment: { type: 'process' },
-          config: { password: 'testpass' }
-        }
-      ]);
+      });
 
       // Mock spawn for psql
       const mockProcess = new EventEmitter() as any;
       mockSpawn.mockReturnValue(mockProcess);
 
-      const execPromise = exec(options);
+      const execPromise = exec(deployment, options);
       
       // Simulate successful connection
       setTimeout(() => {
@@ -337,6 +326,7 @@ describe('exec command with structured output', () => {
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0] as ExecResult;
       expect(dbResult.deploymentType).toBe('process');
+      expect(dbResult.status).toBe('success');
       
       // Verify psql was called
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -351,31 +341,20 @@ describe('exec command with structured output', () => {
     });
 
     it('should handle filesystem location opening', async () => {
-      const options: ExecOptions = {
+      const deployment = createProcessDeployment('filesystem', { path: './data' });
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'filesystem',
         command: '/bin/sh',
         interactive: false,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
-
-      mockResolveServiceSelector.mockResolvedValue(['filesystem']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'filesystem',
-          deploymentType: 'process',
-          deployment: { type: 'process' },
-          config: { path: './data' }
-        }
-      ]);
+      });
 
       // Mock spawn for file explorer
       const mockProcess = new EventEmitter() as any;
       mockSpawn.mockReturnValue(mockProcess);
 
-      const execPromise = exec(options);
+      const execPromise = exec(deployment, options);
       
       // Simulate successful open
       setTimeout(() => {
@@ -387,6 +366,7 @@ describe('exec command with structured output', () => {
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0] as ExecResult;
       expect(fsResult.deploymentType).toBe('process');
+      expect(fsResult.status).toBe('success');
       
       // Verify appropriate command was used (varies by platform)
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -395,68 +375,127 @@ describe('exec command with structured output', () => {
         expect.any(Object)
       );
     });
+
+    it('should handle spawn errors for process exec', async () => {
+      const deployment = createProcessDeployment('frontend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: '/bin/sh',
+        interactive: true,
+        output: 'json'
+      });
+
+      // Mock spawn error
+      const mockProcess = new EventEmitter() as any;
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const execPromise = exec(deployment, options);
+      
+      // Simulate error
+      setTimeout(() => {
+        mockProcess.emit('error', new Error('Command not found'));
+      }, 10);
+
+      const results = await execPromise;
+
+      expect(results.services).toHaveLength(1);
+      const execResult = results.services[0] as ExecResult;
+      expect(execResult.status).toBe('failed');
+      expect(execResult.error).toContain('Command not found');
+    });
+
+    it('should handle non-zero exit codes', async () => {
+      const deployment = createProcessDeployment('backend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: 'exit 1',
+        interactive: false,
+        output: 'json'
+      });
+
+      // Mock spawn with non-zero exit
+      const mockProcess = new EventEmitter() as any;
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const execPromise = exec(deployment, options);
+      
+      // Simulate exit code 1
+      setTimeout(() => {
+        mockProcess.emit('close', 1);
+      }, 10);
+
+      const results = await execPromise;
+
+      expect(results.services).toHaveLength(1);
+      const execResult = results.services[0] as ExecResult;
+      expect(execResult.status).toBe('failed');
+      expect(execResult.error).toContain('Command failed with code 1');
+    });
   });
 
   describe('External service exec', () => {
-    it('should provide guidance for external services', async () => {
-      const options: ExecOptions = {
+    it('should provide guidance for external database', async () => {
+      const deployment = createExternalDeployment('database', {
+        host: 'db.example.com',
+        port: 5432,
+        user: 'dbuser',
+        name: 'appdb'
+      });
+      
+      const options = createExecOptions({
         environment: 'production',
-        service: 'database',
         command: 'psql',
         interactive: false,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
+      });
 
-      mockResolveServiceSelector.mockResolvedValue(['database']);
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'database',
-          deploymentType: 'external',
-          deployment: { type: 'external' },
-          config: {
-            host: 'db.example.com',
-            port: 5432,
-            user: 'dbuser',
-            name: 'appdb'
-          }
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.services).toHaveLength(1);
       const extResult = results.services[0] as ExecResult;
       expect(extResult.deploymentType).toBe('external');
-      expect(extResult.success).toBe(false);
+      expect(extResult.status).toBe('failed');
       expect(extResult.error).toContain('Cannot exec into external database');
       expect(extResult.metadata).toHaveProperty('error');
+    });
+
+    it('should provide guidance for external filesystem', async () => {
+      const deployment = createExternalDeployment('filesystem', {
+        path: '/mnt/storage'
+      });
+      
+      const options = createExecOptions({
+        environment: 'production',
+        command: 'ls',
+        interactive: false,
+        output: 'json'
+      });
+
+      const results = await exec(deployment, options);
+
+      expect(results.services).toHaveLength(1);
+      const fsResult = results.services[0] as ExecResult;
+      expect(fsResult.deploymentType).toBe('external');
+      expect(fsResult.status).toBe('failed');
+      expect(fsResult.error).toContain('Cannot exec into external filesystem');
     });
   });
 
   describe('Dry run mode', () => {
     it('should simulate exec without executing in dry run mode', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'backend',
         command: 'rm -rf /',
         interactive: false,
-        verbose: false,
         dryRun: true,
         output: 'json'
-      };
+      });
 
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.executionContext.dryRun).toBe(true);
       expect(results.services).toHaveLength(1);
@@ -474,171 +513,19 @@ describe('exec command with structured output', () => {
     });
   });
 
-  describe('Error handling', () => {
-    it('should handle service resolution errors gracefully', async () => {
-      const options: ExecOptions = {
-        environment: 'local',
-        service: 'invalid-service',
-        command: '/bin/sh',
-        interactive: true,
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      mockValidateServiceSelector.mockRejectedValue(
-        new Error('Invalid service selector: invalid-service')
-      );
-
-      await expect(exec(options)).rejects.toThrow('Invalid service selector');
-    });
-
-    it('should handle single service requirement', async () => {
-      const options: ExecOptions = {
-        environment: 'local',
-        service: 'all',
-        command: '/bin/sh',
-        interactive: true,
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      mockResolveServiceSelector.mockResolvedValue(['frontend', 'backend', 'database']);
-
-      await expect(exec(options)).rejects.toThrow(
-        'Can only execute commands in one service at a time'
-      );
-    });
-
-    it('should handle ECS task not found', async () => {
-      const options: ExecOptions = {
-        environment: 'production',
-        service: 'backend',
-        command: '/bin/sh',
-        interactive: false,
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'aws',
-          deployment: { type: 'aws' },
-          config: {
-            aws: { region: 'us-east-1' }
-          }
-        }
-      ]);
-
-      // Mock ECS client returning no tasks
-      const mockSend = vi.fn().mockResolvedValue({
-        taskArns: []
-      });
-      mockECSClient.prototype.send = mockSend;
-
-      const results = await exec(options);
-
-      expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
-      expect(execResult.success).toBe(false);
-      expect(execResult.error).toContain('No running backend tasks found');
-    });
-
-    it('should handle container exec failures', async () => {
-      const options: ExecOptions = {
-        environment: 'local',
-        service: 'backend',
-        command: 'invalid-command',
-        interactive: false,
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
-
-      mockExecInContainer.mockResolvedValue(false);
-
-      const results = await exec(options);
-
-      expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
-      expect(execResult.success).toBe(false);
-      expect(execResult.error).toContain('Container exec failed');
-    });
-
-    it('should handle spawn errors for process exec', async () => {
-      const options: ExecOptions = {
-        environment: 'local',
-        service: 'frontend',
-        command: '/bin/sh',
-        interactive: true,
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'frontend',
-          deploymentType: 'process',
-          deployment: { type: 'process' },
-          config: {}
-        }
-      ]);
-
-      // Mock spawn error
-      const mockProcess = new EventEmitter() as any;
-      mockSpawn.mockReturnValue(mockProcess);
-
-      const execPromise = exec(options);
-      
-      // Simulate error
-      setTimeout(() => {
-        mockProcess.emit('error', new Error('Command not found'));
-      }, 10);
-
-      const results = await execPromise;
-
-      expect(results.services).toHaveLength(1);
-      const execResult = results.services[0] as ExecResult;
-      expect(execResult.success).toBe(false);
-      expect(execResult.error).toContain('Command not found');
-    });
-  });
-
   describe('Output formats', () => {
     it('should support JSON output format', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'backend',
         command: 'echo "test"',
         interactive: false,
-        verbose: false,
         dryRun: true,
         output: 'json'
-      };
+      });
 
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('exec');
@@ -647,55 +534,70 @@ describe('exec command with structured output', () => {
     });
 
     it('should support summary output format', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'backend',
         command: 'ls',
         interactive: false,
-        verbose: false,
         dryRun: true,
         output: 'summary'
-      };
+      });
 
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       expect(results.command).toBe('exec');
       // Summary format still returns structured data
       expect(results.summary.total).toBe(1);
     });
+
+    it('should support table output format', async () => {
+      const deployment = createProcessDeployment('frontend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: 'echo test',
+        interactive: false,
+        dryRun: true,
+        output: 'table'
+      });
+
+      const results = await exec(deployment, options);
+
+      expect(results.command).toBe('exec');
+      expect(results.services).toHaveLength(1);
+    });
+
+    it('should support yaml output format', async () => {
+      const deployment = createAWSDeployment('backend');
+      
+      const options = createExecOptions({
+        environment: 'production',
+        command: 'date',
+        interactive: false,
+        dryRun: true,
+        output: 'yaml'
+      });
+
+      const results = await exec(deployment, options);
+
+      expect(results.command).toBe('exec');
+      expect(results.services).toHaveLength(1);
+    });
   });
 
   describe('Interactive vs non-interactive', () => {
     it('should handle interactive mode', async () => {
-      const options: ExecOptions = {
+      const deployment = createAWSDeployment('backend', {
+        aws: { region: 'us-east-1' }
+      });
+      
+      const options = createExecOptions({
         environment: 'production',
-        service: 'backend',
         command: '/bin/sh',
         interactive: true,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'aws',
-          deployment: { type: 'aws' },
-          config: {
-            aws: { region: 'us-east-1' }
-          }
-        }
-      ]);
+      });
 
       // Mock ECS client
       const mockSend = vi.fn().mockResolvedValue({
@@ -707,7 +609,7 @@ describe('exec command with structured output', () => {
       const mockProcess = new EventEmitter() as any;
       mockSpawn.mockReturnValue(mockProcess);
 
-      const execPromise = exec(options);
+      const execPromise = exec(deployment, options);
       
       setTimeout(() => {
         mockProcess.emit('close', 0);
@@ -727,28 +629,18 @@ describe('exec command with structured output', () => {
     });
 
     it('should handle non-interactive mode', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'backend',
         command: 'echo "test"',
         interactive: false,
-        verbose: false,
-        dryRun: false,
         output: 'json'
-      };
-
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
+      });
 
       mockExecInContainer.mockResolvedValue(true);
 
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       const execResult = results.services[0] as ExecResult;
       expect(execResult.interactive).toBe(false);
@@ -756,7 +648,7 @@ describe('exec command with structured output', () => {
       // Verify interactive: false was passed
       expect(mockExecInContainer).toHaveBeenCalledWith(
         expect.any(String),
-        expect.any(String),
+        expect.any(Array),
         expect.objectContaining({
           interactive: false
         })
@@ -766,29 +658,64 @@ describe('exec command with structured output', () => {
 
   describe('Command defaults', () => {
     it('should use /bin/sh as default command', async () => {
-      const options: ExecOptions = {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
         environment: 'local',
-        service: 'backend',
         command: '/bin/sh',
         interactive: true,
-        verbose: false,
         dryRun: true,
         output: 'json'
-      };
+      });
 
-      mockResolveServiceDeployments.mockResolvedValue([
-        {
-          name: 'backend',
-          deploymentType: 'container',
-          deployment: { type: 'container' },
-          config: {}
-        }
-      ]);
-
-      const results = await exec(options);
+      const results = await exec(deployment, options);
 
       const execResult = results.services[0] as ExecResult;
       expect(execResult.command).toBe('/bin/sh');
+    });
+
+    it('should handle custom commands', async () => {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: 'npm run test',
+        interactive: false,
+        dryRun: true,
+        output: 'json'
+      });
+
+      const results = await exec(deployment, options);
+
+      const execResult = results.services[0] as ExecResult;
+      expect(execResult.command).toBe('npm run test');
+    });
+  });
+
+  describe('Verbose mode', () => {
+    it('should respect verbose flag', async () => {
+      const deployment = createContainerDeployment('backend');
+      
+      const options = createExecOptions({
+        environment: 'local',
+        command: 'ls',
+        interactive: false,
+        verbose: true,
+        output: 'summary'
+      });
+
+      mockExecInContainer.mockResolvedValue(true);
+
+      const results = await exec(deployment, options);
+
+      // Verify verbose was passed through
+      expect(mockExecInContainer).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          verbose: true
+        })
+      );
     });
   });
 });
