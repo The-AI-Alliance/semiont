@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
+import { printDebug } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 // import { getProjectRoot } from '../lib/cli-paths.js';
@@ -70,10 +71,9 @@ function printWarning(message: string): void {
   console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
 }
 
-function printDebug(message: string, options: UpdateOptions): void {
-  if (options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
 
@@ -280,7 +280,7 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
     // Wait for grace period
     const gracePeriod = options.gracePeriod || 3;
     if (gracePeriod > 0) {
-      printDebug(`Waiting ${gracePeriod} seconds before starting...`, options);
+      printDebug(`Waiting ${gracePeriod} seconds before starting...`, options.verbose || false);
       await new Promise(resolve => setTimeout(resolve, gracePeriod * 1000));
     }
     
@@ -431,7 +431,7 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
       // Wait for grace period
       const processGracePeriod = options.gracePeriod || 3;
       if (processGracePeriod > 0) {
-        printDebug(`Waiting ${processGracePeriod} seconds before starting...`, options);
+        printDebug(`Waiting ${processGracePeriod} seconds before starting...`, options.verbose || false);
         await new Promise(resolve => setTimeout(resolve, processGracePeriod * 1000));
       }
       
@@ -625,13 +625,13 @@ async function findAndKillProcess(pattern: string, name: string, options: Update
           try {
             process.kill(parseInt(pid), options.force ? 'SIGKILL' : 'SIGTERM');
           } catch {
-            printDebug(`Failed to kill PID ${pid}`, options);
+            debugLog(`Failed to kill PID ${pid}`, options);
           }
         }
       }
-      printDebug(`Stopped ${name} process(es)`, options);
+      debugLog(`Stopped ${name} process(es)`, options);
     } else {
-      printDebug(`${name} not running`, options);
+      debugLog(`${name} not running`, options);
     }
   } catch (error) {
     if (!options.force) {

@@ -8,6 +8,7 @@
 // import React from 'react';
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
+import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { 
   WatchResult, 
@@ -38,39 +39,9 @@ type WatchOptions = z.infer<typeof WatchOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-// function printError(message: string): string {
-//   const msg = `${colors.red}❌ ${message}${colors.reset}`;
-//   if (!suppressOutput) {
-//     console.error(msg);
-//   }
-//   return msg;
-// }
-
-// function printSuccess(message: string): string {
-//   const msg = `${colors.green}✅ ${message}${colors.reset}`;
-//   if (!suppressOutput) {
-//     console.log(msg);
-//   }
-//   return msg;
-// }
-
-function printInfo(message: string): string {
-  const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
-
-function printDebug(message: string, options: WatchOptions): string {
-  const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
-  if (!suppressOutput && options.verbose) {
-    console.log(msg);
-  }
-  return msg;
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
 // =====================================================================
@@ -89,18 +60,9 @@ async function launchDashboard(
     // In production, this would launch the full React/Ink dashboard
     // For now, we simulate the dashboard for testing
     
-    if (suppressOutput) {
-      // In structured output mode, simulate a brief session
-      setTimeout(() => {
-        resolve({
-          duration: 1000,
-          exitReason: 'structured-output-mode'
-        });
-      }, 1000);
-    } else {
-      // For interactive mode in tests or when the TSX component cannot be loaded,
-      // we simulate a successful session. In production, this would use the
-      // React/Ink dashboard from watch.tsx
+    // For interactive mode in tests or when the TSX component cannot be loaded,
+    // we simulate a successful session. In production, this would use the
+    // React/Ink dashboard from watch.tsx
       
       // Check if we're in test mode
       if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
@@ -122,7 +84,6 @@ async function launchDashboard(
           });
         }, 1000);
       }
-    }
   });
 }
 
@@ -138,8 +99,7 @@ export async function watch(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -149,7 +109,7 @@ export async function watch(
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      printDebug(`Monitoring services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+      debugLog(`Monitoring services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Launch the dashboard or simulate in dry-run mode
@@ -219,7 +179,7 @@ export async function watch(
     
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
 }
 

@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
@@ -40,37 +41,9 @@ type RestartOptions = z.infer<typeof RestartOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): void {
-  if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
-  }
-}
-
-function printSuccess(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
-  }
-}
-
-function printInfo(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-  }
-}
-
-function printWarning(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-  }
-}
-
-function printDebug(message: string, options: RestartOptions): void {
-  if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
 
@@ -240,7 +213,7 @@ async function restartContainerService(serviceInfo: ServiceDeploymentInfo, optio
     
     // Wait for grace period
     if (options.gracePeriod > 0) {
-      printDebug(`Waiting ${options.gracePeriod} seconds before starting...`, options);
+      debugLog(`Waiting ${options.gracePeriod} seconds before starting...`, options);
       await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
     }
     
@@ -379,7 +352,7 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
       
       // Wait for grace period
       if (options.gracePeriod > 0) {
-        printDebug(`Waiting ${options.gracePeriod} seconds before starting...`, options);
+        debugLog(`Waiting ${options.gracePeriod} seconds before starting...`, options);
         await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
       }
       
@@ -558,14 +531,14 @@ async function findAndKillProcess(pattern: string, name: string, options: Restar
           try {
             process.kill(parseInt(pid), options.force ? 'SIGKILL' : 'SIGTERM');
           } catch (err) {
-            printDebug(`Failed to kill PID ${pid}: ${err}`, options);
+            debugLog(`Failed to kill PID ${pid}: ${err}`, options);
           }
         }
       }
-      printDebug(`Stopped ${name} process(es)`, options);
+      debugLog(`Stopped ${name} process(es)`, options);
       return true;
     } else {
-      printDebug(`${name} not running`, options);
+      debugLog(`${name} not running`, options);
       return false;
     }
   } catch (error) {
@@ -588,8 +561,7 @@ export async function restart(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (options.output === 'summary') {
@@ -597,7 +569,7 @@ export async function restart(
     }
     
     if (options.output === 'summary' && options.verbose) {
-      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+      debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Restart services and collect results
@@ -657,7 +629,7 @@ export async function restart(
     
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
 }
 

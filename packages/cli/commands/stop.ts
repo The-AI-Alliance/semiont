@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, printWarning, printDebug, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer } from '../lib/container-runtime.js';
 import { 
@@ -37,37 +38,9 @@ type StopOptions = z.infer<typeof StopOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): void {
-  if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
-  }
-}
-
-function printSuccess(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
-  }
-}
-
-function printInfo(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-  }
-}
-
-function printWarning(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-  }
-}
-
-function printDebug(message: string, options: StopOptions): void {
-  if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(message: string, options: StopOptions): void {
+  printDebug(message, options.verbose);
 }
 
 
@@ -469,14 +442,14 @@ async function findAndKillProcess(pattern: string, name: string, options: StopOp
     
     if (pids.trim()) {
       const pidList = pids.trim().split('\n');
-      printDebug(`Found ${pidList.length} process(es) to stop`, options);
+      debugLog(`Found ${pidList.length} process(es) to stop`, options);
       
       for (const pid of pidList) {
         if (pid) {
           try {
             process.kill(parseInt(pid), options.force ? 'SIGKILL' : 'SIGTERM');
           } catch (err) {
-            printDebug(`Failed to kill PID ${pid}: ${err}`, options);
+            debugLog(`Failed to kill PID ${pid}: ${err}`, options);
           }
         }
       }
@@ -516,8 +489,7 @@ export async function stop(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (options.output === 'summary') {
@@ -525,7 +497,7 @@ export async function stop(
     }
     
     if (options.output === 'summary' && options.verbose) {
-      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+      debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Stop services in reverse order from start for clean shutdown
@@ -594,7 +566,7 @@ export async function stop(
     
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
 }
 

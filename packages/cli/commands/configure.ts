@@ -11,6 +11,7 @@ import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
 import * as readline from 'readline';
 import { colors } from '../lib/cli-colors.js';
+import { printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { 
   ConfigureResult, 
@@ -75,13 +76,7 @@ let suppressOutput = false;
 //   return msg;
 // }
 
-function printInfo(message: string): string {
-  const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
+
 
 // function printWarning(message: string): string {
 //   const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;

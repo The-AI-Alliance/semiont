@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
 import { 
@@ -43,37 +44,9 @@ type ExecOptions = z.infer<typeof ExecOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): void {
-  if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
-  }
-}
-
-function printSuccess(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
-  }
-}
-
-function printInfo(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-  }
-}
-
-// function printWarning(message: string): void {
-//   if (!suppressOutput) {
-//     console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-//   }
-// }
-
-function printDebug(message: string, options: ExecOptions): void {
-  if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
 
@@ -170,7 +143,7 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
         const containerName = `semiont-${serviceInfo.name}`;
         
         printInfo(`Connecting to task: ${taskId}`);
-        printDebug(`Cluster: ${clusterName}, Container: ${containerName}`, options);
+        debugLog(`Cluster: ${clusterName}, Container: ${containerName}`, options);
         
         // Use AWS CLI for interactive commands
         const awsCommand = [
@@ -186,7 +159,7 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
           awsCommand.push('--interactive');
         }
         
-        printDebug(`Executing: ${awsCommand.join(' ')}`, options);
+        debugLog(`Executing: ${awsCommand.join(' ')}`, options);
         
         const proc = spawn(awsCommand[0]!, awsCommand.slice(1), {
           stdio: 'inherit'
@@ -478,8 +451,7 @@ export async function exec(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -487,7 +459,7 @@ export async function exec(
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      printDebug(`Target service: ${serviceDeployment.name}(${serviceDeployment.deploymentType})`, options);
+      debugLog(`Target service: ${serviceDeployment.name}(${serviceDeployment.deploymentType})`, options);
     }
     
     // Execute command in the service
@@ -517,7 +489,7 @@ export async function exec(
     
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
 }
 

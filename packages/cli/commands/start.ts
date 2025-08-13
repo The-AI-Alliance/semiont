@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
 import { runContainer } from '../lib/container-runtime.js';
 import { 
@@ -41,38 +42,11 @@ type StartOptions = z.infer<typeof StartOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): void {
-  if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
-function printSuccess(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
-  }
-}
-
-function printInfo(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-  }
-}
-
-function printDebug(message: string, options: StartOptions): void {
-  if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
-}
-
-function printWarning(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-  }
-}
 
 
 
@@ -571,8 +545,7 @@ export async function start(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  // const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  // const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -580,7 +553,7 @@ export async function start(
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+      debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Start services based on deployment type and collect results

@@ -13,6 +13,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, printWarning, printDebug, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
@@ -49,37 +50,9 @@ type BackupOptions = z.infer<typeof BackupOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): void {
-  if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
-  }
-}
-
-function printSuccess(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
-  }
-}
-
-function printInfo(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-  }
-}
-
-function printWarning(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-  }
-}
-
-function printDebug(message: string, options: BackupOptions): void {
-  if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(message: string, options: BackupOptions): void {
+  printDebug(message, options.verbose);
 }
 
 
@@ -221,7 +194,7 @@ async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: Ba
   
   try {
     printInfo(`Creating RDS snapshot: ${snapshotName}`);
-    printDebug(`DB Instance: ${dbInstanceIdentifier}`, options);
+    debugLog(`DB Instance: ${dbInstanceIdentifier}`, options);
     
     const response = await rdsClient.send(
       new CreateDBSnapshotCommand({
@@ -236,9 +209,9 @@ async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: Ba
     printInfo('This will take several minutes to complete...');
     
     if (options.verbose) {
-      printDebug(`Engine: ${response.DBSnapshot?.Engine}`, options);
-      printDebug(`Size: ${response.DBSnapshot?.AllocatedStorage} GB`, options);
-      printDebug(`Status: ${response.DBSnapshot?.Status}`, options);
+      debugLog(`Engine: ${response.DBSnapshot?.Engine}`, options);
+      debugLog(`Size: ${response.DBSnapshot?.AllocatedStorage} GB`, options);
+      debugLog(`Status: ${response.DBSnapshot?.Status}`, options);
     }
     
     // Return successful backup result
@@ -334,7 +307,7 @@ async function backupContainerDatabase(containerName: string, backupName: string
   // Use pg_dumpall to create a complete backup
   const dumpCommand = ['pg_dumpall', '-U', 'postgres'];
   
-  printDebug(`Executing: ${dumpCommand.join(' ')}`, options);
+  debugLog(`Executing: ${dumpCommand.join(' ')}`, options);
   
   const success = await execInContainer(containerName, dumpCommand, {
     interactive: false,
@@ -762,8 +735,7 @@ export async function backup(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -771,7 +743,7 @@ export async function backup(
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+      debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Create backup directory if needed (unless dry run)
@@ -839,7 +811,7 @@ export async function backup(
     
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
 }
 

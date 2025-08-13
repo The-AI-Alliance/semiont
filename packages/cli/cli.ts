@@ -30,6 +30,7 @@ try {
 }
 
 import { colors } from './lib/cli-colors.js';
+import { printError } from './lib/cli-logger.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -304,10 +305,6 @@ type CommandName = keyof typeof COMMANDS;
 // =====================================================================
 // HELPER FUNCTIONS
 // =====================================================================
-
-function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
-}
 
 // Get environment with fallback: --environment > SEMIONT_ENV > 'local'
 function getEnvironmentWithFallback(args: Record<string, any>): string {

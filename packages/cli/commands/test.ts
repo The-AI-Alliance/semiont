@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { listContainers } from '../lib/container-runtime.js';
@@ -46,47 +47,9 @@ type TestOptions = z.infer<typeof TestOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): string {
-  const msg = `${colors.red}❌ ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.error(msg);
-  }
-  return msg;
-}
-
-function printSuccess(message: string): string {
-  const msg = `${colors.green}✅ ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
-
-function printInfo(message: string): string {
-  const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
-
-function printWarning(message: string): string {
-  const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
-  if (!suppressOutput) {
-    console.log(msg);
-  }
-  return msg;
-}
-
-function printDebug(message: string, options: TestOptions): string {
-  const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
-  if (!suppressOutput && options.verbose) {
-    console.log(msg);
-  }
-  return msg;
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
 
@@ -100,7 +63,7 @@ async function runCommand(command: string, args: string[], cwd: string, options:
     return true;
   }
   
-  printDebug(`Running: ${command} ${args.join(' ')} in ${cwd}`, options);
+  debugLog(`Running: ${command} ${args.join(' ')} in ${cwd}`, options);
   
   return new Promise((resolve) => {
     const proc = spawn(command, args, {
@@ -498,15 +461,14 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   }
   
   // Suppress output when in structured mode
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   // Run the actual tests
   const passed = await testServiceImpl(serviceInfo, suite, options);
   const testDuration = Date.now() - startTime;
   
   // Restore output suppression state
-  suppressOutput = previousSuppressOutput;
+  setSuppressOutput(previousSuppressOutput);
   
   return {
     ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),

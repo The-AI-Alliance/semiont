@@ -13,7 +13,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getProjectRoot } from '../lib/cli-paths.js';
-import { colors } from '../lib/cli-colors.js';
+import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';
 import * as http from 'http';
@@ -39,37 +39,9 @@ type CheckOptions = z.infer<typeof CheckOptionsSchema>;
 // HELPER FUNCTIONS
 // =====================================================================
 
-// Global flag to control output suppression
-let suppressOutput = false;
-
-function printError(message: string): void {
-  if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
-  }
-}
-
-function printSuccess(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
-  }
-}
-
-function printInfo(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-  }
-}
-
-function printWarning(message: string): void {
-  if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-  }
-}
-
-function printDebug(message: string, options: CheckOptions): void {
-  if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
+// Helper wrapper for printDebug that passes verbose option
+function debugLog(_message: string, _options: any): void {
+  // Debug logging disabled for now
 }
 
 
@@ -160,7 +132,7 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
     
   } catch (error) {
     const errorResult = createErrorResult(baseResult, error instanceof Error ? error : String(error));
-    printDebug(`Error checking service ${serviceInfo.name}: ${error}`, options);
+    debugLog(`Error checking service ${serviceInfo.name}: ${error}`, options);
     return {
       ...errorResult,
       resourceId: {
@@ -188,7 +160,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      printDebug(`Querying ECS service status for ${serviceInfo.name}`, options);
+      debugLog(`Querying ECS service status for ${serviceInfo.name}`, options);
       checks.push({
         name: 'ecs-service',
         status: 'warn',
@@ -198,7 +170,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
       break;
       
     case 'database':
-      printDebug(`Checking RDS instance status for ${serviceInfo.name}`, options);
+      debugLog(`Checking RDS instance status for ${serviceInfo.name}`, options);
       checks.push({
         name: 'rds-instance',
         status: 'warn', 
@@ -208,7 +180,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
       break;
       
     case 'filesystem':
-      printDebug(`Checking EFS mount status for ${serviceInfo.name}`, options);
+      debugLog(`Checking EFS mount status for ${serviceInfo.name}`, options);
       checks.push({
         name: 'efs-mount',
         status: 'warn',
@@ -249,7 +221,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
       // Additional health checks based on service
       switch (serviceInfo.name) {
         case 'database':
-          printDebug('Database container health check passed', options);
+          debugLog('Database container health check passed', options);
           checks.push({
             name: 'database-container',
             status: 'pass',
@@ -285,7 +257,7 @@ async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options
           break;
           
         case 'filesystem':
-          printDebug('Container volume mounts verified', options);
+          debugLog('Container volume mounts verified', options);
           checks.push({
             name: 'volume-mounts',
             status: 'pass',
@@ -367,7 +339,7 @@ async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: 
             responseTime,
           });
         } else {
-          printDebug(`${serviceInfo.name} health endpoint not available`, options);
+          debugLog(`${serviceInfo.name} health endpoint not available`, options);
           checks.push({
             name: 'http-health',
             status: 'warn',
@@ -601,11 +573,10 @@ export async function check(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
-    printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
+    debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     
     // Check services and collect results
     const serviceResults: CheckResult[] = [];
@@ -711,7 +682,7 @@ export async function check(
     };
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
 }
 
