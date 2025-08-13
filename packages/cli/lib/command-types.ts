@@ -57,11 +57,8 @@ export interface CommandRegistryEntry<TOptions extends BaseCommandOptions = Base
  * Each command module should export at least these members
  */
 export interface CommandModule<TOptions extends BaseCommandOptions = BaseCommandOptions> {
-  // The main command function
-  [commandName: string]: CommandFunction<TOptions>;
-  
-  // Options schema for validation
-  [commandName: string]: unknown; // This would be the Zod schema
+  // Allow any property to support both command functions and schemas
+  [key: string]: CommandFunction<TOptions> | unknown;
 }
 
 /**

@@ -28,7 +28,7 @@ export abstract class BaseCommand<TOptions extends z.ZodRawShape> {
    * Parse command arguments using the standardized approach
    */
   protected parseArgs(): z.infer<z.ZodObject<TOptions>> {
-    return parseCommandArgs(this.schema as any, this.commandName);
+    return parseCommandArgs(this.schema as any, this.commandName) as z.infer<z.ZodObject<TOptions>>;
   }
 
   /**

@@ -31,11 +31,12 @@ export async function createTestEnvironment(
     process.chdir(tmpDir);
     
     // Initialize Semiont project using the actual init command
-    await init({
+    await init([], {
       name: projectName,
       directory: tmpDir,
       force: false,
       environments: ['local', 'test', 'staging', 'production'],
+      environment: 'local',  // Required by BaseCommandOptions
       output: 'summary',
       quiet: true,  // Suppress output during test setup
       verbose: false

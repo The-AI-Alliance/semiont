@@ -109,11 +109,11 @@ describe('Command Result Type System', () => {
     it('should support CheckResult structure', () => {
       const checkResult: CheckResult = {
         ...createBaseResult('check', 'database', 'aws', 'production', startTime),
-        checkTime: new Date(),
+        lastCheck: new Date(),
         healthStatus: 'healthy',
         checks: [
-          { name: 'connection', status: 'passed', message: 'Database accessible' },
-          { name: 'disk_space', status: 'passed', message: '85% used' }
+          { name: 'connection', status: 'pass', message: 'Database accessible' },
+          { name: 'disk_space', status: 'pass', message: '85% used' }
         ],
         resourceId: {
           aws: {
@@ -143,7 +143,7 @@ describe('Command Result Type System', () => {
         rollbackAvailable: true,
         changesApplied: [
           { type: 'infrastructure', description: 'ECS service updated' },
-          { type: 'configuration', description: 'Environment variables updated' }
+          { type: 'config', description: 'Environment variables updated' }
         ],
         resourceId: {
           aws: {
@@ -172,13 +172,15 @@ describe('Command Result Type System', () => {
           ...createBaseResult('start', 'frontend', 'container', 'local', startTime),
           startTime: new Date(),
           resourceId: { container: { id: 'abc123', name: 'frontend' } },
-          status: 'running'
+          status: 'running',
+          metadata: {}
         },
         {
           ...createBaseResult('start', 'backend', 'container', 'local', startTime),
           startTime: new Date(),
           resourceId: { container: { id: 'def456', name: 'backend' } },
-          status: 'running'
+          status: 'running',
+          metadata: {}
         }
       ];
 
@@ -213,7 +215,8 @@ describe('Command Result Type System', () => {
           ...createBaseResult('restart', 'frontend', 'process', 'local', startTime),
           restartTime: new Date(),
           resourceId: { process: { pid: 12345, port: 3000 } },
-          status: 'running'
+          status: 'running',
+          metadata: {}
         },
         {
           ...createErrorResult(
@@ -222,7 +225,8 @@ describe('Command Result Type System', () => {
           ),
           restartTime: new Date(),
           resourceId: { process: { pid: 0, port: 3001 } },
-          status: 'failed'
+          status: 'failed',
+          metadata: {}
         }
       ];
 

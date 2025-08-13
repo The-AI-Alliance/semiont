@@ -9,6 +9,7 @@
 
 import { spawn } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 import { z } from 'zod';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
@@ -117,8 +118,8 @@ interface EnvironmentConfig {
 async function loadEnvironmentConfig(environment: string): Promise<EnvironmentConfig> {
   try {
     const configPath = path.join(PROJECT_ROOT, 'config', 'environments', `${environment}.json`);
-    const configModule = await import(configPath, { assert: { type: 'json' } });
-    return configModule.default;
+    const configContent = await fs.readFile(configPath, 'utf-8');
+    return JSON.parse(configContent);
   } catch (error) {
     throw new Error(`Failed to load environment config for ${environment}: ${error instanceof Error ? error.message : String(error)}`);
   }

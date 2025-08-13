@@ -16,11 +16,11 @@ export interface ServiceResolver {
 }
 
 export interface DeploymentResolver {
-  resolve(services: string[], environment: string): Promise<ServiceDeploymentInfo[]>;
+  resolve(services: string[], environment: string): ServiceDeploymentInfo[];
 }
 
 export interface ContainerExecutor {
-  exec(container: string, command: string, options?: any): Promise<boolean>;
+  exec(container: string, command: string[], options?: any): Promise<boolean>;
 }
 
 export interface AWSClients {
@@ -30,7 +30,7 @@ export interface AWSClients {
 export interface FileSystem {
   mkdir(path: string, options?: any): Promise<void>;
   writeFile(path: string, data: string): Promise<void>;
-  readFile(path: string): Promise<string>;
+  readFile(path: string, encoding?: any): Promise<Buffer | string>;
 }
 
 export interface BackupDependencies {

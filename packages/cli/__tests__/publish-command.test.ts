@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import type { PublishOptions } from '../commands/publish.js';
+import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // Mock AWS ECR
 vi.mock('@aws-sdk/client-ecr', () => ({
@@ -35,6 +36,17 @@ vi.mock('child_process', () => ({
     stderr: { on: vi.fn() }
   }))
 }));
+
+
+// Helper function to create dummy service deployments for tests
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  return services.map(service => ({
+    name: service.name,
+    deploymentType: service.type as any,
+    deployment: { type: service.type },
+    config: service.config || {}
+  }));
+}
 
 describe('Publish Command', () => {
   let testDir: string;
@@ -88,16 +100,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'frontend',
-        output: 'json',
+        environment: 'staging',        output: 'json',
         tag: 'v1.2.3',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result).toMatchObject({
         command: 'publish',
@@ -106,9 +120,7 @@ describe('Publish Command', () => {
         duration: expect.any(Number),
         services: expect.arrayContaining([
           expect.objectContaining({
-            command: 'publish',
-            service: 'frontend',
-            deploymentType: 'aws',
+            command: 'publish',            deploymentType: 'aws',
             success: true,
             publishTime: expect.any(Date),
             imageTag: 'v1.2.3',
@@ -148,16 +160,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'test',
-        service: 'backend',
-        output: 'table',
+        environment: 'test',        output: 'table',
         tag: 'latest',
         skipBuild: false,
         verbose: true,
         dryRun: true
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         status: 'dry-run',
@@ -185,16 +199,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'frontend',
-        output: 'yaml',
+        environment: 'staging',        output: 'yaml',
         tag: 'v2.0.0',
         skipBuild: true,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         imageTag: 'v2.0.0',
@@ -238,16 +254,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'production',
-        service: 'backend',
-        output: 'summary',
+        environment: 'production',        output: 'summary',
         tag: 'v1.0.0',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'aws',
@@ -284,16 +302,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'all',
-        output: 'json',
+        environment: 'staging',        output: 'json',
         tag: 'staging-latest',
         skipBuild: false,
         verbose: true,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services).toHaveLength(2);
       
@@ -325,16 +345,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'local',
-        service: 'backend',
-        output: 'table',
+        environment: 'local',        output: 'table',
         tag: 'dev',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'container',
@@ -360,16 +382,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'local',
-        service: 'frontend',
-        output: 'yaml',
+        environment: 'local',        output: 'yaml',
         tag: 'latest',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'process',
@@ -395,16 +419,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'remote',
-        service: 'database',
-        output: 'summary',
+        environment: 'remote',        output: 'summary',
         tag: 'latest',
         skipBuild: false,
         verbose: true,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         deploymentType: 'external',
@@ -459,16 +485,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'frontend',
-        output: 'json',
+        environment: 'staging',        output: 'json',
         tag: 'v1.0.0',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      await publish(serviceDeployments, options);
 
       // Verify Docker commands were called
       expect(dockerBuildCalled || dockerPushCalled).toBe(true);
@@ -510,16 +538,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'backend',
-        output: 'table',
+        environment: 'staging',        output: 'table',
         tag: 'v2.0.0',
         skipBuild: true,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       // Build should not be called with skipBuild=true
       expect(dockerBuildCalled).toBe(false);
@@ -550,16 +580,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'test',
-        service: 'all',
-        output: 'json',
+        environment: 'test',        output: 'json',
         tag: 'test-build',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services).toHaveLength(3);
       expect(result.summary.total).toBe(3);
@@ -568,7 +600,7 @@ describe('Publish Command', () => {
       expect(serviceNames).toEqual(['backend', 'frontend', 'worker']);
       
       result.services.forEach(service => {
-        expect(service.imageTag).toBe('test-build');
+        expect(service.metadata?.tag).toBe('test-build');
       });
     });
 
@@ -584,16 +616,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'test',
-        service: 'backend',
-        output: 'table',
+        environment: 'test',        output: 'table',
         tag: 'latest',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services).toHaveLength(1);
       expect(result.services[0].service).toBe('backend');
@@ -621,16 +655,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'production',
-        service: 'frontend',
-        output: 'summary',
+        environment: 'production',        output: 'summary',
         tag: 'v1.0.0',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         success: false,
@@ -672,16 +708,18 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'backend',
-        output: 'table',
+        environment: 'staging',        output: 'table',
         tag: 'broken',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
       expect(result.services[0].success).toBe(false);
       expect(result.summary.failed).toBe(1);
@@ -703,16 +741,18 @@ describe('Publish Command', () => {
       
       for (const format of formats) {
         const options: PublishOptions = {
-          environment: 'test',
-          service: 'frontend',
-          output: format,
+          environment: 'test',          output: format,
           tag: 'test',
           skipBuild: false,
           verbose: false,
           dryRun: false
         };
 
-        const result = await publish(options);
+        const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
         
         expect(result).toMatchObject({
           command: 'publish',
@@ -740,19 +780,21 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'production',
-        service: 'frontend',
-        output: 'json',
+        environment: 'production',        output: 'json',
         tag: 'v3.2.1-release',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0].imageTag).toBe('v3.2.1-release');
-      expect(result.services[0].metadata.tag).toBe('v3.2.1-release');
+      expect(result.services[0].metadata?.tag).toBe('v3.2.1-release');
+      expect(result.services[0].metadata?.tag).toBe('v3.2.1-release');
     });
 
     it('should use default tag when not provided', async () => {
@@ -766,18 +808,20 @@ describe('Publish Command', () => {
       const { publish } = await import('../commands/publish.js');
       
       const options: PublishOptions = {
-        environment: 'staging',
-        service: 'backend',
-        output: 'yaml',
+        environment: 'staging',        output: 'yaml',
         tag: 'latest',
         skipBuild: false,
         verbose: false,
         dryRun: false
       };
 
-      const result = await publish(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0].imageTag).toBe('latest');
+      expect(result.services[0].metadata?.tag).toBe('latest');
     });
   });
 });

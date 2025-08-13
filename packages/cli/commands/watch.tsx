@@ -98,7 +98,7 @@ const DashboardApp: React.FC<{
   }
 };
 
-import { getAvailableEnvironments, isValidEnvironment } from '../lib/environment-discovery.js';
+import { getAvailableEnvironments } from '../lib/deployment-resolver.js';
 
 // Argument parsing with environment support
 function parseArgs(): { environment: string; mode: DashboardMode; service?: ServiceType } {
@@ -114,9 +114,10 @@ function parseArgs(): { environment: string; mode: DashboardMode; service?: Serv
     showHelp();
   }
   
-  if (!isValidEnvironment(environment)) {
+  const availableEnvironments = getAvailableEnvironments();
+  if (!availableEnvironments.includes(environment)) {
     console.error(`Invalid environment: ${environment}`);
-    console.log(`Available environments: ${getAvailableEnvironments().join(', ')}`);
+    console.log(`Available environments: ${availableEnvironments.join(', ')}`);
     process.exit(1);
   }
   
@@ -211,3 +212,6 @@ async function main() {
 
 // Execute
 main();
+
+// Export for use in watch.ts
+export default DashboardApp;

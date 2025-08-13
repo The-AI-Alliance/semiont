@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
 import { 
   ExecResult, 
@@ -136,16 +136,18 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
 async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
   const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
   
+  // Load AWS config from environment
+  const envConfig = loadEnvironmentConfig(options.environment);
+  if (!envConfig.aws || !envConfig.aws.region) {
+    printError('AWS configuration not found in environment config');
+    throw new Error('Missing AWS configuration');
+  }
+  
   // AWS ECS exec
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      if (!serviceInfo.config.aws || !serviceInfo.config.aws.region) {
-        printError('AWS configuration not found in service config');
-        throw new Error('Missing AWS configuration');
-      }
-      
-      const ecsClient = new ECSClient({ region: serviceInfo.config.aws.region });
+      const ecsClient = new ECSClient({ region: envConfig.aws.region });
       const clusterName = `semiont-${options.environment}`;
       const serviceName = `semiont-${options.environment}-${serviceInfo.name}`;
       
@@ -177,7 +179,7 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
           '--task', taskId,
           '--container', containerName,
           '--command', options.command,
-          '--region', serviceInfo.config.aws.region
+          '--region', envConfig.aws.region
         ];
         
         if (options.interactive) {

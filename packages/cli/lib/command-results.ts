@@ -178,7 +178,7 @@ export interface BackupResult extends ServiceResult {
 // =====================================================================
 
 // AWS-specific result extensions
-export interface AWSServiceResult extends ServiceResult {
+export interface AWSServiceResult extends Omit<ServiceResult, 'resourceId'> {
   resourceId: {
     aws: { arn: string; id: string; name: string };
   };
@@ -187,14 +187,14 @@ export interface AWSServiceResult extends ServiceResult {
   tags?: Record<string, string>;
 }
 
-export interface AWSStartResult extends StartResult, AWSServiceResult {
+export interface AWSStartResult extends Omit<StartResult, 'resourceId'>, AWSServiceResult {
   taskDefinitionArn?: string;
   clusterName?: string;
   serviceArn?: string;
   targetGroup?: string;
 }
 
-export interface AWSProvisionResult extends ProvisionResult, AWSServiceResult {
+export interface AWSProvisionResult extends Omit<ProvisionResult, 'resourceId'>, AWSServiceResult {
   cloudFormationStack?: string;
   resources: Array<{
     type: string;
@@ -206,7 +206,7 @@ export interface AWSProvisionResult extends ProvisionResult, AWSServiceResult {
 }
 
 // Container-specific result extensions
-export interface ContainerServiceResult extends ServiceResult {
+export interface ContainerServiceResult extends Omit<ServiceResult, 'resourceId'> {
   resourceId: {
     container: { id: string; name: string };
   };
@@ -216,7 +216,7 @@ export interface ContainerServiceResult extends ServiceResult {
   volumes?: string[];
 }
 
-export interface ContainerStartResult extends StartResult, ContainerServiceResult {
+export interface ContainerStartResult extends Omit<StartResult, 'resourceId'>, ContainerServiceResult {
   networkMode?: string;
   mountPoints?: Array<{
     source: string;

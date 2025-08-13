@@ -290,15 +290,6 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
     default:
       throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
   }
-  
-  // Mark success messages are now handled in the return statements above
-  if (!isStructuredOutput && options.output === 'summary') {
-    if (!options.destroy) {
-      printSuccess(`AWS infrastructure provisioned for ${serviceInfo.name}`);
-    } else {
-      printSuccess(`AWS infrastructure destroyed for ${serviceInfo.name}`);
-    }
-  }
 }
 
 async function provisionContainerService(serviceInfo: ServiceDeploymentInfo, options: ProvisionOptions, startTime: number, isStructuredOutput: boolean = false): Promise<ProvisionResult> {

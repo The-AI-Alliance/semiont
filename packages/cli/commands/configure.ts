@@ -413,7 +413,7 @@ export const configure: CommandFunction<ConfigureOptions> = async (
               action: 'set',
               secretPath: options.secretPath,
               wasExisting: !!currentSecret,
-              dryRun: options.dryRun,
+              dryRun: options.dryRun ?? false,
             },
           };
           configureResults.push(result);
@@ -449,7 +449,7 @@ export const configure: CommandFunction<ConfigureOptions> = async (
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun ?? false,
       }
     };
     

@@ -31,8 +31,6 @@ describe('Output Formatter', () => {
     services: [
       {
         ...createBaseResult('start', 'frontend', 'container', 'test', startTime),
-        startTime: new Date('2024-01-15T10:30:01Z'),
-        endpoint: 'http://localhost:3000',
         resourceId: {
           container: {
             id: 'abc123456789',
@@ -41,6 +39,8 @@ describe('Output Formatter', () => {
         },
         status: 'running',
         metadata: {
+          startTime: new Date('2024-01-15T10:30:01Z'),
+          endpoint: 'http://localhost:3000',
           containerName: 'semiont-frontend-test',
           image: 'semiont-frontend:latest',
           port: 3000
@@ -51,7 +51,6 @@ describe('Output Formatter', () => {
           createBaseResult('start', 'backend', 'process', 'test', startTime),
           'Port 3001 already in use'
         ),
-        startTime: new Date('2024-01-15T10:30:02Z'),
         resourceId: {
           process: {
             pid: 0,
@@ -61,6 +60,7 @@ describe('Output Formatter', () => {
         },
         status: 'failed',
         metadata: {
+          startTime: new Date('2024-01-15T10:30:02Z'),
           command: 'npm run dev',
           workingDirectory: '/app/backend',
           port: 3001

@@ -23,11 +23,12 @@ beforeAll(async () => {
   
   try {
     // Use the actual init command to create proper configs
-    await init({
+    await init([], {
       name: 'test-project',
       directory: globalTestDir,
       force: false,
       environments: ['local', 'test', 'staging', 'production'],
+      environment: 'local',  // Required by BaseCommandOptions
       output: 'summary',
       quiet: true,  // Suppress output during test setup
       verbose: false

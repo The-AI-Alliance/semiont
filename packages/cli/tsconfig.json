@@ -1,0 +1,79 @@
+{
+  "compilerOptions": {
+    // Target and Module Settings
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    
+    // Output Settings
+    "outDir": "./dist",
+    "rootDir": "./",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "incremental": true,
+    
+    // Core Strict Type Checking
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "useUnknownInCatchVariables": true,
+    
+    // Additional Strictness (can be enabled gradually)
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    
+    // These cause the most errors - enable after fixing basics
+    "exactOptionalPropertyTypes": false,  // TODO: Enable after fixing optional props
+    "noUncheckedIndexedAccess": false,    // TODO: Enable after adding null checks
+    "noPropertyAccessFromIndexSignature": false,
+    
+    // Code Quality (warnings, not errors in development)
+    "noUnusedLocals": false,               // TODO: Enable after cleanup
+    "noUnusedParameters": false,           // TODO: Enable after cleanup
+    
+    // Additional Type Checking
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "checkJs": false,
+    
+    // Module System
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": true,
+    
+    // JSX Support
+    "jsx": "react",
+    
+    // Path Mapping
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "cli.ts",
+    "commands/**/*.ts",
+    "commands/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "__tests__/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build.mjs",
+    "**/*.mjs",
+    "**/*.js",
+    "coverage"
+  ]
+}

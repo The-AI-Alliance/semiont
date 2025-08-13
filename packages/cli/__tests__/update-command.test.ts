@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import type { UpdateOptions } from '../commands/update.js';
+import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -35,6 +36,17 @@ vi.mock('child_process', () => ({
     stderr: { on: vi.fn() }
   }))
 }));
+
+
+// Helper function to create dummy service deployments for tests
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  return services.map(service => ({
+    name: service.name,
+    deploymentType: service.type as any,
+    deployment: { type: service.type },
+    config: service.config || {}
+  }));
+}
 
 describe('Update Command', () => {
   let testDir: string;
@@ -83,9 +95,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'staging',
-        service: 'frontend',
-        skipTests: false,
+        environment: 'staging',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -94,7 +104,11 @@ describe('Update Command', () => {
         output: 'json'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       expect(result).toMatchObject({
         command: 'update',
@@ -103,9 +117,7 @@ describe('Update Command', () => {
         duration: expect.any(Number),
         services: expect.arrayContaining([
           expect.objectContaining({
-            command: 'update',
-            service: 'frontend',
-            deploymentType: 'aws',
+            command: 'update',            deploymentType: 'aws',
             success: true,
             updateTime: expect.any(Date),
             previousVersion: 'latest',
@@ -154,9 +166,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'test',
-        service: 'backend',
-        skipTests: false,
+        environment: 'test',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -165,7 +175,11 @@ describe('Update Command', () => {
         output: 'yaml'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         status: 'dry-run',
@@ -196,9 +210,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'test',
-        service: 'database',
-        skipTests: false,
+        environment: 'test',        skipTests: false,
         skipBuild: false,
         force: true,
         gracePeriod: 1,
@@ -207,7 +219,11 @@ describe('Update Command', () => {
         output: 'table'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       // With force=true, should continue despite failures
       expect(result.services[0]).toMatchObject({
@@ -239,9 +255,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'production',
-        service: 'all',
-        skipTests: false,
+        environment: 'production',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -250,7 +264,11 @@ describe('Update Command', () => {
         output: 'json'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       expect(result.services).toHaveLength(2);
       expect(mockSend).toHaveBeenCalledTimes(2);
@@ -260,15 +278,11 @@ describe('Update Command', () => {
       expect(updateCommands).toHaveLength(2);
       
       expect(updateCommands[0][0]).toMatchObject({
-        cluster: 'semiont-production',
-        service: 'semiont-production-frontend',
-        forceNewDeployment: true
+        cluster: 'semiont-production',        forceNewDeployment: true
       });
       
       expect(updateCommands[1][0]).toMatchObject({
-        cluster: 'semiont-production',
-        service: 'semiont-production-backend',
-        forceNewDeployment: true
+        cluster: 'semiont-production',        forceNewDeployment: true
       });
     });
 
@@ -285,9 +299,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'production',
-        service: 'database',
-        skipTests: false,
+        environment: 'production',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -296,11 +308,13 @@ describe('Update Command', () => {
         output: 'summary'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'database',
-        deploymentType: 'aws',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'aws',
         status: 'not-applicable',
         success: true,
         previousVersion: 'postgres-15',
@@ -332,9 +346,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'staging',
-        service: 'filesystem',
-        skipTests: false,
+        environment: 'staging',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -343,11 +355,13 @@ describe('Update Command', () => {
         output: 'yaml'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'filesystem',
-        deploymentType: 'aws',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'aws',
         status: 'no-action-needed',
         success: true,
         previousVersion: 'efs-standard',
@@ -387,9 +401,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'staging',
-        service: 'frontend',
-        skipTests: false,
+        environment: 'staging',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 2,
@@ -398,11 +410,13 @@ describe('Update Command', () => {
         output: 'table'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'frontend',
-        deploymentType: 'container',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'container',
         status: 'updated',
         success: true,
         rollbackAvailable: true,
@@ -459,9 +473,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'local',
-        service: 'database',
-        skipTests: false,
+        environment: 'local',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -470,11 +482,13 @@ describe('Update Command', () => {
         output: 'json'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'database',
-        deploymentType: 'container',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'container',
         status: 'updated',
         success: true
       });
@@ -504,9 +518,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'local',
-        service: 'filesystem',
-        skipTests: false,
+        environment: 'local',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -515,11 +527,13 @@ describe('Update Command', () => {
         output: 'summary'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'filesystem',
-        deploymentType: 'container',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'container',
         status: 'updated',
         success: true,
         previousVersion: 'volume',
@@ -548,9 +562,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'local',
-        service: 'backend',
-        skipTests: false,
+        environment: 'local',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 2,
@@ -559,11 +571,13 @@ describe('Update Command', () => {
         output: 'yaml'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'backend',
-        deploymentType: 'process',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'process',
         status: 'updated',
         success: true,
         previousVersion: 'development',
@@ -603,9 +617,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'local',
-        service: 'database',
-        skipTests: false,
+        environment: 'local',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -614,11 +626,13 @@ describe('Update Command', () => {
         output: 'table'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'database',
-        deploymentType: 'process',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'process',
         status: 'not-applicable',
         success: true,
         previousVersion: 'postgres-local',
@@ -647,9 +661,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'remote',
-        service: 'database',
-        skipTests: false,
+        environment: 'remote',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -658,11 +670,13 @@ describe('Update Command', () => {
         output: 'json'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'database',
-        deploymentType: 'external',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'external',
         status: 'external',
         success: true,
         previousVersion: 'external',
@@ -696,9 +710,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'remote',
-        service: 'filesystem',
-        skipTests: false,
+        environment: 'remote',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -707,11 +719,13 @@ describe('Update Command', () => {
         output: 'summary'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'filesystem',
-        deploymentType: 'external',
+      expect(result.services[0]).toMatchObject({        deploymentType: 'external',
         status: 'external',
         success: true,
         resourceId: expect.objectContaining({
@@ -747,9 +761,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'production',
-        service: 'frontend',
-        skipTests: false,
+        environment: 'production',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -758,7 +770,11 @@ describe('Update Command', () => {
         output: 'json'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       expect(result.services[0]).toMatchObject({
         success: false,
@@ -788,9 +804,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'test',
-        service: 'all',
-        skipTests: false,
+        environment: 'test',        skipTests: false,
         skipBuild: false,
         force: false,
         gracePeriod: 3,
@@ -799,7 +813,11 @@ describe('Update Command', () => {
         output: 'summary'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       // Should have stopped after first failure
       expect(result.services).toHaveLength(1);
@@ -823,9 +841,7 @@ describe('Update Command', () => {
       const { update } = await import('../commands/update.js');
       
       const options: UpdateOptions = {
-        environment: 'test',
-        service: 'all',
-        skipTests: false,
+        environment: 'test',        skipTests: false,
         skipBuild: false,
         force: true,
         gracePeriod: 3,
@@ -834,7 +850,11 @@ describe('Update Command', () => {
         output: 'table'
       };
 
-      const result = await update(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'container' }
+      ]);
+      const result = await update(serviceDeployments, options);
 
       // Should have processed both services despite failures
       expect(result.services).toHaveLength(2);

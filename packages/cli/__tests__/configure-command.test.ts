@@ -45,6 +45,23 @@ describe('configure command with structured output', () => {
   const mockSecretsManagerClient = vi.mocked(SecretsManagerClient);
   const mockCreateInterface = vi.mocked(readline.createInterface);
 
+  // Helper to create valid site config
+  function createSiteConfig(domain: string) {
+    return {
+      domain,
+      siteName: 'Test Site',
+      adminEmail: 'admin@example.com'
+    };
+  }
+
+  // Helper to create valid AWS config
+  function createAWSConfig(region: string = 'us-east-1') {
+    return {
+      region,
+      accountId: '123456789012'
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     
@@ -72,13 +89,13 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
-        site: { domain: `${env}.example.com` },
+        site: createSiteConfig(`${env}.example.com`),
         deployment: { default: env === 'production' ? 'aws' : 'container' },
         services: {
           frontend: { deployment: { type: 'container' } },
           backend: { deployment: { type: 'container' } }
         },
-        aws: env === 'production' ? { region: 'us-east-1', accountId: '123456789012' } : undefined
+        aws: env === 'production' ? createAWSConfig() : undefined
       }));
 
       const serviceDeployments = createServiceDeployments([
@@ -116,7 +133,7 @@ describe('configure command with structured output', () => {
           throw new Error('Invalid configuration file');
         }
         return {
-          site: { domain: `${env}.example.com` },
+          site: createSiteConfig(`${env}.example.com`),
           deployment: { default: 'container' },
           services: {}
         };
@@ -180,7 +197,7 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
-        site: { domain: `${env}.example.com` },
+        site: createSiteConfig(`${env}.example.com`),
         deployment: { default: 'container' },
         services: {
           frontend: {},
@@ -217,7 +234,7 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
-        site: { domain: `${env}.example.com` },
+        site: createSiteConfig(`${env}.example.com`),
         deployment: { default: 'aws' }, // AWS deployment but no AWS config
         services: {
           frontend: {},
@@ -249,9 +266,10 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
-        site: { domain: `${env}.example.com` },
-        deployment: { default: 'container' }
+        site: createSiteConfig(`${env}.example.com`),
+        deployment: { default: 'container' },
         // No services defined
+        services: {}
       }));
 
       const serviceDeployments = createServiceDeployments([
@@ -392,7 +410,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1', accountId: '123456789012' }
+        aws: createAWSConfig('us-east-1'),
+        services: {}
       });
 
       // Mock getting current secret
@@ -479,7 +498,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1', accountId: '123456789012' }
+        aws: createAWSConfig('us-east-1'),
+        services: {}
       });
 
       // Mock getting current secret
@@ -645,7 +665,7 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        site: { domain: 'staging.example.com' },
+        site: createSiteConfig('staging.example.com'),
         services: {}
       });
 
@@ -671,7 +691,7 @@ describe('configure command with structured output', () => {
 
       mockLoadEnvironmentConfig.mockReturnValue({
         deployment: { default: 'aws' },
-        aws: { region: 'us-east-1' },
+        aws: createAWSConfig('us-east-1'),
         services: { frontend: {}, backend: {} }
       });
 
@@ -719,10 +739,10 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        site: { domain: 'local.example.com' },
+        site: createSiteConfig('local.example.com'),
         deployment: { default: 'container' },
         services: { frontend: {}, backend: {} },
-        aws: { region: 'us-east-1' }
+        aws: createAWSConfig('us-east-1')
       });
 
       const serviceDeployments = createServiceDeployments([
@@ -749,7 +769,7 @@ describe('configure command with structured output', () => {
 
       mockGetAvailableEnvironments.mockReturnValue(['dev', 'test', 'prod']);
       mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
-        site: { domain: `${env}.example.com` },
+        site: createSiteConfig(`${env}.example.com`),
         services: {}
       }));
 
