@@ -1,9 +1,9 @@
 {
   "version": "1.0",
-  "project": "test-filesystem",
+  "project": "cli",
   "site": {
-    "siteName": "test-filesystem",
-    "domain": "test-filesystem.example.com",
+    "siteName": "cli",
+    "domain": "cli.example.com",
     "adminEmail": "admin@example.com",
     "supportEmail": "support@example.com",
     "oauthAllowedDomains": [

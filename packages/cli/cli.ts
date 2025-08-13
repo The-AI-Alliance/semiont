@@ -707,9 +707,19 @@ async function executeCommand(
       
       case 'backup': {
         const { backup } = await import('./commands/backup.js');
+        const { validateServiceSelector, resolveServiceSelector } = await import('./lib/services.js');
+        const { resolveServiceDeployments } = await import('./lib/deployment-resolver.js');
+        
+        const environment = getEnvironmentWithFallback(args);
+        const service = args['--service'] || 'all';
+        
+        // Resolve services first
+        await validateServiceSelector(service, 'backup', environment);
+        const resolvedServices = await resolveServiceSelector(service, 'backup', environment);
+        const serviceDeployments = await resolveServiceDeployments(resolvedServices, environment);
+        
         const backupOptions = {
-          environment: getEnvironmentWithFallback(args),
-          service: args['--service'] || 'all',
+          environment,
           name: args['--name'],
           outputPath: args['--output-path'] || './backups',
           compress: !args['--no-compress'],
@@ -717,7 +727,7 @@ async function executeCommand(
           dryRun: args['--dry-run'] || false,
           output: outputFormat
         };
-        results = await backup(backupOptions);
+        results = await backup(serviceDeployments, backupOptions);
         break;
       }
       

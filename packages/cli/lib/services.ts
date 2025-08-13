@@ -41,6 +41,24 @@ export type BuiltInService = typeof BUILT_IN_SERVICES[number];
 export type ServiceName = BuiltInService | string; // Allow custom services
 export type ServiceSelector = 'all' | ServiceName;
 
+/**
+ * Central type definition for all service capabilities
+ * This should be the single source of truth for what operations can be performed on services
+ */
+export type ServiceCapability = 
+  | 'publish' 
+  | 'start' 
+  | 'stop' 
+  | 'restart' 
+  | 'test' 
+  | 'backup' 
+  | 'check' 
+  | 'exec'
+  | 'update'
+  | 'provision'
+  | 'configure'
+  | 'watch';
+
 // Cache for loaded environment services
 const environmentServicesCache = new Map<string, string[]>();
 
@@ -121,7 +139,7 @@ export async function isValidService(service: string, environment?: string): Pro
  * Get services that support a specific capability
  */
 export async function getServicesWithCapability(
-  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check',
+  capability: ServiceCapability,
   environment?: string
 ): Promise<string[]> {
   const allServices = await getAvailableServices(environment);
@@ -140,11 +158,21 @@ export async function getServicesWithCapability(
         service === 'database' || service === 'filesystem'
       );
     
+    case 'provision':
+      // Infrastructure provisioning typically for database and filesystem
+      return allServices.filter(service => 
+        service === 'database' || service === 'filesystem'
+      );
+    
     case 'start':
     case 'stop':
     case 'restart':
     case 'test':
     case 'check':
+    case 'exec':
+    case 'update':
+    case 'configure':
+    case 'watch':
       // All services support these capabilities
       return allServices;
     
@@ -158,7 +186,7 @@ export async function getServicesWithCapability(
  */
 export async function resolveServiceSelector(
   selector: ServiceSelector,
-  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check',
+  capability: ServiceCapability,
   environment?: string
 ): Promise<string[]> {
   if (selector === 'all') {
@@ -212,7 +240,7 @@ export function createServiceEnum(capability?: 'publish' | 'start' | 'stop' | 'r
  */
 export async function validateServiceSelector(
   selector: ServiceSelector,
-  capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'check',
+  capability: ServiceCapability,
   environment?: string
 ): Promise<void> {
   try {

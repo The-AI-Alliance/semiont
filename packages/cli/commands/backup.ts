@@ -13,8 +13,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { 
@@ -25,7 +24,7 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 
-// AWS SDK imports for backup operations
+// AWS SDK imports for backup operations  
 import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
@@ -36,7 +35,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const BackupOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'),
   name: z.string().optional(),
   outputPath: z.string().default('./backups'),
   compress: z.boolean().default(true),
@@ -209,7 +207,7 @@ async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: Bac
   }
 }
 
-async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<void> {
+async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, backupName: string): Promise<BackupResult> {
   if (!serviceInfo.config.aws || !serviceInfo.config.aws.region) {
     printError('AWS configuration not found in service config');
     throw new Error('Missing AWS configuration');
@@ -244,6 +242,30 @@ async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: Ba
       printDebug(`Status: ${response.DBSnapshot?.Status}`, options);
     }
     
+    // Return successful backup result
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    return {
+      ...baseResult,
+      backupName: snapshotName,
+      backupSize: (response.DBSnapshot?.AllocatedStorage || 0) * 1024 * 1024 * 1024, // Convert GB to bytes
+      backupLocation: `arn:aws:rds:${serviceInfo.config.aws.region}:${serviceInfo.config.aws.accountId}:snapshot:${snapshotName}`,
+      backupType: 'full',
+      compressed: false, // RDS snapshots are compressed by AWS
+      resourceId: {
+        aws: {
+          arn: `arn:aws:rds:${serviceInfo.config.aws.region}:${serviceInfo.config.aws.accountId}:snapshot:${snapshotName}`,
+          id: response.DBSnapshot?.DBSnapshotIdentifier,
+          name: dbInstanceIdentifier
+        }
+      } as ResourceIdentifier,
+      status: 'success',
+      metadata: {
+        engine: response.DBSnapshot?.Engine,
+        snapshotTime: response.DBSnapshot?.SnapshotCreateTime?.toISOString(),
+        status: response.DBSnapshot?.Status
+      }
+    };
+    
   } catch (error: any) {
     if (error.name === 'DBSnapshotAlreadyExistsException') {
       printError('A snapshot with that name already exists');
@@ -265,20 +287,46 @@ async function backupContainerService(serviceInfo: ServiceDeploymentInfo, option
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
     const backupName = options.name || `${serviceInfo.name}-${timestamp}`;
     
+    let backupSize = 0;
+    let backupLocation = '';
+    
     switch (serviceInfo.name) {
       case 'database':
         await backupContainerDatabase(containerName, backupName, options);
+        backupLocation = path.join(options.outputPath, `${backupName}.sql${options.compress ? '.gz' : ''}`);
         break;
         
       case 'filesystem':
         await backupContainerVolume(containerName, backupName, options);
+        backupLocation = path.join(options.outputPath, `${backupName}-volume.tar${options.compress ? '.gz' : ''}`);
         break;
         
       case 'frontend':
       case 'backend':
         await backupContainerApplication(containerName, serviceInfo.name, backupName, options);
+        backupLocation = path.join(options.outputPath, `${backupName}-app.tar`);
         break;
     }
+    
+    // Return successful backup result
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    return {
+      ...baseResult,
+      backupName,
+      backupSize,
+      backupLocation,
+      backupType: 'full',
+      compressed: options.compress,
+      resourceId: {
+        container: {
+          name: containerName
+        }
+      } as ResourceIdentifier,
+      status: 'success',
+      metadata: {
+        containerName
+      }
+    };
     
   } catch (error) {
     printError(`Failed to backup container ${containerName}: ${error}`);
@@ -369,20 +417,46 @@ async function backupProcessService(serviceInfo: ServiceDeploymentInfo, options:
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
     const backupName = options.name || `${serviceInfo.name}-${timestamp}`;
     
+    let backupSize = 0;
+    let backupLocation = '';
+    
     switch (serviceInfo.name) {
       case 'database':
         await backupLocalDatabase(backupName, options);
+        backupLocation = path.join(options.outputPath, `${backupName}.sql${options.compress ? '.gz' : ''}`);
         break;
         
       case 'filesystem':
         await backupLocalFilesystem(serviceInfo, backupName, options);
+        backupLocation = path.join(options.outputPath, `${backupName}.tar${options.compress ? '.gz' : ''}`);
         break;
         
       case 'frontend':
       case 'backend':
         await backupApplicationFiles(serviceInfo.name, backupName, options);
+        backupLocation = path.join(options.outputPath, `${backupName}.tar${options.compress ? '.gz' : ''}`);
         break;
     }
+    
+    // Return successful backup result
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    return {
+      ...baseResult,
+      backupName,
+      backupSize,
+      backupLocation,
+      backupType: 'full',
+      compressed: options.compress,
+      resourceId: {
+        process: {
+          path: options.outputPath
+        }
+      } as ResourceIdentifier,
+      status: 'success',
+      metadata: {
+        method: serviceInfo.name === 'database' ? 'pg_dumpall' : 'tar'
+      }
+    };
     
   } catch (error) {
     printError(`Failed to backup process ${serviceInfo.name}: ${error}`);
@@ -491,12 +565,14 @@ async function backupApplicationFiles(serviceName: string, backupName: string, o
 async function backupExternalService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, backupName: string): Promise<BackupResult> {
   printWarning(`Cannot create backups for external ${serviceInfo.name} service`);
   
+  let guidance = '';
   switch (serviceInfo.name) {
     case 'database':
       if (serviceInfo.config.host) {
         printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
         printInfo('External database backups must be managed by the database provider');
         printInfo('Consider using the provider\'s backup tools or services');
+        guidance = 'External database backups must be managed by the database provider';
       }
       break;
       
@@ -504,14 +580,39 @@ async function backupExternalService(serviceInfo: ServiceDeploymentInfo, options
       if (serviceInfo.config.path) {
         printInfo(`External storage: ${serviceInfo.config.path}`);
         printInfo('External storage backups must be managed by the storage provider');
+        guidance = 'External storage backups must be managed by the storage provider';
       }
       break;
       
     default:
       printInfo(`External ${serviceInfo.name} backups must be managed separately`);
+      guidance = `External ${serviceInfo.name} backups must be managed separately`;
   }
   
   printSuccess(`External ${serviceInfo.name} backup guidance provided`);
+  
+  // Return a result indicating external service backup guidance
+  const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  return {
+    ...baseResult,
+    backupName,
+    backupSize: 0,
+    backupLocation: 'external',
+    backupType: 'full',
+    compressed: false,
+    resourceId: {
+      external: {
+        host: serviceInfo.config.host,
+        port: serviceInfo.config.port,
+        path: serviceInfo.config.path
+      }
+    } as ResourceIdentifier,
+    status: 'skipped',
+    metadata: {
+      external: true,
+      guidance
+    }
+  };
 }
 
 
@@ -519,7 +620,10 @@ async function backupExternalService(serviceInfo: ServiceDeploymentInfo, options
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export async function backup(options: BackupOptions): Promise<CommandResults> {
+export async function backup(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: BackupOptions
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -531,13 +635,6 @@ export async function backup(options: BackupOptions): Promise<CommandResults> {
     if (!isStructuredOutput && options.output === 'summary') {
       printInfo(`Creating backups in ${colors.bright}${options.environment}${colors.reset} environment`);
     }
-    
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'backup', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'backup', options.environment);
-    
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
       printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
@@ -583,17 +680,18 @@ export async function backup(options: BackupOptions): Promise<CommandResults> {
       }
     }
     
-    // Create aggregated results
+    // Create aggregated results - filter out any undefined results
+    const validResults = serviceResults.filter(r => r !== undefined);
     const commandResults: CommandResults = {
       command: 'backup',
       environment: options.environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: serviceResults,
+      services: validResults,
       summary: {
-        total: serviceResults.length,
-        succeeded: serviceResults.filter(r => r.success).length,
-        failed: serviceResults.filter(r => !r.success).length,
+        total: validResults.length,
+        succeeded: validResults.filter(r => r && r.status === 'success').length,
+        failed: validResults.filter(r => r && r.status === 'failed').length,
         warnings: 0,
       },
       executionContext: {
@@ -611,42 +709,5 @@ export async function backup(options: BackupOptions): Promise<CommandResults> {
   }
 }
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
-
-async function main(options: BackupOptions): Promise<void> {
-  try {
-    const results = await backup(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show final status
-    if (results.summary.succeeded === results.summary.total) {
-      printSuccess('All backups completed successfully');
-      printInfo(`Backups stored in: ${path.resolve(options.outputPath)}`);
-    } else if (results.summary.failed > 0) {
-      printWarning('Some backups failed - check logs above');
-      printInfo(`Partial backups may be available in: ${path.resolve(options.outputPath)}`);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Backup operation failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, BackupOptions, BackupOptionsSchema };
+// Export the schema for use by CLI
+export { BackupOptions, BackupOptionsSchema };

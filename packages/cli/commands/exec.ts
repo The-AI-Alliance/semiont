@@ -410,8 +410,8 @@ export async function exec(options: ExecOptions): Promise<CommandResults> {
       services: [result],
       summary: {
         total: 1,
-        succeeded: result.success ? 1 : 0,
-        failed: result.success ? 0 : 1,
+        succeeded: result.status === 'success' ? 1 : 0,
+        failed: result.status === 'failed' ? 1 : 0,
         warnings: 0,
       },
       executionContext: {
