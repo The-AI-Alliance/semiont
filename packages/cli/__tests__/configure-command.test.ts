@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { configure, ConfigureOptions } from '../commands/configure.js';
 import { ConfigureResult, CommandResults } from '../lib/command-results.js';
+import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import * as deploymentResolver from '../lib/deployment-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import * as readline from 'readline';
@@ -19,8 +20,24 @@ vi.mock('../lib/stack-config.js', () => ({
     })
   }))
 }));
-vi.mock('@aws-sdk/client-secrets-manager');
+vi.mock('@aws-sdk/client-secrets-manager', () => ({
+  SecretsManagerClient: vi.fn().mockImplementation(() => ({
+    send: vi.fn()
+  })),
+  GetSecretValueCommand: vi.fn(),
+  UpdateSecretCommand: vi.fn()
+}));
 vi.mock('readline');
+
+// Helper function to create dummy service deployments for tests
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  return services.map(service => ({
+    name: service.name,
+    deploymentType: service.type as any,
+    deployment: { type: service.type },
+    config: service.config || {}
+  }));
+}
 
 describe('configure command with structured output', () => {
   const mockLoadEnvironmentConfig = vi.mocked(deploymentResolver.loadEnvironmentConfig);
@@ -64,7 +81,10 @@ describe('configure command with structured output', () => {
         aws: env === 'production' ? { region: 'us-east-1', accountId: '123456789012' } : undefined
       }));
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('configure');
@@ -102,7 +122,10 @@ describe('configure command with structured output', () => {
         };
       });
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(3);
       
@@ -126,7 +149,10 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(1);
       
@@ -162,7 +188,10 @@ describe('configure command with structured output', () => {
         }
       }));
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(3); // One validation result per environment
       
@@ -196,7 +225,10 @@ describe('configure command with structured output', () => {
         }
       }));
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const productionResult = results.services.find(s => s.environment === 'production') as ConfigureResult;
       expect(productionResult).toBeDefined();
@@ -222,7 +254,10 @@ describe('configure command with structured output', () => {
         // No services defined
       }));
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       results.services.forEach(service => {
         const validateResult = service as ConfigureResult;
@@ -244,7 +279,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       // Mock AWS Secrets Manager
@@ -254,9 +290,15 @@ describe('configure command with structured output', () => {
           clientSecret: 'google-client-secret'
         })
       });
-      mockSecretsManagerClient.prototype.send = mockSend;
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(1);
       
@@ -287,7 +329,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       // Mock AWS Secrets Manager to throw ResourceNotFoundException
@@ -295,9 +338,15 @@ describe('configure command with structured output', () => {
         name: 'ResourceNotFoundException',
         message: 'Secret not found'
       });
-      mockSecretsManagerClient.prototype.send = mockSend;
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(1);
       
@@ -318,7 +367,10 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(1);
       const getResult = results.services[0] as ConfigureResult;
@@ -340,7 +392,7 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' }
       });
 
       // Mock getting current secret
@@ -349,9 +401,17 @@ describe('configure command with structured output', () => {
           SecretString: 'old-secret-value'
         })
         .mockResolvedValueOnce({}); // Update response
-      mockSecretsManagerClient.prototype.send = mockSend;
+      
+      // Mock the SecretsManagerClient instance
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(1);
       
@@ -383,7 +443,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       const mockSend = vi.fn()
@@ -391,9 +452,15 @@ describe('configure command with structured output', () => {
           SecretString: JSON.stringify({ clientId: 'old-id', clientSecret: 'old-secret' })
         })
         .mockResolvedValueOnce({});
-      mockSecretsManagerClient.prototype.send = mockSend;
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const setResult = results.services[0] as ConfigureResult;
       expect(setResult.status).toBe('updated');
@@ -412,16 +479,24 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' }
       });
 
       // Mock getting current secret
       const mockSend = vi.fn().mockResolvedValueOnce({
         SecretString: 'current-value'
       });
-      mockSecretsManagerClient.prototype.send = mockSend;
+      
+      // Mock the SecretsManagerClient instance
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const setResult = results.services[0] as ConfigureResult;
       expect(setResult.status).toBe('dry-run');
@@ -445,7 +520,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       // Mock secret not existing initially
@@ -454,9 +530,15 @@ describe('configure command with structured output', () => {
           name: 'ResourceNotFoundException'
         })
         .mockResolvedValueOnce({}); // Update response
-      mockSecretsManagerClient.prototype.send = mockSend;
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const setResult = results.services[0] as ConfigureResult;
       expect(setResult.status).toBe('updated');
@@ -479,10 +561,14 @@ describe('configure command with structured output', () => {
 
       mockLoadEnvironmentConfig.mockReturnValue({
         // No AWS configuration
-        deployment: { default: 'container' }
+        deployment: { default: 'container' },
+        services: {}
       });
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const getResult = results.services[0] as ConfigureResult;
       expect(getResult.success).toBe(false);
@@ -501,14 +587,21 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       // Mock AWS error
       const mockSend = vi.fn().mockRejectedValue(new Error('AccessDeniedException'));
-      mockSecretsManagerClient.prototype.send = mockSend;
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const getResult = results.services[0] as ConfigureResult;
       expect(getResult.success).toBe(false);
@@ -529,7 +622,10 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('configure');
@@ -553,7 +649,10 @@ describe('configure command with structured output', () => {
         services: {}
       });
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('configure');
@@ -576,7 +675,10 @@ describe('configure command with structured output', () => {
         services: { frontend: {}, backend: {} }
       });
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results).toBeDefined();
       expect(results.services).toBeDefined();
@@ -593,7 +695,10 @@ describe('configure command with structured output', () => {
         output: 'summary'
       };
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.command).toBe('configure');
       // Summary format still returns structured data
@@ -620,7 +725,10 @@ describe('configure command with structured output', () => {
         aws: { region: 'us-east-1' }
       });
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const showResult = results.services[0] as ConfigureResult;
       expect(showResult.metadata).toHaveProperty('awsRegion', 'us-east-1');
@@ -645,7 +753,10 @@ describe('configure command with structured output', () => {
         services: {}
       }));
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(3);
       expect(results.services.map(s => s.environment)).toEqual(['dev', 'test', 'prod']);
@@ -668,7 +779,10 @@ describe('configure command with structured output', () => {
         services: { api: {} }
       }));
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       expect(results.services).toHaveLength(2);
       expect(results.services.every(s => s.service === 'validation')).toBe(true);
@@ -688,15 +802,24 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       const mockSend = vi.fn().mockResolvedValue({
         SecretString: 'super-secret-jwt-token-12345'
       });
-      mockSecretsManagerClient.prototype.send = mockSend;
+      
+      // Mock the SecretsManagerClient instance
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const getResult = results.services[0] as ConfigureResult;
       expect(getResult.metadata.masked).toBeDefined();
@@ -716,7 +839,8 @@ describe('configure command with structured output', () => {
       };
 
       mockLoadEnvironmentConfig.mockReturnValue({
-        aws: { region: 'us-east-1' }
+        aws: { region: 'us-east-1', accountId: '123456789012' },
+        services: {}
       });
 
       const mockSend = vi.fn().mockResolvedValue({
@@ -725,9 +849,15 @@ describe('configure command with structured output', () => {
           clientSecret: 'github-client-secret-abcdef'
         })
       });
-      mockSecretsManagerClient.prototype.send = mockSend;
+      const mockClient = {
+        send: mockSend
+      };
+      (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const results = await configure(options);
+      const serviceDeployments = createServiceDeployments([
+        { name: 'dummy', type: 'external' }
+      ]);
+      const results = await configure(serviceDeployments, options);
 
       const getResult = results.services[0] as ConfigureResult;
       expect(getResult.metadata.masked).toBeDefined();

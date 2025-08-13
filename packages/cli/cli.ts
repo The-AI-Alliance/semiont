@@ -707,24 +707,44 @@ async function executeCommand(
       
       case 'publish': {
         const { publish } = await import('./commands/publish.js');
+        const { validateServiceSelector, resolveServiceSelector } = await import('./lib/services.js');
+        const { resolveServiceDeployments } = await import('./lib/deployment-resolver.js');
+        
+        const environment = getEnvironmentWithFallback(args);
+        const service = args['--service'] || 'all';
+        
+        // Resolve services first
+        await validateServiceSelector(service, 'publish', environment);
+        const resolvedServices = await resolveServiceSelector(service, 'publish', environment);
+        const serviceDeployments = resolveServiceDeployments(resolvedServices, environment);
+        
         const publishOptions = {
-          environment: getEnvironmentWithFallback(args),
-          service: args['--service'] || 'all',
+          environment,
           output: outputFormat,
           tag: args['--tag'] || 'latest',
           skipBuild: args['--skip-build'] || false,
           verbose: args['--verbose'] || false,
           dryRun: args['--dry-run'] || false
         };
-        results = await publish(publishOptions);
+        results = await publish(serviceDeployments, publishOptions);
         break;
       }
       
       case 'update': {
         const { update } = await import('./commands/update.js');
+        const { validateServiceSelector, resolveServiceSelector } = await import('./lib/services.js');
+        const { resolveServiceDeployments } = await import('./lib/deployment-resolver.js');
+        
+        const environment = getEnvironmentWithFallback(args);
+        const service = args['--service'] || 'all';
+        
+        // Resolve services first
+        await validateServiceSelector(service, 'start', environment);
+        const resolvedServices = await resolveServiceSelector(service, 'start', environment);
+        const serviceDeployments = resolveServiceDeployments(resolvedServices, environment);
+        
         const updateOptions = {
-          environment: getEnvironmentWithFallback(args),
-          service: args['--service'] || 'all',
+          environment,
           skipTests: args['--skip-tests'] || false,
           skipBuild: args['--skip-build'] || false,
           force: args['--force'] || false,
@@ -733,7 +753,7 @@ async function executeCommand(
           dryRun: args['--dry-run'] || false,
           output: outputFormat
         };
-        results = await update(updateOptions);
+        results = await update(serviceDeployments, updateOptions);
         break;
       }
       
@@ -853,25 +873,44 @@ async function executeCommand(
       }
       
       case 'configure': {
-        const { configure } = await import('./commands/configure.js');
+        const commandModule = await import('./commands/configure.js');
+        const { configure } = commandModule;
+        const { validateServiceSelector, resolveServiceSelector } = await import('./lib/services.js');
+        const { resolveServiceDeployments } = await import('./lib/deployment-resolver.js');
+        
+        const environment = getEnvironmentWithFallback(args);
+        const service = args['--service'] || 'all';
+        
+        // Resolve services first (configure doesn't really use services but we follow the pattern)
+        await validateServiceSelector(service, 'configure', environment);
+        const resolvedServices = await resolveServiceSelector(service, 'configure', environment);
+        const serviceDeployments = resolveServiceDeployments(resolvedServices, environment);
+        
         // Parse the action from positional arguments
         const action = args._?.length > 0 ? args._[0] : 'show';
         const configureOptions = {
           action: action as 'show' | 'list' | 'validate' | 'get' | 'set',
-          environment: getEnvironmentWithFallback(args),
+          environment,
           secretPath: args['--secret-path'],
           value: args['--value'],
           verbose: args['--verbose'] || false,
           dryRun: args['--dry-run'] || false,
           output: outputFormat
         };
-        results = await configure(configureOptions);
+        
+        // Type-safe command execution
+        results = await configure(serviceDeployments, configureOptions);
         break;
       }
 
       case 'init': {
         const { init } = await import('./commands/init.js');
+        
+        // Init doesn't need services but we pass empty array for consistency
+        const serviceDeployments: any[] = []; // Using any since init doesn't actually use the services
+        
         const initOptions = {
+          environment: 'none', // Init doesn't use environment
           name: args['--name'],
           directory: args['--directory'],
           force: args['--force'] || false,
@@ -879,8 +918,9 @@ async function executeCommand(
           output: outputFormat,
           quiet: args['--quiet'] || false,
           verbose: args['--verbose'] || false,
+          dryRun: args['--dry-run'] || false,
         };
-        results = await init(initOptions);
+        results = await init(serviceDeployments, initOptions);
         break;
       }
       

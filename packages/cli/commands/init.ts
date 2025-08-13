@@ -9,12 +9,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { colors } from '../lib/cli-colors.js';
 import { CommandResults } from '../lib/command-results.js';
+import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
 const InitOptionsSchema = z.object({
+  environment: z.string().default('none'), // Init doesn't need an environment but we include for consistency
   name: z.string().optional(),
   directory: z.string().optional(),
   force: z.boolean().default(false),
@@ -22,9 +25,16 @@ const InitOptionsSchema = z.object({
   output: z.enum(['summary', 'json', 'yaml']).default('summary'),
   quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
 });
 
-type InitOptions = z.infer<typeof InitOptionsSchema>;
+interface InitOptions extends BaseCommandOptions {
+  name?: string;
+  directory?: string;
+  force?: boolean;
+  environments?: string[];
+  quiet?: boolean;
+}
 
 // =====================================================================
 // TEMPLATE CONFIGURATIONS
@@ -257,19 +267,22 @@ function printInfo(message: string): void {
   console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
 }
 
-function printWarning(message: string): void {
-  console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
-}
 
 // =====================================================================
 // INIT FUNCTION
 // =====================================================================
 
-export async function init(options: InitOptions): Promise<CommandResults> {
+// Type assertion to ensure this function matches the CommandFunction signature
+// Note: Init doesn't use serviceDeployments but accepts them for API consistency
+export const init: CommandFunction<InitOptions> = async (
+  _serviceDeployments: ServiceDeploymentInfo[], // Not used but required for consistency
+  options: InitOptions
+): Promise<CommandResults> => {
   const startTime = Date.now();
   const projectName = options.name || path.basename(process.cwd());
   const targetDir = options.directory || process.cwd();
   const configPath = path.join(targetDir, 'semiont.json');
+  const environments = options.environments || ['local', 'test', 'staging', 'production'];
   
   try {
     // Check if semiont.json already exists
@@ -279,7 +292,7 @@ export async function init(options: InitOptions): Promise<CommandResults> {
 
     if (!options.quiet) {
       printInfo(`Initializing Semiont project: ${projectName}`);
-      printInfo(`Environments: ${options.environments.join(', ')}`);
+      printInfo(`Environments: ${environments.join(', ')}`);
     }
 
     // Create semiont.json
@@ -299,7 +312,7 @@ export async function init(options: InitOptions): Promise<CommandResults> {
 
     // Create environment configs
     const createdFiles: string[] = ['semiont.json'];
-    for (const env of options.environments) {
+    for (const env of environments) {
       const envConfig = generateEnvironmentConfig(env);
       const envPath = path.join(envDir, `${env}.json`);
       fs.writeFileSync(
@@ -314,7 +327,7 @@ export async function init(options: InitOptions): Promise<CommandResults> {
     }
 
     if (!options.quiet) {
-      printSuccess(`Created ${options.environments.length} environment configurations`);
+      printSuccess(`Created ${environments.length} environment configurations`);
       console.log('');
       printInfo('Next steps:');
       console.log(`  1. Edit semiont.json to configure your site settings`);
@@ -339,12 +352,6 @@ export async function init(options: InitOptions): Promise<CommandResults> {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
         dryRun: false
-      },
-      metadata: {
-        projectName,
-        targetDirectory: targetDir,
-        createdFiles,
-        environments: options.environments
       }
     };
 
@@ -369,41 +376,12 @@ export async function init(options: InitOptions): Promise<CommandResults> {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
         dryRun: false
-      },
-      metadata: {
-        error: error instanceof Error ? error.message : String(error),
-        projectName,
-        targetDirectory: targetDir
       }
     };
   }
-}
+};
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
-
-export async function main(options: InitOptions): Promise<void> {
-  try {
-    const results = await init(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Init failed: ${error}`);
-    process.exit(1);
-  }
-}
+// Note: The main function is removed as cli.ts now handles output formatting
+// The init function now accepts pre-resolved services (though doesn't use them) and returns CommandResults
 
 export { InitOptions, InitOptionsSchema };

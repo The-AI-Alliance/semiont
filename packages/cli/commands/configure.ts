@@ -11,8 +11,7 @@ import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, displayConfiguration, getAvailableEnvironments, ConfigurationError } from '../lib/deployment-resolver.js';
 import * as readline from 'readline';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { 
   ConfigureResult, 
   CommandResults, 
@@ -20,6 +19,7 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
 
 // =====================================================================
 // ARGUMENT PARSING WITH ZOD
@@ -35,7 +35,11 @@ const ConfigureOptionsSchema = z.object({
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
-type ConfigureOptions = z.infer<typeof ConfigureOptionsSchema>;
+interface ConfigureOptions extends BaseCommandOptions {
+  action: 'show' | 'list' | 'validate' | 'get' | 'set';
+  secretPath?: string;
+  value?: string;
+}
 
 // =====================================================================
 // CONSTANTS
@@ -56,166 +60,49 @@ const KNOWN_SECRETS: Record<string, string> = {
 // Global flag to control output suppression
 let suppressOutput = false;
 
-function printError(message: string): void {
+function printError(message: string): string {
+  const msg = `${colors.red}❌ ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.error(`${colors.red}❌ ${message}${colors.reset}`);
+    console.error(msg);
   }
+  return msg;
 }
 
-function printSuccess(message: string): void {
+function printSuccess(message: string): string {
+  const msg = `${colors.green}✅ ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.log(`${colors.green}✅ ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-function printInfo(message: string): void {
+function printInfo(message: string): string {
+  const msg = `${colors.cyan}ℹ️  ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-function printWarning(message: string): void {
+function printWarning(message: string): string {
+  const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
   if (!suppressOutput) {
-    console.log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-function printDebug(message: string, options: ConfigureOptions): void {
+function printDebug(message: string, options: ConfigureOptions): string {
+  const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
   if (!suppressOutput && options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
+    console.log(msg);
   }
+  return msg;
 }
 
-// =====================================================================
-// ARGUMENT PARSING
-// =====================================================================
+// Note: Argument parsing is now handled by cli.ts
 
-function parseArgs(): ConfigureOptions {
-  const args = process.argv.slice(2);
-  
-  if (args.includes('--help') || args.includes('-h')) {
-    printHelp();
-    process.exit(0);
-  }
-
-  // Parse command (first non-flag argument)
-  let command: string | undefined;
-  let environment: string | undefined;  
-  let secretPath: string | undefined;
-  let value: string | undefined;
-  let verbose = false;
-  let dryRun = false;
-
-  // Extract flags
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--environment' || arg === '-e') {
-      environment = args[i + 1];
-      i++; // Skip next arg
-    } else if (arg === '--verbose' || arg === '-v') {
-      verbose = true;
-    } else if (arg === '--dry-run') {
-      dryRun = true;
-    } else if (!arg.startsWith('-')) {
-      // Non-flag arguments in order: command, secretPath, value
-      if (!command) {
-        command = arg;
-      } else if (!secretPath) {
-        secretPath = arg;
-      } else if (!value) {
-        value = arg;
-      }
-    }
-  }
-
-  if (!command) {
-    console.error('❌ Command is required');
-    printHelp();
-    process.exit(1);
-  }
-
-  // Validate command
-  if (!['show', 'list', 'validate', 'get', 'set'].includes(command)) {
-    console.error(`❌ Invalid command: ${command}`);
-    printHelp();
-    process.exit(1);
-  }
-
-  // Environment is required for get/set operations
-  if (['get', 'set'].includes(command) && !environment) {
-    console.error(`❌ --environment is required for '${command}' operations`);
-    console.log(`💡 Available environments: ${getAvailableEnvironments().join(', ')}`);
-    process.exit(1);
-  }
-
-  // Secret path is required for get/set operations
-  if (['get', 'set'].includes(command) && !secretPath) {
-    console.error(`❌ Secret path is required for '${command}' operations`);
-    console.log(`💡 Available secrets: ${Object.keys(KNOWN_SECRETS).join(', ')}`);
-    process.exit(1);
-  }
-
-  try {
-    return ConfigureOptionsSchema.parse({
-      action: command as 'show' | 'list' | 'validate' | 'get' | 'set',
-      environment,
-      secretPath,
-      value,
-      verbose,
-      dryRun,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      console.error('❌ Invalid arguments:');
-      for (const issue of error.issues) {
-        console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
-      }
-      process.exit(1);
-    }
-    throw error;
-  }
-}
-
-function printHelp(): void {
-  console.log(`
-🔧 Semiont Configure Command
-
-Usage:
-  semiont configure <command> [options]
-
-Commands:
-  show           Show public configuration for all environments
-  list           List all configurable items and secrets
-  validate       Validate configuration files
-  get <secret>   Get a secret value from AWS Secrets Manager
-  set <secret>   Set a secret value in AWS Secrets Manager
-
-Options:
-  -e, --environment <env>    Environment (required for get/set)
-  -v, --verbose             Show detailed output
-  --dry-run                 Show what would be done without making changes
-  -h, --help                Show this help message
-
-Examples:
-  # Configuration management
-  semiont configure show                       # Show all environment configs
-  semiont configure list                       # List available secrets
-  semiont configure validate                   # Validate config files
-  
-  # Secret management (requires environment)  
-  semiont configure -e production get oauth/google    # Get OAuth secrets
-  semiont configure -e staging set oauth/google       # Set OAuth secrets
-  semiont configure -e production get jwt-secret      # Get JWT secret
-
-Available Secrets:
-${Object.entries(KNOWN_SECRETS).map(([key, desc]) => `  ${key.padEnd(15)} ${desc}`).join('\n')}
-
-Requirements:
-  • AWS CLI configured for secret operations
-  • Valid environment configuration
-  • Appropriate IAM permissions for Secrets Manager
-`);
-}
+// Note: Help is now handled by cli.ts
 
 // =====================================================================
 // UTILITY FUNCTIONS
@@ -286,7 +173,12 @@ async function getCurrentSecret(environment: string, secretName: string): Promis
         SecretId: secretName,
       })
     );
-    return JSON.parse(response.SecretString || '{}');
+    // Try to parse as JSON, but if it fails, return as string
+    try {
+      return JSON.parse(response.SecretString || '{}');
+    } catch {
+      return response.SecretString || null;
+    }
   } catch (error: any) {
     if (error.name === 'ResourceNotFoundException') {
       return null;
@@ -313,248 +205,17 @@ async function updateSecret(environment: string, secretName: string, secretValue
   );
 }
 
-// =====================================================================
-// COMMAND IMPLEMENTATIONS
-// =====================================================================
-
-async function showConfiguration(): Promise<void> {
-  printInfo('📋 Semiont Configuration Overview\n');
-  
-  const environments = getAvailableEnvironments();
-  for (const env of environments) {
-    try {
-      console.log(`\n🌟 Environment: ${env}`);
-      console.log('─'.repeat(50));
-      
-      const config = loadEnvironmentConfig(env);
-      
-      // Show key configuration sections
-      console.log(`Domain: ${config.site?.domain || 'Not configured'}`);
-      console.log(`Deployment: ${config.deployment?.default || 'Not specified'}`);
-      
-      if (config.services) {
-        console.log('Services:');
-        for (const [serviceName, serviceConfig] of Object.entries(config.services)) {
-          const service = serviceConfig as any;
-          const deployType = service.deployment?.type || config.deployment?.default;
-          console.log(`  • ${serviceName}: ${deployType}`);
-        }
-      }
-      
-      if (config.aws) {
-        console.log(`AWS Region: ${config.aws.region}`);
-        console.log(`AWS Account: ${config.aws.accountId || 'Not specified'}`);
-      }
-      
-    } catch (error) {
-      console.error(`❌ Failed to load ${env}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-  
-  console.log('\n💡 Use "semiont configure list" to see configurable secrets');
-}
-
-async function listConfigurable(): Promise<void> {
-  printInfo('📋 Configurable Items\n');
-  
-  console.log('🔐 Available Secrets:');
-  for (const [path, description] of Object.entries(KNOWN_SECRETS)) {
-    console.log(`  • ${path.padEnd(15)} - ${description}`);
-  }
-  
-  console.log('\n📝 Public Configuration:');
-  console.log('  • Environment files in config/environments/');
-  console.log('  • Service deployment types (container, aws)');  
-  console.log('  • Site settings (domain, email, OAuth domains)');
-  console.log('  • App features and security settings');
-  
-  console.log('\n💡 Usage:');
-  console.log('  semiont configure show                    # View current config');
-  console.log('  semiont configure -e prod get oauth/google   # Get secrets');
-  console.log('  semiont configure -e prod set jwt-secret     # Set secrets');
-}
-
-async function validateConfiguration(): Promise<void> {
-  printInfo('✅ Validating Semiont configuration...\n');
-  
-  const environments = getAvailableEnvironments();
-  let errors = 0;
-  
-  for (const env of environments) {
-    try {
-      console.log(`🔍 Validating ${env}...`);
-      const config = loadEnvironmentConfig(env);
-      
-      // Basic validation checks
-      if (!config.services) {
-        console.log(`  ⚠️  No services defined`);
-      } else {
-        console.log(`  ✅ ${Object.keys(config.services).length} services defined`);
-      }
-      
-      if (config.deployment?.default === 'aws' && !config.aws) {
-        console.log(`  ❌ AWS deployment specified but no AWS configuration`);
-        errors++;
-      } else if (config.aws) {
-        console.log(`  ✅ AWS configuration present`);
-      }
-      
-    } catch (error) {
-      console.error(`  ❌ Failed to load: ${error instanceof Error ? error.message : String(error)}`);
-      errors++;
-    }
-  }
-  
-  console.log('');
-  if (errors === 0) {
-    console.log('✅ Configuration validation passed');
-  } else {
-    console.error(`❌ Configuration validation failed with ${errors} error(s)`);
-    process.exit(1);
-  }
-}
-
-async function getSecret(options: ConfigureOptions): Promise<void> {
-  const { environment, secretPath, verbose } = options;
-  
-  if (!environment || !secretPath) {
-    throw new Error('Environment and secret path are required');
-  }
-  
-  console.log(`🔍 Reading secret: ${secretPath} from ${environment}\n`);
-  
-  if (verbose) {
-    console.log(`Environment: ${environment}`);
-    console.log(`Secret path: ${secretPath}`);
-  }
-  
-  try {
-    const fullName = await getSecretFullName(environment, secretPath);
-    if (verbose) {
-      console.log(`Full secret name: ${fullName}`);
-    }
-    
-    const secret = await getCurrentSecret(environment, fullName);
-    
-    if (secret === null) {
-      console.log(`❌ Secret '${secretPath}' not found`);
-      console.log(`   Full name: ${fullName}`);
-      console.log('\n💡 Available secrets:');
-      for (const key of Object.keys(KNOWN_SECRETS)) {
-        console.log(`   • ${key}`);
-      }
-      return;
-    }
-    
-    console.log(`✅ Secret: ${secretPath}`);
-    
-    if (typeof secret === 'string') {
-      console.log(`Value: ${maskSecret(secret)}`);
-    } else {
-      const masked = maskSecretObject(secret);
-      console.log('Value:');
-      console.log(JSON.stringify(masked, null, 2));
-    }
-    
-  } catch (error) {
-    console.error(`❌ Failed to get secret: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-}
-
-async function setSecret(options: ConfigureOptions): Promise<void> {
-  const { environment, secretPath, value, verbose, dryRun } = options;
-  
-  if (!environment || !secretPath) {
-    throw new Error('Environment and secret path are required');
-  }
-  
-  console.log(`🔐 Setting secret: ${secretPath} in ${environment}\n`);
-  
-  try {
-    const fullName = await getSecretFullName(environment, secretPath);
-    if (verbose) {
-      console.log(`Full secret name: ${fullName}`);
-    }
-    
-    // Get current secret to show what we're updating
-    let currentSecret;
-    try {
-      currentSecret = await getCurrentSecret(environment, fullName);
-    } catch (error) {
-      // Secret might not exist yet, that's okay
-      currentSecret = null;
-    }
-    
-    if (currentSecret) {
-      console.log('📋 Current value:');
-      if (typeof currentSecret === 'string') {
-        console.log(`  ${maskSecret(currentSecret)}`);
-      } else {
-        const masked = maskSecretObject(currentSecret);
-        console.log(JSON.stringify(masked, null, 2));
-      }
-    } else {
-      console.log('📋 Secret does not exist yet - will be created');
-    }
-    
-    let newValue: string;
-    
-    if (value) {
-      // Value provided as argument
-      newValue = value;
-    } else {
-      // Prompt for value
-      const rl = createReadlineInterface();
-      
-      if (KNOWN_SECRETS[secretPath]?.includes('OAuth')) {
-        console.log('\n🔑 OAuth Configuration:');
-        const clientId = await askQuestion(rl, 'Client ID: ');
-        const clientSecret = await askQuestion(rl, 'Client Secret: ');
-        
-        newValue = JSON.stringify({
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim()
-        });
-      } else {
-        newValue = await askQuestion(rl, '\nEnter secret value: ');
-      }
-      
-      rl.close();
-    }
-    
-    if (dryRun) {
-      console.log('\n🔍 DRY RUN - Would set secret to:');
-      if (newValue.startsWith('{')) {
-        // JSON secret
-        try {
-          const parsed = JSON.parse(newValue);
-          const masked = maskSecretObject(parsed);
-          console.log(JSON.stringify(masked, null, 2));
-        } catch {
-          console.log(maskSecret(newValue));
-        }
-      } else {
-        console.log(maskSecret(newValue));
-      }
-      return;
-    }
-    
-    console.log('\n💾 Updating secret...');
-    await updateSecret(environment, fullName, newValue);
-    console.log('✅ Secret updated successfully');
-    
-  } catch (error) {
-    console.error(`❌ Failed to set secret: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-}
+// Note: Command implementations are now handled within the structured configure function
 
 // =====================================================================
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export async function configure(options: ConfigureOptions): Promise<CommandResults> {
+// Type assertion to ensure this function matches the CommandFunction signature
+export const configure: CommandFunction<ConfigureOptions> = async (
+  serviceDeployments: ServiceDeploymentInfo[], // Not used but kept for API consistency
+  options: ConfigureOptions
+): Promise<CommandResults> => {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -798,74 +459,9 @@ export async function configure(options: ConfigureOptions): Promise<CommandResul
     // Restore output suppression state
     suppressOutput = previousSuppressOutput;
   }
-}
+};
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
-
-export async function main(options?: ConfigureOptions): Promise<void> {
-  try {
-    const opts = options || parseArgs();
-    
-    const results = await configure(opts);
-    
-    // Handle structured output
-    if (opts.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, opts.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show human-readable output
-    if (opts.verbose) {
-      printDebug(`Configure options: ${JSON.stringify(opts)}`, opts);
-    }
-    
-    switch (opts.action) {
-      case 'show':
-        await showConfiguration();
-        break;
-        
-      case 'list':
-        await listConfigurable();
-        break;
-        
-      case 'validate':
-        await validateConfiguration();
-        break;
-        
-      case 'get':
-        await getSecret(opts);
-        break;
-        
-      case 'set':
-        await setSecret(opts);
-        break;
-        
-      default:
-        printError(`Unknown action: ${opts.action}`);
-        process.exit(1);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary && results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Configure failed: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-}
-
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    printError(`Unexpected error: ${error}`);
-    process.exit(1);
-  });
-}
+// Note: The main function is removed as cli.ts now handles service resolution and output formatting
+// The configure function now accepts pre-resolved services and returns CommandResults
 
 export { ConfigureOptions, ConfigureOptionsSchema };

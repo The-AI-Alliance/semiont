@@ -11,8 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { 
@@ -22,6 +21,7 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
 
 // AWS SDK imports for ECS operations
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
@@ -34,7 +34,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const UpdateOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'),
   skipTests: z.boolean().default(false),
   skipBuild: z.boolean().default(false),
   force: z.boolean().default(false),
@@ -44,7 +43,12 @@ const UpdateOptionsSchema = z.object({
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
-type UpdateOptions = z.infer<typeof UpdateOptionsSchema>;
+interface UpdateOptions extends BaseCommandOptions {
+  skipTests?: boolean;
+  skipBuild?: boolean;
+  force?: boolean;
+  gracePeriod?: number;
+}
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -72,27 +76,6 @@ function printDebug(message: string, options: UpdateOptions): void {
   }
 }
 
-async function runCommand(
-  command: string[],
-  cwd: string,
-  _description: string,
-  verbose: boolean = false
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const proc = spawn(command[0]!, command.slice(1), {
-      cwd,
-      stdio: verbose ? 'inherit' : 'pipe',
-    });
-
-    proc.on('exit', (code) => {
-      resolve(code === 0);
-    });
-
-    proc.on('error', () => {
-      resolve(false);
-    });
-  });
-}
 
 
 // =====================================================================
@@ -295,9 +278,10 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
     }
     
     // Wait for grace period
-    if (options.gracePeriod > 0) {
-      printDebug(`Waiting ${options.gracePeriod} seconds before starting...`, options);
-      await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
+    const gracePeriod = options.gracePeriod || 3;
+    if (gracePeriod > 0) {
+      printDebug(`Waiting ${gracePeriod} seconds before starting...`, options);
+      await new Promise(resolve => setTimeout(resolve, gracePeriod * 1000));
     }
     
     // Start the container again with updated image
@@ -364,8 +348,8 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
         metadata: {
           containerName,
           image: imageName,
-          gracePeriod: options.gracePeriod,
-          forced: options.force
+          gracePeriod: options.gracePeriod || 3,
+          forced: options.force || false
         },
       };
     } else {
@@ -442,12 +426,13 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
       if (!isStructuredOutput && options.output === 'summary') {
         printInfo(`Stopping process on port ${port}`);
       }
-      await findAndKillProcess(`:${port}`, serviceInfo.name, options, isStructuredOutput);
+      await findAndKillProcess(`:${port}`, serviceInfo.name, options);
       
       // Wait for grace period
-      if (options.gracePeriod > 0) {
-        printDebug(`Waiting ${options.gracePeriod} seconds before starting...`, options);
-        await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
+      const processGracePeriod = options.gracePeriod || 3;
+      if (processGracePeriod > 0) {
+        printDebug(`Waiting ${processGracePeriod} seconds before starting...`, options);
+        await new Promise(resolve => setTimeout(resolve, processGracePeriod * 1000));
       }
       
       // Start new process with updated code
@@ -618,7 +603,7 @@ async function updateExternalService(serviceInfo: ServiceDeploymentInfo, options
   };
 }
 
-async function findAndKillProcess(pattern: string, name: string, options: UpdateOptions, isStructuredOutput: boolean = false): Promise<void> {
+async function findAndKillProcess(pattern: string, name: string, options: UpdateOptions): Promise<void> {
   try {
     // Find process using lsof (for port) or pgrep (for name)
     const isPort = pattern.startsWith(':');
@@ -639,8 +624,8 @@ async function findAndKillProcess(pattern: string, name: string, options: Update
         if (pid) {
           try {
             process.kill(parseInt(pid), options.force ? 'SIGKILL' : 'SIGTERM');
-          } catch (err) {
-            printDebug(`Failed to kill PID ${pid}: ${err}`, options);
+          } catch {
+            printDebug(`Failed to kill PID ${pid}`, options);
           }
         }
       }
@@ -659,7 +644,10 @@ async function findAndKillProcess(pattern: string, name: string, options: Update
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export async function update(options: UpdateOptions): Promise<CommandResults> {
+export const update: CommandFunction<UpdateOptions> = async (
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: UpdateOptions
+): Promise<CommandResults> => {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -672,13 +660,6 @@ export async function update(options: UpdateOptions): Promise<CommandResults> {
   }
   
   try {
-    // Validate service selector and resolve to actual services
-    await validateServiceSelector(options.service, 'start', options.environment);
-    const resolvedServices = await resolveServiceSelector(options.service, 'start', options.environment);
-    
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    
     if (options.verbose && !isStructuredOutput && options.output === 'summary') {
       console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
     }
@@ -742,7 +723,7 @@ export async function update(options: UpdateOptions): Promise<CommandResults> {
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false,
       }
     };
     
@@ -768,51 +749,13 @@ export async function update(options: UpdateOptions): Promise<CommandResults> {
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false,
       },
     };
   }
-}
+};
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
+// Note: The main function is removed as cli.ts now handles service resolution and output formatting
+// The update function now accepts pre-resolved services and returns CommandResults
 
-async function main(options: UpdateOptions): Promise<void> {
-  try {
-    const results = await update(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show traditional output with final status
-    if (results.summary.succeeded === results.summary.total) {
-      printSuccess('All services updated successfully');
-      printInfo('Services are now running with the latest updates');
-    } else {
-      printWarning('Some services failed to update - check logs above');
-      if (!options.force) {
-        printInfo('Use --force to ignore errors and continue');
-      }
-      process.exit(1);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Update failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, UpdateOptions, UpdateOptionsSchema };
+export { UpdateOptions, UpdateOptionsSchema };

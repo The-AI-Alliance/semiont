@@ -12,8 +12,7 @@ import * as path from 'path';
 import { z } from 'zod';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
-import { resolveServiceSelector, validateServiceSelector } from '../lib/services.js';
-import { resolveServiceDeployments, type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { buildImage, tagImage, pushImage } from '../lib/container-runtime.js';
 import { 
   PublishResult, 
@@ -22,6 +21,7 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
 
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
@@ -34,7 +34,6 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const PublishOptionsSchema = z.object({
   environment: z.string(),
-  service: z.string().default('all'),
   tag: z.string().default('latest'),
   skipBuild: z.boolean().default(false),
   verbose: z.boolean().default(false),
@@ -42,7 +41,10 @@ const PublishOptionsSchema = z.object({
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
-type PublishOptions = z.infer<typeof PublishOptionsSchema>;
+interface PublishOptions extends BaseCommandOptions {
+  tag: string;
+  skipBuild?: boolean;
+}
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -432,7 +434,10 @@ async function publishService(
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export async function publish(options: PublishOptions): Promise<CommandResults> {
+export const publish: CommandFunction<PublishOptions> = async (
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: PublishOptions
+): Promise<CommandResults> => {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -445,15 +450,6 @@ export async function publish(options: PublishOptions): Promise<CommandResults> 
   }
   
   try {
-    // Validate service selector
-    await validateServiceSelector(options.service, 'publish', options.environment);
-    
-    // Resolve services to publish
-    const resolvedServices = await resolveServiceSelector(options.service, 'publish', options.environment);
-    
-    // Get deployment information for all resolved services
-    const serviceDeployments = await resolveServiceDeployments(resolvedServices, options.environment);
-    
     if (options.verbose && !isStructuredOutput && options.output === 'summary') {
       console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
     }
@@ -505,7 +501,7 @@ export async function publish(options: PublishOptions): Promise<CommandResults> 
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false,
       }
     };
     
@@ -531,47 +527,13 @@ export async function publish(options: PublishOptions): Promise<CommandResults> 
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false,
       },
     };
   }
-}
+};
 
-// =====================================================================
-// MAIN EXECUTION
-// =====================================================================
+// Note: The main function is removed as cli.ts now handles service resolution and output formatting
+// The publish function now accepts pre-resolved services and returns CommandResults
 
-async function main(options: PublishOptions): Promise<void> {
-  try {
-    const results = await publish(options);
-    
-    // Handle structured output
-    if (options.output !== 'summary') {
-      const { formatResults } = await import('../lib/output-formatter.js');
-      const formatted = formatResults(results, options.output);
-      console.log(formatted);
-      return;
-    }
-    
-    // For summary format, show traditional output with final status
-    if (results.summary.succeeded === results.summary.total) {
-      printSuccess('All services published successfully!');
-    } else {
-      printError('Some services failed to publish');
-      process.exit(1);
-    }
-    
-    // Exit with appropriate code
-    if (results.summary.failed > 0) {
-      process.exit(1);
-    }
-    
-  } catch (error) {
-    printError(`Publish failed: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-}
-
-// Command file - no direct execution needed
-
-export { main, PublishOptions, PublishOptionsSchema };
+export { PublishOptions, PublishOptionsSchema };
