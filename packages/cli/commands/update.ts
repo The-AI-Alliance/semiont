@@ -764,7 +764,47 @@ export const update = async (
   }
 };
 
-// Note: The main function is removed as cli.ts now handles service resolution and output formatting
-// The update function now accepts pre-resolved services and returns CommandResults
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
 
+import { CommandBuilder } from '../lib/command-definition.js';
+
+export const updateCommand = new CommandBuilder<UpdateOptions>()
+  .name('update')
+  .description('Update running services with latest code/images')
+  .schema(UpdateOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name', required: true },
+      '--skip-tests': { type: 'boolean', description: 'Skip test suite after update' },
+      '--skip-build': { type: 'boolean', description: 'Skip build step' },
+      '--force': { type: 'boolean', description: 'Force update even on errors' },
+      '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-f': '--force',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont update --environment staging',
+    'semiont update --environment production --force',
+    'semiont update --environment local --skip-tests'
+  )
+  .handler(update)
+  .build();
+
+// Export default for compatibility
+export default updateCommand;
+
+// Export the schema and options type for use by CLI
 export { UpdateOptions, UpdateOptionsSchema };

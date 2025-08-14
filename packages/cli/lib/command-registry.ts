@@ -1,128 +1,44 @@
 /**
- * Command Registry - Central registry of all CLI commands
+ * Command Registry - Legacy file kept for backward compatibility
  * 
- * This module maintains a registry of all commands that follow
- * the standard CommandFunction signature.
+ * This file is largely deprecated. The new command system uses:
+ * - command-definition.ts for CommandBuilder and CommandDefinition
+ * - command-loader.ts for dynamic command loading
+ * - Individual command files that export their definitions using CommandBuilder
+ * 
+ * This file now only exports types that may still be referenced.
  */
 
 import { CommandFunction, BaseCommandOptions } from './command-types.js';
 
 /**
- * Registry of all CLI commands
- * Each command follows the standard (ServiceDeploymentInfo[], options) -> CommandResults pattern
+ * @deprecated Use CommandDefinition from command-definition.ts instead
  */
-export const COMMANDS = {
-  // Infrastructure and deployment commands
-  init: {
-    name: 'init',
-    description: 'Initialize a new Semiont project',
-    requiresServices: false,
-  },
-  provision: {
-    name: 'provision',
-    description: 'Provision infrastructure (containers or cloud)',
-    requiresServices: true,
-  },
-  configure: {
-    name: 'configure',
-    description: 'Manage configuration and secrets',
-    requiresServices: false, // Configure doesn't actually use services but follows the pattern
-  },
-  
-  // Service lifecycle commands
-  start: {
-    name: 'start',
-    description: 'Start services in any environment',
-    requiresServices: true,
-  },
-  stop: {
-    name: 'stop',
-    description: 'Stop services in any environment',
-    requiresServices: true,
-  },
-  restart: {
-    name: 'restart',
-    description: 'Restart services in any environment',
-    requiresServices: true,
-  },
-  
-  // Deployment and publishing commands
-  publish: {
-    name: 'publish',
-    description: 'Build and push container images',
-    requiresServices: true,
-  },
-  update: {
-    name: 'update',
-    description: 'Update running services with pre-built images',
-    requiresServices: true,
-  },
-  
-  // Monitoring and operations commands
-  check: {
-    name: 'check',
-    description: 'Check system health and status',
-    requiresServices: true,
-  },
-  watch: {
-    name: 'watch',
-    description: 'Monitor logs and system metrics',
-    requiresServices: true,
-  },
-  test: {
-    name: 'test',
-    description: 'Run tests against environments',
-    requiresServices: true,
-  },
-  
-  // Utility commands
-  backup: {
-    name: 'backup',
-    description: 'Create database backups',
-    requiresServices: true,
-  },
-  exec: {
-    name: 'exec',
-    description: 'Execute commands in cloud containers',
-    requiresServices: true,
-  },
-} as const;
-
-/**
- * Type guard to check if a command exists in the registry
- */
-export function isRegisteredCommand(commandName: string): commandName is keyof typeof COMMANDS {
-  return commandName in COMMANDS;
+export interface LegacyCommandMetadata {
+  name: string;
+  description: string;
+  requiresServices: boolean;
 }
 
 /**
- * Get command metadata
+ * @deprecated Commands are now loaded dynamically from their modules
  */
-export function getCommandMetadata(commandName: string) {
-  if (isRegisteredCommand(commandName)) {
-    return COMMANDS[commandName];
-  }
+export function isRegisteredCommand(_commandName: string): boolean {
+  console.warn('isRegisteredCommand is deprecated. Use getAvailableCommands from command-loader.js');
+  return false;
+}
+
+/**
+ * @deprecated Use loadCommand from command-loader.js instead
+ */
+export function getCommandMetadata(_commandName: string): LegacyCommandMetadata | null {
+  console.warn('getCommandMetadata is deprecated. Use loadCommand from command-loader.js');
   return null;
 }
 
 /**
- * Get all commands that require service resolution
- */
-export function getServiceCommands(): Array<keyof typeof COMMANDS> {
-  return (Object.keys(COMMANDS) as Array<keyof typeof COMMANDS>)
-    .filter(cmd => COMMANDS[cmd].requiresServices);
-}
-
-/**
- * Get all commands that don't require service resolution
- */
-export function getStandaloneCommands(): Array<keyof typeof COMMANDS> {
-  return (Object.keys(COMMANDS) as Array<keyof typeof COMMANDS>)
-    .filter(cmd => !COMMANDS[cmd].requiresServices);
-}
-
-/**
  * Validate that a command module exports the expected function
+ * This is still used by some legacy code paths
  */
 export function validateCommandModule<T extends BaseCommandOptions>(
   module: Record<string, unknown>,
