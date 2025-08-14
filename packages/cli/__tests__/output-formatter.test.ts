@@ -15,7 +15,8 @@ import {
 import { 
   createBaseResult, 
   createErrorResult,
-  type CommandResults 
+  type CommandResults,
+  type StartResult 
 } from '../lib/command-results.js';
 
 describe('Output Formatter', () => {
@@ -30,6 +31,8 @@ describe('Output Formatter', () => {
     services: [
       {
         ...createBaseResult('start', 'frontend', 'container', 'test', startTime),
+        startTime: new Date('2024-01-15T10:30:01Z'),
+        endpoint: 'http://localhost:3000',  // Add endpoint at service level for StartResult
         resourceId: {
           container: {
             id: 'abc123456789',
@@ -44,7 +47,7 @@ describe('Output Formatter', () => {
           image: 'semiont-frontend:latest',
           port: 3000
         }
-      },
+      } as StartResult,
       {
         ...createErrorResult(
           createBaseResult('start', 'backend', 'process', 'test', startTime),
@@ -101,7 +104,9 @@ describe('Output Formatter', () => {
             service: 'frontend',
             success: true,
             status: 'running',
-            endpoint: 'http://localhost:3000'
+            metadata: expect.objectContaining({
+              endpoint: 'http://localhost:3000'
+            })
           }),
           expect.objectContaining({
             service: 'backend',

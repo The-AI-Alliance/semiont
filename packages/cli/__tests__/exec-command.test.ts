@@ -23,6 +23,17 @@ import {
 vi.mock('../lib/container-runtime.js');
 vi.mock('@aws-sdk/client-ecs');
 vi.mock('child_process');
+vi.mock('../lib/deployment-resolver.js', async () => {
+  const actual = await vi.importActual('../lib/deployment-resolver.js');
+  return {
+    ...actual,
+    loadEnvironmentConfig: vi.fn(() => ({
+      aws: { region: 'us-east-1', accountId: '123456789012' },
+      services: {},
+      deployment: {}
+    }))
+  };
+});
 
 describe('exec command with structured output', () => {
   const mockExecInContainer = vi.mocked(containerRuntime.execInContainer);
@@ -74,6 +85,12 @@ describe('exec command with structured output', () => {
       expect(results.services).toHaveLength(1);
       
       const execResult = results.services[0]! as ExecResult;
+      
+      // Debug: Log the actual result to see what went wrong
+      if (execResult.status !== 'success') {
+        console.log('ExecResult:', JSON.stringify(execResult, null, 2));
+      }
+      
       expect(execResult.service).toBe('backend');
       expect(execResult.deploymentType).toBe('aws');
       expect(execResult.command).toBe('/bin/sh');

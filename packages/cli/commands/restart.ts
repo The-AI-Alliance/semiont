@@ -1,11 +1,5 @@
 /**
- * Restart Command - Deployment-type aware service restart
- * 
- * This command restarts services based on their deployment type:
- * - AWS: Restart ECS tasks
- * - Container: Restart containers
- * - Process: Restart processes
- * - External: Verify external service
+ * Restart Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -21,6 +15,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -33,9 +29,10 @@ const RestartOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   gracePeriod: z.number().int().positive().default(3), // seconds to wait between stop and start
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-type RestartOptions = z.infer<typeof RestartOptionsSchema>;
+type RestartOptions = z.infer<typeof RestartOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -632,6 +629,45 @@ export async function restart(
     setSuppressOutput(previousSuppressOutput);
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const restartCommand = new CommandBuilder<RestartOptions>()
+  .name('restart')
+  .description('Restart services in an environment')
+  .schema(RestartOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--force': { type: 'boolean', description: 'Force restart services' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-f': '--force',
+      '-v': '--verbose',
+      '-o': '--output',
+      '-g': '--grace-period',
+    }
+  })
+  .examples(
+    'semiont restart --environment local',
+    'semiont restart --environment staging --grace-period 5',
+    'semiont restart --environment prod --services frontend,backend --force'
+  )
+  .handler(restart)
+  .build();
+
+// Export default for compatibility
+export default restartCommand;
 
 // Export the schema for use by CLI
 export { RestartOptions, RestartOptionsSchema };

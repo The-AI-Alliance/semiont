@@ -1,8 +1,8 @@
 /**
- * Configure Command - Unified configuration management with structured output
+ * Configure Command - Unified configuration management (v2)
  * 
  * Manages both public configuration (domains, settings) and private secrets (OAuth, JWT)
- * Now supports structured output for programmatic access.
+ * Migrated to use the new command definition structure.
  */
 
 import { z } from 'zod';
@@ -11,7 +11,7 @@ import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
 import * as readline from 'readline';
 import { colors } from '../lib/cli-colors.js';
-import { printInfo } from '../lib/cli-logger.js';
+import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { 
   ConfigureResult, 
@@ -19,13 +19,14 @@ import {
   createBaseResult,
   createErrorResult 
 } from '../lib/command-results.js';
-import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import { BaseCommandOptions } from '../lib/command-types.js';
 
 // =====================================================================
-// ARGUMENT PARSING WITH ZOD
+// SCHEMA DEFINITIONS
 // =====================================================================
 
-const ConfigureOptionsSchema = z.object({
+export const ConfigureOptionsSchema = z.object({
   action: z.enum(['show', 'list', 'validate', 'get', 'set']).default('show'),
   environment: z.string().default('local'),
   secretPath: z.string().optional(),
@@ -35,7 +36,8 @@ const ConfigureOptionsSchema = z.object({
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
-interface ConfigureOptions extends BaseCommandOptions {
+// Explicitly define the type to ensure it satisfies BaseCommandOptions
+export interface ConfigureOptions extends BaseCommandOptions {
   action: 'show' | 'list' | 'validate' | 'get' | 'set';
   secretPath?: string;
   value?: string;
@@ -52,51 +54,6 @@ const KNOWN_SECRETS: Record<string, string> = {
   'jwt-secret': 'JWT signing secret for API authentication',
   'app-secrets': 'Application secrets (session, NextAuth, etc.)'
 };
-
-// =====================================================================
-// HELPER FUNCTIONS
-// =====================================================================
-
-// Global flag to control output suppression
-let suppressOutput = false;
-
-// function printError(message: string): string {
-//   const msg = `${colors.red}❌ ${message}${colors.reset}`;
-//   if (!suppressOutput) {
-//     console.error(msg);
-//   }
-//   return msg;
-// }
-
-// function printSuccess(message: string): string {
-//   const msg = `${colors.green}✅ ${message}${colors.reset}`;
-//   if (!suppressOutput) {
-//     console.log(msg);
-//   }
-//   return msg;
-// }
-
-
-
-// function printWarning(message: string): string {
-//   const msg = `${colors.yellow}⚠️  ${message}${colors.reset}`;
-//   if (!suppressOutput) {
-//     console.log(msg);
-//   }
-//   return msg;
-// }
-
-// function printDebug(message: string, options: ConfigureOptions): string {
-//   const msg = `${colors.dim}[DEBUG] ${message}${colors.reset}`;
-//   if (!suppressOutput && options.verbose) {
-//     console.log(msg);
-//   }
-//   return msg;
-// }
-
-// Note: Argument parsing is now handled by cli.ts
-
-// Note: Help is now handled by cli.ts
 
 // =====================================================================
 // UTILITY FUNCTIONS
@@ -199,23 +156,19 @@ async function updateSecret(environment: string, secretName: string, secretValue
   );
 }
 
-// Note: Command implementations are now handled within the structured configure function
-
 // =====================================================================
-// STRUCTURED OUTPUT FUNCTION
+// COMMAND IMPLEMENTATION
 // =====================================================================
 
-// Type assertion to ensure this function matches the CommandFunction signature
-export const configure: CommandFunction<ConfigureOptions> = async (
+async function configure(
   _serviceDeployments: ServiceDeploymentInfo[], // Not used but kept for API consistency
   options: ConfigureOptions
-): Promise<CommandResults> => {
+): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
   // Suppress output for structured formats
-  const previousSuppressOutput = suppressOutput;
-  suppressOutput = isStructuredOutput;
+  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -248,17 +201,30 @@ export const configure: CommandFunction<ConfigureOptions> = async (
                 },
               };
               configureResults.push(result);
+              
+              if (!isStructuredOutput && options.output === 'summary') {
+                console.log(`\n${colors.bright}${env}:${colors.reset}`);
+                console.log(`  Domain: ${config.site?.domain || 'Not configured'}`);
+                console.log(`  Default deployment: ${config.deployment?.default || 'Not specified'}`);
+                console.log(`  Services: ${Object.keys(config.services || {}).join(', ') || 'None'}`);
+                if (config.aws) {
+                  console.log(`  AWS Region: ${config.aws.region || 'Not specified'}`);
+                  console.log(`  AWS Account: ${config.aws.accountId || 'Not specified'}`);
+                }
+              }
             } catch (error) {
-              const errorResult = createErrorResult(
+              if (!isStructuredOutput && options.output === 'summary') {
+                console.log(`\n${colors.bright}${env}:${colors.reset} ${colors.red}Error loading config${colors.reset}`);
+              }
+              
+              const result = createErrorResult(
                 createBaseResult('configure', 'configuration', 'external', env, startTime),
                 error as Error
               ) as ConfigureResult;
-              errorResult.configurationChanges = [];
-              errorResult.restartRequired = false;
-              errorResult.resourceId = { external: {} };
-              errorResult.status = 'failed';
-              errorResult.metadata = { action: 'show', error: (error as Error).message };
-              configureResults.push(errorResult);
+              result.configurationChanges = [];
+              result.restartRequired = false;
+              result.resourceId = { external: { endpoint: 'config-file' } };
+              configureResults.push(result);
             }
           }
           break;
@@ -269,63 +235,59 @@ export const configure: CommandFunction<ConfigureOptions> = async (
             ...createBaseResult('configure', 'secrets', 'external', options.environment, startTime),
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { external: { endpoint: 'secrets-list' } },
+            resourceId: { external: { endpoint: 'secrets-manager' } },
             status: 'listed',
             metadata: {
               action: 'list',
-              availableSecrets: Object.keys(KNOWN_SECRETS),
-              secretDescriptions: KNOWN_SECRETS,
+              secrets: Object.keys(KNOWN_SECRETS),
             },
           };
           configureResults.push(result);
+          
+          if (!isStructuredOutput && options.output === 'summary') {
+            console.log(`\n${colors.bright}Available secrets for ${options.environment}:${colors.reset}`);
+            for (const [path, description] of Object.entries(KNOWN_SECRETS)) {
+              console.log(`  ${colors.cyan}${path}${colors.reset}: ${description}`);
+            }
+          }
           break;
         }
         
         case 'validate': {
-          const environments = getAvailableEnvironments();
-          let validationErrors = 0;
+          const config = loadEnvironmentConfig(options.environment);
+          const issues: string[] = [];
           
-          for (const env of environments) {
-            try {
-              const config = loadEnvironmentConfig(env);
-              const issues: string[] = [];
-              
-              if (!config.services) {
-                issues.push('No services defined');
+          // Check required fields
+          if (!config.deployment?.default) {
+            issues.push('Missing deployment.default');
+          }
+          if (config.deployment?.default === 'aws' && !config.aws) {
+            issues.push('AWS deployment requires aws configuration');
+          }
+          
+          const result: ConfigureResult = {
+            ...createBaseResult('configure', 'validation', 'external', options.environment, startTime),
+            configurationChanges: [],
+            restartRequired: false,
+            resourceId: { external: { endpoint: 'config-file' } },
+            status: issues.length === 0 ? 'validated' : 'validation-failed',
+            success: issues.length === 0, // Override success based on validation
+            metadata: {
+              action: 'validate',
+              issues,
+              valid: issues.length === 0,
+            },
+          };
+          configureResults.push(result);
+          
+          if (!isStructuredOutput && options.output === 'summary') {
+            if (issues.length === 0) {
+              console.log(`${colors.green}✅ Configuration is valid${colors.reset}`);
+            } else {
+              console.log(`${colors.red}❌ Configuration issues found:${colors.reset}`);
+              for (const issue of issues) {
+                console.log(`  - ${issue}`);
               }
-              
-              if (config.deployment?.default === 'aws' && !config.aws) {
-                issues.push('AWS deployment specified but no AWS configuration');
-                validationErrors++;
-              }
-              
-              const result: ConfigureResult = {
-                ...createBaseResult('configure', 'validation', 'external', env, startTime),
-                configurationChanges: [],
-                restartRequired: false,
-                resourceId: { external: { endpoint: 'validation' } },
-                status: issues.length === 0 ? 'valid' : 'invalid',
-                success: issues.length === 0,
-                metadata: {
-                  action: 'validate',
-                  issues,
-                  servicesCount: Object.keys(config.services || {}).length,
-                  hasAwsConfig: !!config.aws,
-                },
-              };
-              configureResults.push(result);
-            } catch (error) {
-              validationErrors++;
-              const errorResult = createErrorResult(
-                createBaseResult('configure', 'validation', 'external', env, startTime),
-                error as Error
-              ) as ConfigureResult;
-              errorResult.configurationChanges = [];
-              errorResult.restartRequired = false;
-              errorResult.resourceId = { external: {} };
-              errorResult.status = 'failed';
-              errorResult.metadata = { action: 'validate', error: (error as Error).message };
-              configureResults.push(errorResult);
             }
           }
           break;
@@ -333,98 +295,129 @@ export const configure: CommandFunction<ConfigureOptions> = async (
         
         case 'get': {
           if (!options.secretPath) {
-            throw new Error('Secret path is required for get operation');
+            throw new Error('Secret path is required for get action');
           }
           
-          const fullName = await getSecretFullName(options.environment, options.secretPath);
-          const secret = await getCurrentSecret(options.environment, fullName);
+          const secretName = await getSecretFullName(options.environment, options.secretPath);
+          const value = await getCurrentSecret(options.environment, secretName);
           
           const result: ConfigureResult = {
-            ...createBaseResult('configure', options.secretPath, 'aws', options.environment, startTime),
+            ...createBaseResult('configure', 'secret', 'external', options.environment, startTime),
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { aws: { name: fullName } },
-            status: secret ? 'retrieved' : 'not-found',
-            success: !!secret,
+            resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+            status: value ? 'retrieved' : 'not-found',
+            success: value !== null, // Set success based on whether secret was found
             metadata: {
               action: 'get',
               secretPath: options.secretPath,
-              exists: !!secret,
-              type: typeof secret,
-              masked: secret ? maskSecretObject(secret) : null,
+              secretName,
+              value: maskSecretObject(value),
+              exists: value !== null,
             },
           };
           configureResults.push(result);
+          
+          if (!isStructuredOutput && options.output === 'summary') {
+            if (value) {
+              console.log(`\n${colors.bright}Secret: ${options.secretPath}${colors.reset}`);
+              console.log(`Value: ${maskSecretObject(value)}`);
+            } else {
+              console.log(`${colors.yellow}Secret not found: ${options.secretPath}${colors.reset}`);
+            }
+          }
           break;
         }
         
         case 'set': {
           if (!options.secretPath) {
-            throw new Error('Secret path is required for set operation');
+            throw new Error('Secret path is required for set action');
           }
           
-          const fullName = await getSecretFullName(options.environment, options.secretPath);
-          let currentSecret;
-          try {
-            currentSecret = await getCurrentSecret(options.environment, fullName);
-          } catch {
-            currentSecret = null;
-          }
+          const secretName = await getSecretFullName(options.environment, options.secretPath);
+          let newValue: any = options.value;
           
-          let newValue = options.value;
-          if (!newValue && !options.dryRun && !isStructuredOutput) {
-            // Interactive prompt for value
+          // If no value provided, prompt for it
+          if (!newValue) {
             const rl = createReadlineInterface();
-            
-            if (KNOWN_SECRETS[options.secretPath]?.includes('OAuth')) {
-              const clientId = await askQuestion(rl, 'Client ID: ');
-              const clientSecret = await askQuestion(rl, 'Client Secret: ');
-              newValue = JSON.stringify({ clientId, clientSecret });
-            } else {
-              newValue = await askQuestion(rl, 'Enter secret value: ');
-            }
+            newValue = await askQuestion(rl, `Enter value for ${options.secretPath}: `);
             rl.close();
           }
           
-          if (!options.dryRun && newValue) {
-            await updateSecret(options.environment, fullName, newValue);
+          // Try to parse as JSON if it looks like JSON
+          if (newValue.startsWith('{') || newValue.startsWith('[')) {
+            try {
+              newValue = JSON.parse(newValue);
+            } catch {
+              // Keep as string if not valid JSON
+            }
           }
           
-          const result: ConfigureResult = {
-            ...createBaseResult('configure', options.secretPath, 'aws', options.environment, startTime),
-            configurationChanges: [
-              {
+          if (options.dryRun) {
+            const result: ConfigureResult = {
+              ...createBaseResult('configure', 'secret', 'external', options.environment, startTime),
+              configurationChanges: [{
                 key: options.secretPath,
-                oldValue: currentSecret ? maskSecretObject(currentSecret) : undefined,
-                newValue: newValue ? maskSecretObject(newValue) : undefined,
+                oldValue: 'masked',
+                newValue: maskSecretObject(newValue),
                 source: 'aws-secrets-manager',
+              }],
+              restartRequired: true,
+              resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+              status: 'dry-run',
+              metadata: {
+                action: 'set',
+                secretPath: options.secretPath,
+                secretName,
+                dryRun: true,
               },
-            ],
-            restartRequired: true,
-            resourceId: { aws: { name: fullName } },
-            status: options.dryRun ? 'dry-run' : 'updated',
-            metadata: {
-              action: 'set',
-              secretPath: options.secretPath,
-              wasExisting: !!currentSecret,
-              dryRun: options.dryRun ?? false,
-            },
-          };
-          configureResults.push(result);
+            };
+            configureResults.push(result);
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              console.log(`${colors.cyan}[DRY RUN] Would update secret: ${options.secretPath}${colors.reset}`);
+            }
+          } else {
+            await updateSecret(options.environment, secretName, newValue);
+            
+            const result: ConfigureResult = {
+              ...createBaseResult('configure', 'secret', 'external', options.environment, startTime),
+              configurationChanges: [{
+                key: options.secretPath,
+                oldValue: 'masked',
+                newValue: maskSecretObject(newValue),
+                source: 'aws-secrets-manager',
+              }],
+              restartRequired: true,
+              resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+              status: 'updated',
+              metadata: {
+                action: 'set',
+                secretPath: options.secretPath,
+                secretName,
+              },
+            };
+            configureResults.push(result);
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              console.log(`${colors.green}✅ Secret updated: ${options.secretPath}${colors.reset}`);
+              console.log(`${colors.yellow}⚠️  Services may need to be restarted to use the new value${colors.reset}`);
+            }
+          }
           break;
         }
       }
     } catch (error) {
-      const errorResult = createErrorResult(
-        createBaseResult('configure', options.action, 'external', options.environment, startTime),
-        error as Error
-      ) as ConfigureResult;
+      const baseResult = createBaseResult('configure', 'error', 'external', options.environment, startTime);
+      const errorResult = createErrorResult(baseResult, error as Error) as ConfigureResult;
       errorResult.configurationChanges = [];
       errorResult.restartRequired = false;
-      errorResult.resourceId = { external: {} };
-      errorResult.status = 'failed';
-      errorResult.metadata = { action: options.action, error: (error as Error).message };
+      errorResult.resourceId = { external: { endpoint: 'error' } };
       configureResults.push(errorResult);
+      
+      if (!isStructuredOutput && options.output === 'summary') {
+        console.error(`${colors.red}❌ ${error}${colors.reset}`);
+      }
     }
     
     // Create aggregated results
@@ -443,7 +436,7 @@ export const configure: CommandFunction<ConfigureOptions> = async (
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun ?? false,
+        dryRun: options.dryRun || false,
       }
     };
     
@@ -451,11 +444,69 @@ export const configure: CommandFunction<ConfigureOptions> = async (
     
   } finally {
     // Restore output suppression state
-    suppressOutput = previousSuppressOutput;
+    setSuppressOutput(previousSuppressOutput);
   }
-};
+}
 
-// Note: The main function is removed as cli.ts now handles service resolution and output formatting
-// The configure function now accepts pre-resolved services and returns CommandResults
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
 
-export { ConfigureOptions, ConfigureOptionsSchema };
+export const configureCommand = new CommandBuilder<ConfigureOptions>()
+  .name('configure')
+  .description('Manage configuration and secrets')
+  .schema(ConfigureOptionsSchema as any)
+  .args({
+    args: {
+      '--environment': {
+        type: 'string',
+        description: 'Target environment',
+        required: true,
+      },
+      '--secret-path': {
+        type: 'string',
+        description: 'Secret path (e.g., oauth/google, jwt-secret)',
+      },
+      '--value': {
+        type: 'string',
+        description: 'Secret value (will prompt if not provided)',
+      },
+      '--output': {
+        type: 'string',
+        description: 'Output format',
+        choices: ['summary', 'table', 'json', 'yaml'],
+        default: 'summary',
+      },
+      '--verbose': {
+        type: 'boolean',
+        description: 'Verbose output',
+        default: false,
+      },
+      '--dry-run': {
+        type: 'boolean',
+        description: 'Preview changes without applying',
+        default: false,
+      },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-s': '--secret-path',
+      '-o': '--output',
+      '-v': '--verbose',
+    },
+    positional: ['action'], // First positional arg is the action
+  })
+  .requiresEnvironment(true)
+  .requiresServices(false)
+  .examples(
+    'semiont configure -e local show',
+    'semiont configure -e production list',
+    'semiont configure -e staging validate',
+    'semiont configure -e production get oauth/google',
+    'semiont configure -e staging set jwt-secret'
+  )
+  .handler(configure)
+  .build();
+
+// Also export as default for compatibility
+export default configureCommand;

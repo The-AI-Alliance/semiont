@@ -1,8 +1,5 @@
 /**
- * Start Command - Refactored to work with new CLI structure
- * 
- * This version expects arguments to be passed via environment variables
- * and command-line flags from the main CLI entry point.
+ * Start Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -21,6 +18,8 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 import * as fs from 'fs';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -34,9 +33,10 @@ const StartOptionsSchema = z.object({
   quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
+  services: z.array(z.string()).optional(),
 });
 
-type StartOptions = z.infer<typeof StartOptionsSchema>;
+type StartOptions = z.infer<typeof StartOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -634,6 +634,43 @@ export async function start(
     };
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const startCommand = new CommandBuilder<StartOptions>()
+  .name('start')
+  .description('Start services in an environment')
+  .schema(StartOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--quiet': { type: 'boolean', description: 'Suppress output' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-o': '--output',
+      '-q': '--quiet',
+      '-v': '--verbose',
+    }
+  })
+  .examples(
+    'semiont start --environment local',
+    'semiont start --environment staging --services frontend,backend',
+    'semiont start --environment prod --dry-run'
+  )
+  .handler(start)
+  .build();
+
+// Export default for compatibility
+export default startCommand;
 
 // Export the schema for use by CLI
 export { StartOptions, StartOptionsSchema };

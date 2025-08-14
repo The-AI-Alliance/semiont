@@ -14,6 +14,7 @@ import { colors } from '../lib/cli-colors.js';
 import { printDebug } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
+import type { BaseCommandOptions } from '../lib/command-types.js';
 // import { getProjectRoot } from '../lib/cli-paths.js';
 import { 
   UpdateResult, 
@@ -22,7 +23,6 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
-import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
 
 // AWS SDK imports for ECS operations
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
@@ -363,6 +363,7 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
       
       return {
         ...baseResult,
+        success: false,  // Even with force, this is still a failure
         updateTime: new Date(),
         previousVersion: 'unknown',
         newVersion: 'unknown',
@@ -644,7 +645,7 @@ async function findAndKillProcess(pattern: string, name: string, options: Update
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export const update: CommandFunction<UpdateOptions> = async (
+export const update = async (
   serviceDeployments: ServiceDeploymentInfo[],
   options: UpdateOptions
 ): Promise<CommandResults> => {
@@ -678,6 +679,14 @@ export const update: CommandFunction<UpdateOptions> = async (
       try {
         const result = await updateService(serviceInfo, options, isStructuredOutput);
         serviceResults.push(result);
+        
+        // Stop on first error unless --force is used
+        if (!result.success && !options.force) {
+          if (!isStructuredOutput && options.output === 'summary') {
+            printError(`Stopping due to error. Use --force to continue despite errors.`);
+          }
+          break;
+        }
       } catch (error) {
         // Create error result
         const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);

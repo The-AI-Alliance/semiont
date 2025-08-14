@@ -1,11 +1,5 @@
 /**
- * Test Command - Deployment-type aware service testing
- * 
- * This command runs tests against services based on deployment type:
- * - AWS: Integration tests against AWS endpoints, health checks, performance tests
- * - Container: Container-based tests, service connectivity, volume tests
- * - Process: Local process tests, API tests, database connectivity
- * - External: External service integration tests, connectivity tests
+ * Test Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -22,6 +16,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -38,9 +34,10 @@ const TestOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-type TestOptions = z.infer<typeof TestOptionsSchema>;
+type TestOptions = z.infer<typeof TestOptionsSchema> & BaseCommandOptions;
 
 
 // =====================================================================
@@ -415,18 +412,35 @@ async function runIntegrationTestsForService(serviceInfo: ServiceDeploymentInfo,
     { cmd: 'jest', args: ['--testMatch', `**/*${serviceInfo.name}*.integration.test.(js|ts)`] },
   ];
   
+  // Track if we actually ran any tests
+  let testsWereRun = false;
+  let testsFailed = false;
+  
   for (const testDir of testDirs) {
     for (const runner of runners) {
       const success = await runCommand(runner.cmd, runner.args, testDir, options);
+      // If runCommand returns true or false, it means the test runner was found and executed
+      // We track this separately from whether the tests passed
+      testsWereRun = true;
+      
       if (success) {
         printSuccess(`Integration tests passed for ${serviceInfo.name}`);
         return true;
+      } else {
+        printError(`Integration tests failed for ${serviceInfo.name}`);
+        testsFailed = true;
+        // Don't continue trying other runners if tests already ran and failed
+        return false;
       }
     }
   }
   
-  printWarning(`No integration tests found for ${serviceInfo.name}`);
-  return true; // Don't fail if tests don't exist
+  if (!testsWereRun) {
+    printWarning(`No integration tests found for ${serviceInfo.name}`);
+    return true; // Don't fail if tests don't exist
+  }
+  
+  return !testsFailed;
 }
 
 // =====================================================================
@@ -470,8 +484,13 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   // Restore output suppression state
   setSuppressOutput(previousSuppressOutput);
   
+  // The test command itself succeeded - it ran the tests
+  // We just need to report whether the tests passed or failed
+  const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  
   return {
-    ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+    ...baseResult,
+    success: true, // The test command executed successfully
     testSuite: suite,
     testsRun: 1, // Simplified for now
     testsPassed: passed ? 1 : 0,
@@ -648,6 +667,49 @@ async function runE2ETestsForService(serviceInfo: ServiceDeploymentInfo, options
 }
 
 
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const testCommand = new CommandBuilder<TestOptions>()
+  .name('test')
+  .description('Run tests against services')
+  .schema(TestOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--suite': { type: 'string', description: 'Test suite to run (all, integration, e2e, health, security, connectivity)' },
+      '--coverage': { type: 'boolean', description: 'Generate coverage report' },
+      '--parallel': { type: 'boolean', description: 'Run tests in parallel' },
+      '--timeout': { type: 'number', description: 'Test timeout in seconds' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-s': '--suite',
+      '-c': '--coverage',
+      '-p': '--parallel',
+      '-t': '--timeout',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont test --environment local --suite integration',
+    'semiont test --environment staging --suite e2e --parallel',
+    'semiont test --environment production --suite health --timeout 60'
+  )
+  .handler(test)
+  .build();
+
+// Export default for compatibility
+export default testCommand;
 
 // Note: The main function is removed as cli.ts now handles service resolution and output formatting
 // The test function now accepts pre-resolved services and returns CommandResults

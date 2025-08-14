@@ -1,31 +1,23 @@
 {
-  "version": "1.0",
+  "version": "1.0.0",
   "project": "cli",
   "site": {
     "siteName": "cli",
-    "domain": "cli.example.com",
-    "adminEmail": "admin@example.com",
-    "supportEmail": "support@example.com",
-    "oauthAllowedDomains": [
-      "example.com"
-    ]
+    "domain": "example.com",
+    "adminEmail": "admin@example.com"
   },
-  "defaults": {
-    "region": "us-east-1",
-    "deployment": {
-      "type": "container"
+  "services": {
+    "frontend": {
+      "framework": "next",
+      "port": 3000
     },
-    "services": {
-      "frontend": {
-        "port": 3000
-      },
-      "backend": {
-        "port": 3001
-      },
-      "database": {
-        "port": 5432,
-        "user": "postgres"
-      }
+    "backend": {
+      "framework": "express",
+      "port": 3001
+    },
+    "database": {
+      "type": "postgres",
+      "port": 5432
     }
   }
 }

@@ -8,7 +8,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { beforeAll, afterAll } from 'vitest';
-import { init } from '../commands/init.js';
+import initCommand from '../commands/init.js';
+const init = initCommand.handler;
 
 // Global test directory that will be used by all tests
 let globalTestDir: string;

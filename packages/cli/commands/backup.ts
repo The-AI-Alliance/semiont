@@ -1,11 +1,5 @@
 /**
- * Backup Command - Deployment-type aware backup operations
- * 
- * This command creates backups based on service deployment type:
- * - AWS: Create RDS snapshots, EFS backups, ECS task definitions backup
- * - Container: Export container volumes, database dumps, configuration backups
- * - Process: Create database dumps, file backups, configuration snapshots
- * - External: Skip (managed separately)
+ * Backup Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -24,6 +18,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // AWS SDK imports for backup operations  
 import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
@@ -42,9 +38,10 @@ const BackupOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-type BackupOptions = z.infer<typeof BackupOptionsSchema>;
+type BackupOptions = z.infer<typeof BackupOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -814,6 +811,46 @@ export async function backup(
     setSuppressOutput(previousSuppressOutput);
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const backupCommand = new CommandBuilder<BackupOptions>()
+  .name('backup')
+  .description('Create backups of services')
+  .schema(BackupOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--name': { type: 'string', description: 'Backup name' },
+      '--output-path': { type: 'string', description: 'Output path for backups' },
+      '--compress': { type: 'boolean', description: 'Compress backups' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-n': '--name',
+      '-o': '--output',
+      '-c': '--compress',
+      '-v': '--verbose',
+    }
+  })
+  .examples(
+    'semiont backup --environment local',
+    'semiont backup --environment staging --name manual-backup',
+    'semiont backup --environment prod --services database --compress'
+  )
+  .handler(backup)
+  .build();
+
+// Export default for compatibility
+export default backupCommand;
 
 // Export the schema for use by CLI
 export { BackupOptions, BackupOptionsSchema };

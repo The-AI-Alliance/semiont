@@ -1,7 +1,8 @@
 /**
- * Init Command - Initialize a new Semiont project
+ * Init Command - Initialize a new Semiont project (v2)
  * 
  * Creates semiont.json and starter environment configurations
+ * This is the migrated version using the new command definition structure.
  */
 
 import { z } from 'zod';
@@ -9,15 +10,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { colors } from '../lib/cli-colors.js';
 import { CommandResults } from '../lib/command-results.js';
-import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
+import { CommandBuilder } from '../lib/command-definition.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const InitOptionsSchema = z.object({
-  environment: z.string().default('none'), // Init doesn't need an environment but we include for consistency
+export const InitOptionsSchema = z.object({
+  environment: z.string().default('none'), // Init doesn't need environment
   name: z.string().optional(),
   directory: z.string().optional(),
   force: z.boolean().default(false),
@@ -28,13 +29,7 @@ const InitOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
 });
 
-interface InitOptions extends BaseCommandOptions {
-  name?: string;
-  directory?: string;
-  force?: boolean;
-  environments?: string[];
-  quiet?: boolean;
-}
+export type InitOptions = z.infer<typeof InitOptionsSchema>;
 
 // =====================================================================
 // TEMPLATE CONFIGURATIONS
@@ -48,126 +43,137 @@ interface SemiontConfig {
     domain: string;
     adminEmail: string;
     supportEmail?: string;
-    oauthAllowedDomains?: string[];
   };
-  defaults?: {
-    region?: string;
-    deployment?: {
-      type: string;
+  services: {
+    frontend: {
+      framework: string;
+      port: number;
     };
-    services?: Record<string, any>;
+    backend: {
+      framework: string;
+      port: number;
+    };
+    database: {
+      type: string;
+      port: number;
+    };
   };
 }
 
-function generateSemiontJson(projectName: string): SemiontConfig {
+/**
+ * Generate starter template for the main semiont.json file.
+ * This is just an example configuration that users should customize.
+ * 
+ * @param projectName - Name of the project
+ * @returns Starter configuration object to be serialized as JSON
+ */
+function getStarterProjectTemplate(projectName: string): SemiontConfig {
   return {
-    version: "1.0",
+    version: '1.0.0',
     project: projectName,
     site: {
       siteName: projectName,
-      domain: `${projectName.toLowerCase()}.example.com`,
-      adminEmail: "admin@example.com",
-      supportEmail: "support@example.com",
-      oauthAllowedDomains: ["example.com"]
+      domain: 'example.com',
+      adminEmail: 'admin@example.com',
     },
-    defaults: {
-      region: "us-east-1",
-      deployment: {
-        type: "container"
+    services: {
+      frontend: {
+        framework: 'next',
+        port: 3000,
       },
-      services: {
-        frontend: {
-          port: 3000
-        },
-        backend: {
-          port: 3001
-        },
-        database: {
-          port: 5432,
-          user: "postgres"
-        }
-      }
-    }
+      backend: {
+        framework: 'express',
+        port: 3001,
+      },
+      database: {
+        type: 'postgres',
+        port: 5432,
+      },
+    },
   };
 }
 
-function generateEnvironmentConfig(environment: string): any {
-  const configs: Record<string, any> = {
+/**
+ * Generate starter template for environment configuration files.
+ * These are just example defaults that users should customize.
+ * 
+ * @param envName - Name of the environment
+ * @returns Starter configuration object to be serialized as JSON
+ */
+function getStarterEnvironmentTemplate(envName: string) {
+  const templates: Record<string, any> = {
     local: {
-      _comment: "Local development environment",
+      _comment: 'Local development environment',
       deployment: {
-        default: "process"
+        default: 'process'
       },
       env: {
-        NODE_ENV: "development"
+        NODE_ENV: 'development'
       },
       services: {
         frontend: {
-          command: "npm run dev"
+          command: 'npm run dev'
         },
         backend: {
-          command: "npm run dev"
+          command: 'npm run dev'
         },
         database: {
           deployment: {
-            type: "container"
+            type: 'container'
           },
-          image: "postgres:15-alpine",
-          name: "semiont_local",
-          password: "localpass"
+          image: 'postgres:15-alpine',
+          name: 'semiont_local',
+          password: 'localpass'
         },
         filesystem: {
           deployment: {
-            type: "process"
+            type: 'process'
           },
-          path: "./data"
+          path: './data'
         }
       }
     },
     test: {
-      _comment: "Test environment for automated testing",
+      _comment: 'Test environment',
       deployment: {
-        default: "mock"
+        default: 'container'
       },
       env: {
-        NODE_ENV: "test"
+        NODE_ENV: 'test'
       },
       services: {
-        frontend: {
-          command: "npm test"
-        },
-        backend: {
-          command: "npm test"
-        },
         database: {
           deployment: {
-            type: "mock"
-          }
+            type: 'container'
+          },
+          image: 'postgres:15-alpine',
+          name: 'semiont_test',
+          password: 'testpass'
         },
         filesystem: {
           deployment: {
-            type: "mock"
+            type: 'process'
           },
-          path: "./test-data"
+          path: './test-data'
         }
       }
     },
     staging: {
-      _comment: "Staging environment - pre-production testing",
+      _comment: 'Staging environment - pre-production testing',
       deployment: {
-        default: "aws"
+        default: 'aws'
       },
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: 'production'
       },
       aws: {
-        accountId: "123456789012",
+        accountId: '123456789012',
         stacks: {
-          infra: "semiont-staging-infra",
-          app: "semiont-staging-app"
+          infra: 'semiont-staging-infra',
+          app: 'semiont-staging-app'
         },
         database: {
-          instanceClass: "db.t3.small",
+          instanceClass: 'db.t3.small',
           multiAZ: false,
           backupRetentionDays: 7
         },
@@ -179,32 +185,32 @@ function generateEnvironmentConfig(environment: string): any {
       },
       services: {
         database: {
-          name: "semiont_staging"
+          name: 'semiont_staging'
         },
         filesystem: {
           deployment: {
-            type: "aws"
+            type: 'aws'
           },
-          path: "/mnt/efs/staging"
+          path: '/mnt/efs/staging'
         }
       }
     },
     production: {
-      _comment: "Production environment",
+      _comment: 'Production environment',
       deployment: {
-        default: "aws"
+        default: 'aws'
       },
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: 'production'
       },
       aws: {
-        accountId: "987654321098",
+        accountId: '987654321098',
         stacks: {
-          infra: "semiont-prod-infra",
-          app: "semiont-prod-app"
+          infra: 'semiont-prod-infra',
+          app: 'semiont-prod-app'
         },
         database: {
-          instanceClass: "db.t3.medium",
+          instanceClass: 'db.t3.medium',
           multiAZ: true,
           backupRetentionDays: 30
         },
@@ -220,168 +226,206 @@ function generateEnvironmentConfig(environment: string): any {
       },
       services: {
         database: {
-          name: "semiont_production"
+          name: 'semiont_production'
         },
         filesystem: {
           deployment: {
-            type: "aws"
+            type: 'aws'
           },
-          path: "/mnt/efs/production"
+          path: '/mnt/efs/production'
         }
       }
     }
   };
-
-  return configs[environment] || {
-    _comment: `Custom environment: ${environment}`,
+  
+  // Return predefined template or a generic process-based starter
+  return templates[envName] || {
+    _comment: `${envName} environment`,
     deployment: {
-      default: "container"
+      default: 'process'
     },
     env: {
-      NODE_ENV: "development"
+      NODE_ENV: envName
     },
-    services: {
-      filesystem: {
-        deployment: {
-          type: "container"
-        },
-        path: "./data"
-      }
-    }
+    services: {}
   };
 }
 
 // =====================================================================
-// HELPER FUNCTIONS
+// COMMAND IMPLEMENTATION
 // =====================================================================
 
-function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
-}
-
-function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
-}
-
-function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-}
-
-
-// =====================================================================
-// INIT FUNCTION
-// =====================================================================
-
-// Type assertion to ensure this function matches the CommandFunction signature
-// Note: Init doesn't use serviceDeployments but accepts them for API consistency
-export const init: CommandFunction<InitOptions> = async (
-  _serviceDeployments: ServiceDeploymentInfo[], // Not used but required for consistency
+async function init(
+  _serviceDeployments: ServiceDeploymentInfo[], // Not used by init
   options: InitOptions
-): Promise<CommandResults> => {
+): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectName = options.name || path.basename(process.cwd());
-  const targetDir = options.directory || process.cwd();
-  const configPath = path.join(targetDir, 'semiont.json');
-  const environments = options.environments || ['local', 'test', 'staging', 'production'];
+  const projectDir = options.directory || process.cwd();
+  const projectName = options.name || path.basename(projectDir);
+  
+  const results: CommandResults & { metadata?: any; error?: string } = {
+    command: 'init',
+    environment: 'none',
+    timestamp: new Date(),
+    duration: 0,
+    services: [],
+    summary: {
+      total: 0,
+      succeeded: 0,
+      failed: 0,
+      warnings: 0,
+    },
+    executionContext: {
+      user: process.env.USER || 'unknown',
+      workingDirectory: projectDir,
+      dryRun: options.dryRun || false,
+    },
+  };
   
   try {
     // Check if semiont.json already exists
+    const configPath = path.join(projectDir, 'semiont.json');
     if (fs.existsSync(configPath) && !options.force) {
-      throw new Error(`semiont.json already exists. Use --force to overwrite.`);
+      throw new Error('semiont.json already exists. Use --force to overwrite.');
     }
-
-    if (!options.quiet) {
-      printInfo(`Initializing Semiont project: ${projectName}`);
-      printInfo(`Environments: ${environments.join(', ')}`);
-    }
-
-    // Create semiont.json
-    const semiontConfig = generateSemiontJson(projectName);
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify(semiontConfig, null, 2)
-    );
-
-    if (!options.quiet) {
-      printSuccess(`Created semiont.json`);
-    }
-
-    // Create config/environments directory
-    const envDir = path.join(targetDir, 'config', 'environments');
-    fs.mkdirSync(envDir, { recursive: true });
-
-    // Create environment configs
-    const createdFiles: string[] = ['semiont.json'];
-    for (const env of environments) {
-      const envConfig = generateEnvironmentConfig(env);
-      const envPath = path.join(envDir, `${env}.json`);
-      fs.writeFileSync(
-        envPath,
-        JSON.stringify(envConfig, null, 2)
-      );
-      createdFiles.push(`config/environments/${env}.json`);
+    
+    if (options.dryRun) {
+      if (!options.quiet) {
+        console.log(`${colors.cyan}[DRY RUN] Would create:${colors.reset}`);
+        console.log(`  - semiont.json`);
+        console.log(`  - config/environments/`);
+        options.environments?.forEach(env => {
+          console.log(`    - ${env}.json`);
+        });
+      }
       
-      if (!options.quiet && options.verbose) {
-        printSuccess(`Created config/environments/${env}.json`);
+      results.summary.succeeded = 1;
+      results.metadata = {
+        projectName,
+        directory: projectDir,
+        environments: options.environments,
+        dryRun: true,
+      };
+    } else {
+      // Create semiont.json with starter template
+      const config = getStarterProjectTemplate(projectName);
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      
+      if (!options.quiet) {
+        console.log(`${colors.green}✅ Created semiont.json${colors.reset}`);
       }
-    }
-
-    if (!options.quiet) {
-      printSuccess(`Created ${environments.length} environment configurations`);
-      console.log('');
-      printInfo('Next steps:');
-      console.log(`  1. Edit semiont.json to configure your site settings`);
-      console.log(`  2. Customize config/environments/*.json for each environment`);
-      console.log(`  3. Run: semiont provision --environment local`);
-    }
-
-    // Return structured results
-    return {
-      command: 'init',
-      environment: 'none',
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      services: [],  // Init doesn't operate on services
-      summary: {
-        total: 1,
-        succeeded: 1,
-        failed: 0,
-        warnings: 0
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: false
+      
+      // Create environment configs
+      const envDir = path.join(projectDir, 'config', 'environments');
+      fs.mkdirSync(envDir, { recursive: true });
+      
+      for (const envName of options.environments || []) {
+        const envConfig = getStarterEnvironmentTemplate(envName);
+        const envPath = path.join(envDir, `${envName}.json`);
+        fs.writeFileSync(envPath, JSON.stringify(envConfig, null, 2));
+        
+        if (!options.quiet) {
+          console.log(`${colors.green}✅ Created config/environments/${envName}.json${colors.reset}`);
+        }
       }
-    };
-
+      
+      if (!options.quiet) {
+        console.log(`\n${colors.bright}🚀 Project initialized successfully!${colors.reset}`);
+        console.log(`\nNext steps:`);
+        console.log(`  1. Review and customize semiont.json`);
+        console.log(`  2. Configure your environments in config/environments/`);
+        console.log(`  3. Run 'semiont provision -e local' to set up local development`);
+      }
+      
+      results.summary.succeeded = 1;
+      results.metadata = {
+        projectName,
+        directory: projectDir,
+        environments: options.environments,
+        filesCreated: 1 + (options.environments?.length || 0),
+      };
+    }
   } catch (error) {
+    results.summary.failed = 1;
+    results.error = error instanceof Error ? error.message : String(error);
+    
     if (!options.quiet) {
-      printError(`Failed to initialize project: ${error}`);
+      console.error(`${colors.red}❌ Failed to initialize project: ${results.error}${colors.reset}`);
     }
-
-    return {
-      command: 'init',
-      environment: 'none',
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      services: [],  // Init doesn't operate on services
-      summary: {
-        total: 1,
-        succeeded: 0,
-        failed: 1,
-        warnings: 0
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: false
-      }
-    };
   }
-};
+  
+  results.duration = Date.now() - startTime;
+  return results;
+}
 
-// Note: The main function is removed as cli.ts now handles output formatting
-// The init function now accepts pre-resolved services (though doesn't use them) and returns CommandResults
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
 
-export { InitOptions, InitOptionsSchema };
+export const initCommand = new CommandBuilder<InitOptions>()
+  .name('init')
+  .description('Initialize a new Semiont project')
+  .schema(InitOptionsSchema as any) // Schema types are compatible but TS can't infer it
+  .args({
+    args: {
+      '--name': {
+        type: 'string',
+        description: 'Project name',
+      },
+      '--directory': {
+        type: 'string',
+        description: 'Project directory',
+      },
+      '--force': {
+        type: 'boolean',
+        description: 'Overwrite existing configuration',
+        default: false,
+      },
+      '--environments': {
+        type: 'array',
+        description: 'Comma-separated list of environments to create',
+      },
+      '--output': {
+        type: 'string',
+        description: 'Output format',
+        choices: ['summary', 'json', 'yaml'],
+        default: 'summary',
+      },
+      '--quiet': {
+        type: 'boolean',
+        description: 'Suppress output except errors',
+        default: false,
+      },
+      '--verbose': {
+        type: 'boolean',
+        description: 'Verbose output',
+        default: false,
+      },
+      '--dry-run': {
+        type: 'boolean',
+        description: 'Preview changes without creating files',
+        default: false,
+      },
+    },
+    aliases: {
+      '-n': '--name',
+      '-d': '--directory',
+      '-f': '--force',
+      '-o': '--output',
+      '-q': '--quiet',
+      '-v': '--verbose',
+    },
+  })
+  .requiresEnvironment(false)
+  .requiresServices(false)
+  .examples(
+    'semiont init',
+    'semiont init --name my-project',
+    'semiont init --environments local,staging,production',
+    'semiont init --directory ./my-app --force'
+  )
+  .handler(init)
+  .build();
+
+// Also export as default for compatibility
+export default initCommand;

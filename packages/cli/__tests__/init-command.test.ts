@@ -3,46 +3,34 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'fs';
-import { init } from '../commands/init';
 import { ServiceDeploymentInfo } from '../lib/deployment-resolver';
+import * as os from 'os';
+import * as path from 'path';
 
-// Mock fs module
-vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn(),
-    writeFileSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    promises: {
-      mkdir: vi.fn(),
-    },
-  },
-  existsSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-}));
+// Mock modules BEFORE importing the command
+vi.mock('fs');
 
-// Mock path module
-vi.mock('path', () => ({
-  default: {
-    join: vi.fn((...args) => args.join('/')),
-    basename: vi.fn((p) => p.split('/').pop() || 'project'),
-  },
-  join: vi.fn((...args) => args.join('/')),
-  basename: vi.fn((p) => p.split('/').pop() || 'project'),
-}));
+// Import mocked modules
+import * as fs from 'fs';
+
+// Now import the command after mocks are set up
+import initCommand from '../commands/init';
+const init = initCommand.handler;
 
 describe('init command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default mock implementations
-    (fs.existsSync as any).mockReturnValue(false);
-    (fs.mkdirSync as any).mockReturnValue(undefined);
-    (fs.writeFileSync as any).mockReturnValue(undefined);
+    
+    // Set up default mock implementations
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+    
+    // Path mocks are already set up in the mock file
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('basic functionality', () => {
@@ -65,7 +53,7 @@ describe('init command', () => {
       // Check that semiont.json was created
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('semiont.json'),
-        expect.stringContaining('"version": "1.0"')
+        expect.stringContaining('"version": "1.0.0"')
       );
 
       // Check that environment configs were created
@@ -129,11 +117,13 @@ describe('init command', () => {
 
   describe('error handling', () => {
     it('should fail if semiont.json exists and force is false', async () => {
-      (fs.existsSync as any).mockReturnValue(true); // File exists
+      vi.mocked(fs.existsSync).mockReturnValue(true); // File exists
       
       const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const testDir = path.join(os.tmpdir(), 'semiont-test-init-' + Date.now());
       const options = {
         environment: 'none',
+        directory: testDir,
         force: false,
         environments: ['local'],
         output: 'summary' as const,
@@ -150,11 +140,13 @@ describe('init command', () => {
     });
 
     it('should overwrite if semiont.json exists and force is true', async () => {
-      (fs.existsSync as any).mockReturnValue(true); // File exists
+      vi.mocked(fs.existsSync).mockReturnValue(true); // File exists
       
       const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const testDir = path.join(os.tmpdir(), 'semiont-test-init-' + Date.now());
       const options = {
         environment: 'none',
+        directory: testDir,
         force: true,
         environments: ['local'],
         output: 'summary' as const,
@@ -171,13 +163,15 @@ describe('init command', () => {
     });
 
     it('should handle filesystem errors gracefully', async () => {
-      (fs.writeFileSync as any).mockImplementation(() => {
+      vi.mocked(fs.writeFileSync).mockImplementation(() => {
         throw new Error('Permission denied');
       });
       
       const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const testDir = path.join(os.tmpdir(), 'semiont-test-init-' + Date.now());
       const options = {
         environment: 'none',
+        directory: testDir,
         force: false,
         environments: ['local'],
         output: 'summary' as const,
@@ -245,7 +239,7 @@ describe('init command', () => {
       // Check staging environment config
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('config/environments/staging.json'),
-        expect.stringContaining('"default": "container"')
+        expect.stringContaining('"default": "aws"')
       );
 
       // Check production environment config  

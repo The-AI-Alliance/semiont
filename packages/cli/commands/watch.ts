@@ -1,8 +1,5 @@
 /**
- * Watch Command - Interactive monitoring with structured output support
- * 
- * This command provides real-time monitoring through an interactive dashboard.
- * When the session ends, it returns structured output about the monitoring session.
+ * Watch Command - Unified command structure
  */
 
 // import React from 'react';
@@ -16,6 +13,8 @@ import {
   createBaseResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // Re-export the React component from watch.tsx
 
@@ -31,9 +30,10 @@ const WatchOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-type WatchOptions = z.infer<typeof WatchOptionsSchema>;
+type WatchOptions = z.infer<typeof WatchOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -182,6 +182,46 @@ export async function watch(
     setSuppressOutput(previousSuppressOutput);
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const watchCommand = new CommandBuilder<WatchOptions>()
+  .name('watch')
+  .description('Monitor logs and system metrics')
+  .schema(WatchOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--target': { type: 'string', description: 'What to watch (all, logs, metrics, services)' },
+      '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },
+      '--interval': { type: 'number', description: 'Refresh interval in seconds' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-t': '--target',
+      '-i': '--interval',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont watch --environment local',
+    'semiont watch --environment staging --target logs',
+    'semiont watch --environment production --services backend --interval 10'
+  )
+  .handler(watch)
+  .build();
+
+// Export default for compatibility
+export default watchCommand;
 
 // Note: The main function is removed as cli.ts now handles service resolution and output formatting
 // The watch function now accepts pre-resolved services and returns CommandResults

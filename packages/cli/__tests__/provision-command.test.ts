@@ -6,9 +6,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import type { ProvisionOptions } from '../commands/provision.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
@@ -39,52 +36,23 @@ vi.mock('child_process', () => ({
 
 // Mock container runtime
 vi.mock('../lib/container-runtime.js', () => ({
-  runContainer: vi.fn(),
-  stopContainer: vi.fn(),
+  runContainer: vi.fn().mockResolvedValue(true),
+  stopContainer: vi.fn().mockResolvedValue(true),
   createVolume: vi.fn().mockResolvedValue(true),
-  listContainers: vi.fn().mockResolvedValue([])
+  listContainers: vi.fn(() => Promise.resolve([]))
 }));
 
 describe('Provision Command', () => {
-  let testDir: string;
-  let configDir: string;
-  let originalCwd: string;
-  
   beforeEach(() => {
-    originalCwd = process.cwd();
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-provision-test-'));
-    configDir = path.join(testDir, 'config', 'environments');
-    fs.mkdirSync(configDir, { recursive: true });
-    process.chdir(testDir);
+    vi.clearAllMocks();
   });
   
   afterEach(() => {
-    process.chdir(originalCwd);
-    fs.rmSync(testDir, { recursive: true, force: true });
     vi.clearAllMocks();
   });
 
-  async function createTestEnvironment(envName: string, config: any) {
-    fs.writeFileSync(
-      path.join(configDir, `${envName}.json`),
-      JSON.stringify(config, null, 2)
-    );
-  }
-
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful provisioning', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'aws' },
-        services: {
-          database: {
-            deployment: { type: 'aws' },
-            instanceClass: 'db.t3.micro',
-            engine: 'postgres',
-            engineVersion: '15'
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -141,16 +109,6 @@ describe('Provision Command', () => {
     });
 
     it('should handle dry run mode', async () => {
-      await createTestEnvironment('test', {
-        deployment: { default: 'container' },
-        services: {
-          frontend: {
-            deployment: { type: 'container' },
-            image: 'nginx:alpine'
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -184,15 +142,6 @@ describe('Provision Command', () => {
     });
 
     it('should handle destroy mode', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'aws' },
-        services: {
-          backend: {
-            deployment: { type: 'aws' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -225,18 +174,6 @@ describe('Provision Command', () => {
     });
 
     it('should handle seed mode for databases', async () => {
-      await createTestEnvironment('local', {
-        deployment: { default: 'container' },
-        services: {
-          database: {
-            deployment: { type: 'container' },
-            image: 'postgres:15',
-            password: 'localpass',
-            name: 'testdb'
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -258,8 +195,11 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
+      // The result contains a services array, not a single service
+      expect(result.services).toHaveLength(1);
       expect(result.services[0]!).toMatchObject({
         service: 'database',
+        success: true,
         metadata: expect.objectContaining({
           seed: true
         })
@@ -269,19 +209,6 @@ describe('Provision Command', () => {
 
   describe('Multiple Services', () => {
     it('should provision multiple services in order', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'aws' },
-        services: {
-          database: {
-            deployment: { type: 'aws' }
-          },
-          backend: {
-            deployment: { type: 'aws' },
-            depends_on: ['database']
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -316,20 +243,6 @@ describe('Provision Command', () => {
 
   describe('Deployment Types', () => {
     it('should handle AWS deployment type', async () => {
-      await createTestEnvironment('production', {
-        deployment: { default: 'aws' },
-        services: {
-          frontend: {
-            deployment: { type: 'aws' },
-            taskCount: 2
-          },
-          backend: {
-            deployment: { type: 'aws' },
-            taskCount: 3
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -359,17 +272,6 @@ describe('Provision Command', () => {
     });
 
     it('should handle container deployment type', async () => {
-      await createTestEnvironment('local', {
-        deployment: { default: 'container' },
-        services: {
-          backend: {
-            deployment: { type: 'container' },
-            image: 'node:18',
-            port: 3001
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -398,16 +300,6 @@ describe('Provision Command', () => {
     });
 
     it('should handle process deployment type', async () => {
-      await createTestEnvironment('local', {
-        deployment: { default: 'process' },
-        services: {
-          frontend: {
-            deployment: { type: 'process' },
-            port: 3000
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -437,21 +329,6 @@ describe('Provision Command', () => {
     });
 
     it('should handle external deployment type', async () => {
-      await createTestEnvironment('production', {
-        deployment: { default: 'external' },
-        services: {
-          database: {
-            deployment: { type: 'external' },
-            host: 'db.example.com',
-            port: 5432
-          },
-          filesystem: {
-            deployment: { type: 'external' },
-            mount: '/mnt/shared'
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -483,18 +360,6 @@ describe('Provision Command', () => {
 
   describe('Stack Modes', () => {
     it('should provision only infra stack when specified', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'aws' },
-        services: {
-          database: {
-            deployment: { type: 'aws' }
-          },
-          backend: {
-            deployment: { type: 'aws' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -525,18 +390,6 @@ describe('Provision Command', () => {
     });
 
     it('should provision only app stack when specified', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'container' },
-        services: {
-          backend: {
-            deployment: { type: 'container' }
-          },
-          frontend: {
-            deployment: { type: 'container' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -565,15 +418,6 @@ describe('Provision Command', () => {
 
   describe('Resource Tracking', () => {
     it('should track created resources', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'container' },
-        services: {
-          database: {
-            deployment: { type: 'container' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -601,15 +445,6 @@ describe('Provision Command', () => {
     });
 
     it('should track no resources in dry run mode', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'container' },
-        services: {
-          backend: {
-            deployment: { type: 'container' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -638,15 +473,6 @@ describe('Provision Command', () => {
 
   describe('Error Handling', () => {
     it('should handle provisioning failures gracefully', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'aws' },
-        services: {
-          backend: {
-            deployment: { type: 'aws' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -676,15 +502,6 @@ describe('Provision Command', () => {
     });
 
     it('should not destroy in non-force mode', async () => {
-      await createTestEnvironment('production', {
-        deployment: { default: 'aws' },
-        services: {
-          database: {
-            deployment: { type: 'aws' }
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -717,15 +534,6 @@ describe('Provision Command', () => {
     
     formats.forEach(format => {
       it(`should support ${format} output format`, async () => {
-        await createTestEnvironment('local', {
-          deployment: { default: 'container' },
-          services: {
-            backend: {
-              deployment: { type: 'container' }
-            }
-          }
-        });
-
         const { provision } = await import('../commands/provision.js');
         
         const serviceDeployments = createServiceDeployments([
@@ -763,18 +571,6 @@ describe('Provision Command', () => {
 
   describe('Service-specific Provisioning', () => {
     it('should provision database with proper configuration', async () => {
-      await createTestEnvironment('staging', {
-        deployment: { default: 'container' },
-        services: {
-          database: {
-            deployment: { type: 'container' },
-            image: 'postgres:15',
-            password: 'testpass',
-            name: 'stagingdb'
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([
@@ -805,16 +601,6 @@ describe('Provision Command', () => {
     });
 
     it('should provision filesystem volumes', async () => {
-      await createTestEnvironment('local', {
-        deployment: { default: 'container' },
-        services: {
-          filesystem: {
-            deployment: { type: 'container' },
-            mount: '/data'
-          }
-        }
-      });
-
       const { provision } = await import('../commands/provision.js');
       
       const serviceDeployments = createServiceDeployments([

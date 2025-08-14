@@ -1,11 +1,5 @@
 /**
- * Exec Command - Deployment-type aware command execution
- * 
- * This command executes commands in services based on deployment type:
- * - AWS: Execute commands in ECS tasks using AWS ECS Exec
- * - Container: Execute commands in local containers using container runtime
- * - Process: Execute commands in local processes or spawn new processes
- * - External: Cannot execute (managed separately)
+ * Exec Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -21,6 +15,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // AWS SDK imports for ECS operations
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
@@ -36,9 +32,10 @@ const ExecOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  service: z.string().optional(), // Single service for exec
 });
 
-type ExecOptions = z.infer<typeof ExecOptionsSchema>;
+type ExecOptions = z.infer<typeof ExecOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -443,6 +440,19 @@ async function execInExternalService(serviceInfo: ServiceDeploymentInfo, _option
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
+// Wrapper function to match the expected signature
+async function execHandler(
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: ExecOptions
+): Promise<CommandResults> {
+  // Exec only works with a single service, take the first one
+  const serviceDeployment = serviceDeployments[0];
+  if (!serviceDeployment) {
+    throw new Error('No service specified for exec command');
+  }
+  return exec(serviceDeployment, options);
+}
+
 export async function exec(
   serviceDeployment: ServiceDeploymentInfo,
   options: ExecOptions
@@ -463,7 +473,26 @@ export async function exec(
     }
     
     // Execute command in the service
-    const result = await execInServiceImpl(serviceDeployment, options);
+    let result: ExecResult;
+    try {
+      result = await execInServiceImpl(serviceDeployment, options);
+    } catch (error) {
+      // Convert errors to failed results
+      const baseResult = createBaseResult('exec', serviceDeployment.name, serviceDeployment.deploymentType, options.environment, startTime);
+      const errorResult = createErrorResult(baseResult, error as Error);
+      
+      result = {
+        ...errorResult,
+        command: options.command,
+        exitCode: 1,
+        output: '',
+        interactive: options.interactive,
+        executionTime: Date.now() - startTime,
+        resourceId: { [serviceDeployment.deploymentType]: {} } as ResourceIdentifier,
+        status: 'failed',
+        metadata: { error: (error as Error).message },
+      };
+    }
     
     // Create aggregated results
     const commandResults: CommandResults = {
@@ -492,6 +521,46 @@ export async function exec(
     setSuppressOutput(previousSuppressOutput);
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const execCommand = new CommandBuilder<ExecOptions>()
+  .name('exec')
+  .description('Execute commands in services')
+  .schema(ExecOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--command': { type: 'string', description: 'Command to execute' },
+      '--interactive': { type: 'boolean', description: 'Interactive mode' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--service': { type: 'string', description: 'Service to execute command in' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-c': '--command',
+      '-i': '--interactive',
+      '-v': '--verbose',
+      '-o': '--output',
+      '-s': '--service',
+    }
+  })
+  .examples(
+    'semiont exec --environment local --service backend',
+    'semiont exec --environment staging --service frontend --command "ls -la"',
+    'semiont exec --environment prod --service backend --command "npm run migrate"'
+  )
+  .handler(execHandler)
+  .build();
+
+// Export default for compatibility
+export default execCommand;
 
 // Export the schema for use by CLI
 export { ExecOptions, ExecOptionsSchema };

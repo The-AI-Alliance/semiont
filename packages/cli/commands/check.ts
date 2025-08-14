@@ -1,11 +1,5 @@
 /**
- * Check Command - Deployment-type aware system health and status monitoring
- * 
- * This command checks service health based on deployment type:
- * - AWS: Query ECS service status, RDS status, EFS mount status
- * - Container: Check container health
- * - Process: Check process status
- * - External: HTTP health checks and connectivity tests
+ * Check Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -18,6 +12,8 @@ import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';
 import * as http from 'http';
 import { CheckResult, CommandResults, createBaseResult, createErrorResult } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -31,9 +27,10 @@ const CheckOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['table', 'json', 'yaml', 'summary']).default('table'),
+  services: z.array(z.string()).optional(),
 });
 
-type CheckOptions = z.infer<typeof CheckOptionsSchema>;
+type CheckOptions = z.infer<typeof CheckOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -685,6 +682,43 @@ export async function check(
     setSuppressOutput(previousSuppressOutput);
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const checkCommand = new CommandBuilder<CheckOptions>()
+  .name('check')
+  .description('Check service health and status')
+  .schema(CheckOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--section': { type: 'string', description: 'Section to check (all, services, health, logs)' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (table, json, yaml, summary)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-s': '--section',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont check --environment local',
+    'semiont check --environment staging --section health',
+    'semiont check --environment prod --services frontend,backend --output json'
+  )
+  .handler(check)
+  .build();
+
+// Export default for compatibility
+export default checkCommand;
 
 // Export the schema for use by CLI
 export { CheckOptions, CheckOptionsSchema };

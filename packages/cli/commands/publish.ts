@@ -1,10 +1,5 @@
 /**
- * Publish Command - Build and push container images to registries
- * 
- * This command handles building container images and pushing them to appropriate
- * registries based on deployment type:
- * - AWS deployments: Push to ECR
- * - Container deployments: Tag for local registry or specified registry
+ * Publish Command - Unified command structure
  */
 
 import { spawn } from 'child_process';
@@ -22,7 +17,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
-import { CommandFunction, BaseCommandOptions } from '../lib/command-types.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
@@ -40,12 +36,10 @@ const PublishOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-interface PublishOptions extends BaseCommandOptions {
-  tag: string;
-  skipBuild?: boolean;
-}
+type PublishOptions = z.infer<typeof PublishOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -358,6 +352,26 @@ async function publishService(
     };
   }
   
+  // Handle dry run mode
+  if (options.dryRun) {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`[DRY RUN] Would publish ${serviceInfo.name} with tag ${options.tag}`);
+    }
+    
+    return {
+      ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
+      imageTag: options.tag,
+      buildDuration: 0,
+      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+      status: 'dry-run',
+      metadata: {
+        dryRun: true,
+        imageName: `semiont-${serviceInfo.name}:${options.tag}`,
+        deploymentType: serviceInfo.deploymentType
+      },
+    };
+  }
+  
   try {
     // Build the container image
     const buildResult = await buildContainerImage(serviceInfo, options.tag, options, isStructuredOutput);
@@ -434,7 +448,7 @@ async function publishService(
 // STRUCTURED OUTPUT FUNCTION
 // =====================================================================
 
-export const publish: CommandFunction<PublishOptions> = async (
+export const publish = async (
   serviceDeployments: ServiceDeploymentInfo[],
   options: PublishOptions
 ): Promise<CommandResults> => {
@@ -532,6 +546,44 @@ export const publish: CommandFunction<PublishOptions> = async (
     };
   }
 };
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const publishCommand = new CommandBuilder<PublishOptions>()
+  .name('publish')
+  .description('Build and push container images')
+  .schema(PublishOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--tag': { type: 'string', description: 'Image tag' },
+      '--skip-build': { type: 'boolean', description: 'Skip building images' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-t': '--tag',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont publish --environment staging',
+    'semiont publish --environment production --tag v1.0.0',
+    'semiont publish --environment staging --skip-build --tag latest'
+  )
+  .handler(publish)
+  .build();
+
+// Export default for compatibility
+export default publishCommand;
 
 // Note: The main function is removed as cli.ts now handles service resolution and output formatting
 // The publish function now accepts pre-resolved services and returns CommandResults

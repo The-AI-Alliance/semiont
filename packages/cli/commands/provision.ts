@@ -1,11 +1,5 @@
 /**
- * Provision Command - Service-deployment-type aware infrastructure provisioning
- * 
- * This command provisions infrastructure based on each service's deployment type:
- * - AWS: Creates ECS services, RDS instances, EFS volumes, ALBs
- * - Container: Creates container networks, volumes, pulls images
- * - Process: Installs dependencies, creates directories
- * - External: Validates external service connectivity
+ * Provision Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -23,6 +17,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -41,9 +37,10 @@ const ProvisionOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   requireApproval: z.boolean().optional(),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-type ProvisionOptions = z.infer<typeof ProvisionOptionsSchema>;
+type ProvisionOptions = z.infer<typeof ProvisionOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -1155,6 +1152,50 @@ export async function provision(
     };
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const provisionCommand = new CommandBuilder<ProvisionOptions>()
+  .name('provision')
+  .description('Provision infrastructure')
+  .schema(ProvisionOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--stack': { type: 'string', description: 'Stack to provision (infra, app, all)' },
+      '--force': { type: 'boolean', description: 'Force destructive operations' },
+      '--destroy': { type: 'boolean', description: 'Destroy infrastructure' },
+      '--reset': { type: 'boolean', description: 'Reset infrastructure' },
+      '--seed': { type: 'boolean', description: 'Seed database with initial data' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--require-approval': { type: 'boolean', description: 'Require manual approval' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-s': '--stack',
+      '-f': '--force',
+      '-d': '--destroy',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont provision --environment local',
+    'semiont provision --environment staging --stack infra',
+    'semiont provision --environment production --destroy --force'
+  )
+  .handler(provision)
+  .build();
+
+// Export default for compatibility
+export default provisionCommand;
 
 // Note: The main function is removed as cli.ts now handles service resolution and output formatting
 // The provision function now accepts pre-resolved services and returns CommandResults

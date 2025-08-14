@@ -28,14 +28,13 @@ describe('Command Result Type System', () => {
         deploymentType: 'container',
         environment: 'local',
         success: true,
-        error: null,
         timestamp: expect.any(Date),
         duration: expect.any(Number)
       });
       
       expect(baseResult.duration).toBeGreaterThanOrEqual(0);
       expect(baseResult.success).toBe(true);
-      expect(baseResult.error).toBeNull();
+      expect(baseResult.error).toBeUndefined();
     });
 
     it('should calculate duration correctly', () => {
@@ -127,7 +126,7 @@ describe('Command Result Type System', () => {
 
       expect(checkResult.healthStatus).toBe('healthy');
       expect(checkResult.checks).toHaveLength(2);
-      expect(checkResult.checks[0]!.status).toBe('passed');
+      expect(checkResult.checks[0]!.status).toBe('pass');
     });
 
     it('should support UpdateResult structure', () => {

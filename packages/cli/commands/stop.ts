@@ -1,7 +1,5 @@
 /**
- * Stop Command - Stop services with type-safe argument parsing
- * 
- * This version works with the new CLI structure using Zod validation
+ * Stop Command - Unified command structure
  */
 
 import { z } from 'zod';
@@ -17,6 +15,8 @@ import {
   createErrorResult,
   ResourceIdentifier 
 } from '../lib/command-results.js';
+import { CommandBuilder } from '../lib/command-definition.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -28,9 +28,10 @@ const StopOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  services: z.array(z.string()).optional(),
 });
 
-type StopOptions = z.infer<typeof StopOptionsSchema>;
+type StopOptions = z.infer<typeof StopOptionsSchema> & BaseCommandOptions;
 
 // Colors are now imported from centralized module
 
@@ -569,6 +570,43 @@ export async function stop(
     setSuppressOutput(previousSuppressOutput);
   }
 }
+
+// =====================================================================
+// COMMAND DEFINITION
+// =====================================================================
+
+export const stopCommand = new CommandBuilder<StopOptions>()
+  .name('stop')
+  .description('Stop services in an environment')
+  .schema(StopOptionsSchema as any)
+  .requiresEnvironment(true)
+  .requiresServices(true)
+  .args({
+    args: {
+      '--environment': { type: 'string', description: 'Environment name' },
+      '--force': { type: 'boolean', description: 'Force stop services' },
+      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
+      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
+      '--services': { type: 'string', description: 'Comma-separated list of services' },
+    },
+    aliases: {
+      '-e': '--environment',
+      '-f': '--force',
+      '-v': '--verbose',
+      '-o': '--output',
+    }
+  })
+  .examples(
+    'semiont stop --environment local',
+    'semiont stop --environment staging --force',
+    'semiont stop --environment prod --services frontend,backend'
+  )
+  .handler(stop)
+  .build();
+
+// Export default for compatibility
+export default stopCommand;
 
 // Export schema
 export { StopOptions, StopOptionsSchema };

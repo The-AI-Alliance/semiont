@@ -10,7 +10,12 @@
     "build": "node build.mjs",
     "clean": "rm -rf dist",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:unit": "vitest run --config vitest.config.unit.ts",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:all": "npm run test:unit && npm run test:integration",
+    "test:watch": "vitest --watch",
+    "test:watch:unit": "vitest --watch --config vitest.config.unit.ts"
   },
   "dependencies": {
     "@semiont/api-types": "*",
