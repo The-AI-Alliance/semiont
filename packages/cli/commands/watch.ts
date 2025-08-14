@@ -97,7 +97,7 @@ export async function watch(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = environment!; // Environment is guaranteed by command loader
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);

@@ -177,6 +177,7 @@ async function testAWSService(serviceInfo: ServiceDeploymentInfo, suite: string,
 }
 
 async function testContainerService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+  const environment = options.environment!; // Environment is guaranteed by command loader
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${environment}`;
   
   switch (suite) {
@@ -515,7 +516,7 @@ export async function test(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = environment!; // Environment is guaranteed by command loader
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (!isStructuredOutput && options.output === 'summary') {
     printInfo(`Running ${colors.bright}${options.suite}${colors.reset} tests in ${colors.bright}${environment}${colors.reset} environment`);
