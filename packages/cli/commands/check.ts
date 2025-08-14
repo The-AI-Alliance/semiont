@@ -22,7 +22,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const CheckOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   section: z.enum(['all', 'services', 'health', 'logs']).default('all'),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),

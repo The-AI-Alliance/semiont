@@ -31,7 +31,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const BackupOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   name: z.string().optional(),
   outputPath: z.string().default('./backups'),
   compress: z.boolean().default(true),
@@ -61,13 +61,14 @@ function debugLog(message: string, options: BackupOptions): void {
 
 async function backupServiceImpl(serviceInfo: ServiceDeploymentInfo, options: BackupOptions): Promise<BackupResult> {
   const startTime = Date.now();
+  const environment = options.environment!; // Environment is guaranteed by command loader
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
   const backupName = options.name || `${serviceInfo.name}-${timestamp}`;
   
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would backup ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     return {
-      ...createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime),
       backupName,
       backupSize: 0,
       backupLocation: options.outputPath,
@@ -95,7 +96,7 @@ async function backupServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ba
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -113,7 +114,8 @@ async function backupServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ba
 }
 
 async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, backupName: string): Promise<BackupResult> {
-  const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // AWS service backups
   switch (serviceInfo.name) {
@@ -135,8 +137,8 @@ async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: Bac
         retentionPolicy: 'AWS managed',
         resourceId: {
           aws: {
-            name: `semiont-${options.environment}-efs`,
-            id: `fs-${options.environment}`
+            name: `semiont-${environment}-efs`,
+            id: `fs-${environment}`
           }
         },
         status: 'available',
@@ -161,7 +163,7 @@ async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: Bac
         compressed: true,
         resourceId: {
           aws: {
-            name: `semiont-${options.environment}-${serviceInfo.name}`,
+            name: `semiont-${environment}-${serviceInfo.name}`,
             arn: `arn:aws:ecr:us-east-1:123456789012:repository/semiont-${serviceInfo.name}`
           }
         },
@@ -178,16 +180,17 @@ async function backupAWSService(serviceInfo: ServiceDeploymentInfo, options: Bac
 }
 
 async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, _backupName: string): Promise<BackupResult> {
+  const environment = options.environment!; // Environment is guaranteed by command loader
   // For AWS deployments, we need to get the region from environment config or use a default
   // In a real implementation, this would be passed from the caller
   const region = process.env.AWS_REGION || 'us-east-1';
   
   const rdsClient = new RDSClient({ region });
-  const dbInstanceIdentifier = `semiont-${options.environment}-database`;
+  const dbInstanceIdentifier = `semiont-${environment}-database`;
   
   // Generate backup name if not provided
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-  const snapshotName = options.name || `semiont-${options.environment}-${timestamp}`;
+  const snapshotName = options.name || `semiont-${environment}-${timestamp}`;
   
   try {
     printInfo(`Creating RDS snapshot: ${snapshotName}`);
@@ -212,7 +215,7 @@ async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: Ba
     }
     
     // Return successful backup result
-    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     return {
       ...baseResult,
       backupName: snapshotName,
@@ -247,7 +250,8 @@ async function backupRDSDatabase(serviceInfo: ServiceDeploymentInfo, options: Ba
 }
 
 async function backupContainerService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, providedBackupName: string): Promise<BackupResult> {
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${environment}`;
   
   try {
     // Ensure backup directory exists
@@ -276,7 +280,7 @@ async function backupContainerService(serviceInfo: ServiceDeploymentInfo, option
     }
     
     // Merge with base result and return
-    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     return {
       ...baseResult,
       ...result,
@@ -439,6 +443,7 @@ async function backupContainerApplication(containerName: string, serviceName: st
 }
 
 async function backupProcessService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, providedBackupName: string): Promise<BackupResult> {
+  const environment = options.environment!; // Environment is guaranteed by command loader
   try {
     // Ensure backup directory exists
     await fs.mkdir(options.outputPath, { recursive: true });
@@ -466,7 +471,7 @@ async function backupProcessService(serviceInfo: ServiceDeploymentInfo, options:
     }
     
     // Merge with base result and return
-    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     return {
       ...baseResult,
       ...result,
@@ -667,6 +672,7 @@ async function backupApplicationFiles(serviceName: string, backupName: string, o
 }
 
 async function backupExternalService(serviceInfo: ServiceDeploymentInfo, options: BackupOptions, startTime: number, backupName: string): Promise<BackupResult> {
+  const environment = options.environment!; // Environment is guaranteed by command loader
   printWarning(`Cannot create backups for external ${serviceInfo.name} service`);
   
   let guidance = '';
@@ -696,7 +702,7 @@ async function backupExternalService(serviceInfo: ServiceDeploymentInfo, options
   printSuccess(`External ${serviceInfo.name} backup guidance provided`);
   
   // Return a result indicating external service backup guidance
-  const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   return {
     ...baseResult,
     backupName,
@@ -730,13 +736,14 @@ export async function backup(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Creating backups in ${colors.bright}${options.environment}${colors.reset} environment`);
+      printInfo(`Creating backups in ${colors.bright}${environment}${colors.reset} environment`);
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
@@ -760,7 +767,7 @@ export async function backup(
         serviceResults.push(result);
       } catch (error) {
         // Create error result
-        const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('backup', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const backupErrorResult: BackupResult = {
@@ -787,7 +794,7 @@ export async function backup(
     const validResults = serviceResults.filter(r => r !== undefined);
     const commandResults: CommandResults = {
       command: 'backup',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: validResults,

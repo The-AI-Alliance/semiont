@@ -6,7 +6,7 @@
  */
 
 import type { CommandDefinition } from './command-definition.js';
-import type { BaseCommandOptions } from './command-types.js';
+import type { BaseCommandOptions } from './base-command-options.js';
 import type { ServiceDeploymentInfo } from './deployment-resolver.js';
 import type { CommandResults } from './command-results.js';
 import { createArgParser, generateHelp } from './arg-parser.js';
@@ -143,12 +143,18 @@ export async function executeCommand(
     
     // Validate environment if required
     if (command.requiresEnvironment) {
+      // Check for environment from --environment flag or SEMIONT_ENV variable
       if (!options.environment) {
-        const availableEnvs = getAvailableEnvironments();
-        throw new Error(
-          `--environment is required for '${commandName}' command. ` +
-          `Available: ${availableEnvs.length > 0 ? availableEnvs.join(', ') : 'none found'}`
-        );
+        const envFromVariable = process.env.SEMIONT_ENV;
+        if (envFromVariable) {
+          options.environment = envFromVariable;
+        } else {
+          const availableEnvs = getAvailableEnvironments();
+          throw new Error(
+            `Environment not specified. Use --environment flag or set SEMIONT_ENV environment variable. ` +
+            `Available: ${availableEnvs.length > 0 ? availableEnvs.join(', ') : 'none found'}`
+          );
+        }
       }
       
       if (!isValidEnvironment(options.environment)) {
@@ -164,9 +170,11 @@ export async function executeCommand(
     let services: ServiceDeploymentInfo[] = [];
     if (command.requiresServices) {
       const service = (options as any).service || 'all';
-      await validateServiceSelector(service, commandName, options.environment);
-      const resolvedServices = await resolveServiceSelector(service, commandName, options.environment);
-      services = resolveServiceDeployments(resolvedServices, options.environment);
+      // At this point, environment is guaranteed to be defined if requiresEnvironment is true
+      const environment = options.environment!;
+      await validateServiceSelector(service, commandName, environment);
+      const resolvedServices = await resolveServiceSelector(service, commandName, environment);
+      services = resolveServiceDeployments(resolvedServices, environment);
     }
     
     // Execute the command handler

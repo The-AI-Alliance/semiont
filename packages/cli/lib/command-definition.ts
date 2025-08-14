@@ -6,7 +6,8 @@
  */
 
 import { z } from 'zod';
-import type { CommandFunction, BaseCommandOptions } from './command-types.js';
+import type { CommandFunction } from './command-types.js';
+import type { BaseCommandOptions } from './base-command-options.js';
 
 /**
  * Declarative argument definition for CLI parsing

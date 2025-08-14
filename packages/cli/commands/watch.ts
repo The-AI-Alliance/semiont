@@ -23,7 +23,7 @@ import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // =====================================================================
 
 const WatchOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   target: z.enum(['all', 'logs', 'metrics', 'services']).default('all'),
   noFollow: z.boolean().default(false),
   interval: z.number().int().positive().default(5),
@@ -97,13 +97,14 @@ export async function watch(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  const environment = environment!; // Environment is guaranteed by command loader
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Starting watch dashboard for ${colors.bright}${options.environment}${colors.reset} environment`);
+      printInfo(`Starting watch dashboard for ${colors.bright}${environment}${colors.reset} environment`);
       printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
       printInfo('Press "q" to quit, "r" to refresh');
     }
@@ -125,7 +126,7 @@ export async function watch(
     } else {
       // Launch the actual dashboard
       const result = await launchDashboard(
-        options.environment,
+        environment,
         options.target,
         serviceDeployments.map(s => s.name),
         options.interval
@@ -136,7 +137,7 @@ export async function watch(
     
     // Create watch results for each monitored service
     const serviceResults: WatchResult[] = serviceDeployments.map(serviceInfo => {
-      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
       
       return {
         ...baseResult,
@@ -158,7 +159,7 @@ export async function watch(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'watch',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: sessionDuration || Date.now() - startTime,
       services: serviceResults,

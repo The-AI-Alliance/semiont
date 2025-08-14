@@ -9,7 +9,8 @@
  * This file now only exports types that may still be referenced.
  */
 
-import { CommandFunction, BaseCommandOptions } from './command-types.js';
+import { CommandFunction } from './command-types.js';
+import { BaseCommandOptions } from './base-command-options.js';
 
 /**
  * @deprecated Use CommandDefinition from command-definition.ts instead

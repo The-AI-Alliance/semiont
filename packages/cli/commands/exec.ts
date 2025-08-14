@@ -26,7 +26,7 @@ import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 // =====================================================================
 
 const ExecOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   command: z.string().default('/bin/sh'),
   interactive: z.boolean().default(true),
   verbose: z.boolean().default(false),

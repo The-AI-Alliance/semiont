@@ -20,7 +20,7 @@ import {
   createErrorResult 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseCommandOptions } from '../lib/command-types.js';
+import { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS

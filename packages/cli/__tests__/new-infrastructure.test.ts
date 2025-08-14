@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { createArgParser } from '../lib/arg-parser.js';
 import { loadCommand } from '../lib/command-loader.js';
-import type { BaseCommandOptions } from '../lib/command-types.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 describe('Command Infrastructure', () => {
   describe('CommandBuilder', () => {

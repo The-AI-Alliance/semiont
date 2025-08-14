@@ -30,7 +30,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const PublishOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   tag: z.string().default('latest'),
   skipBuild: z.boolean().default(false),
   verbose: z.boolean().default(false),

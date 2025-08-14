@@ -27,7 +27,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const ProvisionOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   stack: z.enum(['infra', 'app', 'all']).default('all'),
   force: z.boolean().default(false),
   destroy: z.boolean().default(false),

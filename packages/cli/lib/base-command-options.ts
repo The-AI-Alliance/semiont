@@ -9,7 +9,7 @@
  * Base options that all commands must support
  */
 export interface BaseCommandOptions {
-  environment: string;
+  environment?: string;  // Optional - can be provided via --environment or SEMIONT_ENV
   verbose?: boolean;
   dryRun?: boolean;
   output: 'summary' | 'table' | 'json' | 'yaml';

@@ -23,7 +23,7 @@ import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // =====================================================================
 
 const RestartOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   force: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),

@@ -8,7 +8,7 @@
 import arg from 'arg';
 import { z } from 'zod';
 import type { CommandDefinition, ArgDefinition, ArgSpec } from './command-definition.js';
-import type { BaseCommandOptions } from './command-types.js';
+import type { BaseCommandOptions } from './base-command-options.js';
 
 /**
  * Type mapping from our declarative types to arg library types
@@ -17,8 +17,8 @@ const ARG_TYPE_MAP = {
   string: String,
   boolean: Boolean,
   number: Number,
-  array: [String],
-} as const;
+  array: [String] as [StringConstructor],
+};
 
 /**
  * Create a parser function for a command

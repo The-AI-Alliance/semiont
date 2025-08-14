@@ -14,7 +14,7 @@ import { colors } from '../lib/cli-colors.js';
 import { printDebug } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
-import type { BaseCommandOptions } from '../lib/command-types.js';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // import { getProjectRoot } from '../lib/cli-paths.js';
 import { 
   UpdateResult, 
@@ -34,7 +34,7 @@ import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 // =====================================================================
 
 const UpdateOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   skipTests: z.boolean().default(false),
   skipBuild: z.boolean().default(false),
   force: z.boolean().default(false),
@@ -84,6 +84,7 @@ function debugLog(_message: string, _options: any): void {
 
 async function updateService(serviceInfo: ServiceDeploymentInfo, options: UpdateOptions, isStructuredOutput: boolean = false): Promise<UpdateResult> {
   const startTime = Date.now();
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (options.dryRun) {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -91,7 +92,7 @@ async function updateService(serviceInfo: ServiceDeploymentInfo, options: Update
     }
     
     return {
-      ...createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime),
       updateTime: new Date(),
       previousVersion: 'unknown',
       newVersion: 'unknown',
@@ -121,7 +122,7 @@ async function updateService(serviceInfo: ServiceDeploymentInfo, options: Update
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -139,7 +140,8 @@ async function updateService(serviceInfo: ServiceDeploymentInfo, options: Update
 }
 
 async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: UpdateOptions, startTime: number, isStructuredOutput: boolean = false): Promise<UpdateResult> {
-  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   switch (serviceInfo.name) {
     case 'frontend':
@@ -152,8 +154,8 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         // Get AWS region from service configuration or use default
         const awsRegion = (serviceInfo.config as any).aws?.region || 'us-east-1';
         const ecsClient = new ECSClient({ region: awsRegion });
-        const clusterName = `semiont-${options.environment}`;
-        const fullServiceName = `semiont-${options.environment}-${serviceInfo.name}`;
+        const clusterName = `semiont-${environment}`;
+        const fullServiceName = `semiont-${environment}-${serviceInfo.name}`;
         const updateTime = new Date();
         
         if (!options.dryRun) {
@@ -212,14 +214,14 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         changesApplied: [],
         resourceId: {
           aws: {
-            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
-            id: `semiont-${options.environment}-db`,
-            name: `semiont-${options.environment}-database`
+            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${environment}-db`,
+            id: `semiont-${environment}-db`,
+            name: `semiont-${environment}-database`
           }
         },
         status: 'not-applicable',
         metadata: {
-          instanceIdentifier: `semiont-${options.environment}-db`,
+          instanceIdentifier: `semiont-${environment}-db`,
           reason: 'RDS instances require manual updates'
         },
       };
@@ -239,14 +241,14 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         changesApplied: [],
         resourceId: {
           aws: {
-            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
-            id: `fs-semiont${options.environment}`,
-            name: `semiont-${options.environment}-efs`
+            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${environment}`,
+            id: `fs-semiont${environment}`,
+            name: `semiont-${environment}-efs`
           }
         },
         status: 'no-action-needed',
         metadata: {
-          fileSystemId: `fs-semiont${options.environment}`,
+          fileSystemId: `fs-semiont${environment}`,
           reason: 'EFS filesystems do not require updates'
         },
       };
@@ -257,8 +259,9 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
 }
 
 async function updateContainerService(serviceInfo: ServiceDeploymentInfo, options: UpdateOptions, startTime: number, isStructuredOutput: boolean = false): Promise<UpdateResult> {
-  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${environment}`;
   
   try {
     const updateTime = new Date();
@@ -389,7 +392,8 @@ async function updateContainerService(serviceInfo: ServiceDeploymentInfo, option
 }
 
 async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options: UpdateOptions, startTime: number, isStructuredOutput: boolean = false): Promise<UpdateResult> {
-  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   switch (serviceInfo.name) {
     case 'database':
@@ -510,7 +514,8 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
 }
 
 async function updateExternalService(serviceInfo: ServiceDeploymentInfo, options: UpdateOptions, startTime: number, isStructuredOutput: boolean = false): Promise<UpdateResult> {
-  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   if (!isStructuredOutput && options.output === 'summary') {
     printInfo(`Cannot update external ${serviceInfo.name} service`);
@@ -651,9 +656,10 @@ export const update = async (
 ): Promise<CommandResults> => {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Updating services in ${colors.bright}${options.environment}${colors.reset} environment`);
+    printInfo(`Updating services in ${colors.bright}${environment}${colors.reset} environment`);
   }
   
   if (options.verbose && !isStructuredOutput && options.output === 'summary') {
@@ -689,7 +695,7 @@ export const update = async (
         }
       } catch (error) {
         // Create error result
-        const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('update', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const updateErrorResult: UpdateResult = {
@@ -719,7 +725,7 @@ export const update = async (
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'update',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -745,7 +751,7 @@ export const update = async (
     
     return {
       command: 'update',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [],

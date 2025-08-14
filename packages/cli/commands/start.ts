@@ -28,7 +28,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const StartOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
@@ -56,12 +56,13 @@ function debugLog(_message: string, _options: any): void {
 
 async function startServiceImpl(serviceInfo: ServiceDeploymentInfo, options: StartOptions): Promise<StartResult> {
   const startTime = Date.now();
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would start ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     
     return {
-      ...createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime),
       startTime: new Date(),
       resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
       status: 'dry-run',
@@ -87,7 +88,7 @@ async function startServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Sta
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -101,14 +102,15 @@ async function startServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Sta
 }
 
 async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
-  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // AWS ECS service start
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
       if (!options.quiet) {
-        printInfo(`Starting ${serviceInfo.name} ECS service in ${options.environment}`);
+        printInfo(`Starting ${serviceInfo.name} ECS service in ${environment}`);
         printWarning('ECS service start not yet implemented - use AWS Console or CDK');
       }
       
@@ -117,15 +119,15 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
         startTime: new Date(),
         resourceId: {
           aws: {
-            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
-            id: `semiont-${options.environment}-${serviceInfo.name}`,
-            name: `semiont-${options.environment}-${serviceInfo.name}`
+            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${environment}/${serviceInfo.name}`,
+            id: `semiont-${environment}-${serviceInfo.name}`,
+            name: `semiont-${environment}-${serviceInfo.name}`
           }
         },
         status: 'not-implemented',
         metadata: {
-          serviceName: `semiont-${options.environment}-${serviceInfo.name}`,
-          cluster: `semiont-${options.environment}`,
+          serviceName: `semiont-${environment}-${serviceInfo.name}`,
+          cluster: `semiont-${environment}`,
           implementation: 'pending'
         },
       };
@@ -141,14 +143,14 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
         startTime: new Date(),
         resourceId: {
           aws: {
-            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
-            id: `semiont-${options.environment}-db`,
-            name: `semiont-${options.environment}-database`
+            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${environment}-db`,
+            id: `semiont-${environment}-db`,
+            name: `semiont-${environment}-database`
           }
         },
         status: 'not-implemented',
         metadata: {
-          instanceIdentifier: `semiont-${options.environment}-db`,
+          instanceIdentifier: `semiont-${environment}-db`,
           implementation: 'pending'
         },
       };
@@ -164,14 +166,14 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
         startTime: new Date(),
         resourceId: {
           aws: {
-            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
-            id: `fs-semiont${options.environment}`,
-            name: `semiont-${options.environment}-efs`
+            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${environment}`,
+            id: `fs-semiont${environment}`,
+            name: `semiont-${environment}-efs`
           }
         },
         status: 'not-implemented',
         metadata: {
-          fileSystemId: `fs-semiont${options.environment}`,
+          fileSystemId: `fs-semiont${environment}`,
           implementation: 'pending'
         },
       };
@@ -182,12 +184,13 @@ async function startAWSService(serviceInfo: ServiceDeploymentInfo, options: Star
 }
 
 async function startContainerService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
-  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // Container deployment
   switch (serviceInfo.name) {
     case 'database':
-      const containerName = `semiont-postgres-${options.environment}`;
+      const containerName = `semiont-postgres-${environment}`;
       const imageName = serviceInfo.config.image || 'postgres:15-alpine';
       
       const success = await runContainer(imageName, containerName, {
@@ -230,15 +233,15 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       
     case 'frontend':
     case 'backend':
-      const appContainerName = `semiont-${serviceInfo.name}-${options.environment}`;
+      const appContainerName = `semiont-${serviceInfo.name}-${environment}`;
       const appImageName = serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`;
       const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
       
       const appSuccess = await runContainer(appImageName, appContainerName, {
         ports: { [port.toString()]: port.toString() },
         environment: {
-          NODE_ENV: getNodeEnvForEnvironment(options.environment),
-          SEMIONT_ENV: options.environment
+          NODE_ENV: getNodeEnvForEnvironment(environment),
+          SEMIONT_ENV: environment
         },
         detached: true,
         verbose: options.verbose
@@ -271,7 +274,7 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       }
       
     case 'filesystem':
-      const volumeName = `semiont-${serviceInfo.name}-${options.environment}`;
+      const volumeName = `semiont-${serviceInfo.name}-${environment}`;
       
       if (!options.quiet) {
         printInfo(`Creating container volumes for ${serviceInfo.name}`);
@@ -300,7 +303,8 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
 }
 
 async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
-  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // Process deployment (local development)
   switch (serviceInfo.name) {
@@ -338,8 +342,8 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         detached: true,
         env: {
           ...process.env,
-          NODE_ENV: getNodeEnvForEnvironment(options.environment),
-          SEMIONT_ENV: options.environment,
+          NODE_ENV: getNodeEnvForEnvironment(environment),
+          SEMIONT_ENV: environment,
           DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
           JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
           PORT: backendPort.toString(),
@@ -382,7 +386,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         detached: true,
         env: {
           ...process.env,
-          NODE_ENV: getNodeEnvForEnvironment(options.environment),
+          NODE_ENV: getNodeEnvForEnvironment(environment),
           NEXT_PUBLIC_API_URL: `http://localhost:3001`,
           NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
           PORT: frontendPort.toString(),
@@ -449,7 +453,8 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
 }
 
 async function startExternalService(serviceInfo: ServiceDeploymentInfo, options: StartOptions, startTime: number): Promise<StartResult> {
-  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // External service - just check connectivity
   if (!options.quiet) {
@@ -543,13 +548,14 @@ export async function start(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  const environment = environment!; // Environment is guaranteed by command loader
   
   // Suppress output for structured formats
   // const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Starting services in ${colors.bright}${options.environment}${colors.reset} environment`);
+      printInfo(`Starting services in ${colors.bright}${environment}${colors.reset} environment`);
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
@@ -568,7 +574,7 @@ export async function start(
         // Individual service functions handle their own immediate feedback
       } catch (error) {
         // Create error result
-        const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('start', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const startErrorResult: StartResult = {
@@ -590,7 +596,7 @@ export async function start(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'start',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -616,7 +622,7 @@ export async function start(
     
     return {
       command: 'start',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [],

@@ -23,7 +23,7 @@ import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // =====================================================================
 
 const StopOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   force: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
@@ -52,12 +52,13 @@ function debugLog(message: string, options: StopOptions): void {
 
 async function stopServiceImpl(serviceInfo: ServiceDeploymentInfo, options: StopOptions): Promise<StopResult> {
   const startTime = Date.now();
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would stop ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     
     return {
-      ...createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime),
       stopTime: new Date(),
       gracefulShutdown: true,
       resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
@@ -82,7 +83,7 @@ async function stopServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Stop
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -98,7 +99,8 @@ async function stopServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Stop
 }
 
 async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
-  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // AWS ECS service stop
   switch (serviceInfo.name) {
@@ -115,15 +117,15 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
         gracefulShutdown: true,
         resourceId: {
           aws: {
-            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
-            id: `semiont-${options.environment}-${serviceInfo.name}`,
-            name: `semiont-${options.environment}-${serviceInfo.name}`
+            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${environment}/${serviceInfo.name}`,
+            id: `semiont-${environment}-${serviceInfo.name}`,
+            name: `semiont-${environment}-${serviceInfo.name}`
           }
         },
         status: 'not-implemented',
         metadata: {
-          serviceName: `semiont-${options.environment}-${serviceInfo.name}`,
-          cluster: `semiont-${options.environment}`,
+          serviceName: `semiont-${environment}-${serviceInfo.name}`,
+          cluster: `semiont-${environment}`,
           implementation: 'pending'
         },
       };
@@ -140,14 +142,14 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
         gracefulShutdown: true,
         resourceId: {
           aws: {
-            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
-            id: `semiont-${options.environment}-db`,
-            name: `semiont-${options.environment}-database`
+            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${environment}-db`,
+            id: `semiont-${environment}-db`,
+            name: `semiont-${environment}-database`
           }
         },
         status: 'not-implemented',
         metadata: {
-          instanceIdentifier: `semiont-${options.environment}-db`,
+          instanceIdentifier: `semiont-${environment}-db`,
           implementation: 'pending'
         },
       };
@@ -164,14 +166,14 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
         gracefulShutdown: true,
         resourceId: {
           aws: {
-            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
-            id: `fs-semiont${options.environment}`,
-            name: `semiont-${options.environment}-efs`
+            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${environment}`,
+            id: `fs-semiont${environment}`,
+            name: `semiont-${environment}-efs`
           }
         },
         status: 'not-implemented',
         metadata: {
-          fileSystemId: `fs-semiont${options.environment}`,
+          fileSystemId: `fs-semiont${environment}`,
           implementation: 'pending'
         },
       };
@@ -182,8 +184,9 @@ async function stopAWSService(serviceInfo: ServiceDeploymentInfo, options: StopO
 }
 
 async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
-  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${environment}`;
   
   try {
     const success = await stopContainer(containerName, {
@@ -250,7 +253,8 @@ async function stopContainerService(serviceInfo: ServiceDeploymentInfo, options:
 }
 
 async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
-  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // Process deployment (local development)
   switch (serviceInfo.name) {
@@ -291,7 +295,7 @@ async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: S
         resourceId: {
           process: {
             port: port,
-            path: `/tmp/${serviceInfo.name}-${options.environment}`
+            path: `/tmp/${serviceInfo.name}-${environment}`
           }
         },
         status: killed ? 'stopped' : 'not-running',
@@ -330,7 +334,8 @@ async function stopProcessService(serviceInfo: ServiceDeploymentInfo, options: S
 }
 
 async function stopExternalService(serviceInfo: ServiceDeploymentInfo, options: StopOptions, startTime: number): Promise<StopResult> {
-  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const environment = options.environment!; // Environment is guaranteed by command loader
+  const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   // External service - can't actually stop, just report
   {
@@ -488,13 +493,14 @@ export async function stop(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  const environment = environment!; // Environment is guaranteed by command loader
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
     if (options.output === 'summary') {
-      printInfo(`Stopping services in ${colors.bright}${options.environment}${colors.reset} environment`);
+      printInfo(`Stopping services in ${colors.bright}${environment}${colors.reset} environment`);
     }
     
     if (options.output === 'summary' && options.verbose) {
@@ -518,7 +524,7 @@ export async function stop(
         serviceResults.push(result);
       } catch (error) {
         // Create error result
-        const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('stop', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const stopErrorResult: StopResult = {
@@ -546,7 +552,7 @@ export async function stop(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'stop',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,

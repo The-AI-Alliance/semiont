@@ -26,7 +26,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 // =====================================================================
 
 const TestOptionsSchema = z.object({
-  environment: z.string(),
+  environment: z.string().optional(),
   suite: z.enum(['all', 'integration', 'e2e', 'health', 'security', 'connectivity']).default('all'),
   coverage: z.boolean().default(false),
   parallel: z.boolean().default(false),
@@ -177,7 +177,7 @@ async function testAWSService(serviceInfo: ServiceDeploymentInfo, suite: string,
 }
 
 async function testContainerService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${environment}`;
   
   switch (suite) {
     case 'health':
@@ -449,6 +449,7 @@ async function runIntegrationTestsForService(serviceInfo: ServiceDeploymentInfo,
 
 async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions, isStructuredOutput: boolean = false): Promise<TestResult> {
   const startTime = Date.now();
+  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (options.dryRun) {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -456,7 +457,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
     }
     
     return {
-      ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, environment, startTime),
       testSuite: suite,
       testsRun: 0,
       testsPassed: 0,
@@ -486,7 +487,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   
   // The test command itself succeeded - it ran the tests
   // We just need to report whether the tests passed or failed
-  const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
   
   return {
     ...baseResult,
@@ -514,9 +515,10 @@ export async function test(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  const environment = environment!; // Environment is guaranteed by command loader
   
   if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Running ${colors.bright}${options.suite}${colors.reset} tests in ${colors.bright}${options.environment}${colors.reset} environment`);
+    printInfo(`Running ${colors.bright}${options.suite}${colors.reset} tests in ${colors.bright}${environment}${colors.reset} environment`);
   }
   
   try {
@@ -540,7 +542,7 @@ export async function test(
           serviceResults.push(result);
         } catch (error) {
           // Create error result
-          const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+          const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
           const errorResult = createErrorResult(baseResult, error as Error);
           
           const testErrorResult: TestResult = {
@@ -569,7 +571,7 @@ export async function test(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'test',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -595,7 +597,7 @@ export async function test(
     
     return {
       command: 'test',
-      environment: options.environment,
+      environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [],
