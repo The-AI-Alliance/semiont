@@ -4,7 +4,13 @@
  */
 
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, beforeAll, afterEach, afterAll } from 'vitest';
+import { server } from './src/mocks/server';
+
+// Start MSW server
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 // Mock Next.js navigation before any imports
 vi.mock('next/navigation', () => ({
@@ -44,17 +50,27 @@ process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
 process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
 
+// Polyfill fetch to handle relative URLs
+const originalFetch = global.fetch;
+global.fetch = async (input, init) => {
+  // Convert relative URLs to absolute URLs for test environment
+  if (typeof input === 'string' && input.startsWith('/')) {
+    input = `http://localhost:3000${input}`;
+  }
+  return originalFetch(input, init);
+};
+
 // Mock window methods
 if (typeof window !== 'undefined') {
   // Mock window.location
   Object.defineProperty(window, 'location', {
     value: {
-      href: 'http://localhost/',
-      origin: 'http://localhost',
+      href: 'http://localhost:3000/',
+      origin: 'http://localhost:3000',
       protocol: 'http:',
-      host: 'localhost',
+      host: 'localhost:3000',
       hostname: 'localhost',
-      port: '',
+      port: '3000',
       pathname: '/',
       search: '',
       hash: '',
