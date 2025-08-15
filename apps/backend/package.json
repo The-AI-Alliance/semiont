@@ -12,7 +12,7 @@
     "test:coverage": "SEMIONT_ENV=unit vitest run --coverage",
     "test:ui": "SEMIONT_ENV=unit vitest --ui",
     "test:unit": "SEMIONT_ENV=unit vitest run --testNamePattern=\"^(?!.*integration).*\"",
-    "test:integration": "SEMIONT_ENV=integration vitest run --config=vitest.integration.config.ts",
+    "test:integration": "SEMIONT_ENV=integration vitest run --config=vitest.integration.config.mjs",
     "test:api": "SEMIONT_ENV=unit vitest run src/__tests__/api/admin-endpoints.test.ts src/__tests__/api/documentation.test.ts src/__tests__/middleware/auth.test.ts",
     "test:security": "SEMIONT_ENV=unit vitest run --reporter=verbose --testNamePattern=security",
     "type-check": "tsc --noEmit",

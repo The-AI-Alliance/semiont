@@ -8,10 +8,11 @@
  * - Prevents JWT-related security vulnerabilities
  */
 
-import { vi, describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 
 // Mock jsonwebtoken
 vi.mock('jsonwebtoken', () => ({
@@ -28,20 +29,6 @@ vi.mock('jsonwebtoken', () => ({
       super(message);
     }
   },
-}));
-
-// Mock loadEnvironmentConfig to return test configuration
-vi.mock('@semiont/cli/lib/deployment-resolver.js', () => ({
-  loadEnvironmentConfig: vi.fn(() => ({
-    site: {
-      domain: 'test.example.com',
-      oauthAllowedDomains: ['example.com', 'test.org']
-    },
-    services: {},
-    env: {
-      NODE_ENV: 'test'
-    }
-  }))
 }));
 
 // Mock validation schemas
@@ -66,9 +53,27 @@ describe('JWT Service', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+  
+  const testConfig: EnvironmentConfig = {
+    site: {
+      domain: 'test.example.com',
+      oauthAllowedDomains: ['example.com', 'test.org']
+    },
+    services: {},
+    env: {
+      NODE_ENV: 'test'
+    }
+  } as EnvironmentConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Set the test configuration
+    JWTService.setConfig(testConfig);
+  });
+  
+  afterEach(() => {
+    // Reset configuration after each test
+    JWTService.resetConfig();
   });
 
   describe('generateToken', () => {

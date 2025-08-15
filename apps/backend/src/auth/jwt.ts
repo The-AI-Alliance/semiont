@@ -1,14 +1,7 @@
 import * as jwt from 'jsonwebtoken';
-import { loadEnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 import { JWTPayloadSchema, validateData } from '../validation/schemas';
 import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
-
-// Load configuration - environment name must be set by test runner or semiont CLI
-const environmentName = process.env.SEMIONT_ENV;
-if (!environmentName) {
-  throw new Error('SEMIONT_ENV environment variable is required');
-}
-const config = loadEnvironmentConfig(environmentName);
 
 export interface JWTPayload {
   userId: string;
@@ -21,6 +14,37 @@ export interface JWTPayload {
 }
 
 export class JWTService {
+  private static configCache: EnvironmentConfig | null = null;
+  
+  /**
+   * Get configuration, loading it lazily if needed
+   */
+  private static getConfig(): EnvironmentConfig {
+    if (!this.configCache) {
+      const environmentName = process.env.SEMIONT_ENV;
+      if (!environmentName) {
+        throw new Error('SEMIONT_ENV environment variable is required');
+      }
+      this.configCache = loadEnvironmentConfig(environmentName);
+    }
+    return this.configCache;
+  }
+  
+  /**
+   * Override configuration for testing purposes
+   * @param config The configuration to use
+   */
+  static setConfig(config: EnvironmentConfig): void {
+    this.configCache = config;
+  }
+  
+  /**
+   * Reset configuration cache (useful for testing)
+   */
+  static resetConfig(): void {
+    this.configCache = null;
+  }
+  
   private static getSecret(): string {
     // JWT secret comes from AWS Secrets Manager (injected as env var by ECS) or test setup
     const secret = process.env.JWT_SECRET;
@@ -34,6 +58,7 @@ export class JWTService {
   }
 
   static generateToken(payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>): string {
+    const config = this.getConfig();
     return jwt.sign(payload, this.getSecret(), {
       expiresIn: '7d',
       issuer: config.site?.domain || 'localhost',
@@ -76,6 +101,7 @@ export class JWTService {
       return false;
     }
     const domain = parts[1];
+    const config = this.getConfig();
     const allowedDomains = config.site?.oauthAllowedDomains || [];
     return allowedDomains.includes(domain);
   }
