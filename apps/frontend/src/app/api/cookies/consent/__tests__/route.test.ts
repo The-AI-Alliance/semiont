@@ -3,11 +3,9 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 import { getServerSession } from 'next-auth'
 
-// Import test config explicitly  
-const { loadEnvironmentConfig } = require('@semiont/config-loader');
-const testConfig = loadEnvironmentConfig(process.env.SEMIONT_ENV || 'unit');
-const getBackendUrl = () => testConfig.services?.backend ? `http://localhost:${testConfig.services.backend.port}` : 'http://localhost:3001';
-const getFrontendUrl = () => testConfig.services?.frontend ? `http://localhost:${testConfig.services.frontend.port}` : 'http://localhost:3000';
+// Use environment variables for URLs
+const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const getFrontendUrl = () => 'http://localhost:3000';
 
 
 // Mock next-auth
