@@ -1,58 +1,27 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "lib": ["ES2022"],
-    "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    // Output Configuration
     "outDir": "./dist",
-    "rootDir": "./",
-    "declaration": true,
-    "noEmit": false,
-    "verbatimModuleSyntax": false,
-    "jsx": "react",
+    "rootDir": ".",
     
-    // Core strictness (matching backend/frontend)
-    "strict": true,
+    // Module configuration for scripts/tools
+    "module": "ES2022",                         // ES modules for modern Node.js
+    "moduleResolution": "node",                 // Node.js module resolution
     
-    // Enhanced strictness settings (matching backend/frontend)
-    // Disabled for CDK compatibility
-    "exactOptionalPropertyTypes": false,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noUncheckedIndexedAccess": true,
-    "noPropertyAccessFromIndexSignature": false,
-    
-    // Additional type checking
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
-    "noImplicitAny": true,
-    "noImplicitThis": true,
-    "strictBindCallApply": true,
-    "strictFunctionTypes": true,
-    "strictNullChecks": true,
-    "strictPropertyInitialization": true,
-    "useUnknownInCatchVariables": true,
-    
-    // Code quality
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    
-    // Runtime compatibility
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    // Scripts specific
+    "allowJs": true,                           // Allow JavaScript files
+    "checkJs": false                           // Don't check JS files
   },
   "include": [
-    "*.ts",
-    "lib/**/*.ts",
-    "utils/**/*.ts"
+    "**/*.ts",
+    "lib/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.d.ts"
   ]
 }

@@ -1,58 +1,16 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    // Target and Module Settings
-    "target": "ES2022",
-    "module": "ES2022",
-    "lib": ["ES2022"],
-    "moduleResolution": "bundler",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    
-    // Output Settings
+    // Output Configuration
     "outDir": "./dist",
     "rootDir": "./src",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "incremental": true,
     
-    // Core Strict Type Checking
-    "strict": true,
-    "noImplicitAny": true,
-    "noImplicitThis": true,
-    "strictBindCallApply": true,
-    "strictFunctionTypes": true,
-    "strictNullChecks": true,
-    "strictPropertyInitialization": true,
-    "useUnknownInCatchVariables": true,
+    // CLI-specific overrides
+    "module": "ES2022",                         // Use ES modules for the CLI
+    "moduleResolution": "node",                 // Standard Node.js resolution
+    "allowImportingTsExtensions": false,        // Don't allow .ts extensions in imports
     
-    // Additional Strictness (can be enabled gradually)
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    
-    // Additional strict checking
-    "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": true,
-    "noPropertyAccessFromIndexSignature": false,
-    
-    // Code Quality (warnings, not errors in development)
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    
-    // Additional Type Checking
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
-    "checkJs": false,
-    
-    // Module System
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "verbatimModuleSyntax": false,
-    "allowImportingTsExtensions": true,
-    
-    // JSX Support
+    // JSX Support for Ink (CLI UI)
     "jsx": "react",
     
     // Path Mapping
@@ -67,9 +25,8 @@
   "exclude": [
     "node_modules",
     "dist",
-    "build.mjs",
-    "**/*.mjs",
-    "**/*.js",
-    "coverage"
+    "coverage",
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

@@ -30,7 +30,7 @@ export class EnvironmentValidator {
 
   private async validateProjectDirectory(): Promise<void> {
     const packageJsonPath = path.join(this.projectRoot, 'package.json');
-    const cliPackagePath = path.join(this.projectRoot, 'packages', 'cli', 'package.json');
+    const cliPackagePath = path.join(this.projectRoot, 'apps', 'cli', 'package.json');
     
     if (!fs.existsSync(packageJsonPath)) {
       throw new Error('Must run from Semiont project root - package.json not found');

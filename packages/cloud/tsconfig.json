@@ -1,44 +1,27 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": [
-      "es2022"
-    ],
-    "declaration": true,
+    // Output Configuration
     "outDir": "./dist",
-    "rootDir": ".",
-    "noEmit": false,
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": false,
-    "noUncheckedIndexedAccess": false,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    "inlineSourceMap": true,
-    "inlineSources": true,
-    "experimentalDecorators": true,
-    "strictPropertyInitialization": false,
-    "exactOptionalPropertyTypes": false,
-    "isolatedModules": true,
-    "typeRoots": [
-      "./node_modules/@types"
-    ],
-    "types": ["node"]
+    "rootDir": "./src",
+    
+    // Module configuration for cloud/CDK package
+    "module": "ES2022",                         // ES modules for modern Node.js
+    "moduleResolution": "node",                 // Node.js module resolution
+    
+    // CDK/Cloud specific settings
+    "experimentalDecorators": true,             // Enable decorators if needed for CDK
+    "emitDecoratorMetadata": true              // Emit decorator metadata
   },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
   "exclude": [
     "node_modules",
-    "cdk.out", 
     "dist",
-    "test/**/*"
+    "cdk.out",
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

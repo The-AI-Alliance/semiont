@@ -80,7 +80,7 @@ export class PackageBuilder {
 
   async linkCliGlobally(): Promise<BuildResult> {
     const startTime = Date.now();
-    const cliPath = path.join(this.projectRoot, 'packages', 'cli');
+    const cliPath = path.join(this.projectRoot, 'apps', 'cli');
     
     this.reporter.showVerbose('Linking CLI globally...');
     

@@ -21,13 +21,13 @@ export class SemiontInstaller {
   async install(cliOnly: boolean = false): Promise<void> {
     // Define packages with correct paths
     const packageConfigs = cliOnly 
-      ? [{ name: 'cli', path: path.join('packages', 'cli') }]
+      ? [{ name: 'cli', path: path.join('apps', 'cli') }]
       : [
           { name: 'api-types', path: path.join('packages', 'api-types') },
           { name: 'backend', path: path.join('apps', 'backend') },
           { name: 'frontend', path: path.join('apps', 'frontend') },
           { name: 'cloud', path: path.join('packages', 'cloud') },
-          { name: 'cli', path: path.join('packages', 'cli') },
+          { name: 'cli', path: path.join('apps', 'cli') },
           { name: 'scripts', path: path.join('packages', 'scripts') }
         ];
     
@@ -134,7 +134,7 @@ export class SemiontInstaller {
 
   private async runTests(cliOnly: boolean): Promise<{success: boolean, error?: string, testsRun?: number}> {
     return new Promise((resolve) => {
-      const cliPath = path.join(this.projectRoot, 'packages', 'cli');
+      const cliPath = path.join(this.projectRoot, 'apps', 'cli');
       
       this.reporter.showVerbose(`Running tests in ${cliPath}`);
       
