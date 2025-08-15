@@ -28,7 +28,7 @@ import { BaseCommandOptions } from '../lib/base-command-options.js';
 
 export const ConfigureOptionsSchema = z.object({
   action: z.enum(['show', 'list', 'validate', 'get', 'set']).default('show'),
-  environment: z.string().default('local'),
+  environment: z.string().optional(),
   secretPath: z.string().optional(),
   value: z.string().optional(),
   verbose: z.boolean().default(false),

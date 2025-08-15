@@ -18,7 +18,7 @@ import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 // =====================================================================
 
 export const InitOptionsSchema = z.object({
-  environment: z.string().default('none'), // Init doesn't need environment
+  environment: z.string().default('_init_'), // Dummy value - init doesn't use environment
   name: z.string().optional(),
   directory: z.string().optional(),
   force: z.boolean().default(false),
