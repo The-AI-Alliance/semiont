@@ -30,12 +30,18 @@ vi.mock('jsonwebtoken', () => ({
   },
 }));
 
-// Mock CONFIG
-vi.mock('../../config', () => ({
-  CONFIG: {
-    JWT_SECRET: 'test-secret-key-for-testing-32char',
-    DOMAIN: 'test.example.com',
-  }
+// Mock loadEnvironmentConfig to return test configuration
+vi.mock('@semiont/cli/lib/deployment-resolver.js', () => ({
+  loadEnvironmentConfig: vi.fn(() => ({
+    site: {
+      domain: 'test.example.com',
+      oauthAllowedDomains: ['example.com', 'test.org']
+    },
+    services: {},
+    env: {
+      NODE_ENV: 'test'
+    }
+  }))
 }));
 
 // Mock validation schemas
@@ -268,15 +274,10 @@ describe('JWT Service', () => {
   });
 
   describe('isAllowedDomain', () => {
-    beforeAll(async () => {
-      // Mock CONFIG for domain tests
-      const { CONFIG } = await import('../../config');
-      CONFIG.OAUTH_ALLOWED_DOMAINS = ['example.com', 'test.org'];
-    });
-
     it('should allow configured domains', () => {
-      expect(JWTService.isAllowedDomain('user@test.example.com')).toBe(true);
-      expect(JWTService.isAllowedDomain('admin@example.org')).toBe(true);
+      // The mock has oauthAllowedDomains: ['example.com', 'test.org']
+      expect(JWTService.isAllowedDomain('user@example.com')).toBe(true);
+      expect(JWTService.isAllowedDomain('admin@test.org')).toBe(true);
     });
 
     it('should reject non-configured domains', () => {
