@@ -38,6 +38,24 @@ vi.mock('fs', async () => {
   };
 });
 
+// Mock deployment-resolver to avoid environment config loading issues
+vi.mock('../lib/deployment-resolver.js', async () => {
+  const actual = await vi.importActual('../lib/deployment-resolver.js');
+  return {
+    ...actual,
+    getNodeEnvForEnvironment: vi.fn(() => 'test'),
+    loadEnvironmentConfig: vi.fn(() => ({
+      name: 'test',
+      env: { NODE_ENV: 'test' }
+    }))
+  };
+});
+
+// Mock cli-paths to provide a test project root
+vi.mock('../lib/cli-paths.js', () => ({
+  getProjectRoot: vi.fn(() => '/test/project/root')
+}));
+
 describe('Start Command', () => {
   beforeEach(() => {
     vi.clearAllMocks();

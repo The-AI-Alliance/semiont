@@ -216,7 +216,7 @@ export class SemiontInstaller {
       });
       
       proc.on('exit', (code) => {
-        if (code === 0 && output.includes('semiont')) {
+        if (code === 0 && output.toLowerCase().includes('semiont')) {
           this.reporter.showVerbose(`✓ CLI verification successful: ${output.trim()}`);
           resolve();
         } else {
