@@ -45,6 +45,19 @@ export const handlers = [
       return new HttpResponse(null, { status: 401 });
     }
     
+    if (accessToken === 'unverified-token' || accessToken === 'unverified-email-token') {
+      return HttpResponse.json({
+        id: 'google-456',
+        email: 'unverified@example.com',
+        verified_email: false,
+        name: 'Unverified User',
+        given_name: 'Unverified',
+        family_name: 'User',
+        picture: 'https://example.com/photo.jpg',
+        locale: 'en'
+      });
+    }
+    
     return HttpResponse.json({
       id: 'google-123',
       email: 'test@example.com',
