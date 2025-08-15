@@ -9,19 +9,28 @@ import { setupMSW } from './mocks/server';
 setupMSW();
 
 // Mock Prisma for tests
-vi.mock('../db', () => ({
-  prisma: {
-    user: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      count: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-    },
-    $queryRaw: vi.fn(),
+const mockPrismaClient = {
+  user: {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    count: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
   },
+  $queryRaw: vi.fn(),
+};
+
+vi.mock('../db', () => ({
+  prisma: mockPrismaClient,
+  DatabaseConnection: {
+    getClient: () => mockPrismaClient,
+    setClient: vi.fn(),
+    reset: vi.fn(),
+    disconnect: vi.fn(),
+  },
+  getDatabase: () => mockPrismaClient,
 }));
 
 // Don't mock OAuthService globally - let individual tests decide

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
-import { prisma } from './db';
+import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
@@ -156,6 +156,7 @@ app.post('/api/auth/accept-terms', authMiddleware, async (c) => {
   
   try {
     // Update user's terms acceptance timestamp
+    const prisma = DatabaseConnection.getClient();
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { termsAcceptedAt: new Date() }
@@ -193,6 +194,7 @@ const adminMiddleware = async (c: any, next: any) => {
 // Admin user management routes
 app.get('/api/admin/users', adminMiddleware, async (c) => {
   try {
+    const prisma = DatabaseConnection.getClient();
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       select: {
@@ -230,6 +232,7 @@ app.get('/api/admin/users/stats', adminMiddleware, async (c) => {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
+    const prisma = DatabaseConnection.getClient();
     const [totalUsers, activeUsers, adminUsers, recentUsers] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
@@ -258,6 +261,7 @@ app.patch('/api/admin/users/:id', adminMiddleware, async (c) => {
     const body = await c.req.json();
     
     // Validate the user exists
+    const prisma = DatabaseConnection.getClient();
     const existingUser = await prisma.user.findUnique({
       where: { id: userId }
     });
@@ -302,6 +306,7 @@ app.delete('/api/admin/users/:id', adminMiddleware, async (c) => {
     }
     
     // Validate the user exists
+    const prisma = DatabaseConnection.getClient();
     const existingUser = await prisma.user.findUnique({
       where: { id: userId }
     });
@@ -713,6 +718,7 @@ app.get('/api', (c) => {
 app.get('/api/health', async (c) => {
   let dbStatus: 'connected' | 'disconnected' | 'unknown' = 'unknown';
   try {
+    const prisma = DatabaseConnection.getClient();
     await prisma.$queryRaw<unknown[]>`SELECT 1`;
     dbStatus = 'connected';
   } catch (error) {

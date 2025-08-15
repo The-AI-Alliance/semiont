@@ -1,4 +1,4 @@
-import { prisma } from '../db';
+import { DatabaseConnection } from '../db';
 import { JWTService } from './jwt';
 import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
@@ -41,6 +41,9 @@ export class OAuthService {
     if (!JWTService.isAllowedDomain(googleUser.email)) {
       throw new Error(`Domain ${domain} is not allowed for authentication`);
     }
+
+    // Get database connection
+    const prisma = DatabaseConnection.getClient();
 
     // Find or create user
     const existingUser = await prisma.user.findFirst({
@@ -102,6 +105,7 @@ export class OAuthService {
   static async getUserFromToken(token: string): Promise<User> {
     const payload = JWTService.verifyToken(token);
     
+    const prisma = DatabaseConnection.getClient();
     const user = await prisma.user.findUnique({
       where: { id: payload.userId }
     });
