@@ -2,7 +2,7 @@
 
 Development and build tools for the Semiont monorepo. This package contains scripts used for building, testing, and developing Semiont itself.
 
-> **Note:** For user-facing CLI commands, see `packages/cli/` instead. This package is for development tools only.
+> **Note:** For user-facing CLI commands, see `apps/cli/` instead. This package is for development tools only.
 
 ## Overview
 
@@ -18,7 +18,7 @@ This package provides development and build automation for the Semiont monorepo,
 
 ## User-Facing Commands
 
-User-facing CLI commands are in `packages/cli/`. Use the global `semiont` command:
+User-facing CLI commands are in `apps/cli/`. Use the global `semiont` command:
 
 ```bash
 # Environment management
@@ -415,7 +415,7 @@ npm run setup -- --cli-only     # CLI only setup
 
 ### Adding New Development Scripts
 
-1. Create a new TypeScript file in `packages/scripts/`
+1. Create a new TypeScript file in `packages/scripts/src/`
 2. Use the existing patterns from `lib/` utilities
 3. Add proper error handling and progress reporting
 4. Update `package.json` scripts if needed

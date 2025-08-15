@@ -359,19 +359,30 @@ Start with the [Scripts README](packages/scripts/README.md) to understand:
 
 ### Key Development Principles
 
-1. **Type Safety First**: Full TypeScript coverage from database to UI
-2. **Security by Default**: Input validation, command injection prevention, sensitive data redaction
-3. **Performance Optimized**: Bundle analysis, Lighthouse CI, performance monitoring
-4. **Error Resilience**: Comprehensive error boundaries and graceful degradation
-5. **Developer Experience**: Auto-completion, inline documentation, hot reloading
+1. **Type Safety First**: Full TypeScript coverage from database to UI with strict mode enabled
+2. **Functional Programming**: Prefer pure, side-effect free functions throughout the codebase
+3. **Security by Default**: Input validation, command injection prevention, sensitive data redaction
+4. **Performance Optimized**: Bundle analysis, Lighthouse CI, performance monitoring
+5. **Error Resilience**: Comprehensive error boundaries and graceful degradation
+6. **Developer Experience**: Auto-completion, inline documentation, hot reloading
+
+### TypeScript Configuration
+
+The project uses a strict TypeScript configuration with all safety features enabled:
+- Root `tsconfig.json` with strict settings that all packages extend
+- `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes` all enabled
+- Apps use `moduleResolution: "bundler"` for modern imports
+- Packages use `moduleResolution: "node"` for compatibility
+- All code must compile without errors before merging
 
 ## 🧪 Testing
 
 The project uses modern testing frameworks with intelligent test type filtering:
 
-- **Frontend**: Vitest + MSW v2 + React Testing Library (1012 tests organized by type)
-- **Backend**: Vitest with comprehensive coverage (176+ tests organized by type)
-- **Both**: Strict TypeScript compilation catches errors at build time
+- **Frontend**: Vitest + MSW v2 + React Testing Library with comprehensive test coverage
+- **Backend**: Vitest with unit and integration tests for all critical paths
+- **CLI**: Vitest with tests for all commands and deployment types
+- **All packages**: Strict TypeScript compilation catches errors at build time
 
 ### Test Type Organization
 

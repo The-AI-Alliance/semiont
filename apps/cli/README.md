@@ -11,6 +11,12 @@ The Semiont CLI provides a consistent interface for:
 - **Safety Features**: comprehensive `--dry-run` support for all operations
 - **Environment Agnostic**: no special treatment of "local" vs "cloud" environments
 
+## Quick Links
+
+- [**Adding New Commands Guide**](./ADDING_COMMANDS.md) - Step-by-step guide for adding new CLI commands
+- [Service-Command Matrix](#service-command-matrix) - How commands work with different deployment types
+- [Contributing](#contributing) - Development guidelines and best practices
+
 ## Installation
 
 ```bash
@@ -388,7 +394,25 @@ All commands are **deployment-type aware** and adapt behavior based on each serv
 
 ## Service-Command Matrix
 
-This table shows the **actual implemented actions** each command takes for each service across different deployment types:
+This table shows the **actual implemented actions** each command takes for each service across different deployment types.
+
+### Command Environment Requirements
+
+| Command | Environment Required | Notes |
+|---------|---------------------|-------|
+| `init` | No | Uses dummy `_init_` default - doesn't need environment |
+| `provision` | Yes | Creates infrastructure for specific environment |
+| `start` | Yes | Starts services in specific environment |
+| `stop` | Yes | Stops services in specific environment |
+| `restart` | Yes | Restarts services in specific environment |
+| `check` | Yes | Checks health in specific environment |
+| `publish` | Yes | Builds and pushes images for environment |
+| `update` | Yes | Updates services in specific environment |
+| `configure` | Yes | Sets configuration for specific environment |
+| `backup` | Yes | Creates backups for specific environment |
+| `exec` | Yes | Executes commands in specific environment |
+| `test` | Yes | Runs tests for specific environment |
+| `watch` | Yes | Monitors services in specific environment |
 
 ### Core Service Operations
 
@@ -454,6 +478,7 @@ This table shows the **actual implemented actions** each command takes for each 
 
 | Command | Service | AWS | Container | Process | External |
 |---------|---------|-----|-----------|---------|----------|
+| **init** | N/A | Create initial configuration files | Create initial configuration files | Create initial configuration files | Create initial configuration files |
 | **exec** | frontend | ECS exec with AWS CLI | Exec into container | Spawn shell in app directory | Provide connection guidance |
 | | backend | ECS exec with AWS CLI | Exec into container | Spawn shell in app directory | Provide connection guidance |
 | | database | Cannot exec into RDS | Exec into postgres container | Direct psql connection | Provide connection guidance |
@@ -535,15 +560,62 @@ semiont check                    # Uses staging environment
 semiont start -e production      # Override with -e flag
 ```
 
+## Contributing
+
+### Development Setup Prerequisites
+- Node.js 18+ with npm
+- Docker or Podman for testing container commands
+- AWS CLI for testing cloud deployments
+- TypeScript knowledge required
+
 ### Code Style Guidelines
 
-1. **Deployment-Type Awareness** - Always use `switch (serviceInfo.deploymentType)` pattern
-2. **Use Shared Utilities** - Import from `lib/` for colors, service resolution, container runtime
-3. **Service Resolution** - Always use `resolveServiceDeployments()` for getting service info
-4. **Comprehensive Dry-Run** - Support `--dry-run` at both command and service levels
-5. **Consistent Error Handling** - Use shared color utilities and proper exit codes
-6. **Type Everything** - Full TypeScript with Zod validation for all arguments
-7. **Container-Runtime Agnostic** - Support both Docker and Podman via utilities
+1. **Functional, side-effect free code is strongly preferred**
+   - Write pure functions whenever possible
+   - Avoid mutations and global state
+   - Side effects should be isolated to command execution
+2. **Deployment-Type Awareness** - Always use `switch (serviceInfo.deploymentType)` pattern
+3. **Use Shared Utilities** - Import from `lib/` for colors, service resolution, container runtime
+4. **Service Resolution** - Always use `resolveServiceDeployments()` for getting service info
+5. **Comprehensive Dry-Run** - Support `--dry-run` at both command and service levels
+6. **Consistent Error Handling** - Use shared color utilities and proper exit codes
+7. **Type Everything** - Full TypeScript with Zod validation for all arguments
+8. **Container-Runtime Agnostic** - Support both Docker and Podman via utilities
+9. **No unnecessary comments** - Code should be self-documenting with clear names
+
+📖 **For detailed instructions on adding new commands, see the [Adding Commands Guide](./ADDING_COMMANDS.md)**
+
+### Testing Requirements
+- All tests must pass before committing
+- Run `npm test` to execute all tests
+- Test both container and AWS deployment types where applicable
+- New commands should include appropriate tests
+
+### Type Checking and Linting
+```bash
+# Type check all code
+npm run type-check
+
+# Build (includes type checking)
+npm run build
+
+# Run tests
+npm test
+```
+
+### PR Requirements
+- Tests must pass (all test suites)
+- TypeScript must compile without errors (strict mode)
+- Follow functional programming principles
+- Include tests for new commands
+- Update service/command matrix if adding new commands
+- Document environment requirements clearly
+
+### Environment Configuration Notes
+- Environment parameter is optional in command schemas but required at runtime
+- The `init` command uses `_init_` as a dummy default (it doesn't need environment)
+- No hidden 'local' defaults - environment must be explicit
+- Use `requiresEnvironment(true)` in commands that need environment
 
 ## Troubleshooting
 
@@ -551,7 +623,7 @@ semiont start -e production      # Override with -e flag
 
 ```bash
 # Reinstall the CLI globally
-cd packages/cli
+cd apps/cli
 npm link --force
 ```
 

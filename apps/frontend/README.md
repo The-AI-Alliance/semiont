@@ -8,7 +8,7 @@ A modern, type-safe React frontend built with Next.js 14, featuring comprehensiv
 
 ```bash
 # From project root - starts everything automatically!
-./scripts/semiont local start
+semiont local start
 
 # This will:
 # ✅ Start PostgreSQL container with correct schema
@@ -48,38 +48,38 @@ npm run perf
 
 ```bash
 # Full stack development
-./scripts/semiont local start              # Start everything (database + backend + frontend)
-./scripts/semiont local start --reset      # Fresh start with clean database
-./scripts/semiont local stop               # Stop all services
-./scripts/semiont local status             # Check what's running
+semiont local start              # Start everything (database + backend + frontend)
+semiont local start --reset      # Fresh start with clean database
+semiont local stop               # Stop all services
+semiont local status             # Check what's running
 
 # Frontend development
-./scripts/semiont local frontend start     # Start frontend (auto-starts backend if needed)
-./scripts/semiont local frontend start --mock  # Start frontend with mock API only
-./scripts/semiont local frontend stop      # Stop frontend service
+semiont local frontend start     # Start frontend (auto-starts backend if needed)
+semiont local frontend start --mock  # Start frontend with mock API only
+semiont local frontend stop      # Stop frontend service
 
 # Backend + database
-./scripts/semiont local backend start      # Start backend (auto-starts database if needed)
-./scripts/semiont local backend start --fresh  # Start backend with fresh database
-./scripts/semiont local db start --seed    # Start database with sample data
+semiont local backend start      # Start backend (auto-starts database if needed)
+semiont local backend start --fresh  # Start backend with fresh database
+semiont local db start --seed    # Start database with sample data
 ```
 
 ### Development Modes
 
-1. **🚀 Full Stack Development** (`./scripts/semiont local start`)
+1. **🚀 Full Stack Development** (`semiont local start`)
    - Complete development environment in one command
    - PostgreSQL container with schema applied automatically
    - Backend API with database connection
    - Frontend with real API integration
    - **Perfect for full-stack feature development**
 
-2. **🎨 Frontend-Only Development** (`./scripts/semiont local frontend start --mock`)
+2. **🎨 Frontend-Only Development** (`semiont local frontend start --mock`)
    - No backend or database dependencies
    - Mock API provides realistic data
    - Fast iteration for UI/UX work
    - **Perfect for component development and styling**
 
-3. **⚡ Backend-Connected Development** (`./scripts/semiont local frontend start`)
+3. **⚡ Backend-Connected Development** (`semiont local frontend start`)
    - Auto-starts backend and database if needed
    - Real API integration
    - **Perfect for testing API integration**
@@ -108,28 +108,28 @@ npm install  # Installs dependencies for all apps
 
 2. **Frontend-focused development** (UI/UX work):
 ```bash
-./scripts/semiont local frontend start --mock
+semiont local frontend start --mock
 # Only frontend running with mock API
 # Perfect for component development, styling, layout work
 ```
 
 3. **Full-stack development** (feature work):
 ```bash  
-./scripts/semiont local start
+semiont local start
 # Complete environment: database + backend + frontend
 # Perfect for implementing features that need real API integration
 ```
 
 4. **Backend integration testing**:
 ```bash
-./scripts/semiont local frontend start
+semiont local frontend start
 # Frontend + real backend + database
 # Perfect for testing API integration without manual backend setup
 ```
 
 5. **Fresh start** (reset data):
 ```bash
-./scripts/semiont local start --reset
+semiont local start --reset
 # Clean database with fresh sample data
 # Perfect when you need to reset state
 ```
@@ -600,21 +600,21 @@ The frontend uses **Vitest** with React Testing Library for testing React compon
 
 ```bash
 # Run all frontend tests with coverage (from project root)
-./scripts/semiont test --service frontend
+semiont test --service frontend
 
 # Run specific test types for frontend
-./scripts/semiont test --service frontend --suite unit         # Unit tests only (~1007 tests)
-./scripts/semiont test --service frontend --suite integration  # Integration tests only (~5 tests)
-./scripts/semiont test --service frontend --suite security    # Security tests only (~5 tests)
+semiont test --service frontend --suite unit         # Unit tests only
+semiont test --service frontend --suite integration  # Integration tests only
+semiont test --service frontend --suite security    # Security tests only
 
 # Run tests against custom environment
-./scripts/semiont test --environment staging --service frontend --suite integration
+semiont test --environment staging --service frontend --suite integration
 
 # Watch mode for development
-./scripts/semiont test --service frontend --suite unit --watch
+semiont test --service frontend --suite unit --watch
 
 # Skip coverage reporting for faster runs
-./scripts/semiont test --service frontend --no-coverage
+semiont test --service frontend --no-coverage
 ```
 
 #### Direct npm Scripts
@@ -649,10 +649,10 @@ npm run perf
 
 Specific test type filtering provides significant performance improvements:
 
-- **Unit tests**: ~1007 tests (filters out integration tests)
-- **Integration tests**: ~5 tests (massive speedup for testing user flows)
-- **API tests**: ~77 tests (focuses on Next.js API routes)
-- **Security tests**: ~5 tests (authentication, GDPR compliance, validation)
+- **Unit tests**: Fast execution by excluding integration tests
+- **Integration tests**: Massive speedup for testing user flows
+- **API tests**: Focuses on Next.js API routes
+- **Security tests**: Authentication, GDPR compliance, and validation tests
 
 ### Test Stack
 
@@ -663,7 +663,7 @@ Specific test type filtering provides significant performance improvements:
 
 ### Current Test Coverage
 
-- **100% test success rate** with 244 tests passing
+- **100% test success rate** with all tests passing
 - Comprehensive coverage of cookie consent system, authentication, and UI components
 - Key areas with excellent coverage:
   - Cookie management (`cookies.ts`) - 87.57% coverage
@@ -952,6 +952,53 @@ Planned improvements for higher test coverage:
 - Run `npm run perf` to identify bottlenecks
 - Check bundle size with `npm run analyze`
 - Review Lighthouse CI reports for optimization suggestions
+
+## Contributing
+
+### Development Setup Prerequisites
+- Node.js 18+ with npm
+- Understanding of React and TypeScript
+- Familiarity with Next.js App Router
+
+### Code Style Guidelines
+- **Functional, side-effect free code is strongly preferred**
+- Use functional components with hooks
+- Avoid class components and mutations
+- No unnecessary comments - code should be self-documenting
+- Use descriptive component and variable names
+- Follow existing patterns in the codebase
+- Prefer composition over inheritance
+
+### Testing Requirements
+- All tests must pass before committing
+- Run `npm test` to execute all tests
+- Run `npm run test:unit` for faster unit-only testing
+- New components should include appropriate tests
+
+### Type Checking and Linting
+```bash
+# Type check all code
+npm run type-check
+
+# Build (includes type checking)
+npm run build
+
+# Run specific test suites
+npm run test:unit        # Unit tests only
+npm run test:integration # Integration tests only
+
+# Performance analysis
+npm run perf            # Full performance check
+npm run analyze-bundle  # Bundle size analysis
+```
+
+### PR Requirements
+- Tests must pass (all test suites)
+- TypeScript must compile without errors (strict mode)
+- Follow functional programming principles
+- Include tests for new components
+- Update documentation if UI changes significantly
+- Check bundle size impact with `npm run analyze-bundle`
 
 ## Further Reading
 
