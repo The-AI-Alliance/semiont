@@ -232,7 +232,7 @@ async function configure(
         
         case 'list': {
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'secrets', 'external', options.environment, startTime),
+            ...createBaseResult('configure', 'secrets', 'external', options.environment!, startTime),
             configurationChanges: [],
             restartRequired: false,
             resourceId: { external: { endpoint: 'secrets-manager' } },
@@ -254,7 +254,7 @@ async function configure(
         }
         
         case 'validate': {
-          const config = loadEnvironmentConfig(options.environment);
+          const config = loadEnvironmentConfig(options.environment!);
           const issues: string[] = [];
           
           // Check required fields
@@ -266,7 +266,7 @@ async function configure(
           }
           
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'validation', 'external', options.environment, startTime),
+            ...createBaseResult('configure', 'validation', 'external', options.environment!, startTime),
             configurationChanges: [],
             restartRequired: false,
             resourceId: { external: { endpoint: 'config-file' } },
@@ -298,11 +298,11 @@ async function configure(
             throw new Error('Secret path is required for get action');
           }
           
-          const secretName = await getSecretFullName(options.environment, options.secretPath);
-          const value = await getCurrentSecret(options.environment, secretName);
+          const secretName = await getSecretFullName(options.environment!, options.secretPath!);
+          const value = await getCurrentSecret(options.environment!, secretName);
           
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'secret', 'external', options.environment, startTime),
+            ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
             configurationChanges: [],
             restartRequired: false,
             resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
@@ -334,7 +334,7 @@ async function configure(
             throw new Error('Secret path is required for set action');
           }
           
-          const secretName = await getSecretFullName(options.environment, options.secretPath);
+          const secretName = await getSecretFullName(options.environment!, options.secretPath!);
           let newValue: any = options.value;
           
           // If no value provided, prompt for it
@@ -355,7 +355,7 @@ async function configure(
           
           if (options.dryRun) {
             const result: ConfigureResult = {
-              ...createBaseResult('configure', 'secret', 'external', options.environment, startTime),
+              ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
               configurationChanges: [{
                 key: options.secretPath,
                 oldValue: 'masked',
@@ -378,10 +378,10 @@ async function configure(
               console.log(`${colors.cyan}[DRY RUN] Would update secret: ${options.secretPath}${colors.reset}`);
             }
           } else {
-            await updateSecret(options.environment, secretName, newValue);
+            await updateSecret(options.environment!, secretName, newValue);
             
             const result: ConfigureResult = {
-              ...createBaseResult('configure', 'secret', 'external', options.environment, startTime),
+              ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
               configurationChanges: [{
                 key: options.secretPath,
                 oldValue: 'masked',
@@ -408,7 +408,7 @@ async function configure(
         }
       }
     } catch (error) {
-      const baseResult = createBaseResult('configure', 'error', 'external', options.environment, startTime);
+      const baseResult = createBaseResult('configure', 'error', 'external', options.environment!, startTime);
       const errorResult = createErrorResult(baseResult, error as Error) as ConfigureResult;
       errorResult.configurationChanges = [];
       errorResult.restartRequired = false;
@@ -423,7 +423,7 @@ async function configure(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'configure',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: configureResults,

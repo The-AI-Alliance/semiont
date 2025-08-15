@@ -56,7 +56,7 @@ async function restartServiceImpl(serviceInfo: ServiceDeploymentInfo, options: R
     printInfo(`[DRY RUN] Would restart ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     
     return {
-      ...createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime),
       stopTime,
       startTime: new Date(Date.now() + options.gracePeriod * 1000),
       downtime: options.gracePeriod * 1000,
@@ -83,7 +83,7 @@ async function restartServiceImpl(serviceInfo: ServiceDeploymentInfo, options: R
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -100,7 +100,7 @@ async function restartServiceImpl(serviceInfo: ServiceDeploymentInfo, options: R
 }
 
 async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   const stopTime = new Date();
   
   // AWS ECS task restart
@@ -188,7 +188,7 @@ async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: Re
 }
 
 async function restartContainerService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
   const stopTime = new Date();
   
@@ -309,7 +309,7 @@ async function restartContainerService(serviceInfo: ServiceDeploymentInfo, optio
 }
 
 async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   const stopTime = new Date();
   
   // Process deployment restart
@@ -419,7 +419,7 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
 }
 
 async function restartExternalService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   const stopTime = new Date();
   
   // External service - can't actually restart, just verify
@@ -578,7 +578,7 @@ export async function restart(
         serviceResults.push(result);
       } catch (error) {
         // Create error result
-        const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const restartErrorResult: RestartResult = {
@@ -605,7 +605,7 @@ export async function restart(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'restart',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -670,4 +670,5 @@ export const restartCommand = new CommandBuilder<RestartOptions>()
 export default restartCommand;
 
 // Export the schema for use by CLI
-export { RestartOptions, RestartOptionsSchema };
+export type { RestartOptions };
+export { RestartOptionsSchema };

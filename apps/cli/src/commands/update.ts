@@ -813,4 +813,5 @@ export const updateCommand = new CommandBuilder<UpdateOptions>()
 export default updateCommand;
 
 // Export the schema and options type for use by CLI
-export { UpdateOptions, UpdateOptionsSchema };
+export type { UpdateOptions };
+export { UpdateOptionsSchema };

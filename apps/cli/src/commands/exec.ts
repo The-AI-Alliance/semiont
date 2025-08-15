@@ -58,7 +58,7 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would execute "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})`);
     return {
-      ...createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime),
       command: options.command,
       exitCode: 0,
       output: '[DRY RUN] Command not executed',
@@ -86,7 +86,7 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -104,10 +104,10 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
 }
 
 async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
-  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   // Load AWS config from environment
-  const envConfig = loadEnvironmentConfig(options.environment);
+  const envConfig = loadEnvironmentConfig(options.environment!);
   if (!envConfig.aws || !envConfig.aws.region) {
     printError('AWS configuration not found in environment config');
     throw new Error('Missing AWS configuration');
@@ -118,8 +118,8 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
     case 'frontend':
     case 'backend':
       const ecsClient = new ECSClient({ region: envConfig.aws.region });
-      const clusterName = `semiont-${options.environment}`;
-      const serviceName = `semiont-${options.environment}-${serviceInfo.name}`;
+      const clusterName = `semiont-${options.environment!}`;
+      const serviceName = `semiont-${options.environment!}-${serviceInfo.name}`;
       
       try {
         // Get running tasks
@@ -224,8 +224,8 @@ async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: Exe
 }
 
 async function execInContainerService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
-  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
+  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment!}`;
   
   try {
     printInfo(`Executing in container: ${containerName}`);
@@ -267,7 +267,7 @@ async function execInContainerService(serviceInfo: ServiceDeploymentInfo, option
 }
 
 async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
-  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   // For process deployments, we can either:
   // 1. Execute in the context of the running process (limited)
@@ -465,7 +465,7 @@ export async function exec(
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Executing command in ${colors.bright}${options.environment}${colors.reset} environment`);
+      printInfo(`Executing command in ${colors.bright}${options.environment!}${colors.reset} environment`);
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
@@ -478,7 +478,7 @@ export async function exec(
       result = await execInServiceImpl(serviceDeployment, options);
     } catch (error) {
       // Convert errors to failed results
-      const baseResult = createBaseResult('exec', serviceDeployment.name, serviceDeployment.deploymentType, options.environment, startTime);
+      const baseResult = createBaseResult('exec', serviceDeployment.name, serviceDeployment.deploymentType, options.environment!, startTime);
       const errorResult = createErrorResult(baseResult, error as Error);
       
       result = {
@@ -497,7 +497,7 @@ export async function exec(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'exec',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [result],
@@ -563,4 +563,5 @@ export const execCommand = new CommandBuilder<ExecOptions>()
 export default execCommand;
 
 // Export the schema for use by CLI
-export { ExecOptions, ExecOptionsSchema };
+export type { ExecOptions };
+export { ExecOptionsSchema };

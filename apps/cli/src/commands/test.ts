@@ -718,4 +718,5 @@ export default testCommand;
 // The test function now accepts pre-resolved services and returns CommandResults
 
 // Export the schema for use by CLI
-export { TestOptions, TestOptionsSchema };
+export type { TestOptions };
+export { TestOptionsSchema };

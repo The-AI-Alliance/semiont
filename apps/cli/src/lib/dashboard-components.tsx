@@ -129,7 +129,7 @@ export const LogViewer: React.FC<{
   }, [filteredLogs.length, height, autoScroll]);
 
   // Handle keyboard input for scrolling
-  useInput((input, key) => {
+  useInput((input: string, key: any) => {
     if (key.upArrow && scrollPosition > 0) {
       setScrollPosition(scrollPosition - 1);
       setAutoScroll(false);

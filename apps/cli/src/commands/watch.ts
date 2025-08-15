@@ -229,4 +229,5 @@ export default watchCommand;
 
 // Export the schema for use by CLI
 
-export { WatchOptions, WatchOptionsSchema };
+export type { WatchOptions };
+export { WatchOptionsSchema };

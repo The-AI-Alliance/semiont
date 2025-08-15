@@ -679,4 +679,5 @@ export const startCommand = new CommandBuilder<StartOptions>()
 export default startCommand;
 
 // Export the schema for use by CLI
-export { StartOptions, StartOptionsSchema };
+export type { StartOptions };
+export { StartOptionsSchema };

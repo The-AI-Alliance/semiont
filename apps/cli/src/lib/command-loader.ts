@@ -6,9 +6,7 @@
  */
 
 import type { CommandDefinition } from './command-definition.js';
-import type { BaseCommandOptions } from './base-command-options.js';
 import type { ServiceDeploymentInfo } from './deployment-resolver.js';
-import type { CommandResults } from './command-results.js';
 import { createArgParser, generateHelp } from './arg-parser.js';
 import { 
   getAvailableEnvironments, 
@@ -172,8 +170,8 @@ export async function executeCommand(
       const service = (options as any).service || 'all';
       // At this point, environment is guaranteed to be defined if requiresEnvironment is true
       const environment = options.environment!;
-      await validateServiceSelector(service, commandName, environment);
-      const resolvedServices = await resolveServiceSelector(service, commandName, environment);
+      await validateServiceSelector(service, commandName as any, environment);
+      const resolvedServices = await resolveServiceSelector(service, commandName as any, environment);
       services = resolveServiceDeployments(resolvedServices, environment);
     }
     

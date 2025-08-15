@@ -7,7 +7,7 @@
 
 import arg from 'arg';
 import { z } from 'zod';
-import type { CommandDefinition, ArgDefinition, ArgSpec } from './command-definition.js';
+import type { CommandDefinition, ArgSpec } from './command-definition.js';
 import type { BaseCommandOptions } from './base-command-options.js';
 
 /**

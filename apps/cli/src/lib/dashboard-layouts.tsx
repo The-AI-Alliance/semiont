@@ -236,7 +236,7 @@ export const CompactDashboard: React.FC<{
   const contentHeight = terminalHeight - headerHeight - footerHeight;
 
   // Panel switching with keyboard
-  useInput((input) => {
+  useInput((input: string) => {
     if (input === '1') setCurrentPanel('services');
     else if (input === '2') setCurrentPanel('logs');
     else if (input === '3') setCurrentPanel('metrics');

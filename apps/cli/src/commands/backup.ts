@@ -860,4 +860,5 @@ export const backupCommand = new CommandBuilder<BackupOptions>()
 export default backupCommand;
 
 // Export the schema for use by CLI
-export { BackupOptions, BackupOptionsSchema };
+export type { BackupOptions };
+export { BackupOptionsSchema };

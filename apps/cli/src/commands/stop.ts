@@ -615,4 +615,5 @@ export const stopCommand = new CommandBuilder<StopOptions>()
 export default stopCommand;
 
 // Export schema
-export { StopOptions, StopOptionsSchema };
+export type { StopOptions };
+export { StopOptionsSchema };

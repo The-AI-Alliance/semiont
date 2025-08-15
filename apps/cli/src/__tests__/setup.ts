@@ -8,7 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { init } from '../commands/init.js';
+import initCommand from '../commands/init.js';
+const init = initCommand.handler;
 
 /**
  * Creates a temporary test directory with initialized Semiont project
@@ -39,7 +40,8 @@ export async function createTestEnvironment(
       environment: 'local',  // Required by BaseCommandOptions
       output: 'summary',
       quiet: true,  // Suppress output during test setup
-      verbose: false
+      verbose: false,
+      dryRun: false
     });
     
   } finally {

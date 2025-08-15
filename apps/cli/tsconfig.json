@@ -7,7 +7,7 @@
     
     // CLI-specific overrides
     "module": "ES2022",                         // Use ES modules for the CLI
-    "moduleResolution": "node",                 // Standard Node.js resolution
+    "moduleResolution": "bundler",              // Bundler resolution for better compatibility
     "allowImportingTsExtensions": false,        // Don't allow .ts extensions in imports
     
     // JSX Support for Ink (CLI UI)

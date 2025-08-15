@@ -92,7 +92,7 @@ async function provisionService(serviceInfo: ServiceDeploymentInfo, options: Pro
     }
     
     return {
-      ...createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime),
+      ...createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime),
       resources: [],
       dependencies: [],
       resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
@@ -123,7 +123,7 @@ async function provisionService(serviceInfo: ServiceDeploymentInfo, options: Pro
         throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
     }
   } catch (error) {
-    const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+    const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
     const errorResult = createErrorResult(baseResult, error as Error);
     
     return {
@@ -138,7 +138,7 @@ async function provisionService(serviceInfo: ServiceDeploymentInfo, options: Pro
 }
 
 async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: ProvisionOptions, startTime: number, isStructuredOutput: boolean = false): Promise<ProvisionResult> {
-  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   // AWS infrastructure provisioning via CDK
   if (!isStructuredOutput && options.output === 'summary') {
@@ -289,7 +289,7 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
 }
 
 async function provisionContainerService(serviceInfo: ServiceDeploymentInfo, options: ProvisionOptions, startTime: number, isStructuredOutput: boolean = false): Promise<ProvisionResult> {
-  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   // Container infrastructure provisioning
   switch (serviceInfo.name) {
@@ -543,7 +543,7 @@ async function provisionContainerService(serviceInfo: ServiceDeploymentInfo, opt
 }
 
 async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, options: ProvisionOptions, startTime: number, isStructuredOutput: boolean = false): Promise<ProvisionResult> {
-  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   // Process deployment provisioning (local development)
   switch (serviceInfo.name) {
@@ -794,7 +794,7 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
 }
 
 async function provisionExternalService(serviceInfo: ServiceDeploymentInfo, options: ProvisionOptions, startTime: number, isStructuredOutput: boolean = false): Promise<ProvisionResult> {
-  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   // External service provisioning - mainly validation
   if (options.destroy) {
@@ -951,7 +951,7 @@ export async function provision(
         // Return appropriate result instead of exiting
         return {
           command: 'provision',
-          environment: options.environment,
+          environment: options.environment!,
           timestamp: new Date(),
           duration: Date.now() - startTime,
           services: [],
@@ -998,7 +998,7 @@ export async function provision(
         const result = await provisionService(service, options, isStructuredOutput);
         serviceResults.push(result);
       } catch (error) {
-        const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment!, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const provisionErrorResult: ProvisionResult = {
@@ -1029,7 +1029,7 @@ export async function provision(
           const result = await provisionService(service, options, isStructuredOutput);
           serviceResults.push(result);
         } catch (error) {
-          const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment, startTime);
+          const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment!, startTime);
           const errorResult = createErrorResult(baseResult, error as Error);
           
           const provisionErrorResult: ProvisionResult = {
@@ -1057,7 +1057,7 @@ export async function provision(
         const result = await provisionService(service, options, isStructuredOutput);
         serviceResults.push(result);
       } catch (error) {
-        const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment!, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const provisionErrorResult: ProvisionResult = {
@@ -1084,7 +1084,7 @@ export async function provision(
         const result = await provisionService(service, options, isStructuredOutput);
         serviceResults.push(result);
       } catch (error) {
-        const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment!, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const provisionErrorResult: ProvisionResult = {
@@ -1108,7 +1108,7 @@ export async function provision(
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'provision',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -1134,7 +1134,7 @@ export async function provision(
     
     return {
       command: 'provision',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [],
@@ -1201,4 +1201,5 @@ export default provisionCommand;
 // The provision function now accepts pre-resolved services and returns CommandResults
 
 // Export the schema for use by CLI
-export { ProvisionOptions, ProvisionOptionsSchema };
+export type { ProvisionOptions };
+export { ProvisionOptionsSchema };

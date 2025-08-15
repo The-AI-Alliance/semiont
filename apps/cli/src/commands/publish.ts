@@ -386,7 +386,7 @@ async function publishService(
     
     if (serviceInfo.deploymentType === 'aws') {
       // Load environment config for AWS settings
-      const envConfig = await loadEnvironmentConfig(options.environment);
+      const envConfig = await loadEnvironmentConfig(options.environment!);
       publishedImage = await pushImageToECR(buildResult.imageName, serviceInfo.name, envConfig, options);
       if (publishedImage && envConfig.aws) {
         repository = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-${serviceInfo.name}`;
@@ -477,7 +477,7 @@ export const publish = async (
         serviceResults.push(result);
       } catch (error) {
         // Create error result
-        const baseResult = createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+        const baseResult = createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
         const errorResult = createErrorResult(baseResult, error as Error);
         
         const publishErrorResult: PublishResult = {
@@ -502,7 +502,7 @@ export const publish = async (
     // Create aggregated results
     const commandResults: CommandResults = {
       command: 'publish',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -528,7 +528,7 @@ export const publish = async (
     
     return {
       command: 'publish',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [],
@@ -588,4 +588,5 @@ export default publishCommand;
 // Note: The main function is removed as cli.ts now handles service resolution and output formatting
 // The publish function now accepts pre-resolved services and returns CommandResults
 
-export { PublishOptions, PublishOptionsSchema };
+export type { PublishOptions };
+export { PublishOptionsSchema };

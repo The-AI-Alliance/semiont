@@ -47,7 +47,7 @@ function debugLog(_message: string, _options: any): void {
 // =====================================================================
 
 async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number): Promise<CheckResult> {
-  const baseResult = createBaseResult('check', serviceInfo.name, serviceInfo.deploymentType, options.environment, startTime);
+  const baseResult = createBaseResult('check', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   try {
     if (options.dryRun) {
@@ -624,7 +624,7 @@ export async function check(
     
     const commandResults: CommandResults = {
       command: 'check',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: serviceResults,
@@ -661,7 +661,7 @@ export async function check(
     
     return {
       command: 'check',
-      environment: options.environment,
+      environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       services: [],
@@ -721,4 +721,5 @@ export const checkCommand = new CommandBuilder<CheckOptions>()
 export default checkCommand;
 
 // Export the schema for use by CLI
-export { CheckOptions, CheckOptionsSchema };
+export type { CheckOptions };
+export { CheckOptionsSchema };
