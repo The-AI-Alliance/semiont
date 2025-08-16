@@ -27,8 +27,8 @@ These tasks are handled automatically by AWS services:
 
 ```bash
 # Check recent ECS logs for errors (both services)
-./bin/semiont logs backend tail | grep -i error
-./bin/semiont logs frontend tail | grep -i error
+semiont watch logs --service backend | grep -i error
+semiont watch logs --service frontend | grep -i error
 
 # Or use AWS CLI directly
 aws logs filter-log-events --log-group-name SemiontLogGroup \
@@ -36,7 +36,7 @@ aws logs filter-log-events --log-group-name SemiontLogGroup \
   --filter-pattern "ERROR"
 
 # Check overall service status
-./bin/semiont status
+semiont check
 ```
 
 ## Weekly Maintenance
@@ -116,7 +116,7 @@ cd apps/frontend && npm update && npm audit fix
 cd ../backend && npm update && npm audit fix
 
 # Update CDK dependencies
-cd ../../cdk
+cd ../../packages/cloud
 npm update
 npm audit fix
 
@@ -126,7 +126,7 @@ npx cdk diff SemiontAppStack
 npx cdk deploy SemiontAppStack  # Deploy app stack first for most updates
 
 # Restart services to pick up changes
-./bin/semiont restart
+semiont restart
 ```
 
 ## Quarterly Maintenance
@@ -203,7 +203,7 @@ npx cdk deploy SemiontAppStack  # Deploy app stack first for most updates
 
 ```bash
 # Quick status check for both services
-./bin/semiont status
+semiont check
 
 # Check ECS service status for both services
 aws ecs describe-services --cluster SemiontCluster \
@@ -216,17 +216,17 @@ aws elbv2 describe-target-health --target-group-arn $FRONTEND_TG_ARN
 aws elbv2 describe-target-health --target-group-arn $BACKEND_TG_ARN
 
 # Restart services if needed
-./bin/semiont restart
+semiont restart
 # Or restart individual services
-./bin/semiont restart frontend
-./bin/semiont restart backend
+semiont restart --service frontend
+semiont restart --service backend
 ```
 
 **Database Connection Issues:**
 
 ```bash
 # Check database connectivity from backend service
-./bin/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
+semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 
 # Check RDS instance status
 DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
@@ -251,7 +251,7 @@ aws ce get-cost-and-usage --time-period Start=$(date -d "7 days ago" +%Y-%m-%d),
   --granularity DAILY --metrics BlendedCost --group-by Type=DIMENSION,Key=SERVICE
 
 # Check for unexpected ECS scaling
-./bin/semiont status
+semiont check
 
 # Review service scaling history
 aws application-autoscaling describe-scaling-activities \
@@ -303,7 +303,8 @@ aws logs create-export-task --log-group-name $LOG_GROUP_NAME \
   --destination semiont-log-archive-bucket
 
 # Clean up old log streams
-./bin/semiont logs cleanup --older-than 30d
+# Note: This would be a manual AWS CLI operation
+aws logs delete-log-stream --log-group-name $LOG_GROUP_NAME --log-stream-name <stream-name>
 ```
 
 ## Compliance and Auditing

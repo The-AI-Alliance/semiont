@@ -7,8 +7,11 @@ A modern, type-safe React frontend built with Next.js 14, featuring comprehensiv
 ### 🚀 Instant Setup with Semiont CLI (Recommended)
 
 ```bash
+# Set your development environment
+export SEMIONT_ENV=local
+
 # From project root - starts everything automatically!
-semiont local start
+semiont start
 
 # This will:
 # ✅ Start PostgreSQL container with correct schema
@@ -28,13 +31,13 @@ semiont local start
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (with hot reload)
 npm run dev
 
 # Start with mock API (no backend required)
 npm run dev:mock
 
-# Build for production
+# Build for production (usually not needed - see note below)
 npm run build
 npm start
 
@@ -42,45 +45,49 @@ npm start
 npm run perf
 ```
 
+**Note on Building**: For local development, you don't need to build - use `npm run dev` for hot reload. For production deployment, `semiont deploy` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
+
 ## 💻 Local Development with Semiont CLI
 
 ### Essential Commands
 
 ```bash
+# Set your environment once
+export SEMIONT_ENV=local
+
 # Full stack development
-semiont local start              # Start everything (database + backend + frontend)
-semiont local start --reset      # Fresh start with clean database
-semiont local stop               # Stop all services
-semiont local status             # Check what's running
+semiont start              # Start everything (database + backend + frontend)
+semiont start --force      # Fresh start with clean database
+semiont stop               # Stop all services
+semiont check              # Check service health
 
 # Frontend development
-semiont local frontend start     # Start frontend (auto-starts backend if needed)
-semiont local frontend start --mock  # Start frontend with mock API only
-semiont local frontend stop      # Stop frontend service
+semiont start --service frontend  # Start frontend only
+semiont stop --service frontend   # Stop frontend service
 
 # Backend + database
-semiont local backend start      # Start backend (auto-starts database if needed)
-semiont local backend start --fresh  # Start backend with fresh database
-semiont local db start --seed    # Start database with sample data
+semiont start --service backend   # Start backend only
+semiont start --service database  # Start database only
+semiont restart --service backend # Restart backend with fresh connection
 ```
 
 ### Development Modes
 
-1. **🚀 Full Stack Development** (`semiont local start`)
+1. **🚀 Full Stack Development** (`semiont start`)
    - Complete development environment in one command
    - PostgreSQL container with schema applied automatically
    - Backend API with database connection
    - Frontend with real API integration
    - **Perfect for full-stack feature development**
 
-2. **🎨 Frontend-Only Development** (`semiont local frontend start --mock`)
-   - No backend or database dependencies
-   - Mock API provides realistic data
+2. **🎨 Frontend-Only Development** (`semiont start --service frontend`)
+   - Start just the frontend service
+   - Configure mock API in environment settings if needed
    - Fast iteration for UI/UX work
    - **Perfect for component development and styling**
 
-3. **⚡ Backend-Connected Development** (`semiont local frontend start`)
-   - Auto-starts backend and database if needed
+3. **⚡ Backend-Connected Development** (`semiont start --service backend,frontend`)
+   - Start backend and frontend together
    - Real API integration
    - **Perfect for testing API integration**
 
@@ -104,33 +111,35 @@ semiont local db start --seed    # Start database with sample data
 ```bash
 cd /your/project/root
 npm install  # Installs dependencies for all apps
+semiont init --name "my-project"  # Initialize configuration
+export SEMIONT_ENV=local  # Set default environment
 ```
 
 2. **Frontend-focused development** (UI/UX work):
 ```bash
-semiont local frontend start --mock
-# Only frontend running with mock API
+semiont start --service frontend
+# Only frontend running (configure mock API in environment if needed)
 # Perfect for component development, styling, layout work
 ```
 
 3. **Full-stack development** (feature work):
 ```bash  
-semiont local start
+semiont start
 # Complete environment: database + backend + frontend
 # Perfect for implementing features that need real API integration
 ```
 
 4. **Backend integration testing**:
 ```bash
-semiont local frontend start
+semiont start --service backend,frontend
 # Frontend + real backend + database
 # Perfect for testing API integration without manual backend setup
 ```
 
 5. **Fresh start** (reset data):
 ```bash
-semiont local start --reset
-# Clean database with fresh sample data
+semiont restart --force
+# Clean restart with fresh connections
 # Perfect when you need to reset state
 ```
 
@@ -599,7 +608,9 @@ The frontend uses **Vitest** with React Testing Library for testing React compon
 #### Using Semiont CLI (Recommended)
 
 ```bash
-# Run all frontend tests with coverage (from project root)
+# With SEMIONT_ENV set (e.g., export SEMIONT_ENV=local)
+
+# Run all frontend tests with coverage
 semiont test --service frontend
 
 # Run specific test types for frontend
@@ -607,7 +618,7 @@ semiont test --service frontend --suite unit         # Unit tests only
 semiont test --service frontend --suite integration  # Integration tests only
 semiont test --service frontend --suite security    # Security tests only
 
-# Run tests against custom environment
+# Override environment for staging tests
 semiont test --environment staging --service frontend --suite integration
 
 # Watch mode for development

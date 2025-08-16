@@ -20,8 +20,10 @@ The Semiont CLI provides a consistent interface for:
 ## Installation
 
 ```bash
-# From project root
-npm run install:cli          # Install the CLI globally
+# From the CLI directory
+cd apps/cli
+npm run build               # Build the CLI
+npm link                    # Install globally
 
 # After installation, the 'semiont' command is available globally
 semiont --help

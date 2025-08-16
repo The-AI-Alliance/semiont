@@ -2,6 +2,13 @@
 
 An AI-powered semantic knowledge platform that automatically extracts knowledge graphs from unstructured content and constructs rich contextual understanding for agentic RAG systems. Semiont combines advanced NLP, entity recognition, and relationship extraction to transform documents into interconnected semantic networks that enable intelligent agents to reason over and retrieve contextually relevant information.
 
+[![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
+[![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
+[![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
+[![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
+[![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/semiont?style=social)](https://github.com/The-AI-Alliance/semiont/stargazers)
+
+
 ## 📁 File Layout
 
 ```
@@ -53,12 +60,26 @@ npm install           # Install all workspace dependencies
 npm run install:cli   # Install the semiont CLI globally
 ```
 
-### 2. Instant Local Development 🎉
+### 2. Initialize Your Project
+
+```bash
+# Initialize the project with configuration files
+semiont init --name "my-project" --environments "local,staging,production"
+
+# This creates:
+# ✅ semiont.json - Main project configuration
+# ✅ config/environments/*.json - Environment-specific configs
+```
+
+### 3. Instant Local Development 🎉
 
 #### 🚀 Complete Development Environment (Recommended)
 ```bash
+# Set default environment to avoid repetition
+export SEMIONT_ENV=local
+
 # One command starts everything!
-semiont start local
+semiont start
 
 # This automatically:
 # ✅ Starts PostgreSQL container with schema
@@ -74,8 +95,8 @@ semiont start local
 
 #### 🎨 Frontend-Only Development (UI/UX Work)
 ```bash
-# No backend/database needed
-semiont start local --service frontend --mock
+# With SEMIONT_ENV=local already set:
+semiont start --service frontend
 
 # Perfect for:
 # - Component development and styling
@@ -86,7 +107,7 @@ semiont start local --service frontend --mock
 #### ⚡ Service-Specific Development
 ```bash
 # Backend only (auto-starts database)
-semiont start local --service backend
+semiont start --service backend
 
 # Check what's running with interactive dashboard
 semiont watch
@@ -95,7 +116,7 @@ semiont watch
 semiont watch logs frontend
 
 # Stop everything
-semiont stop local
+semiont stop
 ```
 
 #### 📊 Real-time Monitoring (New!)
@@ -113,7 +134,7 @@ semiont watch metrics
 semiont watch logs frontend
 ```
 
-### 3. Alternative Manual Setup
+### 4. Alternative Manual Setup
 
 If you prefer manual environment setup:
 
@@ -147,7 +168,7 @@ cd apps/frontend
 npm run dev  # Frontend on :3000
 ```
 
-### 4. Configuration Setup
+### 5. Configuration Setup
 
 ```bash
 # View current configuration
@@ -164,9 +185,10 @@ semiont configure show
 semiont configure validate
 ```
 
-### 5. Build and Test
+### 6. Test Your Code
+
 ```bash
-# Run comprehensive test suite
+# Run comprehensive test suite before deployment
 semiont test
 
 # Run specific test types for targeted validation  
@@ -179,43 +201,50 @@ semiont test --suite security                     # Security-focused validation
 semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
-### 6. AWS Deployment
+### 7. Deploy to AWS
+
 ```bash
-# Provision AWS infrastructure (one-time setup)
-semiont provision production
+# Set production environment
+export SEMIONT_ENV=production
 
-# Deploy application code and configuration
-semiont deploy production
+# One-time infrastructure setup
+semiont provision  # Creates AWS resources (~10-15 minutes)
 
-# Start services (if needed)
-semiont start production
+# Deploy your application  
+semiont deploy     # Builds, tests, and deploys (~5-8 minutes)
 
-# Configure OAuth secrets (after deployment)
+# Configure OAuth secrets (after first deployment)
 semiont configure set oauth/google
 
-# Monitor deployment with real-time dashboard
+# Monitor deployment
 semiont watch
 ```
+
+**Note**: `semiont deploy` automatically builds Docker images, runs tests, and deploys to AWS. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment guide.
 
 **Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
-### 7. Service Management
+### 8. Service Management
+
 ```bash
-# Deploy application changes (code and configuration updates)
-semiont deploy production
+# Deploy code changes (with SEMIONT_ENV=production)
+semiont deploy  # Automatically builds, tests, and deploys
 
-# Start/stop services
-semiont start production --service backend
-semiont stop staging --service frontend
-semiont restart production --service all
+# Service control commands
+semiont start --service backend   # Start specific service
+semiont restart --service all     # Restart all services
+semiont stop --service frontend   # Stop specific service
 
-# Test before deployment
-semiont test
+# Override environment as needed
+semiont stop --environment staging --service frontend
+
+# Always test before deployment
+semiont test  # Required - deploy will fail if tests don't pass
 ```
 
-### 8. Monitor & Verify Deployment
+### 9. Monitor & Verify Deployment
 ```bash
 # Interactive real-time dashboard (recommended)
 semiont watch
@@ -237,7 +266,7 @@ semiont check
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
-| [Scripts README](packages/scripts/README.md) | Management CLI architecture, security features, and interactive dashboards |
+| [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
 | [Config Loader README](packages/config-loader/README.md) | Configuration system architecture and environment management |
 | [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure setup and deployment |
 
@@ -351,12 +380,12 @@ Start with the [Backend README](apps/backend/README.md) to understand:
 - **Prisma Studio for database visualization**
 
 #### For Infrastructure & DevOps
-Start with the [Scripts README](packages/scripts/README.md) to understand:
-- Management CLI architecture and security features
+Start with the [CLI README](apps/cli/README.md) to understand:
+- Semiont CLI command structure and usage
+- Deployment-type aware service management
 - Interactive monitoring dashboards with React/Ink
-- AWS resource management and real-time monitoring
-- Deployment automation and health checks
-- Performance analysis and cost optimization
+- AWS resource management and automation
+- Configuration system and environment management
 
 ### Key Development Principles
 
