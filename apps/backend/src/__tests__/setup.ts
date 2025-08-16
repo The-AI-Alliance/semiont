@@ -35,20 +35,8 @@ vi.mock('../db', () => ({
   prisma: mockPrismaClient,
 }));
 
-// Mock environment configuration loader
-vi.mock('@semiont/cli/lib/deployment-resolver.js', () => ({
-  loadEnvironmentConfig: vi.fn(() => ({
-    name: 'unit',
-    services: {
-      backend: { port: 4000 },
-      frontend: { port: 3000 },
-    },
-    auth: {
-      jwtSecret: 'test-secret-key-for-testing-32char',
-      allowedDomains: ['example.com', 'test.com'],
-    },
-  })),
-}));
+// Mock environment configuration loader is no longer needed
+// The backend now uses environment variables directly
 
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';

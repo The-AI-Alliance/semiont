@@ -5,23 +5,16 @@ import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
-import { loadEnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 
-// Load configuration - environment name must be set by semiont CLI via SEMIONT_ENV
-const environmentName = process.env.SEMIONT_ENV;
-if (!environmentName) {
-  console.error('❌ SEMIONT_ENV environment variable is required');
-  console.error('This should be set by the semiont CLI when starting the backend');
-  process.exit(1);
-}
-const config = loadEnvironmentConfig(environmentName);
-
+// Configuration is loaded in JWT service when needed
+// For the server itself, we use environment variables
 const CONFIG = {
-  CORS_ORIGIN: 'http://localhost:3000',
-  FRONTEND_URL: 'http://localhost:3000',
+  CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
   NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: config.services?.backend?.port || 4000,
+  PORT: process.env.PORT ? parseInt(process.env.PORT, 10) : 4000,
 };
+
 import {
   AuthResponse,
   UserResponse,

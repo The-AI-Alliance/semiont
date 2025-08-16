@@ -98,7 +98,7 @@ export function createMockRequest(overrides?: Partial<any>) {
     text: vi.fn().mockResolvedValue(''),
     formData: vi.fn().mockResolvedValue(new FormData()),
     arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(0)),
-    blob: vi.fn().mockResolvedValue(new Blob()),
+    blob: vi.fn().mockResolvedValue(new Blob([])),
     ...overrides
   };
 }

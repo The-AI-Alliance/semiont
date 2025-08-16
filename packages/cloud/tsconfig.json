@@ -3,7 +3,7 @@
   "compilerOptions": {
     // Output Configuration
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     
     // Module configuration for cloud/CDK package
     "module": "ES2022",                         // ES modules for modern Node.js
@@ -11,11 +11,14 @@
     
     // CDK/Cloud specific settings
     "experimentalDecorators": true,             // Enable decorators if needed for CDK
-    "emitDecoratorMetadata": true              // Emit decorator metadata
+    "emitDecoratorMetadata": true,             // Emit decorator metadata
+    
+    // Override strict settings that conflict with CDK types
+    "exactOptionalPropertyTypes": false        // CDK types aren't compatible with this
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
+    "index.ts",
+    "lib/**/*.ts"
   ],
   "exclude": [
     "node_modules",
