@@ -8,7 +8,6 @@ An AI-powered semantic knowledge platform that automatically extracts knowledge 
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 [![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/semiont?style=social)](https://github.com/The-AI-Alliance/semiont/stargazers)
 
-
 ## 📁 File Layout
 
 ```
