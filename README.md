@@ -53,12 +53,26 @@ npm install           # Install all workspace dependencies
 npm run install:cli   # Install the semiont CLI globally
 ```
 
-### 2. Instant Local Development 🎉
+### 2. Initialize Your Project
+
+```bash
+# Initialize the project with configuration files
+semiont init --name "my-project" --environments "local,staging,production"
+
+# This creates:
+# ✅ semiont.json - Main project configuration
+# ✅ config/environments/*.json - Environment-specific configs
+```
+
+### 3. Instant Local Development 🎉
 
 #### 🚀 Complete Development Environment (Recommended)
 ```bash
+# Set default environment to avoid repetition
+export SEMIONT_ENV=local
+
 # One command starts everything!
-semiont start local
+semiont start
 
 # This automatically:
 # ✅ Starts PostgreSQL container with schema
@@ -74,8 +88,8 @@ semiont start local
 
 #### 🎨 Frontend-Only Development (UI/UX Work)
 ```bash
-# No backend/database needed
-semiont start local --service frontend --mock
+# With SEMIONT_ENV=local already set:
+semiont start --service frontend
 
 # Perfect for:
 # - Component development and styling
@@ -86,7 +100,7 @@ semiont start local --service frontend --mock
 #### ⚡ Service-Specific Development
 ```bash
 # Backend only (auto-starts database)
-semiont start local --service backend
+semiont start --service backend
 
 # Check what's running with interactive dashboard
 semiont watch
@@ -95,7 +109,7 @@ semiont watch
 semiont watch logs frontend
 
 # Stop everything
-semiont stop local
+semiont stop
 ```
 
 #### 📊 Real-time Monitoring (New!)
@@ -113,7 +127,7 @@ semiont watch metrics
 semiont watch logs frontend
 ```
 
-### 3. Alternative Manual Setup
+### 4. Alternative Manual Setup
 
 If you prefer manual environment setup:
 
@@ -147,7 +161,7 @@ cd apps/frontend
 npm run dev  # Frontend on :3000
 ```
 
-### 4. Configuration Setup
+### 5. Configuration Setup
 
 ```bash
 # View current configuration
@@ -164,7 +178,7 @@ semiont configure show
 semiont configure validate
 ```
 
-### 5. Build and Test
+### 6. Build and Test
 ```bash
 # Run comprehensive test suite
 semiont test
@@ -179,16 +193,19 @@ semiont test --suite security                     # Security-focused validation
 semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
-### 6. AWS Deployment
+### 7. AWS Deployment
 ```bash
+# Set production environment
+export SEMIONT_ENV=production
+
 # Provision AWS infrastructure (one-time setup)
-semiont provision production
+semiont provision
 
 # Deploy application code and configuration
-semiont deploy production
+semiont deploy
 
 # Start services (if needed)
-semiont start production
+semiont start
 
 # Configure OAuth secrets (after deployment)
 semiont configure set oauth/google
@@ -201,21 +218,21 @@ semiont watch
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
-### 7. Service Management
+### 8. Service Management
 ```bash
-# Deploy application changes (code and configuration updates)
-semiont deploy production
+# For production (with SEMIONT_ENV=production)
+semiont deploy
+semiont start --service backend
+semiont restart --service all
 
-# Start/stop services
-semiont start production --service backend
-semiont stop staging --service frontend
-semiont restart production --service all
+# Or override environment as needed
+semiont stop --environment staging --service frontend
 
 # Test before deployment
 semiont test
 ```
 
-### 8. Monitor & Verify Deployment
+### 9. Monitor & Verify Deployment
 ```bash
 # Interactive real-time dashboard (recommended)
 semiont watch

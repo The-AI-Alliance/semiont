@@ -7,8 +7,11 @@ A type-safe Node.js backend API built with modern development practices and comp
 ### 🚀 Instant Setup with Semiont CLI (Recommended)
 
 ```bash
+# Set your development environment
+export SEMIONT_ENV=local
+
 # From project root - starts everything automatically!
-semiont local start
+semiont start
 
 # This will:
 # ✅ Start PostgreSQL container with correct schema
@@ -44,27 +47,21 @@ npm start
 ### Essential Commands
 
 ```bash
+# Set your environment once
+export SEMIONT_ENV=local
+
 # Full stack development
-semiont local start              # Start everything (database + backend + frontend)
-semiont local start --reset      # Fresh start with clean database
-semiont local stop               # Stop all services
-semiont local status             # Check what's running
+semiont start              # Start everything (database + backend + frontend)
+semiont start --force      # Fresh start with clean database
+semiont stop               # Stop all services
+semiont check              # Check service health
 
-# Database management
-semiont local db start           # Start PostgreSQL container
-semiont local db start --seed    # Start database with sample data
-semiont local db reset --seed    # Reset database with fresh sample data
-semiont local db stop            # Stop database container
-
-# Backend only
-semiont local backend start      # Start backend (auto-starts database if needed)
-semiont local backend start --fresh  # Start backend with fresh database
-semiont local backend stop       # Stop backend service
-
-# Frontend only  
-semiont local frontend start     # Start frontend (auto-starts backend if needed)
-semiont local frontend start --mock  # Start frontend with mock API (no backend)
-semiont local frontend stop      # Stop frontend service
+# Service-specific commands
+semiont start --service database  # Start PostgreSQL container
+semiont start --service backend   # Start backend (auto-starts database if needed)
+semiont start --service frontend  # Start frontend only
+semiont stop --service backend    # Stop backend service
+semiont restart --service backend # Restart backend with fresh connection
 ```
 
 ### Why Use Semiont CLI?
@@ -82,12 +79,14 @@ semiont local frontend stop      # Stop frontend service
 ```bash
 cd /your/project/root
 npm install  # Installs dependencies for all apps
+semiont init --name "my-project"  # Initialize configuration
+export SEMIONT_ENV=local  # Set default environment
 ```
 
 2. **Daily development** (typical workflow):
 ```bash
 # Start everything for full-stack development
-semiont local start
+semiont start
 
 # Your services are now running! Develop normally...
 # Frontend: http://localhost:3000
@@ -95,7 +94,7 @@ semiont local start
 # Database: Managed automatically
 
 # When done developing
-semiont local stop
+semiont stop
 ```
 
 3. **Backend-only development**:
@@ -680,7 +679,9 @@ The backend uses **Jest** with TypeScript for unit testing, following a simple a
 #### Using Semiont CLI (Recommended)
 
 ```bash
-# Run all backend tests with coverage (from project root)
+# With SEMIONT_ENV set (e.g., export SEMIONT_ENV=local)
+
+# Run all backend tests with coverage
 semiont test --service backend
 
 # Run specific test types for backend
