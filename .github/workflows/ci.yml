@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Run frontend tests
         run: |
@@ -69,7 +69,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Run backend tests
         run: |
@@ -101,7 +101,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Run CDK tests
         run: cd packages/cloud && npm test
@@ -124,7 +124,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Validate CLI installation
         run: |
@@ -187,7 +187,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Run comprehensive test suite
         run: |
@@ -224,7 +224,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Validate CLI installation
         run: |
@@ -251,7 +251,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Build all applications
         run: |

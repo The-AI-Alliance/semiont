@@ -34,13 +34,15 @@ npm install
 # Run database migrations
 npx prisma db push
 
-# Start development server
+# Start development server (with auto-restart on changes)
 npm run dev
 
-# Build for production
+# Build for production (usually not needed - see note below)
 npm run build
 npm start
 ```
+
+**Note on Building**: For local development, you don't need to build - use `npm run dev` for auto-restart. For production deployment, `semiont deploy` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
 
 ## 💻 Local Development with Semiont CLI
 

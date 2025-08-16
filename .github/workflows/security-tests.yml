@@ -38,7 +38,7 @@ jobs:
         run: |
           cd ../..
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Build required packages
         run: |
@@ -174,7 +174,7 @@ jobs:
         run: |
           cd ../..
           npm install
-          npm run install:cli
+          cd apps/cli && npm run build && npm link
 
       - name: Build required packages
         run: |

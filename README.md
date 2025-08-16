@@ -178,9 +178,10 @@ semiont configure show
 semiont configure validate
 ```
 
-### 6. Build and Test
+### 6. Test Your Code
+
 ```bash
-# Run comprehensive test suite
+# Run comprehensive test suite before deployment
 semiont test
 
 # Run specific test types for targeted validation  
@@ -193,43 +194,47 @@ semiont test --suite security                     # Security-focused validation
 semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
-### 7. AWS Deployment
+### 7. Deploy to AWS
+
 ```bash
 # Set production environment
 export SEMIONT_ENV=production
 
-# Provision AWS infrastructure (one-time setup)
-semiont provision
+# One-time infrastructure setup
+semiont provision  # Creates AWS resources (~10-15 minutes)
 
-# Deploy application code and configuration
-semiont deploy
+# Deploy your application  
+semiont deploy     # Builds, tests, and deploys (~5-8 minutes)
 
-# Start services (if needed)
-semiont start
-
-# Configure OAuth secrets (after deployment)
+# Configure OAuth secrets (after first deployment)
 semiont configure set oauth/google
 
-# Monitor deployment with real-time dashboard
+# Monitor deployment
 semiont watch
 ```
+
+**Note**: `semiont deploy` automatically builds Docker images, runs tests, and deploys to AWS. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment guide.
 
 **Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
 ### 8. Service Management
-```bash
-# For production (with SEMIONT_ENV=production)
-semiont deploy
-semiont start --service backend
-semiont restart --service all
 
-# Or override environment as needed
+```bash
+# Deploy code changes (with SEMIONT_ENV=production)
+semiont deploy  # Automatically builds, tests, and deploys
+
+# Service control commands
+semiont start --service backend   # Start specific service
+semiont restart --service all     # Restart all services
+semiont stop --service frontend   # Stop specific service
+
+# Override environment as needed
 semiont stop --environment staging --service frontend
 
-# Test before deployment
-semiont test
+# Always test before deployment
+semiont test  # Required - deploy will fail if tests don't pass
 ```
 
 ### 9. Monitor & Verify Deployment
@@ -254,7 +259,7 @@ semiont check
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
-| [Scripts README](packages/scripts/README.md) | Management CLI architecture, security features, and interactive dashboards |
+| [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
 | [Config Loader README](packages/config-loader/README.md) | Configuration system architecture and environment management |
 | [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure setup and deployment |
 
@@ -368,12 +373,12 @@ Start with the [Backend README](apps/backend/README.md) to understand:
 - **Prisma Studio for database visualization**
 
 #### For Infrastructure & DevOps
-Start with the [Scripts README](packages/scripts/README.md) to understand:
-- Management CLI architecture and security features
+Start with the [CLI README](apps/cli/README.md) to understand:
+- Semiont CLI command structure and usage
+- Deployment-type aware service management
 - Interactive monitoring dashboards with React/Ink
-- AWS resource management and real-time monitoring
-- Deployment automation and health checks
-- Performance analysis and cost optimization
+- AWS resource management and automation
+- Configuration system and environment management
 
 ### Key Development Principles
 

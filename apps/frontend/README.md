@@ -31,19 +31,21 @@ semiont start
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (with hot reload)
 npm run dev
 
 # Start with mock API (no backend required)
 npm run dev:mock
 
-# Build for production
+# Build for production (usually not needed - see note below)
 npm run build
 npm start
 
 # Performance analysis
 npm run perf
 ```
+
+**Note on Building**: For local development, you don't need to build - use `npm run dev` for hot reload. For production deployment, `semiont deploy` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
 
 ## 💻 Local Development with Semiont CLI
 
