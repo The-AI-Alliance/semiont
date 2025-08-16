@@ -61,7 +61,7 @@
     "jsdom": "^26.1.0",
     "msw": "^2.10.4",
     "postcss": "^8",
-    "tailwindcss": "^3.4.1",
+    "tailwindcss": "^4.1.12",
     "undici": "^7.13.0",
     "use-sync-external-store": "^1.5.0",
     "vitest": "^3.2.4",
