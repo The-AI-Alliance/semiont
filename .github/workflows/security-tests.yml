@@ -171,6 +171,11 @@ jobs:
           npm install
           npm run install:cli
 
+      - name: Build required packages
+        run: |
+          cd ../..
+          npm run build:packages
+      
       - name: Setup test database and config
         run: |
           # Initialize project configuration
