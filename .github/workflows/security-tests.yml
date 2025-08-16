@@ -175,7 +175,7 @@ jobs:
         run: |
           # Initialize project configuration
           cd ../..
-          semiont init --name "test-project" --environment "ci" --skip-git
+          semiont init --name "test-project" --environments "ci" --force
           # Set secrets for test
           echo '{"DATABASE_PASSWORD":"testpassword","JWT_SECRET":"test-secret-for-ci","GOOGLE_CLIENT_ID":"test-client-id","GOOGLE_CLIENT_SECRET":"test-client-secret"}' > .secrets.json
           cd apps/backend
