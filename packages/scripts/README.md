@@ -39,8 +39,8 @@ These scripts are for **developing Semiont itself**, not for end-users:
 ### Installation & Setup
 ```bash
 # Install Semiont CLI globally (recommended)
-npm run setup                   # Full monorepo setup
-npm run setup -- --cli-only    # CLI only
+npm run install:cli            # Install CLI only
+npm run install:full           # Full monorepo setup (all packages + CLI)
 
 # Direct installation script (rarely needed)
 npx tsx install.ts
@@ -407,8 +407,8 @@ npm run clean                    # Clean and rebuild
 npm run typecheck               # Check types only
 
 # Installation issues  
-npm run setup -- --verbose      # Verbose installation
-npm run setup -- --cli-only     # CLI only setup
+npm run install:cli --verbose   # Verbose CLI installation
+npm run install:full            # Full monorepo installation
 ```
 
 ## Development

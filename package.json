@@ -8,9 +8,8 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "npm run setup:cli -w @semiont/scripts",
-    "setup:full": "npm run setup -w @semiont/scripts", 
-    "setup:cli": "npm run setup:cli -w @semiont/scripts",
+    "install:cli": "npm run install:cli -w @semiont/scripts",
+    "install:full": "npm run install:full -w @semiont/scripts",
     "dev": "npm run dev --workspaces",
     "build": "npm run build --workspaces",
     "frontend:dev": "npm run dev -w semiont-frontend",
@@ -18,7 +17,7 @@
     "cdk:deploy": "npm run cdk deploy -w cdk",
     "types:build": "npm run build -w @semiont/api-types",
     "types:watch": "npm run watch -w @semiont/api-types",
-    "install:all": "npm install",
+    "install:deps": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
   },
   "engines": {

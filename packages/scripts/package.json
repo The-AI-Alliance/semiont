@@ -6,8 +6,8 @@
   "scripts": {
     "build": "node build.mjs",
     "clean": "rm -rf dist",
-    "setup": "npm run build && node dist/install.mjs",
-    "setup:cli": "npm run build && node dist/install.mjs --cli-only",
+    "install:full": "npm run build && node dist/install.mjs",
+    "install:cli": "npm run build && node dist/install.mjs --cli-only",
     "benchmark": "node dist/benchmark.mjs"
   },
   "dependencies": {
