@@ -40,8 +40,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         'react-devtools-core',
         // AWS SDK packages have complex CommonJS/ESM interactions
         '@aws-sdk/*',
-        // Local workspace packages
-        '@semiont/config-loader',
+        // Local workspace packages - only config-loader has ESM issues
         '@semiont/api-types',
         '@semiont/cloud',
         // Native binaries that can't be bundled
@@ -56,7 +55,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         'process.env.NODE_ENV': '"production"'
       },
       banner: {
-        js: '#!/usr/bin/env node'
+        js: '#!/usr/bin/env node\n'
       },
       logLevel: 'warning'
     })

@@ -49,7 +49,8 @@ semiont/
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont.git
 cd semiont
-npm install  # Installs all workspace dependencies
+npm install           # Install all workspace dependencies
+npm run install:cli   # Install the semiont CLI globally
 ```
 
 ### 2. Instant Local Development 🎉
@@ -57,7 +58,7 @@ npm install  # Installs all workspace dependencies
 #### 🚀 Complete Development Environment (Recommended)
 ```bash
 # One command starts everything!
-./bin/semiont start local
+semiont start local
 
 # This automatically:
 # ✅ Starts PostgreSQL container with schema
@@ -74,7 +75,7 @@ npm install  # Installs all workspace dependencies
 #### 🎨 Frontend-Only Development (UI/UX Work)
 ```bash
 # No backend/database needed
-./bin/semiont start local --service frontend --mock
+semiont start local --service frontend --mock
 
 # Perfect for:
 # - Component development and styling
@@ -85,31 +86,31 @@ npm install  # Installs all workspace dependencies
 #### ⚡ Service-Specific Development
 ```bash
 # Backend only (auto-starts database)
-./bin/semiont start local --service backend
+semiont start local --service backend
 
 # Check what's running with interactive dashboard
-./bin/semiont watch
+semiont watch
 
 # Check specific service logs
-./bin/semiont watch logs frontend
+semiont watch logs frontend
 
 # Stop everything
-./bin/semiont stop local
+semiont stop local
 ```
 
 #### 📊 Real-time Monitoring (New!)
 ```bash
 # Interactive dashboard with services, logs, and metrics
-./bin/semiont watch
+semiont watch
 
 # Focus on log streaming
-./bin/semiont watch logs
+semiont watch logs
 
 # Focus on performance metrics  
-./bin/semiont watch metrics
+semiont watch metrics
 
 # Filter to specific service
-./bin/semiont watch logs frontend
+semiont watch logs frontend
 ```
 
 ### 3. Alternative Manual Setup
@@ -126,8 +127,8 @@ npm run dev:mock  # Frontend on :3000 with mock API
 #### Full Stack Development (Manual)
 ```bash
 # Configure local secrets (first time only)
-./bin/semiont configure local set database-password  # Enter: localpassword
-./bin/semiont configure local set jwt-secret         # Generate with: openssl rand -base64 32
+semiont configure local set database-password  # Enter: localpassword
+semiont configure local set jwt-secret         # Generate with: openssl rand -base64 32
 
 # Start PostgreSQL (Docker or Podman)
 docker run --name semiont-postgres \
@@ -150,7 +151,7 @@ npm run dev  # Frontend on :3000
 
 ```bash
 # View current configuration
-./bin/semiont configure show
+semiont configure show
 
 # Edit configuration with your values
 # Update config/environments/development.json and config/environments/production.json with:
@@ -160,40 +161,40 @@ npm run dev  # Frontend on :3000
 # - Email addresses
 
 # Validate configuration
-./bin/semiont configure validate
+semiont configure validate
 ```
 
 ### 5. Build and Test
 ```bash
 # Run comprehensive test suite
-./bin/semiont test
+semiont test
 
 # Run specific test types for targeted validation  
-./bin/semiont test --service frontend --suite unit      # Fast frontend unit tests
-./bin/semiont test --service backend --suite integration # Backend integration tests
-./bin/semiont test --suite integration                  # Cross-service integration tests
-./bin/semiont test --suite security                     # Security-focused validation
+semiont test --service frontend --suite unit      # Fast frontend unit tests
+semiont test --service backend --suite integration # Backend integration tests
+semiont test --suite integration                  # Cross-service integration tests
+semiont test --suite security                     # Security-focused validation
 
 # Run tests against custom environments
-./bin/semiont test --environment staging --suite integration  # Custom environment testing
+semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
 ### 6. AWS Deployment
 ```bash
 # Provision AWS infrastructure (one-time setup)
-./bin/semiont provision production
+semiont provision production
 
 # Deploy application code and configuration
-./bin/semiont deploy production
+semiont deploy production
 
 # Start services (if needed)
-./bin/semiont start production
+semiont start production
 
 # Configure OAuth secrets (after deployment)
-./bin/semiont configure set oauth/google
+semiont configure set oauth/google
 
 # Monitor deployment with real-time dashboard
-./bin/semiont watch
+semiont watch
 ```
 
 **Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
@@ -203,28 +204,28 @@ npm run dev  # Frontend on :3000
 ### 7. Service Management
 ```bash
 # Deploy application changes (code and configuration updates)
-./bin/semiont deploy production
+semiont deploy production
 
 # Start/stop services
-./bin/semiont start production --service backend
-./bin/semiont stop staging --service frontend
-./bin/semiont restart production --service all
+semiont start production --service backend
+semiont stop staging --service frontend
+semiont restart production --service all
 
 # Test before deployment
-./bin/semiont test
+semiont test
 ```
 
 ### 8. Monitor & Verify Deployment
 ```bash
 # Interactive real-time dashboard (recommended)
-./bin/semiont watch
+semiont watch
 
 # Focus on specific monitoring
-./bin/semiont watch logs          # Log streaming
-./bin/semiont watch metrics       # Performance metrics
+semiont watch logs          # Log streaming
+semiont watch metrics       # Performance metrics
 
 # Legacy status check
-./bin/semiont check
+semiont check
 ```
 
 ## 📖 Documentation
@@ -290,13 +291,13 @@ Semiont uses a unified JSON-based configuration system with inheritance that pro
 - **Environment Management**: Separate JSON configs for each environment with inheritance
 - **Configuration Inheritance**: Use `_extends` field to build on base configurations
 - **Centralized Settings**: Domain, OAuth, AWS resources all configured in one place
-- **Secure Secrets**: Local secrets managed via `./bin/semiont configure` command (not in files)
+- **Secure Secrets**: Local secrets managed via `semiont configure` command (not in files)
 
 The system uses a clear separation between configuration data and loading logic:
 - **Configuration Data**: JSON files in `config/environments/` (development.json, production.json)
 - **Configuration Loader**: TypeScript package in `packages/config-loader/` for loading and validation
 - **Inheritance**: JSON configurations extend base configs using `_extends` field
-- **Secrets**: Managed via `./bin/semiont configure` command for local development
+- **Secrets**: Managed via `semiont configure` command for local development
 - **Production**: Secrets automatically injected from AWS Secrets Manager
 
 No more `.env` files - everything is type-safe, centralized, and inheritable!
@@ -359,19 +360,30 @@ Start with the [Scripts README](packages/scripts/README.md) to understand:
 
 ### Key Development Principles
 
-1. **Type Safety First**: Full TypeScript coverage from database to UI
-2. **Security by Default**: Input validation, command injection prevention, sensitive data redaction
-3. **Performance Optimized**: Bundle analysis, Lighthouse CI, performance monitoring
-4. **Error Resilience**: Comprehensive error boundaries and graceful degradation
-5. **Developer Experience**: Auto-completion, inline documentation, hot reloading
+1. **Type Safety First**: Full TypeScript coverage from database to UI with strict mode enabled
+2. **Functional Programming**: Prefer pure, side-effect free functions throughout the codebase
+3. **Security by Default**: Input validation, command injection prevention, sensitive data redaction
+4. **Performance Optimized**: Bundle analysis, Lighthouse CI, performance monitoring
+5. **Error Resilience**: Comprehensive error boundaries and graceful degradation
+6. **Developer Experience**: Auto-completion, inline documentation, hot reloading
+
+### TypeScript Configuration
+
+The project uses a strict TypeScript configuration with all safety features enabled:
+- Root `tsconfig.json` with strict settings that all packages extend
+- `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes` all enabled
+- Apps use `moduleResolution: "bundler"` for modern imports
+- Packages use `moduleResolution: "node"` for compatibility
+- All code must compile without errors before merging
 
 ## 🧪 Testing
 
 The project uses modern testing frameworks with intelligent test type filtering:
 
-- **Frontend**: Vitest + MSW v2 + React Testing Library (1012 tests organized by type)
-- **Backend**: Vitest with comprehensive coverage (176+ tests organized by type)
-- **Both**: Strict TypeScript compilation catches errors at build time
+- **Frontend**: Vitest + MSW v2 + React Testing Library with comprehensive test coverage
+- **Backend**: Vitest with unit and integration tests for all critical paths
+- **CLI**: Vitest with tests for all commands and deployment types
+- **All packages**: Strict TypeScript compilation catches errors at build time
 
 ### Test Type Organization
 
@@ -388,27 +400,27 @@ Semiont organizes tests into four distinct categories for targeted testing:
 
 ```bash
 # Run all tests with coverage (default)
-./bin/semiont test
+semiont test
 
 # Run by service
-./bin/semiont test --service frontend           # Frontend only
-./bin/semiont test --service backend            # Backend only
-./bin/semiont test --service all                # Both services (default)
+semiont test --service frontend           # Frontend only
+semiont test --service backend            # Backend only
+semiont test --service all                # Both services (default)
 
 # Run by test suite
-./bin/semiont test --suite unit               # Unit tests only
-./bin/semiont test --suite integration        # Integration tests only
-./bin/semiont test --suite security          # Security tests only
-./bin/semiont test --suite e2e               # End-to-end tests only
+semiont test --suite unit               # Unit tests only
+semiont test --suite integration        # Integration tests only
+semiont test --suite security          # Security tests only
+semiont test --suite e2e               # End-to-end tests only
 
 # Combine service and test suite
-./bin/semiont test --service frontend --suite unit     # Frontend unit tests
-./bin/semiont test --service backend --suite integration # Backend integration tests
+semiont test --service frontend --suite unit     # Frontend unit tests
+semiont test --service backend --suite integration # Backend integration tests
 
 # Additional options
-./bin/semiont test --no-coverage     # Skip coverage for speed
-./bin/semiont test --watch           # Watch mode
-./bin/semiont test --verbose         # Detailed output
+semiont test --no-coverage     # Skip coverage for speed
+semiont test --watch           # Watch mode
+semiont test --verbose         # Detailed output
 ```
 
 #### Direct npm Scripts

@@ -49,18 +49,9 @@ jobs:
         cache: 'npm'
 
     # Install dependencies for better analysis
-    - name: Install frontend dependencies
+    - name: Install all dependencies
       if: matrix.language == 'javascript' || matrix.language == 'typescript'
-      run: |
-        cd apps/frontend
-        npm ci
-      continue-on-error: true
-
-    - name: Install backend dependencies
-      if: matrix.language == 'javascript' || matrix.language == 'typescript'
-      run: |
-        cd apps/backend
-        npm ci
+      run: npm install
       continue-on-error: true
 
     - name: Perform CodeQL Analysis

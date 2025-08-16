@@ -295,14 +295,14 @@ cd apps/backend && npm run prisma:migrate
 ### Deployment Pipeline
 ```bash
 # Deploy infrastructure (rare)
-./scripts/semiont deploy infra
+semiont deploy infra
 
 # Deploy application (frequent)
-./scripts/semiont deploy app
+semiont deploy app
 
 # Service management
-./scripts/semiont restart [frontend|backend|both]
-./scripts/semiont logs [frontend|backend] [tail|follow]
+semiont restart [frontend|backend|both]
+semiont logs [frontend|backend] [tail|follow]
 ```
 
 ### Management Scripts

@@ -1,71 +1,88 @@
-import '@testing-library/jest-dom'
-import { beforeAll, afterEach, afterAll, vi } from 'vitest'
-import { server } from './src/mocks/server'
+/**
+ * Global test setup for frontend
+ * Clean, modern approach with lazy-loading
+ */
 
-// Enable API mocking with MSW
-beforeAll(() => server.listen({
-  onUnhandledRequest: 'warn'
-}))
+import '@testing-library/jest-dom';
+import { vi, beforeAll, afterEach, afterAll } from 'vitest';
+import { server } from './src/mocks/server';
 
-// Reset any runtime request handlers we may add during the tests
-afterEach(() => server.resetHandlers())
+// Start MSW server
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
-// Disable API mocking after the tests are done
-afterAll(() => server.close())
-
-// Mock Next.js router
+// Mock Next.js navigation before any imports
 vi.mock('next/navigation', () => ({
-  useRouter() {
-    return {
-      push: vi.fn(),
-      replace: vi.fn(),
-      prefetch: vi.fn(),
-      back: vi.fn(),
-      forward: vi.fn(),
-      refresh: vi.fn(),
-    }
-  },
-  useSearchParams() {
-    return {
-      get: vi.fn(),
-    }
-  },
-  usePathname() {
-    return ''
-  },
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  useSearchParams: () => ({
+    get: vi.fn(),
+  }),
+  usePathname: () => '/',
   redirect: vi.fn(),
   notFound: vi.fn(),
-}))
+}));
 
-// Mock getServerSession for auth tests
+// Mock NextAuth
 vi.mock('next-auth', () => ({
   getServerSession: vi.fn(),
-}))
+}));
 
-// Mock environment variables
-process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont'
-process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001'
-process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com'
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({
+    data: null,
+    status: 'unauthenticated',
+  })),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  SessionProvider: ({ children }) => children,
+}));
 
-// Mock window.location for tests that need it
-Object.defineProperty(window, 'location', {
-  value: {
-    href: 'http://localhost/',
-    origin: 'http://localhost',
-    protocol: 'http:',
-    host: 'localhost',
-    hostname: 'localhost',
-    port: '',
-    pathname: '/',
-    search: '',
-    hash: '',
-    reload: vi.fn(),
-    replace: vi.fn(),
-    assign: vi.fn(),
-  },
-  writable: true,
-})
+// Set test environment variables
+process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
+process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
+process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
 
-// Mock URL.createObjectURL and URL.revokeObjectURL
-global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
-global.URL.revokeObjectURL = vi.fn()
+// Polyfill fetch to handle relative URLs
+const originalFetch = global.fetch;
+global.fetch = async (input, init) => {
+  // Convert relative URLs to absolute URLs for test environment
+  if (typeof input === 'string' && input.startsWith('/')) {
+    input = `http://localhost:3000${input}`;
+  }
+  return originalFetch(input, init);
+};
+
+// Mock window methods
+if (typeof window !== 'undefined') {
+  // Mock window.location
+  Object.defineProperty(window, 'location', {
+    value: {
+      href: 'http://localhost:3000/',
+      origin: 'http://localhost:3000',
+      protocol: 'http:',
+      host: 'localhost:3000',
+      hostname: 'localhost',
+      port: '3000',
+      pathname: '/',
+      search: '',
+      hash: '',
+      reload: vi.fn(),
+      replace: vi.fn(),
+      assign: vi.fn(),
+    },
+    writable: true,
+    configurable: true,
+  });
+
+  // Mock URL methods
+  global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+  global.URL.revokeObjectURL = vi.fn();
+}

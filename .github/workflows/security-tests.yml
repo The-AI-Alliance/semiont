@@ -34,13 +34,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: cd ../.. && npm install
+      - name: Install dependencies and CLI
+        run: |
+          cd ../..
+          npm install
+          npm run install:cli
 
       - name: Build required packages
         run: |
-          cd ../../packages/api-types && npm run build
-          cd ../config-loader && npm run build
+          cd ../..
+          npm run build:packages
 
       - name: Run security tests
         run: npm run test:security
@@ -167,53 +170,39 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies
-        run: cd ../.. && npm install
+      - name: Install dependencies and CLI
+        run: |
+          cd ../..
+          npm install
+          npm run install:cli
 
       - name: Build required packages
         run: |
-          cd ../../packages/api-types && npm run build
-          cd ../config-loader && npm run build
-
+          cd ../..
+          npm run build:packages
+      
       - name: Setup test database and config
         run: |
-          # Create test config with database connection
+          # Initialize project configuration
           cd ../..
+          semiont init --name "test-project" --environments "ci" --force
+          # Add backend service to ci environment
           cat > config/environments/ci.json << 'EOF'
           {
+            "_comment": "ci environment",
             "deployment": {
               "default": "process"
             },
-            "site": {
-              "domain": "localhost", 
-              "adminEmail": "admin@test.local",
-              "supportEmail": "support@test.local",
-              "oauthAllowedDomains": ["test.local"]
-            },
-            "app": {
-              "features": {
-                "enableAnalytics": false,
-                "enableMaintenanceMode": false,
-                "enableDebugLogging": true
-              },
-              "security": {
-                "sessionTimeout": 28800,
-                "maxLoginAttempts": 20,
-                "corsAllowedOrigins": ["http://localhost:3000"]
-              },
-              "performance": {
-                "enableCaching": false,
-                "cacheTimeout": 0
-              }
+            "env": {
+              "NODE_ENV": "test"
             },
             "services": {
               "backend": {
+                "deployment": {
+                  "type": "process"
+                },
                 "command": "npm start",
                 "port": 3001
-              },
-              "frontend": {
-                "command": "npm start", 
-                "port": 3000
               },
               "database": {
                 "deployment": {
@@ -221,8 +210,8 @@ jobs:
                 },
                 "host": "localhost",
                 "port": 5432,
-                "name": "testdb",
-                "user": "testuser"
+                "user": "testuser",
+                "name": "testdb"
               }
             }
           }
@@ -261,7 +250,7 @@ jobs:
       - name: Start backend for API security verification
         run: |
           cd ../..
-          ./bin/semiont start ci --service backend &
+          semiont start -e ci --service backend &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
           # Wait for backend to start

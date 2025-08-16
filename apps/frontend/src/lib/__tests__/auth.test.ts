@@ -4,10 +4,8 @@ import type { Account, Profile, User } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 
-// Import test config explicitly
-const { loadEnvironmentConfig } = require('@semiont/config-loader');
-const testConfig = loadEnvironmentConfig(process.env.SEMIONT_ENV || 'unit');
-const getBackendUrl = () => testConfig.services?.backend ? `http://localhost:${testConfig.services.backend.port}` : 'http://localhost:3001';
+// Use environment variable for backend URL
+const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 
 // Mock the validation module

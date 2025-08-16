@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    // Language and Environment
+    "target": "ES2022",                          // Node 18+ supports ES2022
+    "lib": ["ES2022"],                          // ES2022 standard library
+    
+    // Module System (for packages that need ES modules)
+    "module": "ES2022",                          // ES modules for modern Node.js
+    "moduleResolution": "node",                  // Standard Node.js resolution
+    "esModuleInterop": true,                    // Interop between ES modules and CommonJS
+    "allowSyntheticDefaultImports": true,       // Allow default imports from CommonJS
+    "resolveJsonModule": true,                  // Import JSON files
+    
+    // Emit Configuration
+    "declaration": true,                         // Generate .d.ts files
+    "declarationMap": true,                     // Generate sourcemaps for declarations
+    "sourceMap": true,                          // Generate sourcemaps
+    "incremental": true,                        // Enable incremental compilation
+    "removeComments": false,                    // Keep comments in output
+    "preserveConstEnums": true,                 // Keep const enums
+    
+    // Type Checking - Strict Mode
+    "strict": true,                             // Enable all strict type checking options
+    "noImplicitAny": true,                      // Error on implicit any
+    "strictNullChecks": true,                   // Strict null/undefined checks
+    "strictFunctionTypes": true,                // Strict function type checking
+    "strictBindCallApply": true,                // Strict bind/call/apply
+    "strictPropertyInitialization": true,       // Strict property initialization
+    "noImplicitThis": true,                     // Error on implicit this
+    "useUnknownInCatchVariables": true,         // Default catch variables to unknown
+    "alwaysStrict": true,                       // Emit "use strict" for each file
+    
+    // Additional Checks
+    "noUnusedLocals": true,                     // Error on unused locals
+    "noUnusedParameters": true,                 // Error on unused parameters
+    "exactOptionalPropertyTypes": true,         // Exact optional property types
+    "noImplicitReturns": true,                  // Error when not all paths return
+    "noFallthroughCasesInSwitch": true,        // Error on fallthrough in switch
+    "noUncheckedIndexedAccess": false,         // Don't add undefined to index signatures (too strict for existing code)
+    "noImplicitOverride": true,                // Require override keyword
+    "noPropertyAccessFromIndexSignature": false, // Allow dot notation for index signatures
+    
+    // Module Interop
+    "allowUnusedLabels": false,                 // Error on unused labels
+    "allowUnreachableCode": false,              // Error on unreachable code
+    
+    // Advanced Options
+    "skipLibCheck": true,                       // Skip type checking of declaration files
+    "forceConsistentCasingInFileNames": true,   // Ensure consistent file name casing
+    "isolatedModules": true,                    // Ensure each file can be transpiled in isolation
+    "verbatimModuleSyntax": false,              // Keep false for backward compatibility
+    "allowImportingTsExtensions": false         // Disallow .ts extensions in imports
+  }
+}

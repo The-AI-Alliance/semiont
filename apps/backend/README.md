@@ -8,7 +8,7 @@ A type-safe Node.js backend API built with modern development practices and comp
 
 ```bash
 # From project root - starts everything automatically!
-./scripts/semiont local start
+semiont local start
 
 # This will:
 # ✅ Start PostgreSQL container with correct schema
@@ -45,26 +45,26 @@ npm start
 
 ```bash
 # Full stack development
-./scripts/semiont local start              # Start everything (database + backend + frontend)
-./scripts/semiont local start --reset      # Fresh start with clean database
-./scripts/semiont local stop               # Stop all services
-./scripts/semiont local status             # Check what's running
+semiont local start              # Start everything (database + backend + frontend)
+semiont local start --reset      # Fresh start with clean database
+semiont local stop               # Stop all services
+semiont local status             # Check what's running
 
 # Database management
-./scripts/semiont local db start           # Start PostgreSQL container
-./scripts/semiont local db start --seed    # Start database with sample data
-./scripts/semiont local db reset --seed    # Reset database with fresh sample data
-./scripts/semiont local db stop            # Stop database container
+semiont local db start           # Start PostgreSQL container
+semiont local db start --seed    # Start database with sample data
+semiont local db reset --seed    # Reset database with fresh sample data
+semiont local db stop            # Stop database container
 
 # Backend only
-./scripts/semiont local backend start      # Start backend (auto-starts database if needed)
-./scripts/semiont local backend start --fresh  # Start backend with fresh database
-./scripts/semiont local backend stop       # Stop backend service
+semiont local backend start      # Start backend (auto-starts database if needed)
+semiont local backend start --fresh  # Start backend with fresh database
+semiont local backend stop       # Stop backend service
 
 # Frontend only  
-./scripts/semiont local frontend start     # Start frontend (auto-starts backend if needed)
-./scripts/semiont local frontend start --mock  # Start frontend with mock API (no backend)
-./scripts/semiont local frontend stop      # Stop frontend service
+semiont local frontend start     # Start frontend (auto-starts backend if needed)
+semiont local frontend start --mock  # Start frontend with mock API (no backend)
+semiont local frontend stop      # Stop frontend service
 ```
 
 ### Why Use Semiont CLI?
@@ -87,7 +87,7 @@ npm install  # Installs dependencies for all apps
 2. **Daily development** (typical workflow):
 ```bash
 # Start everything for full-stack development
-./scripts/semiont local start
+semiont local start
 
 # Your services are now running! Develop normally...
 # Frontend: http://localhost:3000
@@ -95,24 +95,24 @@ npm install  # Installs dependencies for all apps
 # Database: Managed automatically
 
 # When done developing
-./scripts/semiont local stop
+semiont local stop
 ```
 
 3. **Backend-only development**:
 ```bash
-./scripts/semiont local backend start
+semiont local backend start
 # Only database + backend running
 ```
 
 4. **Frontend with mock API**:
 ```bash  
-./scripts/semiont local frontend start --mock
+semiont local frontend start --mock
 # Only frontend running, no backend needed
 ```
 
 5. **Fresh start** (reset database):
 ```bash
-./scripts/semiont local start --reset
+semiont local start --reset
 # Clean database with sample data
 ```
 
@@ -138,7 +138,7 @@ export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
 export TESTCONTAINERS_RYUK_DISABLED=true
 
 # 4. Use Semiont CLI normally - it will detect Podman automatically
-./scripts/semiont local start
+semiont local start
 ```
 
 **macOS Setup:**
@@ -155,7 +155,7 @@ export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanS
 export TESTCONTAINERS_RYUK_DISABLED=true
 
 # 4. Use normally
-./scripts/semiont local start
+semiont local start
 ```
 
 **Benefits of Using Podman:**
@@ -659,11 +659,11 @@ The backend uses environment-specific configuration files from `/config/environm
 2. **Secrets Management** - Use the semiont CLI:
 ```bash
 # Production secrets (AWS Secrets Manager)
-./bin/semiont configure production set oauth/google
-./bin/semiont configure staging set jwt-secret
+semiont configure production set oauth/google
+semiont configure staging set jwt-secret
 
 # Check secret status
-./bin/semiont configure production get oauth/google
+semiont configure production get oauth/google
 ```
 
 3. **Adding New Configuration**:
@@ -681,18 +681,18 @@ The backend uses **Jest** with TypeScript for unit testing, following a simple a
 
 ```bash
 # Run all backend tests with coverage (from project root)
-./scripts/semiont test --service backend
+semiont test --service backend
 
 # Run specific test types for backend
-./scripts/semiont test --service backend --suite unit         # Unit tests only (~176 tests)
-./scripts/semiont test --service backend --suite integration  # Integration tests only (~60 tests)
-./scripts/semiont test --service backend --suite security    # Security tests only
+semiont test --service backend --suite unit         # Unit tests only
+semiont test --service backend --suite integration  # Integration tests only
+semiont test --service backend --suite security    # Security tests only
 
 # Watch mode for development
-./scripts/semiont test --service backend --suite unit --watch
+semiont test --service backend --suite unit --watch
 
 # Skip coverage reporting for faster runs
-./scripts/semiont test --service backend --no-coverage
+semiont test --service backend --no-coverage
 ```
 
 #### Direct npm Scripts
@@ -724,16 +724,16 @@ npm run build
 
 Specific test type filtering provides significant performance improvements:
 
-- **Unit tests**: ~176 tests (filters out integration tests)
-- **Integration tests**: ~41 tests (focuses on contract testing and multi-service flows)
-- **API tests**: ~60 tests (focuses on endpoint validation)
+- **Unit tests**: Fast execution by excluding integration tests
+- **Integration tests**: Focuses on contract testing and multi-service flows
+- **API tests**: Validates endpoint behavior and responses
 - **Security tests**: Tests focused on JWT validation, auth middleware, and input sanitization
 
 ### Current Test Coverage
 
-- **40.6% overall coverage** with 86/86 tests passing
 - Focus on critical components: authentication, validation, and core business logic
 - Simple unit tests that test individual functions and services directly
+- All tests passing with comprehensive coverage of key paths
 
 ### Testing Philosophy
 
@@ -872,6 +872,47 @@ curl http://localhost:4000/api -H "Accept: application/json"
 - **JWT issues**: Check `src/auth/jwt.ts` for detailed error messages
 - **Validation errors**: Zod provides detailed error paths
 - **Environment issues**: Errors shown at startup with specific missing variables
+
+## Contributing
+
+### Development Setup Prerequisites
+- Node.js 18+ with npm
+- Docker or Podman for database containers
+- TypeScript knowledge required
+
+### Code Style Guidelines
+- **Functional, side-effect free code is strongly preferred**
+- Write pure functions whenever possible
+- Avoid mutations and global state
+- No unnecessary comments - code should be self-documenting
+- Use descriptive variable and function names
+- Follow existing patterns in the codebase
+
+### Testing Requirements
+- All tests must pass before committing
+- Run `npm test` to execute all tests
+- Run `npm run test:unit` for faster unit-only testing
+- New features should include appropriate tests
+
+### Type Checking and Linting
+```bash
+# Type check all code
+npm run type-check
+
+# Build (includes type checking)
+npm run build
+
+# Run specific test suites
+npm run test:unit        # Unit tests only
+npm run test:integration # Integration tests only
+```
+
+### PR Requirements
+- Tests must pass (all test suites)
+- TypeScript must compile without errors (strict mode)
+- Follow functional programming principles
+- Include tests for new functionality
+- Update documentation if API changes
 
 ## Further Reading
 

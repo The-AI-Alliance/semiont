@@ -1,34 +1,29 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "lib": ["ES2022"],
-    "declaration": true,
-    "declarationMap": true,
+    // Output Configuration
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    "exactOptionalPropertyTypes": false,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true
+    
+    // Module configuration for a shared types package
+    "module": "commonjs",                       // CommonJS for maximum compatibility
+    "moduleResolution": "node",                 // Node.js module resolution
+    
+    // Types package specific
+    "declaration": true,                        // Always generate declarations
+    "declarationMap": true,                     // Generate declaration sourcemaps
+    "emitDeclarationOnly": false,               // Also emit JS for any runtime code
+    
+    // Strictness (inherited from root, but can be more strict)
+    "noPropertyAccessFromIndexSignature": true  // Extra strictness for type definitions
   },
   "include": [
     "src/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

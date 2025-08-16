@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // Mock PrismaClient
 const mockPrismaClient = {
   $connect: vi.fn(),
-  $disconnect: vi.fn(),
+  $disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockPrismaConstructor = vi.fn(() => mockPrismaClient);
@@ -21,16 +21,29 @@ vi.unmock('../db');
 
 describe('Database Connection', () => {
   let originalEnv: typeof process.env;
-  beforeEach(() => {
+  let DatabaseConnection: any;
+  
+  beforeEach(async () => {
     vi.clearAllMocks();
     originalEnv = { ...process.env };
     
     // Clear any existing global prisma
     delete (global as any).prisma;
+    
+    // Reset modules to get fresh instance
+    vi.resetModules();
+    const dbModule = await import('../db');
+    DatabaseConnection = dbModule.DatabaseConnection;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     process.env = originalEnv;
+    
+    // Reset the database connection
+    if (DatabaseConnection) {
+      await DatabaseConnection.reset();
+    }
+    
     delete (global as any).prisma;
     vi.resetModules();
   });
@@ -38,19 +51,21 @@ describe('Database Connection', () => {
   it('should create new PrismaClient instance', async () => {
     process.env.NODE_ENV = 'test';
     
-    vi.resetModules();
-    const { prisma } = await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
+    
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
       log: ['error'],
     });
-    expect(prisma).toBe(mockPrismaClient);
   });
 
   it('should use development logging in development mode', async () => {
     process.env.NODE_ENV = 'development';
     
     vi.resetModules();
-    await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
+    
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
       log: ['query', 'error', 'warn'],
     });
@@ -60,7 +75,9 @@ describe('Database Connection', () => {
     process.env.NODE_ENV = 'production';
     
     vi.resetModules();
-    await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
+    
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
       log: ['error'],
     });
@@ -70,7 +87,9 @@ describe('Database Connection', () => {
     process.env.NODE_ENV = 'test';
     
     vi.resetModules();
-    await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
+    
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
       log: ['error'],
     });
@@ -80,13 +99,17 @@ describe('Database Connection', () => {
     process.env.NODE_ENV = 'test';
     
     // Set up existing global prisma
-    const existingPrisma = { existing: 'client' };
+    const existingPrisma = { 
+      existing: 'client',
+      $connect: vi.fn()
+    };
     (global as any).prisma = existingPrisma;
     
     vi.resetModules();
-    const { prisma } = await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
+    
     const { PrismaClient } = await import('@prisma/client');
-
     expect(PrismaClient).not.toHaveBeenCalled();
     expect(prisma).toBe(existingPrisma);
   });
@@ -95,29 +118,35 @@ describe('Database Connection', () => {
     process.env.NODE_ENV = 'development';
     
     vi.resetModules();
-    const { prisma } = await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
 
-    expect((global as any).prisma).toBe(prisma);
+    expect((global as any).prisma).toBe(mockPrismaClient);
+    expect(prisma).toBe(mockPrismaClient);
   });
 
   it('should not set global prisma in production environment', async () => {
     process.env.NODE_ENV = 'production';
     
     vi.resetModules();
-    await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
 
     expect((global as any).prisma).toBeUndefined();
+    expect(prisma).toBe(mockPrismaClient);
   });
 
   it('should handle undefined NODE_ENV as non-production', async () => {
     delete process.env.NODE_ENV;
     
     vi.resetModules();
-    const { prisma } = await import('../db');
+    const { DatabaseConnection } = await import('../db');
+    const prisma = DatabaseConnection.getClient();
+    
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
       log: ['error'], // Default to error-only when NODE_ENV undefined
     });
-    expect((global as any).prisma).toBe(prisma); // Should set global since not production
+    expect((global as any).prisma).toBe(mockPrismaClient); // Should set global since not production
   });
 
   describe('Prisma Client Configuration', () => {
@@ -137,7 +166,9 @@ describe('Database Connection', () => {
         vi.clearAllMocks();
         mockPrismaConstructor.mockClear();
         
-        await import('../db');
+        const { DatabaseConnection } = await import('../db');
+        const prisma = DatabaseConnection.getClient();
+        
         expect(mockPrismaConstructor).toHaveBeenCalledWith({
           log: expectedLogs,
         });
@@ -150,12 +181,16 @@ describe('Database Connection', () => {
       process.env.NODE_ENV = 'development';
       
       vi.resetModules();
-      const { prisma: prisma1 } = await import('../db');
+      const { DatabaseConnection: DB1 } = await import('../db');
+      const prisma1 = DB1.getClient();
       
-      vi.resetModules();
-      const { prisma: prisma2 } = await import('../db');
+      // After first import creates the client, it's stored in global
+      // Second import should reuse it
+      const { DatabaseConnection: DB2 } = await import('../db');
+      const prisma2 = DB2.getClient();
 
-      // Should be the same instance due to global caching
+      // Both should return the same client
+      expect(mockPrismaConstructor).toHaveBeenCalledTimes(1);
       expect(prisma1).toBe(prisma2);
     });
 
@@ -163,15 +198,19 @@ describe('Database Connection', () => {
       // First import in development
       process.env.NODE_ENV = 'development';
       vi.resetModules();
-      const { prisma: devPrisma } = await import('../db');
+      const { DatabaseConnection: DevDB } = await import('../db');
+      const devPrisma = DevDB.getClient();
       
-      // Change to test environment
+      // Change to test environment but don't clear global
       process.env.NODE_ENV = 'test';
-      vi.resetModules();
-      const { prisma: testPrisma } = await import('../db');
+      
+      // Import again - should reuse global instance
+      const { DatabaseConnection: TestDB } = await import('../db');
+      const testPrisma = TestDB.getClient();
 
-      // Should reuse the same global instance
-      expect(testPrisma).toBe(devPrisma);
+      // Should have only created one instance
+      expect(mockPrismaConstructor).toHaveBeenCalledTimes(1);
+      expect(devPrisma).toBe(testPrisma);
     });
   });
 });

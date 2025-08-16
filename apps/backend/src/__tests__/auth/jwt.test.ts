@@ -8,10 +8,11 @@
  * - Prevents JWT-related security vulnerabilities
  */
 
-import { vi, describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 
 // Mock jsonwebtoken
 vi.mock('jsonwebtoken', () => ({
@@ -28,14 +29,6 @@ vi.mock('jsonwebtoken', () => ({
       super(message);
     }
   },
-}));
-
-// Mock CONFIG
-vi.mock('../../config', () => ({
-  CONFIG: {
-    JWT_SECRET: 'test-secret-key-for-testing-32char',
-    DOMAIN: 'test.example.com',
-  }
 }));
 
 // Mock validation schemas
@@ -60,9 +53,27 @@ describe('JWT Service', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+  
+  const testConfig: EnvironmentConfig = {
+    site: {
+      domain: 'test.example.com',
+      oauthAllowedDomains: ['example.com', 'test.org']
+    },
+    services: {},
+    env: {
+      NODE_ENV: 'test'
+    }
+  } as EnvironmentConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Set the test configuration
+    JWTService.setConfig(testConfig);
+  });
+  
+  afterEach(() => {
+    // Reset configuration after each test
+    JWTService.resetConfig();
   });
 
   describe('generateToken', () => {
@@ -268,15 +279,10 @@ describe('JWT Service', () => {
   });
 
   describe('isAllowedDomain', () => {
-    beforeAll(async () => {
-      // Mock CONFIG for domain tests
-      const { CONFIG } = await import('../../config');
-      CONFIG.OAUTH_ALLOWED_DOMAINS = ['example.com', 'test.org'];
-    });
-
     it('should allow configured domains', () => {
-      expect(JWTService.isAllowedDomain('user@test.example.com')).toBe(true);
-      expect(JWTService.isAllowedDomain('admin@example.org')).toBe(true);
+      // The mock has oauthAllowedDomains: ['example.com', 'test.org']
+      expect(JWTService.isAllowedDomain('user@example.com')).toBe(true);
+      expect(JWTService.isAllowedDomain('admin@test.org')).toBe(true);
     });
 
     it('should reject non-configured domains', () => {
