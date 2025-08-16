@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TypedAPIClient, APIError, apiClient, apiService } from '@/lib/api-client';
+import { TypedAPIClient, APIError, apiClient, apiService, LazyTypedAPIClient } from '@/lib/api-client';
 
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
@@ -16,12 +16,16 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   server.close();
   global.fetch = mockFetch;
+  // Reset the lazy API client for test isolation
+  LazyTypedAPIClient.reset();
 });
 
 afterEach(() => {
   vi.clearAllMocks();
   global.fetch = originalFetch;
   server.listen({ onUnhandledRequest: 'warn' });
+  // Reset the lazy API client after each test
+  LazyTypedAPIClient.reset();
 });
 
 // Mock environment variables
@@ -73,6 +77,72 @@ describe('APIError', () => {
   });
 });
 
+describe('LazyTypedAPIClient', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: getBackendUrl() };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('lazy initialization', () => {
+    it('should not create instance until first access', () => {
+      // Reset to ensure clean state
+      LazyTypedAPIClient.reset();
+      
+      // Instance should be null initially
+      expect(LazyTypedAPIClient['instance']).toBeNull();
+      
+      // Access the apiClient proxy - this should trigger initialization
+      mockFetch.mockResolvedValue(createMockResponse({ success: true }));
+      apiClient.get('/api/test');
+      
+      // Now instance should exist
+      expect(LazyTypedAPIClient['instance']).not.toBeNull();
+      expect(LazyTypedAPIClient['instance']).toBeInstanceOf(TypedAPIClient);
+    });
+
+    it('should reuse same instance on subsequent calls', () => {
+      LazyTypedAPIClient.reset();
+      
+      // First access
+      const instance1 = LazyTypedAPIClient.getInstance();
+      
+      // Second access
+      const instance2 = LazyTypedAPIClient.getInstance();
+      
+      // Should be the same instance
+      expect(instance1).toBe(instance2);
+    });
+
+    it('should allow resetting for test isolation', () => {
+      // Create an instance
+      const instance1 = LazyTypedAPIClient.getInstance();
+      
+      // Reset
+      LazyTypedAPIClient.reset();
+      
+      // Create another instance
+      const instance2 = LazyTypedAPIClient.getInstance();
+      
+      // Should be different instances
+      expect(instance1).not.toBe(instance2);
+    });
+
+    it('should allow injecting custom instance for testing', () => {
+      const customClient = new TypedAPIClient('http://test.example.com');
+      
+      LazyTypedAPIClient.setInstance(customClient);
+      
+      const instance = LazyTypedAPIClient.getInstance();
+      expect(instance).toBe(customClient);
+      expect(instance['baseUrl']).toBe('http://test.example.com');
+    });
+  });
+});
+
 describe('TypedAPIClient', () => {
   let client: TypedAPIClient;
 
@@ -92,6 +162,11 @@ describe('TypedAPIClient', () => {
       expect(client['defaultHeaders']).toEqual({
         'Content-Type': 'application/json'
       });
+    });
+    
+    it('should accept custom baseUrl for testing', () => {
+      const customClient = new TypedAPIClient('http://custom.test.com');
+      expect(customClient['baseUrl']).toBe('http://custom.test.com');
     });
   });
 
@@ -335,9 +410,41 @@ describe('TypedAPIClient', () => {
   });
 });
 
-describe('apiClient instance', () => {
-  it('should be an instance of TypedAPIClient', () => {
-    expect(apiClient).toBeInstanceOf(TypedAPIClient);
+describe('apiClient proxy', () => {
+  it('should proxy calls to TypedAPIClient instance', async () => {
+    // Reset to ensure clean state
+    LazyTypedAPIClient.reset();
+    
+    // Set up mock response
+    mockFetch.mockResolvedValue(createMockResponse({ success: true }));
+    
+    // Call a method through the proxy
+    await apiClient.get('/api/test');
+    
+    // Verify the underlying instance was created and used
+    expect(LazyTypedAPIClient['instance']).toBeInstanceOf(TypedAPIClient);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/test'),
+      expect.objectContaining({
+        method: 'GET'
+      })
+    );
+  });
+  
+  it('should maintain authorization across proxy calls', () => {
+    // Reset to ensure clean state
+    LazyTypedAPIClient.reset();
+    
+    // Set auth token through proxy
+    apiClient.setAuthToken('test-token');
+    
+    // Get the instance and verify token was set
+    const instance = LazyTypedAPIClient.getInstance();
+    expect(instance['defaultHeaders']['Authorization']).toBe('Bearer test-token');
+    
+    // Clear auth token through proxy
+    apiClient.clearAuthToken();
+    expect(instance['defaultHeaders']['Authorization']).toBeUndefined();
   });
 });
 

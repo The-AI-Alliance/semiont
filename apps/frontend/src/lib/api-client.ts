@@ -82,7 +82,7 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-// Validate required environment variables
+// Validate required environment variables - now called lazily
 const validateApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl || apiUrl === 'undefined') {
@@ -101,8 +101,9 @@ export class TypedAPIClient {
   private baseUrl: string;
   private defaultHeaders: Record<string, string>;
 
-  constructor() {
-    this.baseUrl = validateApiUrl();
+  constructor(baseUrl?: string) {
+    // Allow injection of baseUrl for testing, otherwise validate lazily
+    this.baseUrl = baseUrl || validateApiUrl();
     this.defaultHeaders = {
       'Content-Type': 'application/json',
     };
@@ -188,8 +189,35 @@ export class TypedAPIClient {
   }
 }
 
-// Pre-configured API client instance
-export const apiClient = new TypedAPIClient();
+// Lazy-loaded API client manager - exported for testing
+export class LazyTypedAPIClient {
+  private static instance: TypedAPIClient | null = null;
+  
+  static getInstance(): TypedAPIClient {
+    if (!this.instance) {
+      this.instance = new TypedAPIClient();
+    }
+    return this.instance;
+  }
+  
+  // For testing - allow injection of custom client
+  static setInstance(client: TypedAPIClient): void {
+    this.instance = client;
+  }
+  
+  // For testing - reset to force re-initialization
+  static reset(): void {
+    this.instance = null;
+  }
+}
+
+// Export a proxy that lazily initializes the client only when accessed
+export const apiClient = new Proxy({} as TypedAPIClient, {
+  get(target, prop: string | symbol) {
+    const instance = LazyTypedAPIClient.getInstance();
+    return (instance as any)[prop];
+  },
+});
 
 // Type-safe convenience methods
 export const apiService = {

@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
+import { api, LazyTypedAPIClient } from '@/lib/api-client';
 
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
@@ -19,12 +19,16 @@ const mockFetch = vi.fn();
 beforeEach(() => {
   server.close();
   global.fetch = mockFetch;
+  // Reset the lazy API client for test isolation
+  LazyTypedAPIClient.reset();
 });
 
 afterEach(() => {
   vi.clearAllMocks();
   global.fetch = originalFetch;
   server.listen({ onUnhandledRequest: 'warn' });
+  // Reset the lazy API client after each test
+  LazyTypedAPIClient.reset();
 });
 
 // Helper to create a proper Response mock
