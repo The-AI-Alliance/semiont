@@ -41,7 +41,7 @@
     "ink-table": "^3.0.0",
     "next": "14.2.31",
     "next-auth": "^4.24.5",
-    "react": "18.3.1",
+    "react": "19.1.1",
     "react-dom": "18.3.1",
     "@semiont/config-loader": "*",
     "typescript": "^5",
