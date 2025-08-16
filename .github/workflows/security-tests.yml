@@ -34,8 +34,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: cd ../.. && npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          cd ../..
+          npm install
+          npm run install:cli
 
       - name: Run security tests
         run: npm run test:security
@@ -162,8 +165,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: cd ../.. && npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          cd ../..
+          npm install
+          npm run install:cli
 
       - name: Setup test database and config
         run: |

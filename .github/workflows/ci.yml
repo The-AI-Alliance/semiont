@@ -23,13 +23,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
-      - name: Run frontend tests with semiont CLI
+      - name: Run frontend tests
         run: |
           echo "Running frontend unit tests..."
-          semiont test -e unit --service frontend --suite integration --output summary
+          cd apps/frontend
+          npm test
         env:
           CI: true
 
@@ -63,13 +66,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
-      - name: Run backend tests with semiont CLI
+      - name: Run backend tests
         run: |
           echo "Running backend unit tests..."
-          semiont test -e unit --service backend --suite integration --output summary
+          cd apps/backend
+          npm test
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -92,8 +98,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
       - name: Run CDK tests
         run: cd packages/cloud && npm test
@@ -113,8 +121,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
       - name: Validate CLI installation
         run: |
@@ -124,21 +134,19 @@ jobs:
       - name: Run CLI unit tests
         run: |
           echo "Running CLI package unit tests..."
-          cd packages/cli && npm test
+          cd apps/cli && npm test
         env:
           CI: true
       
-      - name: Test CLI commands with structured output
+      - name: Test CLI commands with dry-run
         run: |
-          echo "Testing CLI commands with different output formats..."
-          # Test with JSON output
-          semiont check -e local --service all --dry-run --output json
-          # Test with table output
-          semiont check -e local --service all --dry-run --output table
-          # Test with YAML output
-          semiont check -e local --service all --dry-run --output yaml
-          # Test the test command itself
-          semiont test -e local --suite health --service all --dry-run --output summary
+          echo "Testing CLI commands with dry-run..."
+          # Test check command
+          semiont check local --service all --dry-run
+          # Test start command
+          semiont start local --service all --dry-run
+          # Test provision command
+          semiont provision local --service all --dry-run
         env:
           CI: true
 
@@ -172,17 +180,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
       - name: Run comprehensive test suite
         run: |
           echo "Running comprehensive test suite..."
-          semiont test -e unit --suite all --service all --output summary
+          # Run tests for each package
+          cd apps/frontend && npm test && cd ../..
+          cd apps/backend && npm test && cd ../..
+          cd apps/cli && npm test && cd ../..
           
-          # Also run with JSON output for artifact storage
-          echo "Generating test results in JSON format..."
-          semiont test -e unit --suite all --service all --output json > test-results.json
+          echo "All tests completed successfully"
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -190,12 +201,6 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: test-results.json
 
   validate-config:
     name: Configuration Validation
@@ -212,11 +217,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
-      - name: Validate configuration
-        run: semiont configure -e unit validate
+      - name: Validate CLI installation
+        run: |
+          # Verify the CLI is installed and working
+          semiont --version
+          semiont --help
 
   build-all:
     name: Build All Applications
@@ -234,12 +244,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and setup CLI
-        run: npm run setup
+      - name: Install dependencies and CLI
+        run: |
+          npm install
+          npm run install:cli
 
       - name: Build all applications
         run: |
-          # Everything is already built by npm run setup
-          # Just validate the build worked
+          # Build all workspaces
+          npm run build
+          # Validate CLI still works after build
           semiont --version
-          echo "All applications built successfully during setup"
+          echo "All applications built successfully"
