@@ -186,6 +186,36 @@ jobs:
           # Initialize project configuration
           cd ../..
           semiont init --name "test-project" --environments "ci" --force
+          # Add backend service to ci environment
+          cat > config/environments/ci.json << 'EOF'
+          {
+            "_comment": "ci environment",
+            "deployment": {
+              "default": "process"
+            },
+            "env": {
+              "NODE_ENV": "ci"
+            },
+            "services": {
+              "backend": {
+                "deployment": {
+                  "type": "process"
+                },
+                "command": "npm start",
+                "port": 3001
+              },
+              "database": {
+                "deployment": {
+                  "type": "external"
+                },
+                "host": "localhost",
+                "port": 5432,
+                "user": "testuser",
+                "name": "testdb"
+              }
+            }
+          }
+          EOF
           # Set secrets for test
           echo '{"DATABASE_PASSWORD":"testpassword","JWT_SECRET":"test-secret-for-ci","GOOGLE_CLIENT_ID":"test-client-id","GOOGLE_CLIENT_SECRET":"test-client-secret"}' > .secrets.json
           cd apps/backend
