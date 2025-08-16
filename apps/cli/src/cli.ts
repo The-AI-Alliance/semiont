@@ -30,23 +30,6 @@ try {
 // HELPER FUNCTIONS
 // =====================================================================
 
-async function ensureBuilt() {
-  const fs = await import('fs');
-  const buildMarker = path.join(__dirname, 'dist', '.built');
-  
-  if (!fs.existsSync(buildMarker)) {
-    console.log(colors.yellow + 'Building project...' + colors.reset);
-    const { execSync } = await import('child_process');
-    try {
-      execSync('npm run build', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
-      fs.mkdirSync(path.dirname(buildMarker), { recursive: true });
-      fs.writeFileSync(buildMarker, new Date().toISOString());
-    } catch (error) {
-      printError('Build failed. Please run "npm run build" manually.');
-      process.exit(1);
-    }
-  }
-}
 
 function printVersion() {
   console.log(`Semiont CLI v${VERSION}`);
@@ -92,9 +75,6 @@ async function main() {
     console.log(`Run 'semiont --help' for more information.`);
     process.exit(1);
   }
-  
-  // Ensure scripts are built
-  await ensureBuilt();
   
   // Execute the command using the dynamic loader
   // The dynamic loader handles everything:
