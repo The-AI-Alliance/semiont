@@ -8,8 +8,7 @@ This guide provides commands to view logs, perform health checks, and resolve co
 
 ```bash
 # Quick health check using management scripts
-./bin/semiont status
-./bin/semiont health-check
+semiont check
 
 # Check all stack resources
 aws cloudformation describe-stack-resources --stack-name SemiontInfraStack
@@ -29,9 +28,9 @@ aws ecs describe-services --cluster SemiontCluster --services semiont-frontend s
 
 ```bash
 # Using management scripts (recommended)
-./bin/semiont logs frontend tail
-./bin/semiont logs backend tail
-./bin/semiont logs follow  # Follow both services
+semiont watch logs --service frontend
+semiont watch logs --service backend
+semiont watch logs  # Follow both services
 
 # List log streams
 LOG_GROUP=$(aws cloudformation describe-stacks --stack-name SemiontAppStack --query 'Stacks[0].Outputs[?OutputKey==`LogGroupName`].OutputValue' --output text)
@@ -64,7 +63,7 @@ aws rds download-db-log-file-portion --db-instance-identifier $DB_IDENTIFIER \
   --log-file-name error/postgresql.log --starting-token 0
 
 # Check database connection from backend
-./bin/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
+semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 ```
 
 ### Load Balancer Access Logs
@@ -104,8 +103,7 @@ aws logs filter-log-events --log-group-name CloudTrail/SemiontEvents \
 
 ```bash
 # Using management scripts (recommended)
-./bin/semiont status
-./bin/semiont health-check
+semiont check
 
 # Detailed ECS service status for both services
 aws ecs describe-services --cluster SemiontCluster --services semiont-frontend semiont-backend
@@ -131,14 +129,14 @@ aws ecs describe-task-definition --task-definition semiont-backend
 
 ```bash
 # Quick database check from backend
-./bin/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
+semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 
 # RDS instance status
 DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER --query 'DBInstances[0].{Status:DBInstanceStatus,Endpoint:Endpoint.Address,Engine:Engine,Version:EngineVersion}'
 
 # Database connection test from backend service
-./bin/semiont exec backend 'npx prisma db pull --print'
+semiont exec --service backend 'npx prisma db pull --print'
 
 # Check database metrics
 aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name CPUUtilization \
@@ -218,7 +216,7 @@ aws cloudwatch get-metric-statistics --namespace AWS/EFS --metric-name ClientCon
   --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
 
 # Check file system usage from backend
-./bin/semiont exec backend 'df -h | grep efs'
+semiont exec --service backend 'df -h | grep efs'
 ```
 
 ### WAF Status
@@ -258,14 +256,14 @@ aws cloudwatch get-metric-statistics --namespace AWS/WAFV2 --metric-name Blocked
 
 ```bash
 # Quick status check
-./bin/semiont status
+semiont check
 
 # Check ECS service health for both services
 aws ecs describe-services --cluster SemiontCluster --services semiont-frontend semiont-backend --query 'services[*].{Service:serviceName,Running:runningCount,Pending:pendingCount,Desired:desiredCount}'
 
 # Check task failures
-./bin/semiont logs frontend tail | grep -i error
-./bin/semiont logs backend tail | grep -i error
+semiont watch logs --service frontend | grep -i error
+semiont watch logs --service backend | grep -i error
 
 # Get detailed task information
 FRONTEND_TASK=$(aws ecs list-tasks --cluster SemiontCluster --service-name semiont-frontend --query 'taskArns[0]' --output text)
@@ -288,22 +286,22 @@ aws ecs describe-tasks --cluster SemiontCluster --tasks $BACKEND_TASK --query 't
 
 ```bash
 # Restart all services
-./bin/semiont restart
+semiont restart
 
 # Or restart individual services
-./bin/semiont restart frontend
-./bin/semiont restart backend
+semiont restart --service frontend
+semiont restart --service backend
 
 # Force service deployment to restart tasks
 aws ecs update-service --cluster SemiontCluster --service semiont-frontend --force-new-deployment
 aws ecs update-service --cluster SemiontCluster --service semiont-backend --force-new-deployment
 
 # Scale services down and up
-./bin/semiont scale frontend 0
-./bin/semiont scale backend 0
+aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 0
+aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 0
 # Wait a moment
-./bin/semiont scale frontend 1
-./bin/semiont scale backend 1
+aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 1
+aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 1
 ```
 
 ### 2. Database Connection Issues
@@ -319,10 +317,10 @@ aws ecs update-service --cluster SemiontCluster --service semiont-backend --forc
 
 ```bash
 # Test database connectivity from backend
-./bin/semiont exec backend 'pg_isready -h $DB_HOST -p $DB_PORT'
+semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 
 # Check Prisma connection
-./bin/semiont exec backend 'npx prisma db pull --print'
+semiont exec --service backend 'npx prisma db pull --print'
 
 # Check RDS instance status
 DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
@@ -362,7 +360,7 @@ aws ec2 describe-security-groups --group-ids $DB_SG
 
 ```bash
 # Check service metrics using management scripts
-./bin/semiont status
+semiont check
 
 # Check ECS service metrics for both services
 aws cloudwatch get-metric-statistics --namespace AWS/ECS --metric-name CPUUtilization \
@@ -477,8 +475,8 @@ aws cloudwatch get-metric-statistics --namespace AWS/WAFV2 --metric-name Blocked
 
 ```bash
 # Check EFS mount from backend service
-./bin/semiont exec backend 'df -h | grep efs'
-./bin/semiont exec backend 'ls -la /mnt/efs'
+semiont exec --service backend 'df -h | grep efs'
+semiont exec --service backend 'ls -la /mnt/efs'
 
 # Get EFS file system ID and check status
 EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
@@ -494,7 +492,7 @@ aws cloudwatch get-metric-statistics --namespace AWS/EFS --metric-name PercentIO
   --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") --period 300 --statistics Average
 
 # Test file operations from backend
-./bin/semiont exec backend 'touch /mnt/efs/test.txt && echo "test" > /mnt/efs/test.txt && cat /mnt/efs/test.txt && rm /mnt/efs/test.txt'
+semiont exec --service backend 'touch /mnt/efs/test.txt && echo "test" > /mnt/efs/test.txt && cat /mnt/efs/test.txt && rm /mnt/efs/test.txt'
 ```
 
 ### 7. OAuth Authentication Issues
@@ -510,16 +508,13 @@ aws cloudwatch get-metric-statistics --namespace AWS/EFS --metric-name PercentIO
 
 ```bash
 # Check OAuth configuration
-./bin/semiont secrets get oauth/google
+semiont configure show
 
 # Check OAuth environment variables
-./bin/semiont exec frontend 'env | grep -E "(GOOGLE|NEXTAUTH|OAUTH)"'
-
-# List all secrets (including OAuth)
-./bin/semiont secrets list
+semiont exec --service frontend 'env | grep -E "(GOOGLE|NEXTAUTH|OAUTH)"'
 
 # Check NextAuth logs
-./bin/semiont logs frontend tail | grep -i "nextauth\|oauth\|google"
+semiont watch logs --service frontend | grep -i "nextauth\|oauth\|google"
 ```
 
 **Common Causes & Solutions:**
@@ -550,7 +545,7 @@ aws ce get-cost-and-usage --time-period Start=$(date -d "7 days ago" +%Y-%m-%d),
   --granularity DAILY --metrics BlendedCost --group-by Type=DIMENSION,Key=SERVICE
 
 # Check service scaling
-./bin/semiont status
+semiont check
 
 # Check for runaway auto-scaling
 aws application-autoscaling describe-scaling-activities --service-namespace ecs --resource-id service/SemiontCluster/semiont-frontend
@@ -572,15 +567,15 @@ aws application-autoscaling describe-scaling-activities --service-namespace ecs 
 
 ```bash
 # Restart all services using management scripts
-./bin/semiont restart
+semiont restart
 
-# Or manually scale services to 0 and back
-./bin/semiont scale frontend 0
-./bin/semiont scale backend 0
+# Or manually scale services to 0 and back using AWS CLI
+aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 0
+aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 0
 # Wait for services to stop
 sleep 30
-./bin/semiont scale frontend 2
-./bin/semiont scale backend 2
+aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 2
+aws ecs update-service --cluster SemiontCluster --service semiont-backend --desired-count 2
 
 # Using AWS CLI directly
 aws ecs update-service --cluster SemiontCluster --service semiont-frontend --desired-count 0
@@ -600,13 +595,13 @@ DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStac
 aws rds create-db-snapshot --db-instance-identifier $DB_IDENTIFIER --db-snapshot-identifier emergency-snapshot-$(date +%Y%m%d%H%M%S)
 
 # Check for blocking queries
-./bin/semiont exec backend 'psql $DATABASE_URL -c "SELECT pid, now() - pg_stat_activity.query_start AS duration, query FROM pg_stat_activity WHERE (now() - pg_stat_activity.query_start) > interval \'5 minutes\';"'
+semiont exec --service backend 'psql $DATABASE_URL -c "SELECT pid, now() - pg_stat_activity.query_start AS duration, query FROM pg_stat_activity WHERE (now() - pg_stat_activity.query_start) > interval \'5 minutes\';"'
 
 # Reboot database (last resort)
 aws rds reboot-db-instance --db-instance-identifier $DB_IDENTIFIER
 
 # Run database migrations manually if needed
-./bin/semiont exec backend 'npx prisma db push'
+semiont exec --service backend 'npx prisma db push'
 ```
 
 ### Enable Enhanced Monitoring (During Incidents)
@@ -624,8 +619,8 @@ aws ecs update-service --cluster SemiontCluster --service semiont-frontend --ena
 aws ecs update-service --cluster SemiontCluster --service semiont-backend --enable-execute-command
 
 # Access containers for live debugging
-./bin/semiont exec frontend /bin/sh
-./bin/semiont exec backend /bin/sh
+semiont exec --service frontend /bin/sh
+semiont exec --service backend /bin/sh
 ```
 
 ## Monitoring and Alerting Verification
@@ -693,7 +688,7 @@ Use these baselines to detect performance degradation and set appropriate alarm 
 
 ## Additional Resources
 
-- **Management Scripts**: Use `./bin/semiont --help` for all available commands
+- **Management Scripts**: Use `semiont --help` for all available commands
 - **Application Logs**: Both services log to CloudWatch with structured JSON format
 - **Health Endpoints**:
   - Frontend: `http://<ALB-DNS>/`

@@ -294,15 +294,19 @@ cd apps/backend && npm run prisma:migrate
 
 ### Deployment Pipeline
 ```bash
+# Set default environment
+export SEMIONT_ENV=production
+
 # Deploy infrastructure (rare)
-semiont deploy infra
+semiont provision
 
 # Deploy application (frequent)
-semiont deploy app
+semiont deploy
 
 # Service management
-semiont restart [frontend|backend|both]
-semiont logs [frontend|backend] [tail|follow]
+semiont restart  # All services
+semiont restart --service frontend  # Specific service
+semiont watch logs  # Monitor logs
 ```
 
 ### Management Scripts

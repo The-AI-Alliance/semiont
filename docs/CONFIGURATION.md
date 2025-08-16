@@ -89,15 +89,15 @@ Environments can extend other environments using `_extends`:
 
 ### For Development
 
-1. **Ensure development environment has AWS region**:
+1. **Initialize project configuration**:
    ```bash
-   # Check that development.json includes:
-   # "aws": { "region": "us-east-2", ... }
+   semiont init --name "my-project" --environments "local,staging,production"
    ```
 
-2. **Deploy locally**:
+2. **Start local development**:
    ```bash
-   ./bin/semiont start local
+   export SEMIONT_ENV=local
+   semiont start
    ```
 
 ### For Production
@@ -119,19 +119,32 @@ Environments can extend other environments using `_extends`:
 
 2. **Deploy**:
    ```bash
-   ./bin/semiont deploy production
+   export SEMIONT_ENV=production
+   semiont provision  # First time only
+   semiont deploy
    ```
 
 ## Environment Variables
 
-### Configuration Loading
+### Setting Default Environment
 
-Scripts use explicit environment parameters:
+Use `SEMIONT_ENV` to avoid repeating `--environment`:
 
 ```bash
-./bin/semiont start production    # Uses production.json
-./bin/semiont build development   # Uses development.json  
-./bin/semiont test unit          # Uses unit.json
+export SEMIONT_ENV=production
+
+semiont start       # Uses production.json
+semiont deploy      # Uses production.json
+semiont test        # Uses production.json
+```
+
+### Overriding Environment
+
+You can always override the environment:
+
+```bash
+# With SEMIONT_ENV=production set
+semiont start --environment staging  # Uses staging.json
 ```
 
 ### Environment-Specific Properties
@@ -147,14 +160,17 @@ Each environment specifies its deployment configuration:
 Configuration files contain public settings. Secrets are managed separately:
 
 ```bash
-# Set OAuth credentials
-./bin/semiont configure production set oauth/google
+# Set OAuth credentials (interactive)
+semiont configure set oauth/google
 
-# List all secrets
-./bin/semiont configure production list
+# Set specific secret
+semiont configure set jwt-secret "your-secret-value"
 
-# Check secret status
-./bin/semiont configure production get oauth/google
+# View configuration (secrets are masked)
+semiont configure show
+
+# Validate configuration
+semiont configure validate
 ```
 
 ## Environment Requirements
@@ -202,67 +218,130 @@ No AWS configuration needed:
 2. **Define configuration**:
    ```json
    {
+     "_extends": "production",
      "_comment": "Staging environment",
-     "deployment": { "default": "aws" },
      "site": {
-       "domain": "staging.example.com",
-       "adminEmail": "admin@staging.example.com"
-     },
-     "aws": {
-       "region": "us-east-2",
-       "accountId": "123456789012"
+       "domain": "staging.example.com"
      }
    }
    ```
 
-3. **Use immediately**:
+3. **Deploy**:
    ```bash
-   ./bin/semiont deploy staging
+   semiont deploy --environment staging
    ```
 
-## Deployment Types
+## Configuration Hierarchy
 
-Each service can specify its deployment type:
-
-- **`aws`**: ECS Fargate service
-- **`container`**: Local Docker container  
-- **`process`**: Local process
-- **`mock`**: Mock/test service
-- **`external`**: External service
-
-## Configuration Validation
-
-The system validates configuration at load time:
-
-- **Required fields**: Environment must have required properties for its deployment type
-- **AWS validation**: Cloud environments must have complete AWS config
-- **No defaults**: Missing required config causes explicit errors
+1. **Base configuration**: Default values
+2. **Environment file**: Environment-specific overrides
+3. **Secrets**: Runtime secrets from AWS Secrets Manager
+4. **Environment variables**: Runtime overrides (if applicable)
 
 ## Best Practices
 
-1. **Always specify AWS region** - No defaults provided
-2. **Use complete environment configs** - Each environment is self-contained  
-3. **Use inheritance sparingly** - Prefer explicit configuration
-4. **Test configuration changes** - Use `--dry-run` flags
-5. **Keep secrets separate** - Use AWS Secrets Manager, not JSON files
+### 1. Use Environment Inheritance
+
+```json
+// staging.json
+{
+  "_extends": "production",
+  "_comment": "Staging uses production config with different domain",
+  "site": {
+    "domain": "staging.example.com"
+  }
+}
+```
+
+### 2. Keep Secrets Out of Config Files
+
+Never put secrets in JSON files. Use:
+```bash
+semiont configure set jwt-secret
+semiont configure set oauth/google
+```
+
+### 3. Validate Before Deployment
+
+```bash
+semiont configure validate
+semiont deploy --dry-run
+```
+
+### 4. Use Consistent Naming
+
+- Environment names: `local`, `development`, `staging`, `production`
+- Service names: `frontend`, `backend`, `database`
+- Stack names: Follow AWS CDK conventions
 
 ## Troubleshooting
 
-### Missing AWS Configuration
-```
-Error: Environment production does not have AWS configuration
-```
-**Solution**: Add `aws` section with required `region` field.
+### Configuration Not Loading
 
-### Invalid Region
-```
-Error: AWS region is required for deployment
-```  
-**Solution**: Ensure `aws.region` is specified in environment JSON.
+```bash
+# Check current environment
+echo $SEMIONT_ENV
 
-### Configuration Not Found
-```
-Error: Configuration file not found: environments/staging.json
-```
-**Solution**: Create the environment JSON file or use existing environment name.
+# Validate configuration file
+semiont configure validate
 
+# Check file exists
+ls -la config/environments/
+```
+
+### Secrets Not Available
+
+```bash
+# Check secrets are set
+semiont configure show
+
+# Re-set secrets if needed
+semiont configure set oauth/google
+```
+
+### Wrong Environment Used
+
+```bash
+# Explicitly specify environment
+semiont deploy --environment production
+
+# Or set default
+export SEMIONT_ENV=production
+```
+
+## Configuration Reference
+
+### Site Configuration
+
+| Property | Description | Required | Example |
+|----------|-------------|----------|---------|
+| `domain` | Primary domain | Yes | `wiki.example.com` |
+| `adminEmail` | Administrator email | Yes | `admin@example.com` |
+| `supportEmail` | Support email | No | `support@example.com` |
+| `oauthAllowedDomains` | OAuth domain whitelist | Yes | `["example.com"]` |
+
+### AWS Configuration
+
+| Property | Description | Required | Example |
+|----------|-------------|----------|---------|
+| `region` | AWS region | Yes | `us-east-2` |
+| `accountId` | AWS account ID | Yes | `123456789012` |
+| `certificateArn` | ACM certificate | For HTTPS | `arn:aws:acm:...` |
+| `hostedZoneId` | Route53 zone | For DNS | `Z1234567890ABC` |
+
+### Service Configuration
+
+| Property | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `deployment.type` | Deployment type | `process` | `aws`, `container`, `process` |
+| `port` | Service port | Service-specific | `3001` |
+| `replicas` | Instance count | `1` | `2` |
+| `memory` | Memory (MB) | `512` | `1024` |
+| `cpu` | CPU units | `256` | `512` |
+
+## Related Documentation
+
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment procedures
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
+- [SECURITY.md](SECURITY.md) - Security configuration
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues
