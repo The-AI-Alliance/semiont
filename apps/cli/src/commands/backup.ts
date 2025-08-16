@@ -38,7 +38,7 @@ const BackupOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type BackupOptions = z.infer<typeof BackupOptionsSchema> & BaseCommandOptions;
@@ -838,7 +838,7 @@ export const backupCommand = new CommandBuilder<BackupOptions>()
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',
@@ -851,7 +851,7 @@ export const backupCommand = new CommandBuilder<BackupOptions>()
   .examples(
     'semiont backup --environment local',
     'semiont backup --environment staging --name manual-backup',
-    'semiont backup --environment prod --services database --compress'
+    'semiont backup --environment prod --service backend --compress'
   )
   .handler(backup)
   .build();

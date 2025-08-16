@@ -30,7 +30,7 @@ const WatchOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type WatchOptions = z.infer<typeof WatchOptionsSchema> & BaseCommandOptions;
@@ -203,7 +203,7 @@ export const watchCommand = new CommandBuilder<WatchOptions>()
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',
@@ -216,7 +216,7 @@ export const watchCommand = new CommandBuilder<WatchOptions>()
   .examples(
     'semiont watch --environment local',
     'semiont watch --environment staging --target logs',
-    'semiont watch --environment production --services backend --interval 10'
+    'semiont watch --environment production --service backend --interval 10'
   )
   .handler(watch)
   .build();

@@ -220,7 +220,7 @@ jobs:
       - name: Start backend for API security verification
         run: |
           cd ../..
-          semiont start -e ci --services backend &
+          semiont start -e ci --service backend &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
           # Wait for backend to start

@@ -37,7 +37,7 @@ const ProvisionOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   requireApproval: z.boolean().optional(),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type ProvisionOptions = z.infer<typeof ProvisionOptionsSchema> & BaseCommandOptions;
@@ -1175,7 +1175,7 @@ export const provisionCommand = new CommandBuilder<ProvisionOptions>()
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--require-approval': { type: 'boolean', description: 'Require manual approval' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',

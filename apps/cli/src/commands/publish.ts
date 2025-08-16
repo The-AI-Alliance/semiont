@@ -36,7 +36,7 @@ const PublishOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type PublishOptions = z.infer<typeof PublishOptionsSchema> & BaseCommandOptions;
@@ -565,7 +565,7 @@ export const publishCommand = new CommandBuilder<PublishOptions>()
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',

@@ -28,7 +28,7 @@ const StopOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type StopOptions = z.infer<typeof StopOptionsSchema> & BaseCommandOptions;
@@ -594,7 +594,7 @@ export const stopCommand = new CommandBuilder<StopOptions>()
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',
@@ -606,7 +606,7 @@ export const stopCommand = new CommandBuilder<StopOptions>()
   .examples(
     'semiont stop --environment local',
     'semiont stop --environment staging --force',
-    'semiont stop --environment prod --services frontend,backend'
+    'semiont stop --environment prod --service backend'
   )
   .handler(stop)
   .build();

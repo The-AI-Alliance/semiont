@@ -792,7 +792,7 @@ export const updateCommand = new CommandBuilder<UpdateOptions>()
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',

@@ -33,7 +33,7 @@ const StartOptionsSchema = z.object({
   quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type StartOptions = z.infer<typeof StartOptionsSchema> & BaseCommandOptions;
@@ -658,7 +658,7 @@ export const startCommand = new CommandBuilder<StartOptions>()
       '--quiet': { type: 'boolean', description: 'Suppress output' },
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',
@@ -669,7 +669,7 @@ export const startCommand = new CommandBuilder<StartOptions>()
   })
   .examples(
     'semiont start --environment local',
-    'semiont start --environment staging --services frontend,backend',
+    'semiont start --environment staging --service backend',
     'semiont start --environment prod --dry-run'
   )
   .handler(start)

@@ -27,7 +27,7 @@ const CheckOptionsSchema = z.object({
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['table', 'json', 'yaml', 'summary']).default('table'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type CheckOptions = z.infer<typeof CheckOptionsSchema> & BaseCommandOptions;
@@ -700,7 +700,7 @@ export const checkCommand = new CommandBuilder<CheckOptions>()
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (table, json, yaml, summary)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',
@@ -712,7 +712,7 @@ export const checkCommand = new CommandBuilder<CheckOptions>()
   .examples(
     'semiont check --environment local',
     'semiont check --environment staging --section health',
-    'semiont check --environment prod --services frontend,backend --output json'
+    'semiont check --environment prod --service backend --output json'
   )
   .handler(check)
   .build();

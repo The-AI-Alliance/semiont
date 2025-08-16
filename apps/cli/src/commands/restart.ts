@@ -29,7 +29,7 @@ const RestartOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   gracePeriod: z.number().int().positive().default(3), // seconds to wait between stop and start
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  services: z.array(z.string()).optional(),
+  service: z.string().optional(),
 });
 
 type RestartOptions = z.infer<typeof RestartOptionsSchema> & BaseCommandOptions;
@@ -648,7 +648,7 @@ export const restartCommand = new CommandBuilder<RestartOptions>()
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--services': { type: 'string', description: 'Comma-separated list of services' },
+      '--service': { type: 'string', description: 'Service name or "all" for all services' },
     },
     aliases: {
       '-e': '--environment',
@@ -661,7 +661,7 @@ export const restartCommand = new CommandBuilder<RestartOptions>()
   .examples(
     'semiont restart --environment local',
     'semiont restart --environment staging --grace-period 5',
-    'semiont restart --environment prod --services frontend,backend --force'
+    'semiont restart --environment prod --service backend --force'
   )
   .handler(restart)
   .build();
