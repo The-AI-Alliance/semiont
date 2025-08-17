@@ -194,7 +194,7 @@ jobs:
               "default": "process"
             },
             "env": {
-              "NODE_ENV": "test"
+              "NODE_ENV": "development"
             },
             "services": {
               "backend": {
