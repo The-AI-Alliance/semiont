@@ -195,6 +195,71 @@ All infrastructure defined in TypeScript using AWS CDK:
 - **Version Control**: Infrastructure changes tracked in Git
 - **Automated Rollbacks**: CloudFormation change sets
 
+## Authentication Architecture
+
+### Authentication Model
+
+The platform implements a **secure-by-default** authentication model for API access:
+
+#### Core Principles
+- **Default Protection**: All API routes require authentication automatically
+- **Explicit Exceptions**: Public endpoints must be explicitly listed
+- **JWT Bearer Tokens**: Stateless authentication for API requests
+- **OAuth Integration**: Google OAuth 2.0 for user authentication
+
+#### Authentication Flow
+
+```
+1. User Login (Frontend)
+   ↓
+2. Google OAuth 2.0
+   ↓
+3. Backend validates OAuth token
+   ↓
+4. Backend issues JWT token
+   ↓
+5. Frontend includes JWT in API requests
+   ↓
+6. Backend validates JWT on each request
+```
+
+#### Public Endpoints
+
+Only these endpoints are accessible without authentication:
+- `GET /api/health` - Health check for AWS ALB monitoring
+- `GET /api` - API documentation
+- `POST /api/auth/google` - OAuth login initiation
+
+#### Protected Endpoints
+
+All other API routes automatically require:
+- Valid JWT token in Authorization header
+- Token signature verification
+- Token expiration validation
+- User existence verification
+
+#### Admin Endpoints
+
+Admin endpoints require additional authorization:
+- Valid JWT token (authentication)
+- `isAdmin: true` user attribute (authorization)
+- Returns 403 Forbidden for non-admin users
+
+### JWT Security Implementation
+
+#### Token Validation Layers
+1. **Signature Verification**: Validates token hasn't been tampered with
+2. **Payload Structure**: Runtime validation of token structure
+3. **Expiration Checking**: Ensures token hasn't expired
+4. **User Verification**: Confirms user exists and is active
+5. **Domain Validation**: Checks email domain against allowed list
+
+#### Security Features
+- **Short-lived Tokens**: 7-day expiration by default
+- **Secure Secret Management**: JWT secret stored in AWS Secrets Manager
+- **Domain Restrictions**: Email domain-based access control
+- **Automatic Middleware**: Global authentication applied to all API routes
+
 ## Security Architecture
 
 ### Network Security
@@ -212,6 +277,7 @@ All infrastructure defined in TypeScript using AWS CDK:
 ### Application Security  
 - **OAuth Authentication**: Google-based with domain restrictions
 - **JWT Tokens**: Secure API authentication
+- **Secure-by-Default API**: All API routes require authentication unless explicitly listed
 - **HTTPS Everywhere**: SSL termination at ALB
 - **Secret Management**: All credentials in AWS Secrets Manager
 

@@ -67,8 +67,8 @@ jobs:
           npm start &
           APP_PID=$!
           echo "APP_PID=$APP_PID" >> $GITHUB_ENV
-          # Wait for app to start
-          timeout 60 bash -c 'until curl -f http://localhost:3000/api/health 2>/dev/null; do sleep 2; done' || echo "Health check endpoint not available, continuing..."
+          # Wait for app to start - check the root page instead of /api/health
+          timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
           sleep 5
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3001
@@ -194,7 +194,7 @@ jobs:
               "default": "process"
             },
             "env": {
-              "NODE_ENV": "test"
+              "NODE_ENV": "development"
             },
             "services": {
               "backend": {

@@ -261,6 +261,46 @@ semiont configure set jwt-secret
 semiont configure set oauth/google
 ```
 
+## Authentication Configuration
+
+### OAuth Setup
+
+The application uses Google OAuth 2.0 for user authentication. Configure OAuth settings in your environment file:
+
+```json
+{
+  "site": {
+    "oauthAllowedDomains": ["example.com", "company.org"]
+  }
+}
+```
+
+### JWT Configuration
+
+JWT tokens are used for API authentication. The JWT secret must be configured as a secure secret:
+
+```bash
+# Set JWT secret for local development
+semiont configure local set jwt-secret
+
+# For production (stored in AWS Secrets Manager)
+semiont configure production set jwt-secret
+```
+
+### Authentication Requirements
+
+1. **JWT Secret**: Minimum 32 characters, stored securely
+2. **OAuth Credentials**: Google Client ID and Secret
+3. **Allowed Domains**: Email domains permitted to authenticate
+4. **Token Expiration**: Default 7 days (configurable)
+
+### Security Configuration
+
+All API routes require authentication by default. Only these endpoints are public:
+- `/api/health` - Health check for load balancers
+- `/api` - API documentation  
+- `/api/auth/google` - OAuth login endpoint
+
 ### 3. Validate Before Deployment
 
 ```bash
@@ -318,7 +358,7 @@ export SEMIONT_ENV=production
 | `domain` | Primary domain | Yes | `wiki.example.com` |
 | `adminEmail` | Administrator email | Yes | `admin@example.com` |
 | `supportEmail` | Support email | No | `support@example.com` |
-| `oauthAllowedDomains` | OAuth domain whitelist | Yes | `["example.com"]` |
+| `oauthAllowedDomains` | OAuth domain allowed list | Yes | `["example.com"]` |
 
 ### AWS Configuration
 

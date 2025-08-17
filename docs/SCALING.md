@@ -402,10 +402,10 @@ This document describes how the Semiont semantic knowledge platform architecture
 - Global performance optimization
 - Required for 100,000+ users
 
-### Microservices Migration
+### Microservices Architecture
 
 - Further service decomposition strategy
-- Independent scaling capabilities
+- Independent scaling capabilities  
 - Consider at 100,000+ user scale
 - GraphQL federation for API gateway
 

@@ -343,7 +343,7 @@ aws ec2 describe-security-groups --group-ids $DB_SG
 - **Database instance stopped/rebooting:** Check RDS console for maintenance events
 - **Prisma connection pool exhaustion:** Increase pool size in backend configuration
 - **Network connectivity:** Verify VPC subnets and routing
-- **Database migrations pending:** Check backend logs for migration errors
+- **Database schema issues:** Check backend logs for schema sync errors
 - **Transaction deadlocks:** Monitor for long-running queries
 
 ### 3. High CPU/Memory Usage
@@ -600,7 +600,7 @@ semiont exec --service backend 'psql $DATABASE_URL -c "SELECT pid, now() - pg_st
 # Reboot database (last resort)
 aws rds reboot-db-instance --db-instance-identifier $DB_IDENTIFIER
 
-# Run database migrations manually if needed
+# Sync database schema manually if needed
 semiont exec --service backend 'npx prisma db push'
 ```
 
@@ -693,7 +693,7 @@ Use these baselines to detect performance degradation and set appropriate alarm 
 - **Health Endpoints**:
   - Frontend: `http://<ALB-DNS>/`
   - Backend API: `http://<ALB-DNS>/api/health`
-- **Database**: Prisma-based PostgreSQL with automatic migrations
+- **Database**: Prisma-based PostgreSQL with automatic schema synchronization
 - **OAuth**: Google OAuth with domain restrictions configured in environment JSON files
 
 This troubleshooting guide should be updated as new issues are discovered and resolved.

@@ -350,7 +350,7 @@ aws ecs update-service \
 - [ ] All tests passing locally
 - [ ] Configuration validated
 - [ ] Secrets properly set
-- [ ] Database migrations tested
+- [ ] Database schema validated
 - [ ] Performance benchmarks met
 - [ ] Security scan completed
 

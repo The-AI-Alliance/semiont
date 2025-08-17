@@ -45,8 +45,31 @@ app.use('*', cors({
   credentials: true,
 }));
 
-// Hello endpoints
+// Public endpoints - these don't require authentication
+const PUBLIC_ENDPOINTS = [
+  '/api/health',          // Required for ALB health checks
+  '/api/auth/google',     // OAuth login initiation
+  // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
+  '/api',                 // API documentation root
+];
+
+// Apply authentication middleware to all /api/* routes except public endpoints
+app.use('/api/*', async (c, next) => {
+  const path = c.req.path;
+  
+  // Check if this is a public endpoint
+  if (PUBLIC_ENDPOINTS.some(endpoint => path === endpoint || path.startsWith(endpoint + '/'))) {
+    return next();
+  }
+  
+  // All other endpoints require authentication
+  // Note: authMiddleware will handle the actual auth check
+  return authMiddleware(c, next);
+});
+
+// Hello endpoints (now requires authentication)
 app.get('/api/hello/:name?', (c) => {
+  const user = c.get('user'); // Get authenticated user
   const params = { name: c.req.param('name') };
   
   // Validate parameters
@@ -58,16 +81,18 @@ app.get('/api/hello/:name?', (c) => {
     }, 400);
   }
   
-  const name = (validation.data as HelloParams).name || 'World';
+  const name = (validation.data as HelloParams).name || user?.name || 'World';
   
   return c.json<HelloResponse>({
     message: `Hello, ${name}! Welcome to Semiont.`,
     timestamp: new Date().toISOString(),
     platform: 'Semiont Semantic Knowledge Platform',
+    user: user?.email, // Include authenticated user info if available
   });
 });
 
 app.get('/api/status', (c) => {
+  const user = c.get('user'); // Get authenticated user
   return c.json<StatusResponse>({
     status: 'operational',
     version: '0.1.0',
@@ -77,6 +102,7 @@ app.get('/api/status', (c) => {
       rbac: 'planned',
     },
     message: 'Ready to build the future of knowledge management!',
+    authenticatedAs: user?.email, // Include who's checking status if available
   });
 });
 
@@ -121,8 +147,8 @@ app.post('/api/auth/google', async (c) => {
   }
 });
 
-app.get('/api/auth/me', authMiddleware, async (c) => {
-  const user = c.get('user');
+app.get('/api/auth/me', async (c) => {
+  const user = c.get('user'); // Auth already applied globally
   return c.json<UserResponse>({
     id: user.id,
     email: user.email,
@@ -138,14 +164,15 @@ app.get('/api/auth/me', authMiddleware, async (c) => {
   });
 });
 
-app.post('/api/auth/logout', authMiddleware, async (c) => {
+app.post('/api/auth/logout', async (c) => {
+  // Auth already applied globally
   // For stateless JWT, we just return success
   // The client should remove the token
   return c.json<LogoutResponse>({ success: true, message: 'Logged out successfully' });
 });
 
-app.post('/api/auth/accept-terms', authMiddleware, async (c) => {
-  const user = c.get('user');
+app.post('/api/auth/accept-terms', async (c) => {
+  const user = c.get('user'); // Auth already applied globally
   
   try {
     // Update user's terms acceptance timestamp
@@ -166,18 +193,17 @@ app.post('/api/auth/accept-terms', authMiddleware, async (c) => {
   }
 });
 
-// Admin middleware - ensures user is authenticated and is an admin
+// Admin middleware - ensures user is an admin (auth already applied globally)
 const adminMiddleware = async (c: any, next: any) => {
-  // First run auth middleware
-  const authResult = await authMiddleware(c, async () => {});
+  const user = c.get('user'); // User should be already authenticated
   
-  // If auth middleware returned a response (failed auth), pass it through
-  if (authResult) {
-    return authResult;
+  // If user is undefined, authentication failed - return 401
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
   }
   
-  const user = c.get('user');
-  if (!user || !user.isAdmin) {
+  // If user exists but is not admin - return 403
+  if (!user.isAdmin) {
     return c.json({ error: 'Admin access required' }, 403);
   }
   
@@ -752,19 +778,24 @@ async function runMigrations() {
   }
 }
 
-// Run migrations before starting server
-runMigrations().then(() => {
-  console.log('🚀 Starting HTTP server...');
-});
+// Run migrations before starting server (skip in test environment)
+if (CONFIG.NODE_ENV !== 'test') {
+  runMigrations().then(() => {
+    console.log('🚀 Starting HTTP server...');
+  });
+}
 
-serve({
-  fetch: app.fetch,
-  port: port,
-  hostname: '0.0.0.0'
-}, (info) => {
-  console.log(`🚀 Server ready at http://localhost:${info.port}`);
-  console.log(`📡 API ready at http://localhost:${info.port}/api`);
-});
+// Only start server if not in test environment
+if (CONFIG.NODE_ENV !== 'test') {
+  serve({
+    fetch: app.fetch,
+    port: port,
+    hostname: '0.0.0.0'
+  }, (info) => {
+    console.log(`🚀 Server ready at http://localhost:${info.port}`);
+    console.log(`📡 API ready at http://localhost:${info.port}/api`);
+  });
+}
 
 export type AppType = typeof app;
 

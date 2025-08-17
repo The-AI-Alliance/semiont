@@ -263,16 +263,20 @@ FRONTEND_URL="http://localhost:3000"
 ### Testing API Endpoints
 
 ```bash
-# Health check
+# Health check (no auth required - for ALB health checks)
 curl http://localhost:4000/api/health
 
-# Get greeting (no auth required)
-curl http://localhost:4000/api/hello/greeting
+# API documentation (no auth required)
+curl http://localhost:4000/api
 
-# Test with authentication
+# Test greeting endpoint (requires authentication)
 TOKEN="your-jwt-token"
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:4000/api/protected-endpoint
+  http://localhost:4000/api/hello
+
+# Test status endpoint (requires authentication)
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:4000/api/status
 ```
 
 ### Development Tools
@@ -615,16 +619,27 @@ const post = await prisma.post.create({
 });
 ```
 
-### Adding Authentication to Routes
+### Authentication for New Routes
 
-Simply add the `authMiddleware`:
+**All routes are automatically protected by default!** Authentication is applied globally to all `/api/*` routes except those explicitly allowed.
 
 ```typescript
-app.get('/api/protected-endpoint', authMiddleware, async (c) => {
-  const user = c.get('user'); // Typed User object available
+// This route is AUTOMATICALLY protected (no authMiddleware needed)
+app.get('/api/my-new-endpoint', async (c) => {
+  const user = c.get('user'); // User is available because auth is automatic
   // Your protected logic here
 });
+
+// To make a route PUBLIC (no auth), add it to PUBLIC_ENDPOINTS array:
+const PUBLIC_ENDPOINTS = [
+  '/api/health',
+  '/api/auth/google',
+  // '/api/my-public-endpoint',  // Add your public endpoint here
+  '/api',
+];
 ```
+
+**Important**: New routes are protected by default. Only add to `PUBLIC_ENDPOINTS` if the route truly needs to be public (like health checks).
 
 ### Adding New OAuth Providers
 
@@ -851,9 +866,75 @@ curl http://localhost:4000/api/health
 curl http://localhost:4000/api -H "Accept: application/json"
 ```
 
-## Security Features
+## Authentication & Security
+
+### Authentication Model
+
+The backend implements a **secure-by-default** authentication model:
+
+- **All API routes require authentication by default**
+- **Explicit list for public endpoints**
+- **JWT Bearer token authentication**
+- **Google OAuth 2.0 for user login**
+
+### Public Endpoints (No Authentication Required)
+
+Only these endpoints are accessible without authentication:
+
+- `GET /api/health` - Health check for AWS ALB/ELB monitoring
+- `GET /api` - API documentation endpoint
+- `POST /api/auth/google` - OAuth login initiation
+
+### Protected Endpoints
+
+All other endpoints require a valid JWT token in the Authorization header:
+
+```bash
+# Example authenticated request
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:4000/api/hello
+```
+
+### How Authentication Works
+
+1. **User logs in via Google OAuth**:
+   ```bash
+   POST /api/auth/google
+   { "access_token": "google-oauth-token" }
+   ```
+
+2. **Backend validates Google token and returns JWT**:
+   ```json
+   {
+     "success": true,
+     "token": "jwt-token-here",
+     "user": { /* user details */ }
+   }
+   ```
+
+3. **Client includes JWT in subsequent requests**:
+   ```bash
+   Authorization: Bearer jwt-token-here
+   ```
+
+4. **Middleware validates JWT on every request**:
+   - Checks token signature
+   - Validates token expiration
+   - Verifies user exists and is active
+   - Adds user context to request
+
+### Admin Endpoints
+
+Admin endpoints require both authentication AND admin privileges:
+
+- User must be authenticated (valid JWT)
+- User must have `isAdmin: true` in database
+- Returns 403 Forbidden if not admin
+
+### Security Features
 
 - **JWT payload validation** - Runtime validation of token structure
+- **Automatic authentication** - All routes protected by default
 - **Environment variable validation** - Fail-fast on misconfiguration  
 - **Request validation** - All inputs validated with Zod schemas
 - **SQL injection prevention** - Prisma ORM with parameterized queries

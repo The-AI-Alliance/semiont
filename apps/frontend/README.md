@@ -924,6 +924,73 @@ Planned improvements for higher test coverage:
 - **XSS prevention** - Next.js built-in protections + input sanitization
 - **Content Security Policy** - Configured headers for enhanced security
 
+## Authentication System
+
+### Overview
+
+The frontend integrates with the backend's secure-by-default authentication model:
+
+- **Google OAuth 2.0**: Primary authentication method via NextAuth.js
+- **JWT Integration**: Automatic token management for backend API calls
+- **Protected Routes**: Automatic redirection for unauthenticated users
+- **Session Management**: Secure session handling with encrypted cookies
+
+### Authentication Flow
+
+1. **User Login**: Click "Sign In" button → redirects to Google OAuth
+2. **OAuth Validation**: Google validates credentials and returns to app
+3. **Session Creation**: NextAuth.js creates encrypted session cookie
+4. **Backend Integration**: Frontend automatically includes JWT in API requests
+5. **Protected Access**: User can access authenticated features
+
+### Using Authentication in Components
+
+```typescript
+// Check authentication status
+import { useAuth } from '@/hooks/useAuth';
+
+export function MyComponent() {
+  const { isAuthenticated, user } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <div>Please sign in to continue</div>;
+  }
+  
+  return <div>Welcome, {user.email}!</div>;
+}
+```
+
+### API Integration
+
+The API client automatically handles authentication:
+
+```typescript
+// API calls automatically include JWT token
+import { useSecureAPI } from '@/hooks/useSecureAPI';
+
+export function DataComponent() {
+  const { data, isLoading } = useSecureAPI('/api/data');
+  
+  // Token is automatically included in the request
+  // No manual authentication handling needed
+}
+```
+
+### Protected Routes
+
+Routes requiring authentication are automatically protected:
+
+```typescript
+// app/dashboard/page.tsx
+import { requireAuth } from '@/lib/auth';
+
+export default async function DashboardPage() {
+  await requireAuth(); // Redirects to sign-in if not authenticated
+  
+  return <Dashboard />;
+}
+```
+
 ## Architecture Benefits
 
 1. **Type Safety**: Full-stack type safety from API to UI

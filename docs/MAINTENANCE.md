@@ -2,6 +2,46 @@
 
 This document outlines all maintenance procedures and schedules for the Semiont semantic knowledge platform infrastructure on AWS.
 
+## Authentication System Notes
+
+### API Authentication Model
+
+The backend implements secure-by-default authentication:
+- All API routes require JWT authentication automatically
+- Public endpoints must be explicitly allowed in `PUBLIC_ENDPOINTS` array
+- Authentication middleware is applied globally to `/api/*` routes
+
+### Required Authentication Configuration
+
+For proper authentication operation, ensure:
+
+1. **JWT Secret**: Configured in AWS Secrets Manager (minimum 32 characters)
+   ```bash
+   semiont configure production set jwt-secret
+   ```
+
+2. **OAuth Credentials**: Google OAuth client ID and secret configured
+   ```bash
+   semiont configure production set oauth/google
+   ```
+
+3. **OAuth Allowed Domain List**: Email domains allowed to authenticate configured in environment JSON
+   ```json
+   {
+     "site": {
+       "oauthAllowedDomains": ["example.com"]
+     }
+   }
+   ```
+
+### Authentication Monitoring
+
+Check authentication system health:
+- Monitor failed authentication attempts in CloudWatch logs
+- Review JWT expiration patterns and refresh rates
+- Verify OAuth callback success rates
+- Check for unauthorized API access attempts
+
 ## Daily Maintenance
 
 ### Automated Daily Tasks
@@ -180,7 +220,7 @@ semiont restart
 - [ ] PostgreSQL major version upgrade planning
 - [ ] Review architecture for new AWS service opportunities
 - [ ] Complete security compliance audit
-- [ ] Evaluate migration from Hono to other frameworks if beneficial
+- [ ] Evaluate framework performance and compatibility
 
 **Disaster Recovery Testing:**
 
