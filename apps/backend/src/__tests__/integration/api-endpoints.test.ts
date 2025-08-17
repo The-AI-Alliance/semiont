@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
+import { JWTService } from '../../auth/jwt';
 // Delay app import until after test setup to avoid Prisma validation errors
 let app: Hono;
 import type {
@@ -29,6 +30,18 @@ vi.mock('../../auth/oauth', () => ({
 
 // Mock database
 vi.mock('../../db', () => ({
+  DatabaseConnection: {
+    getClient: vi.fn(() => ({
+      $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+      user: {
+        findUnique: vi.fn(),
+        findMany: vi.fn(),
+        count: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      },
+    })),
+  },
   prisma: {
     $queryRaw: vi.fn(),
     user: {
@@ -40,6 +53,25 @@ vi.mock('../../db', () => ({
     },
   },
 }));
+
+// Create a test user for authenticated requests
+const testUser = {
+  id: 'test-user-id',
+  email: 'test@example.com',
+  name: 'Test User',
+  image: null,
+  domain: 'example.com',
+  provider: 'google',
+  isAdmin: false,
+  isActive: true,
+  termsAcceptedAt: new Date(),
+  lastLogin: new Date(),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// Generate a test token for authenticated requests
+let testToken: string;
 
 // Mock configuration
 vi.mock('../../config', () => ({
@@ -61,32 +93,70 @@ describe('API Endpoints Integration Tests', () => {
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
     const serverModule = await import('../../index');
     app = serverModule.app;
+    
+    // Generate a test token
+    testToken = await JWTService.generateToken(testUser);
+    
+    // Mock the database to return our test user when queried
+    const { prisma } = await import('../../db');
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
+    
+    // Mock OAuthService to return test user for the test token
+    const { OAuthService } = await import('../../auth/oauth');
+    vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+      if (token === testToken || token === 'valid-jwt-token') {
+        return testUser as any;
+      }
+      throw new Error('Invalid token');
+    });
   });
 
-  describe('Public Endpoints', () => {
-    it('GET /api/hello should return greeting', async () => {
+  describe('Protected Endpoints (Now Require Auth)', () => {
+    it('GET /api/hello should return 401 without auth', async () => {
       const res = await app.request('/api/hello');
+      expect(res.status).toBe(401);
+      
+      const data: ErrorResponse = await res.json();
+      expect(data.error).toBeDefined();
+    });
+
+    it('GET /api/hello should return greeting with auth', async () => {
+      const res = await app.request('/api/hello', {
+        headers: {
+          'Authorization': `Bearer ${testToken}`,
+        },
+      });
       expect(res.status).toBe(200);
       
       const data: HelloResponse = await res.json();
-      expect(data.message).toBe('Hello, World! Welcome to Semiont.');
+      expect(data.message).toContain('Welcome to Semiont');
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
       expect(data.platform).toBe('Semiont Semantic Knowledge Platform');
+      expect(data.user).toBe(testUser.email);
     });
 
-    it('GET /api/hello/John should return personalized greeting', async () => {
-      const res = await app.request('/api/hello/John');
+    it('GET /api/hello/John should return personalized greeting with auth', async () => {
+      const res = await app.request('/api/hello/John', {
+        headers: {
+          'Authorization': `Bearer ${testToken}`,
+        },
+      });
       expect(res.status).toBe(200);
       
       const data: HelloResponse = await res.json();
       expect(data.message).toBe('Hello, John! Welcome to Semiont.');
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
       expect(data.platform).toBe('Semiont Semantic Knowledge Platform');
+      expect(data.user).toBe(testUser.email);
     });
 
     it('GET /api/hello with very long name should fail validation', async () => {
       const longName = 'a'.repeat(101); // 101 characters
-      const res = await app.request(`/api/hello/${longName}`);
+      const res = await app.request(`/api/hello/${longName}`, {
+        headers: {
+          'Authorization': `Bearer ${testToken}`,
+        },
+      });
       expect(res.status).toBe(400);
       
       const data: ErrorResponse = await res.json();
@@ -94,8 +164,17 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.details).toBeDefined();
     });
 
-    it('GET /api/status should return status information', async () => {
+    it('GET /api/status should return 401 without auth', async () => {
       const res = await app.request('/api/status');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/status should return status information with auth', async () => {
+      const res = await app.request('/api/status', {
+        headers: {
+          'Authorization': `Bearer ${testToken}`,
+        },
+      });
       expect(res.status).toBe(200);
       
       const data: StatusResponse = await res.json();
@@ -107,9 +186,12 @@ describe('API Endpoints Integration Tests', () => {
         rbac: 'planned',
       });
       expect(data.message).toBe('Ready to build the future of knowledge management!');
+      expect(data.authenticatedAs).toBe(testUser.email);
     });
+  });
 
-    it('GET /api/health should return health status', async () => {
+  describe('Public Endpoints (No Auth Required)', () => {
+    it('GET /api/health should return health status without auth', async () => {
       // Mock successful database query
       const { prisma } = await import('../../db');
       vi.mocked(prisma.$queryRaw).mockResolvedValue([{ '?column?': 1 }]);
@@ -299,9 +381,14 @@ describe('API Endpoints Integration Tests', () => {
     };
 
     beforeEach(async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
       // Mock successful token verification for protected routes
-      OAuthService.getUserFromToken.mockResolvedValue(mockUser);
+      const { OAuthService } = await import('../../auth/oauth');
+      vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+        if (token === 'valid-jwt-token') {
+          return mockUser as any;
+        }
+        throw new Error('Invalid token');
+      });
     });
 
     it('GET /api/auth/me should return user info with valid token', async () => {
@@ -408,16 +495,23 @@ describe('API Endpoints Integration Tests', () => {
       updatedAt: new Date(),
     };
 
-    beforeEach(() => {
+    beforeEach(async () => {
       vi.clearAllMocks();
+      
+      // Re-setup the mock for each test
+      const { OAuthService } = await import('../../auth/oauth');
+      vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
+        if (token === 'admin-jwt-token') {
+          return mockAdminUser as any;
+        } else if (token === 'regular-jwt-token') {
+          return mockRegularUser as any;
+        }
+        throw new Error('Invalid token');
+      });
     });
 
     it('GET /api/admin/users should return users list for admin', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
       const { prisma } = await import('../../db');
-      
-      // Mock admin authentication
-      OAuthService.getUserFromToken.mockResolvedValue(mockAdminUser);
       
       // Mock database query
       vi.mocked(prisma.user.findMany).mockResolvedValue([mockAdminUser, mockRegularUser]);
@@ -436,10 +530,6 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('GET /api/admin/users should fail for non-admin user', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
-      
-      // Mock regular user authentication
-      OAuthService.getUserFromToken.mockResolvedValue(mockRegularUser);
 
       const res = await app.request('/api/admin/users', {
         headers: {
@@ -453,11 +543,7 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('GET /api/admin/users/stats should return user statistics', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
       const { prisma } = await import('../../db');
-      
-      // Mock admin authentication
-      OAuthService.getUserFromToken.mockResolvedValue(mockAdminUser);
       
       // Mock database queries
       vi.mocked(prisma.user.count)
@@ -484,11 +570,7 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('PATCH /api/admin/users/:id should update user', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
       const { prisma } = await import('../../db');
-      
-      // Mock admin authentication
-      OAuthService.getUserFromToken.mockResolvedValue(mockAdminUser);
       
       // Mock database queries
       vi.mocked(prisma.user.findUnique).mockResolvedValue(mockRegularUser);
@@ -513,11 +595,7 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('DELETE /api/admin/users/:id should delete user', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
       const { prisma } = await import('../../db');
-      
-      // Mock admin authentication
-      OAuthService.getUserFromToken.mockResolvedValue(mockAdminUser);
       
       // Mock database queries
       vi.mocked(prisma.user.findUnique).mockResolvedValue(mockRegularUser);
@@ -537,10 +615,6 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('DELETE /api/admin/users/:id should prevent self-deletion', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
-      
-      // Mock admin authentication
-      OAuthService.getUserFromToken.mockResolvedValue(mockAdminUser);
 
       const res = await app.request('/api/admin/users/admin-123', {
         method: 'DELETE',

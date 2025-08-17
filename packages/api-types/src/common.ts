@@ -25,6 +25,7 @@ export interface StatusResponse {
     rbac: string;
   };
   message: string;
+  authenticatedAs?: string; // Email of authenticated user
 }
 
 export interface HealthResponse {
@@ -42,6 +43,7 @@ export interface HelloResponse {
   message: string;
   timestamp: string;
   platform: string;
+  user?: string; // Email of authenticated user
 }
 
 // Common validation schemas
