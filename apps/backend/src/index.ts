@@ -45,7 +45,7 @@ app.use('*', cors({
   credentials: true,
 }));
 
-// Public endpoints whitelist - these don't require authentication
+// Public endpoints - these don't require authentication
 const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
   '/api/auth/google',     // OAuth login initiation
