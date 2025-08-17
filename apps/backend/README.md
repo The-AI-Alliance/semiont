@@ -621,7 +621,7 @@ const post = await prisma.post.create({
 
 ### Authentication for New Routes
 
-**All routes are automatically protected by default!** Authentication is applied globally to all `/api/*` routes except those explicitly whitelisted.
+**All routes are automatically protected by default!** Authentication is applied globally to all `/api/*` routes except those explicitly allowed.
 
 ```typescript
 // This route is AUTOMATICALLY protected (no authMiddleware needed)
@@ -873,7 +873,7 @@ curl http://localhost:4000/api -H "Accept: application/json"
 The backend implements a **secure-by-default** authentication model:
 
 - **All API routes require authentication by default**
-- **Explicit whitelist for public endpoints**
+- **Explicit list for public endpoints**
 - **JWT Bearer token authentication**
 - **Google OAuth 2.0 for user login**
 

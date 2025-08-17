@@ -203,7 +203,7 @@ The platform implements a **secure-by-default** authentication model for API acc
 
 #### Core Principles
 - **Default Protection**: All API routes require authentication automatically
-- **Explicit Exceptions**: Public endpoints must be explicitly whitelisted
+- **Explicit Exceptions**: Public endpoints must be explicitly listed
 - **JWT Bearer Tokens**: Stateless authentication for API requests
 - **OAuth Integration**: Google OAuth 2.0 for user authentication
 
@@ -252,7 +252,7 @@ Admin endpoints require additional authorization:
 2. **Payload Structure**: Runtime validation of token structure
 3. **Expiration Checking**: Ensures token hasn't expired
 4. **User Verification**: Confirms user exists and is active
-5. **Domain Validation**: Checks email domain against whitelist
+5. **Domain Validation**: Checks email domain against allowed list
 
 #### Security Features
 - **Short-lived Tokens**: 7-day expiration by default
@@ -277,7 +277,7 @@ Admin endpoints require additional authorization:
 ### Application Security  
 - **OAuth Authentication**: Google-based with domain restrictions
 - **JWT Tokens**: Secure API authentication
-- **Secure-by-Default API**: All API routes require authentication unless explicitly whitelisted
+- **Secure-by-Default API**: All API routes require authentication unless explicitly listed
 - **HTTPS Everywhere**: SSL termination at ALB
 - **Secret Management**: All credentials in AWS Secrets Manager
 

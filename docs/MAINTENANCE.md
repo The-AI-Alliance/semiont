@@ -8,7 +8,7 @@ This document outlines all maintenance procedures and schedules for the Semiont 
 
 The backend implements secure-by-default authentication:
 - All API routes require JWT authentication automatically
-- Public endpoints must be explicitly whitelisted in `PUBLIC_ENDPOINTS` array
+- Public endpoints must be explicitly allowed in `PUBLIC_ENDPOINTS` array
 - Authentication middleware is applied globally to `/api/*` routes
 
 ### Required Authentication Configuration
@@ -25,7 +25,7 @@ For proper authentication operation, ensure:
    semiont configure production set oauth/google
    ```
 
-3. **Domain Whitelist**: Email domains allowed to authenticate configured in environment JSON
+3. **OAuth Allowed Domain List**: Email domains allowed to authenticate configured in environment JSON
    ```json
    {
      "site": {

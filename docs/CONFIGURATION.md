@@ -358,7 +358,7 @@ export SEMIONT_ENV=production
 | `domain` | Primary domain | Yes | `wiki.example.com` |
 | `adminEmail` | Administrator email | Yes | `admin@example.com` |
 | `supportEmail` | Support email | No | `support@example.com` |
-| `oauthAllowedDomains` | OAuth domain whitelist | Yes | `["example.com"]` |
+| `oauthAllowedDomains` | OAuth domain allowed list | Yes | `["example.com"]` |
 
 ### AWS Configuration
 
