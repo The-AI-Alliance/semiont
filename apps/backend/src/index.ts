@@ -195,11 +195,15 @@ app.post('/api/auth/accept-terms', async (c) => {
 
 // Admin middleware - ensures user is an admin (auth already applied globally)
 const adminMiddleware = async (c: any, next: any) => {
-  const user = c.get('user'); // User is already authenticated
+  const user = c.get('user'); // User should be already authenticated
   
-  // If user is undefined, auth middleware should have already returned 401
-  // This is for when user exists but is not admin
-  if (!user?.isAdmin) {
+  // If user is undefined, authentication failed - return 401
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  
+  // If user exists but is not admin - return 403
+  if (!user.isAdmin) {
     return c.json({ error: 'Admin access required' }, 403);
   }
   
