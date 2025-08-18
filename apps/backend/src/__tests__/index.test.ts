@@ -68,23 +68,16 @@ describe('Main Application (index.ts)', () => {
   });
 
   describe('API Documentation', () => {
-    it('should return JSON documentation for API clients', async () => {
+    it('should redirect API clients to OpenAPI JSON spec', async () => {
       const response = await app.request('http://localhost/api', {
         headers: { 'Accept': 'application/json' },
       });
 
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.name).toBe('Semiont API');
-      expect(data.version).toBe('0.1.0');
-      expect(data.endpoints).toBeDefined();
-      expect(data.endpoints.public).toBeDefined();
-      expect(data.endpoints.auth).toBeDefined();
-      expect(data.endpoints.admin).toBeDefined();
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('/api/openapi.json');
     });
 
-    it('should return HTML documentation for browsers', async () => {
+    it('should redirect browsers to Swagger UI', async () => {
       const response = await app.request('http://localhost/api', {
         headers: { 
           'Accept': 'text/html',
@@ -92,12 +85,8 @@ describe('Main Application (index.ts)', () => {
         },
       });
 
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-type')).toContain('text/html');
-      expect(html).toContain('<!DOCTYPE html>');
-      expect(html).toContain('Semiont API Documentation');
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('/api/docs');
     });
   });
 
