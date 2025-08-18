@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "semiont": {
+      "command": "node",
+      "args": ["PATH_TO_SEMIONT/packages/mcp-server/dist/index.js"],
+      "env": {
+        "SEMIONT_API_URL": "http://localhost:4000",
+        "SEMIONT_API_TOKEN": "YOUR_JWT_TOKEN_HERE"
+      }
+    }
+  }
+}
