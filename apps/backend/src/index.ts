@@ -1,10 +1,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { swaggerUI } from '@hono/swagger-ui';
 import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
+import { openApiConfig, routes } from './openapi';
 
 // Configuration is loaded in JWT service when needed
 // For the server itself, we use environment variables
@@ -51,6 +54,9 @@ const PUBLIC_ENDPOINTS = [
   '/api/auth/google',     // OAuth login initiation
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
   '/api',                 // API documentation root
+  '/api/openapi.json',    // OpenAPI specification
+  '/api/docs',            // Swagger UI documentation
+  '/api/swagger',         // Swagger UI redirect
 ];
 
 // Apply authentication middleware to all /api/* routes except public endpoints
@@ -731,6 +737,34 @@ app.get('/api', (c) => {
   };
   
   return c.json(apiDocs);
+});
+
+// Create OpenAPI documentation app
+const openAPIApp = new OpenAPIHono();
+
+// Register all route definitions for documentation
+Object.values(routes).forEach(route => {
+  // We're only using this for documentation generation, not actual routing
+  openAPIApp.openapi(route, async () => new Response());
+});
+
+// Generate OpenAPI specification
+const openApiSpec = openAPIApp.getOpenAPI31Document(openApiConfig);
+
+// Serve OpenAPI JSON specification
+app.get('/api/openapi.json', (c) => {
+  return c.json(openApiSpec);
+});
+
+// Serve Swagger UI documentation
+app.get('/api/docs', swaggerUI({ 
+  url: '/api/openapi.json',
+  persistAuthorization: true,
+}));
+
+// Redirect /api/swagger to /api/docs for convenience
+app.get('/api/swagger', (c) => {
+  return c.redirect('/api/docs');
 });
 
 // Health check endpoint
