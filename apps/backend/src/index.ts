@@ -56,7 +56,7 @@ const PUBLIC_ENDPOINTS = [
   '/api',                 // API documentation root
   '/api/openapi.json',    // OpenAPI specification
   '/api/docs',            // Swagger UI documentation
-  '/api/swagger',         // Swagger UI redirect
+  '/api/swagger'          // Swagger UI redirect
 ];
 
 // Apply authentication middleware to all /api/* routes except public endpoints
