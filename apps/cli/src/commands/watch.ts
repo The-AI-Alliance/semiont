@@ -33,7 +33,14 @@ const WatchOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
-});
+  terminal: z.boolean().default(false),  // Changed from web to terminal, default false (web is default)
+  term: z.boolean().optional(),  // Alias for terminal
+  port: z.number().int().positive().default(3333),
+}).transform((opts) => ({
+  ...opts,
+  terminal: opts.terminal || opts.term || false,  // Handle both --terminal and --term
+  term: undefined  // Remove the alias from the final options
+}));
 
 type WatchOptions = z.infer<typeof WatchOptionsSchema> & BaseCommandOptions;
 
@@ -54,7 +61,9 @@ async function launchDashboard(
   environment: string, 
   target: string, 
   services: string[],
-  interval: number
+  interval: number,
+  terminalMode: boolean = false,  // Changed from webMode to terminalMode
+  port: number = 3333
 ): Promise<{ duration: number; exitReason: string }> {
   const startTime = Date.now();
   
@@ -72,48 +81,76 @@ async function launchDashboard(
     }
     
     try {
-      // Dynamically import the dashboard component
-      const watchModule = await import('./watch-dashboard.js');
-      DashboardApp = watchModule.default || watchModule.DashboardApp || watchModule;
-      
-      // Ensure we have a valid component
-      if (!DashboardApp || (typeof DashboardApp !== 'function' && !DashboardApp.$$typeof)) {
-        throw new Error('Failed to load DashboardApp component');
-      }
-      
-      // Determine dashboard mode based on target
-      let mode: 'unified' | 'logs' | 'metrics' = 'unified';
-      if (target === 'logs') {
-        mode = 'logs';
-      } else if (target === 'metrics') {
-        mode = 'metrics';
-      }
-      
-      // Determine service filter
-      let service: 'frontend' | 'backend' | undefined;
-      if (services.length === 1) {
-        const svc = services[0];
-        if (svc === 'frontend' || svc === 'backend') {
-          service = svc as 'frontend' | 'backend';
+      if (terminalMode) {
+        // Launch terminal dashboard
+        // Dynamically import the dashboard component
+        const watchModule = await import('./watch-dashboard.js');
+        DashboardApp = watchModule.default || watchModule.DashboardApp || watchModule;
+        
+        // Ensure we have a valid component
+        if (!DashboardApp || (typeof DashboardApp !== 'function' && !DashboardApp.$$typeof)) {
+          throw new Error('Failed to load DashboardApp component');
         }
+        
+        // Determine dashboard mode based on target
+        let mode: 'unified' | 'logs' | 'metrics' = 'unified';
+        if (target === 'logs') {
+          mode = 'logs';
+        } else if (target === 'metrics') {
+          mode = 'metrics';
+        }
+        
+        // Determine service filter
+        let service: 'frontend' | 'backend' | undefined;
+        if (services.length === 1) {
+          const svc = services[0];
+          if (svc === 'frontend' || svc === 'backend') {
+            service = svc as 'frontend' | 'backend';
+          }
+        }
+        
+        // Launch the React/Ink dashboard directly
+        const { waitUntilExit } = render(
+          React.createElement(DashboardApp, {
+            mode,
+            service,
+            refreshInterval: interval,
+            environment
+          })
+        );
+        
+        await waitUntilExit();
+        const duration = Date.now() - startTime;
+        resolve({
+          duration,
+          exitReason: 'user-quit'
+        });
+      } else {
+        // Launch web-based dashboard (default)
+        const { WebDashboardServer } = await import('../lib/web-dashboard-server.js');
+        const server = new WebDashboardServer(environment, port, interval);
+        
+        await server.start();
+        
+        // Wait for Ctrl+C
+        process.on('SIGINT', () => {
+          server.stop();
+          const duration = Date.now() - startTime;
+          resolve({
+            duration,
+            exitReason: 'user-quit'
+          });
+        });
+        
+        process.on('SIGTERM', () => {
+          server.stop();
+          const duration = Date.now() - startTime;
+          resolve({
+            duration,
+            exitReason: 'user-quit'
+          });
+        });
       }
-      
-      // Launch the React/Ink dashboard directly
-      const { waitUntilExit } = render(
-        React.createElement(DashboardApp, {
-          mode,
-          service,
-          refreshInterval: interval,
-          environment
-        })
-      );
-      
-      await waitUntilExit();
-      const duration = Date.now() - startTime;
-      resolve({
-        duration,
-        exitReason: 'user-quit'
-      });
     } catch (error) {
       console.error('Dashboard error:', error);
       const duration = Date.now() - startTime;
@@ -142,9 +179,15 @@ export async function watch(
   
   try {
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Starting watch dashboard for ${colors.bright}${environment}${colors.reset} environment`);
-      printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
-      printInfo('Press "q" to quit, "r" to refresh');
+      if (options.terminal) {
+        printInfo(`Starting terminal dashboard for ${colors.bright}${environment}${colors.reset} environment`);
+        printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
+        printInfo('Press "q" to quit, "r" to refresh');
+      } else {
+        printInfo(`Starting web dashboard for ${colors.bright}${environment}${colors.reset} environment`);
+        printInfo(`Dashboard will be available at http://localhost:${options.port}`);
+        printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
+      }
     }
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
@@ -167,7 +210,9 @@ export async function watch(
         environment,
         options.target,
         serviceDeployments.map(s => s.name),
-        options.interval
+        options.interval,
+        options.terminal,
+        options.port
       );
       sessionDuration = result.duration;
       exitReason = result.exitReason;
@@ -242,6 +287,9 @@ export const watchCommand = new CommandBuilder<WatchOptions>()
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
       '--service': { type: 'string', description: 'Service name or "all" for all services' },
+      '--terminal': { type: 'boolean', description: 'Use terminal-based dashboard instead of web' },
+      '--term': { type: 'boolean', description: 'Alias for --terminal' },
+      '--port': { type: 'number', description: 'Port for web dashboard (default: 3333)' },
     },
     aliases: {
       '-e': '--environment',
@@ -254,7 +302,9 @@ export const watchCommand = new CommandBuilder<WatchOptions>()
   .examples(
     'semiont watch --environment local',
     'semiont watch --environment staging --target logs',
-    'semiont watch --environment production --service backend --interval 10'
+    'semiont watch --environment production --service backend --interval 10',
+    'semiont watch --environment staging --port 8080',
+    'semiont watch --environment production --terminal'
   )
   .handler(watch)
   .build();

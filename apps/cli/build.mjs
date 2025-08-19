@@ -64,7 +64,10 @@ await Promise.all(scriptFiles.map(async (name) => {
         'cpu-features',
         // Large dependencies that work better as external
         '@testcontainers/postgresql',
-        '@prisma/client'
+        '@prisma/client',
+        // Express and Socket.IO need to be external due to CommonJS/ESM issues
+        'express',
+        'socket.io'
       ],
       define: {
         // Disable ink devtools in production bundles
@@ -119,7 +122,10 @@ await Promise.all(commandFiles.map(async (name) => {
         'cpu-features',
         // Large dependencies that work better as external
         '@testcontainers/postgresql',
-        '@prisma/client'
+        '@prisma/client',
+        // Express and Socket.IO need to be external due to CommonJS/ESM issues
+        'express',
+        'socket.io'
       ],
       define: {
         'process.env.NODE_ENV': '"production"'
