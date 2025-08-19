@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
+import { type EnvironmentConfig } from '../lib/environment-config.js';
 import { execInContainer } from '../lib/container-runtime.js';
 import { 
   ExecResult, 
@@ -52,7 +53,7 @@ function debugLog(_message: string, _options: any): void {
 // DEPLOYMENT-TYPE-AWARE EXEC FUNCTIONS
 // =====================================================================
 
-async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: ExecOptions): Promise<ExecResult> {
+async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, envConfig: EnvironmentConfig): Promise<ExecResult> {
   const startTime = Date.now();
   
   if (options.dryRun) {
@@ -75,7 +76,7 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
   try {
     switch (serviceInfo.deploymentType) {
       case 'aws':
-        return await execInAWSService(serviceInfo, options, startTime);
+        return await execInAWSService(serviceInfo, options, startTime, envConfig);
       case 'container':
         return await execInContainerService(serviceInfo, options, startTime);
       case 'process':
@@ -103,12 +104,11 @@ async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Ex
   }
 }
 
-async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
+async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number, envConfig: EnvironmentConfig): Promise<ExecResult> {
   const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
-  // Load AWS config from environment
-  const envConfig = loadEnvironmentConfig(options.environment!);
-  if (!envConfig.aws || !envConfig.aws.region) {
+  // AWS config is passed from main function
+  if (!envConfig?.aws?.region) {
     printError('AWS configuration not found in environment config');
     throw new Error('Missing AWS configuration');
   }
@@ -460,6 +460,9 @@ export async function exec(
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
+  // Load environment config once for all operations
+  const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
+  
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
@@ -475,7 +478,7 @@ export async function exec(
     // Execute command in the service
     let result: ExecResult;
     try {
-      result = await execInServiceImpl(serviceDeployment, options);
+      result = await execInServiceImpl(serviceDeployment, options, envConfig);
     } catch (error) {
       // Convert errors to failed results
       const baseResult = createBaseResult('exec', serviceDeployment.name, serviceDeployment.deploymentType, options.environment!, startTime);

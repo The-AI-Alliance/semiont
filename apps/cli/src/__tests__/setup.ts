@@ -36,7 +36,7 @@ export async function createTestEnvironment(
       name: projectName,
       directory: tmpDir,
       force: false,
-      environments: ['local', 'test', 'staging', 'production'],
+      environments: ['local', 'test', 'staging', 'production', 'remote'],
       environment: 'local',  // Required by BaseCommandOptions
       output: 'summary',
       quiet: true,  // Suppress output during test setup
@@ -58,7 +58,7 @@ export async function createTestEnvironment(
  * @returns Environment configuration object
  */
 export function createTestConfig(envName: string = 'test'): any {
-  return {
+  const config: any = {
     _comment: `Test environment: ${envName}`,
     deployment: {
       default: 'mock'
@@ -91,6 +91,17 @@ export function createTestConfig(envName: string = 'test'): any {
       }
     }
   };
+  
+  // Add AWS config for production and staging environments
+  if (envName === 'production' || envName === 'staging') {
+    config.aws = {
+      region: 'us-east-1',
+      accountId: '123456789012'
+    };
+    config.deployment.default = 'aws';
+  }
+  
+  return config;
 }
 
 /**

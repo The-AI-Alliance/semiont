@@ -8,6 +8,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PublishOptions } from '../commands/publish.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
+
+let testDir: string;
+let originalCwd: string;
 
 // Mock AWS ECR
 vi.mock('@aws-sdk/client-ecr', () => ({
@@ -64,12 +68,26 @@ function createServiceDeployments(services: Array<{name: string, type: string, c
 }
 
 describe('Publish Command', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    // Save current directory
+    originalCwd = process.cwd();
+    // Create test environment with proper initialization
+    testDir = await createTestEnvironment('publish-command-test');
+    // Change to test directory so config files are found
+    process.chdir(testDir);
   });
   
   afterEach(() => {
     vi.clearAllMocks();
+    // Restore original directory
+    if (originalCwd) {
+      process.chdir(originalCwd);
+    }
+    // Clean up test environment
+    if (testDir) {
+      cleanupTestEnvironment(testDir);
+    }
   });
 
   describe('Structured Output', () => {

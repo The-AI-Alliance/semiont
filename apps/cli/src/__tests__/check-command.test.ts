@@ -8,6 +8,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { CheckOptions } from '../commands/check.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
+
+let testDir: string;
+let originalCwd: string;
 
 // Mock child_process for process checks
 vi.mock('child_process', () => ({
@@ -62,12 +66,26 @@ vi.mock('http', () => ({
 }));
 
 describe('Check Command', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    // Save current directory
+    originalCwd = process.cwd();
+    // Create test environment with proper initialization
+    testDir = await createTestEnvironment('check-command-test');
+    // Change to test directory so config files are found
+    process.chdir(testDir);
   });
   
   afterEach(() => {
     vi.clearAllMocks();
+    // Restore original directory
+    if (originalCwd) {
+      process.chdir(originalCwd);
+    }
+    // Clean up test environment
+    if (testDir) {
+      cleanupTestEnvironment(testDir);
+    }
   });
 
   // Helper function to create service deployments for tests

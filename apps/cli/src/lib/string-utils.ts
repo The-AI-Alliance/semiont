@@ -2,14 +2,23 @@
  * String Utilities - Pure string manipulation functions without React/Ink dependencies
  */
 
-// Helper function to calculate display width of strings with emojis
+// Helper function to calculate display width of strings with emojis and ANSI codes
 function getDisplayWidth(str: string): number {
+  // Remove ANSI escape codes before calculating width
+  const ansiRegex = /\x1b\[[0-9;]*m/g;
+  let strippedStr = str.replace(ansiRegex, '');
+  
+  // Remove OSC 8 hyperlink sequences (terminal hyperlinks)
+  // Format: ESC]8;;URL ESC\TEXT ESC]8;; ESC\
+  const hyperlinkRegex = /\x1b\]8;;[^\x1b]*\x1b\\([^\x1b]*)\x1b\]8;;\x1b\\/g;
+  strippedStr = strippedStr.replace(hyperlinkRegex, '$1'); // Keep only the visible text part
+  
   // Simple approximation: most emojis are 2 characters wide in terminal display
   // This regex matches most common emoji ranges
   const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F018}-\u{1F270}]/gu;
   
-  const emojis = str.match(emojiRegex) || [];
-  return str.length + emojis.length; // Add 1 for each emoji (they take 2 but count as 1, so +1 total)
+  const emojis = strippedStr.match(emojiRegex) || [];
+  return strippedStr.length + emojis.length; // Add 1 for each emoji (they take 2 but count as 1, so +1 total)
 }
 
 // String-based table utility for CLI output (non-React)

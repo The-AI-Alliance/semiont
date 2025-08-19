@@ -8,7 +8,8 @@ import * as fs from 'fs/promises';
 import { z } from 'zod';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
+import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import { buildImage, tagImage, pushImage } from '../lib/container-runtime.js';
 import { 
   PublishResult, 
@@ -109,15 +110,7 @@ interface EnvironmentConfig {
   };
 }
 
-async function loadEnvironmentConfig(environment: string): Promise<EnvironmentConfig> {
-  try {
-    const configPath = path.join(PROJECT_ROOT, 'config', 'environments', `${environment}.json`);
-    const configContent = await fs.readFile(configPath, 'utf-8');
-    return JSON.parse(configContent);
-  } catch (error) {
-    throw new Error(`Failed to load environment config for ${environment}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
+// Using loadEnvironmentConfig from deployment-resolver instead of local implementation
 
 // =====================================================================
 // BUILD FUNCTIONS
@@ -327,7 +320,8 @@ async function tagForLocalRegistry(
 async function publishService(
   serviceInfo: ServiceDeploymentInfo,
   options: PublishOptions,
-  isStructuredOutput: boolean = false
+  isStructuredOutput: boolean = false,
+  envConfig: EnvironmentConfig
 ): Promise<PublishResult> {
   const startTime = Date.now();
   
@@ -385,10 +379,9 @@ async function publishService(
     let digest: string | undefined;
     
     if (serviceInfo.deploymentType === 'aws') {
-      // Load environment config for AWS settings
-      const envConfig = await loadEnvironmentConfig(options.environment!);
+      // Use passed environment config for AWS settings
       publishedImage = await pushImageToECR(buildResult.imageName, serviceInfo.name, envConfig, options);
-      if (publishedImage && envConfig.aws) {
+      if (publishedImage && hasAWSConfig(envConfig)) {
         repository = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-${serviceInfo.name}`;
         digest = 'sha256:' + Math.random().toString(36).substring(2, 15); // Would be returned by ECR in real implementation
       }
@@ -455,6 +448,9 @@ export const publish = async (
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
+  // Load environment config once for all operations
+  const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
+  
   if (!isStructuredOutput && options.output === 'summary') {
     printInfo(`Publishing services in ${options.environment} environment`);
   }
@@ -473,7 +469,7 @@ export const publish = async (
     
     for (const serviceInfo of serviceDeployments) {
       try {
-        const result = await publishService(serviceInfo, options, isStructuredOutput);
+        const result = await publishService(serviceInfo, options, isStructuredOutput, envConfig);
         serviceResults.push(result);
       } catch (error) {
         // Create error result

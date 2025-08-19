@@ -100,10 +100,34 @@ export class OutputFormatter {
 
     // Service results
     for (const service of results.services) {
-      const icon = service.success ? '✅' : '❌';
-      const statusColor = service.success ? c.green : c.red;
+      // Determine appropriate status indicator and color
+      let statusIndicator = '';
+      let statusColor = '';
       
-      output += `${icon} ${c.bright}${service.service}${c.reset} (${service.deploymentType}): ${statusColor}${service.status}${c.reset}\n`;
+      if (!service.success) {
+        statusIndicator = '[FAIL]';
+        statusColor = c.red;
+      } else if (service.status === 'running' || service.status === 'healthy') {
+        statusIndicator = '[OK]';
+        statusColor = c.green;
+      } else if (service.status === 'stopped') {
+        statusIndicator = '[--]';
+        statusColor = c.yellow;
+      } else if (service.status === 'error') {
+        statusIndicator = '[ERR]';
+        statusColor = c.red;
+      } else if (service.status === 'unknown') {
+        statusIndicator = '[??]';
+        statusColor = c.dim;
+      } else if (service.status === 'degraded') {
+        statusIndicator = '[WARN]';
+        statusColor = c.yellow;
+      } else {
+        statusIndicator = '[--]';
+        statusColor = c.dim;
+      }
+      
+      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${service.service}${c.reset} (${service.deploymentType}): ${statusColor}${service.status}${c.reset}\n`;
       
       // Show endpoint if available
       const startResult = service as any;
@@ -111,11 +135,16 @@ export class OutputFormatter {
         output += `   ${c.dim}endpoint: ${startResult.endpoint}${c.reset}\n`;
       }
       
-      // Show resource ID
+      // Show resource ID and console URL
       if (options.verbose && service.resourceId) {
         const resourceInfo = this.formatResourceId(service.resourceId);
         if (resourceInfo) {
           output += `   ${c.dim}resource: ${resourceInfo}${c.reset}\n`;
+        }
+        
+        // Show AWS console URL if available
+        if (service.resourceId.aws?.consoleUrl) {
+          output += `   ${c.cyan}console: ${service.resourceId.aws.consoleUrl}${c.reset}\n`;
         }
       }
       
@@ -162,8 +191,13 @@ export class OutputFormatter {
       return 'No services to display\n';
     }
 
+    // Check if terminal supports hyperlinks
+    const supportsHyperlinks = process.env.TERM_PROGRAM === 'iTerm.app' || 
+                               process.env.TERM === 'xterm-256color' ||
+                               process.env.TERM_PROGRAM === 'vscode';
+    
     // Determine columns to display
-    const columns = ['Service', 'Type', 'Status', 'Duration'];
+    const columns = ['Service', 'Type', 'Status'];
     
     // Add endpoint column if any service has an endpoint
     const hasEndpoints = results.services.some(s => (s as any).endpoint);
@@ -171,18 +205,37 @@ export class OutputFormatter {
       columns.push('Endpoint');
     }
 
-    // Add resource ID column in verbose mode
+    // Add resource column in verbose mode
     if (options.verbose) {
       columns.push('Resource');
     }
 
     // Transform service data for table
     const tableData = results.services.map(service => {
+      // Determine appropriate status text with color codes
+      const c = options.colors !== false ? this.colors : this.createNoColorMap();
+      let statusText = '';
+      
+      if (!service.success) {
+        statusText = `${c.red}[FAIL]${c.reset} ${service.status}`;
+      } else if (service.status === 'running' || service.status === 'healthy') {
+        statusText = `${c.green}[OK]${c.reset} ${service.status}`;
+      } else if (service.status === 'stopped') {
+        statusText = `${c.yellow}[--]${c.reset} ${service.status}`;
+      } else if (service.status === 'error') {
+        statusText = `${c.red}[ERR]${c.reset} ${service.status}`;
+      } else if (service.status === 'unknown') {
+        statusText = `${c.dim}[??]${c.reset} ${service.status}`;
+      } else if (service.status === 'degraded') {
+        statusText = `${c.yellow}[WARN]${c.reset} ${service.status}`;
+      } else {
+        statusText = `${c.dim}[--]${c.reset} ${service.status}`;
+      }
+      
       const row: Record<string, any> = {
         Service: service.service,
         Type: service.deploymentType,
-        Status: service.success ? '✅ ' + service.status : '❌ ' + service.status,
-        Duration: `${service.duration}ms`,
+        Status: statusText,
       };
 
       // Add endpoint if available
@@ -195,7 +248,16 @@ export class OutputFormatter {
 
       // Add resource ID in verbose mode
       if (options.verbose) {
-        row.Resource = this.formatResourceId(service.resourceId);
+        const resourceText = this.formatResourceId(service.resourceId);
+        
+        // If terminal supports hyperlinks and we have a console URL, make the resource clickable
+        if (supportsHyperlinks && service.resourceId?.aws?.consoleUrl) {
+          const url = service.resourceId.aws.consoleUrl;
+          // OSC 8 hyperlink format: \x1b]8;;URL\x1b\\TEXT\x1b]8;;\x1b\\
+          row.Resource = `\x1b]8;;${url}\x1b\\${resourceText}\x1b]8;;\x1b\\`;
+        } else {
+          row.Resource = resourceText;
+        }
       }
 
       return row;
@@ -253,25 +315,58 @@ export class OutputFormatter {
    * Format resource identifier for display
    */
   private static formatResourceId(resourceId: any): string {
-    if (!resourceId) return '';
+    if (!resourceId) return '-';
     
     if (resourceId.aws) {
-      return resourceId.aws.id || resourceId.aws.arn || resourceId.aws.name || '';
+      // For AWS resources, show ARN or a simplified identifier
+      if (resourceId.aws.arn) {
+        // For service/cluster/name format, extract just the service name
+        if (resourceId.aws.arn.includes('/')) {
+          const parts = resourceId.aws.arn.split('/');
+          // Return the last part (the actual service name)
+          return parts[parts.length - 1] || resourceId.aws.arn;
+        }
+        
+        // For other ARN formats, extract the last meaningful part
+        const arnParts = resourceId.aws.arn.split(':');
+        const resourcePart = arnParts[arnParts.length - 1] || '';
+        
+        // If it contains a slash, get the last part
+        if (resourcePart.includes('/')) {
+          const subParts = resourcePart.split('/');
+          return subParts[subParts.length - 1];
+        }
+        
+        return resourcePart || resourceId.aws.name || 'AWS';
+      }
+      return resourceId.aws.id || resourceId.aws.name || 'AWS';
     }
     
     if (resourceId.container) {
-      return resourceId.container.id ? resourceId.container.id.substring(0, 12) : resourceId.container.name || '';
+      const name = resourceId.container.name || '';
+      const id = resourceId.container.id ? resourceId.container.id.substring(0, 12) : '';
+      if (name && id) {
+        return `${name}:${id}`;
+      }
+      return name || id || 'Container';
     }
     
     if (resourceId.process) {
-      return resourceId.process.pid ? `pid:${resourceId.process.pid}` : resourceId.process.path || '';
+      if (resourceId.process.pid) {
+        return `PID:${resourceId.process.pid}`;
+      }
+      return resourceId.process.path || 'Process';
     }
     
     if (resourceId.external) {
-      return resourceId.external.endpoint || resourceId.external.path || '';
+      return resourceId.external.endpoint || resourceId.external.path || 'External';
     }
     
-    return '';
+    if (resourceId.mock) {
+      return resourceId.mock.id || 'Mock';
+    }
+    
+    return '-';
   }
 
   /**
@@ -359,11 +454,11 @@ export class OutputFormatter {
 /**
  * Utility function for quick formatting
  */
-export function formatResults(results: CommandResults, format: OutputFormat = 'summary'): string {
+export function formatResults(results: CommandResults, format: OutputFormat = 'summary', verbose: boolean = false): string {
   return OutputFormatter.format(results, {
     format,
     quiet: false,
-    verbose: false,
+    verbose,
     colors: true
   });
 }
