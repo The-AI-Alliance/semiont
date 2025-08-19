@@ -14,6 +14,11 @@ import * as http from 'http';
 import { CheckResult, CommandResults, createBaseResult, createErrorResult } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
+import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
+import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -76,10 +81,12 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
     let checks: CheckResult['checks'] = [];
     let healthStatus: CheckResult['healthStatus'] = 'unknown';
     let uptime: number | undefined;
+    let resourceId: string | undefined;
+    let consoleUrl: string | undefined;
     
     switch (serviceInfo.deploymentType) {
       case 'aws':
-        ({ checks, healthStatus, uptime } = await checkAWSService(serviceInfo, options));
+        ({ checks, healthStatus, uptime, resourceId, consoleUrl } = await checkAWSService(serviceInfo, options));
         break;
       case 'container':
         ({ checks, healthStatus, uptime } = await checkContainerService(serviceInfo, options));
@@ -112,12 +119,16 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
           ...(serviceInfo.deploymentType === 'container' && { name: `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}` }),
           ...(serviceInfo.deploymentType === 'external' && { endpoint: serviceInfo.config.host || '' }),
           ...(serviceInfo.deploymentType === 'mock' && { id: `mock-${serviceInfo.name}-${options.environment}` }),
+          ...(serviceInfo.deploymentType === 'aws' && resourceId && { arn: resourceId }),
+          ...(serviceInfo.deploymentType === 'aws' && consoleUrl && { consoleUrl }),
         }
       },
       status: healthStatus === 'healthy' ? 'running' : 'stopped',
       metadata: {
         deploymentType: serviceInfo.deploymentType,
         config: serviceInfo.config,
+        ...(resourceId && { resourceId }),
+        ...(consoleUrl && { consoleUrl }),
       },
       healthStatus,
       checks,
@@ -150,40 +161,280 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
   }
 }
 
-async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {
+async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number, resourceId?: string, consoleUrl?: string }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
+  let resourceId: string | undefined;
+  let consoleUrl: string | undefined;
+  
+  // Get AWS region - check multiple sources in order of precedence
+  const awsRegion = process.env.AWS_REGION || 
+                    process.env.AWS_DEFAULT_REGION || 
+                    'us-east-2'; // Your actual region
+  let awsAccountId = '';
+  
+  try {
+    // Get AWS account ID using SDK
+    const stsClient = new STSClient({ region: awsRegion });
+    const identityResult = await stsClient.send(new GetCallerIdentityCommand({}));
+    awsAccountId = identityResult.Account || '';
+  } catch (error) {
+    debugLog(`Could not get AWS account ID: ${error}`, options);
+  }
   
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      debugLog(`Querying ECS service status for ${serviceInfo.name}`, options);
-      checks.push({
-        name: 'ecs-service',
-        status: 'warn',
-        message: 'ECS service status check not yet implemented',
-      });
-      healthStatus = 'unknown';
+      try {
+        // Initialize AWS SDK clients
+        const cfnClient = new CloudFormationClient({ region: awsRegion });
+        const ecsClient = new ECSClient({ region: awsRegion });
+        
+        // Get cluster name and service ARN from CloudFormation outputs
+        let clusterName = '';
+        let serviceArn = '';
+        let serviceName = '';
+        
+        try {
+          // Get stack outputs
+          const stackResult = await cfnClient.send(new DescribeStacksCommand({
+            StackName: 'SemiontAppStack'
+          }));
+          
+          const outputs = stackResult.Stacks?.[0]?.Outputs || [];
+          
+          // Find cluster name
+          clusterName = outputs.find(o => o.OutputKey === 'ClusterName')?.OutputValue || '';
+          
+          // Find service ARN
+          const serviceOutputKey = `${serviceInfo.name.charAt(0).toUpperCase() + serviceInfo.name.slice(1)}ServiceArn`;
+          serviceArn = outputs.find(o => o.OutputKey === serviceOutputKey)?.OutputValue || '';
+          
+          // Find service name
+          const serviceNameOutputKey = `${serviceInfo.name.charAt(0).toUpperCase() + serviceInfo.name.slice(1)}ServiceName`;
+          serviceName = outputs.find(o => o.OutputKey === serviceNameOutputKey)?.OutputValue || '';
+        } catch (stackError: any) {
+          // Stack might not exist or outputs might not be available
+          console.error(`CloudFormation error for ${serviceInfo.name}:`, stackError.message || stackError);
+          checks.push({
+            name: 'ecs-service',
+            status: 'fail',
+            message: `CloudFormation stack not found or inaccessible: ${stackError.message || stackError}`,
+          });
+          healthStatus = 'unhealthy';
+          break;
+        }
+        
+        if (!serviceArn || !clusterName) {
+          console.error(`Missing outputs for ${serviceInfo.name}: clusterName=${clusterName}, serviceArn=${serviceArn}`);
+          checks.push({
+            name: 'ecs-service',
+            status: 'fail',
+            message: `No ECS service found for ${serviceInfo.name} in CloudFormation outputs`,
+          });
+          healthStatus = 'unhealthy';
+          break;
+        }
+        
+        // Get ECS service status using SDK
+        const serviceResult = await ecsClient.send(new DescribeServicesCommand({
+          cluster: clusterName,
+          services: [serviceArn]
+        }));
+        
+        const service = serviceResult.services?.[0];
+        
+        if (service && service.serviceName) {
+          const actualServiceName = service.serviceName;
+          resourceId = serviceArn;
+          consoleUrl = `https://console.aws.amazon.com/ecs/v2/clusters/${clusterName}/services/${actualServiceName}?region=${awsRegion}`;
+          
+          const runningCount = service.runningCount || 0;
+          const desiredCount = service.desiredCount || 0;
+          const status = service.status || 'UNKNOWN';
+          
+          checks.push({
+            name: 'ecs-service',
+            status: runningCount === desiredCount && status === 'ACTIVE' ? 'pass' : 'warn',
+            message: `ECS Service ${actualServiceName}: ${runningCount}/${desiredCount} tasks running (${status})`,
+            metadata: {
+              runningCount,
+              desiredCount,
+              status,
+              serviceName: actualServiceName,
+              clusterName,
+            }
+          });
+          
+          healthStatus = runningCount > 0 ? 'healthy' : 'unhealthy';
+        } else {
+          checks.push({
+            name: 'ecs-service',
+            status: 'fail',
+            message: `ECS service not found or invalid response`,
+          });
+          healthStatus = 'unhealthy';
+        }
+      } catch (error: any) {
+        console.error(`ECS service check error for ${serviceInfo.name}:`, error.message || error);
+        checks.push({
+          name: 'ecs-service',
+          status: 'fail',
+          message: `Failed to check ECS service: ${error.message || error}`,
+        });
+        healthStatus = 'unhealthy';
+      }
       break;
       
     case 'database':
-      debugLog(`Checking RDS instance status for ${serviceInfo.name}`, options);
-      checks.push({
-        name: 'rds-instance',
-        status: 'warn', 
-        message: 'RDS status check not yet implemented',
-      });
-      healthStatus = 'unknown';
+      try {
+        const cfnClient = new CloudFormationClient({ region: awsRegion });
+        const rdsClient = new RDSClient({ region: awsRegion });
+        
+        // Get RDS instance identifier from CloudFormation stack
+        let dbIdentifier = '';
+        
+        try {
+          const stackResult = await cfnClient.send(new DescribeStacksCommand({
+            StackName: 'SemiontInfraStack'
+          }));
+          
+          const outputs = stackResult.Stacks?.[0]?.Outputs || [];
+          dbIdentifier = outputs.find(o => o.OutputKey === 'DatabaseIdentifier')?.OutputValue || '';
+        } catch (stackError: any) {
+          console.error(`RDS CloudFormation error:`, stackError.message || stackError);
+        }
+        
+        if (dbIdentifier) {
+          resourceId = `arn:aws:rds:${awsRegion}:${awsAccountId}:db:${dbIdentifier}`;
+          consoleUrl = `https://console.aws.amazon.com/rds/home?region=${awsRegion}#database:id=${dbIdentifier}`;
+          
+          // Get RDS instance status using SDK
+          const dbResult = await rdsClient.send(new DescribeDBInstancesCommand({
+            DBInstanceIdentifier: dbIdentifier
+          }));
+          
+          const dbInstance = dbResult.DBInstances?.[0];
+          
+          if (dbInstance && dbInstance.DBInstanceStatus) {
+            const status = dbInstance.DBInstanceStatus;
+            const instanceClass = dbInstance.DBInstanceClass;
+            const engine = dbInstance.Engine;
+            const engineVersion = dbInstance.EngineVersion;
+            
+            checks.push({
+              name: 'rds-instance',
+              status: status === 'available' ? 'pass' : 'warn',
+              message: `RDS Instance ${dbIdentifier}: ${status} (${instanceClass}, ${engine} ${engineVersion})`,
+              metadata: {
+                dbIdentifier,
+                status,
+                instanceClass,
+                engine,
+                engineVersion,
+              }
+            });
+            
+            healthStatus = status === 'available' ? 'healthy' : 'unhealthy';
+          } else {
+            checks.push({
+              name: 'rds-instance',
+              status: 'fail',
+              message: `RDS instance ${dbIdentifier} not found`,
+            });
+            healthStatus = 'unhealthy';
+          }
+        } else {
+          checks.push({
+            name: 'rds-instance',
+            status: 'warn',
+            message: 'Could not determine RDS instance identifier from CloudFormation',
+          });
+          healthStatus = 'unknown';
+        }
+      } catch (error: any) {
+        console.error(`RDS check error:`, error.message || error);
+        checks.push({
+          name: 'rds-instance',
+          status: 'fail',
+          message: `Failed to check RDS instance: ${error.message || error}`,
+        });
+        healthStatus = 'unhealthy';
+      }
       break;
       
     case 'filesystem':
-      debugLog(`Checking EFS mount status for ${serviceInfo.name}`, options);
-      checks.push({
-        name: 'efs-mount',
-        status: 'warn',
-        message: 'EFS mount status check not yet implemented',
-      });
-      healthStatus = 'unknown';
+      try {
+        const cfnClient = new CloudFormationClient({ region: awsRegion });
+        const efsClient = new EFSClient({ region: awsRegion });
+        
+        // Get EFS filesystem ID from CloudFormation stack
+        let efsId = '';
+        
+        try {
+          const stackResult = await cfnClient.send(new DescribeStacksCommand({
+            StackName: 'SemiontInfraStack'
+          }));
+          
+          const outputs = stackResult.Stacks?.[0]?.Outputs || [];
+          efsId = outputs.find(o => o.OutputKey === 'EFSFileSystemId')?.OutputValue || '';
+        } catch (stackError: any) {
+          console.error(`EFS CloudFormation error:`, stackError.message || stackError);
+        }
+        
+        if (efsId) {
+          resourceId = `arn:aws:elasticfilesystem:${awsRegion}:${awsAccountId}:file-system/${efsId}`;
+          consoleUrl = `https://console.aws.amazon.com/efs/home?region=${awsRegion}#/file-systems/${efsId}`;
+          
+          // Get EFS filesystem status using SDK
+          const efsResult = await efsClient.send(new DescribeFileSystemsCommand({
+            FileSystemId: efsId
+          }));
+          
+          const efsSystem = efsResult.FileSystems?.[0];
+          
+          if (efsSystem && efsSystem.LifeCycleState) {
+            const status = efsSystem.LifeCycleState;
+            const sizeInBytes = efsSystem.SizeInBytes?.Value || 0;
+            const sizeInMB = Math.round(sizeInBytes / 1024 / 1024);
+            
+            checks.push({
+              name: 'efs-filesystem',
+              status: status === 'available' ? 'pass' : 'warn',
+              message: `EFS Filesystem ${efsId}: ${status} (${sizeInMB} MB)`,
+              metadata: {
+                fileSystemId: efsId,
+                status,
+                sizeInMB,
+              }
+            });
+            
+            healthStatus = status === 'available' ? 'healthy' : 'unhealthy';
+          } else {
+            checks.push({
+              name: 'efs-filesystem',
+              status: 'fail',
+              message: `EFS filesystem ${efsId} not found`,
+            });
+            healthStatus = 'unhealthy';
+          }
+        } else {
+          checks.push({
+            name: 'efs-filesystem',
+            status: 'warn',
+            message: 'Could not determine EFS filesystem ID from CloudFormation',
+          });
+          healthStatus = 'unknown';
+        }
+      } catch (error: any) {
+        console.error(`EFS check error:`, error.message || error);
+        checks.push({
+          name: 'efs-filesystem',
+          status: 'fail',
+          message: `Failed to check EFS filesystem: ${error.message || error}`,
+        });
+        healthStatus = 'unhealthy';
+      }
       break;
       
     default:
@@ -194,7 +445,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
       });
   }
   
-  return { checks, healthStatus };
+  return { checks, healthStatus, resourceId, consoleUrl };
 }
 
 async function checkContainerService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number }> {

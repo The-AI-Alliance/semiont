@@ -179,7 +179,7 @@ export async function executeCommand(
     const results = await command.handler(services, options);
     
     // Format and output results
-    const formatted = formatResults(results, options.output);
+    const formatted = formatResults(results, options.output, options.verbose);
     console.log(formatted);
     
     // Exit with appropriate code
