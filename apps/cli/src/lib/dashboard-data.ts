@@ -4,9 +4,12 @@
  * Provides real-time data collection and polling for dashboard components
  */
 
-import { ECSClient, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { CloudWatchLogsClient, GetLogEventsCommand, DescribeLogStreamsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
+import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
+import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { SemiontStackConfig } from './stack-config.js';
 import { ServiceStatus, LogEntry, MetricData } from './dashboard-components.js';
 import { DashboardData } from './dashboard-layouts.js';
@@ -18,6 +21,9 @@ export class DashboardDataSource {
   private ecsClient: ECSClient;
   private logsClient: CloudWatchLogsClient;
   private cloudWatchClient: CloudWatchClient;
+  private rdsClient: RDSClient;
+  private efsClient: EFSClient;
+  private cfnClient: CloudFormationClient;
   private logCache: Map<string, LogEntry[]> = new Map();
   private lastLogTimestamp: Map<string, Date> = new Map();
   private config: EnvironmentConfig;
@@ -34,6 +40,9 @@ export class DashboardDataSource {
     this.ecsClient = new ECSClient({ region: this.config.aws.region });
     this.logsClient = new CloudWatchLogsClient({ region: this.config.aws.region });
     this.cloudWatchClient = new CloudWatchClient({ region: this.config.aws.region });
+    this.rdsClient = new RDSClient({ region: this.config.aws.region });
+    this.efsClient = new EFSClient({ region: this.config.aws.region });
+    this.cfnClient = new CloudFormationClient({ region: this.config.aws.region });
   }
 
   // Get current services status
@@ -85,7 +94,7 @@ export class DashboardDataSource {
           }
 
           services.push({
-            name: serviceType === 'frontend' ? '📱 Frontend' : '🚀 Backend',
+            name: serviceType === 'frontend' ? 'Frontend' : 'Backend',
             status,
             details,
             lastUpdated: new Date()
@@ -93,7 +102,7 @@ export class DashboardDataSource {
 
         } catch (error) {
           services.push({
-            name: serviceType === 'frontend' ? '📱 Frontend' : '🚀 Backend',
+            name: serviceType === 'frontend' ? 'Frontend' : 'Backend',
             status: 'unhealthy',
             details: `Error: ${error instanceof Error ? error.message : 'Unknown'}`,
             lastUpdated: new Date()
@@ -102,22 +111,75 @@ export class DashboardDataSource {
       }
 
       // Add infrastructure services
+      // Check database status
       try {
-        // Check database status (simplified - you'd call RDS API)
+        const dbInstances = await this.rdsClient.send(new DescribeDBInstancesCommand({}));
+        const semiontDb = dbInstances.DBInstances?.find(db => 
+          db.DBInstanceIdentifier?.toLowerCase().includes('semiont')
+        );
+        
+        if (semiontDb) {
+          const dbStatus = semiontDb.DBInstanceStatus;
+          services.push({
+            name: 'Database',
+            status: dbStatus === 'available' ? 'healthy' : 
+                   dbStatus === 'backing-up' || dbStatus === 'maintenance' ? 'warning' : 'unhealthy',
+            details: `${semiontDb.Engine} ${semiontDb.EngineVersion} - ${dbStatus}`,
+            lastUpdated: new Date()
+          });
+        } else {
+          services.push({
+            name: 'Database',
+            status: 'unknown',
+            details: 'RDS instance not found',
+            lastUpdated: new Date()
+          });
+        }
+      } catch (error) {
         services.push({
-          name: '🗃️ Database',
-          status: 'healthy', // Would check actual RDS status
-          details: 'PostgreSQL available',
+          name: 'Database',
+          status: 'unknown',
+          details: 'Failed to check RDS status',
           lastUpdated: new Date()
         });
+      }
 
-        // Check load balancer (simplified)
-        services.push({
-          name: '⚖️ Load Balancer',
-          status: 'healthy', // Would check actual ALB status
-          details: 'Accepting connections',
-          lastUpdated: new Date()
-        });
+      // Check filesystem status
+      try {
+        // Get EFS filesystem ID from CloudFormation stack
+        const stackResult = await this.cfnClient.send(new DescribeStacksCommand({
+          StackName: 'SemiontInfraStack'
+        }));
+        
+        const outputs = stackResult.Stacks?.[0]?.Outputs || [];
+        const efsIdOutput = outputs.find(o => 
+          o.OutputKey === 'EfsFileSystemId' || o.OutputKey === 'EFSFileSystemId'
+        );
+        
+        if (efsIdOutput?.OutputValue) {
+          const efsResult = await this.efsClient.send(new DescribeFileSystemsCommand({
+            FileSystemId: efsIdOutput.OutputValue
+          }));
+          
+          const filesystem = efsResult.FileSystems?.[0];
+          if (filesystem) {
+            const lifecycleState = filesystem.LifeCycleState;
+            services.push({
+              name: 'Filesystem',
+              status: lifecycleState === 'available' ? 'healthy' : 
+                     lifecycleState === 'creating' || lifecycleState === 'updating' ? 'warning' : 'unhealthy',
+              details: `EFS ${filesystem.FileSystemId} - ${lifecycleState}`,
+              lastUpdated: new Date()
+            });
+          }
+        } else {
+          services.push({
+            name: 'Filesystem',
+            status: 'unknown',
+            details: 'EFS filesystem not found',
+            lastUpdated: new Date()
+          });
+        }
 
       } catch (error) {
         // Infrastructure checks failed
@@ -287,34 +349,118 @@ export class DashboardDataSource {
         ?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
 
       metrics.push({
-        name: 'Requests/30min',
+        name: 'Total Requests (30min)',
         value: totalRequests,
         trend: 'stable' // Could calculate trend from historical data
       });
 
-      // CPU Utilization (simplified - would get from ECS metrics)
-      metrics.push({
-        name: 'CPU Usage',
-        value: 15.5,
-        unit: '%',
-        trend: 'stable'
-      });
+      // Get ECS Cluster metrics
+      try {
+        const clusterName = await this.stackConfig.getClusterName();
+        
+        // CPU Utilization
+        const cpuResponse = await this.cloudWatchClient.send(
+          new GetMetricStatisticsCommand({
+            Namespace: 'AWS/ECS',
+            MetricName: 'CPUUtilization',
+            Dimensions: [
+              { Name: 'ClusterName', Value: clusterName }
+            ],
+            StartTime: thirtyMinutesAgo,
+            EndTime: now,
+            Period: 300,
+            Statistics: ['Average'],
+          })
+        );
+        
+        const cpuDatapoints = cpuResponse.Datapoints || [];
+        const currentCpu = cpuDatapoints.length > 0 
+          ? cpuDatapoints.sort((a, b) => (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0))[0].Average || 0
+          : 0;
+        
+        metrics.push({
+          name: 'Cluster CPU',
+          value: Number(currentCpu.toFixed(1)),
+          unit: '%',
+          trend: cpuDatapoints.length > 1 && cpuDatapoints[0].Average! > cpuDatapoints[1].Average! ? 'up' : 'stable'
+        });
 
-      // Memory Utilization
-      metrics.push({
-        name: 'Memory Usage',
-        value: 68.2,
-        unit: '%',
-        trend: 'up'
-      });
+        // Memory Utilization
+        const memoryResponse = await this.cloudWatchClient.send(
+          new GetMetricStatisticsCommand({
+            Namespace: 'AWS/ECS',
+            MetricName: 'MemoryUtilization',
+            Dimensions: [
+              { Name: 'ClusterName', Value: clusterName }
+            ],
+            StartTime: thirtyMinutesAgo,
+            EndTime: now,
+            Period: 300,
+            Statistics: ['Average'],
+          })
+        );
+        
+        const memoryDatapoints = memoryResponse.Datapoints || [];
+        const currentMemory = memoryDatapoints.length > 0
+          ? memoryDatapoints.sort((a, b) => (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0))[0].Average || 0
+          : 0;
+        
+        metrics.push({
+          name: 'Cluster Memory',
+          value: Number(currentMemory.toFixed(1)),
+          unit: '%',
+          trend: memoryDatapoints.length > 1 && memoryDatapoints[0].Average! > memoryDatapoints[1].Average! ? 'up' : 'stable'
+        });
+      } catch (error) {
+        // If we can't get cluster metrics, add defaults
+        metrics.push({
+          name: 'Cluster CPU',
+          value: 0,
+          unit: '%',
+          trend: 'stable'
+        });
+        metrics.push({
+          name: 'Cluster Memory',
+          value: 0,
+          unit: '%',
+          trend: 'stable'
+        });
+      }
 
-      // Response Time (mock data - would come from ALB metrics)
-      metrics.push({
-        name: 'Avg Response',
-        value: 245,
-        unit: 'ms',
-        trend: 'down'
-      });
+      // Response Time from ALB metrics
+      try {
+        const responseTimeResult = await this.cloudWatchClient.send(
+          new GetMetricStatisticsCommand({
+            Namespace: 'AWS/ApplicationELB',
+            MetricName: 'TargetResponseTime',
+            Dimensions: [{ Name: 'LoadBalancer', Value: albName }],
+            StartTime: thirtyMinutesAgo,
+            EndTime: now,
+            Period: 300,
+            Statistics: ['Average'],
+          })
+        );
+        
+        const responseDatapoints = responseTimeResult.Datapoints || [];
+        const avgResponseTime = responseDatapoints.length > 0
+          ? responseDatapoints.reduce((sum, dp) => sum + (dp.Average || 0), 0) / responseDatapoints.length * 1000 // Convert to ms
+          : 0;
+        
+        metrics.push({
+          name: 'Avg Response Time',
+          value: Number(avgResponseTime.toFixed(0)),
+          unit: 'ms',
+          trend: responseDatapoints.length > 1 && 
+                 responseDatapoints[responseDatapoints.length - 1].Average! > responseDatapoints[0].Average! ? 'up' : 'down'
+        });
+      } catch (error) {
+        metrics.push({
+          name: 'Avg Response Time',
+          value: 0,
+          unit: 'ms',
+          trend: 'stable'
+        });
+      }
 
       // Error Rate
       const errorResponse = await this.cloudWatchClient.send(
@@ -335,7 +481,7 @@ export class DashboardDataSource {
       const errorRate = totalRequests > 0 ? (totalErrors / totalRequests * 100) : 0;
       
       metrics.push({
-        name: 'Error Rate',
+        name: 'Error Rate (5xx)',
         value: Number(errorRate.toFixed(2)),
         unit: '%',
         trend: errorRate > 1 ? 'up' : 'stable'

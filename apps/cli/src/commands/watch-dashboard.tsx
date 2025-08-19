@@ -193,12 +193,17 @@ async function main() {
   try {
     const { environment, mode, service } = parseArgs();
     
+    // Get refresh interval from environment variable if set
+    const refreshInterval = process.env.SEMIONT_REFRESH_INTERVAL 
+      ? parseInt(process.env.SEMIONT_REFRESH_INTERVAL, 10) 
+      : 30;
+    
     // Launch interactive dashboard
     render(
       <DashboardApp 
         mode={mode} 
         {...(service && { service })}
-        refreshInterval={30}
+        refreshInterval={refreshInterval}
         environment={environment}
       />
     );
@@ -210,8 +215,10 @@ async function main() {
   }
 }
 
-// Execute
-main();
+// Only execute main if this file is run directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
 
 // Export for use in watch.ts
 export default DashboardApp;

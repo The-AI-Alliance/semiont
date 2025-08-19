@@ -21,8 +21,8 @@ const scriptFiles = (await readdir('src', { withFileTypes: true }))
 // Get all TypeScript files in the commands directory
 const commandFiles = existsSync('src/commands') 
   ? (await readdir('src/commands', { withFileTypes: true }))
-      .filter(dirent => dirent.isFile() && dirent.name.endsWith('.ts'))
-      .map(dirent => dirent.name.replace(/\.ts$/, ''))
+      .filter(dirent => dirent.isFile() && (dirent.name.endsWith('.ts') || dirent.name.endsWith('.tsx')))
+      .map(dirent => dirent.name.replace(/\.tsx?$/, ''))
   : []
 
 const totalFiles = scriptFiles.length + commandFiles.length
@@ -84,7 +84,9 @@ await Promise.all(scriptFiles.map(async (name) => {
 
 // Build command files
 await Promise.all(commandFiles.map(async (name) => {
-  const entryPoint = `src/commands/${name}.ts`;
+  // Check if .tsx exists first, then .ts
+  const tsxExists = existsSync(`src/commands/${name}.tsx`);
+  const entryPoint = tsxExists ? `src/commands/${name}.tsx` : `src/commands/${name}.ts`;
   const outFile = `dist/commands/${name}.mjs`
   
   try {
@@ -95,11 +97,17 @@ await Promise.all(commandFiles.map(async (name) => {
       target: 'node20',
       format: 'esm',
       outfile: outFile,
+      jsx: 'automatic',
+      jsxImportSource: 'react',
       external: [
         // Don't bundle these Node.js built-ins and external binaries
         'aws-cli',
         'docker',
         'podman',
+        // React and Ink - keep external to avoid ESM/top-level await issues
+        'react',
+        'ink',
+        'react-devtools-core',
         // AWS SDK packages have complex CommonJS/ESM interactions
         '@aws-sdk/*',
         // Local workspace packages

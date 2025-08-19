@@ -2,8 +2,9 @@
  * Watch Command - Unified command structure
  */
 
-// import React from 'react';
 import { z } from 'zod';
+import React from 'react';
+import { render } from 'ink';
 import { colors } from '../lib/cli-colors.js';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
@@ -16,7 +17,8 @@ import {
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-// Re-export the React component from watch.tsx
+// Import the React dashboard component dynamically to handle module loading
+let DashboardApp: any;
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -26,7 +28,7 @@ const WatchOptionsSchema = z.object({
   environment: z.string().optional(),
   target: z.enum(['all', 'logs', 'metrics', 'services']).default('all'),
   noFollow: z.boolean().default(false),
-  interval: z.number().int().positive().default(5),
+  interval: z.number().int().positive().default(30),  // Increased from 5s to 30s
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
@@ -49,41 +51,77 @@ function debugLog(_message: string, _options: any): void {
 // =====================================================================
 
 async function launchDashboard(
-  _environment: string, 
-  _target: string, 
-  _services: string[],
-  _interval: number
+  environment: string, 
+  target: string, 
+  services: string[],
+  interval: number
 ): Promise<{ duration: number; exitReason: string }> {
-  // const startTime = Date.now();
+  const startTime = Date.now();
   
-  return new Promise((resolve) => {
-    // In production, this would launch the full React/Ink dashboard
-    // For now, we simulate the dashboard for testing
+  return new Promise(async (resolve) => {
+    // Check if we're in test mode
+    if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+      // Simulate a dashboard that runs briefly and exits normally
+      setTimeout(() => {
+        resolve({
+          duration: 100,
+          exitReason: 'user-quit'
+        });
+      }, 100);
+      return;
+    }
     
-    // For interactive mode in tests or when the TSX component cannot be loaded,
-    // we simulate a successful session. In production, this would use the
-    // React/Ink dashboard from watch.tsx
+    try {
+      // Dynamically import the dashboard component
+      const watchModule = await import('./watch-dashboard.js');
+      DashboardApp = watchModule.default || watchModule.DashboardApp || watchModule;
       
-      // Check if we're in test mode
-      if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
-        // Simulate a dashboard that runs briefly and exits normally
-        setTimeout(() => {
-          resolve({
-            duration: 100,
-            exitReason: 'user-quit'
-          });
-        }, 100);
-      } else {
-        // In production, this would launch the actual React/Ink dashboard
-        // For now, simulate it
-        console.log('Dashboard would launch here in production');
-        setTimeout(() => {
-          resolve({
-            duration: 1000,
-            exitReason: 'user-quit'
-          });
-        }, 1000);
+      // Ensure we have a valid component
+      if (!DashboardApp || (typeof DashboardApp !== 'function' && !DashboardApp.$$typeof)) {
+        throw new Error('Failed to load DashboardApp component');
       }
+      
+      // Determine dashboard mode based on target
+      let mode: 'unified' | 'logs' | 'metrics' = 'unified';
+      if (target === 'logs') {
+        mode = 'logs';
+      } else if (target === 'metrics') {
+        mode = 'metrics';
+      }
+      
+      // Determine service filter
+      let service: 'frontend' | 'backend' | undefined;
+      if (services.length === 1) {
+        const svc = services[0];
+        if (svc === 'frontend' || svc === 'backend') {
+          service = svc as 'frontend' | 'backend';
+        }
+      }
+      
+      // Launch the React/Ink dashboard directly
+      const { waitUntilExit } = render(
+        React.createElement(DashboardApp, {
+          mode,
+          service,
+          refreshInterval: interval,
+          environment
+        })
+      );
+      
+      await waitUntilExit();
+      const duration = Date.now() - startTime;
+      resolve({
+        duration,
+        exitReason: 'user-quit'
+      });
+    } catch (error) {
+      console.error('Dashboard error:', error);
+      const duration = Date.now() - startTime;
+      resolve({
+        duration,
+        exitReason: 'error'
+      });
+    }
   });
 }
 

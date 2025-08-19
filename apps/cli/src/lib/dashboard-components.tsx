@@ -73,24 +73,29 @@ export const ServicePanel: React.FC<{
       <Box marginBottom={1}>
         <Text bold color="cyan">{title}</Text>
       </Box>
-      {services.map((service, index) => (
-        <Box key={index} marginBottom={showDetails ? 1 : 0}>
-          <Box marginRight={1}>
-            <StatusIndicator status={service.status} />
+      {services.length === 0 ? (
+        <Text color="gray">No services to monitor</Text>
+      ) : (
+        services.map((service, index) => (
+          <Box key={index} marginBottom={showDetails ? 1 : 0}>
+            <Box marginRight={1}>
+              <StatusIndicator status={service.status} size="small" />
+            </Box>
+            <Box flexDirection="column" flexGrow={1}>
+              <Box>
+                <Text bold>{service.name}</Text>
+                <Text color={colors[service.status]}> {service.status}</Text>
+              </Box>
+              {showDetails && service.details && (
+                <Text color="gray" dimColor>  {service.details}</Text>
+              )}
+              {showDetails && service.lastUpdated && (
+                <Text color="gray" dimColor>  {service.lastUpdated.toLocaleTimeString()}</Text>
+              )}
+            </Box>
           </Box>
-          <Box flexDirection="column" flexGrow={1}>
-            <Text bold>{service.name}</Text>
-            {showDetails && service.details && (
-              <Text color="gray" dimColor>{service.details}</Text>
-            )}
-            {showDetails && service.lastUpdated && (
-              <Text color="gray" dimColor>
-                Updated: {service.lastUpdated.toLocaleTimeString()}
-              </Text>
-            )}
-          </Box>
-        </Box>
-      ))}
+        ))
+      )}
     </Box>
   );
 };
@@ -212,43 +217,42 @@ export const MetricsPanel: React.FC<{
 }> = ({ 
   metrics, 
   title = "Metrics",
-  columns = 2 
+  columns = 1 
 }) => {
-  const trendIcons = {
-    up: '📈',
-    down: '📉', 
-    stable: '➡️'
+  const trendIndicators = {
+    up: '↑',
+    down: '↓', 
+    stable: '→'
   };
-
-  // Group metrics into columns
-  const rows: MetricData[][] = [];
-  for (let i = 0; i < metrics.length; i += columns) {
-    rows.push(metrics.slice(i, i + columns));
-  }
 
   return (
     <Box flexDirection="column">
       <Box marginBottom={1}>
         <Text bold color="cyan">{title}</Text>
       </Box>
-      {rows.map((row, rowIndex) => (
-        <Box key={rowIndex} marginBottom={1}>
-          {row.map((metric, colIndex) => (
-            <Box key={colIndex} flexGrow={1} marginRight={2}>
-              <Text bold>{metric.name}: </Text>
-              <Text color="green">
-                {metric.value}{metric.unit || ''}
-              </Text>
-              {metric.trend && (
-                <>
-                  <Text> </Text>
-                  <Text>{trendIcons[metric.trend]}</Text>
-                </>
-              )}
+      {metrics.length === 0 ? (
+        <Text color="gray">No metrics available</Text>
+      ) : (
+        <Box flexDirection="column">
+          {metrics.map((metric, index) => (
+            <Box key={index} marginBottom={0}>
+              <Box>
+                <Text color="gray">{metric.name}:</Text>
+              </Box>
+              <Box marginLeft={2}>
+                <Text color="green" bold>
+                  {metric.value}{metric.unit || ''}
+                </Text>
+                {metric.trend && (
+                  <Text color={metric.trend === 'up' ? 'green' : metric.trend === 'down' ? 'red' : 'yellow'}>
+                    {' '}{trendIndicators[metric.trend]}
+                  </Text>
+                )}
+              </Box>
             </Box>
           ))}
         </Box>
-      ))}
+      )}
     </Box>
   );
 };

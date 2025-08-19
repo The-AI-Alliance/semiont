@@ -50,7 +50,7 @@ export const UnifiedDashboard: React.FC<{
       {/* Header */}
       <Box flexDirection="column" height={headerHeight} borderStyle="single" borderBottom>
         <Box justifyContent="space-between" paddingX={1}>
-          <Text bold color="cyan">🚀 Semiont System Dashboard</Text>
+          <Text bold color="cyan">Semiont System Dashboard</Text>
           <RefreshIndicator 
             lastUpdate={data.lastUpdate}
             isRefreshing={data.isRefreshing}
@@ -59,7 +59,7 @@ export const UnifiedDashboard: React.FC<{
         </Box>
         <Box paddingX={1}>
           <Text color="gray">
-            Press 'q' to quit, 'r' to refresh, '1-4' to switch panels
+            Press 'q' to quit, 'r' to refresh, '1-4' to switch panels (refresh every {refreshInterval}s)
           </Text>
         </Box>
       </Box>
@@ -72,7 +72,7 @@ export const UnifiedDashboard: React.FC<{
           <Box height={topPanelHeight} padding={1} borderBottom>
             <ServicePanel 
               services={data.services}
-              title="🏗️ Services Status"
+              title="Services Status"
               showDetails={true}
             />
           </Box>
@@ -81,7 +81,7 @@ export const UnifiedDashboard: React.FC<{
           <Box height={bottomPanelHeight} padding={1}>
             <MetricsPanel 
               metrics={data.metrics}
-              title="📊 Key Metrics"
+              title="Key Metrics"
               columns={1}
             />
           </Box>
@@ -92,7 +92,7 @@ export const UnifiedDashboard: React.FC<{
           <LogViewer 
             logs={data.logs}
             height={contentHeight - 2}
-            title="📋 Live Logs"
+            title="Live Logs"
             showTimestamps={true}
           />
         </Box>
@@ -105,9 +105,9 @@ export const UnifiedDashboard: React.FC<{
             ↑↓ Scroll logs • Space Toggle auto-scroll • g/G Top/Bottom
           </Text>
           <Text color="gray">
-            Services: {data.services.filter(s => s.status === 'healthy').length}✅ 
-            {data.services.filter(s => s.status === 'unhealthy').length}❌ 
-            {data.services.filter(s => s.status === 'warning').length}⚠️
+            Services: {data.services.filter(s => s.status === 'healthy').length} OK, {' '}
+            {data.services.filter(s => s.status === 'unhealthy').length} Failed, {' '}
+            {data.services.filter(s => s.status === 'warning').length} Warning
           </Text>
         </Box>
       </Box>
