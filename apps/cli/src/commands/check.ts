@@ -20,6 +20,8 @@ import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
+import { LogAggregator } from '../lib/log-aggregator.js';
+import { CloudWatchLogFetcher } from '../lib/log-fetchers/cloudwatch-fetcher.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -52,7 +54,7 @@ function debugLog(_message: string, _options: any): void {
 // DEPLOYMENT-TYPE-AWARE CHECK FUNCTIONS
 // =====================================================================
 
-async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number): Promise<CheckResult> {
+async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number, envConfig: any): Promise<CheckResult> {
   const baseResult = createBaseResult('check', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   try {
@@ -85,8 +87,7 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
     let resourceId: string | undefined;
     let consoleUrl: string | undefined;
     
-    // Load environment config to get AWS region if available
-    const envConfig = serviceInfo.deploymentType === 'aws' ? loadEnvironmentConfig(options.environment!) : null;
+    // Environment config is passed from the main check function
     
     switch (serviceInfo.deploymentType) {
       case 'aws':
@@ -893,6 +894,10 @@ export async function check(
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
+  // Load environment config once for all operations
+  const envConfig = loadEnvironmentConfig(options.environment || 'development');
+  const awsRegion = envConfig?.aws?.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION
+  
   try {
     debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     
@@ -905,7 +910,7 @@ export async function check(
       }
       
       for (const serviceInfo of serviceDeployments) {
-        const result = await checkServiceImpl(serviceInfo, options, startTime);
+        const result = await checkServiceImpl(serviceInfo, options, startTime, envConfig);
         serviceResults.push(result);
       }
     }
@@ -935,7 +940,42 @@ export async function check(
     
     if (options.section === 'all' || options.section === 'logs') {
       printInfo('\n📝 Recent Logs:');
-      printWarning('Log aggregation not yet implemented');
+      
+      try {
+        const aggregator = new LogAggregator(options.environment || 'development', awsRegion);
+        
+        // Register CloudWatch fetcher for AWS deployments
+        if (awsRegion) {
+          aggregator.registerFetcher('aws', new CloudWatchLogFetcher(awsRegion));
+        }
+        
+        // Filter services based on deployment type
+        const loggableServices = serviceDeployments.filter(service => {
+          // Only fetch logs for services that are deployed
+          return service.deploymentType === 'aws' && service.name !== 'filesystem';
+        });
+        
+        if (loggableServices.length > 0) {
+          const logs = await aggregator.fetchRecentLogs(loggableServices, {
+            limit: 20,
+            since: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
+          });
+          
+          if (logs.length > 0) {
+            const formatted = aggregator.formatLogsForDisplay(logs);
+            console.log(formatted);
+          } else {
+            printInfo('  No recent logs found (last 5 minutes)');
+          }
+        } else {
+          printInfo('  No deployed services with logs available');
+        }
+      } catch (error: any) {
+        if (options.verbose) {
+          console.error('Log aggregation error:', error);
+        }
+        printWarning(`  Failed to fetch logs: ${error.message || 'Unknown error'}`);
+      }
     }
     
     // Create aggregated results
