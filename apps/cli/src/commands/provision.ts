@@ -19,6 +19,21 @@ import {
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { 
+  CloudFormationClient, 
+  DescribeStacksCommand, 
+  DeleteStackCommand, 
+  CreateStackCommand,
+  UpdateStackCommand,
+  Stack,
+  DescribeStackEventsCommand,
+  StackStatus
+} from '@aws-sdk/client-cloudformation';
+import { App, DefaultStackSynthesizer } from 'aws-cdk-lib';
+import { SemiontInfraStack, SemiontAppStack } from '@semiont/cloud';
+import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
+import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
+import * as fs from 'fs';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -140,151 +155,452 @@ async function provisionService(serviceInfo: ServiceDeploymentInfo, options: Pro
 async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: ProvisionOptions, startTime: number, isStructuredOutput: boolean = false): Promise<ProvisionResult> {
   const baseResult = createBaseResult('provision', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
-  // AWS infrastructure provisioning via CDK
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Provisioning AWS infrastructure for ${serviceInfo.name}`);
+  // Load environment config to get AWS settings
+  const envConfig = loadEnvironmentConfig(options.environment!) as EnvironmentConfig;
+  if (!hasAWSConfig(envConfig)) {
+    throw new Error(`Environment ${options.environment} does not have AWS configuration`);
   }
   
-  switch (serviceInfo.name) {
-    case 'frontend':
-    case 'backend':
-      if (!isStructuredOutput && options.output === 'summary') {
-        if (options.destroy) {
-          printInfo(`Destroying ECS service and ALB for ${serviceInfo.name}`);
-        } else {
-          printInfo(`Creating ECS service and ALB for ${serviceInfo.name}`);
+  // Determine which stack to deploy based on the stack option
+  let stackName: string;
+  if (options.stack === 'infra' || serviceInfo.name === 'infrastructure') {
+    stackName = envConfig.aws.stacks?.infra || 'SemiontInfraStack';
+  } else if (options.stack === 'app' || serviceInfo.name === 'application') {
+    stackName = envConfig.aws.stacks?.app || 'SemiontAppStack';
+  } else {
+    // Fallback to service-based detection for backward compatibility
+    if (serviceInfo.name === 'database' || serviceInfo.name === 'filesystem') {
+      stackName = envConfig.aws.stacks?.infra || 'SemiontInfraStack';
+    } else {
+      stackName = envConfig.aws.stacks?.app || 'SemiontAppStack';
+    }
+  }
+  
+  // Check if stack already exists
+  const cfnClient = new CloudFormationClient({ region: envConfig.aws.region });
+  let stackExists = false;
+  let existingStack: Stack | undefined;
+  
+  try {
+    const describeResult = await cfnClient.send(new DescribeStacksCommand({ StackName: stackName }));
+    existingStack = describeResult.Stacks?.[0];
+    stackExists = !!existingStack && existingStack.StackStatus !== 'DELETE_COMPLETE';
+  } catch (error: any) {
+    if (error.name !== 'ValidationError' || !error.message.includes('does not exist')) {
+      throw error;
+    }
+  }
+  
+  // Handle existing stack
+  if (stackExists && !options.force && !options.destroy) {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printInfo(`Stack ${stackName} already exists (status: ${existingStack?.StackStatus})`);
+      printInfo(`Use --force to update the existing stack`);
+    }
+    
+    return {
+      ...baseResult,
+      resources: [
+        {
+          type: 'cloudformation-stack',
+          id: stackName,
+          arn: existingStack?.StackId || '',
+          status: 'exists',
+          metadata: {
+            stackStatus: existingStack?.StackStatus,
+            outputs: existingStack?.Outputs?.reduce((acc, output) => {
+              if (output.OutputKey) {
+                acc[output.OutputKey] = output.OutputValue || '';
+              }
+              return acc;
+            }, {} as Record<string, string>)
+          }
         }
-        printWarning('AWS CDK deployment not yet fully integrated - use CDK directly');
+      ],
+      dependencies: stackName === 'SemiontAppStack' ? ['SemiontInfraStack'] : [],
+      resourceId: {
+        aws: {
+          arn: existingStack?.StackId || '',
+          id: stackName,
+          name: stackName
+        }
+      },
+      status: 'exists',
+      metadata: {
+        operation: 'check',
+        stackName,
+        stackStatus: existingStack?.StackStatus,
+        message: 'Stack already exists, use --force to update'
+      },
+    };
+  }
+  
+  // Perform the CDK operation
+  if (!isStructuredOutput && options.output === 'summary') {
+    if (options.destroy) {
+      printWarning(`Destroying stack ${stackName}...`);
+      if (stackName === 'SemiontInfraStack') {
+        printWarning('⚠️  This will destroy all infrastructure including RDS database!');
+      }
+    } else if (stackExists && options.force) {
+      printInfo(`Updating existing stack ${stackName}...`);
+    } else {
+      printInfo(`Creating new stack ${stackName}...`);
+    }
+  }
+  
+  try {
+    // Create CDK app and synthesize the stack
+    const app = new App({
+      outdir: path.join(process.cwd(), 'cdk.out'),
+      context: {
+        '@aws-cdk/core:stackRelativeExports': true,
+        '@aws-cdk/aws-rds:preventRenderingDeprecatedCredentials': true
+      }
+    });
+    
+    // Create the appropriate stack based on which one we're deploying
+    let stack: SemiontInfraStack | SemiontAppStack;
+    let infraStack: SemiontInfraStack | undefined;
+    
+    if (stackName === 'SemiontInfraStack' || stackName.includes('Infra')) {
+      stack = new SemiontInfraStack(app, stackName, {
+        env: {
+          account: envConfig.aws.accountId,
+          region: envConfig.aws.region
+        },
+        synthesizer: new DefaultStackSynthesizer({
+          qualifier: 'hnb659fds' // Default CDK bootstrap qualifier
+        })
+      });
+    } else {
+      // For AppStack, we need to create InfraStack first to pass as dependency
+      infraStack = new SemiontInfraStack(app, envConfig.aws.stacks?.infra || 'SemiontInfraStack', {
+        env: {
+          account: envConfig.aws.accountId,
+          region: envConfig.aws.region
+        },
+        synthesizer: new DefaultStackSynthesizer({
+          qualifier: 'hnb659fds'
+        })
+      });
+      
+      stack = new SemiontAppStack(app, stackName, {
+        env: {
+          account: envConfig.aws.accountId,
+          region: envConfig.aws.region
+        },
+        vpc: infraStack.vpc,
+        fileSystem: infraStack.fileSystem,
+        database: infraStack.database,
+        dbCredentials: infraStack.dbCredentials,
+        appSecrets: infraStack.appSecrets,
+        jwtSecret: infraStack.jwtSecret,
+        adminPassword: infraStack.adminPassword,
+        googleOAuth: infraStack.googleOAuth,
+        githubOAuth: infraStack.githubOAuth,
+        adminEmails: infraStack.adminEmails,
+        dbSecurityGroup: infraStack.dbSecurityGroup,
+        ecsSecurityGroup: infraStack.ecsSecurityGroup,
+        albSecurityGroup: infraStack.albSecurityGroup,
+        synthesizer: new DefaultStackSynthesizer({
+          qualifier: 'hnb659fds'
+        })
+      });
+    }
+    
+    // Synthesize the stack
+    const assembly = app.synth();
+    const stackArtifact = assembly.getStackByName(stackName);
+    
+    if (options.destroy) {
+      // For destroy, we'll use CloudFormation directly
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Deleting stack ${stackName} via CloudFormation...`);
+      }
+      
+      // Use CloudFormation SDK to delete the stack
+      const cfn = new CloudFormationClient({ 
+        region: envConfig.aws.region,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+          sessionToken: process.env.AWS_SESSION_TOKEN
+        }
+      });
+      
+      await cfn.send(new DeleteStackCommand({ StackName: stackName }));
+      
+      // Wait for deletion to complete (with timeout)
+      let deleteComplete = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutes with 5 second intervals
+      
+      while (!deleteComplete && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        
+        try {
+          const result = await cfn.send(new DescribeStacksCommand({ StackName: stackName }));
+          const stack = result.Stacks?.[0];
+          
+          if (!stack || stack.StackStatus === 'DELETE_COMPLETE') {
+            deleteComplete = true;
+          } else if (stack.StackStatus === 'DELETE_FAILED' || stack.StackStatus?.includes('ROLLBACK')) {
+            throw new Error(`Stack deletion failed: ${stack.StackStatus}`);
+          }
+        } catch (error: any) {
+          if (error.name === 'ValidationError' && error.message.includes('does not exist')) {
+            deleteComplete = true;
+          } else if (!error.message?.includes('DELETE_FAILED')) {
+            throw error;
+          }
+        }
+        
+        attempts++;
+      }
+      
+      if (!deleteComplete) {
+        throw new Error('Stack deletion timed out');
       }
       
       return {
         ...baseResult,
         resources: [
           {
-            type: 'ecs-service',
-            id: `semiont-${options.environment}-${serviceInfo.name}`,
-            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
-            status: options.destroy ? 'destroyed' : 'not-implemented',
+            type: 'cloudformation-stack',
+            id: stackName,
+            arn: '',
+            status: 'destroyed',
             metadata: {
-              cluster: `semiont-${options.environment}`,
-              implementation: 'pending'
+              stackStatus: 'DELETE_COMPLETE'
+            }
+          }
+        ],
+        dependencies: [],
+        resourceId: {
+          aws: {
+            arn: '',
+            id: stackName,
+            name: stackName
+          }
+        },
+        status: 'destroyed',
+        metadata: {
+          operation: 'destroy',
+          stackName,
+          stackStatus: 'DELETE_COMPLETE'
+        },
+      };
+    } else {
+      // Deploy using CloudFormation SDK with synthesized template
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Deploying stack ${stackName} using CloudFormation SDK...`);
+      }
+      
+      // Read the synthesized CloudFormation template
+      const templatePath = path.join(process.cwd(), 'cdk.out', `${stackName}.template.json`);
+      const templateBody = await fs.promises.readFile(templatePath, 'utf8');
+      
+      // Create CloudFormation client
+      const cfn = new CloudFormationClient({ 
+        region: envConfig.aws.region,
+        credentials: process.env.AWS_ACCESS_KEY_ID ? {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+          sessionToken: process.env.AWS_SESSION_TOKEN
+        } : undefined
+      });
+      
+      try {
+        if (stackExists && options.force) {
+          // Update existing stack
+          if (!isStructuredOutput && options.output === 'summary') {
+            printInfo(`Updating stack ${stackName}...`);
+          }
+          
+          await cfn.send(new UpdateStackCommand({
+            StackName: stackName,
+            TemplateBody: templateBody,
+            Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
+            Parameters: []
+          }));
+        } else if (!stackExists) {
+          // Create new stack
+          if (!isStructuredOutput && options.output === 'summary') {
+            printInfo(`Creating stack ${stackName}...`);
+          }
+          
+          await cfn.send(new CreateStackCommand({
+            StackName: stackName,
+            TemplateBody: templateBody,
+            Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
+            OnFailure: 'ROLLBACK',
+            Parameters: []
+          }));
+        }
+        
+        // Wait for stack operation to complete
+        if (!isStructuredOutput && options.output === 'summary') {
+          printInfo(`Waiting for stack operation to complete...`);
+        }
+        
+        let operationComplete = false;
+        let attempts = 0;
+        const maxAttempts = 120; // 10 minutes with 5 second intervals
+        let finalStatus: string | undefined;
+        
+        while (!operationComplete && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+          
+          const result = await cfn.send(new DescribeStacksCommand({ StackName: stackName }));
+          const currentStack = result.Stacks?.[0];
+          finalStatus = currentStack?.StackStatus;
+          
+          if (finalStatus) {
+            if (finalStatus.endsWith('_COMPLETE') && !finalStatus.includes('ROLLBACK')) {
+              operationComplete = true;
+            } else if (finalStatus.endsWith('_FAILED') || finalStatus.includes('ROLLBACK_COMPLETE')) {
+              // Get error events
+              const events = await cfn.send(new DescribeStackEventsCommand({ 
+                StackName: stackName 
+              }));
+              const failureEvent = events.StackEvents?.find(e => 
+                e.ResourceStatus?.includes('FAILED') && e.ResourceStatusReason
+              );
+              throw new Error(
+                `Stack operation failed: ${finalStatus}. ` +
+                `Reason: ${failureEvent?.ResourceStatusReason || 'Unknown'}`
+              );
+            }
+          }
+          
+          attempts++;
+          
+          if (options.verbose && !isStructuredOutput && options.output === 'summary') {
+            printDebug(`Stack status: ${finalStatus}`, options);
+          }
+        }
+        
+        if (!operationComplete) {
+          throw new Error('Stack operation timed out');
+        }
+        
+        // Get final stack details
+        const finalResult = await cfn.send(new DescribeStacksCommand({ StackName: stackName }));
+        const finalStack = finalResult.Stacks?.[0];
+        
+        if (!isStructuredOutput && options.output === 'summary') {
+          printSuccess(`Stack ${stackName} ${stackExists && options.force ? 'updated' : 'created'} successfully`);
+          
+          // Print outputs if available
+          if (finalStack?.Outputs && finalStack.Outputs.length > 0) {
+            printInfo('Stack outputs:');
+            for (const output of finalStack.Outputs) {
+              console.log(`  ${output.OutputKey}: ${output.OutputValue}`);
+            }
+          }
+        }
+        
+        return {
+          ...baseResult,
+          resources: [
+            {
+              type: 'cloudformation-stack',
+              id: stackName,
+              arn: finalStack?.StackId || '',
+              status: stackExists && options.force ? 'updated' : 'created',
+              metadata: {
+                stackStatus: finalStack?.StackStatus,
+                outputs: finalStack?.Outputs?.reduce((acc, output) => {
+                  if (output.OutputKey) {
+                    acc[output.OutputKey] = output.OutputValue || '';
+                  }
+                  return acc;
+                }, {} as Record<string, string>)
+              }
+            }
+          ],
+          dependencies: stackName === 'SemiontAppStack' ? ['SemiontInfraStack'] : [],
+          estimatedCost: stackName === 'SemiontInfraStack' ? {
+            hourly: 0.25,
+            monthly: 182.5,
+            currency: 'USD'
+          } : {
+            hourly: 0.10,
+            monthly: 72,
+            currency: 'USD'
+          },
+          resourceId: {
+            aws: {
+              arn: finalStack?.StackId || '',
+              id: stackName,
+              name: stackName
             }
           },
-          {
-            type: 'application-load-balancer',
-            id: `semiont-${options.environment}-${serviceInfo.name}-alb`,
-            arn: `arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/semiont-${options.environment}-${serviceInfo.name}/1234567890123456`,
-            status: options.destroy ? 'destroyed' : 'not-implemented',
+          status: stackExists && options.force ? 'updated' : 'created',
+          metadata: {
+            operation: stackExists && options.force ? 'update' : 'create',
+            stackName,
+            stackStatus: finalStack?.StackStatus,
+            outputs: finalStack?.Outputs
+          },
+        };
+      } catch (error: any) {
+        // Handle specific CloudFormation errors
+        if (error.name === 'ValidationError' && error.message.includes('No updates are to be performed')) {
+          if (!isStructuredOutput && options.output === 'summary') {
+            printInfo('No changes detected in stack template');
+          }
+          
+          // Get current stack status
+          const currentResult = await cfnClient.send(new DescribeStacksCommand({ StackName: stackName }));
+          const currentStack = currentResult.Stacks?.[0];
+          
+          return {
+            ...baseResult,
+            resources: [
+              {
+                type: 'cloudformation-stack',
+                id: stackName,
+                arn: currentStack?.StackId || '',
+                status: 'unchanged',
+                metadata: {
+                  stackStatus: currentStack?.StackStatus,
+                  outputs: currentStack?.Outputs?.reduce((acc, output) => {
+                    if (output.OutputKey) {
+                      acc[output.OutputKey] = output.OutputValue || '';
+                    }
+                    return acc;
+                  }, {} as Record<string, string>)
+                }
+              }
+            ],
+            dependencies: stackName === 'SemiontAppStack' ? ['SemiontInfraStack'] : [],
+            resourceId: {
+              aws: {
+                arn: currentStack?.StackId || '',
+                id: stackName,
+                name: stackName
+              }
+            },
+            status: 'unchanged',
             metadata: {
-              implementation: 'pending'
-            }
-          }
-        ],
-        dependencies: ['vpc', 'security-groups'],
-        resourceId: {
-          aws: {
-            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
-            id: `semiont-${options.environment}-${serviceInfo.name}`,
-            name: `semiont-${options.environment}-${serviceInfo.name}`
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          implementation: 'pending',
-          operation: options.destroy ? 'destroy' : 'provision',
-          serviceName: `semiont-${options.environment}-${serviceInfo.name}`,
-          cluster: `semiont-${options.environment}`
-        },
-      };
-      
-    case 'database':
-      if (!isStructuredOutput && options.output === 'summary') {
-        if (options.destroy) {
-          printInfo(`Destroying RDS instance for ${serviceInfo.name}`);
-          printWarning('⚠️  This will permanently delete all data!');
-        } else {
-          printInfo(`Creating RDS instance for ${serviceInfo.name}`);
+              operation: 'no-op',
+              stackName,
+              stackStatus: currentStack?.StackStatus,
+              message: 'No changes detected'
+            },
+          };
         }
-        printWarning('RDS provisioning not yet fully integrated - use CDK directly');
+        
+        throw error;
       }
-      
-      return {
-        ...baseResult,
-        resources: [
-          {
-            type: 'rds-instance',
-            id: `semiont-${options.environment}-db`,
-            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
-            status: options.destroy ? 'destroyed' : 'not-implemented',
-            metadata: {
-              engine: 'postgres',
-              implementation: 'pending'
-            }
-          }
-        ],
-        dependencies: ['vpc', 'subnet-group', 'security-groups'],
-        estimatedCost: {
-          hourly: 0.25,
-          monthly: 182.5,
-          currency: 'USD'
-        },
-        resourceId: {
-          aws: {
-            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
-            id: `semiont-${options.environment}-db`,
-            name: `semiont-${options.environment}-database`
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          implementation: 'pending',
-          operation: options.destroy ? 'destroy' : 'provision',
-          instanceIdentifier: `semiont-${options.environment}-db`,
-          dataLoss: options.destroy
-        },
-      };
-      
-    case 'filesystem':
-      if (!isStructuredOutput && options.output === 'summary') {
-        if (options.destroy) {
-          printInfo(`Destroying EFS mount points for ${serviceInfo.name}`);
-        } else {
-          printInfo(`Creating EFS mount points for ${serviceInfo.name}`);
-        }
-        printWarning('EFS provisioning not yet fully integrated - use CDK directly');
-      }
-      
-      return {
-        ...baseResult,
-        resources: [
-          {
-            type: 'efs-file-system',
-            id: `fs-semiont${options.environment}`,
-            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
-            status: options.destroy ? 'destroyed' : 'not-implemented',
-            metadata: {
-              implementation: 'pending'
-            }
-          }
-        ],
-        dependencies: ['vpc', 'security-groups'],
-        resourceId: {
-          aws: {
-            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
-            id: `fs-semiont${options.environment}`,
-            name: `semiont-${options.environment}-efs`
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          implementation: 'pending',
-          operation: options.destroy ? 'destroy' : 'provision',
-          fileSystemId: `fs-semiont${options.environment}`
-        },
-      };
-      
-    default:
-      throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
+    }
+  } catch (error: any) {
+    if (!isStructuredOutput && options.output === 'summary') {
+      printError(`CDK operation failed: ${error.message}`);
+    }
+    throw error;
   }
 }
 
@@ -977,13 +1293,87 @@ export async function provision(
   }
   
   try {
+    // For AWS deployments, handle CDK stacks directly
+    const awsServices = serviceDeployments.filter(s => s.deploymentType === 'aws');
+    if (awsServices.length > 0) {
+      // Determine which stacks to deploy based on --stack option
+      const stacksToProvision: string[] = [];
+      
+      if (options.stack === 'infra' || options.stack === 'all') {
+        stacksToProvision.push('infra');
+      }
+      if (options.stack === 'app' || options.stack === 'all') {
+        stacksToProvision.push('app');
+      }
+      
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo(`Processing CDK stack(s): ${stacksToProvision.join(', ')}`);
+      }
+      
+      const serviceResults: ProvisionResult[] = [];
+      
+      // Process each stack
+      for (const stackType of stacksToProvision) {
+        // Create a synthetic service info for the stack
+        const stackServiceInfo: ServiceDeploymentInfo = {
+          name: stackType === 'infra' ? 'infrastructure' : 'application',
+          deploymentType: 'aws',
+          target: 'aws',
+          config: {},
+          environment: options.environment!
+        };
+        
+        try {
+          const result = await provisionAWSService(stackServiceInfo, { ...options, stack: stackType as any }, startTime, isStructuredOutput);
+          serviceResults.push(result);
+        } catch (error) {
+          const baseResult = createBaseResult('provision', stackServiceInfo.name, stackServiceInfo.deploymentType, options.environment!, startTime);
+          const errorResult = createErrorResult(baseResult, error as Error);
+          
+          const provisionErrorResult: ProvisionResult = {
+            ...errorResult,
+            resources: [],
+            dependencies: [],
+            resourceId: { [stackServiceInfo.deploymentType]: {} } as ResourceIdentifier,
+            status: 'failed',
+            metadata: { error: (error as Error).message },
+          };
+          
+          serviceResults.push(provisionErrorResult);
+          
+          if (!isStructuredOutput && options.output === 'summary') {
+            printError(`Failed to provision ${stackType} stack: ${error}`);
+          }
+        }
+      }
+      
+      // Create aggregated results
+      return {
+        command: 'provision',
+        environment: options.environment!,
+        timestamp: new Date(),
+        duration: Date.now() - startTime,
+        services: serviceResults,
+        summary: {
+          total: serviceResults.length,
+          succeeded: serviceResults.filter(r => r.success).length,
+          failed: serviceResults.filter(r => !r.success).length,
+          warnings: serviceResults.filter(r => r.status.includes('not-implemented') || r.status === 'unchanged' || r.status === 'exists').length,
+        },
+        executionContext: {
+          user: process.env.USER || 'unknown',
+          workingDirectory: process.cwd(),
+          dryRun: options.dryRun,
+        }
+      };
+    }
     
+    // Handle non-AWS deployments
     if (options.verbose && !isStructuredOutput && options.output === 'summary') {
       printDebug(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Group services by deployment type for efficient provisioning
-    const awsServices = serviceDeployments.filter(s => s.deploymentType === 'aws');
     const containerServices = serviceDeployments.filter(s => s.deploymentType === 'container');
     const processServices = serviceDeployments.filter(s => s.deploymentType === 'process');
     const externalServices = serviceDeployments.filter(s => s.deploymentType === 'external');
@@ -1019,37 +1409,8 @@ export async function provision(
       }
     }
     
-    // 2. AWS infrastructure (if any)
-    if (awsServices.length > 0 && options.stack !== 'app') {
-      if (!isStructuredOutput && options.output === 'summary') {
-        printInfo(`Provisioning AWS infrastructure for ${awsServices.length} service(s)`);
-      }
-      for (const service of awsServices) {
-        try {
-          const result = await provisionService(service, options, isStructuredOutput);
-          serviceResults.push(result);
-        } catch (error) {
-          const baseResult = createBaseResult('provision', service.name, service.deploymentType, options.environment!, startTime);
-          const errorResult = createErrorResult(baseResult, error as Error);
-          
-          const provisionErrorResult: ProvisionResult = {
-            ...errorResult,
-            resources: [],
-            dependencies: [],
-            resourceId: { [service.deploymentType]: {} } as ResourceIdentifier,
-            status: 'failed',
-            metadata: { error: (error as Error).message },
-          };
-          
-          serviceResults.push(provisionErrorResult);
-          
-          if (!isStructuredOutput && options.output === 'summary') {
-            printError(`Failed to provision AWS ${service.name}: ${error}`);
-          }
-          // allSucceeded = false;
-        }
-      }
-    }
+    // Skip old AWS infrastructure handling since we handle it above
+    /* Old AWS handling removed - now handled via CDK stacks directly */
     
     // 3. Container infrastructure
     for (const service of containerServices) {
