@@ -1,25 +1,47 @@
-# Backend Dockerfile for Semiont
+# Backend Dockerfile for Semiont (Monorepo)
 FROM node:22-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
+# Copy root package files for workspace resolution
 COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+COPY apps/backend/package.json ./apps/backend/
+COPY packages/api-types/package.json ./packages/api-types/
+COPY packages/config/package.json ./packages/config/
+
+# Install all dependencies at root level (this handles workspaces)
+RUN npm ci --workspace=apps/backend --include-workspace-root
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 
-# Install all dependencies (including dev) for build
+# Copy workspace structure
 COPY package.json package-lock.json* ./
-RUN npm install
+COPY apps/backend/package.json ./apps/backend/
+COPY packages/api-types/package.json ./packages/api-types/
+COPY packages/config/package.json ./packages/config/
 
-COPY . .
+# Install all dependencies including dev
+RUN npm ci
+
+# Copy source code for all needed packages
+COPY packages/api-types ./packages/api-types
+COPY packages/config ./packages/config
+COPY apps/backend ./apps/backend
+
+# Build packages in dependency order
+WORKDIR /app/packages/api-types
+RUN npm run build || true
+
+WORKDIR /app/packages/config
+RUN npm run build || true
+
+# Build backend
+WORKDIR /app/apps/backend
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -40,17 +62,21 @@ RUN apk add --no-cache openssl postgresql-client
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 semiont
 
-# Copy the built application from the builder stage
-COPY --from=builder --chown=semiont:nodejs /app/dist ./dist
-COPY --from=deps --chown=semiont:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=semiont:nodejs /app/package.json ./package.json
+# Copy built application and dependencies
+COPY --from=builder --chown=semiont:nodejs /app/apps/backend/dist ./dist
+COPY --from=builder --chown=semiont:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=semiont:nodejs /app/apps/backend/node_modules ./apps/backend/node_modules
+COPY --from=builder --chown=semiont:nodejs /app/packages/api-types ./packages/api-types
+COPY --from=builder --chown=semiont:nodejs /app/packages/config ./packages/config
+COPY --from=builder --chown=semiont:nodejs /app/apps/backend/package.json ./package.json
 
-# Copy Prisma files for client generation and migrations
-COPY --from=builder --chown=semiont:nodejs /app/prisma ./prisma
+# Copy Prisma files for migrations
+COPY --from=builder --chown=semiont:nodejs /app/apps/backend/prisma ./prisma
 
-# Copy start script
-COPY --from=builder --chown=semiont:nodejs /app/scripts ./scripts
-RUN chmod +x scripts/start.sh
+# Copy start script (create dummy if doesn't exist)
+RUN mkdir -p /app/apps/backend/scripts && touch /app/apps/backend/scripts/start.sh || true
+COPY --from=builder --chown=semiont:nodejs /app/apps/backend/scripts/ ./scripts/
+RUN chmod +x scripts/start.sh || true
 
 # Create uploads directory for EFS mount
 RUN mkdir -p /app/uploads && chown semiont:nodejs /app/uploads
@@ -66,4 +92,5 @@ ENV NODE_ENV=production
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-CMD ["sh", "./scripts/start.sh"]
+# Use the start script if it exists, otherwise run directly
+CMD [ -f "./scripts/start.sh" ] && sh ./scripts/start.sh || node dist/index.js

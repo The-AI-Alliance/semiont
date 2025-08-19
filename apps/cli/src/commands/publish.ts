@@ -23,8 +23,9 @@ import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+const DEFAULT_PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -38,6 +39,7 @@ const PublishOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
+  semiontRepo: z.string().optional(),
 });
 
 type PublishOptions = z.infer<typeof PublishOptionsSchema> & BaseCommandOptions;
@@ -120,7 +122,8 @@ async function buildContainerImage(
   serviceInfo: ServiceDeploymentInfo,
   tag: string,
   options: PublishOptions,
-  isStructuredOutput: boolean = false
+  isStructuredOutput: boolean = false,
+  envConfig?: EnvironmentConfig
 ): Promise<{ imageName: string | null; buildDuration: number; imageSize?: number }> {
   const startTime = Date.now();
   
@@ -139,18 +142,43 @@ async function buildContainerImage(
   }
 
   const imageName = serviceInfo.config.image || `semiont-${serviceInfo.name}`;
-  const dockerfile = `apps/${serviceInfo.name}/Dockerfile`;
+  
+  // Use semiontRepo if provided, otherwise use default
+  const projectRoot = options.semiontRepo || DEFAULT_PROJECT_ROOT;
+  
+  // Construct the full dockerfile path
+  const dockerfile = path.join(projectRoot, 'apps', serviceInfo.name, 'Dockerfile');
   
   printDebug(`Building image: ${imageName}:${tag}`, options);
+  
+  // Prepare build args based on service type
+  let buildArgs: Record<string, string> = {};
+  
+  // For frontend, try to get API URL from AWS infrastructure
+  if (serviceInfo.name === 'frontend' && envConfig) {
+    const apiUrl = await getApiUrlFromStack(envConfig);
+    if (apiUrl) {
+      buildArgs.NEXT_PUBLIC_API_URL = apiUrl;
+      printInfo(`Using discovered API URL for frontend: ${apiUrl}`);
+    } else {
+      // Fall back to default if not found
+      buildArgs.NEXT_PUBLIC_API_URL = 'http://localhost:4000';
+      printInfo('Could not discover API URL from AWS, using default for frontend');
+    }
+    
+    // Add other frontend build args
+    buildArgs.NEXT_PUBLIC_APP_NAME = 'Semiont';
+    buildArgs.NEXT_PUBLIC_APP_VERSION = '1.0.0';
+  }
   
   const buildSuccess = await buildImage(
     imageName,
     tag,
     dockerfile,
-    PROJECT_ROOT,
+    projectRoot,
     {
       verbose: options.verbose ?? false,
-      buildArgs: {} // Could add build args from config if needed
+      buildArgs
     }
   );
   
@@ -169,6 +197,48 @@ async function buildContainerImage(
   }
   
   return { imageName: fullImageName, buildDuration };
+}
+
+// =====================================================================
+// AWS INFRASTRUCTURE FUNCTIONS
+// =====================================================================
+
+async function getApiUrlFromStack(config: EnvironmentConfig): Promise<string | undefined> {
+  if (!hasAWSConfig(config)) {
+    return undefined;
+  }
+  
+  try {
+    const cfnClient = new CloudFormationClient({ region: config.aws.region });
+    const stackName = config.aws.stacks?.app || 'SemiontAppStack';
+    
+    const result = await cfnClient.send(new DescribeStacksCommand({
+      StackName: stackName
+    }));
+    
+    const stack = result.Stacks?.[0];
+    if (!stack?.Outputs) {
+      return undefined;
+    }
+    
+    // Look for ALB URL in outputs
+    const albOutput = stack.Outputs.find(
+      output => output.OutputKey?.includes('ALB') || 
+                output.OutputKey?.includes('LoadBalancer') ||
+                output.OutputKey?.includes('ApiUrl')
+    );
+    
+    if (albOutput?.OutputValue) {
+      // Ensure it has the protocol
+      const url = albOutput.OutputValue;
+      return url.startsWith('http') ? url : `https://${url}`;
+    }
+    
+    return undefined;
+  } catch (error) {
+    printDebug(`Failed to get API URL from stack: ${error}`, { verbose: true } as any);
+    return undefined;
+  }
 }
 
 // =====================================================================
@@ -237,14 +307,47 @@ async function pushImageToECR(
       return null;
     }
     
-    // Docker login to ECR
+    // Docker login to ECR using AWS CLI
     printInfo(`Logging in to ECR registry...`);
-    const loginSuccess = await runCommand(
-      ['docker', 'login', '--username', 'AWS', '--password-stdin'],
-      PROJECT_ROOT,
-      'ECR login',
-      false
-    );
+    
+    // Decode the auth token (it's base64 encoded username:password)
+    const decodedAuth = Buffer.from(authToken, 'base64').toString('utf-8');
+    const password = decodedAuth.split(':')[1];
+    
+    if (!password) {
+      printError('Failed to decode ECR authorization token');
+      return null;
+    }
+    
+    // Use the registryUrl without the https:// prefix for docker login
+    const registryHost = registryUrl.replace('https://', '').replace('http://', '');
+    
+    // Use spawn to properly handle stdin
+    const { spawn } = await import('child_process');
+    const loginProcess = spawn('docker', [
+      'login',
+      '--username', 'AWS',
+      '--password-stdin',
+      registryHost
+    ], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    // Write password to stdin
+    loginProcess.stdin.write(password);
+    loginProcess.stdin.end();
+    
+    // Wait for process to complete
+    const loginSuccess = await new Promise<boolean>((resolve) => {
+      loginProcess.on('exit', (code) => {
+        resolve(code === 0);
+      });
+      
+      loginProcess.on('error', (err) => {
+        printError(`Docker login error: ${err.message}`);
+        resolve(false);
+      });
+    });
     
     if (!loginSuccess) {
       printError('Failed to login to ECR');
@@ -368,7 +471,7 @@ async function publishService(
   
   try {
     // Build the container image
-    const buildResult = await buildContainerImage(serviceInfo, options.tag, options, isStructuredOutput);
+    const buildResult = await buildContainerImage(serviceInfo, options.tag, options, isStructuredOutput, envConfig);
     if (!buildResult.imageName) {
       throw new Error(`Failed to build container image for ${serviceInfo.name}`);
     }
@@ -562,6 +665,7 @@ export const publishCommand = new CommandBuilder<PublishOptions>()
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
       '--service': { type: 'string', description: 'Service name or "all" for all services' },
+      '--semiont-repo': { type: 'string', description: 'Path to Semiont repository for building images' },
     },
     aliases: {
       '-e': '--environment',

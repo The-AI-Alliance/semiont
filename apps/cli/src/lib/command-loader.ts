@@ -251,6 +251,32 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('USAGE:');
   lines.push('  semiont <command> [options]');
   lines.push('');
+  
+  lines.push('COMMON PARAMETERS:');
+  lines.push('  -e, --environment <name>   Target environment (required for most commands)');
+  lines.push('  -s, --service <name>        Target service or "all" for all services');
+  lines.push('  -v, --verbose               Enable verbose output');
+  lines.push('  -o, --output <format>       Output format: summary, table, json, yaml');
+  lines.push('  --dry-run                   Simulate actions without executing');
+  lines.push('  --semiont-repo <path>       Path to Semiont repository (for build commands)');
+  lines.push('  --help                      Show help for a command');
+  lines.push('');
+  
+  lines.push('ENVIRONMENT VARIABLES:');
+  lines.push('  SEMIONT_ENV                 Default environment (overrides --environment flag)');
+  lines.push('  SEMIONT_ROOT                Project root directory (parent of config/)');
+  lines.push('  AWS_PROFILE                 AWS profile to use for AWS operations');
+  lines.push('  AWS_REGION                  AWS region (overrides config file)');
+  lines.push('');
+  
+  lines.push('PROJECT RESOLUTION:');
+  lines.push('  Semiont looks for configuration in the following order:');
+  lines.push('  1. SEMIONT_ROOT/config/environments/<env>.json (if set)');
+  lines.push('  2. Current directory: ./config/environments/<env>.json');
+  lines.push('  3. Parent directories (walks up looking for semiont.json)');
+  lines.push('  4. For build commands: use --semiont-repo to specify the repository path');
+  lines.push('');
+  
   lines.push('COMMANDS:');
   
   // Group commands by category
@@ -275,8 +301,28 @@ export async function generateGlobalHelp(): Promise<string> {
     lines.push('');
   }
   
+  lines.push('EXAMPLES:');
+  lines.push('  # Initialize a new project');
+  lines.push('  semiont init');
+  lines.push('');
+  lines.push('  # Provision infrastructure for production');
+  lines.push('  semiont provision -e production');
+  lines.push('');
+  lines.push('  # Build and publish frontend with custom repo path');
+  lines.push('  semiont publish -e production --service frontend --semiont-repo ~/repos/semiont');
+  lines.push('');
+  lines.push('  # Watch services using default environment from SEMIONT_ENV');
+  lines.push('  export SEMIONT_ENV=staging');
+  lines.push('  semiont watch');
+  lines.push('');
+  lines.push('  # Check health with JSON output');
+  lines.push('  semiont check -e production -o json');
+  lines.push('');
+  
   lines.push('For command-specific help:');
   lines.push('  semiont <command> --help');
+  lines.push('');
+  lines.push('Documentation: https://github.com/The-AI-Alliance/semiont');
   
   return lines.join('\n');
 }

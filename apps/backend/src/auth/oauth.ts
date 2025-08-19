@@ -91,7 +91,7 @@ export class OAuthService {
     const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
       userId: user.id,
       email: user.email,
-      name: user.name || undefined,
+      ...(user.name && { name: user.name }),
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin,
@@ -104,6 +104,10 @@ export class OAuthService {
 
   static async getUserFromToken(token: string): Promise<User> {
     const payload = JWTService.verifyToken(token);
+    
+    if (!payload.userId) {
+      throw new Error('Invalid token: missing userId');
+    }
     
     const prisma = DatabaseConnection.getClient();
     const user = await prisma.user.findUnique({
