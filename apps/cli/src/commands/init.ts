@@ -169,8 +169,8 @@ function getStarterEnvironmentTemplate(envName: string) {
       aws: {
         accountId: '123456789012',
         stacks: {
-          infra: 'semiont-staging-infra',
-          app: 'semiont-staging-app'
+          infra: 'SemiontInfraStack',
+          app: 'SemiontAppStack'
         },
         database: {
           instanceClass: 'db.t3.small',
@@ -184,6 +184,18 @@ function getStarterEnvironmentTemplate(envName: string) {
         }
       },
       services: {
+        frontend: {
+          deployment: {
+            type: 'aws'
+          },
+          port: 3000
+        },
+        backend: {
+          deployment: {
+            type: 'aws'
+          },
+          port: 3001
+        },
         database: {
           name: 'semiont_staging'
         },
@@ -206,8 +218,8 @@ function getStarterEnvironmentTemplate(envName: string) {
       aws: {
         accountId: '987654321098',
         stacks: {
-          infra: 'semiont-prod-infra',
-          app: 'semiont-prod-app'
+          infra: 'SemiontInfraStack',
+          app: 'SemiontAppStack'
         },
         database: {
           instanceClass: 'db.t3.medium',
@@ -225,6 +237,18 @@ function getStarterEnvironmentTemplate(envName: string) {
         }
       },
       services: {
+        frontend: {
+          deployment: {
+            type: 'aws'
+          },
+          port: 3000
+        },
+        backend: {
+          deployment: {
+            type: 'aws'
+          },
+          port: 3001
+        },
         database: {
           name: 'semiont_production'
         },
