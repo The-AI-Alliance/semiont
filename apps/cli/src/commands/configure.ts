@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
+import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import * as readline from 'readline';
 import { colors } from '../lib/cli-colors.js';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
@@ -110,11 +111,9 @@ async function getSecretFullName(environment: string, secretPath: string): Promi
   return `${stackName}-${secretPath.replace('/', '-')}-secret`;
 }
 
-async function getCurrentSecret(environment: string, secretName: string): Promise<any> {
-  const envConfig = loadEnvironmentConfig(environment);
-  
-  if (!envConfig.aws) {
-    throw new Error(`Environment ${environment} does not have AWS configuration`);
+async function getCurrentSecret(envConfig: EnvironmentConfig, secretName: string): Promise<any> {
+  if (!hasAWSConfig(envConfig)) {
+    throw new Error(`Environment configuration does not have AWS settings`);
   }
   
   const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
@@ -138,11 +137,9 @@ async function getCurrentSecret(environment: string, secretName: string): Promis
   }
 }
 
-async function updateSecret(environment: string, secretName: string, secretValue: any): Promise<void> {
-  const envConfig = loadEnvironmentConfig(environment);
-  
-  if (!envConfig.aws) {
-    throw new Error(`Environment ${environment} does not have AWS configuration`);
+async function updateSecret(envConfig: EnvironmentConfig, secretName: string, secretValue: any): Promise<void> {
+  if (!hasAWSConfig(envConfig)) {
+    throw new Error(`Environment configuration does not have AWS settings`);
   }
   
   const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
@@ -166,6 +163,9 @@ async function configure(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+  
+  // Load environment config once for all operations
+  const envConfig = options.action !== 'show' ? loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig : null;
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
@@ -254,7 +254,7 @@ async function configure(
         }
         
         case 'validate': {
-          const config = loadEnvironmentConfig(options.environment!);
+          const config = envConfig!;
           const issues: string[] = [];
           
           // Check required fields

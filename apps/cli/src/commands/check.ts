@@ -22,6 +22,7 @@ import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { LogAggregator } from '../lib/log-aggregator.js';
 import { CloudWatchLogFetcher } from '../lib/log-fetchers/cloudwatch-fetcher.js';
+import { type EnvironmentConfig, getAWSRegion } from '../lib/environment-config.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -54,7 +55,7 @@ function debugLog(_message: string, _options: any): void {
 // DEPLOYMENT-TYPE-AWARE CHECK FUNCTIONS
 // =====================================================================
 
-async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number, envConfig: any): Promise<CheckResult> {
+async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, startTime: number, envConfig: EnvironmentConfig): Promise<CheckResult> {
   const baseResult = createBaseResult('check', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
   
   try {
@@ -169,7 +170,7 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
   }
 }
 
-async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, envConfig: any): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number, resourceId?: string, consoleUrl?: string }> {
+async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, envConfig: EnvironmentConfig): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number, resourceId?: string, consoleUrl?: string }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   let resourceId: string | undefined;
@@ -895,8 +896,8 @@ export async function check(
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   // Load environment config once for all operations
-  const envConfig = loadEnvironmentConfig(options.environment || 'development');
-  const awsRegion = envConfig?.aws?.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION
+  const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
+  const awsRegion = getAWSRegion(envConfig)
   
   try {
     debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
