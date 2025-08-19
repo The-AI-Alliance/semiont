@@ -19,6 +19,7 @@ import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -84,9 +85,12 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
     let resourceId: string | undefined;
     let consoleUrl: string | undefined;
     
+    // Load environment config to get AWS region if available
+    const envConfig = serviceInfo.deploymentType === 'aws' ? loadEnvironmentConfig(options.environment!) : null;
+    
     switch (serviceInfo.deploymentType) {
       case 'aws':
-        ({ checks, healthStatus, uptime, resourceId, consoleUrl } = await checkAWSService(serviceInfo, options));
+        ({ checks, healthStatus, uptime, resourceId, consoleUrl } = await checkAWSService(serviceInfo, options, envConfig));
         break;
       case 'container':
         ({ checks, healthStatus, uptime } = await checkContainerService(serviceInfo, options));
@@ -161,25 +165,52 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
   }
 }
 
-async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number, resourceId?: string, consoleUrl?: string }> {
+async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: CheckOptions, envConfig: any): Promise<{ checks: CheckResult['checks'], healthStatus: CheckResult['healthStatus'], uptime?: number, resourceId?: string, consoleUrl?: string }> {
   const checks: CheckResult['checks'] = [];
   let healthStatus: CheckResult['healthStatus'] = 'healthy';
   let resourceId: string | undefined;
   let consoleUrl: string | undefined;
   
-  // Get AWS region - check multiple sources in order of precedence
-  const awsRegion = process.env.AWS_REGION || 
-                    process.env.AWS_DEFAULT_REGION || 
-                    'us-east-2'; // Your actual region
-  let awsAccountId = '';
+  // Get AWS region - prefer config file, then environment variables, then AWS SDK default
+  let awsRegion = envConfig?.aws?.region;
   
-  try {
-    // Get AWS account ID using SDK
-    const stsClient = new STSClient({ region: awsRegion });
-    const identityResult = await stsClient.send(new GetCallerIdentityCommand({}));
-    awsAccountId = identityResult.Account || '';
-  } catch (error) {
-    debugLog(`Could not get AWS account ID: ${error}`, options);
+  if (!awsRegion) {
+    // Try environment variables
+    awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+    
+    if (!awsRegion) {
+      // Use AWS SDK's default region resolution (checks ~/.aws/config)
+      try {
+        // The STS client will use the default region from AWS config
+        const stsClient = new STSClient({});
+        const response = await stsClient.config.region();
+        awsRegion = typeof response === 'string' ? response : null;
+      } catch {
+        awsRegion = null;
+      }
+    }
+  }
+  
+  if (!awsRegion) {
+    throw new Error(
+      'AWS region not configured. Please specify the region in one of the following ways:\n' +
+      `  1. In your environment config file (${options.environment}.json): "aws": { "region": "us-east-2" }\n` +
+      '  2. Set the AWS_REGION or AWS_DEFAULT_REGION environment variable\n' +
+      '  3. Configure it in ~/.aws/config'
+    );
+  }
+  
+  let awsAccountId = envConfig?.aws?.accountId || '';
+  
+  if (!awsAccountId) {
+    try {
+      // Get AWS account ID using SDK
+      const stsClient = new STSClient({ region: awsRegion });
+      const identityResult = await stsClient.send(new GetCallerIdentityCommand({}));
+      awsAccountId = identityResult.Account || '';
+    } catch (error) {
+      debugLog(`Could not get AWS account ID: ${error}`, options);
+    }
   }
   
   switch (serviceInfo.name) {
