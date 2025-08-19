@@ -204,13 +204,16 @@ describe('Output Formatter', () => {
       expect(formatted).toContain('Service');
       expect(formatted).toContain('Type');
       expect(formatted).toContain('Status');
-      expect(formatted).toContain('Duration');
+      // Note: Duration column was removed in refactoring
+      // expect(formatted).toContain('Duration');
       expect(formatted).toContain('frontend');
       expect(formatted).toContain('container');
-      expect(formatted).toContain('✅ running');
+      expect(formatted).toContain('[OK]');
+      expect(formatted).toContain('running');
       expect(formatted).toContain('backend');
       expect(formatted).toContain('process');
-      expect(formatted).toContain('❌ failed');
+      expect(formatted).toContain('[FAIL]');
+      expect(formatted).toContain('failed');
     });
 
     it('should include endpoints in table when available', () => {
@@ -268,8 +271,8 @@ describe('Output Formatter', () => {
       });
 
       expect(formatted).toContain('📊 start completed in 1500ms');
-      expect(formatted).toContain('✅ frontend (container): running');
-      expect(formatted).toContain('❌ backend (process): failed');
+      expect(formatted).toContain('[OK] frontend (container): running');
+      expect(formatted).toContain('[FAIL] backend (process): failed');
       expect(formatted).toContain('endpoint: http://localhost:3000');
       expect(formatted).toContain('error: Port 3001 already in use');
       expect(formatted).toContain('Summary: 1 succeeded, 1 failed, 2 total');
@@ -287,7 +290,7 @@ describe('Output Formatter', () => {
       expect(formatted).toContain('Environment: test');
       expect(formatted).toContain('Timestamp: 2024-01-15T10:30:00.000Z');
       expect(formatted).toContain('User: testuser');
-      expect(formatted).toContain('resource: abc123456789');
+      expect(formatted).toContain('resource: semiont-frontend-test:abc123456789');
       expect(formatted).toContain('containerName: semiont-frontend-test');
       expect(formatted).toContain('image: semiont-frontend:latest');
     });
@@ -304,8 +307,8 @@ describe('Output Formatter', () => {
       expect(formatted).not.toContain('📊 start completed');
       expect(formatted).not.toContain('endpoint:');
       expect(formatted).not.toContain('Summary:');
-      expect(formatted).toContain('✅ frontend (container): running');
-      expect(formatted).toContain('❌ backend (process): failed');
+      expect(formatted).toContain('[OK] frontend (container): running');
+      expect(formatted).toContain('[FAIL] backend (process): failed');
     });
 
     it('should handle color codes correctly', () => {
@@ -410,7 +413,7 @@ describe('Output Formatter', () => {
         colors: false
       });
 
-      expect(formatted).toContain('resource: pid:12345');
+      expect(formatted).toContain('resource: PID:12345');
     });
 
     it('should format external resource IDs', () => {
@@ -454,7 +457,7 @@ describe('Output Formatter', () => {
       const formatted = formatResultsQuiet(results, 'summary');
       
       expect(formatted).not.toContain('📊 start completed');
-      expect(formatted).toContain('✅ frontend');
+      expect(formatted).toContain('[OK] frontend');
     });
 
     it('should provide verbose formatting function', () => {

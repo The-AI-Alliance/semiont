@@ -299,7 +299,7 @@ async function configure(
           }
           
           const secretName = await getSecretFullName(options.environment!, options.secretPath!);
-          const value = await getCurrentSecret(options.environment!, secretName);
+          const value = await getCurrentSecret(envConfig!, secretName);
           
           const result: ConfigureResult = {
             ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
@@ -378,7 +378,7 @@ async function configure(
               console.log(`${colors.cyan}[DRY RUN] Would update secret: ${options.secretPath}${colors.reset}`);
             }
           } else {
-            await updateSecret(options.environment!, secretName, newValue);
+            await updateSecret(envConfig!, secretName, newValue);
             
             const result: ConfigureResult = {
               ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),

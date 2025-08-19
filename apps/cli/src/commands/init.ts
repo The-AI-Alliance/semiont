@@ -167,6 +167,7 @@ function getStarterEnvironmentTemplate(envName: string) {
         NODE_ENV: 'production'
       },
       aws: {
+        region: 'us-east-1',
         accountId: '123456789012',
         stacks: {
           infra: 'SemiontInfraStack',
@@ -216,6 +217,7 @@ function getStarterEnvironmentTemplate(envName: string) {
         NODE_ENV: 'production'
       },
       aws: {
+        region: 'us-east-1',
         accountId: '987654321098',
         stacks: {
           infra: 'SemiontInfraStack',
