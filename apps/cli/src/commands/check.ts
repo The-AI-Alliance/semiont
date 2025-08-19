@@ -417,7 +417,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
         const cfnClient = new CloudFormationClient({ region: awsRegion });
         const efsClient = new EFSClient({ region: awsRegion });
         
-        // Get EFS filesystem ID from CloudFormation stack
+        // Get EFS filesystem ID from CloudFormation stack - try multiple key variations
         let efsId = '';
         
         try {
@@ -426,9 +426,30 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
           }));
           
           const outputs = stackResult.Stacks?.[0]?.Outputs || [];
-          efsId = outputs.find(o => o.OutputKey === 'EFSFileSystemId')?.OutputValue || '';
+          // Try different case variations of the output key
+          efsId = outputs.find(o => 
+            o.OutputKey === 'EFSFileSystemId' || 
+            o.OutputKey === 'EfsFileSystemId' ||
+            o.OutputKey === 'FileSystemId'
+          )?.OutputValue || '';
         } catch (stackError: any) {
           console.error(`EFS CloudFormation error:`, stackError.message || stackError);
+        }
+        
+        // If not found in CloudFormation outputs, search for EFS filesystems by tags
+        if (!efsId) {
+          try {
+            const efsResult = await efsClient.send(new DescribeFileSystemsCommand({}));
+            const semiontEfs = efsResult.FileSystems?.find(fs => 
+              fs.Name?.toLowerCase().includes('semiont') ||
+              fs.Tags?.some(tag => tag.Value?.toLowerCase().includes('semiont'))
+            );
+            if (semiontEfs) {
+              efsId = semiontEfs.FileSystemId || '';
+            }
+          } catch (searchError: any) {
+            console.error(`EFS search error:`, searchError.message || searchError);
+          }
         }
         
         if (efsId) {
