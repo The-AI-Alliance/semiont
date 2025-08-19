@@ -32,7 +32,7 @@ const CheckOptionsSchema = z.object({
   section: z.enum(['all', 'services', 'health', 'logs']).default('all'),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
-  output: z.enum(['table', 'json', 'yaml', 'summary']).default('table'),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
 });
 
@@ -127,7 +127,10 @@ async function checkServiceImpl(serviceInfo: ServiceDeploymentInfo, options: Che
           ...(serviceInfo.deploymentType === 'aws' && consoleUrl && { consoleUrl }),
         }
       },
-      status: healthStatus === 'healthy' ? 'running' : 'stopped',
+      status: healthStatus === 'healthy' ? 'running' : 
+              healthStatus === 'unhealthy' ? 'stopped' :
+              healthStatus === 'degraded' ? 'degraded' :
+              healthStatus === 'unknown' ? 'unknown' : 'stopped',
       metadata: {
         deploymentType: serviceInfo.deploymentType,
         config: serviceInfo.config,
@@ -322,7 +325,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
         const cfnClient = new CloudFormationClient({ region: awsRegion });
         const rdsClient = new RDSClient({ region: awsRegion });
         
-        // Get RDS instance identifier from CloudFormation stack
+        // Get RDS instance identifier - try CloudFormation first, then search by pattern
         let dbIdentifier = '';
         
         try {
@@ -334,6 +337,21 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
           dbIdentifier = outputs.find(o => o.OutputKey === 'DatabaseIdentifier')?.OutputValue || '';
         } catch (stackError: any) {
           console.error(`RDS CloudFormation error:`, stackError.message || stackError);
+        }
+        
+        // If not found in CloudFormation outputs, search for RDS instances by pattern
+        if (!dbIdentifier) {
+          try {
+            const dbResult = await rdsClient.send(new DescribeDBInstancesCommand({}));
+            const semiontDb = dbResult.DBInstances?.find(db => 
+              db.DBInstanceIdentifier?.toLowerCase().includes('semiont')
+            );
+            if (semiontDb) {
+              dbIdentifier = semiontDb.DBInstanceIdentifier || '';
+            }
+          } catch (searchError: any) {
+            console.error(`RDS search error:`, searchError.message || searchError);
+          }
         }
         
         if (dbIdentifier) {
