@@ -14,8 +14,10 @@ export default function AdminSecurity() {
   // Ensure API client has authentication token
   const { hasValidToken } = useSecureAPI();
   
-  // Get OAuth configuration from API
-  const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery();
+  // Get OAuth configuration from API - only run when authenticated
+  const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery(
+    { enabled: hasValidToken }
+  );
   
   const allowedDomains = oauthConfig?.allowedDomains || [];
   const providers = oauthConfig?.providers || [];

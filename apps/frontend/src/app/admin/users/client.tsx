@@ -108,11 +108,29 @@ export default function AdminUsers() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   
   // Ensure API client has authentication token
-  const { hasValidToken } = useSecureAPI();
+  const { hasValidToken, isAuthenticated } = useSecureAPI();
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Admin Users Component - Auth Status:', { hasValidToken, isAuthenticated });
+  }, [hasValidToken, isAuthenticated]);
   
   const queryClient = useQueryClient();
-  const { data: usersResponse, isLoading: usersLoading } = api.admin.users.list.useQuery();
-  const { data: statsResponse, isLoading: statsLoading } = api.admin.users.stats.useQuery();
+  // Only run queries when we have a valid token
+  const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.list.useQuery(
+    { enabled: hasValidToken }
+  );
+  const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery(
+    { enabled: hasValidToken }
+  );
+  
+  // Debug logging for API responses
+  React.useEffect(() => {
+    if (usersError) console.error('Users API Error:', usersError);
+    if (statsError) console.error('Stats API Error:', statsError);
+    if (usersResponse) console.log('Users Response:', usersResponse);
+    if (statsResponse) console.log('Stats Response:', statsResponse);
+  }, [usersError, statsError, usersResponse, statsResponse]);
   const updateUserMutation = api.admin.users.update.useMutation();
   const deleteUserMutation = api.admin.users.delete.useMutation();
 
