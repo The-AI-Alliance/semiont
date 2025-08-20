@@ -20,11 +20,11 @@ export SEMIONT_ENV=production
 
 # Deploy to AWS
 semiont provision   # One-time: Create infrastructure (~10-15 min)
-semiont deploy      # Deploy application (~5-8 min)
+semiont publish     # Build and push container images (~5-8 min)
 
 # Update after code changes
-semiont test        # Run tests (required)
-semiont deploy      # Build and deploy changes
+semiont test        # Run tests (recommended)
+semiont publish     # Build and push updated images
 ```
 
 ## Understanding Build & Deploy
@@ -38,13 +38,12 @@ semiont deploy      # Build and deploy changes
 - Use `npm run dev` in each app directory
 
 **Production Deployment** - Automatic building:
-- `semiont deploy` handles everything automatically:
-  1. Runs all tests (fails if tests don't pass)
-  2. Builds optimized Docker images
+- `semiont publish` handles container image management:
+  1. Builds optimized Docker/Podman images
+  2. Tags images appropriately  
   3. Pushes to AWS ECR
-  4. Updates ECS services
-  5. Performs health checks
-  6. Rolls back on failure
+  4. ECS automatically pulls new images
+  5. Rolling deployment with health checks
 
 **Manual Building** (rarely needed):
 ```bash
@@ -55,7 +54,7 @@ cd apps/backend && npm run build
 
 ### Build Process Details
 
-The `semiont deploy` command orchestrates the entire build and deployment:
+The `semiont publish` command orchestrates the entire build and deployment:
 
 1. **Test Phase** (~1-3 minutes)
    - Runs unit tests for frontend and backend
@@ -153,7 +152,7 @@ Edit configuration files in `config/environments/`:
 export SEMIONT_ENV=production
 
 # Or specify per command
-semiont deploy --environment production
+semiont publish --environment production
 ```
 
 ## Deployment Workflow
@@ -189,7 +188,7 @@ semiont configure show
 
 #### Step 3: Deploy Application
 ```bash
-semiont deploy
+semiont publish
 ```
 
 This command:
@@ -213,7 +212,7 @@ git commit -m "Your changes"
 semiont test
 
 # Deploy to production
-semiont deploy  # Automatically builds and deploys
+semiont publish  # Automatically builds and deploys
 ```
 
 The deploy process is intelligent:
@@ -226,12 +225,12 @@ The deploy process is intelligent:
 
 ```bash
 # Deploy to different environments
-semiont deploy --environment staging
-semiont deploy --environment production
+semiont publish --environment staging
+semiont publish --environment production
 
 # Or use SEMIONT_ENV
 export SEMIONT_ENV=staging
-semiont deploy
+semiont publish
 ```
 
 ## Monitoring & Maintenance
@@ -285,7 +284,7 @@ semiont restore --backup-id xxx
 
 #### Build Failures
 
-If `semiont deploy` fails during build:
+If `semiont publish` fails during build:
 ```bash
 # Check test results
 semiont test --verbose
@@ -312,7 +311,7 @@ semiont check --verbose
 semiont watch logs --service backend
 
 # Force a fresh deployment
-semiont deploy --force
+semiont publish --force
 ```
 
 #### Health Check Failures
@@ -427,7 +426,7 @@ FROM node:18-alpine AS builder
 
 ```bash
 # Use custom Dockerfile
-semiont deploy --dockerfile Dockerfile.custom
+semiont publish --dockerfile Dockerfile.custom
 ```
 
 ### Blue-Green Deployments
@@ -435,7 +434,7 @@ semiont deploy --dockerfile Dockerfile.custom
 For zero-risk deployments:
 ```bash
 # Deploy to green environment
-semiont deploy --strategy blue-green
+semiont publish --strategy blue-green
 
 # Switch traffic
 semiont switch-traffic --to green
@@ -461,7 +460,7 @@ jobs:
       - uses: actions/setup-node@v2
       - run: npm ci
       - run: npm test
-      - run: semiont deploy --environment production
+      - run: semiont publish --environment production
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

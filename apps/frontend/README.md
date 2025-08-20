@@ -45,7 +45,7 @@ npm start
 npm run perf
 ```
 
-**Note on Building**: For local development, you don't need to build - use `npm run dev` for hot reload. For production deployment, `semiont deploy` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
+**Note on Building**: For local development, you don't need to build - use `npm run dev` for hot reload. For production deployment, `semiont publish` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
 
 ## 💻 Local Development with Semiont CLI
 

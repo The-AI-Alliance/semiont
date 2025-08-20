@@ -121,7 +121,7 @@ Environments can extend other environments using `_extends`:
    ```bash
    export SEMIONT_ENV=production
    semiont provision  # First time only
-   semiont deploy
+   semiont publish
    ```
 
 ## Environment Variables
@@ -134,7 +134,7 @@ Use `SEMIONT_ENV` to avoid repeating `--environment`:
 export SEMIONT_ENV=production
 
 semiont start       # Uses production.json
-semiont deploy      # Uses production.json
+semiont publish      # Uses production.json
 semiont test        # Uses production.json
 ```
 
@@ -228,7 +228,7 @@ No AWS configuration needed:
 
 3. **Deploy**:
    ```bash
-   semiont deploy --environment staging
+   semiont publish --environment staging
    ```
 
 ## Configuration Hierarchy
@@ -305,7 +305,7 @@ All API routes require authentication by default. Only these endpoints are publi
 
 ```bash
 semiont configure validate
-semiont deploy --dry-run
+semiont publish --dry-run
 ```
 
 ### 4. Use Consistent Naming
@@ -343,7 +343,7 @@ semiont configure set oauth/google
 
 ```bash
 # Explicitly specify environment
-semiont deploy --environment production
+semiont publish --environment production
 
 # Or set default
 export SEMIONT_ENV=production

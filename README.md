@@ -214,7 +214,7 @@ export SEMIONT_ENV=production
 semiont provision  # Creates AWS resources (~10-15 minutes)
 
 # Deploy your application  
-semiont deploy     # Builds, tests, and deploys (~5-8 minutes)
+semiont publish    # Builds and pushes container images (~5-8 minutes)
 
 # Configure OAuth secrets (after first deployment)
 semiont configure set oauth/google
@@ -223,7 +223,7 @@ semiont configure set oauth/google
 semiont watch
 ```
 
-**Note**: `semiont deploy` automatically builds Docker images, runs tests, and deploys to AWS. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment guide.
+**Note**: `semiont publish` builds container images and pushes them to AWS ECR. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment guide.
 
 **Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
 - `aws configure` for access keys
@@ -233,7 +233,7 @@ semiont watch
 
 ```bash
 # Deploy code changes (with SEMIONT_ENV=production)
-semiont deploy  # Automatically builds, tests, and deploys
+semiont publish  # Builds and pushes container images to ECR
 
 # Service control commands
 semiont start --service backend   # Start specific service

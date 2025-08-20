@@ -125,7 +125,7 @@ semiont exec --service backend "cat prisma/schema.prisma"
 #### Manual Schema Changes
 
 1. **Update Schema**: Edit `/apps/backend/prisma/schema.prisma`
-2. **Deploy Changes**: Run `semiont deploy`
+2. **Deploy Changes**: Run `semiont publish`
 3. **Automatic Migration**: Backend container will apply changes on startup
 
 #### Prisma Studio (Database Browser)
@@ -175,7 +175,7 @@ model User {
 2. Deploy the changes:
 
 ```bash
-semiont deploy
+semiont publish
 ```
 
 3. Verify migration in logs:
