@@ -59,6 +59,49 @@ export class DashboardDataSource {
             ? await this.stackConfig.getFrontendServiceName()
             : await this.stackConfig.getBackendServiceName();
 
+          // Get service details first
+          const serviceResponse = await this.ecsClient.send(
+            new DescribeServicesCommand({
+              cluster: clusterName,
+              services: [serviceName],
+            })
+          );
+
+          const service = serviceResponse.services?.[0];
+          let revision: number | undefined;
+          let desiredCount: number | undefined;
+          let runningCount: number | undefined;
+          let pendingCount: number | undefined;
+          let deploymentStatus: string | undefined;
+          let taskDefinition: string | undefined;
+
+          if (service) {
+            desiredCount = service.desiredCount;
+            runningCount = service.runningCount;
+            pendingCount = service.pendingCount;
+            
+            // Get the latest deployment
+            const latestDeployment = service.deployments?.[0];
+            if (latestDeployment) {
+              const taskDefArn = latestDeployment.taskDefinition;
+              if (taskDefArn) {
+                // Extract revision number from task definition ARN
+                const revisionMatch = taskDefArn.match(/:([0-9]+)$/);
+                if (revisionMatch) {
+                  revision = parseInt(revisionMatch[1]);
+                }
+                // Extract task definition family name
+                taskDefinition = taskDefArn.split('/').pop()?.split(':')[0];
+              }
+              deploymentStatus = latestDeployment.status;
+            }
+
+            // Check for ongoing deployments
+            if (service.deployments && service.deployments.length > 1) {
+              deploymentStatus = 'Deploying...';
+            }
+          }
+
           const response = await this.ecsClient.send(
             new ListTasksCommand({
               cluster: clusterName,
@@ -97,7 +140,14 @@ export class DashboardDataSource {
             name: serviceType === 'frontend' ? 'Frontend' : 'Backend',
             status,
             details,
-            lastUpdated: new Date()
+            lastUpdated: new Date(),
+            revision,
+            desiredCount,
+            runningCount,
+            pendingCount,
+            taskDefinition,
+            cluster: clusterName,
+            deploymentStatus
           });
 
         } catch (error) {

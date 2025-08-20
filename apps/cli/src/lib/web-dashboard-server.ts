@@ -498,9 +498,26 @@ export class WebDashboardServer {
                 <div key={index} className="service-item">
                   <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
                   <div style={{ flex: 1 }}>
-                    <div className="service-name">{service.name}</div>
+                    <div className="service-name">
+                      {service.name}
+                      {service.revision && (
+                        <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
+                          rev:{service.revision}
+                        </span>
+                      )}
+                      {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                        <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
+                          [{service.runningCount}/{service.desiredCount}]
+                        </span>
+                      )}
+                    </div>
                     {service.details && (
                       <div className="service-details">{service.details}</div>
+                    )}
+                    {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
+                      <div className="service-details" style={{ color: '#ff9800' }}>
+                        Deployment: {service.deploymentStatus}
+                      </div>
                     )}
                   </div>
                   <div className="service-status">{service.status}</div>

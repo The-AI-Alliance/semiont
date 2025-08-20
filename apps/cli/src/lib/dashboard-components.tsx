@@ -13,6 +13,15 @@ export interface ServiceStatus {
   status: 'healthy' | 'unhealthy' | 'warning' | 'unknown';
   details?: string;
   lastUpdated?: Date;
+  // ECS-specific details
+  revision?: number;
+  desiredCount?: number;
+  runningCount?: number;
+  pendingCount?: number;
+  taskDefinition?: string;
+  cluster?: string;
+  deploymentStatus?: string;
+  imageUri?: string;
 }
 
 export interface LogEntry {
@@ -85,12 +94,24 @@ export const ServicePanel: React.FC<{
               <Box>
                 <Text bold>{service.name}</Text>
                 <Text color={colors[service.status]}> {service.status}</Text>
+                {service.revision && (
+                  <Text color="cyan"> rev:{service.revision}</Text>
+                )}
+                {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                  <Text color="gray"> [{service.runningCount}/{service.desiredCount}]</Text>
+                )}
               </Box>
               {showDetails && service.details && (
                 <Text color="gray" dimColor>  {service.details}</Text>
               )}
+              {showDetails && service.deploymentStatus && (
+                <Text color="gray" dimColor>  Deployment: {service.deploymentStatus}</Text>
+              )}
+              {showDetails && service.taskDefinition && (
+                <Text color="gray" dimColor>  Task: {service.taskDefinition}</Text>
+              )}
               {showDetails && service.lastUpdated && (
-                <Text color="gray" dimColor>  {service.lastUpdated.toLocaleTimeString()}</Text>
+                <Text color="gray" dimColor>  Updated: {service.lastUpdated.toLocaleTimeString()}</Text>
               )}
             </Box>
           </Box>
