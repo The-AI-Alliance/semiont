@@ -1,6 +1,6 @@
 {
   "name": "semiont-cli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Semiont CLI - Unified environment management tool",
   "type": "module",
   "bin": {

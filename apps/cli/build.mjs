@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
 import { build } from 'esbuild'
-import { readdir, mkdir } from 'fs/promises'
+import { readdir, mkdir, writeFile, readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
+
+// Read version from package.json
+const packageJson = JSON.parse(await readFile('package.json', 'utf-8'))
+const version = packageJson.version || '0.0.1'
 
 // Ensure dist/commands directory exists
 if (!existsSync('dist')) {

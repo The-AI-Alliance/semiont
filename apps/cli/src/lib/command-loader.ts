@@ -19,6 +19,10 @@ import {
 } from './services.js';
 import { formatResults } from './output-formatter.js';
 import { printError } from './cli-logger.js';
+import { colors } from './cli-colors.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import * as path from 'path';
 
 /**
  * Registry of loaded command definitions
@@ -119,6 +123,36 @@ function isCommandDefinition(obj: any): obj is CommandDefinition<any> {
 }
 
 /**
+ * Get the CLI version from package.json
+ */
+function getVersion(): string {
+  // Simple approach: require the package.json which will be bundled
+  // @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
+  const pkg = require('../../package.json');
+  return pkg.version || '0.0.1';
+}
+
+/**
+ * Print the Semiont preamble for non-quiet, summary output
+ */
+function printPreamble(options: any): void {
+  // Only print preamble for summary output format and when not quiet
+  if (options.output !== 'summary' && options.output !== undefined) {
+    return;
+  }
+  if (options.quiet === true) {
+    return;
+  }
+  
+  // Get version (embedded at build time)
+  const version = getVersion();
+  
+  // Print the preamble with colors
+  console.log(`${colors.bright}🌐 Semiont${colors.reset} ${colors.dim}v${version}${colors.reset} | ${colors.cyan}🌍 The AI Alliance${colors.reset} | ${colors.magenta}✨ Make Meaning${colors.reset}`);
+  console.log(`${colors.dim}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
+}
+
+/**
  * Execute a command with full lifecycle management
  */
 export async function executeCommand(
@@ -138,6 +172,9 @@ export async function executeCommand(
     // Parse and validate arguments
     const parser = createArgParser(command);
     const options = parser(argv);
+    
+    // Print preamble for summary output (before any command output)
+    printPreamble(options);
     
     // Validate environment if required
     if (command.requiresEnvironment) {
