@@ -493,55 +493,97 @@ export class WebDashboardServer {
           
           <div className="dashboard-grid">
             <div className="dashboard-panel">
-              <div className="panel-title">Services Status</div>
-              {data.services.map((service, index) => (
-                <div key={index} className="service-item">
-                  <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
-                  <div style={{ flex: 1 }}>
-                    <div className="service-name">
-                      {service.name}
-                      {service.revision && (
-                        <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
-                          rev:{service.revision}
-                        </span>
-                      )}
-                      {service.runningCount !== undefined && service.desiredCount !== undefined && (
-                        <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
-                          [{service.runningCount}/{service.desiredCount}]
-                        </span>
-                      )}
-                    </div>
-                    {service.details && (
-                      <div className="service-details">{service.details}</div>
+              <div className="panel-title">App Services</div>
+            {data.services.filter(s => 
+              ['Frontend', 'Backend', 'Load Balancer', 'WAF', 'DNS (Route 53)'].includes(s.name)
+            ).map((service, index) => (
+              <div key={index} className="service-item" style={{ marginBottom: '12px' }}>
+                <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
+                <div style={{ flex: 1 }}>
+                  <div className="service-name">
+                    {service.name}
+                    {service.revision && (
+                      <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
+                        rev:{service.revision}
+                      </span>
                     )}
-                    {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
-                      <div className="service-details" style={{ color: '#ff9800' }}>
-                        Deployment: {service.deploymentStatus}
-                      </div>
-                    )}
-                  </div>
-                  <div className="service-status">{service.status}</div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="dashboard-panel">
-              <div className="panel-title">Key Metrics</div>
-              {data.metrics.map((metric, index) => (
-                <div key={index} className="metric-item">
-                  <div className="metric-name">{metric.name}</div>
-                  <div>
-                    <span className="metric-value">
-                      {metric.value}{metric.unit || ''}
-                    </span>
-                    {metric.trend && (
-                      <span className={\`metric-trend \${getTrendClass(metric.trend)}\`}>
-                        {getTrendIcon(metric.trend)}
+                    {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                      <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
+                        [{service.runningCount}/{service.desiredCount}]
                       </span>
                     )}
                   </div>
+                  {service.details && (
+                    <div className="service-details">{service.details}</div>
+                  )}
+                  {(service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
+                    <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
+                      {service.cpuUtilization !== undefined && (
+                        <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
+                      )}
+                      {service.cpuUtilization !== undefined && service.memoryUtilization !== undefined && (
+                        <span style={{ margin: '0 8px' }}>•</span>
+                      )}
+                      {service.memoryUtilization !== undefined && (
+                        <span>Memory: {service.memoryUtilization.toFixed(1)}%</span>
+                      )}
+                    </div>
+                  )}
+                  {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
+                    <div className="service-details" style={{ color: '#ff9800' }}>
+                      Deployment: {service.deploymentStatus}
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+            ))}
+            </div>
+            
+            <div className="dashboard-panel">
+              <div className="panel-title">Infrastructure</div>
+            {data.services.filter(s => 
+              ['Database', 'Filesystem'].includes(s.name)
+            ).map((service, index) => (
+              <div key={index} className="service-item" style={{ marginBottom: '12px' }}>
+                <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
+                <div style={{ flex: 1 }}>
+                  <div className="service-name">
+                    {service.name}
+                    {service.revision && (
+                      <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
+                        rev:{service.revision}
+                      </span>
+                    )}
+                    {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                      <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
+                        [{service.runningCount}/{service.desiredCount}]
+                      </span>
+                    )}
+                  </div>
+                  {service.details && (
+                    <div className="service-details">{service.details}</div>
+                  )}
+                  {(service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
+                    <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
+                      {service.cpuUtilization !== undefined && (
+                        <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
+                      )}
+                      {service.cpuUtilization !== undefined && service.memoryUtilization !== undefined && (
+                        <span style={{ margin: '0 8px' }}>•</span>
+                      )}
+                      {service.memoryUtilization !== undefined && (
+                        <span>Memory: {service.memoryUtilization.toFixed(1)}%</span>
+                      )}
+                    </div>
+                  )}
+                  {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
+                    <div className="service-details" style={{ color: '#ff9800' }}>
+                      Deployment: {service.deploymentStatus}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
             </div>
           </div>
           

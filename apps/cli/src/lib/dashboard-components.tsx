@@ -22,6 +22,11 @@ export interface ServiceStatus {
   cluster?: string;
   deploymentStatus?: string;
   imageUri?: string;
+  // Service metrics
+  cpuUtilization?: number;
+  memoryUtilization?: number;
+  requestCount?: number;
+  errorRate?: number;
 }
 
 export interface LogEntry {
