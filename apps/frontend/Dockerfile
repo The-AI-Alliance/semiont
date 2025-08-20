@@ -66,8 +66,8 @@ RUN adduser --system --uid 1001 semiont
 
 # Copy Next.js build output
 COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/.next/static ./.next/static
-COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/public ./public
+COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/public ./apps/frontend/public
 
 USER semiont
 
