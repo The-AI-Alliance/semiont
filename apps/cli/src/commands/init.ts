@@ -289,6 +289,12 @@ async function init(
   const projectDir = options.directory || process.cwd();
   const projectName = options.name || path.basename(projectDir);
   
+  // Handle comma-separated environments string
+  let environments = options.environments;
+  if (environments.length === 1 && environments[0].includes(',')) {
+    environments = environments[0].split(',').map(env => env.trim());
+  }
+  
   const results: CommandResults & { metadata?: any; error?: string } = {
     command: 'init',
     environment: 'none',
@@ -320,7 +326,7 @@ async function init(
         console.log(`${colors.cyan}[DRY RUN] Would create:${colors.reset}`);
         console.log(`  - semiont.json`);
         console.log(`  - config/environments/`);
-        options.environments?.forEach(env => {
+        environments.forEach(env => {
           console.log(`    - ${env}.json`);
         });
       }
@@ -329,7 +335,7 @@ async function init(
       results.metadata = {
         projectName,
         directory: projectDir,
-        environments: options.environments,
+        environments: environments,
         dryRun: true,
       };
     } else {
@@ -345,7 +351,7 @@ async function init(
       const envDir = path.join(projectDir, 'config', 'environments');
       fs.mkdirSync(envDir, { recursive: true });
       
-      for (const envName of options.environments || []) {
+      for (const envName of environments) {
         const envConfig = getStarterEnvironmentTemplate(envName);
         const envPath = path.join(envDir, `${envName}.json`);
         fs.writeFileSync(envPath, JSON.stringify(envConfig, null, 2));
@@ -367,8 +373,8 @@ async function init(
       results.metadata = {
         projectName,
         directory: projectDir,
-        environments: options.environments,
-        filesCreated: 1 + (options.environments?.length || 0),
+        environments: environments,
+        filesCreated: 1 + environments.length,
       };
     }
   } catch (error) {

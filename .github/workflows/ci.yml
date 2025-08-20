@@ -134,7 +134,7 @@ jobs:
       - name: Run CLI unit tests
         run: |
           echo "Running CLI package unit tests..."
-          cd apps/cli && npm test
+          cd apps/cli && npm run test:unit
         env:
           CI: true
       
@@ -195,7 +195,7 @@ jobs:
           # Run tests for each package
           cd apps/frontend && npm test && cd ../..
           cd apps/backend && npm test && cd ../..
-          cd apps/cli && npm test && cd ../..
+          cd apps/cli && npm run test:unit && cd ../..
           
           echo "All tests completed successfully"
         env:

@@ -6,7 +6,7 @@
     "rootDir": ".",
     
     // Module configuration for cloud/CDK package
-    "module": "commonjs",                       // CommonJS for Node.js compatibility
+    "module": "ES2022",                         // ES modules for compatibility with CLI
     "moduleResolution": "node",                 // Node.js module resolution
     
     // CDK/Cloud specific settings

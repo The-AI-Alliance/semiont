@@ -58,6 +58,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         '@aws-sdk/*',
         // Local workspace packages
         '@semiont/api-types',
+        '@semiont/cloud',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',
@@ -114,6 +115,7 @@ await Promise.all(commandFiles.map(async (name) => {
         '@aws-sdk/*',
         // Local workspace packages
         '@semiont/api-types',
+        '@semiont/cloud',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',
