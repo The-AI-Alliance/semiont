@@ -17,10 +17,10 @@ const navigation = [
     description: 'User management and permissions'
   },
   {
-    name: 'Security',
+    name: 'OAuth Settings',
     href: '/admin/security',
     icon: ShieldCheckIcon,
-    description: 'Security settings and OAuth management'
+    description: 'View OAuth configuration'
   },
 ];
 
