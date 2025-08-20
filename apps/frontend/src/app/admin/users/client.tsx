@@ -301,43 +301,6 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* Manual Database Commands - Power Users */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-        <details className="group">
-          <summary className="cursor-pointer flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
-            <span>💻 Database Commands (Power Users)</span>
-            <svg className="ml-2 h-4 w-4 transform transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </summary>
-          <div className="mt-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">Access backend container:</div>
-              <code>./scripts/semiont exec backend</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">Database shell:</div>
-              <code>./scripts/semiont exec backend 'psql $DATABASE_URL'</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">View all users:</div>
-              <code>./scripts/semiont exec backend 'psql $DATABASE_URL -c "SELECT * FROM users;"'</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">View recent users (last 30 days):</div>
-              <code>./scripts/semiont exec backend 'psql $DATABASE_URL -c "SELECT id, email, name, created_at FROM users WHERE created_at &gt; NOW() - INTERVAL '"'"'30 days'"'"' ORDER BY created_at DESC;"'</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">Backend logs:</div>
-              <code>./scripts/semiont logs backend follow</code>
-            </div>
-            <div className="text-yellow-600 dark:text-yellow-400 text-xs">
-              ⚠️ Warning: Direct database access requires DevOps permissions and should be used with caution in production environments.
-            </div>
-          </div>
-        </details>
-      </div>
-
       {/* Users Table */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
