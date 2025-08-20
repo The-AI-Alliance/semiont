@@ -59,7 +59,7 @@ export class OAuthService {
     let isNewUser = false;
 
     if (existingUser) {
-      // Update existing user
+      // Update existing user (preserve admin status)
       user = await prisma.user.update({
         where: { id: existingUser.id },
         data: {
@@ -68,11 +68,12 @@ export class OAuthService {
           provider: 'google',
           providerId: googleUser.id,
           ...(domain ? { domain } : {}),
+          // Don't change isAdmin - it's managed via CLI command
           lastLogin: new Date(),
         }
       });
     } else {
-      // Create new user
+      // Create new user (default to non-admin, use CLI to grant admin)
       user = await prisma.user.create({
         data: {
           email: googleUser.email,
@@ -81,6 +82,7 @@ export class OAuthService {
           provider: 'google',
           providerId: googleUser.id,
           domain: domain || '',
+          isAdmin: false, // Default to non-admin, use CLI command to grant admin
           lastLogin: new Date(),
         }
       });

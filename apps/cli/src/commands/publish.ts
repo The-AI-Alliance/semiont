@@ -6,6 +6,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { z } from 'zod';
+import simpleGit from 'simple-git';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
@@ -40,6 +41,7 @@ const PublishOptionsSchema = z.object({
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
   semiontRepo: z.string().optional(),
+  noCache: z.boolean().default(false),
 });
 
 type PublishOptions = z.infer<typeof PublishOptionsSchema> & BaseCommandOptions;
@@ -86,6 +88,45 @@ async function runCommand(
       resolve(false);
     });
   });
+}
+
+// =====================================================================
+// GIT TAG GENERATION
+// =====================================================================
+
+async function getImageTag(environment: string | undefined, userProvidedTag: string | undefined): Promise<string> {
+  // If user explicitly provided a tag, use it
+  if (userProvidedTag && userProvidedTag !== 'latest') {
+    return userProvidedTag;
+  }
+
+  // Use 'latest' for local/development environments
+  if (!environment || environment === 'local' || environment === 'development') {
+    return 'latest';
+  }
+
+  // For production/staging, use git commit hash
+  const git = simpleGit();
+  
+  try {
+    // Get short commit hash
+    const hash = await git.revparse(['--short', 'HEAD']);
+    const cleanHash = hash.trim();
+    
+    // Check if working directory is clean
+    const status = await git.status();
+    if (!status.isClean()) {
+      // Add -dirty suffix if there are uncommitted changes
+      printInfo(`Working directory has uncommitted changes, adding -dirty suffix to tag`);
+      return `${cleanHash}-dirty`;
+    }
+    
+    return cleanHash;
+  } catch (error) {
+    // Not in a git repo or git not available
+    printInfo(`Could not get git hash (${error}), using timestamp`);
+    return `build-${Date.now()}`;
+  }
 }
 
 // =====================================================================
@@ -178,7 +219,8 @@ async function buildContainerImage(
     projectRoot,
     {
       verbose: options.verbose ?? false,
-      buildArgs
+      buildArgs,
+      noCache: options.noCache ?? false
     }
   );
   
@@ -554,12 +596,21 @@ export const publish = async (
   // Load environment config once for all operations
   const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
   
+  // Determine the image tag to use
+  const imageTag = await getImageTag(options.environment, options.tag);
+  
+  // Update options with the determined tag
+  const effectiveOptions = { ...options, tag: imageTag };
+  
   if (!isStructuredOutput && options.output === 'summary') {
     printInfo(`Publishing services in ${options.environment} environment`);
+    if (imageTag !== options.tag) {
+      printInfo(`Using tag: ${imageTag}`);
+    }
   }
   
   if (options.verbose && !isStructuredOutput && options.output === 'summary') {
-    console.log(`Options: ${JSON.stringify(options, null, 2)}`);
+    console.log(`Options: ${JSON.stringify(effectiveOptions, null, 2)}`);
   }
   
   try {
@@ -572,7 +623,7 @@ export const publish = async (
     
     for (const serviceInfo of serviceDeployments) {
       try {
-        const result = await publishService(serviceInfo, options, isStructuredOutput, envConfig);
+        const result = await publishService(serviceInfo, effectiveOptions, isStructuredOutput, envConfig);
         serviceResults.push(result);
       } catch (error) {
         // Create error result
@@ -581,7 +632,7 @@ export const publish = async (
         
         const publishErrorResult: PublishResult = {
           ...errorResult,
-          imageTag: options.tag,
+          imageTag: imageTag,
           buildDuration: 0,
           resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
           status: 'failed',
@@ -666,6 +717,7 @@ export const publishCommand = new CommandBuilder<PublishOptions>()
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
       '--service': { type: 'string', description: 'Service name or "all" for all services' },
       '--semiont-repo': { type: 'string', description: 'Path to Semiont repository for building images' },
+      '--no-cache': { type: 'boolean', description: 'Build images without using Docker cache' },
     },
     aliases: {
       '-e': '--environment',

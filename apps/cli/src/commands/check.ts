@@ -288,21 +288,75 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
           const runningCount = service.runningCount || 0;
           const desiredCount = service.desiredCount || 0;
           const status = service.status || 'UNKNOWN';
+          const taskDefinition = service.taskDefinition || '';
+          const deployments = service.deployments || [];
           
-          checks.push({
-            name: 'ecs-service',
-            status: runningCount === desiredCount && status === 'ACTIVE' ? 'pass' : 'warn',
-            message: `ECS Service ${actualServiceName}: ${runningCount}/${desiredCount} tasks running (${status})`,
-            metadata: {
-              runningCount,
-              desiredCount,
-              status,
-              serviceName: actualServiceName,
-              clusterName,
-            }
-          });
+          // Extract revision number from task definition ARN
+          const revisionMatch = taskDefinition.match(/:(\d+)$/);
+          const revision = revisionMatch ? revisionMatch[1] : 'unknown';
           
-          healthStatus = runningCount > 0 ? 'healthy' : 'unhealthy';
+          // Check deployment status
+          if (deployments.length > 1) {
+            // Multiple deployments means a rolling update is in progress
+            const primaryDeployment = deployments.find(d => d.status === 'PRIMARY');
+            const activeDeployment = deployments.find(d => d.status === 'ACTIVE');
+            
+            const primaryRev = primaryDeployment?.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
+            const activeRev = activeDeployment?.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
+            
+            checks.push({
+              name: 'ecs-deployment',
+              status: 'warn',
+              message: `🔄 Rolling deployment in progress (${deployments.length} deployments active)`,
+              metadata: {
+                primaryRevision: primaryRev,
+                activeRevision: activeRev,
+                primaryRunning: primaryDeployment?.runningCount || 0,
+                primaryDesired: primaryDeployment?.desiredCount || 0,
+                activeRunning: activeDeployment?.runningCount || 0,
+                activeDesired: activeDeployment?.desiredCount || 0,
+              }
+            });
+            
+            checks.push({
+              name: 'ecs-service',
+              status: 'warn',
+              message: `ECS Service: Deploying rev:${primaryRev} (${primaryDeployment?.runningCount}/${primaryDeployment?.desiredCount} tasks), replacing rev:${activeRev}`,
+              metadata: {
+                status,
+                runningCount,
+                desiredCount,
+                revision: primaryRev,
+                serviceName: actualServiceName,
+                clusterName,
+              }
+            });
+            
+            healthStatus = runningCount > 0 ? 'degraded' : 'unhealthy';
+          } else {
+            // Single deployment - service is stable
+            const deployment = deployments[0];
+            const deploymentCreatedAt = deployment?.createdAt;
+            const deploymentAge = deploymentCreatedAt ? 
+              Math.floor((Date.now() - new Date(deploymentCreatedAt).getTime()) / 1000 / 60) : 0;
+            
+            checks.push({
+              name: 'ecs-service',
+              status: runningCount === desiredCount && status === 'ACTIVE' ? 'pass' : 'warn',
+              message: `ECS Service ${actualServiceName}: ${runningCount}/${desiredCount} tasks running (rev:${revision}, deployed ${deploymentAge}m ago)`,
+              metadata: {
+                runningCount,
+                desiredCount,
+                status,
+                revision,
+                serviceName: actualServiceName,
+                clusterName,
+                deploymentAge: `${deploymentAge} minutes`,
+              }
+            });
+            
+            healthStatus = runningCount > 0 ? 'healthy' : 'unhealthy';
+          }
         } else {
           checks.push({
             name: 'ecs-service',
@@ -936,7 +990,19 @@ export async function check(
     
     if (options.section === 'all' || options.section === 'health') {
       printInfo('\n💚 Health Checks:');
-      printInfo(`Overall system health: ${overallHealth}`);
+      
+      // Display individual service health checks
+      for (const result of serviceResults) {
+        if (result.checks && result.checks.length > 0) {
+          for (const check of result.checks) {
+            const statusIcon = check.status === 'pass' ? '✅' : 
+                              check.status === 'warn' ? '⚠️' : '❌';
+            printInfo(`  ${statusIcon} ${check.message}`);
+          }
+        }
+      }
+      
+      printInfo(`\nOverall system health: ${overallHealth}`);
     }
     
     if (options.section === 'all' || options.section === 'logs') {

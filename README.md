@@ -234,10 +234,16 @@ semiont watch
 # Deploy code changes (with SEMIONT_ENV=production)
 semiont publish  # Builds and pushes container images to ECR
 
-# Service control commands
+# Service control commands (work consistently across all deployment types)
 semiont start --service backend   # Start specific service
-semiont restart --service all     # Restart all services
+semiont restart --service all     # Restart all services  
 semiont stop --service frontend   # Stop specific service
+
+# Restart behavior by deployment type:
+# - Local/Container: Stops and starts the container
+# - Process: Kills and restarts the process
+# - AWS: Triggers ECS rolling update (zero downtime)
+semiont restart --service backend  # Picks up new secrets/config
 
 # Override environment as needed
 semiont stop --environment staging --service frontend

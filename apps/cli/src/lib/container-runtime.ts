@@ -113,9 +113,10 @@ export async function buildImage(
   options: {
     verbose?: boolean;
     buildArgs?: Record<string, string>;
+    noCache?: boolean;
   } = {}
 ): Promise<boolean> {
-  const { verbose = false, buildArgs = {} } = options;
+  const { verbose = false, buildArgs = {}, noCache = false } = options;
   const imageTag = `${imageName}:${tag}`;
 
   const args = [
@@ -123,6 +124,11 @@ export async function buildImage(
     '-t', imageTag,
     '-f', dockerfile,
   ];
+
+  // Add no-cache flag if requested
+  if (noCache) {
+    args.push('--no-cache');
+  }
 
   // Add build arguments
   for (const [key, value] of Object.entries(buildArgs)) {

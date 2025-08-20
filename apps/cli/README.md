@@ -428,10 +428,10 @@ This table shows the **actual implemented actions** each command takes for each 
 | | backend | Stop ECS tasks | Stop container | Kill process on port | Note external service |
 | | database | Stop RDS instance | Stop container | Stop PostgreSQL service | Note external service |
 | | filesystem | Unmount EFS | Remove volumes | No action needed | Note external service |
-| **restart** | frontend | Force ECS deployment | Restart container with grace period | Restart process with grace period | Note external service |
-| | backend | Force ECS deployment | Restart container with grace period | Restart process with grace period | Note external service |
-| | database | Restart RDS instance | Restart container with grace period | Restart PostgreSQL | Note external service |
-| | filesystem | Remount EFS volumes | Recreate volumes | No action needed | Note external service |
+| **restart** | frontend | Force ECS rolling update (zero downtime) | Stop + start container (picks up env changes) | Kill + restart process (picks up code/env) | Not applicable |
+| | backend | Force ECS rolling update (zero downtime) | Stop + start container (picks up env changes) | Kill + restart process (picks up code/env) | Not applicable |
+| | database | Not implemented (use AWS Console) | Stop + start container | Not implemented | Not applicable |
+| | filesystem | Not implemented | Not applicable | Not applicable | Not applicable |
 
 ### Infrastructure & Configuration
 
@@ -448,16 +448,36 @@ This table shows the **actual implemented actions** each command takes for each 
 
 ### Development & Deployment
 
+#### Update vs Restart
+
+The distinction between `update` and `restart` commands:
+
+- **`restart`**: Restarts the service to pick up configuration/environment changes
+  - AWS: Triggers ECS rolling update with `forceNewDeployment` (zero downtime)
+  - Container: Stops and starts container with existing image
+  - Process: Kills and restarts process
+  - Purpose: Apply new secrets, environment variables, or configuration
+
+- **`update`**: Deploys new code/images to the service
+  - AWS: Deploys latest image from ECR (requires `publish` first)
+  - Container: Restarts container (same as restart - no new image pull)
+  - Process: Restarts dev server (picks up code changes via hot reload failure)
+  - Purpose: Deploy new application version
+
+For AWS deployments, both commands use the same ECS update mechanism but with different intent:
+- `restart`: "Make the service reload its configuration"
+- `update`: "Deploy the new version I just published"
+
 | Command | Service | AWS | Container | Process | External |
 |---------|---------|-----|-----------|---------|----------|
 | **publish** | frontend | Build + push to ECR | Build and tag container image | N/A | N/A |
 | | backend | Build + push to ECR | Build and tag container image | N/A | N/A |
 | | database | N/A | N/A | N/A | N/A |
 | | filesystem | N/A | N/A | N/A | N/A |
-| **update** | frontend | Force ECS deployment | Restart with updated image | Restart process with new code | Note external service |
-| | backend | Force ECS deployment | Restart with updated image | Restart process with new code | Note external service |
-| | database | Apply RDS updates | Restart container | Restart PostgreSQL | Note external updates |
-| | filesystem | Update EFS config | Update volume config | Update permissions | Note external updates |
+| **update** | frontend | Deploy new image from ECR (rolling update) | Stop + start with same local image | Kill + restart dev server | Not applicable |
+| | backend | Deploy new image from ECR (rolling update) | Stop + start with same local image | Kill + restart dev server | Not applicable |
+| | database | Not applicable (use AWS Console) | Stop + start container | Not applicable (manual update) | Not applicable |
+| | filesystem | Not applicable | Not applicable | Not applicable | Not applicable |
 
 ### Monitoring & Testing
 

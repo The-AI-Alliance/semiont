@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
@@ -53,7 +53,9 @@ const KNOWN_SECRETS: Record<string, string> = {
   'oauth/google': 'Google OAuth client ID and secret',
   'oauth/github': 'GitHub OAuth client ID and secret', 
   'jwt-secret': 'JWT signing secret for API authentication',
-  'app-secrets': 'Application secrets (session, NextAuth, etc.)'
+  'app-secrets': 'Application secrets (session, NextAuth, etc.)',
+  'admin-emails': 'Comma-separated list of admin email addresses',
+  'admin-password': 'Admin password for direct login (non-OAuth)'
 };
 
 // =====================================================================
@@ -145,12 +147,28 @@ async function updateSecret(envConfig: EnvironmentConfig, secretName: string, se
   const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
   const secretString = typeof secretValue === 'string' ? secretValue : JSON.stringify(secretValue);
   
-  await secretsClient.send(
-    new UpdateSecretCommand({
-      SecretId: secretName,
-      SecretString: secretString,
-    })
-  );
+  // First, try to update the existing secret
+  try {
+    await secretsClient.send(
+      new UpdateSecretCommand({
+        SecretId: secretName,
+        SecretString: secretString,
+      })
+    );
+  } catch (error: any) {
+    // If the secret doesn't exist, create it
+    if (error.name === 'ResourceNotFoundException') {
+      await secretsClient.send(
+        new CreateSecretCommand({
+          Name: secretName,
+          SecretString: secretString,
+          Description: `Created by semiont configure command`,
+        })
+      );
+    } else {
+      throw error;
+    }
+  }
 }
 
 // =====================================================================

@@ -258,6 +258,28 @@ semiont configure set oauth/github
 semiont configure show
 ```
 
+#### Step 2a: Bootstrap Admin User
+
+**Initial Admin Setup:**
+The first admin user is set up via a database migration. Edit the migration file at `apps/backend/prisma/migrations/20240820000000_grant_initial_admin/migration.sql` to specify your admin email address before deploying.
+
+**Managing Additional Admins:**
+After the initial deployment, you can manage admin users via the database directly. Since the RDS database is in a private subnet for security, you'll need to:
+
+1. Use AWS RDS Query Editor (if available)
+2. Connect through a bastion host or VPN
+3. Use ECS Exec to run commands in the backend container
+
+Future versions will include a proper admin management interface.
+```
+
+**Important Notes:**
+- Admin emails must match the email addresses used for OAuth authentication
+- Users with these email addresses will automatically receive admin privileges on first login
+- The admin password is only used if OAuth is not configured or as a fallback
+- You can update the admin list at any time using the same commands
+- In production, always use OAuth for better security
+
 #### Step 3: Deploy Application
 ```bash
 # Build and push images
@@ -269,6 +291,35 @@ semiont update
 # Verify deployment
 semiont check
 ```
+
+#### Step 4: Access Admin Dashboard
+After successful deployment, access the admin dashboard:
+
+```bash
+# Get your application URL
+semiont check --section endpoints
+
+# Access the admin dashboard at:
+# https://your-domain.com/admin
+
+# For local development:
+# http://localhost:3000/admin
+```
+
+**First Login:**
+1. Navigate to your deployed application and sign in using OAuth (Google/GitHub)
+2. If you've set up the admin migration with your email, you should automatically have admin privileges
+3. Navigate to `/admin` - you should now have access to:
+   - User management dashboard at `/admin/users`
+   - Security settings at `/admin/security`
+   - System monitoring and configuration
+
+**Admin Capabilities:**
+- View and manage all users
+- Access security settings and audit logs
+- Configure system-wide settings
+- Monitor application health and performance
+- Manage role assignments (when RBAC is fully implemented)
 
 ### Updating Deployments
 

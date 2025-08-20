@@ -107,30 +107,88 @@ async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: Re
   switch (serviceInfo.name) {
     case 'frontend':
     case 'backend':
-      printInfo(`Restarting ECS tasks for ${serviceInfo.name}`);
-      printWarning('ECS task restart not yet implemented - use AWS Console');
+      printInfo(`Restarting ECS service for ${serviceInfo.name}`);
       
-      return {
-        ...baseResult,
-        stopTime,
-        startTime: new Date(Date.now() + options.gracePeriod * 1000),
-        downtime: options.gracePeriod * 1000,
-        gracefulRestart: true,
-        resourceId: {
-          aws: {
-            arn: `arn:aws:ecs:us-east-1:123456789012:service/semiont-${options.environment}/${serviceInfo.name}`,
-            id: `semiont-${options.environment}-${serviceInfo.name}`,
-            name: `semiont-${options.environment}-${serviceInfo.name}`
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          serviceName: `semiont-${options.environment}-${serviceInfo.name}`,
-          cluster: `semiont-${options.environment}`,
-          implementation: 'pending',
-          gracePeriod: options.gracePeriod
-        },
-      };
+      try {
+        // Import AWS SDK components
+        const { ECSClient, UpdateServiceCommand, DescribeServicesCommand } = await import('@aws-sdk/client-ecs');
+        const { loadEnvironmentConfig } = await import('../lib/deployment-resolver.js');
+        
+        // Load configuration
+        const envConfig = loadEnvironmentConfig(options.environment!);
+        const awsRegion = envConfig.aws?.region || 'us-east-1';
+        const stackName = envConfig.aws?.stacks?.app || 'SemiontAppStack';
+        
+        // Get cluster name from the stack
+        const { getClusterNameFromStack, findEcsService } = await import('./update.js');
+        const clusterName = await getClusterNameFromStack(awsRegion, stackName);
+        
+        if (!clusterName) {
+          throw new Error(`Could not find ECS cluster in stack ${stackName}`);
+        }
+        
+        const ecsClient = new ECSClient({ region: awsRegion });
+        
+        // Find the actual service name in the cluster
+        const actualServiceName = await findEcsService(ecsClient, clusterName, serviceInfo.name);
+        if (!actualServiceName) {
+          throw new Error(`Could not find ECS service for ${serviceInfo.name} in cluster ${clusterName}`);
+        }
+        
+        // Force a new deployment (which effectively restarts the service)
+        await ecsClient.send(new UpdateServiceCommand({
+          cluster: clusterName,
+          service: actualServiceName,
+          forceNewDeployment: true,
+        }));
+        
+        printSuccess(`ECS service ${serviceInfo.name} restart initiated`);
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: new Date(Date.now() + 30000), // ECS rolling update typically takes 30-60 seconds
+          downtime: 0, // Rolling update means zero downtime
+          gracefulRestart: true,
+          resourceId: {
+            aws: {
+              arn: `arn:aws:ecs:${awsRegion}:${envConfig.aws?.accountId}:service/${clusterName}/${actualServiceName}`,
+              id: actualServiceName,
+              name: actualServiceName
+            }
+          },
+          status: 'restarted',
+          metadata: {
+            serviceName: actualServiceName,
+            cluster: clusterName,
+            region: awsRegion,
+            forceNewDeployment: true,
+            gracePeriod: 0 // Zero downtime with rolling update
+          },
+        };
+      } catch (error) {
+        printError(`Failed to restart ECS service: ${(error as Error).message}`);
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: stopTime,
+          downtime: 0,
+          gracefulRestart: false,
+          resourceId: {
+            aws: {
+              arn: `arn:aws:ecs:us-east-1:unknown:service/unknown/${serviceInfo.name}`,
+              id: serviceInfo.name,
+              name: serviceInfo.name
+            }
+          },
+          status: 'failed',
+          metadata: {
+            error: (error as Error).message,
+            implementation: 'ecs-update'
+          },
+        };
+      }
       
     case 'database':
       printInfo(`Restarting RDS instance for ${serviceInfo.name}`);

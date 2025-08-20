@@ -67,7 +67,9 @@ await Promise.all(scriptFiles.map(async (name) => {
         '@prisma/client',
         // Express and Socket.IO need to be external due to CommonJS/ESM issues
         'express',
-        'socket.io'
+        'socket.io',
+        // simple-git uses dynamic requires that don't work with bundling
+        'simple-git'
       ],
       define: {
         // Disable ink devtools in production bundles
@@ -124,7 +126,9 @@ await Promise.all(commandFiles.map(async (name) => {
         '@prisma/client',
         // Express and Socket.IO need to be external due to CommonJS/ESM issues
         'express',
-        'socket.io'
+        'socket.io',
+        // simple-git uses dynamic requires that don't work with bundling
+        'simple-git'
       ],
       define: {
         'process.env.NODE_ENV': '"production"'

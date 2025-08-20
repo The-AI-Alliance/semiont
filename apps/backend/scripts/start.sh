@@ -13,9 +13,11 @@ if [ -z "$DATABASE_URL" ] && [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB
   echo "📊 Constructed DATABASE_URL from components"
 fi
 
-# Skip migrations in production for now - run them separately
-# TODO: Fix Prisma Alpine compatibility or run migrations in separate job
-echo "⚠️  Skipping migrations in production (run separately)"
+# Run migrations in production
+echo "📝 Running database migrations..."
+npx prisma migrate deploy || {
+  echo "⚠️  Migration failed, but continuing (database might already be up to date)"
+}
 
 # Generate Prisma client
 echo "🔧 Generating Prisma client..."

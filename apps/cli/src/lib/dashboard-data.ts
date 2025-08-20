@@ -100,16 +100,42 @@ export class DashboardDataSource {
             runningCount = service.runningCount;
             pendingCount = service.pendingCount;
             
-            // Get the latest deployment
-            const latestDeployment = service.deployments?.[0];
-            if (latestDeployment?.taskDefinition) {
-              taskDefinition = latestDeployment.taskDefinition;
-              deploymentStatus = latestDeployment.status;
-            }
-
-            // Check for ongoing deployments
-            if (service.deployments && service.deployments.length > 1) {
-              deploymentStatus = 'Deploying...';
+            // Get deployment information
+            const deployments = service.deployments || [];
+            
+            if (deployments.length > 1) {
+              // Multiple deployments - rolling update in progress
+              const primaryDeployment = deployments.find(d => d.status === 'PRIMARY');
+              const activeDeployment = deployments.find(d => d.status === 'ACTIVE');
+              
+              const primaryRev = primaryDeployment?.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
+              const activeRev = activeDeployment?.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
+              
+              if (primaryRev === activeRev) {
+                // Same revision but redeploying (common with :latest tag)
+                deploymentStatus = `🔄 Redeploying rev:${primaryRev} (${primaryDeployment?.runningCount || 0}/${primaryDeployment?.desiredCount || 0} tasks)`;
+              } else {
+                // Different revisions - actual update
+                deploymentStatus = `🔄 Deploying rev:${primaryRev} → rev:${activeRev} (${deployments.length} active)`;
+              }
+              
+              taskDefinition = primaryDeployment?.taskDefinition;
+            } else if (deployments.length === 1) {
+              // Single deployment - stable
+              const deployment = deployments[0];
+              taskDefinition = deployment.taskDefinition;
+              const revision = taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
+              
+              // Calculate deployment age
+              const deploymentCreatedAt = deployment.createdAt;
+              const deploymentAge = deploymentCreatedAt ? 
+                Math.floor((Date.now() - new Date(deploymentCreatedAt).getTime()) / 1000 / 60) : 0;
+              
+              if (deployment.status === 'PRIMARY') {
+                deploymentStatus = `Stable (rev:${revision}, ${deploymentAge}m ago)`;
+              } else {
+                deploymentStatus = deployment.status;
+              }
             }
           }
 

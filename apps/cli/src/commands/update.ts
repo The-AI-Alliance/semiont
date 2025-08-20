@@ -57,7 +57,7 @@ interface UpdateOptions extends BaseCommandOptions {
 // HELPER FUNCTIONS
 // =====================================================================
 
-async function getClusterNameFromStack(region: string, stackName: string): Promise<string | undefined> {
+export async function getClusterNameFromStack(region: string, stackName: string): Promise<string | undefined> {
   try {
     const cfnClient = new CloudFormationClient({ region });
     const result = await cfnClient.send(new DescribeStacksCommand({
@@ -92,7 +92,7 @@ async function getClusterNameFromStack(region: string, stackName: string): Promi
   }
 }
 
-async function findEcsService(ecsClient: ECSClient, clusterName: string, serviceName: string): Promise<string | undefined> {
+export async function findEcsService(ecsClient: ECSClient, clusterName: string, serviceName: string): Promise<string | undefined> {
   try {
     // List all services in the cluster
     const services = await ecsClient.send(new ListServicesCommand({
@@ -259,13 +259,17 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             forceNewDeployment: true
           }));
           
-          // Get the updated service to find the new revision
+          // Get the updated service to find deployment info
           const afterUpdate = await ecsClient.send(new DescribeServicesCommand({
             cluster: clusterName,
             services: [actualServiceName]
           }));
           
           const serviceAfter = afterUpdate.services?.[0];
+          const deploymentCount = serviceAfter?.deployments?.length || 0;
+          
+          // When forceNewDeployment is used with :latest tag, the task definition revision 
+          // doesn't change, but a new deployment is created
           if (serviceAfter?.deployments?.[0]?.taskDefinition) {
             const revMatch = serviceAfter.deployments[0].taskDefinition.match(/:(\d+)$/);
             if (revMatch) {
@@ -274,25 +278,39 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
           }
           
           if (!isStructuredOutput && options.output === 'summary') {
-            if (newRevision) {
-              printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName}) - revision ${newRevision}`);
+            if (deploymentCount > 1) {
+              // Multiple deployments means a rolling update is in progress
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new deployment rolling out (${deploymentCount} deployments active)`);
+            } else if (newRevision === previousRevision) {
+              // Same revision but forced deployment (common with :latest tag)
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - pulling latest image (task definition rev:${newRevision})`);
+            } else if (newRevision) {
+              // New task definition revision
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new task definition (rev:${previousRevision} → rev:${newRevision})`);
             } else {
-              printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName})`);
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name}`);
             }
           }
         }
+        
+        // For the result, indicate if this was a forced deployment with same revision
+        const isForceDeployment = newRevision === previousRevision;
         
         return {
           ...baseResult,
           updateTime,
           previousVersion: previousRevision ? `rev:${previousRevision}` : 'latest',
-          newVersion: newRevision ? `rev:${newRevision}` : 'latest-updated',
+          newVersion: isForceDeployment 
+            ? `rev:${newRevision} (redeployed)` 
+            : (newRevision ? `rev:${newRevision}` : 'latest-updated'),
           rollbackAvailable: true,
           changesApplied: [{ 
             type: 'infrastructure', 
-            description: newRevision 
-              ? `ECS deployment initiated for ${actualServiceName} (revision ${newRevision})`
-              : `ECS deployment initiated for ${actualServiceName}`
+            description: isForceDeployment
+              ? `Forced ECS redeployment with latest image (task definition rev:${newRevision})`
+              : (newRevision 
+                ? `ECS deployment with new task definition (rev:${previousRevision} → rev:${newRevision})`
+                : `ECS deployment initiated for ${actualServiceName}`)
           }],
           resourceId: {
             aws: {

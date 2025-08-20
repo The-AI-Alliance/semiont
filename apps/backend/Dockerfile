@@ -10,7 +10,6 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages/api-types/package.json ./packages/api-types/
-COPY packages/config/package.json ./packages/config/
 
 # Install all dependencies at root level (this handles workspaces)
 RUN npm ci --workspace=apps/backend --include-workspace-root
@@ -23,21 +22,16 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages/api-types/package.json ./packages/api-types/
-COPY packages/config/package.json ./packages/config/
 
 # Install all dependencies including dev
 RUN npm ci
 
 # Copy source code for all needed packages
 COPY packages/api-types ./packages/api-types
-COPY packages/config ./packages/config
 COPY apps/backend ./apps/backend
 
 # Build packages in dependency order
 WORKDIR /app/packages/api-types
-RUN npm run build || true
-
-WORKDIR /app/packages/config
 RUN npm run build || true
 
 # Build backend
@@ -67,7 +61,6 @@ COPY --from=builder --chown=semiont:nodejs /app/apps/backend/dist ./dist
 COPY --from=builder --chown=semiont:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=semiont:nodejs /app/apps/backend/node_modules ./apps/backend/node_modules
 COPY --from=builder --chown=semiont:nodejs /app/packages/api-types ./packages/api-types
-COPY --from=builder --chown=semiont:nodejs /app/packages/config ./packages/config
 COPY --from=builder --chown=semiont:nodejs /app/apps/backend/package.json ./package.json
 
 # Copy Prisma files for migrations
