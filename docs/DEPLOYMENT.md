@@ -1,9 +1,10 @@
 # Semiont Deployment Guide
 
-This guide provides comprehensive instructions for deploying Semiont to AWS, including when and how building happens.
+This guide provides comprehensive instructions for deploying Semiont to AWS and managing deployments.
 
 ## Table of Contents
 - [Quick Start](#quick-start)
+- [Core Commands](#core-commands)
 - [Understanding Build & Deploy](#understanding-build--deploy)
 - [Prerequisites](#prerequisites)
 - [Initial Setup](#initial-setup)
@@ -19,15 +20,116 @@ semiont init --name "my-project"
 export SEMIONT_ENV=production
 
 # Deploy to AWS
-semiont provision   # One-time: Create infrastructure (~10-15 min)
-semiont publish     # Build and push container images (~5-8 min)
+semiont provision   # One-time: Create AWS infrastructure (~10-15 min)
+semiont publish     # Build and push container images to ECR (~5-8 min)
+semiont update      # Force ECS to pull and deploy new images (~2-3 min)
 
-# Update after code changes
-semiont test        # Run tests (recommended)
-semiont publish     # Build and push updated images
+# Monitor deployment
+semiont check       # Check service health and status
+semiont watch       # Watch real-time logs
 ```
 
+## Core Commands
+
+### `semiont provision`
+Creates AWS infrastructure (VPC, RDS, EFS, ECS cluster, ALB, etc.).
+
+```bash
+semiont provision                        # Provision all services
+semiont provision --service database     # Provision specific service
+semiont provision --force               # Force re-provisioning
+semiont provision --destroy             # Tear down infrastructure
+```
+
+**What it creates:**
+- Infrastructure Stack: VPC, RDS, EFS, Secrets Manager
+- Application Stack: ECS Cluster, ALB, WAF, CloudWatch
+
+### `semiont publish`
+Builds container images and pushes them to AWS ECR.
+
+```bash
+semiont publish                          # Build and push all services
+semiont publish --service backend        # Publish specific service
+semiont publish --tag v1.2.3            # Use custom tag
+semiont publish --skip-build            # Push existing local images
+semiont publish --semiont-repo /path    # Use custom source path for building
+```
+
+**Important Options:**
+- `--semiont-repo`: Specifies the path to the Semiont repository when building images from a different location
+- `--tag`: Custom tag for images (default: latest)
+- `--skip-build`: Skip building, just tag and push existing images
+
+**What it does:**
+1. Detects Docker or Podman automatically
+2. Builds optimized production images
+3. Tags images appropriately
+4. Pushes to AWS ECR
+5. Creates ECR repositories if needed
+
+### `semiont update`
+Forces ECS services to pull and deploy the latest images from ECR.
+
+```bash
+semiont update                           # Update all services
+semiont update --service frontend        # Update specific service
+semiont update --force                   # Force update even if no changes
+semiont update --grace-period 10         # Wait 10 seconds between stop/start
+```
+
+**What it does:**
+- For AWS: Triggers ECS service update to pull latest images
+- For containers: Restarts containers with new images
+- For processes: Restarts processes with updated code
+
+### `semiont check`
+Verifies deployment health and service status.
+
+```bash
+semiont check                            # Check all services
+semiont check --service backend          # Check specific service
+semiont check --section health           # Check only health endpoints
+semiont check --verbose                  # Show detailed diagnostics
+```
+
+**Checks performed:**
+- AWS resource status (ECS tasks, RDS, EFS)
+- Container health and status
+- Service health endpoints
+- Recent error logs
+- Resource utilization
+
+### `semiont watch`
+Monitors real-time logs and metrics.
+
+```bash
+semiont watch                            # Interactive dashboard
+semiont watch logs                       # Stream logs from all services
+semiont watch logs --service backend    # Watch specific service logs
+semiont watch metrics                    # View CloudWatch metrics
+```
+
+**Features:**
+- Real-time log streaming from CloudWatch
+- Interactive dashboard with service status
+- Aggregated logs from multiple services
+- Error highlighting and filtering
+
 ## Understanding Build & Deploy
+
+### Deployment Flow
+
+```mermaid
+graph LR
+    A[Code Changes] --> B[semiont publish]
+    B --> C[Build Images]
+    C --> D[Push to ECR]
+    D --> E[semiont update]
+    E --> F[ECS Pulls Images]
+    F --> G[Rolling Deployment]
+    G --> H[Health Checks]
+```
 
 ### When Building Happens
 
@@ -35,57 +137,27 @@ semiont publish     # Build and push updated images
 - Frontend runs with Next.js dev server (hot reload)
 - Backend runs with nodemon (auto-restart)
 - Changes reflect immediately without building
-- Use `npm run dev` in each app directory
+- Use `semiont start` for local development
 
-**Production Deployment** - Automatic building:
-- `semiont publish` handles container image management:
-  1. Builds optimized Docker/Podman images
-  2. Tags images appropriately  
-  3. Pushes to AWS ECR
-  4. ECS automatically pulls new images
-  5. Rolling deployment with health checks
+**Production Deployment** - Explicit building:
+- `semiont publish` builds and pushes images
+- `semiont update` triggers deployment of new images
+- Two-step process gives you control over when to deploy
 
-**Manual Building** (rarely needed):
-```bash
-# If you need to build locally for testing
-cd apps/frontend && npm run build
-cd apps/backend && npm run build
-```
+### Container Runtime Support
 
-### Build Process Details
-
-The `semiont publish` command orchestrates the entire build and deployment:
-
-1. **Test Phase** (~1-3 minutes)
-   - Runs unit tests for frontend and backend
-   - Runs integration tests
-   - Runs security validation tests
-   - Deployment stops if any test fails
-
-2. **Build Phase** (~2-4 minutes)
-   - Creates optimized production builds
-   - Frontend: Next.js static optimization, tree shaking, minification
-   - Backend: TypeScript compilation, dependency bundling
-   - Docker images built with multi-stage builds for minimal size
-
-3. **Push Phase** (~1-2 minutes)
-   - Tags images with timestamp and git commit
-   - Pushes to AWS ECR (Elastic Container Registry)
-   - Maintains last 5 versions for rollback
-
-4. **Deploy Phase** (~2-3 minutes)
-   - Updates ECS task definitions
-   - Performs rolling update with zero downtime
-   - Health checks ensure new version is healthy
-   - Automatic rollback if health checks fail
+Semiont automatically detects and uses Docker or Podman:
+- Auto-detection tries Docker first, then Podman
+- Force specific runtime: `CONTAINER_RUNTIME=podman semiont publish`
+- All commands work with both runtimes
 
 ## Prerequisites
 
 ### Required Tools
-- Node.js 18+ and npm 9+
+- Node.js 20+ and npm 9+
 - Docker or Podman (for container builds)
 - AWS CLI configured with credentials
-- Semiont CLI installed (`cd apps/cli && npm run build && npm link`)
+- Semiont CLI installed (`npm install -g semiont-cli` or local install)
 
 ### AWS Account Setup
 - AWS account with appropriate IAM permissions
@@ -100,12 +172,15 @@ The CLI uses standard AWS credential chain:
 aws configure
 
 # Option 2: AWS SSO
-aws sso login
+aws sso login --profile production
 
 # Option 3: Environment variables
 export AWS_ACCESS_KEY_ID=xxx
 export AWS_SECRET_ACCESS_KEY=xxx
 export AWS_REGION=us-east-1
+
+# Option 4: IAM roles (for EC2/ECS)
+# Automatic when running on AWS infrastructure
 ```
 
 ## Initial Setup
@@ -113,34 +188,30 @@ export AWS_REGION=us-east-1
 ### 1. Initialize Project
 
 ```bash
-# Clone and setup
-git clone https://github.com/The-AI-Alliance/semiont.git
-cd semiont
-npm install
-
-# Initialize configuration
-semiont init --name "my-project" --environments "local,staging,production"
-
-# Install CLI globally
-cd apps/cli && npm run build && npm link
+semiont init --name "my-project" --domain "example.com"
 ```
 
-### 2. Configure Environments
+This creates:
+- `config/` directory with environment configurations
+- Default `local.json` and `production.json` configs
+- `.env` file for local development
 
-Edit configuration files in `config/environments/`:
+### 2. Configure AWS Settings
 
+Edit `config/production.json`:
 ```json
-// config/environments/production.json
 {
-  "name": "production",
   "site": {
-    "domain": "yourdomain.com",
-    "siteName": "Your Site Name",
-    "adminEmail": "admin@yourdomain.com"
+    "name": "My Project",
+    "domain": "example.com"
   },
   "aws": {
     "region": "us-east-1",
-    "accountId": "123456789012"
+    "accountId": "123456789012",
+    "stacks": {
+      "infra": "MyProjectInfraStack",
+      "app": "MyProjectAppStack"
+    }
   }
 }
 ```
@@ -167,20 +238,21 @@ semiont provision
 Creates all AWS resources (~10-15 minutes):
 - VPC with public/private subnets
 - RDS PostgreSQL database
-- ECS Fargate cluster
+- EFS for shared storage
+- ECS cluster for containers
 - Application Load Balancer
 - CloudFront CDN
-- WAF firewall rules
-- ECR repositories
-- Secrets Manager entries
+- WAF for security
 
 #### Step 2: Configure Secrets
 ```bash
-# Set OAuth credentials (interactive)
-semiont configure set oauth/google
-
-# Set JWT secret
+# Set required secrets
+semiont configure set database-password
 semiont configure set jwt-secret
+
+# Optional: OAuth configuration
+semiont configure set oauth/google
+semiont configure set oauth/github
 
 # Verify configuration
 semiont configure show
@@ -188,49 +260,55 @@ semiont configure show
 
 #### Step 3: Deploy Application
 ```bash
+# Build and push images
 semiont publish
+
+# Deploy to ECS
+semiont update
+
+# Verify deployment
+semiont check
 ```
 
-This command:
-- Runs all tests (stops if tests fail)
-- Builds Docker images for frontend and backend
-- Pushes images to ECR
-- Updates ECS services
-- Performs health checks
-- Shows deployment progress
+### Updating Deployments
 
-### Updating After Code Changes
-
-For subsequent deployments after code changes:
-
+For code updates:
 ```bash
 # Make your code changes
 git add .
 git commit -m "Your changes"
 
-# Test locally
+# Test locally (optional but recommended)
 semiont test
 
-# Deploy to production
-semiont publish  # Automatically builds and deploys
+# Build and deploy
+semiont publish     # Build and push new images
+semiont update      # Deploy new images to ECS
+
+# Monitor deployment
+semiont watch
 ```
 
-The deploy process is intelligent:
-- Only rebuilds changed components
-- Uses Docker layer caching for faster builds
+The deployment process:
+- Uses container layer caching for faster builds
 - Performs zero-downtime rolling updates
-- Automatic rollback on failures
+- Automatic rollback on health check failures
+- Maintains last 5 image versions in ECR
 
 ### Environment-Specific Deployments
 
 ```bash
 # Deploy to different environments
 semiont publish --environment staging
+semiont update --environment staging
+
 semiont publish --environment production
+semiont update --environment production
 
 # Or use SEMIONT_ENV
 export SEMIONT_ENV=staging
 semiont publish
+semiont update
 ```
 
 ## Monitoring & Maintenance
@@ -244,38 +322,53 @@ semiont watch
 # Stream logs
 semiont watch logs
 
-# View metrics
-semiont watch metrics
+# Filter by service
+semiont watch logs --service backend
 
 # Check service health
-semiont check
+semiont check --verbose
 ```
 
 ### Service Management
 
 ```bash
+# Start services locally
+semiont start
+
+# Stop services
+semiont stop
+
 # Restart services
-semiont restart --service backend
-semiont restart --service all
+semiont restart
 
-# Stop services (cost savings)
-semiont stop --service all
-
-# Start services
-semiont start --service all
+# Execute commands in containers
+semiont exec backend -- npm run migrate
 ```
 
-### Backup and Recovery
+### Backup and Restore
 
 ```bash
-# Create backup
-semiont backup
+# Backup database
+semiont backup create
 
 # List backups
 semiont backup list
 
 # Restore from backup
-semiont restore --backup-id xxx
+semiont backup restore --id backup-20240101
+```
+
+### Cost Management
+
+```bash
+# Check AWS costs
+semiont check costs
+
+# Scale down for development
+semiont update --scale-down
+
+# Stop non-production services
+semiont stop --environment staging
 ```
 
 ## Troubleshooting
@@ -286,8 +379,9 @@ semiont restore --backup-id xxx
 
 If `semiont publish` fails during build:
 ```bash
-# Check test results
-semiont test --verbose
+# Check for Docker/Podman
+docker version
+podman version
 
 # Try building manually to see detailed errors
 cd apps/frontend && npm run build
@@ -295,23 +389,27 @@ cd apps/backend && npm run build
 
 # Check Docker daemon
 docker ps
+
+# Force rebuild without cache
+semiont publish --no-cache
 ```
 
 #### Deployment Failures
 
-If deployment fails after successful build:
+If services won't start after update:
 ```bash
-# Check AWS credentials
-aws sts get-caller-identity
-
-# Check ECS service status
+# Check service status
 semiont check --verbose
 
 # View deployment logs
 semiont watch logs --service backend
 
-# Force a fresh deployment
-semiont publish --force
+# Force update with new task definition
+semiont update --force
+
+# Rollback to previous version
+semiont publish --tag previous
+semiont update
 ```
 
 #### Health Check Failures
@@ -321,97 +419,66 @@ If services fail health checks:
 # Check application logs
 semiont watch logs
 
-# Verify database connectivity
-semiont check --service database
+# Test health endpoint directly
+curl http://localhost:4000/health
 
-# Check environment configuration
-semiont configure validate
+# Check database connectivity
+semiont exec backend -- npm run db:test
+
+# Verify environment variables
+semiont exec backend -- env | grep DB_
 ```
 
-### Manual Rollback
+#### ECR Push Failures
 
-If automatic rollback fails:
+If unable to push to ECR:
 ```bash
-# List previous deployments
-aws ecs list-task-definitions --family semiont-backend
+# Check AWS credentials
+aws sts get-caller-identity
 
-# Manually update to previous version
-aws ecs update-service \
-  --cluster semiont-production \
-  --service semiont-backend \
-  --task-definition semiont-backend:previous-version
+# Login to ECR manually
+aws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin \
+  123456789012.dkr.ecr.us-east-1.amazonaws.com
+
+# Check ECR repository exists
+aws ecr describe-repositories
+
+# Create repository manually if needed
+aws ecr create-repository --repository-name semiont-backend
 ```
 
-## Production Best Practices
+### Debug Mode
 
-### Pre-Deployment Checklist
+Enable verbose output for debugging:
+```bash
+# Verbose output for all commands
+semiont publish --verbose
+semiont update --verbose
+semiont check --verbose
 
-- [ ] All tests passing locally
-- [ ] Configuration validated
-- [ ] Secrets properly set
-- [ ] Database schema validated
-- [ ] Performance benchmarks met
-- [ ] Security scan completed
+# Dry run mode (preview without executing)
+semiont provision --dry-run
+semiont publish --dry-run
+semiont update --dry-run
+```
 
-### Deployment Windows
-
-- Deploy during low-traffic periods
-- Have rollback plan ready
-- Monitor metrics during deployment
-- Keep team informed via Slack/email
-
-### Post-Deployment Verification
+### Logs and Diagnostics
 
 ```bash
-# Verify all services healthy
-semiont check
+# Get recent logs
+semiont watch logs --since 1h
 
-# Run smoke tests
-semiont test --suite smoke
+# Check CloudWatch for errors
+aws logs tail /ecs/semiont-backend --follow
 
-# Monitor for 15 minutes
-semiont watch --duration 15m
+# ECS task details
+aws ecs describe-tasks --cluster semiont-cluster \
+  --tasks $(aws ecs list-tasks --cluster semiont-cluster --query 'taskArns[0]' --output text)
 
-# Check error rates
-semiont metrics --window 1h
+# Database connection test
+semiont exec backend -- npx prisma db pull
 ```
-
-## Cost Optimization
-
-### Development Environments
-
-Stop services when not in use:
-```bash
-# Stop all services (keeps infrastructure)
-semiont stop --environment staging
-
-# Start when needed
-semiont start --environment staging
-```
-
-### Production Optimization
-
-- Use auto-scaling policies
-- Right-size RDS instances
-- Enable CloudFront caching
-- Review CloudWatch metrics regularly
-- Set up budget alerts
-
-## Security Considerations
-
-### Secrets Management
-
-- Never commit secrets to git
-- Use `semiont configure` for all secrets
-- Rotate secrets regularly
-- Use IAM roles, not access keys
-
-### Access Control
-
-- Enable MFA for AWS accounts
-- Use least-privilege IAM policies
-- Restrict deployment to CI/CD pipeline
-- Regular security audits
 
 ## Advanced Topics
 
@@ -420,13 +487,16 @@ semiont start --environment staging
 If you need custom Docker configurations:
 ```dockerfile
 # apps/frontend/Dockerfile.custom
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 # Your custom build steps...
 ```
 
 ```bash
-# Use custom Dockerfile
-semiont publish --dockerfile Dockerfile.custom
+# Build with custom Dockerfile
+docker build -f Dockerfile.custom -t semiont-frontend:custom .
+
+# Push with skip-build flag
+semiont publish --skip-build --tag custom
 ```
 
 ### Blue-Green Deployments
@@ -434,20 +504,23 @@ semiont publish --dockerfile Dockerfile.custom
 For zero-risk deployments:
 ```bash
 # Deploy to green environment
-semiont publish --strategy blue-green
+semiont provision --stack-suffix green
+semiont publish --tag green
+semiont update --stack-suffix green
 
-# Switch traffic
-semiont switch-traffic --to green
+# Test green environment
+semiont check --stack-suffix green
 
-# Rollback if needed
-semiont switch-traffic --to blue
+# Switch traffic (manual DNS/ALB update required)
+# Then clean up blue environment
+semiont provision --destroy --stack-suffix blue
 ```
 
 ### CI/CD Integration
 
-Example GitHub Actions workflow:
+GitHub Actions example:
 ```yaml
-name: Deploy
+name: Deploy to Production
 on:
   push:
     branches: [main]
@@ -460,23 +533,36 @@ jobs:
       - uses: actions/setup-node@v2
       - run: npm ci
       - run: npm test
+      - run: npm install -g semiont-cli
       - run: semiont publish --environment production
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - run: semiont update --environment production
 ```
+
+## Command Reference
+
+### Global Options
+
+All commands support these options:
+- `--environment <name>`: Specify environment (default: from SEMIONT_ENV or 'local')
+- `--verbose`: Show detailed output
+- `--dry-run`: Preview without executing
+- `--output <format>`: Output format (summary|table|json|yaml)
+
+### Service Names
+
+Standard service names:
+- `backend`: API server
+- `frontend`: Web application
+- `database`: PostgreSQL database
+- `filesystem`: EFS/local storage
+- `monitoring`: CloudWatch/logging
 
 ## Support
 
 For issues or questions:
-- Check [Troubleshooting Guide](TROUBLESHOOTING.md)
-- Review [Architecture Documentation](ARCHITECTURE.md)
-- Open an issue on GitHub
-- Contact support@semiont.com
-
-## Next Steps
-
-- [CONFIGURATION.md](CONFIGURATION.md) - Detailed configuration options
-- [SCALING.md](SCALING.md) - Performance and scaling guide
-- [SECURITY.md](SECURITY.md) - Security best practices
-- [MAINTENANCE.md](MAINTENANCE.md) - Operational procedures
+- Documentation: https://github.com/semiont/semiont/docs
+- Issues: https://github.com/semiont/semiont/issues
+- Logs: Check `semiont watch logs` for diagnostics
