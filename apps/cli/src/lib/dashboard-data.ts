@@ -294,11 +294,100 @@ export class DashboardDataSource {
           const filesystem = efsResult.FileSystems?.[0];
           if (filesystem) {
             const lifecycleState = filesystem.LifeCycleState;
+            const fileSystemId = filesystem.FileSystemId!;
+            
+            // Get EFS metrics from CloudWatch
+            let storageUsedBytes: number | undefined;
+            let storageTotalBytes: number | undefined;
+            let storageAvailableBytes: number | undefined;
+            let storageUsedPercent: number | undefined;
+            let throughputUtilization: number | undefined;
+            let clientConnections: number | undefined;
+            
+            try {
+              const endTime = new Date();
+              const startTime = new Date(endTime.getTime() - 5 * 60 * 1000); // Last 5 minutes
+              
+              // Get storage metrics
+              const [storageBytesMetric, clientConnectionsMetric, throughputMetric] = await Promise.all([
+                // Storage bytes used
+                this.cloudWatchClient!.send(new GetMetricStatisticsCommand({
+                  Namespace: 'AWS/EFS',
+                  MetricName: 'StorageBytes',
+                  Dimensions: [
+                    { Name: 'FileSystemId', Value: fileSystemId },
+                    { Name: 'StorageClass', Value: 'Total' }
+                  ],
+                  StartTime: startTime,
+                  EndTime: endTime,
+                  Period: 300,
+                  Statistics: ['Average']
+                })),
+                
+                // Client connections
+                this.cloudWatchClient!.send(new GetMetricStatisticsCommand({
+                  Namespace: 'AWS/EFS',
+                  MetricName: 'ClientConnections',
+                  Dimensions: [
+                    { Name: 'FileSystemId', Value: fileSystemId }
+                  ],
+                  StartTime: startTime,
+                  EndTime: endTime,
+                  Period: 60,
+                  Statistics: ['Sum']
+                })),
+                
+                // Throughput percentage
+                this.cloudWatchClient!.send(new GetMetricStatisticsCommand({
+                  Namespace: 'AWS/EFS',
+                  MetricName: 'PercentIOLimit',
+                  Dimensions: [
+                    { Name: 'FileSystemId', Value: fileSystemId }
+                  ],
+                  StartTime: startTime,
+                  EndTime: endTime,
+                  Period: 60,
+                  Statistics: ['Average']
+                }))
+              ]);
+              
+              // Process storage metrics
+              if (storageBytesMetric.Datapoints && storageBytesMetric.Datapoints.length > 0) {
+                storageUsedBytes = storageBytesMetric.Datapoints[0].Average;
+                // EFS has effectively unlimited storage (8 EB limit)
+                // Show 1TB as a reference total for percentage calculation
+                storageTotalBytes = 1024 * 1024 * 1024 * 1024; // 1TB in bytes
+                if (storageUsedBytes && storageTotalBytes) {
+                  storageAvailableBytes = storageTotalBytes - storageUsedBytes;
+                  storageUsedPercent = (storageUsedBytes / storageTotalBytes) * 100;
+                }
+              }
+              
+              // Process client connections
+              if (clientConnectionsMetric.Datapoints && clientConnectionsMetric.Datapoints.length > 0) {
+                clientConnections = clientConnectionsMetric.Datapoints[0].Sum;
+              }
+              
+              // Process throughput
+              if (throughputMetric.Datapoints && throughputMetric.Datapoints.length > 0) {
+                throughputUtilization = throughputMetric.Datapoints[0].Average;
+              }
+              
+            } catch (metricsError) {
+              console.error('Failed to fetch EFS metrics:', metricsError);
+            }
+            
             services.push({
               name: 'Filesystem',
               status: lifecycleState === 'available' ? 'healthy' : 
                      lifecycleState === 'creating' || lifecycleState === 'updating' ? 'warning' : 'unhealthy',
-              details: `EFS ${filesystem.FileSystemId} - ${lifecycleState}`,
+              details: `EFS ${fileSystemId} - ${lifecycleState}`,
+              storageUsedBytes,
+              storageTotalBytes,
+              storageAvailableBytes,
+              storageUsedPercent,
+              throughputUtilization,
+              clientConnections,
               lastUpdated: new Date()
             });
           }

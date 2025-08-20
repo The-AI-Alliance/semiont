@@ -27,6 +27,13 @@ export interface ServiceStatus {
   memoryUtilization?: number;
   requestCount?: number;
   errorRate?: number;
+  // EFS-specific details
+  storageUsedBytes?: number;
+  storageAvailableBytes?: number;
+  storageTotalBytes?: number;
+  storageUsedPercent?: number;
+  throughputUtilization?: number;
+  clientConnections?: number;
 }
 
 export interface LogEntry {
@@ -118,12 +125,47 @@ export const ServicePanel: React.FC<{
               {showDetails && service.lastUpdated && (
                 <Text color="gray" dimColor>  Updated: {service.lastUpdated.toLocaleTimeString()}</Text>
               )}
+              {/* EFS Storage Metrics */}
+              {showDetails && service.name === 'Filesystem' && service.storageTotalBytes && (
+                <>
+                  <Text color="cyan">  Storage:</Text>
+                  {service.storageUsedBytes !== undefined && service.storageTotalBytes && (
+                    <Text color="gray">
+                      {'    '}Used: {formatBytes(service.storageUsedBytes)} / {formatBytes(service.storageTotalBytes)} 
+                      {service.storageUsedPercent !== undefined && (
+                        <Text color={
+                          service.storageUsedPercent > 90 ? 'red' :
+                          service.storageUsedPercent > 70 ? 'yellow' : 'green'
+                        }> ({service.storageUsedPercent.toFixed(1)}%)</Text>
+                      )}
+                    </Text>
+                  )}
+                  {service.storageAvailableBytes !== undefined && (
+                    <Text color="gray">    Available: {formatBytes(service.storageAvailableBytes)}</Text>
+                  )}
+                  {service.throughputUtilization !== undefined && (
+                    <Text color="gray">    Throughput: {service.throughputUtilization.toFixed(1)}%</Text>
+                  )}
+                  {service.clientConnections !== undefined && (
+                    <Text color="gray">    Connections: {service.clientConnections}</Text>
+                  )}
+                </>
+              )}
             </Box>
           </Box>
         ))
       )}
     </Box>
   );
+};
+
+// Helper function to format bytes
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 };
 
 // Scrollable log viewer with filtering

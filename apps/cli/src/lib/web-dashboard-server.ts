@@ -466,6 +466,14 @@ export class WebDashboardServer {
         return 'trend-' + trend;
       };
       
+      const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+      };
+      
       if (!data) {
         return (
           <div className="dashboard-container">
@@ -563,7 +571,45 @@ export class WebDashboardServer {
                   {service.details && (
                     <div className="service-details">{service.details}</div>
                   )}
-                  {(service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
+                  {/* EFS Storage Metrics */}
+                  {service.name === 'Filesystem' && service.storageTotalBytes && (
+                    <>
+                      <div className="service-details" style={{ color: '#2563eb', fontSize: '0.9em', marginTop: '8px' }}>
+                        <strong>Storage:</strong>
+                      </div>
+                      {service.storageUsedBytes !== undefined && service.storageTotalBytes && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Used: {formatBytes(service.storageUsedBytes)} / {formatBytes(service.storageTotalBytes)}
+                          {service.storageUsedPercent !== undefined && (
+                            <span style={{ 
+                              marginLeft: '8px',
+                              color: service.storageUsedPercent > 90 ? '#ef4444' : 
+                                     service.storageUsedPercent > 70 ? '#f59e0b' : '#10b981'
+                            }}>
+                              ({service.storageUsedPercent.toFixed(1)}%)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {service.storageAvailableBytes !== undefined && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Available: {formatBytes(service.storageAvailableBytes)}
+                        </div>
+                      )}
+                      {service.throughputUtilization !== undefined && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Throughput: {service.throughputUtilization.toFixed(1)}%
+                        </div>
+                      )}
+                      {service.clientConnections !== undefined && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Connections: {service.clientConnections}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Regular metrics for other services */}
+                  {service.name !== 'Filesystem' && (service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
                     <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
                       {service.cpuUtilization !== undefined && (
                         <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
