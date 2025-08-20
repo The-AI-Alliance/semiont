@@ -8,8 +8,12 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api-client';
+import { useSecureAPI } from '@/hooks/useSecureAPI';
 
 export default function AdminSecurity() {
+  // Ensure API client has authentication token
+  const { hasValidToken } = useSecureAPI();
+  
   // Get OAuth configuration from API
   const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery();
   

@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { api, type AdminUser } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSecureAPI } from '@/hooks/useSecureAPI';
 
 function UserTableRow({ 
   user, 
@@ -105,6 +106,9 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  
+  // Ensure API client has authentication token
+  const { hasValidToken } = useSecureAPI();
   
   const queryClient = useQueryClient();
   const { data: usersResponse, isLoading: usersLoading } = api.admin.users.list.useQuery();
