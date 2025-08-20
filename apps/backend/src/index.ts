@@ -361,6 +361,36 @@ app.delete('/api/admin/users/:id', adminMiddleware, async (c) => {
   }
 });
 
+// Admin OAuth configuration endpoint (read-only)
+app.get('/api/admin/oauth/config', adminMiddleware, async (c) => {
+  try {
+    // Get OAuth configuration from environment
+    const allowedDomainsEnv = process.env.OAUTH_ALLOWED_DOMAINS || '';
+    const allowedDomains = allowedDomainsEnv
+      .split(',')
+      .map(d => d.trim())
+      .filter(d => d.length > 0);
+    
+    // Check which providers are configured
+    const providers = [];
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      providers.push({
+        name: 'google',
+        isConfigured: true,
+        clientId: process.env.GOOGLE_CLIENT_ID.substring(0, 20) + '...'
+      });
+    }
+    
+    return c.json({
+      providers,
+      allowedDomains
+    });
+  } catch (error: any) {
+    console.error('Failed to fetch OAuth config:', error);
+    return c.json<ErrorResponse>({ error: 'Failed to fetch OAuth configuration' }, 500);
+  }
+});
+
 // API Documentation endpoint - Redirect to OpenAPI/Swagger UI
 app.get('/api', (c) => {
   const acceptHeader = c.req.header('Accept') || '';

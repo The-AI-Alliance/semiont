@@ -494,6 +494,49 @@ export const routes = {
       },
     },
   }),
+  
+  // Admin OAuth Configuration endpoint
+  'admin.oauth.config': createRoute({
+    method: 'get',
+    path: '/api/admin/oauth/config',
+    summary: 'OAuth Configuration',
+    description: 'Get current OAuth configuration including providers and allowed domains',
+    tags: ['Admin'],
+    security: [{ BearerAuth: [] }],
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              providers: z.array(z.object({
+                name: z.string(),
+                isConfigured: z.boolean(),
+                clientId: z.string().optional(),
+              })),
+              allowedDomains: z.array(z.string()),
+            }),
+          },
+        },
+        description: 'OAuth configuration',
+      },
+      401: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Unauthorized',
+      },
+      403: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Forbidden - Admin access required',
+      },
+    },
+  }),
 };
 
 // OpenAPI configuration

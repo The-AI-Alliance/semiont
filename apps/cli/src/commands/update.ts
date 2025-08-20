@@ -179,39 +179,14 @@ export async function getClusterNameFromStack(region: string, stackName: string)
 }
 
 /**
- * Get the latest image tag for a service from ECR
+ * Determine the image tag to use for deployment
+ * For update command, this should always use 'latest' or a specified tag
+ * Not dependent on local git state
  */
-export async function getLatestImageTag(region: string, accountId: string, serviceName: string): Promise<string> {
-  try {
-    // First, try to get current git commit hash
-    const { execSync } = await import('child_process');
-    try {
-      const gitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-      
-      // Check if this image exists in ECR
-      const ecrClient = new ECRClient({ region });
-      const repositoryName = `semiont-${serviceName}`;
-      
-      try {
-        await ecrClient.send(new DescribeImagesCommand({
-          repositoryName,
-          imageIds: [{ imageTag: gitHash }]
-        }));
-        // Image with git hash exists, use it
-        return gitHash;
-      } catch {
-        // Git hash image doesn't exist, fall back to latest
-      }
-    } catch {
-      // Not in a git repository or git not available
-    }
-    
-    // Fall back to 'latest' tag
-    return 'latest';
-  } catch (error) {
-    console.debug(`Failed to determine latest image tag: ${error}`);
-    return 'latest';
-  }
+export async function determineImageTag(region: string, accountId: string, serviceName: string): Promise<string> {
+  // For update/deployment, always use 'latest' tag
+  // In the future, this could accept a tag parameter or query ECR for available tags
+  return 'latest';
 }
 
 export async function findEcsService(ecsClient: ECSClient, clusterName: string, serviceName: string): Promise<string | undefined> {
@@ -397,8 +372,8 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             throw new Error(`Could not extract account ID from task definition ARN`);
           }
           
-          // Determine the image tag to use (git hash or 'latest')
-          const imageTag = await getLatestImageTag(awsRegion, accountId, serviceInfo.name);
+          // Use 'latest' tag for deployment
+          const imageTag = await determineImageTag(awsRegion, accountId, serviceInfo.name);
           
           // Update the container definition with the new image tag and environment variables
           const updatedContainerDefs = taskDef.containerDefinitions?.map(containerDef => {
@@ -610,7 +585,7 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         // For the result, indicate if this was a forced deployment with same revision
         const isForceDeployment = newRevision === previousRevision;
         
-        const imageTag = options.dryRun ? 'unknown' : await getLatestImageTag(awsRegion, envConfig.aws?.accountId || '', serviceInfo.name);
+        const imageTag = options.dryRun ? 'unknown' : await determineImageTag(awsRegion, envConfig.aws?.accountId || '', serviceInfo.name);
         
         return {
           ...baseResult,
