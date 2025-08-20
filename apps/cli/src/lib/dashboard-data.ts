@@ -111,12 +111,22 @@ export class DashboardDataSource {
               const primaryRev = primaryDeployment?.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
               const activeRev = activeDeployment?.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
               
+              // Calculate deployment progress
+              const primaryRunning = primaryDeployment?.runningCount || 0;
+              const primaryDesired = primaryDeployment?.desiredCount || 0;
+              const progress = primaryDesired > 0 ? Math.round((primaryRunning / primaryDesired) * 100) : 0;
+              
+              // Create progress bar
+              const barLength = 10;
+              const filledLength = Math.round((progress / 100) * barLength);
+              const progressBar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
+              
               if (primaryRev === activeRev) {
                 // Same revision but redeploying (common with :latest tag)
-                deploymentStatus = `🔄 Redeploying rev:${primaryRev} (${primaryDeployment?.runningCount || 0}/${primaryDeployment?.desiredCount || 0} tasks)`;
+                deploymentStatus = `🔄 Redeploying rev:${primaryRev} [${progressBar}] ${progress}% (${primaryRunning}/${primaryDesired})`;
               } else {
                 // Different revisions - actual update
-                deploymentStatus = `🔄 Deploying rev:${primaryRev} → rev:${activeRev} (${deployments.length} active)`;
+                deploymentStatus = `🔄 rev:${activeRev}→${primaryRev} [${progressBar}] ${progress}%`;
               }
               
               taskDefinition = primaryDeployment?.taskDefinition;

@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { printDebug } from '../lib/cli-logger.js';
+import { printDebug, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
@@ -25,8 +25,16 @@ import {
 } from '../lib/command-results.js';
 
 // AWS SDK imports for ECS operations
-import { ECSClient, UpdateServiceCommand, ListServicesCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { 
+  ECSClient, 
+  UpdateServiceCommand, 
+  ListServicesCommand, 
+  DescribeServicesCommand,
+  RegisterTaskDefinitionCommand,
+  DescribeTaskDefinitionCommand
+} from '@aws-sdk/client-ecs';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { ECRClient, DescribeImagesCommand } from '@aws-sdk/client-ecr';
 
 // const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -41,6 +49,8 @@ const UpdateOptionsSchema = z.object({
   skipBuild: z.boolean().default(false),
   force: z.boolean().default(false),
   gracePeriod: z.number().int().positive().default(3), // seconds to wait between stop and start
+  wait: z.boolean().default(false), // wait for deployment to complete
+  timeout: z.number().int().positive().default(600), // timeout in seconds for --wait
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
@@ -51,11 +61,87 @@ interface UpdateOptions extends BaseCommandOptions {
   skipBuild?: boolean;
   force?: boolean;
   gracePeriod?: number;
+  wait?: boolean;
+  timeout?: number;
 }
 
 // =====================================================================
 // HELPER FUNCTIONS
 // =====================================================================
+
+/**
+ * Wait for ECS deployment to complete
+ */
+async function waitForDeploymentCompletion(
+  ecsClient: ECSClient,
+  clusterName: string,
+  serviceName: string,
+  timeout: number,
+  verbose: boolean = false
+): Promise<{ success: boolean; message: string; deploymentId?: string }> {
+  const startTime = Date.now();
+  const timeoutMs = timeout * 1000;
+  
+  while (Date.now() - startTime < timeoutMs) {
+    const describeResponse = await ecsClient.send(new DescribeServicesCommand({
+      cluster: clusterName,
+      services: [serviceName]
+    }));
+    
+    const service = describeResponse.services?.[0];
+    if (!service) {
+      return { success: false, message: 'Service not found' };
+    }
+    
+    const deployments = service.deployments || [];
+    const primaryDeployment = deployments.find(d => d.status === 'PRIMARY');
+    const activeDeployment = deployments.find(d => d.status === 'ACTIVE');
+    
+    if (verbose) {
+      printDebug(`Deployments: ${deployments.length} total`, { verbose } as any);
+      deployments.forEach(d => {
+        printDebug(`  - ${d.status}: ${d.runningCount}/${d.desiredCount} tasks (${d.taskDefinition?.split('/').pop()})`, { verbose } as any);
+      });
+    }
+    
+    // Check if deployment is complete
+    if (deployments.length === 1 && primaryDeployment) {
+      const running = primaryDeployment.runningCount || 0;
+      const desired = primaryDeployment.desiredCount || 0;
+      
+      if (running === desired) {
+        return {
+          success: true,
+          message: `Deployment completed successfully (${running}/${desired} tasks running)`,
+          deploymentId: primaryDeployment.id
+        };
+      }
+    }
+    
+    // Show progress
+    if (primaryDeployment) {
+      const running = primaryDeployment.runningCount || 0;
+      const desired = primaryDeployment.desiredCount || 0;
+      const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
+      
+      // Create progress bar
+      const barLength = 20;
+      const filledLength = Math.round((progress / 100) * barLength);
+      const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
+      
+      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks)  `);
+    }
+    
+    // Wait before checking again
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  
+  process.stdout.write('\n');
+  return {
+    success: false,
+    message: `Deployment timed out after ${timeout} seconds`
+  };
+}
 
 export async function getClusterNameFromStack(region: string, stackName: string): Promise<string | undefined> {
   try {
@@ -89,6 +175,42 @@ export async function getClusterNameFromStack(region: string, stackName: string)
   } catch (error) {
     console.debug(`Failed to get cluster name from stack: ${error}`);
     return undefined;
+  }
+}
+
+/**
+ * Get the latest image tag for a service from ECR
+ */
+export async function getLatestImageTag(region: string, accountId: string, serviceName: string): Promise<string> {
+  try {
+    // First, try to get current git commit hash
+    const { execSync } = await import('child_process');
+    try {
+      const gitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+      
+      // Check if this image exists in ECR
+      const ecrClient = new ECRClient({ region });
+      const repositoryName = `semiont-${serviceName}`;
+      
+      try {
+        await ecrClient.send(new DescribeImagesCommand({
+          repositoryName,
+          imageIds: [{ imageTag: gitHash }]
+        }));
+        // Image with git hash exists, use it
+        return gitHash;
+      } catch {
+        // Git hash image doesn't exist, fall back to latest
+      }
+    } catch {
+      // Not in a git repository or git not available
+    }
+    
+    // Fall back to 'latest' tag
+    return 'latest';
+  } catch (error) {
+    console.debug(`Failed to determine latest image tag: ${error}`);
+    return 'latest';
   }
 }
 
@@ -253,9 +375,85 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         }
         
         if (!options.dryRun) {
+          // Get the current task definition
+          const taskDefArn = serviceBefore?.taskDefinition;
+          if (!taskDefArn) {
+            throw new Error(`No task definition found for service ${actualServiceName}`);
+          }
+          
+          // Get the full task definition
+          const taskDefResponse = await ecsClient.send(new DescribeTaskDefinitionCommand({
+            taskDefinition: taskDefArn
+          }));
+          
+          const taskDef = taskDefResponse.taskDefinition;
+          if (!taskDef) {
+            throw new Error(`Could not retrieve task definition ${taskDefArn}`);
+          }
+          
+          // Get AWS account ID from the task definition ARN
+          const accountId = taskDefArn.match(/arn:aws:ecs:[^:]+:(\d+):/)?.[1];
+          if (!accountId) {
+            throw new Error(`Could not extract account ID from task definition ARN`);
+          }
+          
+          // Determine the image tag to use (git hash or 'latest')
+          const imageTag = await getLatestImageTag(awsRegion, accountId, serviceInfo.name);
+          
+          // Update the container definition with the new image tag
+          const updatedContainerDefs = taskDef.containerDefinitions?.map(containerDef => {
+            if (containerDef.image) {
+              // Parse the current image to get the repository
+              const imageParts = containerDef.image.split(':');
+              const repository = imageParts[0];
+              const newImage = `${repository}:${imageTag}`;
+              
+              if (!isStructuredOutput && options.output === 'summary') {
+                printDebug(`Updating image from ${containerDef.image} to ${newImage}`);
+              }
+              
+              return {
+                ...containerDef,
+                image: newImage
+              };
+            }
+            return containerDef;
+          });
+          
+          // Register a new task definition revision with the updated image
+          const registerResponse = await ecsClient.send(new RegisterTaskDefinitionCommand({
+            family: taskDef.family,
+            taskRoleArn: taskDef.taskRoleArn,
+            executionRoleArn: taskDef.executionRoleArn,
+            networkMode: taskDef.networkMode,
+            containerDefinitions: updatedContainerDefs,
+            volumes: taskDef.volumes,
+            placementConstraints: taskDef.placementConstraints,
+            requiresCompatibilities: taskDef.requiresCompatibilities,
+            cpu: taskDef.cpu,
+            memory: taskDef.memory,
+            runtimePlatform: taskDef.runtimePlatform,
+            ephemeralStorage: taskDef.ephemeralStorage,
+            inferenceAccelerators: taskDef.inferenceAccelerators,
+            proxyConfiguration: taskDef.proxyConfiguration,
+          }));
+          
+          const newTaskDefArn = registerResponse.taskDefinition?.taskDefinitionArn;
+          if (!newTaskDefArn) {
+            throw new Error('Failed to register new task definition');
+          }
+          
+          // Extract the new revision number
+          const newRevMatch = newTaskDefArn.match(/:(\d+)$/);
+          if (newRevMatch) {
+            newRevision = parseInt(newRevMatch[1]);
+          }
+          
+          // Update the service to use the new task definition
           await ecsClient.send(new UpdateServiceCommand({
             cluster: clusterName,
             service: actualServiceName,
+            taskDefinition: newTaskDefArn,
             forceNewDeployment: true
           }));
           
@@ -268,27 +466,38 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
           const serviceAfter = afterUpdate.services?.[0];
           const deploymentCount = serviceAfter?.deployments?.length || 0;
           
-          // When forceNewDeployment is used with :latest tag, the task definition revision 
-          // doesn't change, but a new deployment is created
-          if (serviceAfter?.deployments?.[0]?.taskDefinition) {
-            const revMatch = serviceAfter.deployments[0].taskDefinition.match(/:(\d+)$/);
-            if (revMatch) {
-              newRevision = parseInt(revMatch[1]);
+          if (!isStructuredOutput && options.output === 'summary') {
+            if (newRevision && previousRevision && newRevision !== previousRevision) {
+              // New task definition revision with updated image
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new task definition with image tag '${imageTag}' (rev:${previousRevision} → rev:${newRevision})`);
+              if (deploymentCount > 1) {
+                printInfo(`Rolling update in progress (${deploymentCount} deployments active)`);
+              }
+            } else {
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} with image tag '${imageTag}'`);
             }
           }
           
-          if (!isStructuredOutput && options.output === 'summary') {
-            if (deploymentCount > 1) {
-              // Multiple deployments means a rolling update is in progress
-              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new deployment rolling out (${deploymentCount} deployments active)`);
-            } else if (newRevision === previousRevision) {
-              // Same revision but forced deployment (common with :latest tag)
-              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - pulling latest image (task definition rev:${newRevision})`);
-            } else if (newRevision) {
-              // New task definition revision
-              printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new task definition (rev:${previousRevision} → rev:${newRevision})`);
-            } else {
-              printSuccess(`ECS deployment initiated for ${serviceInfo.name}`);
+          // Wait for deployment to complete if requested
+          if (options.wait) {
+            if (!isStructuredOutput && options.output === 'summary') {
+              printInfo(`Waiting for deployment to complete (timeout: ${options.timeout}s)...`);
+            }
+            
+            const waitResult = await waitForDeploymentCompletion(
+              ecsClient,
+              clusterName,
+              actualServiceName,
+              options.timeout || 600,
+              options.verbose || false
+            );
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              if (waitResult.success) {
+                printSuccess(waitResult.message);
+              } else {
+                printWarning(waitResult.message);
+              }
             }
           }
         }
@@ -296,21 +505,19 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         // For the result, indicate if this was a forced deployment with same revision
         const isForceDeployment = newRevision === previousRevision;
         
+        const imageTag = options.dryRun ? 'unknown' : await getLatestImageTag(awsRegion, envConfig.aws?.accountId || '', serviceInfo.name);
+        
         return {
           ...baseResult,
           updateTime,
-          previousVersion: previousRevision ? `rev:${previousRevision}` : 'latest',
-          newVersion: isForceDeployment 
-            ? `rev:${newRevision} (redeployed)` 
-            : (newRevision ? `rev:${newRevision}` : 'latest-updated'),
+          previousVersion: previousRevision ? `rev:${previousRevision}` : 'unknown',
+          newVersion: newRevision ? `rev:${newRevision} (${imageTag})` : imageTag,
           rollbackAvailable: true,
           changesApplied: [{ 
             type: 'infrastructure', 
-            description: isForceDeployment
-              ? `Forced ECS redeployment with latest image (task definition rev:${newRevision})`
-              : (newRevision 
-                ? `ECS deployment with new task definition (rev:${previousRevision} → rev:${newRevision})`
-                : `ECS deployment initiated for ${actualServiceName}`)
+            description: newRevision 
+              ? `Updated ECS task definition to use image tag '${imageTag}' (rev:${previousRevision} → rev:${newRevision})`
+              : `ECS deployment initiated for ${actualServiceName}`
           }],
           resourceId: {
             aws: {
@@ -324,7 +531,7 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             serviceName: actualServiceName,
             cluster: clusterName,
             region: awsRegion,
-            forceNewDeployment: true,
+            imageTag,
             previousRevision,
             newRevision
           },
@@ -926,6 +1133,8 @@ export const updateCommand = new CommandBuilder<UpdateOptions>()
       '--skip-build': { type: 'boolean', description: 'Skip build step' },
       '--force': { type: 'boolean', description: 'Force update even on errors' },
       '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
+      '--wait': { type: 'boolean', description: 'Wait for deployment to complete' },
+      '--timeout': { type: 'number', description: 'Timeout in seconds for --wait (default: 600)' },
       '--verbose': { type: 'boolean', description: 'Verbose output' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
@@ -934,12 +1143,14 @@ export const updateCommand = new CommandBuilder<UpdateOptions>()
     aliases: {
       '-e': '--environment',
       '-f': '--force',
+      '-w': '--wait',
       '-v': '--verbose',
       '-o': '--output',
     }
   })
   .examples(
     'semiont update --environment staging',
+    'semiont update --environment production --wait',
     'semiont update --environment production --force',
     'semiont update --environment local --skip-tests'
   )

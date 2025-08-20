@@ -114,9 +114,10 @@ export async function buildImage(
     verbose?: boolean;
     buildArgs?: Record<string, string>;
     noCache?: boolean;
+    platform?: string;
   } = {}
 ): Promise<boolean> {
-  const { verbose = false, buildArgs = {}, noCache = false } = options;
+  const { verbose = false, buildArgs = {}, noCache = false, platform } = options;
   const imageTag = `${imageName}:${tag}`;
 
   const args = [
@@ -124,6 +125,12 @@ export async function buildImage(
     '-t', imageTag,
     '-f', dockerfile,
   ];
+  
+  // Add platform flag for cross-platform builds (important for AWS deployments)
+  // Default to linux/amd64 for production builds to ensure compatibility with ECS
+  if (platform) {
+    args.push('--platform', platform);
+  }
 
   // Add no-cache flag if requested
   if (noCache) {

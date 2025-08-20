@@ -127,7 +127,12 @@ export const ServicePanel: React.FC<{
               {showDetails && service.details && (
                 <Text color="gray" dimColor>  {service.details}</Text>
               )}
-              {showDetails && service.deploymentStatus && (
+              {/* Always show deployment status if there's an active deployment */}
+              {service.deploymentStatus && service.deploymentStatus.includes('🔄') && (
+                <Text color="yellow">  {service.deploymentStatus}</Text>
+              )}
+              {/* Show stable deployment status only in detailed view */}
+              {showDetails && service.deploymentStatus && !service.deploymentStatus.includes('🔄') && (
                 <Text color="gray" dimColor>  Deployment: {service.deploymentStatus}</Text>
               )}
               {showDetails && service.taskDefinition && (

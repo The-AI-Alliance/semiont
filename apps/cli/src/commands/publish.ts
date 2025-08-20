@@ -23,7 +23,7 @@ import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // AWS SDK imports for ECR operations
-import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
+import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand, DescribeImagesCommand } from '@aws-sdk/client-ecr';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 
 const DEFAULT_PROJECT_ROOT = getProjectRoot(import.meta.url);
@@ -165,7 +165,7 @@ async function buildContainerImage(
   options: PublishOptions,
   isStructuredOutput: boolean = false,
   envConfig?: EnvironmentConfig
-): Promise<{ imageName: string | null; buildDuration: number; imageSize?: number }> {
+): Promise<{ imageName: string | null; buildDuration: number; imageSize?: number; layers?: number; digest?: string }> {
   const startTime = Date.now();
   
   if (options.skipBuild) {
@@ -212,6 +212,9 @@ async function buildContainerImage(
     buildArgs.NEXT_PUBLIC_APP_VERSION = '1.0.0';
   }
   
+  // For AWS deployments, ensure we build for linux/amd64 (ECS runs on x86_64)
+  const platform = serviceInfo.deploymentType === 'aws' ? 'linux/amd64' : undefined;
+  
   const buildSuccess = await buildImage(
     imageName,
     tag,
@@ -220,7 +223,8 @@ async function buildContainerImage(
     {
       verbose: options.verbose ?? false,
       buildArgs,
-      noCache: options.noCache ?? false
+      noCache: options.noCache ?? false,
+      platform
     }
   );
   
@@ -234,11 +238,70 @@ async function buildContainerImage(
   }
   
   const fullImageName = `${imageName}:${tag}`;
-  if (!isStructuredOutput && options.output === 'summary') {
-    printSuccess(`Built container image: ${fullImageName}`);
+  
+  // Get image details
+  let imageSize: number | undefined;
+  let layers: number | undefined;
+  let digest: string | undefined;
+  
+  try {
+    const runtime = await detectContainerRuntime();
+    const { execSync } = await import('child_process');
+    
+    // Get image size
+    const sizeOutput = execSync(
+      `${runtime} images ${fullImageName} --format "{{.Size}}"`,
+      { encoding: 'utf8' }
+    ).trim();
+    
+    // Parse size (e.g., "312MB" or "1.2GB")
+    if (sizeOutput) {
+      const sizeMatch = sizeOutput.match(/^([\d.]+)([KMGT]?B)?$/);
+      if (sizeMatch) {
+        const value = parseFloat(sizeMatch[1]);
+        const unit = sizeMatch[2] || 'B';
+        const multipliers: Record<string, number> = {
+          'B': 1,
+          'KB': 1024,
+          'MB': 1024 * 1024,
+          'GB': 1024 * 1024 * 1024,
+          'TB': 1024 * 1024 * 1024 * 1024
+        };
+        imageSize = Math.round(value * (multipliers[unit] || 1));
+      }
+    }
+    
+    // Get image digest and layer count
+    const inspectOutput = execSync(
+      `${runtime} inspect ${fullImageName} --format "{{.Id}}|{{len .RootFS.Layers}}"`,
+      { encoding: 'utf8' }
+    ).trim();
+    
+    const [imageId, layerCount] = inspectOutput.split('|');
+    if (imageId) {
+      digest = imageId.replace('sha256:', '').substring(0, 12);
+    }
+    if (layerCount) {
+      layers = parseInt(layerCount);
+    }
+  } catch (error) {
+    // Non-critical - continue without details
+    printDebug(`Could not get image details: ${error}`, options as any);
   }
   
-  return { imageName: fullImageName, buildDuration };
+  if (!isStructuredOutput && options.output === 'summary') {
+    let details = [`Built container image: ${fullImageName}`];
+    if (imageSize) {
+      const sizeMB = Math.round(imageSize / (1024 * 1024));
+      details.push(`Size: ${sizeMB} MB`);
+    }
+    if (layers) {
+      details.push(`Layers: ${layers}`);
+    }
+    printSuccess(details.join(' | '));
+  }
+  
+  return { imageName: fullImageName, buildDuration, imageSize, layers, digest };
 }
 
 // =====================================================================
@@ -321,7 +384,7 @@ async function pushImageToECR(
   serviceName: string,
   config: EnvironmentConfig,
   options: PublishOptions
-): Promise<string | null> {
+): Promise<{ uri: string; digest: string; tags: string[] } | null> {
   if (!config.aws) {
     printError('AWS configuration not found in environment config');
     return null;
@@ -396,32 +459,78 @@ async function pushImageToECR(
       return null;
     }
     
-    // Tag image for ECR
-    const ecrImageUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}:latest`;
-    printInfo(`Tagging image for ECR: ${ecrImageUri}`);
+    // Determine tags to push
+    const tags: string[] = [];
+    const baseUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}`;
     
-    const tagSuccess = await tagImage(localImageName, ecrImageUri, {
-      verbose: options.verbose ?? false
-    });
+    // Always push with the specific tag (git hash or user-provided)
+    const primaryTag = options.tag || 'latest';
+    tags.push(primaryTag);
     
-    if (!tagSuccess) {
-      printError(`Failed to tag image for ECR`);
-      return null;
+    // Also tag as 'latest' if we're not already using that tag
+    if (primaryTag !== 'latest') {
+      tags.push('latest');
     }
     
-    // Push to ECR
-    printInfo(`Pushing ${serviceName} to ECR...`);
-    const pushSuccess = await pushImage(ecrImageUri, {
-      verbose: options.verbose ?? false
-    });
+    // Tag and push each tag
+    let digest: string | undefined;
     
-    if (!pushSuccess) {
-      printError(`Failed to push ${serviceName} to ECR`);
-      return null;
+    for (const tag of tags) {
+      const ecrImageUri = `${baseUri}:${tag}`;
+      printInfo(`Tagging image as: ${ecrImageUri}`);
+      
+      const tagSuccess = await tagImage(localImageName, ecrImageUri, {
+        verbose: options.verbose ?? false
+      });
+      
+      if (!tagSuccess) {
+        printError(`Failed to tag image for ECR`);
+        return null;
+      }
     }
     
-    printSuccess(`Successfully pushed to ECR: ${ecrImageUri}`);
-    return ecrImageUri;
+    // Push all tags to ECR
+    for (const tag of tags) {
+      const ecrImageUri = `${baseUri}:${tag}`;
+      printInfo(`Pushing ${tag} to ECR...`);
+      
+      const pushSuccess = await pushImage(ecrImageUri, {
+        verbose: options.verbose ?? false
+      });
+      
+      if (!pushSuccess) {
+        printError(`Failed to push ${serviceName}:${tag} to ECR`);
+        return null;
+      }
+    }
+    
+    // Get the image digest from ECR
+    try {
+      const describeResponse = await ecrClient.send(new DescribeImagesCommand({
+        repositoryName,
+        imageIds: [{ imageTag: primaryTag }]
+      }));
+      
+      const imageDetail = describeResponse.imageDetails?.[0];
+      if (imageDetail?.imageId?.imageDigest) {
+        digest = imageDetail.imageId.imageDigest;
+      }
+    } catch (error) {
+      printDebug(`Could not get image digest from ECR: ${error}`, options as any);
+    }
+    
+    printSuccess(`✅ Successfully pushed to ECR`);
+    printInfo(`📦 Repository: ${baseUri}`);
+    printInfo(`🏷️  Tags: ${tags.join(', ')}`);
+    if (digest) {
+      printInfo(`🔑 Digest: ${digest}`);
+    }
+    
+    return {
+      uri: `${baseUri}:${primaryTag}`,
+      digest: digest || 'unknown',
+      tags
+    };
     
   } catch (error) {
     printError(`ECR operation failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -522,17 +631,24 @@ async function publishService(
     let publishedImage: string | null = null;
     let repository: string | undefined;
     let digest: string | undefined;
+    let pushedTags: string[] = [];
     
     if (serviceInfo.deploymentType === 'aws') {
       // Use passed environment config for AWS settings
-      publishedImage = await pushImageToECR(buildResult.imageName, serviceInfo.name, envConfig, options);
-      if (publishedImage && hasAWSConfig(envConfig)) {
-        repository = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-${serviceInfo.name}`;
-        digest = 'sha256:' + Math.random().toString(36).substring(2, 15); // Would be returned by ECR in real implementation
+      const pushResult = await pushImageToECR(buildResult.imageName, serviceInfo.name, envConfig, options);
+      if (pushResult) {
+        publishedImage = pushResult.uri;
+        digest = pushResult.digest;
+        pushedTags = pushResult.tags;
+        if (hasAWSConfig(envConfig)) {
+          repository = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-${serviceInfo.name}`;
+        }
       }
     } else if (serviceInfo.deploymentType === 'container') {
       publishedImage = await tagForLocalRegistry(buildResult.imageName, serviceInfo.name, options.tag, options);
       repository = 'local';
+      digest = buildResult.digest;
+      pushedTags = [options.tag];
     }
     
     if (!publishedImage) {
@@ -540,7 +656,23 @@ async function publishService(
     }
     
     if (!isStructuredOutput && options.output === 'summary') {
-      printSuccess(`Successfully published ${serviceInfo.name}: ${publishedImage}`);
+      printSuccess(`\n📦 Published ${serviceInfo.name} successfully!`);
+      console.log(`\n📋 Publishing Receipt:`);
+      console.log(`  Service: ${serviceInfo.name}`);
+      console.log(`  Repository: ${repository || 'local'}`);
+      console.log(`  Tags: ${pushedTags.join(', ')}`);
+      if (digest && digest !== 'unknown') {
+        console.log(`  Digest: ${digest}`);
+      }
+      if (buildResult.imageSize) {
+        const sizeMB = Math.round(buildResult.imageSize / (1024 * 1024));
+        console.log(`  Image Size: ${sizeMB} MB`);
+      }
+      if (buildResult.layers) {
+        console.log(`  Layers: ${buildResult.layers}`);
+      }
+      console.log(`  Build Duration: ${Math.round(buildResult.buildDuration / 1000)}s`);
+      console.log('');
     }
     
     return {
@@ -561,6 +693,10 @@ async function publishService(
       metadata: {
         imageName: publishedImage,
         buildDuration: buildResult.buildDuration,
+        imageSize: buildResult.imageSize,
+        layers: buildResult.layers,
+        tags: pushedTags,
+        digest,
         skipBuild: options.skipBuild,
         deploymentType: serviceInfo.deploymentType
       },

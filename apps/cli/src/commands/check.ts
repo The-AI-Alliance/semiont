@@ -15,7 +15,13 @@ import { CheckResult, CommandResults, createBaseResult, createErrorResult } from
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { 
+  ECSClient, 
+  DescribeServicesCommand,
+  ListTasksCommand,
+  DescribeTasksCommand,
+  DescribeTaskDefinitionCommand
+} from '@aws-sdk/client-ecs';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
@@ -44,6 +50,82 @@ type CheckOptions = z.infer<typeof CheckOptionsSchema> & BaseCommandOptions;
 // =====================================================================
 // HELPER FUNCTIONS
 // =====================================================================
+
+/**
+ * Get detailed task information including image digest
+ */
+async function getTaskDetails(
+  ecsClient: ECSClient,
+  clusterName: string,
+  serviceName: string
+): Promise<{ imageDigest?: string; imageTag?: string; startedAt?: Date }> {
+  try {
+    // List tasks for the service
+    const tasksResponse = await ecsClient.send(new ListTasksCommand({
+      cluster: clusterName,
+      serviceName: serviceName,
+      desiredStatus: 'RUNNING'
+    }));
+    
+    if (!tasksResponse.taskArns || tasksResponse.taskArns.length === 0) {
+      return {};
+    }
+    
+    // Get task details
+    const taskDetails = await ecsClient.send(new DescribeTasksCommand({
+      cluster: clusterName,
+      tasks: [tasksResponse.taskArns[0]] // Get first running task
+    }));
+    
+    const task = taskDetails.tasks?.[0];
+    if (!task) {
+      return {};
+    }
+    
+    // Get the container information
+    const container = task.containers?.[0];
+    const imageDigest = container?.imageDigest;
+    const image = container?.image;
+    const imageTag = image?.split(':').pop();
+    
+    return {
+      imageDigest,
+      imageTag,
+      startedAt: task.startedAt
+    };
+  } catch (error) {
+    // Non-critical, return empty object
+    return {};
+  }
+}
+
+/**
+ * Get deployment history for a service
+ */
+async function getDeploymentHistory(
+  ecsClient: ECSClient,
+  service: any
+): Promise<Array<{ revision: string; createdAt: Date; status: string }>> {
+  const history: Array<{ revision: string; createdAt: Date; status: string }> = [];
+  
+  try {
+    // Get deployment events from service
+    const deployments = service.deployments || [];
+    
+    for (const deployment of deployments.slice(0, 5)) { // Last 5 deployments
+      const revision = deployment.taskDefinition?.match(/:(\d+)$/)?.[1] || 'unknown';
+      history.push({
+        revision,
+        createdAt: deployment.createdAt || new Date(),
+        status: deployment.status || 'UNKNOWN'
+      });
+    }
+  } catch (error) {
+    // Non-critical, return empty array
+  }
+  
+  return history;
+}
 
 // Helper wrapper for printDebug that passes verbose option
 function debugLog(_message: string, _options: any): void {
@@ -340,10 +422,23 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
             const deploymentAge = deploymentCreatedAt ? 
               Math.floor((Date.now() - new Date(deploymentCreatedAt).getTime()) / 1000 / 60) : 0;
             
+            // Get task details including image digest
+            const taskDetails = await getTaskDetails(ecsClient, clusterName, actualServiceName);
+            
+            // Get deployment history
+            const deploymentHistory = await getDeploymentHistory(ecsClient, service);
+            
+            // Build enhanced message with image info
+            let message = `ECS Service ${actualServiceName}: ${runningCount}/${desiredCount} tasks running (rev:${revision}`;
+            if (taskDetails.imageTag) {
+              message += `, image:${taskDetails.imageTag}`;
+            }
+            message += `, deployed ${deploymentAge}m ago)`;
+            
             checks.push({
               name: 'ecs-service',
               status: runningCount === desiredCount && status === 'ACTIVE' ? 'pass' : 'warn',
-              message: `ECS Service ${actualServiceName}: ${runningCount}/${desiredCount} tasks running (rev:${revision}, deployed ${deploymentAge}m ago)`,
+              message,
               metadata: {
                 runningCount,
                 desiredCount,
@@ -352,8 +447,33 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
                 serviceName: actualServiceName,
                 clusterName,
                 deploymentAge: `${deploymentAge} minutes`,
+                imageTag: taskDetails.imageTag,
+                imageDigest: taskDetails.imageDigest,
+                taskStartedAt: taskDetails.startedAt,
+                deploymentHistory: deploymentHistory.map(d => ({
+                  revision: d.revision,
+                  status: d.status,
+                  age: Math.floor((Date.now() - new Date(d.createdAt).getTime()) / 1000 / 60) + 'm ago'
+                }))
               }
             });
+            
+            // Add deployment history as separate check if verbose
+            if (options.verbose && deploymentHistory.length > 1) {
+              const historyMessage = deploymentHistory
+                .slice(0, 3)
+                .map(d => {
+                  const age = Math.floor((Date.now() - new Date(d.createdAt).getTime()) / 1000 / 60);
+                  return `  • rev:${d.revision} (${d.status}, ${age}m ago)`;
+                })
+                .join('\n');
+              
+              checks.push({
+                name: 'deployment-history',
+                status: 'info',
+                message: `Recent deployments:\n${historyMessage}`,
+              });
+            }
             
             healthStatus = runningCount > 0 ? 'healthy' : 'unhealthy';
           }
