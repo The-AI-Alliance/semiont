@@ -25,7 +25,7 @@ import {
 } from '../lib/command-results.js';
 
 // AWS SDK imports for ECS operations
-import { ECSClient, UpdateServiceCommand, ListServicesCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, UpdateServiceCommand, ListServicesCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 
 // const PROJECT_ROOT = getProjectRoot(import.meta.url);
@@ -235,6 +235,22 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         }
         
         const updateTime = new Date();
+        let newRevision: number | undefined;
+        let previousRevision: number | undefined;
+        
+        // Get current revision before update
+        const beforeUpdate = await ecsClient.send(new DescribeServicesCommand({
+          cluster: clusterName,
+          services: [actualServiceName]
+        }));
+        
+        const serviceBefore = beforeUpdate.services?.[0];
+        if (serviceBefore?.taskDefinition) {
+          const revMatch = serviceBefore.taskDefinition.match(/:(\d+)$/);
+          if (revMatch) {
+            previousRevision = parseInt(revMatch[1]);
+          }
+        }
         
         if (!options.dryRun) {
           await ecsClient.send(new UpdateServiceCommand({
@@ -243,18 +259,41 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             forceNewDeployment: true
           }));
           
+          // Get the updated service to find the new revision
+          const afterUpdate = await ecsClient.send(new DescribeServicesCommand({
+            cluster: clusterName,
+            services: [actualServiceName]
+          }));
+          
+          const serviceAfter = afterUpdate.services?.[0];
+          if (serviceAfter?.deployments?.[0]?.taskDefinition) {
+            const revMatch = serviceAfter.deployments[0].taskDefinition.match(/:(\d+)$/);
+            if (revMatch) {
+              newRevision = parseInt(revMatch[1]);
+            }
+          }
+          
           if (!isStructuredOutput && options.output === 'summary') {
-            printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName})`);
+            if (newRevision) {
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName}) - revision ${newRevision}`);
+            } else {
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName})`);
+            }
           }
         }
         
         return {
           ...baseResult,
           updateTime,
-          previousVersion: 'latest',
-          newVersion: 'latest-updated',
+          previousVersion: previousRevision ? `rev:${previousRevision}` : 'latest',
+          newVersion: newRevision ? `rev:${newRevision}` : 'latest-updated',
           rollbackAvailable: true,
-          changesApplied: [{ type: 'infrastructure', description: `ECS deployment initiated for ${actualServiceName}` }],
+          changesApplied: [{ 
+            type: 'infrastructure', 
+            description: newRevision 
+              ? `ECS deployment initiated for ${actualServiceName} (revision ${newRevision})`
+              : `ECS deployment initiated for ${actualServiceName}`
+          }],
           resourceId: {
             aws: {
               arn: `arn:aws:ecs:${awsRegion}:${envConfig.aws?.accountId || '123456789012'}:service/${clusterName}/${actualServiceName}`,
@@ -267,7 +306,9 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             serviceName: actualServiceName,
             cluster: clusterName,
             region: awsRegion,
-            forceNewDeployment: true
+            forceNewDeployment: true,
+            previousRevision,
+            newRevision
           },
         };
       } catch (error) {

@@ -135,6 +135,14 @@ export class OutputFormatter {
         output += `   ${c.dim}endpoint: ${startResult.endpoint}${c.reset}\n`;
       }
       
+      // Show revision information for update results
+      const updateResult = service as any;
+      if (updateResult.previousVersion && updateResult.newVersion && !options.quiet) {
+        output += `   ${c.dim}revision: ${updateResult.previousVersion} → ${updateResult.newVersion}${c.reset}\n`;
+      } else if (updateResult.newVersion && !options.quiet) {
+        output += `   ${c.dim}revision: ${updateResult.newVersion}${c.reset}\n`;
+      }
+      
       // Show resource ID and console URL
       if (options.verbose && service.resourceId) {
         const resourceInfo = this.formatResourceId(service.resourceId);
