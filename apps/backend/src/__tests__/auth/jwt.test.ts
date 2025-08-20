@@ -12,7 +12,6 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/cli/lib/deployment-resolver.js';
 
 // Mock jsonwebtoken
 vi.mock('jsonwebtoken', () => ({
@@ -54,21 +53,13 @@ describe('JWT Service', () => {
     updatedAt: new Date(),
   };
   
-  const testConfig: EnvironmentConfig = {
-    site: {
-      domain: 'test.example.com',
-      oauthAllowedDomains: ['example.com', 'test.org']
-    },
-    services: {},
-    env: {
-      NODE_ENV: 'test'
-    }
-  } as EnvironmentConfig;
+  const testDomain = 'test.example.com';
+  const testAllowedDomains = ['example.com', 'test.org'];
 
   beforeEach(() => {
     vi.clearAllMocks();
     // Set the test configuration
-    JWTService.setConfig(testConfig);
+    JWTService.setTestConfig(testDomain, testAllowedDomains);
   });
   
   afterEach(() => {

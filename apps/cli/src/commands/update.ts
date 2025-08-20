@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
 import { printDebug } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // import { getProjectRoot } from '../lib/cli-paths.js';
@@ -25,7 +25,8 @@ import {
 } from '../lib/command-results.js';
 
 // AWS SDK imports for ECS operations
-import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, UpdateServiceCommand, ListServicesCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 
 // const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -35,6 +36,7 @@ import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 
 const UpdateOptionsSchema = z.object({
   environment: z.string().optional(),
+  service: z.string().optional(),
   skipTests: z.boolean().default(false),
   skipBuild: z.boolean().default(false),
   force: z.boolean().default(false),
@@ -54,6 +56,68 @@ interface UpdateOptions extends BaseCommandOptions {
 // =====================================================================
 // HELPER FUNCTIONS
 // =====================================================================
+
+async function getClusterNameFromStack(region: string, stackName: string): Promise<string | undefined> {
+  try {
+    const cfnClient = new CloudFormationClient({ region });
+    const result = await cfnClient.send(new DescribeStacksCommand({
+      StackName: stackName
+    }));
+    
+    const stack = result.Stacks?.[0];
+    if (!stack?.Outputs) {
+      return undefined;
+    }
+    
+    // Look for ECS Cluster in outputs
+    const clusterOutput = stack.Outputs.find(
+      output => output.OutputKey?.includes('Cluster') || 
+                output.OutputKey?.includes('ECSCluster')
+    );
+    
+    if (clusterOutput?.OutputValue) {
+      // The output value might be an ARN, extract the cluster name
+      const value = clusterOutput.OutputValue;
+      // If it's an ARN like arn:aws:ecs:region:account:cluster/name, extract the name
+      if (value.includes('arn:aws:ecs:')) {
+        return value.split('/').pop();
+      }
+      return value;
+    }
+    
+    return undefined;
+  } catch (error) {
+    console.debug(`Failed to get cluster name from stack: ${error}`);
+    return undefined;
+  }
+}
+
+async function findEcsService(ecsClient: ECSClient, clusterName: string, serviceName: string): Promise<string | undefined> {
+  try {
+    // List all services in the cluster
+    const services = await ecsClient.send(new ListServicesCommand({
+      cluster: clusterName
+    }));
+    
+    if (!services.serviceArns || services.serviceArns.length === 0) {
+      return undefined;
+    }
+    
+    // Find a service that contains the service name
+    for (const arn of services.serviceArns) {
+      // Extract service name from ARN
+      const arnServiceName = arn.split('/').pop();
+      if (arnServiceName && arnServiceName.toLowerCase().includes(serviceName.toLowerCase())) {
+        return arnServiceName;
+      }
+    }
+    
+    return undefined;
+  } catch (error) {
+    console.debug(`Failed to find ECS service: ${error}`);
+    return undefined;
+  }
+}
 
 function printError(message: string): void {
   console.error(`${colors.red}❌ ${message}${colors.reset}`);
@@ -151,45 +215,100 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
       }
       
       try {
-        // Get AWS region from service configuration or use default
-        const awsRegion = (serviceInfo.config as any).aws?.region || 'us-east-1';
+        // Load the full environment configuration
+        const envConfig = loadEnvironmentConfig(environment);
+        const awsRegion = envConfig.aws?.region || 'us-east-1';
+        const stackName = envConfig.aws?.stacks?.app || 'SemiontAppStack';
+        
         const ecsClient = new ECSClient({ region: awsRegion });
-        const clusterName = `semiont-${environment}`;
-        const fullServiceName = `semiont-${environment}-${serviceInfo.name}`;
+        
+        // Dynamically get cluster name from CloudFormation
+        const clusterName = await getClusterNameFromStack(awsRegion, stackName);
+        if (!clusterName) {
+          throw new Error(`Could not find ECS cluster in stack ${stackName}`);
+        }
+        
+        // Find the actual service name in the cluster
+        const actualServiceName = await findEcsService(ecsClient, clusterName, serviceInfo.name);
+        if (!actualServiceName) {
+          throw new Error(`Could not find ECS service for ${serviceInfo.name} in cluster ${clusterName}`);
+        }
+        
         const updateTime = new Date();
+        let newRevision: number | undefined;
+        let previousRevision: number | undefined;
+        
+        // Get current revision before update
+        const beforeUpdate = await ecsClient.send(new DescribeServicesCommand({
+          cluster: clusterName,
+          services: [actualServiceName]
+        }));
+        
+        const serviceBefore = beforeUpdate.services?.[0];
+        if (serviceBefore?.taskDefinition) {
+          const revMatch = serviceBefore.taskDefinition.match(/:(\d+)$/);
+          if (revMatch) {
+            previousRevision = parseInt(revMatch[1]);
+          }
+        }
         
         if (!options.dryRun) {
           await ecsClient.send(new UpdateServiceCommand({
             cluster: clusterName,
-            service: fullServiceName,
+            service: actualServiceName,
             forceNewDeployment: true
           }));
           
+          // Get the updated service to find the new revision
+          const afterUpdate = await ecsClient.send(new DescribeServicesCommand({
+            cluster: clusterName,
+            services: [actualServiceName]
+          }));
+          
+          const serviceAfter = afterUpdate.services?.[0];
+          if (serviceAfter?.deployments?.[0]?.taskDefinition) {
+            const revMatch = serviceAfter.deployments[0].taskDefinition.match(/:(\d+)$/);
+            if (revMatch) {
+              newRevision = parseInt(revMatch[1]);
+            }
+          }
+          
           if (!isStructuredOutput && options.output === 'summary') {
-            printSuccess(`ECS deployment initiated for ${serviceInfo.name}`);
+            if (newRevision) {
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName}) - revision ${newRevision}`);
+            } else {
+              printSuccess(`ECS deployment initiated for ${serviceInfo.name} (${actualServiceName})`);
+            }
           }
         }
         
         return {
           ...baseResult,
           updateTime,
-          previousVersion: 'latest',
-          newVersion: 'latest-updated',
+          previousVersion: previousRevision ? `rev:${previousRevision}` : 'latest',
+          newVersion: newRevision ? `rev:${newRevision}` : 'latest-updated',
           rollbackAvailable: true,
-          changesApplied: [{ type: 'infrastructure', description: `ECS deployment initiated for ${fullServiceName}` }],
+          changesApplied: [{ 
+            type: 'infrastructure', 
+            description: newRevision 
+              ? `ECS deployment initiated for ${actualServiceName} (revision ${newRevision})`
+              : `ECS deployment initiated for ${actualServiceName}`
+          }],
           resourceId: {
             aws: {
-              arn: `arn:aws:ecs:${awsRegion}:123456789012:service/${clusterName}/${fullServiceName}`,
-              id: fullServiceName,
-              name: fullServiceName
+              arn: `arn:aws:ecs:${awsRegion}:${envConfig.aws?.accountId || '123456789012'}:service/${clusterName}/${actualServiceName}`,
+              id: actualServiceName,
+              name: actualServiceName
             }
           },
           status: options.dryRun ? 'dry-run' : 'updated',
           metadata: {
-            serviceName: fullServiceName,
+            serviceName: actualServiceName,
             cluster: clusterName,
             region: awsRegion,
-            forceNewDeployment: true
+            forceNewDeployment: true,
+            previousRevision,
+            newRevision
           },
         };
       } catch (error) {

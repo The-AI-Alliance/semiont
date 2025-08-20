@@ -8,7 +8,7 @@ import * as path from 'path';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
+import { type ServiceDeploymentInfo, getNodeEnvForEnvironment, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { runContainer } from '../lib/container-runtime.js';
 import { 
   StartResult, 
@@ -237,12 +237,26 @@ async function startContainerService(serviceInfo: ServiceDeploymentInfo, options
       const appImageName = serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`;
       const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
       
+      // Load config to get site domain and OAuth settings
+      const config = loadEnvironmentConfig(environment);
+      const envVars: Record<string, string> = {
+        NODE_ENV: getNodeEnvForEnvironment(environment),
+        SEMIONT_ENV: environment
+      };
+      
+      // Add backend-specific config
+      if (serviceInfo.name === 'backend') {
+        if (config.site?.domain) {
+          envVars.SITE_DOMAIN = config.site.domain;
+        }
+        if (config.site?.oauthAllowedDomains) {
+          envVars.OAUTH_ALLOWED_DOMAINS = config.site.oauthAllowedDomains.join(',');
+        }
+      }
+      
       const appSuccess = await runContainer(appImageName, appContainerName, {
         ports: { [port.toString()]: port.toString() },
-        environment: {
-          NODE_ENV: getNodeEnvForEnvironment(environment),
-          SEMIONT_ENV: environment
-        },
+        environment: envVars,
         detached: true,
         verbose: options.verbose
       });
@@ -336,18 +350,30 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       const backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
       
+      // Load config to get site domain and OAuth settings
+      const backendConfig = loadEnvironmentConfig(environment);
+      const backendEnv: Record<string, string> = {
+        ...process.env,
+        NODE_ENV: getNodeEnvForEnvironment(environment),
+        SEMIONT_ENV: environment,
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
+        JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
+        PORT: backendPort.toString(),
+      };
+      
+      // Add site configuration
+      if (backendConfig.site?.domain) {
+        backendEnv.SITE_DOMAIN = backendConfig.site.domain;
+      }
+      if (backendConfig.site?.oauthAllowedDomains) {
+        backendEnv.OAUTH_ALLOWED_DOMAINS = backendConfig.site.oauthAllowedDomains.join(',');
+      }
+      
       const backendProc = spawn(backendCommand[0]!, backendCommand.slice(1), {
         cwd: backendCwd,
         stdio: 'pipe',
         detached: true,
-        env: {
-          ...process.env,
-          NODE_ENV: getNodeEnvForEnvironment(environment),
-          SEMIONT_ENV: environment,
-          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
-          JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-          PORT: backendPort.toString(),
-        }
+        env: backendEnv
       });
       
       backendProc.unref();

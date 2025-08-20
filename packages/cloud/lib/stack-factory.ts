@@ -3,8 +3,8 @@
  */
 
 import * as cdk from 'aws-cdk-lib';
-import { SemiontInfraStack } from './infra-stack';
-import { SemiontAppStack } from './app-stack';
+import { SemiontInfraStack } from './infra-stack.js';
+import { SemiontAppStack } from './app-stack.js';
 
 // Stack constructor type
 export type StackConstructor = typeof SemiontInfraStack | typeof SemiontAppStack;

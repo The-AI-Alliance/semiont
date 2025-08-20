@@ -388,6 +388,45 @@ export class WebDashboardServer {
       color: white;
     }
     
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .action-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .action-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .action-button.console {
+      background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+    }
+    
+    .action-button.logs {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    
+    .action-button.metrics {
+      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+    }
+    
     .loading {
       display: flex;
       justify-content: center;
@@ -466,6 +505,91 @@ export class WebDashboardServer {
         return 'trend-' + trend;
       };
       
+      const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+      };
+      
+      const getConsoleLinks = (service) => {
+        const links = [];
+        const region = service.awsRegion || 'us-east-1';
+        
+        // ECS Service links
+        if (service.ecsServiceName && service.ecsClusterName) {
+          links.push({
+            label: '📊 Console',
+            url: \`https://console.aws.amazon.com/ecs/home?region=\${region}#/clusters/\${service.ecsClusterName}/services/\${service.ecsServiceName}/details\`,
+            className: 'console'
+          });
+          // Only add logs link if we have a verified log group name
+          if (service.logGroupName) {
+            links.push({
+              label: '📝 Logs',
+              url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#logsV2:log-groups/log-group/\${encodeURIComponent(service.logGroupName)}\`,
+              className: 'logs'
+            });
+          }
+          links.push({
+            label: '📈 Metrics',
+            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fECS*2cClusterName*2cServiceName*7d*20\${service.ecsClusterName}*20\${service.ecsServiceName}\`,
+            className: 'metrics'
+          });
+        }
+        
+        // RDS Database link
+        if (service.rdsInstanceId) {
+          links.push({
+            label: '📊 Console',
+            url: \`https://console.aws.amazon.com/rds/home?region=\${region}#database:id=\${service.rdsInstanceId};is-cluster=false\`,
+            className: 'console'
+          });
+          links.push({
+            label: '📈 Metrics',
+            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fRDS*2cDBInstanceIdentifier*7d*20\${service.rdsInstanceId}\`,
+            className: 'metrics'
+          });
+        }
+        
+        // EFS Filesystem link
+        if (service.efsFileSystemId) {
+          links.push({
+            label: '📊 Console',
+            url: \`https://console.aws.amazon.com/efs/home?region=\${region}#/file-systems/\${service.efsFileSystemId}\`,
+            className: 'console'
+          });
+          links.push({
+            label: '📈 Metrics',
+            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fEFS*2cFileSystemId*7d*20\${service.efsFileSystemId}\`,
+            className: 'metrics'
+          });
+        }
+        
+        // Load Balancer link
+        if (service.albArn) {
+          // Extract the load balancer name from ARN for console URL
+          // ARN format: arn:aws:elasticloadbalancing:region:account:loadbalancer/app/name/id
+          const arnParts = service.albArn.split('/');
+          if (arnParts.length >= 3) {
+            const loadBalancerName = arnParts[arnParts.length - 2]; // Get the name part
+            links.push({
+              label: '📊 Console',
+              url: \`https://console.aws.amazon.com/ec2/v2/home?region=\${region}#LoadBalancers:search=\${loadBalancerName};sort=loadBalancerName\`,
+              className: 'console'
+            });
+          }
+          links.push({
+            label: '📈 Metrics',
+            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fApplicationELB*2cLoadBalancer*7d\`,
+            className: 'metrics'
+          });
+        }
+        
+        return links;
+      };
+      
       if (!data) {
         return (
           <div className="dashboard-container">
@@ -493,38 +617,167 @@ export class WebDashboardServer {
           
           <div className="dashboard-grid">
             <div className="dashboard-panel">
-              <div className="panel-title">Services Status</div>
-              {data.services.map((service, index) => (
-                <div key={index} className="service-item">
-                  <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
-                  <div style={{ flex: 1 }}>
-                    <div className="service-name">{service.name}</div>
-                    {service.details && (
-                      <div className="service-details">{service.details}</div>
+              <div className="panel-title">App Services</div>
+            {data.services.filter(s => 
+              ['Frontend', 'Backend', 'Load Balancer', 'WAF', 'DNS (Route 53)'].includes(s.name)
+            ).map((service, index) => (
+              <div key={index} className="service-item" style={{ marginBottom: '12px' }}>
+                <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
+                <div style={{ flex: 1 }}>
+                  <div className="service-name">
+                    {service.name}
+                    {service.revision && (
+                      <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
+                        rev:{service.revision}
+                      </span>
                     )}
-                  </div>
-                  <div className="service-status">{service.status}</div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="dashboard-panel">
-              <div className="panel-title">Key Metrics</div>
-              {data.metrics.map((metric, index) => (
-                <div key={index} className="metric-item">
-                  <div className="metric-name">{metric.name}</div>
-                  <div>
-                    <span className="metric-value">
-                      {metric.value}{metric.unit || ''}
-                    </span>
-                    {metric.trend && (
-                      <span className={\`metric-trend \${getTrendClass(metric.trend)}\`}>
-                        {getTrendIcon(metric.trend)}
+                    {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                      <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
+                        [{service.runningCount}/{service.desiredCount}]
                       </span>
                     )}
                   </div>
+                  {service.details && (
+                    <div className="service-details">{service.details}</div>
+                  )}
+                  {(service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
+                    <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
+                      {service.cpuUtilization !== undefined && (
+                        <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
+                      )}
+                      {service.cpuUtilization !== undefined && service.memoryUtilization !== undefined && (
+                        <span style={{ margin: '0 8px' }}>•</span>
+                      )}
+                      {service.memoryUtilization !== undefined && (
+                        <span>Memory: {service.memoryUtilization.toFixed(1)}%</span>
+                      )}
+                    </div>
+                  )}
+                  {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
+                    <div className="service-details" style={{ color: '#ff9800' }}>
+                      Deployment: {service.deploymentStatus}
+                    </div>
+                  )}
+                  {/* Action Buttons */}
+                  {getConsoleLinks(service).length > 0 && (
+                    <div className="action-buttons">
+                      {getConsoleLinks(service).map((link, linkIndex) => (
+                        <a 
+                          key={linkIndex}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={\`action-button \${link.className}\`}
+                        >
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+            ))}
+            </div>
+            
+            <div className="dashboard-panel">
+              <div className="panel-title">Infrastructure</div>
+            {data.services.filter(s => 
+              ['Database', 'Filesystem'].includes(s.name)
+            ).map((service, index) => (
+              <div key={index} className="service-item" style={{ marginBottom: '12px' }}>
+                <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
+                <div style={{ flex: 1 }}>
+                  <div className="service-name">
+                    {service.name}
+                    {service.revision && (
+                      <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
+                        rev:{service.revision}
+                      </span>
+                    )}
+                    {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                      <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
+                        [{service.runningCount}/{service.desiredCount}]
+                      </span>
+                    )}
+                  </div>
+                  {service.details && (
+                    <div className="service-details">{service.details}</div>
+                  )}
+                  {/* EFS Storage Metrics */}
+                  {service.name === 'Filesystem' && service.storageTotalBytes && (
+                    <>
+                      <div className="service-details" style={{ color: '#2563eb', fontSize: '0.9em', marginTop: '8px' }}>
+                        <strong>Storage:</strong>
+                      </div>
+                      {service.storageUsedBytes !== undefined && service.storageTotalBytes && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Used: {formatBytes(service.storageUsedBytes)} / {formatBytes(service.storageTotalBytes)}
+                          {service.storageUsedPercent !== undefined && (
+                            <span style={{ 
+                              marginLeft: '8px',
+                              color: service.storageUsedPercent > 90 ? '#ef4444' : 
+                                     service.storageUsedPercent > 70 ? '#f59e0b' : '#10b981'
+                            }}>
+                              ({service.storageUsedPercent.toFixed(1)}%)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {service.storageAvailableBytes !== undefined && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Available: {formatBytes(service.storageAvailableBytes)}
+                        </div>
+                      )}
+                      {service.throughputUtilization !== undefined && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Throughput: {service.throughputUtilization.toFixed(1)}%
+                        </div>
+                      )}
+                      {service.clientConnections !== undefined && (
+                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
+                          Connections: {service.clientConnections}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Regular metrics for other services */}
+                  {service.name !== 'Filesystem' && (service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
+                    <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
+                      {service.cpuUtilization !== undefined && (
+                        <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
+                      )}
+                      {service.cpuUtilization !== undefined && service.memoryUtilization !== undefined && (
+                        <span style={{ margin: '0 8px' }}>•</span>
+                      )}
+                      {service.memoryUtilization !== undefined && (
+                        <span>Memory: {service.memoryUtilization.toFixed(1)}%</span>
+                      )}
+                    </div>
+                  )}
+                  {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
+                    <div className="service-details" style={{ color: '#ff9800' }}>
+                      Deployment: {service.deploymentStatus}
+                    </div>
+                  )}
+                  {/* Action Buttons */}
+                  {getConsoleLinks(service).length > 0 && (
+                    <div className="action-buttons">
+                      {getConsoleLinks(service).map((link, linkIndex) => (
+                        <a 
+                          key={linkIndex}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={\`action-button \${link.className}\`}
+                        >
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
             </div>
           </div>
           

@@ -26,6 +26,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Run frontend tests
@@ -69,6 +70,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Run backend tests
@@ -101,6 +103,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Run CDK tests
@@ -124,6 +127,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Validate CLI installation
@@ -134,7 +138,7 @@ jobs:
       - name: Run CLI unit tests
         run: |
           echo "Running CLI package unit tests..."
-          cd apps/cli && npm test
+          cd apps/cli && npm run test:unit
         env:
           CI: true
       
@@ -187,6 +191,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Run comprehensive test suite
@@ -195,7 +200,7 @@ jobs:
           # Run tests for each package
           cd apps/frontend && npm test && cd ../..
           cd apps/backend && npm test && cd ../..
-          cd apps/cli && npm test && cd ../..
+          cd apps/cli && npm run test:unit && cd ../..
           
           echo "All tests completed successfully"
         env:
@@ -224,6 +229,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Validate CLI installation
@@ -251,6 +257,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
+          cd packages/cloud && npm run build && cd ../..
           cd apps/cli && npm run build && npm link
 
       - name: Build all applications

@@ -128,6 +128,12 @@ app.post('/api/auth/google', async (c) => {
     
     const { access_token } = validation.data as GoogleAuthRequest;
 
+    if (!access_token) {
+      return c.json<ErrorResponse>({
+        error: 'Missing access token'
+      }, 400);
+    }
+
     // Verify Google token and get user info
     const googleUser = await OAuthService.verifyGoogleToken(access_token);
     

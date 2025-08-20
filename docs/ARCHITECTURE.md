@@ -367,7 +367,7 @@ export SEMIONT_ENV=production
 semiont provision
 
 # Deploy application (frequent)
-semiont deploy
+semiont publish
 
 # Service management
 semiont restart  # All services

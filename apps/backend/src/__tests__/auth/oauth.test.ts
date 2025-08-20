@@ -268,21 +268,21 @@ describe('OAuth Service', () => {
 
       const result = await OAuthService.createOrUpdateUser(userWithoutName);
 
-      // JWT payload should have name as undefined when user.name is falsy
+      // JWT payload should NOT have name field when user.name is falsy
       expect(JWTService.generateToken).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: expect.any(String),
           email: userWithoutName.email,
-          name: undefined,
+          // name field should be omitted when falsy, not set to undefined
           domain: 'example.com',
           provider: 'google',
           isAdmin: false,
         })
       );
       
-      // Verify name is undefined when user.name is falsy
+      // Verify name field is not present when user.name is falsy
       const generateTokenCall = vi.mocked(JWTService.generateToken).mock.calls[0][0];
-      expect(generateTokenCall.name).toBeUndefined();
+      expect('name' in generateTokenCall).toBe(false);
     });
   });
 

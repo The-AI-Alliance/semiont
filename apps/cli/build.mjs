@@ -56,7 +56,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         'react-devtools-core',
         // AWS SDK packages have complex CommonJS/ESM interactions
         '@aws-sdk/*',
-        // Local workspace packages - only config-loader has ESM issues
+        // Local workspace packages
         '@semiont/api-types',
         '@semiont/cloud',
         // Native binaries that can't be bundled
@@ -116,7 +116,6 @@ await Promise.all(commandFiles.map(async (name) => {
         // Local workspace packages
         '@semiont/api-types',
         '@semiont/cloud',
-        '@semiont/config-loader',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',

@@ -23,8 +23,7 @@ semiont/
 │       ├── src/          # Command implementations with React/Ink UI
 │       └── README.md     # CLI architecture and command reference
 ├── packages/             # Shared workspace packages  
-│   ├── config-loader/   # Configuration loading and validation library
-│   ├── scripts/         # Type-safe management and deployment scripts
+│   ├── config/          # Configuration loading and validation library
 │   ├── api-types/       # Shared TypeScript types
 │   ├── test-utils/      # Shared testing utilities and mocks
 │   ├── mcp-server/      # Model Context Protocol server for AI integration
@@ -214,7 +213,7 @@ export SEMIONT_ENV=production
 semiont provision  # Creates AWS resources (~10-15 minutes)
 
 # Deploy your application  
-semiont deploy     # Builds, tests, and deploys (~5-8 minutes)
+semiont publish    # Builds and pushes container images (~5-8 minutes)
 
 # Configure OAuth secrets (after first deployment)
 semiont configure set oauth/google
@@ -223,7 +222,7 @@ semiont configure set oauth/google
 semiont watch
 ```
 
-**Note**: `semiont deploy` automatically builds Docker images, runs tests, and deploys to AWS. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment guide.
+**Note**: `semiont publish` builds container images and pushes them to AWS ECR. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment guide.
 
 **Note**: AWS credentials are detected automatically using the standard AWS credential chain (AWS CLI configuration, SSO, environment variables, etc.). If you need to configure credentials, run:
 - `aws configure` for access keys
@@ -233,7 +232,7 @@ semiont watch
 
 ```bash
 # Deploy code changes (with SEMIONT_ENV=production)
-semiont deploy  # Automatically builds, tests, and deploys
+semiont publish  # Builds and pushes container images to ECR
 
 # Service control commands
 semiont start --service backend   # Start specific service
@@ -270,8 +269,7 @@ semiont check
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
 | [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
-| [Config Loader README](packages/config-loader/README.md) | Configuration system architecture and environment management |
-| [Scripts README](packages/scripts/README.md) | Type-safe management scripts and AWS resource utilities |
+| [Config README](packages/config/README.md) | Configuration system architecture and environment management |
 | [API Types README](packages/api-types/README.md) | Shared TypeScript type definitions |
 | [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
 | [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
@@ -331,7 +329,7 @@ Semiont uses a unified JSON-based configuration system with inheritance that pro
 
 The system uses a clear separation between configuration data and loading logic:
 - **Configuration Data**: JSON files in `config/environments/` (development.json, production.json)
-- **Configuration Loader**: TypeScript package in `packages/config-loader/` for loading and validation
+- **Configuration System**: TypeScript package in `packages/config/` for loading and validation
 - **Inheritance**: JSON configurations extend base configs using `_extends` field
 - **Secrets**: Managed via `semiont configure` command for local development
 - **Production**: Secrets automatically injected from AWS Secrets Manager

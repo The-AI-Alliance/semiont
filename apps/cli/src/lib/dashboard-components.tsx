@@ -13,6 +13,38 @@ export interface ServiceStatus {
   status: 'healthy' | 'unhealthy' | 'warning' | 'unknown';
   details?: string;
   lastUpdated?: Date;
+  // ECS-specific details
+  revision?: number;
+  desiredCount?: number;
+  runningCount?: number;
+  pendingCount?: number;
+  taskDefinition?: string;
+  cluster?: string;
+  deploymentStatus?: string;
+  imageUri?: string;
+  // Service metrics
+  cpuUtilization?: number;
+  memoryUtilization?: number;
+  requestCount?: number;
+  errorRate?: number;
+  // EFS-specific details
+  storageUsedBytes?: number;
+  storageAvailableBytes?: number;
+  storageTotalBytes?: number;
+  storageUsedPercent?: number;
+  throughputUtilization?: number;
+  clientConnections?: number;
+  // AWS Console links data
+  awsRegion?: string;
+  ecsServiceName?: string;
+  ecsClusterName?: string;
+  rdsInstanceId?: string;
+  efsFileSystemId?: string;
+  albArn?: string;
+  wafWebAclId?: string;
+  route53ZoneId?: string;
+  cloudFormationStackName?: string;
+  logGroupName?: string;
 }
 
 export interface LogEntry {
@@ -85,12 +117,50 @@ export const ServicePanel: React.FC<{
               <Box>
                 <Text bold>{service.name}</Text>
                 <Text color={colors[service.status]}> {service.status}</Text>
+                {service.revision && (
+                  <Text color="cyan"> rev:{service.revision}</Text>
+                )}
+                {service.runningCount !== undefined && service.desiredCount !== undefined && (
+                  <Text color="gray"> [{service.runningCount}/{service.desiredCount}]</Text>
+                )}
               </Box>
               {showDetails && service.details && (
                 <Text color="gray" dimColor>  {service.details}</Text>
               )}
+              {showDetails && service.deploymentStatus && (
+                <Text color="gray" dimColor>  Deployment: {service.deploymentStatus}</Text>
+              )}
+              {showDetails && service.taskDefinition && (
+                <Text color="gray" dimColor>  Task: {service.taskDefinition}</Text>
+              )}
               {showDetails && service.lastUpdated && (
-                <Text color="gray" dimColor>  {service.lastUpdated.toLocaleTimeString()}</Text>
+                <Text color="gray" dimColor>  Updated: {service.lastUpdated.toLocaleTimeString()}</Text>
+              )}
+              {/* EFS Storage Metrics */}
+              {showDetails && service.name === 'Filesystem' && service.storageTotalBytes && (
+                <>
+                  <Text color="cyan">  Storage:</Text>
+                  {service.storageUsedBytes !== undefined && service.storageTotalBytes && (
+                    <Text color="gray">
+                      {'    '}Used: {formatBytes(service.storageUsedBytes)} / {formatBytes(service.storageTotalBytes)} 
+                      {service.storageUsedPercent !== undefined && (
+                        <Text color={
+                          service.storageUsedPercent > 90 ? 'red' :
+                          service.storageUsedPercent > 70 ? 'yellow' : 'green'
+                        }> ({service.storageUsedPercent.toFixed(1)}%)</Text>
+                      )}
+                    </Text>
+                  )}
+                  {service.storageAvailableBytes !== undefined && (
+                    <Text color="gray">    Available: {formatBytes(service.storageAvailableBytes)}</Text>
+                  )}
+                  {service.throughputUtilization !== undefined && (
+                    <Text color="gray">    Throughput: {service.throughputUtilization.toFixed(1)}%</Text>
+                  )}
+                  {service.clientConnections !== undefined && (
+                    <Text color="gray">    Connections: {service.clientConnections}</Text>
+                  )}
+                </>
               )}
             </Box>
           </Box>
@@ -98,6 +168,15 @@ export const ServicePanel: React.FC<{
       )}
     </Box>
   );
+};
+
+// Helper function to format bytes
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 };
 
 // Scrollable log viewer with filtering
