@@ -34,6 +34,17 @@ export interface ServiceStatus {
   storageUsedPercent?: number;
   throughputUtilization?: number;
   clientConnections?: number;
+  // AWS Console links data
+  awsRegion?: string;
+  ecsServiceName?: string;
+  ecsClusterName?: string;
+  rdsInstanceId?: string;
+  efsFileSystemId?: string;
+  albArn?: string;
+  wafWebAclId?: string;
+  route53ZoneId?: string;
+  cloudFormationStackName?: string;
+  logGroupName?: string;
 }
 
 export interface LogEntry {

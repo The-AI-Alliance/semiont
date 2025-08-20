@@ -4,7 +4,7 @@
  * Provides real-time data collection and polling for dashboard components
  */
 
-import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, ListTasksCommand, DescribeTasksCommand, DescribeServicesCommand, DescribeTaskDefinitionCommand } from '@aws-sdk/client-ecs';
 import { CloudWatchLogsClient, GetLogEventsCommand, DescribeLogStreamsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
@@ -102,17 +102,8 @@ export class DashboardDataSource {
             
             // Get the latest deployment
             const latestDeployment = service.deployments?.[0];
-            if (latestDeployment) {
-              const taskDefArn = latestDeployment.taskDefinition;
-              if (taskDefArn) {
-                // Extract revision number from task definition ARN
-                const revisionMatch = taskDefArn.match(/:([0-9]+)$/);
-                if (revisionMatch) {
-                  revision = parseInt(revisionMatch[1]);
-                }
-                // Extract task definition family name
-                taskDefinition = taskDefArn.split('/').pop()?.split(':')[0];
-              }
+            if (latestDeployment?.taskDefinition) {
+              taskDefinition = latestDeployment.taskDefinition;
               deploymentStatus = latestDeployment.status;
             }
 
@@ -214,6 +205,29 @@ export class DashboardDataSource {
             console.debug(`Failed to get metrics for ${serviceName}: ${metricsError}`);
           }
           
+          // Get the actual log group name and revision from the task definition
+          let logGroupName: string | undefined;
+          if (taskDefinition) {
+            try {
+              const describeTaskDefResponse = await this.ecsClient!.send(
+                new DescribeTaskDefinitionCommand({
+                  taskDefinition: taskDefinition
+                })
+              );
+              
+              // Get the revision from the task definition response
+              revision = describeTaskDefResponse.taskDefinition?.revision;
+              
+              // Get the log configuration from the first container definition
+              const containerDef = describeTaskDefResponse.taskDefinition?.containerDefinitions?.[0];
+              if (containerDef?.logConfiguration?.options?.['awslogs-group']) {
+                logGroupName = containerDef.logConfiguration.options['awslogs-group'];
+              }
+            } catch (error) {
+              console.debug(`Failed to get task definition details: ${error}`);
+            }
+          }
+          
           services.push({
             name: serviceType === 'frontend' ? 'Frontend' : 'Backend',
             status,
@@ -227,7 +241,12 @@ export class DashboardDataSource {
             cluster: clusterName,
             deploymentStatus,
             cpuUtilization,
-            memoryUtilization
+            memoryUtilization,
+            // AWS Console links data
+            awsRegion: this.config.aws?.region,
+            ecsServiceName: serviceName,
+            ecsClusterName: clusterName,
+            logGroupName
           });
 
         } catch (error) {
@@ -255,7 +274,10 @@ export class DashboardDataSource {
             status: dbStatus === 'available' ? 'healthy' : 
                    dbStatus === 'backing-up' || dbStatus === 'maintenance' ? 'warning' : 'unhealthy',
             details: `${semiontDb.Engine} ${semiontDb.EngineVersion} - ${dbStatus}`,
-            lastUpdated: new Date()
+            lastUpdated: new Date(),
+            // AWS Console links data
+            awsRegion: this.config.aws?.region,
+            rdsInstanceId: semiontDb.DBInstanceIdentifier
           });
         } else {
           services.push({
@@ -388,7 +410,10 @@ export class DashboardDataSource {
               storageUsedPercent,
               throughputUtilization,
               clientConnections,
-              lastUpdated: new Date()
+              lastUpdated: new Date(),
+              // AWS Console links data
+              awsRegion: this.config.aws?.region,
+              efsFileSystemId: fileSystemId
             });
           }
         } else {
@@ -415,6 +440,7 @@ export class DashboardDataSource {
         let albStatus = 'unknown';
         let albDetails = 'Load balancer information unavailable';
         let requestCount = 0;
+        let albArn: string | undefined;
         
         try {
           // Get load balancer by DNS name
@@ -426,36 +452,41 @@ export class DashboardDataSource {
             const scheme = alb.Scheme === 'internet-facing' ? 'Public' : 'Private';
             const zones = alb.AvailabilityZones?.filter(z => z.ZoneName).length || 0;
             albDetails = `${scheme} ALB - ${zones} AZs`;
+            albArn = alb.LoadBalancerArn;
             
             // Get request count metrics
             try {
               const now = new Date();
               const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
               
-              // Extract ALB name from ARN for metrics
-              const albNameMatch = alb.LoadBalancerArn?.match(/loadbalancer\/app\/([^\/]+)/);
-              if (albNameMatch) {
-                const albName = `app/${albNameMatch[1]}/${alb.LoadBalancerArn?.split('/').pop()}`;
+              // Use the ALB ARN directly - CloudWatch expects the full resource name
+              if (alb.LoadBalancerArn) {
+                // Extract the LoadBalancer dimension value from ARN
+                // Format: arn:aws:elasticloadbalancing:region:account:loadbalancer/app/name/id
+                const arnParts = alb.LoadBalancerArn.split('/');
+                if (arnParts.length >= 3) {
+                  const albDimensionValue = arnParts.slice(-3).join('/'); // app/name/id
+                  
+                  const metricsResponse = await this.cloudWatchClient.send(
+                    new GetMetricStatisticsCommand({
+                      Namespace: 'AWS/ApplicationELB',
+                      MetricName: 'RequestCount',
+                      Dimensions: [{ Name: 'LoadBalancer', Value: albDimensionValue }],
+                      StartTime: fiveMinutesAgo,
+                      EndTime: now,
+                      Period: 300,
+                      Statistics: ['Sum'],
+                    })
+                  );
                 
-                const metricsResponse = await this.cloudWatchClient.send(
-                  new GetMetricStatisticsCommand({
-                    Namespace: 'AWS/ApplicationELB',
-                    MetricName: 'RequestCount',
-                    Dimensions: [{ Name: 'LoadBalancer', Value: albName }],
-                    StartTime: fiveMinutesAgo,
-                    EndTime: now,
-                    Period: 300,
-                    Statistics: ['Sum'],
-                  })
-                );
-                
-                if (metricsResponse.Datapoints && metricsResponse.Datapoints.length > 0) {
-                  const latest = metricsResponse.Datapoints.sort((a, b) => 
-                    (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
-                  )[0];
-                  requestCount = latest.Sum || 0;
-                  if (requestCount > 0) {
-                    albDetails += ` • ${requestCount} req/5m`;
+                  if (metricsResponse.Datapoints && metricsResponse.Datapoints.length > 0) {
+                    const latest = metricsResponse.Datapoints.sort((a, b) => 
+                      (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
+                    )[0];
+                    requestCount = latest.Sum || 0;
+                    if (requestCount > 0) {
+                      albDetails += ` • ${requestCount} req/5m`;
+                    }
                   }
                 }
               }
@@ -472,7 +503,10 @@ export class DashboardDataSource {
           status: albStatus as any,
           details: albDetails,
           lastUpdated: new Date(),
-          requestCount
+          requestCount,
+          // AWS Console links data
+          awsRegion: this.config.aws?.region,
+          albArn
         });
       }
     } catch (error) {
@@ -538,9 +572,9 @@ export class DashboardDataSource {
         const zoneName = zone.Name?.replace(/\.$/, ''); // Remove trailing dot
         
         try {
-          // Count records in the zone
+          // Count records in the zone - zone.Id is already in the correct format
           const recordsResult = await this.route53Client!.send(new ListResourceRecordSetsCommand({
-            HostedZoneId: zone.Id?.split('/').pop() // Extract ID from /hostedzone/ID format
+            HostedZoneId: zone.Id // zone.Id already contains just the ID, no parsing needed
           }));
           
           recordCount = recordsResult.ResourceRecordSets?.length || 0;
