@@ -29,8 +29,12 @@ import {
   DescribeStackEventsCommand,
   StackStatus
 } from '@aws-sdk/client-cloudformation';
-import { App, DefaultStackSynthesizer } from 'aws-cdk-lib';
-import { SemiontInfraStack, SemiontAppStack } from '@semiont/cloud';
+import { 
+  SemiontInfraStack, 
+  SemiontAppStack, 
+  App, 
+  DefaultStackSynthesizer 
+} from '@semiont/cloud';
 import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import * as fs from 'fs';
