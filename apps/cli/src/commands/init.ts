@@ -43,6 +43,7 @@ interface SemiontConfig {
     domain: string;
     adminEmail: string;
     supportEmail?: string;
+    oauthAllowedDomains?: string[];
   };
   services: {
     frontend: {
@@ -75,6 +76,7 @@ function getStarterProjectTemplate(projectName: string): SemiontConfig {
       siteName: projectName,
       domain: 'example.com',
       adminEmail: 'admin@example.com',
+      oauthAllowedDomains: ['example.com', 'gmail.com'],
     },
     services: {
       frontend: {

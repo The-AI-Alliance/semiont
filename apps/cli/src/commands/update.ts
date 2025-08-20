@@ -400,8 +400,11 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
           // Determine the image tag to use (git hash or 'latest')
           const imageTag = await getLatestImageTag(awsRegion, accountId, serviceInfo.name);
           
-          // Update the container definition with the new image tag
+          // Update the container definition with the new image tag and environment variables
           const updatedContainerDefs = taskDef.containerDefinitions?.map(containerDef => {
+            let updatedDef = { ...containerDef };
+            
+            // Update image tag
             if (containerDef.image) {
               // Parse the current image to get the repository
               const imageParts = containerDef.image.split(':');
@@ -412,12 +415,114 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
                 printDebug(`Updating image from ${containerDef.image} to ${newImage}`);
               }
               
-              return {
-                ...containerDef,
-                image: newImage
-              };
+              updatedDef.image = newImage;
             }
-            return containerDef;
+            
+            // Update environment variables from semiont.json for frontend service
+            if (serviceInfo.name === 'frontend' && envConfig.site) {
+              const envVars = updatedDef.environment || [];
+              
+              // Update or add NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
+              if (envConfig.site.oauthAllowedDomains) {
+                const allowedDomainsValue = envConfig.site.oauthAllowedDomains.join(',');
+                const existingIndex = envVars.findIndex(e => e.name === 'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS');
+                
+                if (existingIndex >= 0) {
+                  envVars[existingIndex].value = allowedDomainsValue;
+                  if (!isStructuredOutput && options.output === 'summary') {
+                    printDebug(`Updated NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS to: ${allowedDomainsValue}`);
+                  }
+                } else {
+                  envVars.push({
+                    name: 'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS',
+                    value: allowedDomainsValue
+                  });
+                  if (!isStructuredOutput && options.output === 'summary') {
+                    printDebug(`Added NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: ${allowedDomainsValue}`);
+                  }
+                }
+              }
+              
+              // Update other site config environment variables
+              if (envConfig.site.siteName) {
+                const siteNameIndex = envVars.findIndex(e => e.name === 'NEXT_PUBLIC_SITE_NAME');
+                if (siteNameIndex >= 0) {
+                  envVars[siteNameIndex].value = envConfig.site.siteName;
+                } else {
+                  envVars.push({ name: 'NEXT_PUBLIC_SITE_NAME', value: envConfig.site.siteName });
+                }
+              }
+              
+              if (envConfig.site.domain) {
+                const domainIndex = envVars.findIndex(e => e.name === 'NEXT_PUBLIC_DOMAIN');
+                if (domainIndex >= 0) {
+                  envVars[domainIndex].value = envConfig.site.domain;
+                } else {
+                  envVars.push({ name: 'NEXT_PUBLIC_DOMAIN', value: envConfig.site.domain });
+                }
+              }
+              
+              updatedDef.environment = envVars;
+            }
+            
+            // Update environment variables for backend service
+            if (serviceInfo.name === 'backend' && envConfig.site) {
+              const envVars = updatedDef.environment || [];
+              
+              // Update OAUTH_ALLOWED_DOMAINS for backend
+              if (envConfig.site.oauthAllowedDomains) {
+                const allowedDomainsValue = envConfig.site.oauthAllowedDomains.join(',');
+                const existingIndex = envVars.findIndex(e => e.name === 'OAUTH_ALLOWED_DOMAINS');
+                
+                if (existingIndex >= 0) {
+                  envVars[existingIndex].value = allowedDomainsValue;
+                  if (!isStructuredOutput && options.output === 'summary') {
+                    printDebug(`Updated OAUTH_ALLOWED_DOMAINS to: ${allowedDomainsValue}`);
+                  }
+                } else {
+                  envVars.push({
+                    name: 'OAUTH_ALLOWED_DOMAINS',
+                    value: allowedDomainsValue
+                  });
+                  if (!isStructuredOutput && options.output === 'summary') {
+                    printDebug(`Added OAUTH_ALLOWED_DOMAINS: ${allowedDomainsValue}`);
+                  }
+                }
+              }
+              
+              // Update SITE_DOMAIN for backend
+              if (envConfig.site.domain) {
+                const domainIndex = envVars.findIndex(e => e.name === 'SITE_DOMAIN');
+                if (domainIndex >= 0) {
+                  envVars[domainIndex].value = envConfig.site.domain;
+                  if (!isStructuredOutput && options.output === 'summary') {
+                    printDebug(`Updated SITE_DOMAIN to: ${envConfig.site.domain}`);
+                  }
+                } else {
+                  envVars.push({
+                    name: 'SITE_DOMAIN',
+                    value: envConfig.site.domain
+                  });
+                  if (!isStructuredOutput && options.output === 'summary') {
+                    printDebug(`Added SITE_DOMAIN: ${envConfig.site.domain}`);
+                  }
+                }
+              }
+              
+              // Update SITE_NAME for backend  
+              if (envConfig.site.siteName) {
+                const siteNameIndex = envVars.findIndex(e => e.name === 'SITE_NAME');
+                if (siteNameIndex >= 0) {
+                  envVars[siteNameIndex].value = envConfig.site.siteName;
+                } else {
+                  envVars.push({ name: 'SITE_NAME', value: envConfig.site.siteName });
+                }
+              }
+              
+              updatedDef.environment = envVars;
+            }
+            
+            return updatedDef;
           });
           
           // Register a new task definition revision with the updated image
