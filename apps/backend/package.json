@@ -26,7 +26,7 @@
     "@hono/zod-openapi": "^0.19.10",
     "@prisma/client": "^6.13.0",
     "@semiont/api-types": "*",
-    "dotenv": "^16.3.1",
+    "dotenv": "^17.2.1",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
     "zod": "^3.22.4"
