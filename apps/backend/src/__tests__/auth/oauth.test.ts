@@ -118,6 +118,7 @@ describe('OAuth Service', () => {
           provider: 'google',
           providerId: mockGoogleUser.id,
           domain: 'example.com',
+          isAdmin: false,
           lastLogin: expect.any(Date),
         }
       });
