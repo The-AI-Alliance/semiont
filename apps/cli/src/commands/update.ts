@@ -76,6 +76,7 @@ async function waitForDeploymentCompletion(
   ecsClient: ECSClient,
   clusterName: string,
   serviceName: string,
+  deploymentId: string,
   timeout: number,
   verbose: boolean = false
 ): Promise<{ success: boolean; message: string; deploymentId?: string }> {
@@ -104,24 +105,43 @@ async function waitForDeploymentCompletion(
       });
     }
     
-    // Check if deployment is complete
-    if (deployments.length === 1 && primaryDeployment) {
-      const running = primaryDeployment.runningCount || 0;
-      const desired = primaryDeployment.desiredCount || 0;
-      
-      if (running === desired) {
-        return {
-          success: true,
-          message: `Deployment completed successfully (${running}/${desired} tasks running)`,
-          deploymentId: primaryDeployment.id
-        };
-      }
+    // Find our specific deployment by ID
+    const ourDeployment = deployments.find(d => d.id === deploymentId);
+    
+    if (!ourDeployment) {
+      // Deployment no longer exists - likely rolled back or failed
+      return {
+        success: false,
+        message: `Deployment ${deploymentId} no longer exists - likely failed or was rolled back`,
+        deploymentId
+      };
     }
     
-    // Show progress
-    if (primaryDeployment) {
-      const running = primaryDeployment.runningCount || 0;
-      const desired = primaryDeployment.desiredCount || 0;
+    // Check deployment status
+    if (ourDeployment.status === 'PRIMARY') {
+      const running = ourDeployment.runningCount || 0;
+      const desired = ourDeployment.desiredCount || 0;
+      
+      if (running === desired && desired > 0) {
+        return {
+          success: true,
+          message: `Deployment ${deploymentId} completed successfully (${running}/${desired} tasks running)`,
+          deploymentId
+        };
+      }
+    } else if (ourDeployment.status === 'INACTIVE') {
+      // Deployment was replaced or rolled back
+      return {
+        success: false,
+        message: `Deployment ${deploymentId} failed - status is INACTIVE`,
+        deploymentId
+      };
+    }
+    
+    // Show progress for our specific deployment
+    if (ourDeployment) {
+      const running = ourDeployment.runningCount || 0;
+      const desired = ourDeployment.desiredCount || 0;
       const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
       
       // Create progress bar
@@ -129,7 +149,7 @@ async function waitForDeploymentCompletion(
       const filledLength = Math.round((progress / 100) * barLength);
       const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
       
-      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks)  `);
+      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks) [${ourDeployment.status}]  `);
     }
     
     // Wait before checking again
@@ -139,7 +159,8 @@ async function waitForDeploymentCompletion(
   process.stdout.write('\n');
   return {
     success: false,
-    message: `Deployment timed out after ${timeout} seconds`
+    message: `Deployment ${deploymentId} timed out after ${timeout} seconds`,
+    deploymentId
   };
 }
 
@@ -549,12 +570,22 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
           }
           
           // Update the service to use the new task definition
-          await ecsClient.send(new UpdateServiceCommand({
+          const updateResponse = await ecsClient.send(new UpdateServiceCommand({
             cluster: clusterName,
             service: actualServiceName,
             taskDefinition: newTaskDefArn,
             forceNewDeployment: true
           }));
+          
+          // Get the new deployment ID from the update response
+          // The newest deployment should be the one we just created
+          const newDeployments = updateResponse.service?.deployments || [];
+          const newDeployment = newDeployments.find(d => d.status === 'PRIMARY' || d.status === 'ACTIVE');
+          const deploymentId = newDeployment?.id;
+          
+          if (!deploymentId) {
+            throw new Error('Failed to get deployment ID from update response');
+          }
           
           // Get the updated service to find deployment info
           const afterUpdate = await ecsClient.send(new DescribeServicesCommand({
@@ -584,15 +615,17 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
           }
           
           // Wait for deployment to complete if requested
+          let waitFailed = false;
           if (options.wait) {
             if (!isStructuredOutput && options.output === 'summary') {
-              printInfo(`Waiting for deployment to complete (timeout: ${options.timeout}s)...`);
+              printInfo(`Waiting for deployment ${deploymentId} to complete (timeout: ${options.timeout}s)...`);
             }
             
             const waitResult = await waitForDeploymentCompletion(
               ecsClient,
               clusterName,
               actualServiceName,
+              deploymentId,
               options.timeout || 600,
               options.verbose || false
             );
@@ -601,8 +634,14 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
               if (waitResult.success) {
                 printSuccess(waitResult.message);
               } else {
-                printWarning(waitResult.message);
+                printError(waitResult.message);
               }
+            }
+            
+            if (!waitResult.success) {
+              waitFailed = true;
+              // If wait failed, throw an error to ensure non-zero exit
+              throw new Error(waitResult.message);
             }
           }
         }
