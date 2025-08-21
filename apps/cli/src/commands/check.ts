@@ -565,6 +565,11 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
             if (taskDetails.imageTag) {
               message += `, image:${taskDetails.imageTag}`;
             }
+            if (taskDetails.imageDigest) {
+              // Show last 12 chars of digest for verification
+              const shortDigest = taskDetails.imageDigest.split(':').pop()?.substring(0, 12);
+              message += `, digest:${shortDigest}`;
+            }
             message += `, deployed ${deploymentAge}m ago)`;
             
             checks.push({
@@ -628,7 +633,7 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
                 if (oauthDomains) {
                   checks.push({
                     name: 'oauth-config',
-                    status: 'info',
+                    status: 'pass',
                     message: `OAuth allowed domains: ${oauthDomains}`
                   });
                 }
@@ -652,7 +657,37 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
               });
             }
             
-            healthStatus = runningCount > 0 ? 'healthy' : 'unhealthy';
+            // Check for database errors in recent logs
+            let hasDbErrors = false;
+            if (serviceInfo.name === 'backend') {
+              try {
+                const logsClient = new (await import('@aws-sdk/client-logs')).CloudWatchLogsClient({ region: awsRegion });
+                const logGroupName = `SemiontAppStack-SemiontLogGroup6DB34440-YwTP6oxtvM8k`; // TODO: Get from stack
+                const endTime = Date.now();
+                const startTime = endTime - (60 * 1000); // Last minute
+                
+                const logsResult = await logsClient.send(new (await import('@aws-sdk/client-logs')).FilterLogEventsCommand({
+                  logGroupName,
+                  startTime,
+                  endTime,
+                  filterPattern: '"invalid port number" OR "Token[TOKEN" OR "DATABASE_URL parsing failed"',
+                  limit: 1
+                }));
+                
+                hasDbErrors = (logsResult.events?.length || 0) > 0;
+                if (hasDbErrors) {
+                  checks.push({
+                    name: 'database-connection',
+                    status: 'fail',
+                    message: '❌ Database connection errors detected in logs'
+                  });
+                }
+              } catch (e) {
+                // Log check failed, don't block
+              }
+            }
+            
+            healthStatus = hasDbErrors ? 'unhealthy' : (runningCount > 0 ? 'healthy' : 'unhealthy');
           }
         } else {
           checks.push({
@@ -682,8 +717,9 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
         let dbIdentifier = '';
         
         try {
+          const stackName = envConfig?.stacks?.data || 'SemiontDataStack';
           const stackResult = await cfnClient.send(new DescribeStacksCommand({
-            StackName: 'SemiontInfraStack'
+            StackName: stackName
           }));
           
           const outputs = stackResult.Stacks?.[0]?.Outputs || [];
@@ -774,8 +810,9 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
         let efsId = '';
         
         try {
+          const stackName = envConfig?.stacks?.data || 'SemiontDataStack';
           const stackResult = await cfnClient.send(new DescribeStacksCommand({
-            StackName: 'SemiontInfraStack'
+            StackName: stackName
           }));
           
           const outputs = stackResult.Stacks?.[0]?.Outputs || [];
@@ -1259,6 +1296,54 @@ export async function check(
     if (options.section === 'all' || options.section === 'services' || options.section === 'health') {
       if (options.section === 'all' || options.section === 'services') {
         printInfo('\n📊 Service Status:');
+      }
+      
+      // Check for critical errors FIRST
+      const criticalErrors: string[] = [];
+      try {
+        const logsClient = new (await import('@aws-sdk/client-logs')).CloudWatchLogsClient({ region: awsRegion });
+        const logGroupName = `SemiontAppStack-SemiontLogGroup6DB34440-YwTP6oxtvM8k`; // TODO: Get from stack
+        const endTime = Date.now();
+        const startTime = endTime - (2 * 60 * 1000); // Last 2 minutes
+        
+        const criticalPatterns = [
+          '"invalid port number"',
+          '"Token[TOKEN"', 
+          '"DATABASE_URL parsing failed"',
+          '"syntax error"',
+          '"Environment variable not found: DATABASE_URL"',
+          '"FATAL:"'
+        ];
+        
+        for (const pattern of criticalPatterns) {
+          const logsResult = await logsClient.send(new (await import('@aws-sdk/client-logs')).FilterLogEventsCommand({
+            logGroupName,
+            startTime,
+            endTime,
+            filterPattern: pattern,
+            limit: 5
+          }));
+          
+          if (logsResult.events && logsResult.events.length > 0) {
+            logsResult.events.forEach(event => {
+              if (event.message) {
+                criticalErrors.push(event.message);
+              }
+            });
+          }
+        }
+        
+        if (criticalErrors.length > 0) {
+          printError('\n🚨 CRITICAL ERRORS DETECTED:');
+          criticalErrors.slice(0, 10).forEach(error => {
+            // Extract just the important part
+            const match = error.match(/([^\/]+)$/) || [error];
+            printError(`  ${match[0]}`);
+          });
+          printError('');
+        }
+      } catch (e) {
+        // Don't fail if we can't check logs
       }
       
       for (const serviceInfo of serviceDeployments) {

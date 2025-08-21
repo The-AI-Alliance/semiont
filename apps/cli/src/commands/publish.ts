@@ -498,6 +498,19 @@ async function pushImageToECR(
       const ecrImageUri = `${baseUri}:${tag}`;
       printInfo(`Pushing ${tag} to ECR...`);
       
+      // Store the digest before pushing
+      let preDigest: string | undefined;
+      try {
+        const describeCmd = new DescribeImagesCommand({
+          repositoryName,
+          imageIds: [{ imageTag: tag }]
+        });
+        const preResult = await ecrClient.send(describeCmd);
+        preDigest = preResult.imageDetails?.[0]?.imageDigest;
+      } catch (e) {
+        // Image doesn't exist yet
+      }
+      
       const pushSuccess = await pushImage(ecrImageUri, {
         verbose: options.verbose ?? false
       });
@@ -505,6 +518,27 @@ async function pushImageToECR(
       if (!pushSuccess) {
         printError(`Failed to push ${serviceName}:${tag} to ECR`);
         return null;
+      }
+      
+      // Check if image actually changed
+      try {
+        const describeCmd = new DescribeImagesCommand({
+          repositoryName,
+          imageIds: [{ imageTag: tag }]
+        });
+        const postResult = await ecrClient.send(describeCmd);
+        const postDigest = postResult.imageDetails?.[0]?.imageDigest;
+        
+        if (preDigest && postDigest && preDigest === postDigest) {
+          printWarning(`⚠️  Image unchanged - digest: ${postDigest.substring(0, 19)}...`);
+          printWarning(`⚠️  The image was already up-to-date in ECR. No new code was deployed.`);
+        } else if (postDigest) {
+          const shortDigest = postDigest.split(':').pop()?.substring(0, 12);
+          printSuccess(`✅ New image pushed - digest: ${shortDigest}`);
+          digest = postDigest;
+        }
+      } catch (e) {
+        // Couldn't verify
       }
     }
     
@@ -529,6 +563,11 @@ async function pushImageToECR(
     if (digest) {
       printInfo(`🔑 Digest: ${digest}`);
     }
+    
+    // Add next steps guidance
+    printInfo(`\n📋 Next steps:`);
+    printInfo(`   Deploy this image: semiont update --service ${serviceName}`);
+    printInfo(`   Check deployment: semiont check --service ${serviceName} --verbose`);
     
     return {
       uri: `${baseUri}:${primaryTag}`,

@@ -529,6 +529,25 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             newRevision = parseInt(newRevMatch[1]);
           }
           
+          // Show what's changing
+          if (!isStructuredOutput && options.verbose) {
+            printInfo(`📋 Task Definition Changes:`);
+            printInfo(`  Previous: revision ${previousRevision}`);
+            printInfo(`  New: revision ${newRevision}`);
+            printInfo(`  Image: ${latestImage}`);
+            
+            // Get task def to show environment changes
+            const newTaskDef = await ecsClient.send(new DescribeTaskDefinitionCommand({
+              taskDefinition: newTaskDefArn
+            }));
+            
+            const envVars = newTaskDef.taskDefinition?.containerDefinitions?.[0]?.environment || [];
+            const deploymentVersion = envVars.find(e => e.name === 'DEPLOYMENT_VERSION')?.value;
+            if (deploymentVersion) {
+              printInfo(`  Deployment Version: ${deploymentVersion}`);
+            }
+          }
+          
           // Update the service to use the new task definition
           await ecsClient.send(new UpdateServiceCommand({
             cluster: clusterName,
@@ -552,6 +571,12 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
               printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new task definition with image tag '${imageTag}' (rev:${previousRevision} → rev:${newRevision})`);
               if (deploymentCount > 1) {
                 printInfo(`Rolling update in progress (${deploymentCount} deployments active)`);
+                printInfo(`⏱️  Typical deployment time: 2-3 minutes`);
+                printInfo(`📋 Check status: semiont check --service ${serviceInfo.name}`);
+                printInfo(`📝 Watch logs: semiont watch logs --service ${serviceInfo.name}`);
+                printInfo(`🔍 If deployment fails, check:`);
+                printInfo(`   - Task startup errors: aws ecs describe-services --cluster ${clusterName} --services ${actualServiceName} --region ${awsRegion}`);
+                printInfo(`   - Container logs: semiont check --service ${serviceInfo.name} --verbose`);
               }
             } else {
               printSuccess(`ECS deployment initiated for ${serviceInfo.name} with image tag '${imageTag}'`);
