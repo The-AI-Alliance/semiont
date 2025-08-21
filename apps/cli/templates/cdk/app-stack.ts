@@ -27,85 +27,94 @@ export class SemiontAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: SemiontAppStackProps) {
     super(scope, id, props);
 
-    // Import resources from infra stack using CloudFormation exports
-    const infraStackName = 'SemiontInfraStack';
+    // Import resources from data stack using CloudFormation exports
+    const dataStackName = 'SemiontDataStack';
     
-    // Import VPC
-    const vpcId = cdk.Fn.importValue(`${infraStackName}-VpcId`);
-    const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', {
-      vpcId: vpcId,
+    // Import VPC - we need to use fromVpcAttributes since fromLookup doesn't work with tokens
+    // We're using 2 AZs, so explicitly specify them
+    const vpc = ec2.Vpc.fromVpcAttributes(this, 'ImportedVpc', {
+      vpcId: cdk.Fn.importValue(`${dataStackName}-VpcId`),
+      availabilityZones: ['us-east-2a', 'us-east-2b'],  // First 2 AZs in us-east-2
+      publicSubnetIds: [
+        cdk.Fn.importValue(`${dataStackName}-PublicSubnet1Id`),
+        cdk.Fn.importValue(`${dataStackName}-PublicSubnet2Id`),
+      ],
+      privateSubnetIds: [
+        cdk.Fn.importValue(`${dataStackName}-PrivateSubnet1Id`),
+        cdk.Fn.importValue(`${dataStackName}-PrivateSubnet2Id`),
+      ],
     });
 
     // Import Security Groups
     const dbSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
       this,
       'ImportedDbSecurityGroup',
-      cdk.Fn.importValue(`${infraStackName}-DbSecurityGroupId`)
+      cdk.Fn.importValue(`${dataStackName}-DbSecurityGroupId`)
     );
 
     const ecsSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
       this,
       'ImportedEcsSecurityGroup',
-      cdk.Fn.importValue(`${infraStackName}-EcsSecurityGroupId`)
+      cdk.Fn.importValue(`${dataStackName}-EcsSecurityGroupId`)
     );
 
     const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
       this,
       'ImportedAlbSecurityGroup',
-      cdk.Fn.importValue(`${infraStackName}-AlbSecurityGroupId`)
+      cdk.Fn.importValue(`${dataStackName}-AlbSecurityGroupId`)
     );
 
     // Import EFS FileSystem
     const fileSystem = efs.FileSystem.fromFileSystemAttributes(this, 'ImportedFileSystem', {
-      fileSystemId: cdk.Fn.importValue(`${infraStackName}-EfsFileSystemId`),
+      fileSystemId: cdk.Fn.importValue(`${dataStackName}-EfsFileSystemId`),
       securityGroup: ecsSecurityGroup,
     });
 
     // Import Database (for endpoint reference)
-    const databaseEndpoint = cdk.Fn.importValue(`${infraStackName}-DatabaseEndpoint`);
-    const databasePort = cdk.Fn.importValue(`${infraStackName}-DatabasePort`);
+    const databaseEndpoint = cdk.Fn.importValue(`${dataStackName}-DatabaseEndpoint`);
+    const databasePort = cdk.Fn.importValue(`${dataStackName}-DatabasePort`);
 
     // Import Secrets
     const dbCredentials = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedDbCredentials',
-      cdk.Fn.importValue(`${infraStackName}-DbCredentialsSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-DbCredentialsSecretArn`)
     );
 
     const appSecrets = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedAppSecrets',
-      cdk.Fn.importValue(`${infraStackName}-AppSecretsSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-AppSecretsSecretArn`)
     );
 
     const jwtSecret = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedJwtSecret',
-      cdk.Fn.importValue(`${infraStackName}-JwtSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-JwtSecretArn`)
     );
 
     const adminPassword = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedAdminPassword',
-      cdk.Fn.importValue(`${infraStackName}-AdminPasswordSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-AdminPasswordSecretArn`)
     );
 
     const googleOAuth = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedGoogleOAuth',
-      cdk.Fn.importValue(`${infraStackName}-GoogleOAuthSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-GoogleOAuthSecretArn`)
     );
 
     const githubOAuth = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedGitHubOAuth',
-      cdk.Fn.importValue(`${infraStackName}-GitHubOAuthSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-GitHubOAuthSecretArn`)
     );
 
     const adminEmails = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       'ImportedAdminEmails',
-      cdk.Fn.importValue(`${infraStackName}-AdminEmailsSecretArn`)
+      cdk.Fn.importValue(`${dataStackName}-AdminEmailsSecretArn`)
     );
 
     // Get configuration from CDK context
@@ -264,7 +273,7 @@ export class SemiontAppStack extends cdk.Stack {
       environment: {
         NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
         DB_HOST: databaseEndpoint,
-        DB_PORT: databasePort,
+        DB_PORT: '5432',
         DB_NAME: databaseName,
         PORT: '4000',
         API_PORT: '4000',
@@ -334,6 +343,8 @@ export class SemiontAppStack extends cdk.Stack {
         NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
         // NextAuth configuration
         NEXTAUTH_URL: `https://${domainName}`,
+        // Backend URL for server-side authentication calls
+        BACKEND_INTERNAL_URL: `https://${domainName}`,
       },
       secrets: {
         NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(appSecrets, 'nextAuthSecret'),

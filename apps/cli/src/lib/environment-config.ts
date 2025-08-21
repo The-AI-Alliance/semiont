@@ -5,6 +5,8 @@
 export interface AWSConfig {
   accountId?: string;
   region: string;
+  certificateArn?: string;
+  hostedZoneId?: string;
   stacks?: {
     infra?: string;
     app?: string;

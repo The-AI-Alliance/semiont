@@ -13,7 +13,7 @@
     "certificateArn": "arn:aws:acm:REGION:ACCOUNT:certificate/YOUR_CERT_ID",
     "profile": "default",
     "stacks": {
-      "infra": "SemiontInfraStack",
+      "data": "SemiontDataStack",
       "app": "SemiontAppStack"
     }
   },
@@ -28,13 +28,13 @@
       "deployment": {
         "type": "aws"
       },
-      "comment": "Provisioned via CDK infrastructure stack (RDS PostgreSQL)"
+      "comment": "Provisioned via CDK data stack (RDS PostgreSQL)"
     },
     "filesystem": {
       "deployment": {
         "type": "aws"
       },
-      "comment": "Provisioned via CDK infrastructure stack (EFS)"
+      "comment": "Provisioned via CDK data stack (EFS)"
     }
   }
 }

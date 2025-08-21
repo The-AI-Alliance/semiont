@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { build } from 'esbuild'
-import { readdir, mkdir, writeFile, readFile } from 'fs/promises'
+import { readdir, mkdir, writeFile, readFile, cp } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 
@@ -50,6 +50,19 @@ await Promise.all(scriptFiles.map(async (name) => {
       jsx: 'automatic',
       jsxImportSource: 'react',
       external: [
+        // Node.js built-ins that can't be bundled
+        'fs',
+        'path',
+        'child_process',
+        'crypto',
+        'os',
+        'util',
+        'stream',
+        'events',
+        'buffer',
+        'url',
+        'querystring',
+        'module',
         // Don't bundle these Node.js built-ins and external binaries
         'aws-cli',
         'docker',
@@ -60,9 +73,11 @@ await Promise.all(scriptFiles.map(async (name) => {
         'react-devtools-core',
         // AWS SDK packages have complex CommonJS/ESM interactions
         '@aws-sdk/*',
+        // CDK is optional - projects can provide their own
+        'aws-cdk-lib',
+        'constructs',
         // Local workspace packages
         '@semiont/api-types',
-        '@semiont/cloud',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',
@@ -73,7 +88,9 @@ await Promise.all(scriptFiles.map(async (name) => {
         'express',
         'socket.io',
         // simple-git uses dynamic requires that don't work with bundling
-        'simple-git'
+        'simple-git',
+        // esbuild is needed at runtime for compiling CDK stacks
+        'esbuild'
       ],
       define: {
         // Disable ink devtools in production bundles
@@ -109,6 +126,19 @@ await Promise.all(commandFiles.map(async (name) => {
       jsx: 'automatic',
       jsxImportSource: 'react',
       external: [
+        // Node.js built-ins that can't be bundled
+        'fs',
+        'path',
+        'child_process',
+        'crypto',
+        'os',
+        'util',
+        'stream',
+        'events',
+        'buffer',
+        'url',
+        'querystring',
+        'module',
         // Don't bundle these Node.js built-ins and external binaries
         'aws-cli',
         'docker',
@@ -119,9 +149,11 @@ await Promise.all(commandFiles.map(async (name) => {
         'react-devtools-core',
         // AWS SDK packages have complex CommonJS/ESM interactions
         '@aws-sdk/*',
+        // CDK is optional - projects can provide their own
+        'aws-cdk-lib',
+        'constructs',
         // Local workspace packages
         '@semiont/api-types',
-        '@semiont/cloud',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',
@@ -132,7 +164,9 @@ await Promise.all(commandFiles.map(async (name) => {
         'express',
         'socket.io',
         // simple-git uses dynamic requires that don't work with bundling
-        'simple-git'
+        'simple-git',
+        // esbuild is needed at runtime for compiling CDK stacks
+        'esbuild'
       ],
       define: {
         'process.env.NODE_ENV': '"production"'
@@ -151,11 +185,14 @@ await Promise.all(commandFiles.map(async (name) => {
 
 console.log(`🎉 All files bundled successfully!`)
 
-// Make cli.mjs executable for npm bin
-import { chmod } from 'fs/promises'
-try {
-  await chmod('dist/cli.mjs', 0o755)
-  console.log('✅ Made cli.mjs executable')
-} catch (error) {
-  console.warn('⚠️  Could not make cli.mjs executable:', error.message)
+// Copy templates directory to dist
+if (existsSync('templates')) {
+  try {
+    await cp('templates', 'dist/templates', { recursive: true })
+    console.log('✅ Copied templates directory')
+  } catch (error) {
+    console.error('❌ Failed to copy templates:', error.message)
+    process.exit(1)
+  }
 }
+

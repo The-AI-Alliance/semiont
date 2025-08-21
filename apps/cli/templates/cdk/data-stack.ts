@@ -6,7 +6,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
-export class SemiontInfraStack extends cdk.Stack {
+export class SemiontDataStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
   public readonly fileSystem: efs.FileSystem;
   public readonly database: rds.DatabaseInstance;
@@ -213,6 +213,31 @@ export class SemiontInfraStack extends cdk.Stack {
       value: this.vpc.vpcId,
       description: 'VPC ID',
       exportName: `${this.stackName}-VpcId`,
+    });
+
+    // Export subnet IDs for VPC import
+    new cdk.CfnOutput(this, 'PublicSubnet1Id', {
+      value: this.vpc.publicSubnets[0].subnetId,
+      description: 'Public Subnet 1 ID',
+      exportName: `${this.stackName}-PublicSubnet1Id`,
+    });
+
+    new cdk.CfnOutput(this, 'PublicSubnet2Id', {
+      value: this.vpc.publicSubnets[1].subnetId,
+      description: 'Public Subnet 2 ID',
+      exportName: `${this.stackName}-PublicSubnet2Id`,
+    });
+
+    new cdk.CfnOutput(this, 'PrivateSubnet1Id', {
+      value: this.vpc.privateSubnets[0].subnetId,
+      description: 'Private Subnet 1 ID',
+      exportName: `${this.stackName}-PrivateSubnet1Id`,
+    });
+
+    new cdk.CfnOutput(this, 'PrivateSubnet2Id', {
+      value: this.vpc.privateSubnets[1].subnetId,
+      description: 'Private Subnet 2 ID',
+      exportName: `${this.stackName}-PrivateSubnet2Id`,
     });
 
     new cdk.CfnOutput(this, 'DatabaseEndpoint', {

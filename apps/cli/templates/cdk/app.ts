@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import { SemiontInfraStack } from './infra-stack';
+import { SemiontDataStack } from './data-stack';
 import { SemiontAppStack } from './app-stack';
 
 const app = new cdk.App();
@@ -38,12 +38,12 @@ app.node.setContext('frontendImageUri', envConfig.services?.frontend?.image);
 app.node.setContext('nodeEnv', envConfig.env?.NODE_ENV || 'production');
 
 // Create stacks based on stack-type context
-if (stackType === 'infra' || stackType === 'all') {
-  new SemiontInfraStack(app, 'SemiontInfraStack', stackProps);
+if (stackType === 'data' || stackType === 'all') {
+  new SemiontDataStack(app, 'SemiontDataStack', stackProps);
 }
 
 if (stackType === 'app' || stackType === 'all') {
-  // App stack will import resources from infra stack via CloudFormation exports
+  // App stack will import resources from data stack via CloudFormation exports
   new SemiontAppStack(app, 'SemiontAppStack', stackProps);
 }
 

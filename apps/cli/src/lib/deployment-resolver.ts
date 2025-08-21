@@ -158,10 +158,10 @@ export function findProjectRoot(): string {
     currentDir = path.dirname(currentDir);
   }
   
-  // Fallback: look for config/environments (backward compatibility)
+  // Fallback: look for environments directory
   currentDir = process.cwd();
   while (currentDir !== '/' && currentDir) {
-    if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
+    if (fs.existsSync(path.join(currentDir, 'environments'))) {
       return currentDir;
     }
     currentDir = path.dirname(currentDir);
@@ -216,7 +216,8 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
     }
     
     // Load environment-specific config
-    const envPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
+    const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
+    
     if (!fs.existsSync(envPath)) {
       throw new ConfigurationError(
         `Environment configuration missing: ${envPath}`, 
@@ -248,7 +249,10 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
     }
     
     const projectRoot = findProjectRoot();
-    const envPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
+    let envPath = path.join(projectRoot, 'environments', `${environment}.json`);
+    if (!fs.existsSync(envPath)) {
+      envPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
+    }
     
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
       throw new ConfigurationError(
@@ -268,12 +272,17 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
 }
 
 /**
- * Get available environments by scanning config/environments directory
+ * Get available environments by scanning environments directory
  */
 export function getAvailableEnvironments(): string[] {
   try {
     const projectRoot = findProjectRoot();
-    const configDir = path.join(projectRoot, 'config', 'environments');
+    // Try new structure first
+    let configDir = path.join(projectRoot, 'environments');
+    if (!fs.existsSync(configDir)) {
+      // Fallback to old structure
+      configDir = path.join(projectRoot, 'config', 'environments');
+    }
     
     if (!fs.existsSync(configDir)) {
       return [];
@@ -372,7 +381,11 @@ export function resolveServiceDeployments(
     const serviceConfig = config.services?.[serviceName];
     if (!serviceConfig) {
       const availableServices = Object.keys(config.services || {});
-      const configPath = path.join(findProjectRoot(), 'config', 'environments', `${environment}.json`);
+      const projectRoot = findProjectRoot();
+      let configPath = path.join(projectRoot, 'environments', `${environment}.json`);
+      if (!fs.existsSync(configPath)) {
+        configPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
+      }
       
       console.warn(`❌ Service '${serviceName}' not found in environment '${environment}'`);
       if (availableServices.length > 0) {
