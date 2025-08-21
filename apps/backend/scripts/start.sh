@@ -1,7 +1,15 @@
 #!/bin/sh
 # Production start script for Semiont Backend
 
+# Exit on error, but also show which line failed
 set -e
+
+# Write startup status to a file that health checks can read
+STARTUP_STATUS_FILE="/tmp/startup_status"
+echo "STARTING" > $STARTUP_STATUS_FILE
+
+# Trap errors and show where they occurred
+trap 'echo "❌ FATAL STARTUP ERROR: Script failed at line $LINENO with exit code $?" >&2; echo "FAILED: Script error at line $LINENO" > $STARTUP_STATUS_FILE; exit 1' ERR
 
 echo "🚀 Starting Semiont Backend..."
 echo "Environment: $NODE_ENV"
@@ -16,39 +24,10 @@ echo "   DB_NAME is: ${DB_NAME:-NOT SET}"
 echo "   DB_USER is: ${DB_USER:-NOT SET}"
 echo "   DB_PASSWORD is: ${DB_PASSWORD:+SET}"
 
-# Construct DATABASE_URL from individual components if not provided
-if [ -z "$DATABASE_URL" ] && [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ]; then
-  echo "📊 Constructing DATABASE_URL from components:"
-  echo "   DB_HOST: ${DB_HOST}"
-  echo "   DB_PORT: ${DB_PORT:-5432}"
-  echo "   DB_NAME: ${DB_NAME}"
-  echo "   DB_USER: ${DB_USER:0:3}***" # Show first 3 chars only
-  echo "   DB_PASSWORD: [SET]"
-  
-  export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}?sslmode=require"
-  echo "✅ DATABASE_URL constructed successfully"
-fi
-
-# Run migrations in production
-echo "📝 Running database migrations..."
-
-# First, try to resolve any failed migrations as rolled back
-# This handles migrations that failed due to incorrect table names
-echo "🔧 Resolving any failed migrations..."
-# npx prisma migrate resolve --rolled-back 20240820000000_grant_initial_admin 2>/dev/null || true
-
-# Then run migrations normally
-echo "📝 Deploying database migrations..."
-npx prisma migrate deploy || {
-  echo "⚠️  Migration failed, but continuing (database might already be up to date)"
-  # As a last resort, try db push to sync schema
-  npx prisma db push --skip-generate || true
-}
-
-# Generate Prisma client
-echo "🔧 Generating Prisma client..."
-npx prisma generate
+# Note: DATABASE_URL will be constructed in Node.js if needed
+# Migrations will be handled separately (not on every startup)
 
 # Start the server
 echo "▶️  Starting server..."
+echo "SUCCESS" > $STARTUP_STATUS_FILE
 exec node dist/index.js

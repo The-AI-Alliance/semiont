@@ -122,12 +122,28 @@ async function waitForDeploymentCompletion(
       const running = ourDeployment.runningCount || 0;
       const desired = ourDeployment.desiredCount || 0;
       
+      // Deployment is only REALLY complete when:
+      // 1. Our deployment has all tasks running
+      // 2. There are NO other active deployments (old tasks drained)
       if (running === desired && desired > 0) {
-        return {
-          success: true,
-          message: `Deployment ${deploymentId} completed successfully (${running}/${desired} tasks running)`,
-          deploymentId
-        };
+        // Check if there are any other non-INACTIVE deployments
+        const otherActiveDeployments = deployments.filter(d => 
+          d.id !== deploymentId && d.status !== 'INACTIVE'
+        );
+        
+        if (otherActiveDeployments.length === 0) {
+          // Only our deployment is active - we're truly done
+          return {
+            success: true,
+            message: `Deployment ${deploymentId} fully completed - all traffic switched (${running}/${desired} tasks running)`,
+            deploymentId
+          };
+        } else {
+          // Still draining old tasks
+          if (verbose) {
+            printDebug(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain...`, { verbose } as any);
+          }
+        }
       }
     } else if (ourDeployment.status === 'INACTIVE') {
       // Deployment was replaced or rolled back
@@ -144,12 +160,21 @@ async function waitForDeploymentCompletion(
       const desired = ourDeployment.desiredCount || 0;
       const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
       
+      // Check for other active deployments
+      const otherActive = deployments.filter(d => 
+        d.id !== deploymentId && d.status !== 'INACTIVE'
+      ).length;
+      
       // Create progress bar
       const barLength = 20;
       const filledLength = Math.round((progress / 100) * barLength);
       const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
       
-      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks) [${ourDeployment.status}]  `);
+      const statusText = otherActive > 0 
+        ? `[${ourDeployment.status}] Draining ${otherActive} old deployment(s)...`
+        : `[${ourDeployment.status}]`;
+      
+      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks) ${statusText}  `);
     }
     
     // Wait before checking again
@@ -555,7 +580,7 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             printInfo(`📋 Task Definition Changes:`);
             printInfo(`  Previous: revision ${previousRevision}`);
             printInfo(`  New: revision ${newRevision}`);
-            printInfo(`  Image: ${latestImage}`);
+            printInfo(`  Image tag: ${imageTag}`);
             
             // Get task def to show environment changes
             const newTaskDef = await ecsClient.send(new DescribeTaskDefinitionCommand({

@@ -1312,7 +1312,9 @@ export async function check(
           '"DATABASE_URL parsing failed"',
           '"syntax error"',
           '"Environment variable not found: DATABASE_URL"',
-          '"FATAL:"'
+          '"FATAL:"',
+          '"Script failed at line"',
+          '"Startup script failure"'
         ];
         
         for (const pattern of criticalPatterns) {

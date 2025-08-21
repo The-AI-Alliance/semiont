@@ -199,6 +199,11 @@ async function buildContainerImage(
   // Prepare build args based on service type
   let buildArgs: Record<string, string> = {};
   
+  // Add cache buster to force rebuild when needed
+  if (options.noCache) {
+    buildArgs.CACHE_BUST = Date.now().toString();
+  }
+  
   // For frontend, try to get API URL from AWS infrastructure
   if (serviceInfo.name === 'frontend' && envConfig) {
     const apiUrl = await getApiUrlFromStack(envConfig);
