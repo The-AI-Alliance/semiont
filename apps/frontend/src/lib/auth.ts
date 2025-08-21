@@ -14,19 +14,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
-        // Check if email domain is allowed
-        const allowedDomainsEnv = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
-        const allowedDomains = allowedDomainsEnv.split(',').map(d => d.trim());
-        const domain = user.email?.split('@')[1];
-        
-        console.log(`OAuth Debug: email=${user.email}, domain=${domain}, allowedDomainsEnv='${allowedDomainsEnv}', allowedDomains=${JSON.stringify(allowedDomains)}`);
-        
-        if (!domain || !allowedDomains.includes(domain)) {
-          console.log(`Rejected login from domain: ${domain}, allowed: ${JSON.stringify(allowedDomains)}`);
-          return false;
-        }
-
-        // Authenticate with our backend
+        // Authenticate with our backend - let the backend handle domain validation
         try {
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
             method: 'POST',
