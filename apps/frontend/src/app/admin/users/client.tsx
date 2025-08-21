@@ -134,8 +134,8 @@ export default function AdminUsers() {
   const updateUserMutation = api.admin.users.update.useMutation();
   const deleteUserMutation = api.admin.users.delete.useMutation();
 
-  const users = usersResponse?.users || [];
-  const userStats = statsResponse?.stats || { total: 0, active: 0, admins: 0, recent: 0 };
+  const users = (usersResponse as any)?.users || [];
+  const userStats = (statsResponse as any)?.stats || { total: 0, active: 0, admins: 0, recent: 0 };
 
   const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
@@ -165,7 +165,7 @@ export default function AdminUsers() {
     }
   };
 
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = users.filter((user: AdminUser) => {
     const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const userRole = user.isAdmin ? 'admin' : 'user';
@@ -359,7 +359,7 @@ export default function AdminUsers() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredUsers.map((user) => (
+              {filteredUsers.map((user: AdminUser) => (
                 <UserTableRow 
                   key={user.id} 
                   user={user} 

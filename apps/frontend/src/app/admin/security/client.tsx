@@ -19,8 +19,8 @@ export default function AdminSecurity() {
     { enabled: hasValidToken }
   );
   
-  const allowedDomains = oauthConfig?.allowedDomains || [];
-  const providers = oauthConfig?.providers || [];
+  const allowedDomains = (oauthConfig as any)?.allowedDomains || [];
+  const providers = (oauthConfig as any)?.providers || [];
 
   return (
     <div className="space-y-6">
@@ -48,7 +48,7 @@ export default function AdminSecurity() {
           </div>
         ) : providers.length > 0 ? (
           <div className="space-y-2">
-            {providers.map((provider) => (
+            {providers.map((provider: any) => (
               <div key={provider.name} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div className="flex items-center">
                   <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
@@ -91,7 +91,7 @@ export default function AdminSecurity() {
           </div>
         ) : allowedDomains.length > 0 ? (
           <div className="space-y-2">
-            {allowedDomains.map((domain) => (
+            {allowedDomains.map((domain: string) => (
               <div key={domain} className="inline-flex items-center px-3 py-1 mr-2 mb-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-full dark:bg-blue-900/20 dark:text-blue-300">
                 @{domain}
               </div>
