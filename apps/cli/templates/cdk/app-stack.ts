@@ -19,42 +19,94 @@ import * as efs from 'aws-cdk-lib/aws-efs';
 import { Construct } from 'constructs';
 
 interface SemiontAppStackProps extends cdk.StackProps {
-  vpc: ec2.Vpc;
-  fileSystem: efs.FileSystem;
-  database: rds.DatabaseInstance;
-  dbCredentials: secretsmanager.Secret;
-  appSecrets: secretsmanager.Secret;
-  jwtSecret: secretsmanager.Secret;
-  adminPassword: secretsmanager.Secret;
-  googleOAuth: secretsmanager.Secret;
-  githubOAuth: secretsmanager.Secret;
-  adminEmails: secretsmanager.Secret;
-  ecsSecurityGroup: ec2.SecurityGroup;
-  albSecurityGroup: ec2.SecurityGroup;
-  domainName?: string;
-  certificateArn?: string;
-  hostedZoneId?: string;
+  // No longer passing infra resources as props
+  // They will be imported via CloudFormation exports
 }
 
 export class SemiontAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: SemiontAppStackProps) {
     super(scope, id, props);
 
-    // Use resources passed as properties
-    const { 
-      vpc, 
-      fileSystem, 
-      database, 
-      dbCredentials,
-      appSecrets,
-      jwtSecret,
-      adminPassword,
-      googleOAuth,
-      githubOAuth: _githubOAuth, // TODO: Implement GitHub OAuth when needed
-      adminEmails,
-      ecsSecurityGroup,
-      albSecurityGroup
-    } = props;
+    // Import resources from infra stack using CloudFormation exports
+    const infraStackName = 'SemiontInfraStack';
+    
+    // Import VPC
+    const vpcId = cdk.Fn.importValue(`${infraStackName}-VpcId`);
+    const vpc = ec2.Vpc.fromLookup(this, 'ImportedVpc', {
+      vpcId: vpcId,
+    });
+
+    // Import Security Groups
+    const dbSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'ImportedDbSecurityGroup',
+      cdk.Fn.importValue(`${infraStackName}-DbSecurityGroupId`)
+    );
+
+    const ecsSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'ImportedEcsSecurityGroup',
+      cdk.Fn.importValue(`${infraStackName}-EcsSecurityGroupId`)
+    );
+
+    const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'ImportedAlbSecurityGroup',
+      cdk.Fn.importValue(`${infraStackName}-AlbSecurityGroupId`)
+    );
+
+    // Import EFS FileSystem
+    const fileSystem = efs.FileSystem.fromFileSystemAttributes(this, 'ImportedFileSystem', {
+      fileSystemId: cdk.Fn.importValue(`${infraStackName}-EfsFileSystemId`),
+      securityGroup: ecsSecurityGroup,
+    });
+
+    // Import Database (for endpoint reference)
+    const databaseEndpoint = cdk.Fn.importValue(`${infraStackName}-DatabaseEndpoint`);
+    const databasePort = cdk.Fn.importValue(`${infraStackName}-DatabasePort`);
+
+    // Import Secrets
+    const dbCredentials = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedDbCredentials',
+      cdk.Fn.importValue(`${infraStackName}-DbCredentialsSecretArn`)
+    );
+
+    const appSecrets = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedAppSecrets',
+      cdk.Fn.importValue(`${infraStackName}-AppSecretsSecretArn`)
+    );
+
+    const jwtSecret = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedJwtSecret',
+      cdk.Fn.importValue(`${infraStackName}-JwtSecretArn`)
+    );
+
+    const adminPassword = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedAdminPassword',
+      cdk.Fn.importValue(`${infraStackName}-AdminPasswordSecretArn`)
+    );
+
+    const googleOAuth = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedGoogleOAuth',
+      cdk.Fn.importValue(`${infraStackName}-GoogleOAuthSecretArn`)
+    );
+
+    const githubOAuth = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedGitHubOAuth',
+      cdk.Fn.importValue(`${infraStackName}-GitHubOAuthSecretArn`)
+    );
+
+    const adminEmails = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedAdminEmails',
+      cdk.Fn.importValue(`${infraStackName}-AdminEmailsSecretArn`)
+    );
 
     // Get configuration from CDK context
     const siteName = this.node.tryGetContext('siteName') || 'Semiont';
@@ -67,13 +119,13 @@ export class SemiontAppStack extends cdk.Stack {
 
     const certificateArn = new cdk.CfnParameter(this, 'CertificateArn', {
       type: 'String', 
-      default: props.certificateArn || awsCertificateArn || 'arn:aws:acm:us-east-1:123456789012:certificate/placeholder',
+      default: awsCertificateArn,
       description: 'ACM Certificate ARN for HTTPS'
     });
 
     const hostedZoneId = new cdk.CfnParameter(this, 'HostedZoneId', {
       type: 'String',
-      default: props.hostedZoneId || awsHostedZoneId || 'Z1234567890ABC', 
+      default: awsHostedZoneId, 
       description: 'Route53 Hosted Zone ID'
     });
 
@@ -82,7 +134,6 @@ export class SemiontAppStack extends cdk.Stack {
       vpc,
       defaultCloudMapNamespace: {
         name: 'semiont.local',
-        type: ecs.NamespaceType.DNS_PRIVATE,
       },
     });
 
@@ -211,9 +262,9 @@ export class SemiontAppStack extends cdk.Stack {
     const backendContainer = backendTaskDefinition.addContainer('semiont-backend', {
       image: backendImage,
       environment: {
-        NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-        DB_HOST: database.instanceEndpoint.hostname,
-        DB_PORT: database.instanceEndpoint.port.toString(),
+        NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
+        DB_HOST: databaseEndpoint,
+        DB_PORT: databasePort,
         DB_NAME: databaseName,
         PORT: '4000',
         API_PORT: '4000',
@@ -273,7 +324,7 @@ export class SemiontAppStack extends cdk.Stack {
     const frontendContainer = frontendTaskDefinition.addContainer('semiont-frontend', {
       image: frontendImage,
       environment: {
-        NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+        NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
         PORT: '3000',
         HOSTNAME: '0.0.0.0',
         // Public environment variables (available to browser)

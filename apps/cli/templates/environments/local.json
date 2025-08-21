@@ -1,0 +1,38 @@
+{
+  "name": "local",
+  "deployment": {
+    "default": "container"
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "services": {
+    "backend": {
+      "deployment": {
+        "type": "process"
+      },
+      "command": "npm run dev",
+      "port": 4000
+    },
+    "frontend": {
+      "deployment": {
+        "type": "process"
+      },
+      "command": "npm run dev",
+      "port": 3000
+    },
+    "database": {
+      "deployment": {
+        "type": "container"
+      },
+      "image": "postgres:15-alpine",
+      "name": "semiont-local-db",
+      "port": 5432,
+      "environment": {
+        "POSTGRES_DB": "semiont",
+        "POSTGRES_USER": "semiont",
+        "POSTGRES_PASSWORD": "localpass"
+      }
+    }
+  }
+}
