@@ -16,7 +16,16 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google') {
         // Authenticate with our backend - let the backend handle domain validation
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+          // Use Service Connect DNS name for internal backend communication
+          // In production with Service Connect: http://backend:4000
+          // For local development: use BACKEND_INTERNAL_URL or fallback to public URL
+          const apiUrl = process.env.BACKEND_INTERNAL_URL || 
+                        (process.env.NODE_ENV === 'production' ? 'http://backend:4000' : process.env.NEXT_PUBLIC_API_URL);
+          if (!apiUrl) {
+            throw new Error('Backend API URL is required for authentication');
+          }
+          console.log(`Calling backend at: ${apiUrl}/api/auth/google`);
+          const response = await fetch(`${apiUrl}/api/auth/google`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
