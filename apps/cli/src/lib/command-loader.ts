@@ -19,7 +19,7 @@ import {
 } from './services.js';
 import { formatResults } from './output-formatter.js';
 import { printError } from './cli-logger.js';
-import { colors } from './cli-colors.js';
+import { colors, getPreamble, getPreambleSeparator } from './cli-colors.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import * as path from 'path';
@@ -148,8 +148,8 @@ function printPreamble(options: any): void {
   const version = getVersion();
   
   // Print the preamble with colors
-  console.log(`${colors.bright}🌐 Semiont${colors.reset} ${colors.dim}v${version}${colors.reset} | ${colors.cyan}🌍 The AI Alliance${colors.reset} | ${colors.magenta}✨ Make Meaning${colors.reset}`);
-  console.log(`${colors.dim}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
+  console.log(getPreamble(version));
+  console.log(getPreambleSeparator());
 }
 
 /**

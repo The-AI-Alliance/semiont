@@ -7,7 +7,7 @@
  * - Consistent error handling and help generation
  */
 
-import { colors } from './lib/cli-colors.js';
+import { colors, getPreamble, getPreambleSeparator } from './lib/cli-colors.js';
 import { printError } from './lib/cli-logger.js';
 import { executeCommand as dynamicExecuteCommand, getAvailableCommands, generateGlobalHelp } from './lib/command-loader.js';
 
@@ -27,8 +27,8 @@ function printVersion() {
 
 async function printHelp() {
   // Print preamble first
-  console.log(`${colors.bright}🌐 Semiont${colors.reset} ${colors.dim}v${VERSION}${colors.reset} | ${colors.cyan}🌍 The AI Alliance${colors.reset} | ${colors.magenta}✨ Make Meaning${colors.reset}`);
-  console.log(`${colors.dim}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
+  console.log(getPreamble(VERSION));
+  console.log(getPreambleSeparator());
   console.log();
   
   const help = await generateGlobalHelp();

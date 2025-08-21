@@ -15,3 +15,17 @@ export const colors = {
 };
 
 export type Colors = typeof colors;
+
+/**
+ * Get the formatted preamble string with version
+ */
+export function getPreamble(version: string): string {
+  return `${colors.bright}🌐 Semiont${colors.reset} ${colors.dim}v${version}${colors.reset} | ${colors.cyan}🌎🌍 The AI Alliance${colors.reset} | ${colors.magenta}✨ Make Meaning${colors.reset}`;
+}
+
+/**
+ * Get the preamble separator line
+ */
+export function getPreambleSeparator(): string {
+  return `${colors.dim}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`;
+}
