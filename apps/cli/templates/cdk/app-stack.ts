@@ -272,6 +272,7 @@ export class SemiontAppStack extends cdk.Stack {
       image: backendImage,
       environment: {
         NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
+        DEPLOYMENT_VERSION: new Date().toISOString(), // Forces new task definition on every deploy
         DB_HOST: databaseEndpoint,
         DB_PORT: '5432',
         DB_NAME: databaseName,
@@ -334,6 +335,7 @@ export class SemiontAppStack extends cdk.Stack {
       image: frontendImage,
       environment: {
         NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
+        DEPLOYMENT_VERSION: new Date().toISOString(), // Forces new task definition on every deploy
         PORT: '3000',
         HOSTNAME: '0.0.0.0',
         // Public environment variables (available to browser)
