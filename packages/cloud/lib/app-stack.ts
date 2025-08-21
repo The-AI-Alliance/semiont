@@ -77,9 +77,13 @@ export class SemiontAppStack extends cdk.Stack {
       description: 'Route53 Hosted Zone ID'
     });
 
-    // ECS Cluster
+    // ECS Cluster with Service Connect
     const cluster = new ecs.Cluster(this, 'SemiontCluster', {
       vpc,
+      defaultCloudMapNamespace: {
+        name: 'semiont.local',
+        type: ecs.NamespaceType.DNS_PRIVATE,
+      },
     });
 
     // Enable Container Insights
@@ -244,6 +248,7 @@ export class SemiontAppStack extends cdk.Stack {
 
     backendContainer.addPortMappings({
       containerPort: 4000,
+      name: 'backend',  // This name must match the portMappingName in Service Connect config
     });
 
     // Mount EFS volume for uploads
@@ -318,6 +323,15 @@ export class SemiontAppStack extends cdk.Stack {
       },
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
+      serviceConnectConfiguration: {
+        services: [
+          {
+            portMappingName: 'backend',
+            dnsName: 'backend',
+            port: 4000,
+          },
+        ],
+      },
     });
 
     // Frontend ECS Service  
@@ -337,6 +351,10 @@ export class SemiontAppStack extends cdk.Stack {
       },
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
+      serviceConnectConfiguration: {
+        // Frontend is a client-only service, it discovers backend but doesn't expose itself
+        services: [],
+      },
     });
 
     // Auto Scaling for Backend
