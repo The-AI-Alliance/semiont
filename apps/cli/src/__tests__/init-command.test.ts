@@ -8,6 +8,7 @@ import { ServiceDeploymentInfo } from '../lib/deployment-resolver';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 import initCommand from '../commands/init';
 const init = initCommand.handler;
 
@@ -22,11 +23,18 @@ describe('init command', () => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-init-test-'));
     // Change to test directory
     process.chdir(testDir);
+    
+    // Set the templates directory for tests to use the built templates
+    const testFilePath = fileURLToPath(import.meta.url);
+    const testFileDir = path.dirname(testFilePath);
+    process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', 'dist', 'templates');
   });
 
   afterEach(() => {
     // Restore original directory
     process.chdir(originalCwd);
+    // Clean up environment variable
+    delete process.env.SEMIONT_TEMPLATES_DIR;
     // Clean up test directory
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });

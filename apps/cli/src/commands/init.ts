@@ -38,8 +38,13 @@ export type InitOptions = z.infer<typeof InitOptionsSchema>;
 
 // Get the templates directory path
 function getTemplatesDir(): string {
+  // Allow tests to override the template directory
+  if (process.env.SEMIONT_TEMPLATES_DIR) {
+    return process.env.SEMIONT_TEMPLATES_DIR;
+  }
+  
+  // Production path: templates are at ../templates relative to the command
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  // In dist/commands/init.mjs, templates is at dist/templates
   return path.join(__dirname, '..', 'templates');
 }
 
