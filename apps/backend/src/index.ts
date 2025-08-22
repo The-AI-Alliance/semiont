@@ -70,6 +70,13 @@ const PUBLIC_ENDPOINTS = [
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
 ];
 
+// Special handling for documentation endpoints - allow token in query parameter for browser access
+const DOCUMENTATION_ENDPOINTS = [
+  '/api/docs',
+  '/api/swagger',
+  '/api/openapi.json'
+];
+
 // Apply authentication middleware to all /api/* routes except public endpoints
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
@@ -77,6 +84,20 @@ app.use('/api/*', async (c, next) => {
   // Check if this is a public endpoint (exact match only)
   if (PUBLIC_ENDPOINTS.includes(path)) {
     return next();
+  }
+  
+  // For documentation endpoints, check for token in query parameter (for browser access)
+  if (DOCUMENTATION_ENDPOINTS.includes(path)) {
+    const token = c.req.query('token');
+    if (token) {
+      try {
+        const user = await OAuthService.getUserFromToken(token);
+        c.set('user', user);
+        return next();
+      } catch (error) {
+        // Invalid token, fall through to normal auth check
+      }
+    }
   }
   
   // All other endpoints require authentication
