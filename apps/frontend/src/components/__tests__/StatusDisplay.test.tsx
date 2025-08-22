@@ -9,11 +9,18 @@ vi.mock('@/hooks/useAPI', () => ({
   useBackendStatus: vi.fn()
 }));
 
-// Import mocked function
-import { useBackendStatus } from '@/hooks/useAPI';
+// Mock the useAuth hook
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: vi.fn()
+}));
 
-// Type the mocked function
+// Import mocked functions
+import { useBackendStatus } from '@/hooks/useAPI';
+import { useAuth } from '@/hooks/useAuth';
+
+// Type the mocked functions
 const mockUseBackendStatus = useBackendStatus as vi.MockedFunction<typeof useBackendStatus>;
+const mockUseAuth = useAuth as vi.MockedFunction<typeof useAuth>;
 
 // Test data fixtures
 const mockStatusStates = {
@@ -72,6 +79,20 @@ const mockStatusStates = {
 describe('StatusDisplay Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default to authenticated state for most tests
+    mockUseAuth.mockReturnValue({
+      isFullyAuthenticated: true,
+      session: { backendToken: 'test-token' },
+      isLoading: false,
+      isAuthenticated: true,
+      hasValidBackendToken: true,
+      user: null,
+      backendUser: null,
+      userDomain: null,
+      displayName: 'Test User',
+      avatarUrl: null,
+      isAdmin: false
+    } as any);
   });
 
   describe('Backend Status State Tests', () => {
@@ -563,6 +584,114 @@ describe('StatusDisplay Component', () => {
 
       expect(() => render(<StatusDisplay />)).not.toThrow();
       expect(screen.getByRole('status')).toBeInTheDocument();
+    });
+  });
+
+  describe('Authentication State Tests', () => {
+    it('should display authentication required message when not authenticated', () => {
+      // Mock unauthenticated state
+      mockUseAuth.mockReturnValue({
+        isFullyAuthenticated: false,
+        session: null,
+        isLoading: false,
+        isAuthenticated: false,
+        hasValidBackendToken: false,
+        user: null,
+        backendUser: null,
+        userDomain: null,
+        displayName: null,
+        avatarUrl: null,
+        isAdmin: false
+      } as any);
+      
+      mockUseBackendStatus.mockReturnValue(mockStatusStates.unknown);
+
+      render(<StatusDisplay />);
+
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: Authentication required')).toBeInTheDocument();
+      expect(screen.getByText('Sign in to view backend status')).toBeInTheDocument();
+      
+      const statusSection = screen.getByRole('status');
+      expect(statusSection).toHaveClass('bg-gray-50', 'dark:bg-gray-900/20');
+      
+      const statusText = screen.getByText(/Frontend Status: Ready/);
+      expect(statusText).toHaveClass('text-gray-800', 'dark:text-gray-200');
+    });
+
+    it('should display authenticated message when partially authenticated', () => {
+      // Mock partially authenticated state (no backend token)
+      mockUseAuth.mockReturnValue({
+        isFullyAuthenticated: false,
+        session: { user: { email: 'test@example.com' } },
+        isLoading: false,
+        isAuthenticated: true,
+        hasValidBackendToken: false,
+        user: { email: 'test@example.com' },
+        backendUser: null,
+        userDomain: 'example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        isAdmin: false
+      } as any);
+      
+      mockUseBackendStatus.mockReturnValue(mockStatusStates.unknown);
+
+      render(<StatusDisplay />);
+
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: Authentication required')).toBeInTheDocument();
+      expect(screen.getByText('Sign in to view backend status')).toBeInTheDocument();
+    });
+
+    it('should display backend status when fully authenticated', () => {
+      // Use default authenticated state from beforeEach
+      mockUseBackendStatus.mockReturnValue(mockStatusStates.success);
+
+      render(<StatusDisplay />);
+
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: healthy (v1.2.3)')).toBeInTheDocument();
+      expect(screen.queryByText('Sign in to view backend status')).not.toBeInTheDocument();
+      
+      const statusSection = screen.getByRole('status');
+      expect(statusSection).toHaveClass('bg-blue-50', 'dark:bg-blue-900/20');
+    });
+
+    it('should show error message for authenticated user with backend error', () => {
+      // Use default authenticated state from beforeEach
+      mockUseBackendStatus.mockReturnValue(mockStatusStates.error);
+
+      render(<StatusDisplay />);
+
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: Connection failed')).toBeInTheDocument();
+      expect(screen.getByText('Check that the backend server is running and accessible')).toBeInTheDocument();
+      expect(screen.queryByText('Sign in to view backend status')).not.toBeInTheDocument();
+      
+      const errorAlert = screen.getByRole('alert');
+      expect(errorAlert).toBeInTheDocument();
+    });
+
+    it('should not show error alert when not authenticated', () => {
+      // Mock unauthenticated state
+      mockUseAuth.mockReturnValue({
+        isFullyAuthenticated: false,
+        session: null,
+        isLoading: false,
+        isAuthenticated: false,
+        hasValidBackendToken: false,
+        user: null,
+        backendUser: null,
+        userDomain: null,
+        displayName: null,
+        avatarUrl: null,
+        isAdmin: false
+      } as any);
+      
+      // Even with an error, should not show error alert when not authenticated
+      mockUseBackendStatus.mockReturnValue(mockStatusStates.error);
+
+      render(<StatusDisplay />);
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByText('Sign in to view backend status')).toBeInTheDocument();
     });
   });
 });
