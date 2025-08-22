@@ -16,7 +16,13 @@ export function useBackendStatus(options?: {
   pollingInterval?: number;
   enabled?: boolean;
 }) {
-  return api.hello.getStatus.useQuery();
+  const { session, isFullyAuthenticated } = useAuth();
+  
+  return api.hello.getStatus.useQuery({
+    ...(session?.backendToken ? { token: session.backendToken } : {}),
+    enabled: options?.enabled !== false && isFullyAuthenticated,
+    ...(options?.pollingInterval !== undefined ? { pollingInterval: options.pollingInterval } : {}),
+  });
 }
 
 /**

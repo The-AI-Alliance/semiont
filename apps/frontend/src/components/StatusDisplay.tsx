@@ -2,14 +2,21 @@
 
 import React from 'react';
 import { useBackendStatus } from '@/hooks/useAPI';
+import { useAuth } from '@/hooks/useAuth';
 
 export function StatusDisplay() {
+  const { isFullyAuthenticated } = useAuth();
   const status = useBackendStatus({
     pollingInterval: 30000, // Poll every 30 seconds
     enabled: true,
   });
 
   const getStatusContent = () => {
+    // If user is not authenticated, show appropriate message
+    if (!isFullyAuthenticated) {
+      return '🚀 Frontend Status: Ready • Backend: Authentication required';
+    }
+    
     if (status.data) {
       return `🚀 Frontend Status: Ready • Backend: ${status.data.status} (v${status.data.version})`;
     }
@@ -26,6 +33,10 @@ export function StatusDisplay() {
   };
 
   const getStatusColor = () => {
+    if (!isFullyAuthenticated) {
+      return 'text-gray-800 dark:text-gray-200';
+    }
+    
     if (status.data) {
       return 'text-blue-800 dark:text-blue-200';
     }
@@ -38,6 +49,10 @@ export function StatusDisplay() {
   };
 
   const getBackgroundColor = () => {
+    if (!isFullyAuthenticated) {
+      return 'bg-gray-50 dark:bg-gray-900/20';
+    }
+    
     if (status.data) {
       return 'bg-blue-50 dark:bg-blue-900/20';
     }
@@ -60,7 +75,11 @@ export function StatusDisplay() {
         <span className="sr-only">System status: </span>
         {getStatusContent()}
       </p>
-      {status.error ? (
+      {!isFullyAuthenticated ? (
+        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+          Sign in to view backend status
+        </p>
+      ) : status.error ? (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">
           <span className="sr-only">Error: </span>
           Check that the backend server is running and accessible
