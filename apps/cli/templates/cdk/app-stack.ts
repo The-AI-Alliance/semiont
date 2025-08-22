@@ -481,11 +481,8 @@ export class SemiontAppStack extends cdk.Stack {
       targets: [backendService],
       conditions: [
         elbv2.ListenerCondition.pathPatterns([
-          '/api/health', 
-          '/api/hello*', 
-          '/api/status', 
-          '/api/admin/*',  // Admin endpoints
-          '/api'           // API documentation endpoint
+          '/api',          // API root
+          '/api/*'         // All API routes
         ]),
       ],
       healthCheck: {
