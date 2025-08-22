@@ -128,11 +128,47 @@ app.get('/api/openapi.json', docsAuthMiddleware, (c) => {
   return c.json(openApiSpec);
 });
 
-// Serve Swagger UI documentation - with authentication
-app.get('/api/docs', docsAuthMiddleware, swaggerUI({ 
-  url: '/api/openapi.json',
-  persistAuthorization: true,
-}));
+// Serve Swagger UI documentation - with authentication  
+// swaggerUI returns a handler function that expects only (c), not (c, next)
+app.get('/api/docs', async (c) => {
+  // Check for token in query parameter for browser-based access
+  const token = c.req.query('token');
+  if (token) {
+    try {
+      await OAuthService.getUserFromToken(token);
+      // User is authenticated, proceed to serve swagger UI
+    } catch (error) {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+  } else {
+    // Check for Bearer token in header
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    
+    const headerToken = authHeader.substring(7).trim();
+    try {
+      await OAuthService.getUserFromToken(headerToken);
+      // User is authenticated, proceed to serve swagger UI
+    } catch (error) {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+  }
+  
+  // If we get here, user is authenticated
+  // Call the swaggerUI middleware - it's typed as MiddlewareHandler but only uses (c)
+  const swaggerHandler = swaggerUI({ 
+    url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
+    persistAuthorization: true,
+    title: 'Semiont API Documentation'
+  });
+  
+  // swaggerUI is typed as needing (c, next) but actually only uses (c)
+  // We provide a dummy next function to satisfy TypeScript
+  // c as any: needed because our context type doesn't match the generic middleware expectation
+  return await swaggerHandler(c as any, async () => {});
+});
 
 // Redirect /api/swagger to /api/docs for convenience
 app.get('/api/swagger', docsAuthMiddleware, (c) => {
