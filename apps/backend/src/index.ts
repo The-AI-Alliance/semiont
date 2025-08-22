@@ -559,29 +559,9 @@ console.log(`🚀 Starting Semiont Backend...`);
 console.log(`Environment: ${CONFIG.NODE_ENV}`);
 console.log(`Port: ${port}`);
 
-// Run database migrations on startup
-async function runMigrations() {
-  try {
-    console.log('📝 Running database migrations...');
-    const { execSync } = require('child_process');
-    execSync('npx prisma db push', { 
-      stdio: 'inherit',
-      env: { ...process.env }  // Pass all environment variables including DATABASE_URL
-    });
-    console.log('✅ Database migrations completed');
-  } catch (error) {
-    console.error('❌ Migration failed:', error);
-    // Don't exit - let the server try to start anyway
-  }
-}
-
-// Run migrations before starting server (skip in test environment or if disabled)
-if (CONFIG.NODE_ENV !== 'test' && process.env.SKIP_MIGRATIONS !== 'true') {
-  runMigrations().then(() => {
-    console.log('🚀 Starting HTTP server...');
-  });
-} else if (CONFIG.NODE_ENV !== 'test') {
-  console.log('🚀 Starting HTTP server (migrations skipped)...');
+// Start server
+if (CONFIG.NODE_ENV !== 'test') {
+  console.log('🚀 Starting HTTP server...');
 }
 
 // Only start server if not in test environment
