@@ -10,6 +10,9 @@ import type { CheckOptions } from '../commands/check.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
 
+// Mock deployment-resolver to avoid filesystem access
+vi.mock('../lib/deployment-resolver.js');
+
 let testDir: string;
 let originalCwd: string;
 
@@ -70,10 +73,9 @@ describe('Check Command', () => {
     vi.clearAllMocks();
     // Save current directory
     originalCwd = process.cwd();
-    // Create test environment with proper initialization
-    testDir = await createTestEnvironment('check-command-test');
-    // Change to test directory so config files are found
-    process.chdir(testDir);
+    // Use a mock test directory instead of creating real files
+    testDir = '/tmp/test-check-' + Date.now();
+    process.env.SEMIONT_ROOT = testDir;
   });
   
   afterEach(() => {
@@ -82,10 +84,8 @@ describe('Check Command', () => {
     if (originalCwd) {
       process.chdir(originalCwd);
     }
-    // Clean up test environment
-    if (testDir) {
-      cleanupTestEnvironment(testDir);
-    }
+    // Clean up environment variable
+    delete process.env.SEMIONT_ROOT;
   });
 
   // Helper function to create service deployments for tests

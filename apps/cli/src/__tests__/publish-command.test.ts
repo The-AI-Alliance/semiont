@@ -8,7 +8,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PublishOptions } from '../commands/publish.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
+
+// Mock deployment-resolver to avoid filesystem access
+vi.mock('../lib/deployment-resolver.js');
 
 let testDir: string;
 let originalCwd: string;
@@ -72,10 +74,9 @@ describe('Publish Command', () => {
     vi.clearAllMocks();
     // Save current directory
     originalCwd = process.cwd();
-    // Create test environment with proper initialization
-    testDir = await createTestEnvironment('publish-command-test');
-    // Change to test directory so config files are found
-    process.chdir(testDir);
+    // Use a mock test directory instead of creating real files
+    testDir = '/tmp/test-publish-' + Date.now();
+    process.env.SEMIONT_ROOT = testDir;
   });
   
   afterEach(() => {
@@ -84,10 +85,8 @@ describe('Publish Command', () => {
     if (originalCwd) {
       process.chdir(originalCwd);
     }
-    // Clean up test environment
-    if (testDir) {
-      cleanupTestEnvironment(testDir);
-    }
+    // Clean up environment variable
+    delete process.env.SEMIONT_ROOT;
   });
 
   describe('Structured Output', () => {

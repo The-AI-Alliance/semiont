@@ -28,15 +28,8 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
 }));
 vi.mock('readline');
 
-// Mock deployment-resolver functions that some tests need
-vi.mock('../lib/deployment-resolver.js', async () => {
-  const actual = await vi.importActual('../lib/deployment-resolver.js');
-  return {
-    ...actual,
-    loadEnvironmentConfig: vi.fn(actual.loadEnvironmentConfig),
-    getAvailableEnvironments: vi.fn(actual.getAvailableEnvironments)
-  };
-});
+// Don't mock deployment-resolver for configure tests - use real filesystem
+// Only mock the parts that need overriding for specific tests
 
 // Now import after mocks are set up
 import configureCommand, { ConfigureOptions } from '../commands/configure.js';
@@ -44,11 +37,6 @@ const configure = configureCommand.handler;
 import { ConfigureResult } from '../lib/command-results.js';
 import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
-import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
-
-// Get references to the mocked functions
-const mockLoadEnvironmentConfig = loadEnvironmentConfig as any;
-const mockGetAvailableEnvironments = getAvailableEnvironments as any;
 
 // Helper function to create dummy service deployments for tests
 function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
@@ -74,12 +62,6 @@ describe('configure command with structured output', () => {
     // Change to test directory so config files are found
     process.chdir(testDir);
     
-    // Ensure config/environments directory exists
-    const envDir = path.join(testDir, 'config', 'environments');
-    if (!fs.existsSync(envDir)) {
-      fs.mkdirSync(envDir, { recursive: true });
-    }
-    
     // Create custom configs for specific test cases
     // Add a 'local-no-aws' environment without AWS config for error testing
     const noAwsConfig = {
@@ -90,16 +72,14 @@ describe('configure command with structured output', () => {
       }
     };
     fs.writeFileSync(
-      path.join(testDir, 'config', 'environments', 'local-no-aws.json'),
+      path.join(testDir, 'environments', 'local-no-aws.json'),
       JSON.stringify(noAwsConfig, null, 2)
     );
     
     // Mock process environment
     process.env.USER = 'testuser';
     
-    // Set up default mocks as vi.fn() - tests that need specific behavior will override
-    mockLoadEnvironmentConfig.mockClear();
-    mockGetAvailableEnvironments.mockClear();
+    // AWS mocks will be set up by individual tests as needed
   });
   
   afterEach(() => {
