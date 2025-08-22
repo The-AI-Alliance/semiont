@@ -206,20 +206,23 @@ async function buildContainerImage(
     buildArgs.CACHE_BUST = Date.now().toString();
   }
   
-  // For frontend, try to get API URL from AWS infrastructure
-  if (serviceInfo.name === 'frontend' && envConfig) {
-    const apiUrl = await getApiUrlFromStack(envConfig);
-    if (apiUrl) {
-      buildArgs.NEXT_PUBLIC_API_URL = apiUrl;
-      printInfo(`Using discovered API URL for frontend: ${apiUrl}`);
+  // For frontend, set the API URL to the site domain
+  if (serviceInfo.name === 'frontend') {
+    // Get domain from environment configuration (which includes semiont.json)
+    const domain = envConfig?.site?.domain;
+    
+    if (domain) {
+      // Use the configured domain for API calls
+      buildArgs.NEXT_PUBLIC_API_URL = `https://${domain}`;
+      printInfo(`Using API URL for frontend: https://${domain}`);
     } else {
       // Fall back to default if not found
       buildArgs.NEXT_PUBLIC_API_URL = 'http://localhost:4000';
-      printInfo('Could not discover API URL from AWS, using default for frontend');
+      printInfo('No domain configured, using default API URL for frontend');
     }
     
-    // Add other frontend build args
-    buildArgs.NEXT_PUBLIC_APP_NAME = 'Semiont';
+    // Add other frontend build args from site config
+    buildArgs.NEXT_PUBLIC_APP_NAME = envConfig?.site?.siteName || 'Semiont';
     buildArgs.NEXT_PUBLIC_APP_VERSION = '1.0.0';
   }
   
