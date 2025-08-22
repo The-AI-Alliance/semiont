@@ -26,6 +26,35 @@ describe('init command', () => {
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
     
+    // Mock fs.statSync to return an object with isDirectory method
+    vi.mocked(fs.statSync).mockReturnValue({
+      isDirectory: () => true,
+      isFile: () => false,
+      isBlockDevice: () => false,
+      isCharacterDevice: () => false,
+      isSymbolicLink: () => false,
+      isFIFO: () => false,
+      isSocket: () => false,
+      size: 0,
+      mode: 16877,
+      uid: 1000,
+      gid: 1000,
+      nlink: 1,
+      atimeMs: Date.now(),
+      mtimeMs: Date.now(),
+      ctimeMs: Date.now(),
+      birthtimeMs: Date.now(),
+      atime: new Date(),
+      mtime: new Date(),
+      ctime: new Date(),
+      birthtime: new Date(),
+      blksize: 4096,
+      blocks: 0,
+      dev: 0,
+      ino: 0,
+      rdev: 0,
+    } as fs.Stats);
+    
     // Path mocks are already set up in the mock file
   });
 

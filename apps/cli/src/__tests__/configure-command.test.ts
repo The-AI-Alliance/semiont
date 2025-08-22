@@ -74,6 +74,12 @@ describe('configure command with structured output', () => {
     // Change to test directory so config files are found
     process.chdir(testDir);
     
+    // Ensure config/environments directory exists
+    const envDir = path.join(testDir, 'config', 'environments');
+    if (!fs.existsSync(envDir)) {
+      fs.mkdirSync(envDir, { recursive: true });
+    }
+    
     // Create custom configs for specific test cases
     // Add a 'local-no-aws' environment without AWS config for error testing
     const noAwsConfig = {
