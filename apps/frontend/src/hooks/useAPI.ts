@@ -18,15 +18,6 @@ export function useBackendStatus(options?: {
 }) {
   const { session, isFullyAuthenticated } = useAuth();
   
-  // Debug logging
-  if (typeof window !== 'undefined') {
-    console.log('useBackendStatus:', {
-      isFullyAuthenticated,
-      hasBackendToken: !!session?.backendToken,
-      tokenPreview: session?.backendToken ? `${session.backendToken.substring(0, 20)}...` : 'none'
-    });
-  }
-  
   return api.hello.getStatus.useQuery({
     ...(session?.backendToken ? { token: session.backendToken } : {}),
     enabled: options?.enabled !== false && isFullyAuthenticated,
