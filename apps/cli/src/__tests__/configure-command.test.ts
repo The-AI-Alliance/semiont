@@ -78,6 +78,7 @@ describe('configure command with structured output', () => {
     
     // Mock process environment
     process.env.USER = 'testuser';
+    process.env.SEMIONT_ROOT = testDir; // Ensure findProjectRoot uses our test directory
     
     // AWS mocks will be set up by individual tests as needed
   });
@@ -88,6 +89,8 @@ describe('configure command with structured output', () => {
     if (originalCwd) {
       process.chdir(originalCwd);
     }
+    // Clean up environment variable
+    delete process.env.SEMIONT_ROOT;
     // Clean up test environment
     if (testDir) {
       cleanupTestEnvironment(testDir);
@@ -121,22 +124,7 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      // Override with specific test data
-      mockGetAvailableEnvironments.mockReturnValue(['local', 'test', 'production']);
-      mockLoadEnvironmentConfig.mockImplementation((env: string) => {
-        const config: any = {
-          site: createSiteConfig(`${env}.example.com`),
-          deployment: { default: env === 'production' ? 'aws' : 'container' },
-          services: {
-            frontend: { deployment: { type: 'container' } },
-            backend: { deployment: { type: 'container' } }
-          }
-        };
-        if (env === 'production') {
-          config.aws = createAWSConfig();
-        }
-        return config;
-      });
+      // Test will use actual environment files created by createTestEnvironment
 
       const serviceDeployments = createServiceDeployments([
         { name: 'dummy', type: 'external' }
@@ -167,8 +155,8 @@ describe('configure command with structured output', () => {
       };
 
       // Override with test data that includes error case
-      mockGetAvailableEnvironments.mockReturnValue(['local', 'staging', 'production']);
-      mockLoadEnvironmentConfig.mockImplementation((env: string) => {
+      // mockGetAvailableEnvironments.mockReturnValue(['local', 'staging', 'production']);
+      // mockLoadEnvironmentConfig.mockImplementation((env: string) => {
         if (env === 'staging') {
           throw new Error('Invalid configuration file');
         }
@@ -428,7 +416,7 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      mockLoadEnvironmentConfig.mockReturnValue({
+      // mockLoadEnvironmentConfig.mockReturnValue({
         aws: createAWSConfig('us-east-1'),
         services: {}
       });
@@ -655,8 +643,8 @@ describe('configure command with structured output', () => {
       };
 
       // Override to return specific environments for this test
-      mockGetAvailableEnvironments.mockReturnValue(['staging']);
-      mockLoadEnvironmentConfig.mockReturnValue({
+      // mockGetAvailableEnvironments.mockReturnValue(['staging']);
+      // mockLoadEnvironmentConfig.mockReturnValue({
         site: createSiteConfig('staging.example.com'),
         services: {}
       });
@@ -722,10 +710,10 @@ describe('configure command with structured output', () => {
       };
 
       // Override to show only production env
-      mockGetAvailableEnvironments.mockReturnValue(['production']);
+      // mockGetAvailableEnvironments.mockReturnValue(['production']);
       // The production env from test setup already has AWS config
       // But we need to ensure the mock returns it properly
-      mockLoadEnvironmentConfig.mockImplementation((env: string) => {
+      // mockLoadEnvironmentConfig.mockImplementation((env: string) => {
         if (env === 'production') {
           return {
             site: createSiteConfig('production.example.com'),
@@ -762,8 +750,8 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      mockGetAvailableEnvironments.mockReturnValue(['dev', 'test', 'prod']);
-      mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
+      // mockGetAvailableEnvironments.mockReturnValue(['dev', 'test', 'prod']);
+      // mockLoadEnvironmentConfig.mockImplementation((env: string) => ({
         site: createSiteConfig(`${env}.example.com`),
         deployment: { default: 'container' },
         services: {}
