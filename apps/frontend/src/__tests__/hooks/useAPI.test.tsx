@@ -87,7 +87,6 @@ describe('useAPI hooks', () => {
       });
 
       expect(mockUseQuery).toHaveBeenCalledWith({
-        name: undefined,
         token: 'test-token',
         enabled: false, // Should be disabled when no name and authenticated
       });
@@ -399,7 +398,6 @@ describe('useAPI hooks', () => {
       });
 
       expect(mockUseQuery).toHaveBeenCalledWith({
-        name: '',
         token: 'test-token',
         enabled: false, // Should be disabled for empty string
       });

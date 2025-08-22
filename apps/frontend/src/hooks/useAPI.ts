@@ -8,11 +8,20 @@ import { useAuth } from './useAuth';
 export function useGreeting(name?: string) {
   const { session, isFullyAuthenticated } = useAuth();
   
-  return api.hello.greeting.useQuery({
-    name,
-    token: session?.backendToken,
+  const queryParams: { name?: string; token?: string; enabled?: boolean } = {
     enabled: isFullyAuthenticated && !!name
-  });
+  };
+  
+  // Only add properties if they have values (not undefined)
+  if (name) {
+    queryParams.name = name;
+  }
+  
+  if (session?.backendToken) {
+    queryParams.token = session.backendToken;
+  }
+  
+  return api.hello.greeting.useQuery(queryParams);
 }
 
 /**
