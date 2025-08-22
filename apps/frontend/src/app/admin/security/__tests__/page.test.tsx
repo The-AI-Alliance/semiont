@@ -19,8 +19,10 @@ vi.mock('@/lib/api-client', () => ({
   }
 }))
 
-// Mock environment variables
-const originalEnv = process.env
+// Mock the useSecureAPI hook
+vi.mock('@/hooks/useSecureAPI', () => ({
+  useSecureAPI: () => ({ hasValidToken: true })
+}))
 
 // Test wrapper with React Query client
 function TestWrapper({ children }: { children: React.ReactNode }) {
@@ -44,20 +46,18 @@ describe('AdminSecurity Page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env = { ...originalEnv }
   })
 
   afterEach(() => {
-    process.env = originalEnv
+    vi.resetAllMocks()
   })
 
   describe('Page Structure and Header', () => {
     it('should render page title and description', () => {
       mockUseQuery.mockReturnValue({
-        data: undefined,
+        data: { providers: [], allowedDomains: [] },
         isLoading: false,
         error: null,
-        isError: false,
       } as any)
 
       render(
@@ -66,35 +66,15 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('Security Settings')).toBeInTheDocument()
-      expect(screen.getByText('Manage OAuth providers and authentication settings')).toBeInTheDocument()
+      expect(screen.getByText('OAuth Configuration')).toBeInTheDocument()
+      expect(screen.getByText('View OAuth providers and allowed domains')).toBeInTheDocument()
     })
 
-    it('should render security status section', () => {
+    it('should render OAuth providers section', () => {
       mockUseQuery.mockReturnValue({
-        data: undefined,
+        data: { providers: [], allowedDomains: [] },
         isLoading: false,
         error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByText('Security Status')).toBeInTheDocument()
-      expect(screen.getByText('System Secure')).toBeInTheDocument()
-      expect(screen.getByText('OAuth authentication is properly configured')).toBeInTheDocument()
-    })
-
-    it('should render all main configuration sections', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
       } as any)
 
       render(
@@ -104,19 +84,33 @@ describe('AdminSecurity Page', () => {
       )
 
       expect(screen.getByText('OAuth Providers')).toBeInTheDocument()
-      expect(screen.getByText('Domain Access Control')).toBeInTheDocument()
-      expect(screen.getByText('Session Configuration')).toBeInTheDocument()
-      expect(screen.getByText('Secrets Management')).toBeInTheDocument()
+      expect(screen.getByText('Configured authentication providers')).toBeInTheDocument()
+    })
+
+    it('should render allowed domains section', () => {
+      mockUseQuery.mockReturnValue({
+        data: { providers: [], allowedDomains: [] },
+        isLoading: false,
+        error: null,
+      } as any)
+
+      render(
+        <TestWrapper>
+          <AdminSecurity />
+        </TestWrapper>
+      )
+
+      expect(screen.getByText('Allowed Email Domains')).toBeInTheDocument()
+      expect(screen.getByText('Users from these domains can sign in')).toBeInTheDocument()
     })
   })
 
   describe('OAuth Providers Section', () => {
-    it('should show loading state while fetching OAuth config', () => {
+    it('should show loading state when fetching data', () => {
       mockUseQuery.mockReturnValue({
         data: undefined,
         isLoading: true,
         error: null,
-        isError: false,
       } as any)
 
       render(
@@ -125,29 +119,22 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('OAuth Providers')).toBeInTheDocument()
-      
-      // Should show loading skeletons
-      const skeletons = document.querySelectorAll('.animate-pulse')
-      expect(skeletons.length).toBeGreaterThan(0)
+      // Should show loading animations
+      const loadingElements = document.querySelectorAll('.animate-pulse')
+      expect(loadingElements.length).toBeGreaterThan(0)
     })
 
-    it('should render OAuth providers when not loading', () => {
+    it('should show Google OAuth as configured when present', () => {
       mockUseQuery.mockReturnValue({
         data: {
-          success: true,
           providers: [
-            { name: 'google', clientId: 'test-client-id', isConfigured: true },
-            { name: 'github', clientId: undefined, isConfigured: false }
+            { name: 'google', clientId: 'test-client-id.apps.googleusercontent.com' }
           ],
-          allowedDomains: ['example.com']
+          allowedDomains: []
         },
         isLoading: false,
         error: null,
-        isError: false,
       } as any)
-
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = 'test-google-client-id'
 
       render(
         <TestWrapper>
@@ -155,59 +142,17 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('Google OAuth')).toBeInTheDocument()
-      expect(screen.getByText('GitHub OAuth')).toBeInTheDocument()
-      expect(screen.getByText('OAuth provider for Google authentication')).toBeInTheDocument()
-      expect(screen.getByText('OAuth provider for GitHub authentication')).toBeInTheDocument()
-    })
-
-    it('should show Google OAuth as configured when client ID is present', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = 'test-google-client-id-12345678901234567890'
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
+      // Provider name is capitalized by the component - use exact text match
+      expect(screen.getByText('google')).toBeInTheDocument()
+      expect(screen.getByText(/Client ID:.*test-client-id/)).toBeInTheDocument()
       expect(screen.getByText('Configured')).toBeInTheDocument()
-      expect(screen.getByText('Client ID: test-google-client-i...')).toBeInTheDocument()
     })
 
-    it('should show GitHub OAuth as not configured', () => {
+    it('should show no providers message when empty', () => {
       mockUseQuery.mockReturnValue({
-        data: undefined,
+        data: { providers: [], allowedDomains: [] },
         isLoading: false,
         error: null,
-        isError: false,
-      } as any)
-
-      // Set Google as configured to differentiate from GitHub
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = 'google-client-id'
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByText('GitHub OAuth')).toBeInTheDocument()
-      expect(screen.getAllByText('Not Configured')).toHaveLength(1) // Only GitHub should be not configured
-    })
-
-    it('should display AWS Secrets Manager configuration notice', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
       } as any)
 
       render(
@@ -216,20 +161,19 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('Configuration Note')).toBeInTheDocument()
-      expect(screen.getAllByText(/OAuth credentials are securely stored in AWS Secrets Manager/)).toHaveLength(2) // Appears in both notice and main section
-      expect(screen.getAllByText('semiont/oauth/google')).toHaveLength(2) // Appears in both notice and secrets sections
-      expect(screen.getAllByText('semiont/oauth/github')).toHaveLength(2)
+      expect(screen.getByText('No OAuth providers configured')).toBeInTheDocument()
     })
   })
 
-  describe('Domain Access Control Section', () => {
-    it('should display domain access control section', () => {
+  describe('Allowed Domains Section', () => {
+    it('should display allowed domains when configured', () => {
       mockUseQuery.mockReturnValue({
-        data: undefined,
+        data: {
+          providers: [],
+          allowedDomains: ['example.com', 'test.org']
+        },
         isLoading: false,
         error: null,
-        isError: false,
       } as any)
 
       render(
@@ -238,16 +182,15 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('Domain Access Control')).toBeInTheDocument()
-      expect(screen.getByText('Domains allowed to access the system via OAuth')).toBeInTheDocument()
+      expect(screen.getByText('@example.com')).toBeInTheDocument()
+      expect(screen.getByText('@test.org')).toBeInTheDocument()
     })
 
-    it('should show domain configuration information', () => {
+    it('should show warning when no domains are configured', () => {
       mockUseQuery.mockReturnValue({
-        data: undefined,
+        data: { providers: [], allowedDomains: [] },
         isLoading: false,
         error: null,
-        isError: false,
       } as any)
 
       render(
@@ -256,80 +199,16 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('Environment Variable: NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS')).toBeInTheDocument()
-      // The component will show either domain list or "No Domain Restrictions" depending on env
-    })
-
-    it('should show warning when no domain restrictions are configured', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      // Ensure NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS is not set
-      delete process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByRole('heading', { name: /No Domain Restrictions/i })).toBeInTheDocument()
-      expect(screen.getByText(/No domain restrictions are configured/i)).toBeInTheDocument()
-      expect(screen.getByText(/Any email domain can access the system/i)).toBeInTheDocument()
-    })
-
-    it('should display environment variable configuration information', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com'
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByText('Environment Variable: NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS')).toBeInTheDocument()
-      expect(screen.getByText('Current Value: example.com')).toBeInTheDocument()
-    })
-
-    it('should show "Not set" when environment variable is undefined', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      // Ensure the env var is not set
-      delete process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByText('Current Value: Not set')).toBeInTheDocument()
+      expect(screen.getByText('No allowed domains configured - all sign-ins will be rejected')).toBeInTheDocument()
     })
   })
 
-  describe('Session Configuration Section', () => {
-    it('should display session timeout and storage information', () => {
+  describe('Information Notice', () => {
+    it('should display configuration information notice', () => {
       mockUseQuery.mockReturnValue({
-        data: undefined,
+        data: { providers: [], allowedDomains: [] },
         isLoading: false,
         error: null,
-        isError: false,
       } as any)
 
       render(
@@ -338,86 +217,18 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('Session Configuration')).toBeInTheDocument()
-      expect(screen.getByText('Session Timeout')).toBeInTheDocument()
-      expect(screen.getByText('8 hours')).toBeInTheDocument()
-      expect(screen.getByText('Maximum session duration')).toBeInTheDocument()
-      
-      expect(screen.getByText('Session Storage')).toBeInTheDocument()
-      expect(screen.getByText('JWT Tokens')).toBeInTheDocument()
-      expect(screen.getByText('Secure, stateless authentication')).toBeInTheDocument()
-    })
-  })
-
-  describe('Secrets Management Section', () => {
-    it('should display AWS Secrets Manager information', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByText('Secrets Management')).toBeInTheDocument()
-      expect(screen.getAllByText(/OAuth credentials are securely stored in AWS Secrets Manager/)).toHaveLength(2) // Appears in both notice and main section
-      expect(screen.getByText('Secret Structure')).toBeInTheDocument()
-    })
-
-    it('should show secret structure examples', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getAllByText('semiont/oauth/google')).toHaveLength(2) // Appears in notice and secrets sections
-      expect(screen.getAllByText('semiont/oauth/github')).toHaveLength(2)
-      
-      // Check for JSON structure examples
-      expect(screen.getAllByText(/"clientId": "...",/)).toHaveLength(2) // Two providers
-      expect(screen.getAllByText(/"clientSecret": "..."/)).toHaveLength(2)
-    })
-
-    it('should display security best practice notice', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      expect(screen.getByText('Security Best Practice')).toBeInTheDocument()
-      expect(screen.getByText(/OAuth client secrets are never exposed to the frontend/)).toBeInTheDocument()
-      expect(screen.getByText(/They are fetched server-side from AWS Secrets Manager/)).toBeInTheDocument()
+      expect(screen.getByText(/OAuth settings are managed through environment variables/)).toBeInTheDocument()
+      // Check for configuration instructions
+      expect(screen.getByText(/For local development: Update your .env files/)).toBeInTheDocument()
     })
   })
 
   describe('Error Handling', () => {
-    it('should handle OAuth config API errors gracefully', () => {
+    it('should handle OAuth config API errors gracefully', async () => {
       mockUseQuery.mockReturnValue({
         data: undefined,
         isLoading: false,
-        error: new Error('API Error'),
-        isError: true,
+        error: new Error('Failed to fetch OAuth config'),
       } as any)
 
       render(
@@ -426,185 +237,13 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      // Page should still render basic sections even if API fails
-      expect(screen.getByText('Security Settings')).toBeInTheDocument()
-      expect(screen.getByText('OAuth Providers')).toBeInTheDocument()
+      // Should still show the page structure
+      expect(screen.getByText('OAuth Configuration')).toBeInTheDocument()
       
-      // Should render static provider cards
-      expect(screen.getByText('Google OAuth')).toBeInTheDocument()
-      expect(screen.getByText('GitHub OAuth')).toBeInTheDocument()
-    })
-
-    it('should handle missing environment variables gracefully', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      // Remove all OAuth-related env vars
-      delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
-      delete process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      // Should show both Google and GitHub as not configured (total 2)
-      expect(screen.getAllByText('Not Configured')).toHaveLength(2)
-      
-      // Should show no domain restrictions warning
-      expect(screen.getByText('No Domain Restrictions')).toBeInTheDocument()
-      expect(screen.getByText('Current Value: Not set')).toBeInTheDocument()
-    })
-  })
-
-  describe('Accessibility and User Experience', () => {
-    it('should have proper heading hierarchy', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      // Main page heading
-      expect(screen.getByRole('heading', { level: 1, name: 'Security Settings' })).toBeInTheDocument()
-      
-      // Section headings
-      expect(screen.getByRole('heading', { level: 2, name: 'Security Status' })).toBeInTheDocument()
-    })
-
-    it('should use semantic HTML elements', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      const { container } = render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      // Should use proper semantic elements
-      expect(container.querySelector('h1')).toBeInTheDocument()
-      expect(container.querySelector('h2')).toBeInTheDocument()
-      expect(container.querySelector('h3')).toBeInTheDocument()
-    })
-
-    it('should handle empty domain configuration without errors', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      expect(() => {
-        render(
-          <TestWrapper>
-            <AdminSecurity />
-          </TestWrapper>
-        )
-      }).not.toThrow()
-
-      expect(screen.getByText('Domain Access Control')).toBeInTheDocument()
-    })
-
-    it('should display domain configuration UI elements', () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      // Should render the configuration section regardless of domain values
-      expect(screen.getByText('Configuration')).toBeInTheDocument()
-      expect(screen.getByText('Environment Variable: NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS')).toBeInTheDocument()
-    })
-  })
-
-  describe('Component Integration', () => {
-    it('should render integration between OAuth API and environment variables', () => {
-      mockUseQuery.mockReturnValue({
-        data: {
-          success: true,
-          providers: [
-            {
-              name: 'google',
-              clientId: '123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com',
-              isConfigured: true,
-              scopes: ['openid', 'email', 'profile']
-            },
-            {
-              name: 'github',
-              clientId: undefined,
-              isConfigured: false
-            }
-          ],
-          allowedDomains: ['company.com', 'contractor.company.com']
-        },
-        isLoading: false,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      // Should show Google OAuth provider information
-      expect(screen.getByText('Google OAuth')).toBeInTheDocument()
-      expect(screen.getByText('GitHub OAuth')).toBeInTheDocument()
-      
-      // Should display domain access control section
-      expect(screen.getByText('Domain Access Control')).toBeInTheDocument()
-    })
-
-    it('should display loading state properly during API fetch', async () => {
-      mockUseQuery.mockReturnValue({
-        data: undefined,
-        isLoading: true,
-        error: null,
-        isError: false,
-      } as any)
-
-      render(
-        <TestWrapper>
-          <AdminSecurity />
-        </TestWrapper>
-      )
-
-      // Should show loading skeletons for OAuth providers
+      // Should show error state or fallback to empty state
       await waitFor(() => {
-        const loadingElements = document.querySelectorAll('.animate-pulse')
-        expect(loadingElements.length).toBeGreaterThan(0)
+        expect(screen.getByText('No OAuth providers configured')).toBeInTheDocument()
       })
-
-      // Should still show static sections
-      expect(screen.getByText('Session Configuration')).toBeInTheDocument()
-      expect(screen.getByText('Secrets Management')).toBeInTheDocument()
     })
   })
 })

@@ -190,15 +190,6 @@ describe('AdminUsers Page', () => {
       expect(screen.getByText('Export Users')).toBeInTheDocument();
     });
 
-    it('should render database commands section', () => {
-      render(
-        <TestWrapper>
-          <AdminUsers />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('💻 Database Commands (Power Users)')).toBeInTheDocument();
-    });
   });
 
   describe('Loading States', () => {
@@ -616,38 +607,4 @@ describe('AdminUsers Page', () => {
     });
   });
 
-  describe('Database Commands Section', () => {
-    it('should expand and collapse database commands section', () => {
-      render(
-        <TestWrapper>
-          <AdminUsers />
-        </TestWrapper>
-      );
-
-      const detailsElement = screen.getByText('💻 Database Commands (Power Users)').closest('details');
-      expect(detailsElement).toBeInTheDocument();
-
-      // Initially collapsed
-      expect(detailsElement).not.toHaveAttribute('open');
-
-      // Click to expand
-      fireEvent.click(screen.getByText('💻 Database Commands (Power Users)'));
-      
-      // Should show database commands
-      expect(screen.getByText('Access backend container:')).toBeInTheDocument();
-      expect(screen.getByText('./scripts/semiont exec backend')).toBeInTheDocument();
-    });
-
-    it('should display warning about database access', () => {
-      render(
-        <TestWrapper>
-          <AdminUsers />
-        </TestWrapper>
-      );
-
-      fireEvent.click(screen.getByText('💻 Database Commands (Power Users)'));
-      
-      expect(screen.getByText(/Warning: Direct database access requires DevOps permissions/)).toBeInTheDocument();
-    });
-  });
 });

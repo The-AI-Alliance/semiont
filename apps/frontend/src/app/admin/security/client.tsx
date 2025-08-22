@@ -99,7 +99,7 @@ export default function AdminSecurity() {
           </div>
         ) : (
           <div className="text-gray-500 dark:text-gray-400 text-sm">
-            No domains configured - authentication is disabled
+            No allowed domains configured - all sign-ins will be rejected
           </div>
         )}
       </div>
