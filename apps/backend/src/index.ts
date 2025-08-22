@@ -68,23 +68,18 @@ const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
   '/api/auth/google',     // OAuth login initiation
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
-  '/api',                 // API documentation root
-  '/api/openapi.json',    // OpenAPI specification
-  '/api/docs',            // Swagger UI documentation
-  '/api/swagger'          // Swagger UI redirect
 ];
 
 // Apply authentication middleware to all /api/* routes except public endpoints
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
   
-  // Check if this is a public endpoint
-  if (PUBLIC_ENDPOINTS.some(endpoint => path === endpoint || path.startsWith(endpoint + '/'))) {
+  // Check if this is a public endpoint (exact match only)
+  if (PUBLIC_ENDPOINTS.includes(path)) {
     return next();
   }
   
   // All other endpoints require authentication
-  // Note: authMiddleware will handle the actual auth check
   return authMiddleware(c, next);
 });
 

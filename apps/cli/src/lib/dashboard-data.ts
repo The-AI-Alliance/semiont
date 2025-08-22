@@ -336,7 +336,7 @@ export class DashboardDataSource {
       try {
         // Get EFS filesystem ID from CloudFormation stack
         const stackResult = await this.cfnClient!.send(new DescribeStacksCommand({
-          StackName: 'SemiontInfraStack'
+          StackName: 'SemiontDataStack'
         }));
         
         const outputs = stackResult.Stacks?.[0]?.Outputs || [];
