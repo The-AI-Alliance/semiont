@@ -94,7 +94,7 @@ async function runCommand(
 // GIT TAG GENERATION
 // =====================================================================
 
-async function getImageTag(environment: string | undefined, userProvidedTag: string | undefined): Promise<string> {
+async function getImageTag(environment: string | undefined, userProvidedTag: string | undefined, options?: any): Promise<string> {
   // If user explicitly provided a tag, use it
   if (userProvidedTag && userProvidedTag !== 'latest') {
     return userProvidedTag;
@@ -106,7 +106,9 @@ async function getImageTag(environment: string | undefined, userProvidedTag: str
   }
 
   // For production/staging, use git commit hash
-  const git = simpleGit();
+  // Use the semiont repo for git operations, not the current working directory
+  const semiontRepo = options?.semiontRepo || process.env.SEMIONT_ROOT || process.cwd();
+  const git = simpleGit(semiontRepo);
   
   try {
     // Get short commit hash
@@ -781,7 +783,7 @@ export const publish = async (
   const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
   
   // Determine the image tag to use
-  const imageTag = await getImageTag(options.environment, options.tag);
+  const imageTag = await getImageTag(options.environment, options.tag, options);
   
   // Update options with the determined tag
   const effectiveOptions = { ...options, tag: imageTag };
