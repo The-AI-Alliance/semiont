@@ -154,19 +154,8 @@ describe('configure command with structured output', () => {
         output: 'yaml'
       };
 
-      // Override with test data that includes error case
-      // mockGetAvailableEnvironments.mockReturnValue(['local', 'staging', 'production']);
-      // mockLoadEnvironmentConfig.mockImplementation((env: string) => {
-        if (env === 'staging') {
-          throw new Error('Invalid configuration file');
-        }
-        return {
-          site: createSiteConfig(`${env}.example.com`),
-          deployment: { default: 'container' },
-          services: {}
-        };
-      });
-
+      // Test will use actual environment files created by createTestEnvironment
+      
       const serviceDeployments = createServiceDeployments([
         { name: 'dummy', type: 'external' }
       ]);
