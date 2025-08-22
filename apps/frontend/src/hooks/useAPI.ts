@@ -6,7 +6,13 @@ import { useAuth } from './useAuth';
  * Hook for greeting API with enhanced error handling
  */
 export function useGreeting(name?: string) {
-  return api.hello.greeting.useQuery(name ? { name } : {});
+  const { session, isFullyAuthenticated } = useAuth();
+  
+  return api.hello.greeting.useQuery({
+    name,
+    token: session?.backendToken,
+    enabled: isFullyAuthenticated && !!name
+  });
 }
 
 /**
