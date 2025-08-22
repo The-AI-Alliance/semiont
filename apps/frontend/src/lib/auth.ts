@@ -14,7 +14,34 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
-        // Authenticate with our backend - let the backend handle domain validation
+        // Frontend domain validation for better UX (fail fast)
+        // Security principle: No configured domains = reject all (closed system)
+        const allowedDomainsStr = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
+        const allowedDomains = allowedDomainsStr.split(',').map(d => d.trim()).filter(Boolean);
+        
+        if (!user.email) {
+          console.log('OAuth Debug: No email provided');
+          return false;
+        }
+        
+        const emailDomain = user.email.split('@')[1];
+        console.log(`OAuth Debug: email=${user.email}, domain=${emailDomain}`);
+        
+        // If no domains are configured, reject all (closed system)
+        if (allowedDomains.length === 0) {
+          console.log('No allowed domains configured - rejecting all logins');
+          return false;
+        }
+        
+        // Check if the domain is in the allowed list
+        if (!allowedDomains.includes(emailDomain)) {
+          console.log(`Rejected login from domain: ${emailDomain} (allowed: ${allowedDomains.join(', ')})`);
+          return false;
+        }
+        
+        console.log(`OAuth Debug: domain ${emailDomain} is allowed`);
+
+        // Backend authentication for security validation and token generation
         try {
           // Use Service Connect DNS name for internal backend communication
           // In production with Service Connect: http://backend:4000
@@ -32,6 +59,7 @@ export const authOptions: NextAuthOptions = {
             },
             body: JSON.stringify({
               access_token: account.access_token,
+              email: user.email, // Send for backend logging/analytics
             }),
           });
 
