@@ -187,7 +187,7 @@ jobs:
           cd ../..
           semiont init --name "test-project" --environments "ci" --force
           # Add backend service to ci environment
-          cat > config/environments/ci.json << 'EOF'
+          cat > environments/ci.json << 'EOF'
           {
             "_comment": "ci environment",
             "deployment": {

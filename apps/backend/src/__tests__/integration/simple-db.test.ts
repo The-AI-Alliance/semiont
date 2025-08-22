@@ -13,7 +13,7 @@ describe('Simple Database Integration Test', () => {
     console.log('🐳 Starting PostgreSQL container...');
     
     container = await new PostgreSqlContainer('postgres:15-alpine')
-      .withDatabase('semiont_test')  // Matches config/environments/test.ts
+      .withDatabase('semiont_test')  // Matches environments/test.json
       .withUsername('test_user')
       .withPassword('test_password')
       .start();
