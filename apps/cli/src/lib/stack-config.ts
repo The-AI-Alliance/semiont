@@ -41,7 +41,7 @@ export class SemiontStackConfig {
     }
 
     // Get stack names from new schema
-    const infraStackName = this.environmentConfig.cloud?.aws?.stacks?.infra || 'SemiontInfraStack';
+    const infraStackName = this.environmentConfig.cloud?.aws?.stacks?.infra || 'SemiontDataStack';
     const appStackName = this.environmentConfig.cloud?.aws?.stacks?.app || 'SemiontAppStack';
 
     const validatedInfraStackName = assertValid(
