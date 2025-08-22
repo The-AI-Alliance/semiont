@@ -68,25 +68,25 @@ describe('Main Application (index.ts)', () => {
   });
 
   describe('API Documentation', () => {
-    it('should redirect API clients to OpenAPI JSON spec', async () => {
+    it('should require authentication for API root', async () => {
       const response = await app.request('http://localhost/api', {
         headers: { 'Accept': 'application/json' },
       });
 
-      expect(response.status).toBe(302);
-      expect(response.headers.get('location')).toBe('/api/openapi.json');
+      // API documentation now requires authentication
+      expect(response.status).toBe(401);
     });
 
-    it('should redirect browsers to Swagger UI', async () => {
-      const response = await app.request('http://localhost/api', {
+    it('should require authentication for Swagger UI', async () => {
+      const response = await app.request('http://localhost/api/swagger', {
         headers: { 
           'Accept': 'text/html',
           'User-Agent': 'Mozilla/5.0 (Browser)'
         },
       });
 
-      expect(response.status).toBe(302);
-      expect(response.headers.get('location')).toBe('/api/docs');
+      // Swagger UI now requires authentication
+      expect(response.status).toBe(401);
     });
   });
 
@@ -104,10 +104,11 @@ describe('Main Application (index.ts)', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle non-existent routes', async () => {
+    it('should require authentication for non-existent API routes', async () => {
       const response = await app.request('http://localhost/api/nonexistent');
       
-      expect(response.status).toBe(404);
+      // Auth middleware runs before 404 handler, so non-existent API routes return 401
+      expect(response.status).toBe(401);
     });
 
     it('should handle invalid JSON in POST requests', async () => {
