@@ -5,14 +5,19 @@ import { useBackendStatus } from '@/hooks/useAPI';
 import { useAuth } from '@/hooks/useAuth';
 
 export function StatusDisplay() {
-  const { isFullyAuthenticated } = useAuth();
+  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
   const status = useBackendStatus({
     pollingInterval: 30000, // Poll every 30 seconds
     enabled: true,
   });
 
   const getStatusContent = () => {
-    // If user is not authenticated, show appropriate message
+    // Check for users who are logged in but missing backend token (old sessions)
+    if (isAuthenticated && !hasValidBackendToken) {
+      return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again to reconnect';
+    }
+    
+    // If user is not authenticated at all, show appropriate message
     if (!isFullyAuthenticated) {
       return '🚀 Frontend Status: Ready • Backend: Authentication required';
     }
@@ -26,6 +31,11 @@ export function StatusDisplay() {
     }
     
     if (status.error) {
+      // Check if this is an auth error that might be fixed by re-login
+      const errorMessage = (status.error as any)?.message || '';
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again';
+      }
       return '🚀 Frontend Status: Ready • Backend: Connection failed';
     }
     
@@ -33,6 +43,11 @@ export function StatusDisplay() {
   };
 
   const getStatusColor = () => {
+    // Check for users who need to re-authenticate
+    if (isAuthenticated && !hasValidBackendToken) {
+      return 'text-orange-800 dark:text-orange-200';
+    }
+    
     if (!isFullyAuthenticated) {
       return 'text-gray-800 dark:text-gray-200';
     }
@@ -49,6 +64,11 @@ export function StatusDisplay() {
   };
 
   const getBackgroundColor = () => {
+    // Check for users who need to re-authenticate
+    if (isAuthenticated && !hasValidBackendToken) {
+      return 'bg-orange-50 dark:bg-orange-900/20';
+    }
+    
     if (!isFullyAuthenticated) {
       return 'bg-gray-50 dark:bg-gray-900/20';
     }

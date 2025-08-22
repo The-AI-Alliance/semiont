@@ -303,13 +303,23 @@ export const api = {
         return useQuery(
           ['hello.getStatus'],
           async () => {
+            // Debug logging
+            console.log('getStatus query:', {
+              hasToken: !!options?.token,
+              tokenPreview: options?.token ? `${options.token.substring(0, 20)}...` : 'none'
+            });
+            
             // If token is provided, use an authenticated request
             if (options?.token) {
               const instance = LazyTypedAPIClient.getInstance();
               const originalAuth = instance.getAuthToken();
               try {
                 instance.setAuthToken(options.token);
+                console.log('Making authenticated request to /api/status');
                 return await apiService.status();
+              } catch (error) {
+                console.error('Status request failed:', error);
+                throw error;
               } finally {
                 // Restore original auth state
                 if (originalAuth) {
@@ -320,6 +330,7 @@ export const api = {
               }
             }
             // Otherwise make unauthenticated request (will likely fail)
+            console.log('Making unauthenticated request to /api/status (will fail)');
             return apiService.status();
           },
           {
