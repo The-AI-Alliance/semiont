@@ -191,13 +191,24 @@ describe('Environment Discovery Integration', () => {
   
   beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-test-'));
-    configDir = path.join(testDir, 'config', 'environments');
+    // Use the correct path structure (environments/ not config/environments/)
+    configDir = path.join(testDir, 'environments');
     fs.mkdirSync(configDir, { recursive: true });
+    
+    // Create a semiont.json file so findProjectRoot can find it
+    fs.writeFileSync(
+      path.join(testDir, 'semiont.json'),
+      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
+    );
+    
     vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
+    process.env.SEMIONT_ROOT = testDir;
   });
   
   afterEach(() => {
     fs.rmSync(testDir, { recursive: true, force: true });
+    delete process.env.SEMIONT_ROOT;
     vi.restoreAllMocks();
   });
   

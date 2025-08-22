@@ -29,10 +29,13 @@ describe('Dynamic Environment Discovery', () => {
     );
     
     process.chdir(testDir);
+    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
+    process.env.SEMIONT_ROOT = testDir;
   });
   
   afterEach(() => {
     process.chdir(originalCwd);
+    delete process.env.SEMIONT_ROOT;
     fs.rmSync(testDir, { recursive: true, force: true });
   });
   
