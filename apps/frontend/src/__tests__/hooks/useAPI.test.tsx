@@ -86,7 +86,10 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalledWith({});
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        token: 'test-token',
+        enabled: false, // Should be disabled when no name and authenticated
+      });
       expect(result.current).toEqual({ data: 'Hello!' });
     });
 
@@ -98,7 +101,11 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalledWith({ name: 'John' });
+      expect(mockUseQuery).toHaveBeenCalledWith({ 
+        name: 'John',
+        token: 'test-token',
+        enabled: true, // Should be enabled when name is provided and authenticated
+      });
       expect(result.current).toEqual({ data: 'Hello, John!' });
     });
   });
@@ -390,7 +397,10 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalledWith({});
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        token: 'test-token',
+        enabled: false, // Should be disabled for empty string
+      });
       expect(result.current).toEqual({ data: 'Hello!' });
     });
 

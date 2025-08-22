@@ -286,11 +286,30 @@ export const apiService = {
 export const api = {
   hello: {
     greeting: {
-      useQuery: (input: { name?: string }) => {
+      useQuery: (input: { name?: string; token?: string; enabled?: boolean }) => {
         return useQuery({
           queryKey: ['hello.greeting', input.name],
-          queryFn: () => apiService.hello.greeting(input.name),
-          enabled: !!input.name,
+          queryFn: async () => {
+            // If token is provided, use an authenticated request
+            if (input.token) {
+              const instance = LazyTypedAPIClient.getInstance();
+              const originalAuth = instance.getAuthToken();
+              try {
+                instance.setAuthToken(input.token);
+                return await apiService.hello.greeting(input.name);
+              } finally {
+                // Restore original auth state
+                if (originalAuth) {
+                  instance.setAuthHeader(originalAuth);
+                } else {
+                  instance.clearAuthToken();
+                }
+              }
+            }
+            // Otherwise make unauthenticated request (will fail since /api/hello requires auth)
+            return apiService.hello.greeting(input.name);
+          },
+          enabled: input.enabled !== false && !!input.name,
         });
       }
     },

@@ -4,10 +4,12 @@ import { useState, useMemo } from 'react';
 import { NameInputSchema, sanitizeInput, validateData } from '@/lib/validation';
 import { useDebounce } from '@/hooks/useUI';
 import { useGreeting } from '@/hooks/useAPI';
+import { useAuth } from '@/hooks/useAuth';
 
 export function GreetingSection() {
   const [name, setName] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const { isFullyAuthenticated } = useAuth();
   
   // Debounce the name input to avoid excessive API calls
   const debouncedName = useDebounce(name, 300);
@@ -43,6 +45,18 @@ export function GreetingSection() {
     
     setName(cleaned);
   };
+
+  // Show authentication message if not fully authenticated
+  if (!isFullyAuthenticated) {
+    return (
+      <section className="p-8 bg-gray-100 dark:bg-gray-800 rounded-lg" aria-labelledby="greeting-section-title">
+        <h2 id="greeting-section-title" className="sr-only">Personal Greeting</h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          Please sign in to use the greeting feature.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="p-8 bg-gray-100 dark:bg-gray-800 rounded-lg" aria-labelledby="greeting-section-title">
