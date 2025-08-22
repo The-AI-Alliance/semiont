@@ -24,7 +24,13 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
         
-        const emailDomain = user.email.split('@')[1];
+        const emailParts = user.email.split('@');
+        if (emailParts.length !== 2 || !emailParts[1]) {
+          console.log(`OAuth Debug: Invalid email format: ${user.email}`);
+          return false;
+        }
+        
+        const emailDomain: string = emailParts[1];
         console.log(`OAuth Debug: email=${user.email}, domain=${emailDomain}`);
         
         // If no domains are configured, reject all (closed system)
