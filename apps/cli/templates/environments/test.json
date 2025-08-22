@@ -1,0 +1,38 @@
+{
+  "name": "test",
+  "deployment": {
+    "default": "container"
+  },
+  "env": {
+    "NODE_ENV": "test"
+  },
+  "services": {
+    "backend": {
+      "deployment": {
+        "type": "container"
+      },
+      "image": "semiont-backend:test",
+      "port": 4000
+    },
+    "frontend": {
+      "deployment": {
+        "type": "container"
+      },
+      "image": "semiont-frontend:test",
+      "port": 3000
+    },
+    "database": {
+      "deployment": {
+        "type": "container"
+      },
+      "image": "postgres:15-alpine",
+      "name": "semiont-test-db",
+      "port": 5432,
+      "environment": {
+        "POSTGRES_DB": "semiont_test",
+        "POSTGRES_USER": "semiont",
+        "POSTGRES_PASSWORD": "testpass"
+      }
+    }
+  }
+}

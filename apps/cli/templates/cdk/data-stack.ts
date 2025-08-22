@@ -6,7 +6,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
-export class SemiontInfraStack extends cdk.Stack {
+export class SemiontDataStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
   public readonly fileSystem: efs.FileSystem;
   public readonly database: rds.DatabaseInstance;
@@ -208,41 +208,116 @@ export class SemiontInfraStack extends cdk.Stack {
       })
     );
 
-    // Outputs for reference (not exported since we're passing objects directly)
+    // Export outputs for cross-stack references
     new cdk.CfnOutput(this, 'VpcId', {
       value: this.vpc.vpcId,
       description: 'VPC ID',
+      exportName: `${this.stackName}-VpcId`,
+    });
+
+    // Export subnet IDs for VPC import
+    new cdk.CfnOutput(this, 'PublicSubnet1Id', {
+      value: this.vpc.publicSubnets[0].subnetId,
+      description: 'Public Subnet 1 ID',
+      exportName: `${this.stackName}-PublicSubnet1Id`,
+    });
+
+    new cdk.CfnOutput(this, 'PublicSubnet2Id', {
+      value: this.vpc.publicSubnets[1].subnetId,
+      description: 'Public Subnet 2 ID',
+      exportName: `${this.stackName}-PublicSubnet2Id`,
+    });
+
+    new cdk.CfnOutput(this, 'PrivateSubnet1Id', {
+      value: this.vpc.privateSubnets[0].subnetId,
+      description: 'Private Subnet 1 ID',
+      exportName: `${this.stackName}-PrivateSubnet1Id`,
+    });
+
+    new cdk.CfnOutput(this, 'PrivateSubnet2Id', {
+      value: this.vpc.privateSubnets[1].subnetId,
+      description: 'Private Subnet 2 ID',
+      exportName: `${this.stackName}-PrivateSubnet2Id`,
     });
 
     new cdk.CfnOutput(this, 'DatabaseEndpoint', {
       value: this.database.instanceEndpoint.hostname,
       description: 'RDS Database Endpoint',
+      exportName: `${this.stackName}-DatabaseEndpoint`,
+    });
+
+    new cdk.CfnOutput(this, 'DatabasePort', {
+      value: this.database.instanceEndpoint.port.toString(),
+      description: 'RDS Database Port',
+      exportName: `${this.stackName}-DatabasePort`,
     });
 
     new cdk.CfnOutput(this, 'EfsFileSystemId', {
       value: this.fileSystem.fileSystemId,
       description: 'EFS File System ID',
+      exportName: `${this.stackName}-EfsFileSystemId`,
     });
 
-    // Secret outputs for scripts
-    new cdk.CfnOutput(this, 'GoogleOAuthSecretName', {
-      value: this.googleOAuth.secretName,
-      description: 'Google OAuth Secret Name',
+    // Security Group IDs for import
+    new cdk.CfnOutput(this, 'DbSecurityGroupId', {
+      value: this.dbSecurityGroup.securityGroupId,
+      description: 'Database Security Group ID',
+      exportName: `${this.stackName}-DbSecurityGroupId`,
     });
 
-    new cdk.CfnOutput(this, 'GitHubOAuthSecretName', {
-      value: this.githubOAuth.secretName,
-      description: 'GitHub OAuth Secret Name (unused)',
+    new cdk.CfnOutput(this, 'EcsSecurityGroupId', {
+      value: this.ecsSecurityGroup.securityGroupId,
+      description: 'ECS Security Group ID',
+      exportName: `${this.stackName}-EcsSecurityGroupId`,
     });
 
-    new cdk.CfnOutput(this, 'AdminEmailsSecretName', {
-      value: this.adminEmails.secretName,
-      description: 'Admin Emails Secret Name',
+    new cdk.CfnOutput(this, 'AlbSecurityGroupId', {
+      value: this.albSecurityGroup.securityGroupId,
+      description: 'ALB Security Group ID',
+      exportName: `${this.stackName}-AlbSecurityGroupId`,
     });
 
-    new cdk.CfnOutput(this, 'AdminPasswordSecretName', {
-      value: this.adminPassword.secretName,
-      description: 'Admin Password Secret Name',
+    // Secret ARNs for import
+    new cdk.CfnOutput(this, 'DbCredentialsSecretArn', {
+      value: this.dbCredentials.secretArn,
+      description: 'Database Credentials Secret ARN',
+      exportName: `${this.stackName}-DbCredentialsSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, 'AppSecretsSecretArn', {
+      value: this.appSecrets.secretArn,
+      description: 'App Secrets Secret ARN',
+      exportName: `${this.stackName}-AppSecretsSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, 'JwtSecretArn', {
+      value: this.jwtSecret.secretArn,
+      description: 'JWT Secret ARN',
+      exportName: `${this.stackName}-JwtSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, 'GoogleOAuthSecretArn', {
+      value: this.googleOAuth.secretArn,
+      description: 'Google OAuth Secret ARN',
+      exportName: `${this.stackName}-GoogleOAuthSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, 'GitHubOAuthSecretArn', {
+      value: this.githubOAuth.secretArn,
+      description: 'GitHub OAuth Secret ARN',
+      exportName: `${this.stackName}-GitHubOAuthSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, 'AdminEmailsSecretArn', {
+      value: this.adminEmails.secretArn,
+      description: 'Admin Emails Secret ARN',
+      exportName: `${this.stackName}-AdminEmailsSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, 'AdminPasswordSecretArn', {
+      value: this.adminPassword.secretArn,
+      description: 'Admin Password Secret ARN',
+      exportName: `${this.stackName}-AdminPasswordSecretArn`,
     });
   }
 }

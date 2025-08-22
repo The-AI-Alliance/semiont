@@ -76,6 +76,7 @@ async function waitForDeploymentCompletion(
   ecsClient: ECSClient,
   clusterName: string,
   serviceName: string,
+  deploymentId: string,
   timeout: number,
   verbose: boolean = false
 ): Promise<{ success: boolean; message: string; deploymentId?: string }> {
@@ -104,32 +105,76 @@ async function waitForDeploymentCompletion(
       });
     }
     
-    // Check if deployment is complete
-    if (deployments.length === 1 && primaryDeployment) {
-      const running = primaryDeployment.runningCount || 0;
-      const desired = primaryDeployment.desiredCount || 0;
-      
-      if (running === desired) {
-        return {
-          success: true,
-          message: `Deployment completed successfully (${running}/${desired} tasks running)`,
-          deploymentId: primaryDeployment.id
-        };
-      }
+    // Find our specific deployment by ID
+    const ourDeployment = deployments.find(d => d.id === deploymentId);
+    
+    if (!ourDeployment) {
+      // Deployment no longer exists - likely rolled back or failed
+      return {
+        success: false,
+        message: `Deployment ${deploymentId} no longer exists - likely failed or was rolled back`,
+        deploymentId
+      };
     }
     
-    // Show progress
-    if (primaryDeployment) {
-      const running = primaryDeployment.runningCount || 0;
-      const desired = primaryDeployment.desiredCount || 0;
+    // Check deployment status
+    if (ourDeployment.status === 'PRIMARY') {
+      const running = ourDeployment.runningCount || 0;
+      const desired = ourDeployment.desiredCount || 0;
+      
+      // Deployment is only REALLY complete when:
+      // 1. Our deployment has all tasks running
+      // 2. There are NO other active deployments (old tasks drained)
+      if (running === desired && desired > 0) {
+        // Check if there are any other non-INACTIVE deployments
+        const otherActiveDeployments = deployments.filter(d => 
+          d.id !== deploymentId && d.status !== 'INACTIVE'
+        );
+        
+        if (otherActiveDeployments.length === 0) {
+          // Only our deployment is active - we're truly done
+          return {
+            success: true,
+            message: `Deployment ${deploymentId} fully completed - all traffic switched (${running}/${desired} tasks running)`,
+            deploymentId
+          };
+        } else {
+          // Still draining old tasks
+          if (verbose) {
+            printDebug(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain...`, { verbose } as any);
+          }
+        }
+      }
+    } else if (ourDeployment.status === 'INACTIVE') {
+      // Deployment was replaced or rolled back
+      return {
+        success: false,
+        message: `Deployment ${deploymentId} failed - status is INACTIVE`,
+        deploymentId
+      };
+    }
+    
+    // Show progress for our specific deployment
+    if (ourDeployment) {
+      const running = ourDeployment.runningCount || 0;
+      const desired = ourDeployment.desiredCount || 0;
       const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
+      
+      // Check for other active deployments
+      const otherActive = deployments.filter(d => 
+        d.id !== deploymentId && d.status !== 'INACTIVE'
+      ).length;
       
       // Create progress bar
       const barLength = 20;
       const filledLength = Math.round((progress / 100) * barLength);
       const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
       
-      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks)  `);
+      const statusText = otherActive > 0 
+        ? `[${ourDeployment.status}] Draining ${otherActive} old deployment(s)...`
+        : `[${ourDeployment.status}]`;
+      
+      process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks) ${statusText}  `);
     }
     
     // Wait before checking again
@@ -139,7 +184,8 @@ async function waitForDeploymentCompletion(
   process.stdout.write('\n');
   return {
     success: false,
-    message: `Deployment timed out after ${timeout} seconds`
+    message: `Deployment ${deploymentId} timed out after ${timeout} seconds`,
+    deploymentId
   };
 }
 
@@ -179,39 +225,14 @@ export async function getClusterNameFromStack(region: string, stackName: string)
 }
 
 /**
- * Get the latest image tag for a service from ECR
+ * Determine the image tag to use for deployment
+ * For update command, this should always use 'latest' or a specified tag
+ * Not dependent on local git state
  */
-export async function getLatestImageTag(region: string, accountId: string, serviceName: string): Promise<string> {
-  try {
-    // First, try to get current git commit hash
-    const { execSync } = await import('child_process');
-    try {
-      const gitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-      
-      // Check if this image exists in ECR
-      const ecrClient = new ECRClient({ region });
-      const repositoryName = `semiont-${serviceName}`;
-      
-      try {
-        await ecrClient.send(new DescribeImagesCommand({
-          repositoryName,
-          imageIds: [{ imageTag: gitHash }]
-        }));
-        // Image with git hash exists, use it
-        return gitHash;
-      } catch {
-        // Git hash image doesn't exist, fall back to latest
-      }
-    } catch {
-      // Not in a git repository or git not available
-    }
-    
-    // Fall back to 'latest' tag
-    return 'latest';
-  } catch (error) {
-    console.debug(`Failed to determine latest image tag: ${error}`);
-    return 'latest';
-  }
+export async function determineImageTag(region: string, accountId: string, serviceName: string): Promise<string> {
+  // For update/deployment, always use 'latest' tag
+  // In the future, this could accept a tag parameter or query ECR for available tags
+  return 'latest';
 }
 
 export async function findEcsService(ecsClient: ECSClient, clusterName: string, serviceName: string): Promise<string | undefined> {
@@ -397,8 +418,8 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             throw new Error(`Could not extract account ID from task definition ARN`);
           }
           
-          // Determine the image tag to use (git hash or 'latest')
-          const imageTag = await getLatestImageTag(awsRegion, accountId, serviceInfo.name);
+          // Use 'latest' tag for deployment
+          const imageTag = await determineImageTag(awsRegion, accountId, serviceInfo.name);
           
           // Update the container definition with the new image tag and environment variables
           const updatedContainerDefs = taskDef.containerDefinitions?.map(containerDef => {
@@ -554,13 +575,42 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
             newRevision = parseInt(newRevMatch[1]);
           }
           
+          // Show what's changing
+          if (!isStructuredOutput && options.verbose) {
+            printInfo(`📋 Task Definition Changes:`);
+            printInfo(`  Previous: revision ${previousRevision}`);
+            printInfo(`  New: revision ${newRevision}`);
+            printInfo(`  Image tag: ${imageTag}`);
+            
+            // Get task def to show environment changes
+            const newTaskDef = await ecsClient.send(new DescribeTaskDefinitionCommand({
+              taskDefinition: newTaskDefArn
+            }));
+            
+            const envVars = newTaskDef.taskDefinition?.containerDefinitions?.[0]?.environment || [];
+            const deploymentVersion = envVars.find(e => e.name === 'DEPLOYMENT_VERSION')?.value;
+            if (deploymentVersion) {
+              printInfo(`  Deployment Version: ${deploymentVersion}`);
+            }
+          }
+          
           // Update the service to use the new task definition
-          await ecsClient.send(new UpdateServiceCommand({
+          const updateResponse = await ecsClient.send(new UpdateServiceCommand({
             cluster: clusterName,
             service: actualServiceName,
             taskDefinition: newTaskDefArn,
             forceNewDeployment: true
           }));
+          
+          // Get the new deployment ID from the update response
+          // The newest deployment should be the one we just created
+          const newDeployments = updateResponse.service?.deployments || [];
+          const newDeployment = newDeployments.find(d => d.status === 'PRIMARY' || d.status === 'ACTIVE');
+          const deploymentId = newDeployment?.id;
+          
+          if (!deploymentId) {
+            throw new Error('Failed to get deployment ID from update response');
+          }
           
           // Get the updated service to find deployment info
           const afterUpdate = await ecsClient.send(new DescribeServicesCommand({
@@ -577,6 +627,12 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
               printSuccess(`ECS deployment initiated for ${serviceInfo.name} - new task definition with image tag '${imageTag}' (rev:${previousRevision} → rev:${newRevision})`);
               if (deploymentCount > 1) {
                 printInfo(`Rolling update in progress (${deploymentCount} deployments active)`);
+                printInfo(`⏱️  Typical deployment time: 2-3 minutes`);
+                printInfo(`📋 Check status: semiont check --service ${serviceInfo.name}`);
+                printInfo(`📝 Watch logs: semiont watch logs --service ${serviceInfo.name}`);
+                printInfo(`🔍 If deployment fails, check:`);
+                printInfo(`   - Task startup errors: aws ecs describe-services --cluster ${clusterName} --services ${actualServiceName} --region ${awsRegion}`);
+                printInfo(`   - Container logs: semiont check --service ${serviceInfo.name} --verbose`);
               }
             } else {
               printSuccess(`ECS deployment initiated for ${serviceInfo.name} with image tag '${imageTag}'`);
@@ -584,15 +640,17 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
           }
           
           // Wait for deployment to complete if requested
+          let waitFailed = false;
           if (options.wait) {
             if (!isStructuredOutput && options.output === 'summary') {
-              printInfo(`Waiting for deployment to complete (timeout: ${options.timeout}s)...`);
+              printInfo(`Waiting for deployment ${deploymentId} to complete (timeout: ${options.timeout}s)...`);
             }
             
             const waitResult = await waitForDeploymentCompletion(
               ecsClient,
               clusterName,
               actualServiceName,
+              deploymentId,
               options.timeout || 600,
               options.verbose || false
             );
@@ -601,8 +659,14 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
               if (waitResult.success) {
                 printSuccess(waitResult.message);
               } else {
-                printWarning(waitResult.message);
+                printError(waitResult.message);
               }
+            }
+            
+            if (!waitResult.success) {
+              waitFailed = true;
+              // If wait failed, throw an error to ensure non-zero exit
+              throw new Error(waitResult.message);
             }
           }
         }
@@ -610,7 +674,7 @@ async function updateAWSService(serviceInfo: ServiceDeploymentInfo, options: Upd
         // For the result, indicate if this was a forced deployment with same revision
         const isForceDeployment = newRevision === previousRevision;
         
-        const imageTag = options.dryRun ? 'unknown' : await getLatestImageTag(awsRegion, envConfig.aws?.accountId || '', serviceInfo.name);
+        const imageTag = options.dryRun ? 'unknown' : await determineImageTag(awsRegion, envConfig.aws?.accountId || '', serviceInfo.name);
         
         return {
           ...baseResult,

@@ -53,7 +53,7 @@ Semiont uses a hierarchical test environment system to support different testing
 
 1. **Configuration Generation**: When `scripts/test.ts` runs tests, it:
    - Determines the appropriate configuration based on environment, suite, and service
-   - Loads and merges configuration from `config/environments/`
+   - Loads and merges configuration from `environments/`
    - Writes the full configuration to a temporary JSON file
    - Sets `SEMIONT_TEST_CONFIG_PATH` environment variable pointing to this file
    - Shows the config file path in the output for transparency
@@ -68,10 +68,10 @@ Semiont uses a hierarchical test environment system to support different testing
 ### Environment Hierarchy
 
 ```
-config/environments/
-├── test.ts          # Base test configuration (shared settings)
-├── unit.ts          # Unit tests (extends test + mocked dependencies)
-└── integration.ts   # Integration tests (extends test + real database)
+environments/
+├── test.json        # Base test configuration (shared settings)
+├── unit.json        # Unit tests (extends test + mocked dependencies)
+└── integration.json # Integration tests (extends test + real database)
 ```
 
 ### Environment Selection

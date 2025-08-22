@@ -83,7 +83,7 @@ export class OutputFormatter {
     const c = options.colors !== false ? this.colors : this.createNoColorMap();
     let output = '';
 
-    // Command header
+    // Command header (no preamble - it's now printed at command start)
     if (!options.quiet) {
       output += `${c.cyan}📊 ${results.command}${c.reset} completed in ${c.bright}${results.duration}ms${c.reset}\n`;
       

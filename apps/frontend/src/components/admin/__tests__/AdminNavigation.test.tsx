@@ -73,10 +73,10 @@ describe('AdminNavigation', () => {
       expect(usersLink).toHaveAttribute('title', 'User management and permissions');
       expect(screen.getByTestId('users-icon')).toBeInTheDocument();
 
-      // Security link
-      const securityLink = screen.getByRole('link', { name: /security/i });
+      // OAuth Settings link
+      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
       expect(securityLink).toHaveAttribute('href', '/admin/security');
-      expect(securityLink).toHaveAttribute('title', 'Security settings and OAuth management');
+      expect(securityLink).toHaveAttribute('title', 'View OAuth configuration');
       expect(screen.getByTestId('shield-check-icon')).toBeInTheDocument();
     });
   });
@@ -101,12 +101,12 @@ describe('AdminNavigation', () => {
       expect(usersIcon).toHaveClass('text-blue-500', 'dark:text-blue-400');
     });
 
-    it('should highlight active Security navigation item', () => {
+    it('should highlight active OAuth Settings navigation item', () => {
       (usePathname as any).mockReturnValue('/admin/security');
       
       render(<AdminNavigation />);
 
-      const securityLink = screen.getByRole('link', { name: /security/i });
+      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
       expect(securityLink).toHaveClass(
         'bg-blue-50',
         'dark:bg-blue-900/20',
@@ -135,7 +135,7 @@ describe('AdminNavigation', () => {
         'dark:hover:bg-gray-800'
       );
 
-      const securityLink = screen.getByRole('link', { name: /security/i });
+      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
       expect(securityLink).toHaveClass(
         'text-gray-700',
         'dark:text-gray-300',
@@ -152,7 +152,7 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       const usersLink = screen.getByRole('link', { name: /users/i });
-      const securityLink = screen.getByRole('link', { name: /security/i });
+      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
 
       // Both should be inactive
       expect(usersLink).not.toHaveClass('bg-blue-50');
@@ -292,8 +292,8 @@ describe('AdminNavigation', () => {
       const usersLink = screen.getByRole('link', { name: /users/i });
       expect(usersLink).toHaveAttribute('title', 'User management and permissions');
 
-      const securityLink = screen.getByRole('link', { name: /security/i });
-      expect(securityLink).toHaveAttribute('title', 'Security settings and OAuth management');
+      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
+      expect(securityLink).toHaveAttribute('title', 'View OAuth configuration');
     });
 
     it('should maintain focus and hover states', () => {
@@ -310,7 +310,7 @@ describe('AdminNavigation', () => {
 
       expect(screen.getByRole('link', { name: /back to site/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /users/i })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /security/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /oauth settings/i })).toBeInTheDocument();
     });
   });
 
@@ -330,7 +330,7 @@ describe('AdminNavigation', () => {
       rerender(<AdminNavigation />);
       
       usersLink = screen.getByRole('link', { name: /users/i });
-      const securityLink = screen.getByRole('link', { name: /security/i });
+      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
       
       expect(usersLink).not.toHaveClass('bg-blue-50');
       expect(securityLink).toHaveClass('bg-blue-50');

@@ -4,7 +4,7 @@ This document describes how configuration is managed in the Semiont application 
 
 ## Overview
 
-Semiont uses an **environment-based configuration system** with JSON configuration files stored in the `/config/environments/` directory at the project root. Each environment is completely self-contained with all required configuration.
+Semiont uses an **environment-based configuration system** with JSON configuration files stored in the `/environments/` directory at the project root. Each environment is completely self-contained with all required configuration.
 
 ## Configuration Architecture
 
@@ -15,15 +15,17 @@ Configuration files are located at the project root:
 ```
 <project-root>/
 ├── semiont.json                  # Project metadata (created by semiont init)
-└── config/
-    └── environments/             # Environment configurations
-        ├── local.json           # Local development
-        ├── development.json     # Development environment
-        ├── staging.json         # Staging environment
-        ├── production.json      # Production environment
-        ├── test.json            # Test environment base
-        ├── unit.json            # Unit test configuration
-        └── integration.json     # Integration test configuration
+├── cdk/                          # CDK stack definitions (optional)
+│   ├── infra-stack.ts          # Infrastructure stack
+│   └── app-stack.ts            # Application stack
+└── environments/                 # Environment configurations
+    ├── local.json               # Local development
+    ├── development.json         # Development environment
+    ├── staging.json             # Staging environment
+    ├── production.json          # Production environment
+    ├── test.json                # Test environment base
+    ├── unit.json                # Unit test configuration
+    └── integration.json         # Integration test configuration
 ```
 
 ### 2. **Project Root Detection**
@@ -32,7 +34,8 @@ The project root is determined by:
 
 1. **SEMIONT_ROOT environment variable** (highest priority)
 2. **Walking up directories** looking for `semiont.json`
-3. **Fallback** to directories containing `config/environments/`
+3. **Look for** directories containing `environments/` (new structure)
+4. **Fallback** to directories containing `config/environments/` (backward compatibility)
 
 ```bash
 # Override project root if needed
@@ -93,7 +96,7 @@ Each environment configuration file follows this structure:
 
 1. **Find Project Root**: Uses SEMIONT_ROOT or searches for semiont.json
 2. **Load Base Config**: Reads `<root>/semiont.json` for project defaults
-3. **Load Environment Config**: Reads `<root>/config/environments/<env>.json`
+3. **Load Environment Config**: Reads `<root>/environments/<env>.json`
 4. **Merge Configurations**: Deep merges base defaults with environment-specific settings
 5. **Return Typed Config**: Returns validated EnvironmentConfig object
 
@@ -107,9 +110,9 @@ Each environment configuration file follows this structure:
    ```
    This creates:
    - `semiont.json` - Project metadata
-   - `config/environments/local.json` - Local development config
-   - `config/environments/staging.json` - Staging config
-   - `config/environments/production.json` - Production config
+   - `environments/local.json` - Local development config
+   - `environments/staging.json` - Staging config
+   - `environments/production.json` - Production config
 
 2. **Start local development**:
    ```bash
@@ -119,7 +122,7 @@ Each environment configuration file follows this structure:
 
 ### For Production
 
-1. **Edit `config/environments/production.json`**:
+1. **Edit `environments/production.json`**:
    ```json
    {
      "site": {
@@ -182,7 +185,7 @@ Used for third-party or existing services:
 ### Core Environment Variables
 
 - **SEMIONT_ENV**: Default environment (overrides --environment flag)
-- **SEMIONT_ROOT**: Project root directory (parent of config/)
+- **SEMIONT_ROOT**: Project root directory (contains environments/)
 - **AWS_PROFILE**: AWS profile for AWS operations
 - **AWS_REGION**: AWS region (overrides config file)
 
@@ -192,9 +195,9 @@ Used for third-party or existing services:
 export SEMIONT_ENV=production
 
 # All commands now use production environment
-semiont start       # Uses config/environments/production.json
-semiont publish     # Uses config/environments/production.json
-semiont check       # Uses config/environments/production.json
+semiont start       # Uses environments/production.json
+semiont publish     # Uses environments/production.json
+semiont check       # Uses environments/production.json
 ```
 
 ### Overriding Environment
@@ -203,17 +206,18 @@ Override per command with `--environment`:
 
 ```bash
 # With SEMIONT_ENV=production set
-semiont start --environment staging  # Uses config/environments/staging.json
+semiont start --environment staging  # Uses environments/staging.json
 ```
 
 ## Configuration Resolution Order
 
 The CLI looks for configuration in this order:
 
-1. `$SEMIONT_ROOT/config/environments/<env>.json` (if SEMIONT_ROOT is set)
-2. Current directory: `./config/environments/<env>.json`
+1. `$SEMIONT_ROOT/environments/<env>.json` (if SEMIONT_ROOT is set)
+2. Current directory: `./environments/<env>.json`
 3. Parent directories (walks up looking for semiont.json)
-4. Parent directories with `config/environments/` (backward compatibility)
+4. Parent directories with `environments/` (new structure)
+5. Parent directories with `config/environments/` (backward compatibility)
 
 ## Secrets Management
 
@@ -321,13 +325,13 @@ ls -la semiont.json
 echo $SEMIONT_ROOT
 
 # Check environment directory
-ls -la config/environments/
+ls -la environments/
 
 # Check current environment
 echo $SEMIONT_ENV
 
 # List available environments
-ls config/environments/*.json
+ls environments/*.json
 ```
 
 ### Invalid Configuration
@@ -337,7 +341,7 @@ ls config/environments/*.json
 semiont configure validate
 
 # Check for JSON syntax errors
-python -m json.tool < config/environments/production.json
+python -m json.tool < environments/production.json
 ```
 
 ### Wrong Environment Used

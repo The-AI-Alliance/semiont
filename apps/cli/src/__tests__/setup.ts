@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { fileURLToPath } from 'url';
 import initCommand from '../commands/init.js';
 const init = initCommand.handler;
 
@@ -27,22 +28,38 @@ export async function createTestEnvironment(
   // Save current directory
   const originalCwd = process.cwd();
   
+  // Set the templates directory for tests to use the built templates
+  const testFilePath = fileURLToPath(import.meta.url);
+  const testFileDir = path.dirname(testFilePath);
+  process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', 'dist', 'templates');
+  
   try {
     // Change to temp directory for init
     process.chdir(tmpDir);
     
     // Initialize Semiont project using the actual init command
-    await init([], {
-      name: projectName,
-      directory: tmpDir,
-      force: false,
-      environments: ['local', 'test', 'staging', 'production', 'remote'],
-      environment: 'local',  // Required by BaseCommandOptions
-      output: 'summary',
-      quiet: true,  // Suppress output during test setup
-      verbose: false,
-      dryRun: false
-    });
+    try {
+      const result = await init([], {
+        name: projectName,
+        directory: tmpDir,
+        force: false,
+        environments: ['local', 'test', 'staging', 'production', 'remote'],
+        environment: 'local',  // Required by BaseCommandOptions
+        output: 'summary',
+        quiet: true,  // Suppress output during test setup
+        verbose: false,
+        dryRun: false
+      });
+      
+      // Check if init failed
+      if (result && result.summary && result.summary.failed > 0) {
+        console.error('Init command had failures:', result);
+        throw new Error('Init command failed to create environment');
+      }
+    } catch (error) {
+      console.error('Init failed in createTestEnvironment:', error);
+      throw error;
+    }
     
   } finally {
     // Restore original directory

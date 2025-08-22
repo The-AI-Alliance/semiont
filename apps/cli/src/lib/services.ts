@@ -11,18 +11,22 @@ import * as fs from 'fs';
 // Walk up from current directory to find project root
 function findProjectRoot(): string {
   // Common project markers - look for any of these
-  const projectMarkers = ['package.json', '.git', 'config/environments'];
+  const projectMarkers = ['semiont.json', 'environments', 'package.json', '.git'];
   
   let currentDir = process.cwd();
   while (currentDir !== '/' && currentDir) {
     for (const marker of projectMarkers) {
       if (fs.existsSync(path.join(currentDir, marker))) {
-        // For config/environments specifically, this is definitely the right directory
-        if (marker === 'config/environments') {
+        // For semiont.json, this is definitely the right directory
+        if (marker === 'semiont.json') {
           return currentDir;
         }
-        // For package.json and .git, check if config/environments also exists
-        if (fs.existsSync(path.join(currentDir, 'config', 'environments'))) {
+        // For environments directory (new or old structure), this is the right directory
+        if (marker === 'environments') {
+          return currentDir;
+        }
+        // For package.json and .git, check if environments exists
+        if (fs.existsSync(path.join(currentDir, 'environments'))) {
           return currentDir;
         }
       }
@@ -72,14 +76,10 @@ async function loadEnvironmentServices(environment: string): Promise<string[]> {
 
   try {
     const PROJECT_ROOT = findProjectRoot();
-    const configPath = path.join(PROJECT_ROOT, 'config', 'environments', `${environment}.json`);
+    const configPath = path.join(PROJECT_ROOT, 'environments', `${environment}.json`);
     
     if (!fs.existsSync(configPath)) {
-      console.warn(`❌ Environment configuration missing: ${configPath}`);
-      console.warn(`   To fix: Create the configuration file with service definitions`);
-      console.warn(`   You can copy from another environment or use: semiont configure --environment ${environment}`);
-      console.warn(`   Using built-in services only: ${BUILT_IN_SERVICES.join(', ')}`);
-      console.warn('');
+      // Don't show error here - deployment-resolver will handle it
       return [...BUILT_IN_SERVICES];
     }
     

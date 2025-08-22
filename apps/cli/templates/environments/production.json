@@ -1,0 +1,40 @@
+{
+  "name": "production",
+  "deployment": {
+    "default": "aws"
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "aws": {
+    "region": "us-east-1",
+    "accountId": "YOUR_AWS_ACCOUNT_ID",
+    "hostedZoneId": "YOUR_HOSTED_ZONE_ID",
+    "certificateArn": "arn:aws:acm:REGION:ACCOUNT:certificate/YOUR_CERT_ID",
+    "profile": "default",
+    "stacks": {
+      "data": "SemiontDataStack",
+      "app": "SemiontAppStack"
+    }
+  },
+  "services": {
+    "backend": {
+      "image": "YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/semiont-backend:latest"
+    },
+    "frontend": {
+      "image": "YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/semiont-frontend:latest"
+    },
+    "database": {
+      "deployment": {
+        "type": "aws"
+      },
+      "comment": "Provisioned via CDK data stack (RDS PostgreSQL)"
+    },
+    "filesystem": {
+      "deployment": {
+        "type": "aws"
+      },
+      "comment": "Provisioned via CDK data stack (EFS)"
+    }
+  }
+}

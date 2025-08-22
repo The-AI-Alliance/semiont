@@ -23,7 +23,7 @@ semiont/
 │       ├── src/          # Command implementations with React/Ink UI
 │       └── README.md     # CLI architecture and command reference
 ├── packages/             # Shared workspace packages  
-│   ├── config/          # Configuration loading and validation library
+│   ├── cloud/           # AWS CDK infrastructure (two-stack model)
 │   ├── api-types/       # Shared TypeScript types
 │   ├── test-utils/      # Shared testing utilities and mocks
 │   ├── mcp-server/      # Model Context Protocol server for AI integration
@@ -70,7 +70,7 @@ semiont init --name "my-project" --environments "local,staging,production"
 
 # This creates:
 # ✅ semiont.json - Main project configuration
-# ✅ config/environments/*.json - Environment-specific configs
+# ✅ environments/*.json - Environment-specific configs
 ```
 
 ### 3. Instant Local Development 🎉
@@ -177,7 +177,7 @@ npm run dev  # Frontend on :3000
 semiont configure show
 
 # Edit configuration with your values
-# Update config/environments/development.json and config/environments/production.json with:
+# Update environments/development.json and environments/production.json with:
 # - Your domain name
 # - Site branding
 # - OAuth settings
@@ -275,7 +275,7 @@ semiont check
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
 | [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
-| [Config README](packages/config/README.md) | Configuration system architecture and environment management |
+| [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure stack definitions |
 | [API Types README](packages/api-types/README.md) | Shared TypeScript type definitions |
 | [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
 | [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
@@ -334,8 +334,8 @@ Semiont uses a unified JSON-based configuration system with inheritance that pro
 - **Secure Secrets**: Local secrets managed via `semiont configure` command (not in files)
 
 The system uses a clear separation between configuration data and loading logic:
-- **Configuration Data**: JSON files in `config/environments/` (development.json, production.json)
-- **Configuration System**: TypeScript package in `packages/config/` for loading and validation
+- **Configuration Data**: JSON files in `environments/` (development.json, production.json)
+- **Configuration System**: Built into CLI for loading and validation
 - **Inheritance**: JSON configurations extend base configs using `_extends` field
 - **Secrets**: Managed via `semiont configure` command for local development
 - **Production**: Secrets automatically injected from AWS Secrets Manager

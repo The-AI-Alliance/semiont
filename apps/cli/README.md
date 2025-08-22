@@ -653,7 +653,7 @@ npm link --force
 
 Ensure your environment configuration exists:
 ```bash
-ls config/environments/*.json
+ls environments/*.json
 ```
 
 ### Permission errors

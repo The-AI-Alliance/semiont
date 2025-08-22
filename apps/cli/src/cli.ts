@@ -7,24 +7,14 @@
  * - Consistent error handling and help generation
  */
 
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import * as path from 'path';
-import { colors } from './lib/cli-colors.js';
+import { colors, getPreamble, getPreambleSeparator } from './lib/cli-colors.js';
 import { printError } from './lib/cli-logger.js';
 import { executeCommand as dynamicExecuteCommand, getAvailableCommands, generateGlobalHelp } from './lib/command-loader.js';
 
-// Get version from package.json
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const packageJsonPath = path.join(__dirname, '..', 'package.json');
-let VERSION = 'unknown';
-try {
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  VERSION = packageJson.version || 'unknown';
-} catch {
-  VERSION = '1.0.0';
-}
+// Get version from bundled package.json
+// @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
+const pkg = require('../package.json');
+const VERSION = pkg.version || '0.0.1';
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -36,6 +26,11 @@ function printVersion() {
 }
 
 async function printHelp() {
+  // Print preamble first
+  console.log(getPreamble(VERSION));
+  console.log(getPreambleSeparator());
+  console.log();
+  
   const help = await generateGlobalHelp();
   console.log(help);
 }

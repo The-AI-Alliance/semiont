@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "project": "my-semiont-project",
+  "site": {
+    "siteName": "My Semiont Site",
+    "domain": "example.com",
+    "adminEmail": "admin@example.com",
+    "oauthAllowedDomains": ["example.com", "gmail.com"]
+  },
+  "services": {
+    "frontend": {
+      "framework": "next",
+      "port": 3000
+    },
+    "backend": {
+      "framework": "express",
+      "port": 3001
+    },
+    "database": {
+      "type": "postgres",
+      "port": 5432
+    }
+  }
+}

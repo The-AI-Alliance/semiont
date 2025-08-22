@@ -521,7 +521,7 @@ semiont watch logs --service frontend | grep -i "nextauth\|oauth\|google"
 
 - **Invalid OAuth credentials:** Verify Google Client ID and Secret are correct
 - **Wrong redirect URI:** Ensure redirect URI in Google Console matches your domain
-- **Domain restrictions:** Check OAuth domain configuration in `/config/environments/[env].json`
+- **Domain restrictions:** Check OAuth domain configuration in `/environments/[env].json`
 - **Session secret missing:** Verify NEXTAUTH_SECRET is set
 - **HTTPS requirement:** OAuth requires HTTPS in production
 

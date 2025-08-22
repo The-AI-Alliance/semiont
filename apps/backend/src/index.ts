@@ -1,3 +1,18 @@
+// Construct DATABASE_URL from components if not already set
+// MUST be done before any Prisma imports!
+if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
+  const url = new URL('postgresql://localhost');
+  url.username = process.env.DB_USER;
+  url.password = process.env.DB_PASSWORD; // Automatically URL-encoded by URL class
+  url.hostname = process.env.DB_HOST;
+  url.port = process.env.DB_PORT || '5432';
+  url.pathname = `/${process.env.DB_NAME || 'semiont'}`;
+  url.searchParams.set('sslmode', 'require');
+  
+  process.env.DATABASE_URL = url.toString();
+  console.log('✅ DATABASE_URL constructed from components');
+}
+
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
@@ -361,6 +376,36 @@ app.delete('/api/admin/users/:id', adminMiddleware, async (c) => {
   }
 });
 
+// Admin OAuth configuration endpoint (read-only)
+app.get('/api/admin/oauth/config', adminMiddleware, async (c) => {
+  try {
+    // Get OAuth configuration from environment
+    const allowedDomainsEnv = process.env.OAUTH_ALLOWED_DOMAINS || '';
+    const allowedDomains = allowedDomainsEnv
+      .split(',')
+      .map(d => d.trim())
+      .filter(d => d.length > 0);
+    
+    // Check which providers are configured
+    const providers = [];
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      providers.push({
+        name: 'google',
+        isConfigured: true,
+        clientId: process.env.GOOGLE_CLIENT_ID.substring(0, 20) + '...'
+      });
+    }
+    
+    return c.json({
+      providers,
+      allowedDomains
+    });
+  } catch (error: any) {
+    console.error('Failed to fetch OAuth config:', error);
+    return c.json<ErrorResponse>({ error: 'Failed to fetch OAuth configuration' }, 500);
+  }
+});
+
 // API Documentation endpoint - Redirect to OpenAPI/Swagger UI
 app.get('/api', (c) => {
   const acceptHeader = c.req.header('Accept') || '';
@@ -405,6 +450,34 @@ app.get('/api/swagger', (c) => {
 
 // Health check endpoint
 app.get('/api/health', async (c) => {
+  // Check if startup script had issues (for internal monitoring)
+  let startupFailed = false;
+  try {
+    const fs = await import('fs');
+    if (fs.existsSync('/tmp/startup_status')) {
+      const startupStatus = fs.readFileSync('/tmp/startup_status', 'utf-8').trim();
+      if (startupStatus.startsWith('FAILED')) {
+        startupFailed = true;
+        // Log internally but don't expose details
+        console.error('Startup script failure detected:', startupStatus);
+      }
+    }
+  } catch (e) {
+    // Ignore file read errors
+  }
+
+  if (startupFailed) {
+    // Return unhealthy but don't expose internal details
+    return c.json<HealthResponse>({ 
+      status: 'offline',
+      message: 'Service initialization failed',
+      version: '0.1.0',
+      timestamp: new Date().toISOString(),
+      database: 'unknown',
+      environment: CONFIG.NODE_ENV
+    }, 500);
+  }
+
   let dbStatus: 'connected' | 'disconnected' | 'unknown' = 'unknown';
   try {
     const prisma = DatabaseConnection.getClient();

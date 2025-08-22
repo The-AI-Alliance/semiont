@@ -38,11 +38,12 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const CheckOptionsSchema = z.object({
   environment: z.string().optional(),
-  section: z.enum(['all', 'services', 'health', 'logs']).default('all'),
+  section: z.enum(['all', 'services', 'health', 'logs', 'connectivity']).default('all'),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
+  testEmail: z.string().optional(),
 });
 
 type CheckOptions = z.infer<typeof CheckOptionsSchema> & BaseCommandOptions;
@@ -97,6 +98,133 @@ async function getTaskDetails(
     // Non-critical, return empty object
     return {};
   }
+}
+
+/**
+ * Get environment variables for a running task
+ */
+async function getTaskEnvironmentVariables(
+  ecsClient: ECSClient,
+  clusterName: string,
+  serviceName: string
+): Promise<Record<string, string>> {
+  try {
+    // List tasks for the service
+    const tasksResponse = await ecsClient.send(new ListTasksCommand({
+      cluster: clusterName,
+      serviceName: serviceName,
+      desiredStatus: 'RUNNING'
+    }));
+    
+    if (!tasksResponse.taskArns || tasksResponse.taskArns.length === 0) {
+      return {};
+    }
+    
+    // Get task details
+    const taskDetails = await ecsClient.send(new DescribeTasksCommand({
+      cluster: clusterName,
+      tasks: [tasksResponse.taskArns[0]],
+      include: ['TAGS']
+    }));
+    
+    const task = taskDetails.tasks?.[0];
+    if (!task || !task.taskDefinitionArn) {
+      return {};
+    }
+    
+    // Get task definition to see environment variables
+    const taskDefResponse = await ecsClient.send(new DescribeTaskDefinitionCommand({
+      taskDefinition: task.taskDefinitionArn
+    }));
+    
+    const containerDef = taskDefResponse.taskDefinition?.containerDefinitions?.[0];
+    if (!containerDef?.environment) {
+      return {};
+    }
+    
+    // Convert environment array to object
+    const envVars: Record<string, string> = {};
+    for (const env of containerDef.environment) {
+      if (env.name && env.value) {
+        // Mask sensitive values
+        if (env.name.toLowerCase().includes('secret') || 
+            env.name.toLowerCase().includes('password') ||
+            env.name.toLowerCase().includes('key')) {
+          envVars[env.name] = '***MASKED***';
+        } else {
+          envVars[env.name] = env.value;
+        }
+      }
+    }
+    
+    return envVars;
+  } catch (error) {
+    return {};
+  }
+}
+
+/**
+ * Test connectivity between services
+ */
+async function testServiceConnectivity(
+  serviceName: string,
+  targetService: string,
+  envVars: Record<string, string>
+): Promise<{ status: 'pass' | 'fail' | 'warn'; message: string }> {
+  // Check for backend URL configuration in frontend
+  if (serviceName === 'frontend' && targetService === 'backend') {
+    const backendUrl = envVars['BACKEND_INTERNAL_URL'] || envVars['NEXT_PUBLIC_API_URL'];
+    if (!backendUrl) {
+      return {
+        status: 'fail',
+        message: 'Frontend missing BACKEND_INTERNAL_URL environment variable'
+      };
+    }
+    
+    // Check if it's trying to use Service Connect without it being configured
+    if (backendUrl.includes('backend:4000') || backendUrl.includes('backend:3001')) {
+      return {
+        status: 'warn',
+        message: `Frontend configured for Service Connect (${backendUrl}) but Service Connect not enabled`
+      };
+    }
+    
+    return {
+      status: 'pass',
+      message: `Frontend→Backend via ${backendUrl}`
+    };
+  }
+  
+  // Check database connectivity configuration
+  if (serviceName === 'backend' && targetService === 'database') {
+    const dbHost = envVars['DB_HOST'];
+    const dbPort = envVars['DB_PORT'];
+    
+    if (!dbHost || !dbPort) {
+      return {
+        status: 'fail',
+        message: 'Backend missing database configuration (DB_HOST/DB_PORT)'
+      };
+    }
+    
+    // Check for CloudFormation token issues
+    if (dbPort.includes('Token') || dbPort.includes('${')) {
+      return {
+        status: 'fail',
+        message: `DB_PORT contains CloudFormation token (${dbPort}) instead of actual value`
+      };
+    }
+    
+    return {
+      status: 'pass',
+      message: `Backend→Database via ${dbHost}:${dbPort}`
+    };
+  }
+  
+  return {
+    status: 'warn',
+    message: 'Connectivity check not implemented for this service pair'
+  };
 }
 
 /**
@@ -428,10 +556,19 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
             // Get deployment history
             const deploymentHistory = await getDeploymentHistory(ecsClient, service);
             
+            // Get environment variables for verbose mode
+            const envVars = options.verbose ? 
+              await getTaskEnvironmentVariables(ecsClient, clusterName, actualServiceName) : {};
+            
             // Build enhanced message with image info
             let message = `ECS Service ${actualServiceName}: ${runningCount}/${desiredCount} tasks running (rev:${revision}`;
             if (taskDetails.imageTag) {
               message += `, image:${taskDetails.imageTag}`;
+            }
+            if (taskDetails.imageDigest) {
+              // Show last 12 chars of digest for verification
+              const shortDigest = taskDetails.imageDigest.split(':').pop()?.substring(0, 12);
+              message += `, digest:${shortDigest}`;
             }
             message += `, deployed ${deploymentAge}m ago)`;
             
@@ -454,9 +591,54 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
                   revision: d.revision,
                   status: d.status,
                   age: Math.floor((Date.now() - new Date(d.createdAt).getTime()) / 1000 / 60) + 'm ago'
-                }))
+                })),
+                ...(options.verbose && { environmentVariables: envVars })
               }
             });
+            
+            // Add environment variable checks in verbose mode
+            if (options.verbose && Object.keys(envVars).length > 0) {
+              // Check critical environment variables
+              const criticalVars = serviceInfo.name === 'frontend' ? 
+                ['BACKEND_INTERNAL_URL', 'NEXTAUTH_URL', 'NEXT_PUBLIC_API_URL'] :
+                ['DB_HOST', 'DB_PORT', 'OAUTH_ALLOWED_DOMAINS', 'SITE_DOMAIN'];
+              
+              const missingVars = criticalVars.filter(v => !envVars[v]);
+              if (missingVars.length > 0) {
+                checks.push({
+                  name: 'environment-variables',
+                  status: 'warn',
+                  message: `Missing critical environment variables: ${missingVars.join(', ')}`
+                });
+              }
+              
+              // Test connectivity configuration
+              if (serviceInfo.name === 'frontend') {
+                const backendCheck = await testServiceConnectivity('frontend', 'backend', envVars);
+                checks.push({
+                  name: 'connectivity-config',
+                  status: backendCheck.status,
+                  message: backendCheck.message
+                });
+              } else if (serviceInfo.name === 'backend') {
+                const dbCheck = await testServiceConnectivity('backend', 'database', envVars);
+                checks.push({
+                  name: 'connectivity-config',
+                  status: dbCheck.status,
+                  message: dbCheck.message
+                });
+                
+                // Check OAuth configuration
+                const oauthDomains = envVars['OAUTH_ALLOWED_DOMAINS'];
+                if (oauthDomains) {
+                  checks.push({
+                    name: 'oauth-config',
+                    status: 'pass',
+                    message: `OAuth allowed domains: ${oauthDomains}`
+                  });
+                }
+              }
+            }
             
             // Add deployment history as separate check if verbose
             if (options.verbose && deploymentHistory.length > 1) {
@@ -475,7 +657,37 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
               });
             }
             
-            healthStatus = runningCount > 0 ? 'healthy' : 'unhealthy';
+            // Check for database errors in recent logs
+            let hasDbErrors = false;
+            if (serviceInfo.name === 'backend') {
+              try {
+                const logsClient = new (await import('@aws-sdk/client-logs')).CloudWatchLogsClient({ region: awsRegion });
+                const logGroupName = `SemiontAppStack-SemiontLogGroup6DB34440-YwTP6oxtvM8k`; // TODO: Get from stack
+                const endTime = Date.now();
+                const startTime = endTime - (60 * 1000); // Last minute
+                
+                const logsResult = await logsClient.send(new (await import('@aws-sdk/client-logs')).FilterLogEventsCommand({
+                  logGroupName,
+                  startTime,
+                  endTime,
+                  filterPattern: '"invalid port number" OR "Token[TOKEN" OR "DATABASE_URL parsing failed"',
+                  limit: 1
+                }));
+                
+                hasDbErrors = (logsResult.events?.length || 0) > 0;
+                if (hasDbErrors) {
+                  checks.push({
+                    name: 'database-connection',
+                    status: 'fail',
+                    message: '❌ Database connection errors detected in logs'
+                  });
+                }
+              } catch (e) {
+                // Log check failed, don't block
+              }
+            }
+            
+            healthStatus = hasDbErrors ? 'unhealthy' : (runningCount > 0 ? 'healthy' : 'unhealthy');
           }
         } else {
           checks.push({
@@ -505,8 +717,9 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
         let dbIdentifier = '';
         
         try {
+          const stackName = envConfig?.stacks?.data || 'SemiontDataStack';
           const stackResult = await cfnClient.send(new DescribeStacksCommand({
-            StackName: 'SemiontInfraStack'
+            StackName: stackName
           }));
           
           const outputs = stackResult.Stacks?.[0]?.Outputs || [];
@@ -597,8 +810,9 @@ async function checkAWSService(serviceInfo: ServiceDeploymentInfo, options: Chec
         let efsId = '';
         
         try {
+          const stackName = envConfig?.stacks?.data || 'SemiontDataStack';
           const stackResult = await cfnClient.send(new DescribeStacksCommand({
-            StackName: 'SemiontInfraStack'
+            StackName: stackName
           }));
           
           const outputs = stackResult.Stacks?.[0]?.Outputs || [];
@@ -1084,6 +1298,56 @@ export async function check(
         printInfo('\n📊 Service Status:');
       }
       
+      // Check for critical errors FIRST
+      const criticalErrors: string[] = [];
+      try {
+        const logsClient = new (await import('@aws-sdk/client-logs')).CloudWatchLogsClient({ region: awsRegion });
+        const logGroupName = `SemiontAppStack-SemiontLogGroup6DB34440-YwTP6oxtvM8k`; // TODO: Get from stack
+        const endTime = Date.now();
+        const startTime = endTime - (2 * 60 * 1000); // Last 2 minutes
+        
+        const criticalPatterns = [
+          '"invalid port number"',
+          '"Token[TOKEN"', 
+          '"DATABASE_URL parsing failed"',
+          '"syntax error"',
+          '"Environment variable not found: DATABASE_URL"',
+          '"FATAL:"',
+          '"Script failed at line"',
+          '"Startup script failure"'
+        ];
+        
+        for (const pattern of criticalPatterns) {
+          const logsResult = await logsClient.send(new (await import('@aws-sdk/client-logs')).FilterLogEventsCommand({
+            logGroupName,
+            startTime,
+            endTime,
+            filterPattern: pattern,
+            limit: 5
+          }));
+          
+          if (logsResult.events && logsResult.events.length > 0) {
+            logsResult.events.forEach(event => {
+              if (event.message) {
+                criticalErrors.push(event.message);
+              }
+            });
+          }
+        }
+        
+        if (criticalErrors.length > 0) {
+          printError('\n🚨 CRITICAL ERRORS DETECTED:');
+          criticalErrors.slice(0, 10).forEach(error => {
+            // Extract just the important part
+            const match = error.match(/([^\/]+)$/) || [error];
+            printError(`  ${match[0]}`);
+          });
+          printError('');
+        }
+      } catch (e) {
+        // Don't fail if we can't check logs
+      }
+      
       for (const serviceInfo of serviceDeployments) {
         const result = await checkServiceImpl(serviceInfo, options, startTime, envConfig);
         serviceResults.push(result);
@@ -1123,6 +1387,75 @@ export async function check(
       }
       
       printInfo(`\nOverall system health: ${overallHealth}`);
+    }
+    
+    if (options.section === 'connectivity') {
+      printInfo('\n🔗 Connectivity Tests:');
+      
+      // Test frontend-to-backend connectivity
+      if (envConfig?.stacks?.app) {
+        try {
+          const cfnClient = new CloudFormationClient({ region: awsRegion });
+          const ecsClient = new ECSClient({ region: awsRegion });
+          
+          // Get stack outputs
+          const stackResult = await cfnClient.send(new DescribeStacksCommand({
+            StackName: envConfig.stacks.app
+          }));
+          
+          const outputs = stackResult.Stacks?.[0]?.Outputs || [];
+          const clusterName = outputs.find(o => o.OutputKey === 'ClusterName')?.OutputValue || '';
+          const frontendServiceName = outputs.find(o => o.OutputKey === 'FrontendServiceName')?.OutputValue || '';
+          const backendServiceName = outputs.find(o => o.OutputKey === 'BackendServiceName')?.OutputValue || '';
+          
+          if (clusterName && frontendServiceName && backendServiceName) {
+            // Check frontend environment
+            const frontendEnv = await getTaskEnvironmentVariables(ecsClient, clusterName, frontendServiceName);
+            const frontendConnectivity = await testServiceConnectivity('frontend', 'backend', frontendEnv);
+            printInfo(`  Frontend→Backend: ${frontendConnectivity.status === 'pass' ? '✅' : frontendConnectivity.status === 'warn' ? '⚠️' : '❌'} ${frontendConnectivity.message}`);
+            
+            // Check backend environment
+            const backendEnv = await getTaskEnvironmentVariables(ecsClient, clusterName, backendServiceName);
+            const backendConnectivity = await testServiceConnectivity('backend', 'database', backendEnv);
+            printInfo(`  Backend→Database: ${backendConnectivity.status === 'pass' ? '✅' : backendConnectivity.status === 'warn' ? '⚠️' : '❌'} ${backendConnectivity.message}`);
+            
+            // Check OAuth configuration
+            if (backendEnv['OAUTH_ALLOWED_DOMAINS']) {
+              const domains = backendEnv['OAUTH_ALLOWED_DOMAINS'].split(',');
+              printInfo(`  OAuth Allowed Domains: ${domains.join(', ')}`);
+              
+              // Test email domain if provided
+              if (options.testEmail) {
+                const emailDomain = options.testEmail.split('@')[1];
+                const isAllowed = domains.includes(emailDomain);
+                printInfo(`  Test Email ${options.testEmail}: ${isAllowed ? '✅ Allowed' : '❌ Not allowed'} (domain: ${emailDomain})`);
+              }
+            }
+            
+            // Check actual connectivity via health endpoints
+            const siteUrl = `https://${envConfig.site?.domain || 'localhost'}`;
+            printInfo(`\n  Testing actual endpoints at ${siteUrl}:`);
+            
+            // Test frontend health
+            try {
+              const frontendHealth = await fetch(`${siteUrl}/api/health`);
+              printInfo(`    Frontend /api/health: ${frontendHealth.ok ? '✅ OK' : `❌ ${frontendHealth.status}`}`);
+            } catch (error) {
+              printInfo(`    Frontend /api/health: ❌ Failed to connect`);
+            }
+            
+            // Test backend health via ALB
+            try {
+              const backendHealth = await fetch(`${siteUrl}/api/health`);
+              printInfo(`    Backend /api/health: ${backendHealth.ok ? '✅ OK' : `❌ ${backendHealth.status}`}`);
+            } catch (error) {
+              printInfo(`    Backend /api/health: ❌ Failed to connect`);
+            }
+          }
+        } catch (error) {
+          printError(`Failed to test connectivity: ${error}`);
+        }
+      }
     }
     
     if (options.section === 'all' || options.section === 'logs') {
@@ -1244,11 +1577,12 @@ export const checkCommand = new CommandBuilder<CheckOptions>()
   .args({
     args: {
       '--environment': { type: 'string', description: 'Environment name' },
-      '--section': { type: 'string', description: 'Section to check (all, services, health, logs)' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
+      '--section': { type: 'string', description: 'Section to check (all, services, health, logs, connectivity)' },
+      '--verbose': { type: 'boolean', description: 'Verbose output with environment variables and detailed checks' },
       '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
       '--output': { type: 'string', description: 'Output format (table, json, yaml, summary)' },
       '--service': { type: 'string', description: 'Service name or "all" for all services' },
+      '--test-email': { type: 'string', description: 'Test if an email address would be allowed for OAuth' },
     },
     aliases: {
       '-e': '--environment',
@@ -1260,7 +1594,9 @@ export const checkCommand = new CommandBuilder<CheckOptions>()
   .examples(
     'semiont check --environment local',
     'semiont check --environment staging --section health',
-    'semiont check --environment prod --service backend --output json'
+    'semiont check --environment prod --service backend --output json',
+    'semiont check --section connectivity --verbose',
+    'semiont check --section connectivity --test-email user@example.com'
   )
   .handler(check)
   .build();

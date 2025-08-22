@@ -182,7 +182,10 @@ async function buildContainerImage(
     printInfo(`Building container image for ${serviceInfo.name}...`);
   }
 
-  const imageName = serviceInfo.config.image || `semiont-${serviceInfo.name}`;
+  // Remove any existing tag from the image name (e.g., :latest)
+  const baseImageName = serviceInfo.config.image ? 
+    serviceInfo.config.image.replace(/:.*$/, '') : 
+    `semiont-${serviceInfo.name}`;
   
   // Use semiontRepo if provided, otherwise use default
   const projectRoot = options.semiontRepo || DEFAULT_PROJECT_ROOT;
@@ -190,10 +193,16 @@ async function buildContainerImage(
   // Construct the full dockerfile path
   const dockerfile = path.join(projectRoot, 'apps', serviceInfo.name, 'Dockerfile');
   
-  printDebug(`Building image: ${imageName}:${tag}`, options);
+  const imageName = `${baseImageName}:${tag}`;
+  printDebug(`Building image: ${imageName}`, options);
   
   // Prepare build args based on service type
   let buildArgs: Record<string, string> = {};
+  
+  // Add cache buster to force rebuild when needed
+  if (options.noCache) {
+    buildArgs.CACHE_BUST = Date.now().toString();
+  }
   
   // For frontend, try to get API URL from AWS infrastructure
   if (serviceInfo.name === 'frontend' && envConfig) {
@@ -216,7 +225,7 @@ async function buildContainerImage(
   const platform = serviceInfo.deploymentType === 'aws' ? 'linux/amd64' : undefined;
   
   const buildSuccess = await buildImage(
-    imageName,
+    baseImageName,
     tag,
     dockerfile,
     projectRoot,
@@ -237,7 +246,7 @@ async function buildContainerImage(
     return { imageName: null, buildDuration };
   }
   
-  const fullImageName = `${imageName}:${tag}`;
+  const fullImageName = imageName;
   
   // Get image details
   let imageSize: number | undefined;
@@ -494,6 +503,19 @@ async function pushImageToECR(
       const ecrImageUri = `${baseUri}:${tag}`;
       printInfo(`Pushing ${tag} to ECR...`);
       
+      // Store the digest before pushing
+      let preDigest: string | undefined;
+      try {
+        const describeCmd = new DescribeImagesCommand({
+          repositoryName,
+          imageIds: [{ imageTag: tag }]
+        });
+        const preResult = await ecrClient.send(describeCmd);
+        preDigest = preResult.imageDetails?.[0]?.imageDigest;
+      } catch (e) {
+        // Image doesn't exist yet
+      }
+      
       const pushSuccess = await pushImage(ecrImageUri, {
         verbose: options.verbose ?? false
       });
@@ -501,6 +523,27 @@ async function pushImageToECR(
       if (!pushSuccess) {
         printError(`Failed to push ${serviceName}:${tag} to ECR`);
         return null;
+      }
+      
+      // Check if image actually changed
+      try {
+        const describeCmd = new DescribeImagesCommand({
+          repositoryName,
+          imageIds: [{ imageTag: tag }]
+        });
+        const postResult = await ecrClient.send(describeCmd);
+        const postDigest = postResult.imageDetails?.[0]?.imageDigest;
+        
+        if (preDigest && postDigest && preDigest === postDigest) {
+          printWarning(`⚠️  Image unchanged - digest: ${postDigest.substring(0, 19)}...`);
+          printWarning(`⚠️  The image was already up-to-date in ECR. No new code was deployed.`);
+        } else if (postDigest) {
+          const shortDigest = postDigest.split(':').pop()?.substring(0, 12);
+          printSuccess(`✅ New image pushed - digest: ${shortDigest}`);
+          digest = postDigest;
+        }
+      } catch (e) {
+        // Couldn't verify
       }
     }
     
@@ -525,6 +568,11 @@ async function pushImageToECR(
     if (digest) {
       printInfo(`🔑 Digest: ${digest}`);
     }
+    
+    // Add next steps guidance
+    printInfo(`\n📋 Next steps:`);
+    printInfo(`   Deploy this image: semiont update --service ${serviceName}`);
+    printInfo(`   Check deployment: semiont check --service ${serviceName} --verbose`);
     
     return {
       uri: `${baseUri}:${primaryTag}`,

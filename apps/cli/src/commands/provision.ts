@@ -29,18 +29,8 @@ import {
   DescribeStackEventsCommand,
   StackStatus
 } from '@aws-sdk/client-cloudformation';
-import { 
-  SemiontInfraStack, 
-  SemiontAppStack, 
-  App, 
-  DefaultStackSynthesizer,
-  createStack,
-  getStackConstructor,
-  getAvailableStacks
-} from '@semiont/cloud';
 import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
-import * as fs from 'fs';
 
 const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
@@ -50,7 +40,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const ProvisionOptionsSchema = z.object({
   environment: z.string().optional(),
-  stack: z.enum(['infra', 'app', 'all']).default('all'),
+  stack: z.enum(['data', 'app', 'all']).default('all'),
   force: z.boolean().default(false),
   destroy: z.boolean().default(false),
   reset: z.boolean().default(false),
@@ -337,14 +327,14 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
   
   // Determine which stack to deploy based on the stack option
   let stackName: string;
-  if (options.stack === 'infra' || serviceInfo.name === 'infrastructure') {
-    stackName = envConfig.aws.stacks?.infra || 'SemiontInfraStack';
+  if (options.stack === 'data' || serviceInfo.name === 'infrastructure') {
+    stackName = envConfig.aws.stacks?.data || 'SemiontDataStack';
   } else if (options.stack === 'app' || serviceInfo.name === 'application') {
     stackName = envConfig.aws.stacks?.app || 'SemiontAppStack';
   } else {
     // Fallback to service-based detection for backward compatibility
     if (serviceInfo.name === 'database' || serviceInfo.name === 'filesystem') {
-      stackName = envConfig.aws.stacks?.infra || 'SemiontInfraStack';
+      stackName = envConfig.aws.stacks?.data || 'SemiontDataStack';
     } else {
       stackName = envConfig.aws.stacks?.app || 'SemiontAppStack';
     }
@@ -413,8 +403,8 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
   if (!isStructuredOutput && options.output === 'summary') {
     if (options.destroy) {
       printWarning(`🗑️  Destroying stack ${stackName}...`);
-      if (stackName === 'SemiontInfraStack' || stackName.includes('Infra')) {
-        printWarning('⚠️  This will destroy all infrastructure including:');
+      if (stackName === 'SemiontDataStack' || stackName.includes('Data')) {
+        printWarning('⚠️  This will destroy all data infrastructure including:');
         printWarning('   • RDS Database (data will be lost!)');
         printWarning('   • VPC and networking');
         printWarning('   • EFS filesystem');
@@ -428,14 +418,14 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
       }
     } else if (stackExists && options.force) {
       printInfo(`🔄 Updating existing stack ${stackName}...`);
-      if (stackName === 'SemiontInfraStack' || stackName.includes('Infra')) {
+      if (stackName === 'SemiontDataStack' || stackName.includes('Data')) {
         printInfo('   Contains: VPC, RDS, EFS, Secrets Manager');
       } else if (stackName === 'SemiontAppStack' || stackName.includes('App')) {
         printInfo('   Contains: ECS, ALB, WAF, CloudWatch');
       }
     } else {
       printInfo(`🆕 Creating new stack ${stackName}...`);
-      if (stackName === 'SemiontInfraStack' || stackName.includes('Infra')) {
+      if (stackName === 'SemiontDataStack' || stackName.includes('Data')) {
         printInfo('   📦 Will provision: VPC, RDS, EFS, Secrets Manager');
       } else if (stackName === 'SemiontAppStack' || stackName.includes('App')) {
         printInfo('   🏗️  Will provision: ECS, ALB, WAF, CloudWatch');
@@ -444,311 +434,87 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
   }
   
   try {
-    // Create CDK app and synthesize the stack
-    const app = new App({
-      outdir: path.join(process.cwd(), 'cdk.out'),
-      context: {
-        '@aws-cdk/core:stackRelativeExports': true,
-        '@aws-cdk/aws-rds:preventRenderingDeprecatedCredentials': true
-      }
-    });
+    const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
     
-    // Create the appropriate stack based on which one we're deploying
-    let stack: SemiontInfraStack | SemiontAppStack;
-    let infraStack: SemiontInfraStack | undefined;
+    // Use CDK CLI directly with context parameters
+    const cdkCommand = options.destroy ? 'destroy' : 'deploy';
     
-    // Use factory pattern to create stacks dynamically
-    const stackProps = {
-      env: {
-        account: envConfig.aws.accountId,
-        region: envConfig.aws.region
-      },
-      synthesizer: new DefaultStackSynthesizer({
-        qualifier: 'hnb659fds' // Default CDK bootstrap qualifier
-      })
-    };
+    // Determine stack type from the stack option
+    let stackType = 'all';
+    if (options.stack === 'data' || stackName.includes('Data')) {
+      stackType = 'data';
+    } else if (options.stack === 'app' || stackName.includes('App')) {
+      stackType = 'app';
+    }
     
-    // Determine which stack type to create using factory pattern helper
-    const stackTypeName = getStackTypeName(serviceInfo.name);
+    // Build CDK command with context
+    const cdkArgs = [
+      cdkCommand
+    ];
+    
+    // For app-only deployment, explicitly specify just the app stack
+    // The app stack will import values from data stack via CloudFormation exports
+    if (stackType === 'app' && cdkCommand === 'deploy') {
+      // Deploy only the app stack - it will read data exports but not deploy data
+      cdkArgs.push('SemiontAppStack');
+    } else if (stackType === 'data' && cdkCommand === 'deploy') {
+      // Deploy only the data stack
+      cdkArgs.push('SemiontDataStack');
+    } else if (stackType === 'all' && cdkCommand === 'deploy') {
+      // Deploy all stacks in dependency order
+      cdkArgs.push('--all');
+    } else {
+      // Single stack deployment/destroy
+      cdkArgs.push(stackName);
+    }
+    
+    cdkArgs.push(
+      '-c', `stack-type=${stackType}`,
+      '-c', `environment=${options.environment}`,
+      '--require-approval', 'never',
+      '--outputs-file', 'cdk-outputs.json'
+    );
+    
+    if (options.force) {
+      cdkArgs.push('--force');
+    }
     
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`🏭 Using factory pattern to create ${stackTypeName}`);
+      printInfo(`Running: npx cdk ${cdkArgs.join(' ')}`);
+      printInfo(`Stack type: ${stackType}`);
     }
     
-    if (stackTypeName === 'SemiontInfraStack') {
-      // Create infrastructure stack using factory
-      if (!isStructuredOutput && options.output === 'summary') {
-        printInfo('   📐 Stack type: Infrastructure');
-        printInfo(`   🏷️  Stack ID: ${stackName}`);
-      }
-      stack = createStack('SemiontInfraStack', app, stackName, stackProps);
-    } else {
-      // For AppStack, we need to create InfraStack first to pass as dependency
-      if (!isStructuredOutput && options.output === 'summary') {
-        printInfo('   📐 Stack type: Application');
-        printInfo('   🔗 Creating infrastructure dependencies first...');
-      }
-      
-      infraStack = createStack(
-        'SemiontInfraStack', 
-        app, 
-        envConfig.aws.stacks?.infra || 'SemiontInfraStack', 
-        stackProps
-      ) as SemiontInfraStack;
-      
-      // Create app stack with dependencies using factory
-      const appStackDependencies = {
-        vpc: infraStack.vpc,
-        fileSystem: infraStack.fileSystem,
-        database: infraStack.database,
-        dbCredentials: infraStack.dbCredentials,
-        appSecrets: infraStack.appSecrets,
-        jwtSecret: infraStack.jwtSecret,
-        adminPassword: infraStack.adminPassword,
-        googleOAuth: infraStack.googleOAuth,
-        githubOAuth: infraStack.githubOAuth,
-        adminEmails: infraStack.adminEmails,
-        dbSecurityGroup: infraStack.dbSecurityGroup,
-        ecsSecurityGroup: infraStack.ecsSecurityGroup,
-        albSecurityGroup: infraStack.albSecurityGroup
-      };
-      
-      if (!isStructuredOutput && options.output === 'summary') {
-        printInfo(`   🏷️  Stack ID: ${stackName}`);
-        printInfo('   ✅ Dependencies resolved from infrastructure stack');
-      }
-      
-      stack = createStack(
-        'SemiontAppStack',
-        app,
-        stackName,
-        { ...stackProps, ...appStackDependencies },
-        appStackDependencies
-      );
-    }
-    
-    // Synthesize the stack
-    const assembly = app.synth();
-    const stackArtifact = assembly.getStackByName(stackName);
-    
-    if (options.destroy) {
-      // For destroy, we'll use CloudFormation directly
-      if (!isStructuredOutput && options.output === 'summary') {
-        printInfo(`Deleting stack ${stackName} via CloudFormation...`);
-      }
-      
-      // Use CloudFormation SDK to delete the stack
-      const cfn = new CloudFormationClient({ 
-        region: envConfig.aws.region,
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-          sessionToken: process.env.AWS_SESSION_TOKEN
+    // Execute CDK using child_process
+    const { execSync } = await import('child_process');
+    try {
+      execSync(`npx cdk ${cdkArgs.join(' ')}`, {
+        cwd: projectRoot,
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          AWS_REGION: envConfig.aws.region,
+          CDK_DEFAULT_ACCOUNT: envConfig.aws.accountId,
+          CDK_DEFAULT_REGION: envConfig.aws.region,
+          SEMIONT_ENV: options.environment
         }
       });
-      
-      await cfn.send(new DeleteStackCommand({ StackName: stackName }));
-      
-      // Use improved wait logic
-      const deleteResult = await waitForStackOperation(cfn, stackName, 'DELETE', options, isStructuredOutput);
-      
-      if (!deleteResult.success) {
-        throw new Error(`Stack deletion failed: ${deleteResult.finalStatus || 'Unknown error'}`);
-      }
-      
-      return {
-        ...baseResult,
-        resources: [
-          {
-            type: 'cloudformation-stack',
-            id: stackName,
-            arn: '',
-            status: 'destroyed',
-            metadata: {
-              stackStatus: 'DELETE_COMPLETE'
-            }
-          }
-        ],
-        dependencies: [],
-        resourceId: {
-          aws: {
-            arn: '',
-            id: stackName,
-            name: stackName
-          }
-        },
-        status: 'destroyed',
-        metadata: {
-          operation: 'destroy',
-          stackName,
-          stackStatus: 'DELETE_COMPLETE'
-        },
-      };
-    } else {
-      // Deploy using CloudFormation SDK with synthesized template
-      if (!isStructuredOutput && options.output === 'summary') {
-        printInfo(`📋 Synthesizing CloudFormation template...`);
-      }
-      
-      // Read the synthesized CloudFormation template
-      const templatePath = path.join(process.cwd(), 'cdk.out', `${stackName}.template.json`);
-      const templateBody = await fs.promises.readFile(templatePath, 'utf8');
-      
-      if (!isStructuredOutput && options.output === 'summary') {
-        printSuccess(`✅ Template synthesized successfully`);
-        printInfo(`🚀 Deploying stack ${stackName} to AWS...`);
-      }
-      
-      // Create CloudFormation client
-      const cfn = new CloudFormationClient({ 
-        region: envConfig.aws.region,
-        credentials: process.env.AWS_ACCESS_KEY_ID ? {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-          sessionToken: process.env.AWS_SESSION_TOKEN
-        } : undefined
-      });
-      
-      try {
-        if (stackExists && options.force) {
-          // Update existing stack
-          if (!isStructuredOutput && options.output === 'summary') {
-            printInfo(`Updating stack ${stackName}...`);
-          }
-          
-          await cfn.send(new UpdateStackCommand({
-            StackName: stackName,
-            TemplateBody: templateBody,
-            Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
-            Parameters: []
-          }));
-        } else if (!stackExists) {
-          // Create new stack
-          if (!isStructuredOutput && options.output === 'summary') {
-            printInfo(`Creating stack ${stackName}...`);
-          }
-          
-          await cfn.send(new CreateStackCommand({
-            StackName: stackName,
-            TemplateBody: templateBody,
-            Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
-            OnFailure: 'ROLLBACK',
-            Parameters: []
-          }));
-        }
-        
-        // Wait for stack operation to complete
-        // Use improved wait logic
-        const operation = stackExists && options.force ? 'UPDATE' : 'CREATE';
-        const operationResult = await waitForStackOperation(cfn, stackName, operation, options, isStructuredOutput);
-        
-        if (!operationResult.success) {
-          throw new Error(`Stack operation failed: ${operationResult.finalStatus || 'Unknown error'}`);
-        }
-        
-        // Print outputs if available
-        if (!isStructuredOutput && options.output === 'summary' && operationResult.outputs && operationResult.outputs.length > 0) {
-          printInfo('Stack outputs:');
-          for (const output of operationResult.outputs) {
-            console.log(`  ${output.OutputKey}: ${output.OutputValue}`);
-          }
-        }
-        
-        return {
-          ...baseResult,
-          resources: [
-            {
-              type: 'cloudformation-stack',
-              id: stackName,
-              arn: finalStack?.StackId || '',
-              status: stackExists && options.force ? 'updated' : 'created',
-              metadata: {
-                stackStatus: finalStack?.StackStatus,
-                outputs: finalStack?.Outputs?.reduce((acc, output) => {
-                  if (output.OutputKey) {
-                    acc[output.OutputKey] = output.OutputValue || '';
-                  }
-                  return acc;
-                }, {} as Record<string, string>)
-              }
-            }
-          ],
-          dependencies: stackName === 'SemiontAppStack' ? ['SemiontInfraStack'] : [],
-          estimatedCost: stackName === 'SemiontInfraStack' ? {
-            hourly: 0.25,
-            monthly: 182.5,
-            currency: 'USD'
-          } : {
-            hourly: 0.10,
-            monthly: 72,
-            currency: 'USD'
-          },
-          resourceId: {
-            aws: {
-              arn: finalStack?.StackId || '',
-              id: stackName,
-              name: stackName
-            }
-          },
-          status: stackExists && options.force ? 'updated' : 'created',
-          metadata: {
-            operation: stackExists && options.force ? 'update' : 'create',
-            stackName,
-            stackStatus: finalStack?.StackStatus,
-            outputs: finalStack?.Outputs
-          },
-        };
-      } catch (error: any) {
-        // Handle specific CloudFormation errors
-        if (error.name === 'ValidationError' && error.message.includes('No updates are to be performed')) {
-          if (!isStructuredOutput && options.output === 'summary') {
-            printInfo('No changes detected in stack template');
-          }
-          
-          // Get current stack status
-          const currentResult = await cfnClient.send(new DescribeStacksCommand({ StackName: stackName }));
-          const currentStack = currentResult.Stacks?.[0];
-          
-          return {
-            ...baseResult,
-            resources: [
-              {
-                type: 'cloudformation-stack',
-                id: stackName,
-                arn: currentStack?.StackId || '',
-                status: 'unchanged',
-                metadata: {
-                  stackStatus: currentStack?.StackStatus,
-                  outputs: currentStack?.Outputs?.reduce((acc, output) => {
-                    if (output.OutputKey) {
-                      acc[output.OutputKey] = output.OutputValue || '';
-                    }
-                    return acc;
-                  }, {} as Record<string, string>)
-                }
-              }
-            ],
-            dependencies: stackName === 'SemiontAppStack' ? ['SemiontInfraStack'] : [],
-            resourceId: {
-              aws: {
-                arn: currentStack?.StackId || '',
-                id: stackName,
-                name: stackName
-              }
-            },
-            status: 'unchanged',
-            metadata: {
-              operation: 'no-op',
-              stackName,
-              stackStatus: currentStack?.StackStatus,
-              message: 'No changes detected'
-            },
-          };
-        }
-        
-        throw error;
-      }
+    } catch (error: any) {
+      throw new Error(`CDK operation failed: ${error.message}`);
     }
+    
+    return {
+      ...baseResult,
+      resources: [{
+        type: 'cloudformation-stack',
+        id: stackName,
+        status: options.destroy ? 'destroyed' : 'deployed',
+        metadata: { stackName }
+      }],
+      dependencies: [],
+      resourceId: { aws: { name: stackName } },
+      status: options.destroy ? 'destroyed' : 'deployed',
+      metadata: { operation: cdkCommand, stackName }
+    };
   } catch (error: any) {
     if (!isStructuredOutput && options.output === 'summary') {
       printError(`CDK operation failed: ${error.message}`);
@@ -1469,8 +1235,8 @@ export async function provision(
       // Determine which stacks to deploy based on --stack option
       const stacksToProvision: string[] = [];
       
-      if (options.stack === 'infra' || options.stack === 'all') {
-        stacksToProvision.push('infra');
+      if (options.stack === 'data' || options.stack === 'all') {
+        stacksToProvision.push('data');
       }
       if (options.stack === 'app' || options.stack === 'all') {
         stacksToProvision.push('app');

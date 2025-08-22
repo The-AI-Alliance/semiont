@@ -332,18 +332,20 @@ export const api = {
   admin: {
     users: {
       list: {
-        useQuery: () => {
+        useQuery: (options?: any) => {
           return useQuery({
             queryKey: ['admin.users.list'],
             queryFn: () => apiService.admin.users.list(),
+            ...options,
           });
         }
       },
       stats: {
-        useQuery: () => {
+        useQuery: (options?: any) => {
           return useQuery({
             queryKey: ['admin.users.stats'],
             queryFn: () => apiService.admin.users.stats(),
+            ...options,
           });
         }
       },
@@ -367,10 +369,11 @@ export const api = {
     
     oauth: {
       config: {
-        useQuery: () => {
+        useQuery: (options?: any) => {
           return useQuery({
             queryKey: ['admin.oauth.config'],
             queryFn: () => apiService.admin.oauth.config(),
+            ...options,
           });
         }
       }

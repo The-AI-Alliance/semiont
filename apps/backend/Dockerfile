@@ -1,4 +1,7 @@
 # Backend Dockerfile for Semiont (Monorepo)
+# IMPORTANT: When using --no-cache, pass --build-arg CACHE_BUST=$(date +%s) to force full rebuild
+ARG CACHE_BUST=1
+
 FROM node:22-alpine AS base
 
 # Install dependencies only when needed
@@ -16,6 +19,10 @@ RUN npm ci --workspace=apps/backend --include-workspace-root
 
 # Rebuild the source code only when needed
 FROM base AS builder
+# Inherit cache buster to ensure builder rebuilds when needed
+ARG CACHE_BUST
+RUN echo "Builder stage cache bust: ${CACHE_BUST:-default}"
+
 WORKDIR /app
 
 # Copy workspace structure
@@ -30,6 +37,9 @@ RUN npm ci
 COPY packages/api-types ./packages/api-types
 COPY apps/backend ./apps/backend
 
+# Validate startup script syntax at build time
+RUN sh -n ./apps/backend/scripts/start.sh || (echo "❌ SYNTAX ERROR in start.sh" && exit 1)
+
 # Build packages in dependency order
 WORKDIR /app/packages/api-types
 RUN npm run build || true
@@ -43,8 +53,12 @@ RUN npx prisma generate
 # Build the application
 RUN npm run build
 
-# Production image, copy all the files and run the app
+# Production image, copy all the files and run the app  
 FROM base AS runner
+# Inherit cache buster to ensure runner rebuilds when builder changes
+ARG CACHE_BUST
+RUN echo "Runner stage cache bust: ${CACHE_BUST:-default}"
+
 WORKDIR /app
 
 ENV NODE_ENV=production

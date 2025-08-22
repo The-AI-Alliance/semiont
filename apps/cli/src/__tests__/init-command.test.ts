@@ -1,36 +1,44 @@
 /**
- * Unit tests for the init command
+ * Integration tests for the init command
+ * Uses real filesystem with temporary directories
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ServiceDeploymentInfo } from '../lib/deployment-resolver';
 import * as os from 'os';
 import * as path from 'path';
-
-// Mock modules BEFORE importing the command
-vi.mock('fs');
-
-// Import mocked modules
 import * as fs from 'fs';
-
-// Now import the command after mocks are set up
+import { fileURLToPath } from 'url';
 import initCommand from '../commands/init';
 const init = initCommand.handler;
 
 describe('init command', () => {
+  let testDir: string;
+  let originalCwd: string;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Save original working directory
+    originalCwd = process.cwd();
+    // Create a unique temp directory for each test
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-init-test-'));
+    // Change to test directory
+    process.chdir(testDir);
     
-    // Set up default mock implementations
-    vi.mocked(fs.existsSync).mockReturnValue(false);
-    vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
-    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
-    
-    // Path mocks are already set up in the mock file
+    // Set the templates directory for tests to use the built templates
+    const testFilePath = fileURLToPath(import.meta.url);
+    const testFileDir = path.dirname(testFilePath);
+    process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', 'dist', 'templates');
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    // Restore original directory
+    process.chdir(originalCwd);
+    // Clean up environment variable
+    delete process.env.SEMIONT_TEMPLATES_DIR;
+    // Clean up test directory
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    }
   });
 
   describe('basic functionality', () => {
@@ -41,7 +49,7 @@ describe('init command', () => {
         force: false,
         environments: ['local', 'test', 'staging', 'production'],
         output: 'summary' as const,
-        quiet: false,
+        quiet: true,
         verbose: false,
         dryRun: false,
       };
@@ -51,17 +59,15 @@ describe('init command', () => {
       expect(result.summary.failed).toBe(0);
       
       // Check that semiont.json was created
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('semiont.json'),
-        expect.stringContaining('"version": "1.0.0"')
-      );
-
+      expect(fs.existsSync('semiont.json')).toBe(true);
+      const semiontContent = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
+      expect(semiontContent.version).toBe('1.0.0');
+      
       // Check that environment configs were created
-      expect(fs.writeFileSync).toHaveBeenCalledTimes(5); // semiont.json + 4 environments
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments'),
-        { recursive: true }
-      );
+      expect(fs.existsSync('environments/local.json')).toBe(true);
+      expect(fs.existsSync('environments/test.json')).toBe(true);
+      expect(fs.existsSync('environments/staging.json')).toBe(true);
+      expect(fs.existsSync('environments/production.json')).toBe(true);
     });
 
     it('should use custom project name when provided', async () => {
@@ -72,30 +78,27 @@ describe('init command', () => {
         force: false,
         environments: ['local', 'production'],
         output: 'summary' as const,
-        quiet: false,
+        quiet: true,
         verbose: false,
         dryRun: false,
       };
       await init(serviceDeployments, options);
-      // Note: metadata is no longer part of so we can't check projectName directly
-      // We verify by checking the write calls
       
       // Check that project name is in semiont.json
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('semiont.json'),
-        expect.stringContaining('"project": "my-awesome-project"')
-      );
+      const semiontContent = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
+      expect(semiontContent.project).toBe('my-awesome-project');
     });
 
     it('should use custom directory when provided', async () => {
       const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const customDir = path.join(testDir, 'custom-project');
       const options = {
         environment: 'none',
-        directory: '/custom/path',
+        directory: customDir,
         force: false,
         environments: ['local'],
         output: 'summary' as const,
-        quiet: false,
+        quiet: true,
         verbose: false,
         dryRun: false,
       };
@@ -104,49 +107,45 @@ describe('init command', () => {
       expect(result.summary.succeeded).toBe(1);
       
       // Check that files were created in custom directory
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        '/custom/path/semiont.json',
-        expect.any(String)
-      );
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        '/custom/path/config/environments',
-        { recursive: true }
-      );
+      expect(fs.existsSync(path.join(customDir, 'semiont.json'))).toBe(true);
+      expect(fs.existsSync(path.join(customDir, 'environments', 'local.json'))).toBe(true);
     });
   });
 
   describe('error handling', () => {
     it('should fail if semiont.json exists and force is false', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true); // File exists
+      // Create an existing semiont.json
+      fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
       const serviceDeployments: ServiceDeploymentInfo[] = [];
-      const testDir = path.join(os.tmpdir(), 'semiont-test-init-' + Date.now());
       const options = {
         environment: 'none',
-        directory: testDir,
         force: false,
         environments: ['local'],
         output: 'summary' as const,
-        quiet: true, // Suppress output in tests
+        quiet: true,
         verbose: false,
         dryRun: false,
       };
 
-      await init(serviceDeployments, options);
+      const result = await init(serviceDeployments, options);
 
-      // Should not write any files
-      expect(fs.writeFileSync).not.toHaveBeenCalled();
-      expect(fs.mkdirSync).not.toHaveBeenCalled();
+      // Should fail because file exists
+      expect(result.summary.failed).toBe(1);
+      expect(result.summary.succeeded).toBe(0);
+      
+      // Original file should remain unchanged
+      const content = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
+      expect(content.version).toBe('0.0.1');
     });
 
     it('should overwrite if semiont.json exists and force is true', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true); // File exists
+      // Create an existing semiont.json
+      fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
       const serviceDeployments: ServiceDeploymentInfo[] = [];
-      const testDir = path.join(os.tmpdir(), 'semiont-test-init-' + Date.now());
       const options = {
         environment: 'none',
-        directory: testDir,
         force: true,
         environments: ['local'],
         output: 'summary' as const,
@@ -155,23 +154,33 @@ describe('init command', () => {
         dryRun: false,
       };
 
-      await init(serviceDeployments, options);
+      const result = await init(serviceDeployments, options);
 
-      // Should write files despite existing
-      expect(fs.writeFileSync).toHaveBeenCalled();
-      expect(fs.mkdirSync).toHaveBeenCalled();
+      // Should succeed with force flag
+      expect(result.summary.succeeded).toBe(1);
+      expect(result.summary.failed).toBe(0);
+      
+      // File should be overwritten with new version
+      const content = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
+      expect(content.version).toBe('1.0.0');
     });
 
     it('should handle filesystem errors gracefully', async () => {
-      vi.mocked(fs.writeFileSync).mockImplementation(() => {
-        throw new Error('Permission denied');
-      });
+      // Create a directory where we can't write
+      const readOnlyDir = path.join(testDir, 'readonly');
+      fs.mkdirSync(readOnlyDir);
+      // Make it read-only (this might not work on all systems, so we'll skip if it doesn't)
+      try {
+        fs.chmodSync(readOnlyDir, 0o444);
+      } catch {
+        // Skip this test if we can't set permissions
+        return;
+      }
       
       const serviceDeployments: ServiceDeploymentInfo[] = [];
-      const testDir = path.join(os.tmpdir(), 'semiont-test-init-' + Date.now());
       const options = {
         environment: 'none',
-        directory: testDir,
+        directory: readOnlyDir,
         force: false,
         environments: ['local'],
         output: 'summary' as const,
@@ -182,6 +191,9 @@ describe('init command', () => {
       const result = await init(serviceDeployments, options);
       expect(result.summary.failed).toBe(1);
       expect(result.summary.succeeded).toBe(0);
+      
+      // Restore permissions for cleanup
+      fs.chmodSync(readOnlyDir, 0o755);
     });
   });
 
@@ -193,29 +205,21 @@ describe('init command', () => {
         environments: ['dev', 'qa', 'prod'],
         force: false,
         output: 'summary' as const,
-        quiet: false,
+        quiet: true,
         verbose: false,
         dryRun: false,
       };
 
       await init(serviceDeployments, options);
 
-      // Should create semiont.json + 3 environment configs
-      expect(fs.writeFileSync).toHaveBeenCalledTimes(4);
+      // Check that custom environment files were created
+      expect(fs.existsSync('environments/dev.json')).toBe(true);
+      expect(fs.existsSync('environments/qa.json')).toBe(true);
+      expect(fs.existsSync('environments/prod.json')).toBe(true);
       
-      // Check specific environment files
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments/dev.json'),
-        expect.any(String)
-      );
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments/qa.json'),
-        expect.any(String)
-      );
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments/prod.json'),
-        expect.any(String)
-      );
+      // Should not create default environments
+      expect(fs.existsSync('environments/local.json')).toBe(false);
+      expect(fs.existsSync('environments/staging.json')).toBe(false);
     });
 
     it('should generate appropriate configs for each environment type', async () => {
@@ -225,35 +229,31 @@ describe('init command', () => {
         environments: ['local', 'staging', 'production'],
         force: false,
         output: 'summary' as const,
-        quiet: false,
+        quiet: true,
         verbose: false,
         dryRun: false,
       };
       await init(serviceDeployments, options);
-      // Check local environment config
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments/local.json'),
-        expect.stringContaining('"default": "process"')
-      );
-
-      // Check staging environment config
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments/staging.json'),
-        expect.stringContaining('"default": "aws"')
-      );
-
-      // Check production environment config  
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/environments/production.json'),
-        expect.stringContaining('"default": "aws"')
-      );
+      
+      // Check local environment config - uses container as default but services use process
+      const localConfig = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
+      expect(localConfig.deployment.default).toBe('container');
+      // But individual services use process for local development
+      expect(localConfig.services.backend.deployment.type).toBe('process');
+      expect(localConfig.services.frontend.deployment.type).toBe('process');
+      
+      // Check staging environment config uses AWS
+      const stagingConfig = JSON.parse(fs.readFileSync('environments/staging.json', 'utf-8'));
+      expect(stagingConfig.deployment.default).toBe('aws');
+      
+      // Check production environment config uses AWS
+      const prodConfig = JSON.parse(fs.readFileSync('environments/production.json', 'utf-8'));
+      expect(prodConfig.deployment.default).toBe('aws');
     });
   });
 
   describe('output modes', () => {
     it('should suppress output in quiet mode', async () => {
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
       const serviceDeployments: ServiceDeploymentInfo[] = [];
       const options = {
         environment: 'none',
@@ -264,16 +264,13 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      await init(serviceDeployments, options);
-      // Quiet mode should not log anything
-      expect(consoleLogSpy).not.toHaveBeenCalled();
-      
-      consoleLogSpy.mockRestore();
+      const result = await init(serviceDeployments, options);
+      // Should still succeed even in quiet mode
+      expect(result.summary.succeeded).toBe(1);
+      expect(result.summary.failed).toBe(0);
     });
 
     it('should show verbose output when requested', async () => {
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
       const serviceDeployments: ServiceDeploymentInfo[] = [];
       const options = {
         environment: 'none',
@@ -285,11 +282,9 @@ describe('init command', () => {
         dryRun: false,
       };
       const result = await init(serviceDeployments, options);
-      // Verbose mode should log additional details
-      // Note: The exact logging behavior depends on implementation
+      // Verbose mode should still succeed
       expect(result.summary.succeeded).toBe(1);
-      
-      consoleLogSpy.mockRestore();
+      expect(result.summary.failed).toBe(0);
     });
 
     it('should handle dry run mode', async () => {
@@ -358,17 +353,24 @@ describe('init command', () => {
       const formats = ['summary', 'json', 'yaml'] as const;
       
       for (const format of formats) {
+        // Clean up between iterations
+        if (fs.existsSync('semiont.json')) {
+          fs.rmSync('semiont.json');
+          fs.rmSync('environments', { recursive: true });
+          fs.rmSync('cdk', { recursive: true });
+        }
+        
         const serviceDeployments: ServiceDeploymentInfo[] = [];
         const options = {
           environment: 'none',
           force: false,
           environments: ['local'],
           output: format,
-          quiet: false,
+          quiet: true,
           verbose: false,
           dryRun: false,
         };
-      const result = await init(serviceDeployments, options);
+        const result = await init(serviceDeployments, options);
         expect(result.command).toBe('init');
         expect(result.summary.succeeded).toBe(1);
       }

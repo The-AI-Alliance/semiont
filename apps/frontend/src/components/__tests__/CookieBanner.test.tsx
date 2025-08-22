@@ -603,7 +603,7 @@ describe('CookieBanner Component', () => {
       });
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
-      fireEvent.click(acceptButton);
+      await userEvent.click(acceptButton);
 
       // Should show loading state
       await waitFor(() => {
@@ -635,7 +635,7 @@ describe('CookieBanner Component', () => {
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
       const rejectButton = screen.getByRole('button', { name: /reject all/i });
       
-      fireEvent.click(acceptButton);
+      await userEvent.click(acceptButton);
 
       await waitFor(() => {
         expect(acceptButton).toBeDisabled();
@@ -868,7 +868,7 @@ describe('CookieBanner Component', () => {
       });
 
       const saveButton = screen.getByRole('button', { name: /save preferences/i });
-      fireEvent.click(saveButton);
+      await userEvent.click(saveButton);
 
       await waitFor(() => {
         const analyticsCheckbox = screen.getByLabelText(/analytics/i) as HTMLInputElement;
@@ -896,7 +896,7 @@ describe('CookieBanner Component', () => {
       expect(necessaryCheckbox).toBeDisabled();
       
       // Even if we force a click, the handler should prevent changes
-      fireEvent.click(necessaryCheckbox);
+      await userEvent.click(necessaryCheckbox);
       
       const necessaryCheckboxAfter = screen.getByLabelText(/strictly necessary/i) as HTMLInputElement;
       expect(necessaryCheckboxAfter.checked).toBe(true);
@@ -1060,7 +1060,7 @@ describe('CookieBanner Component', () => {
       });
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
-      fireEvent.click(acceptButton);
+      await userEvent.click(acceptButton);
 
       await waitFor(() => {
         expect(screen.getAllByText('Saving...')).toHaveLength(2); // Both Accept and Reject buttons show Saving...
@@ -1115,7 +1115,7 @@ describe('CookieBanner Component', () => {
       });
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
-      fireEvent.click(acceptButton);
+      await userEvent.click(acceptButton);
 
       await waitFor(() => {
         const savingButtons = screen.getAllByText('Saving...');
@@ -1165,9 +1165,11 @@ describe('CookieBanner Component', () => {
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
       
       // Should not crash when consent saving fails
-      expect(() => {
-        fireEvent.click(acceptButton);
-      }).not.toThrow();
+      // Click and let the error be handled internally
+      await userEvent.click(acceptButton);
+      
+      // Component should still be rendered (not crashed)
+      expect(screen.getByText('Cookie Notice')).toBeInTheDocument();
     });
 
     it('should handle component unmounting during async operations', async () => {
@@ -1185,7 +1187,7 @@ describe('CookieBanner Component', () => {
       });
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
-      fireEvent.click(acceptButton);
+      await userEvent.click(acceptButton);
 
       // Unmount while async operation is pending
       expect(() => unmount()).not.toThrow();
@@ -1266,7 +1268,7 @@ describe('CookieBanner Component', () => {
       });
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
-      fireEvent.click(acceptButton);
+      await userEvent.click(acceptButton);
 
       await waitFor(() => {
         expect(screen.getAllByText('Saving...')).toHaveLength(2); // Both Accept and Reject buttons show Saving...
@@ -1317,9 +1319,8 @@ describe('CookieBanner Component', () => {
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
       
-      expect(() => {
-        fireEvent.click(acceptButton);
-      }).not.toThrow();
+      // Click should not throw an error
+      await expect(userEvent.click(acceptButton)).resolves.not.toThrow();
     });
   });
 });

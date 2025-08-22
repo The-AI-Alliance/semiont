@@ -192,13 +192,13 @@ semiont init --name "my-project" --domain "example.com"
 ```
 
 This creates:
-- `config/` directory with environment configurations
+- `environments/` directory with environment configurations
 - Default `local.json` and `production.json` configs
 - `.env` file for local development
 
 ### 2. Configure AWS Settings
 
-Edit `config/production.json`:
+Edit `environments/production.json`:
 ```json
 {
   "site": {

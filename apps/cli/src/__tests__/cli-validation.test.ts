@@ -22,19 +22,30 @@ describe('CLI Environment Validation Logic', () => {
   beforeEach(() => {
     originalCwd = process.cwd();
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-cli-test-'));
-    configDir = path.join(testDir, 'config', 'environments');
+    // Use the correct path structure (environments/ not config/environments/)
+    configDir = path.join(testDir, 'environments');
     fs.mkdirSync(configDir, { recursive: true });
+    
+    // Create a semiont.json file so findProjectRoot can find it
+    fs.writeFileSync(
+      path.join(testDir, 'semiont.json'),
+      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
+    );
+    
     process.chdir(testDir);
+    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
+    process.env.SEMIONT_ROOT = testDir;
   });
   
   afterEach(() => {
     process.chdir(originalCwd);
+    delete process.env.SEMIONT_ROOT;
     fs.rmSync(testDir, { recursive: true, force: true });
   });
   
   describe('Environment Error Messages', () => {
     it('should provide helpful error when no environments exist', async () => {
-      // Remove config directory entirely
+      // Remove environments directory entirely
       fs.rmSync(configDir, { recursive: true, force: true });
       
       const { getAvailableEnvironments } = await import('../lib/deployment-resolver.js');
@@ -44,10 +55,10 @@ describe('CLI Environment Validation Logic', () => {
       
       // This simulates what the CLI would do
       const errorMessage = environments.length === 0 
-        ? `No environment configurations found. Create files in config/environments/`
+        ? `No environment configurations found. Create files in environments/`
         : `Unknown environment 'test'. Available: ${environments.join(', ')}`;
       
-      expect(errorMessage).toBe(`No environment configurations found. Create files in config/environments/`);
+      expect(errorMessage).toBe(`No environment configurations found. Create files in environments/`);
     });
     
     it('should list available environments in error messages', async () => {

@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          cd packages/cloud && npm run build && cd ../..
+          npm run build:packages
           cd apps/cli && npm run build && npm link
 
       - name: Run frontend tests
@@ -70,7 +70,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          cd packages/cloud && npm run build && cd ../..
+          npm run build:packages
           cd apps/cli && npm run build && npm link
 
       - name: Run backend tests
@@ -84,30 +84,6 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
-
-  test-cloud:
-    name: Cloud Package Compilation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Install dependencies and CLI
-        run: |
-          npm install
-          cd packages/cloud && npm run build && cd ../..
-          cd apps/cli && npm run build && npm link
-
-      - name: Run CDK tests
-        run: cd packages/cloud && npm test
 
   test-cli:
     name: CLI Tests
@@ -127,7 +103,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          cd packages/cloud && npm run build && cd ../..
+          npm run build:packages
           cd apps/cli && npm run build && npm link
 
       - name: Validate CLI installation
@@ -191,7 +167,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          cd packages/cloud && npm run build && cd ../..
+          npm run build:packages
           cd apps/cli && npm run build && npm link
 
       - name: Run comprehensive test suite
@@ -229,7 +205,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          cd packages/cloud && npm run build && cd ../..
+          npm run build:packages
           cd apps/cli && npm run build && npm link
 
       - name: Validate CLI installation
@@ -241,7 +217,7 @@ jobs:
   build-all:
     name: Build All Applications
     runs-on: ubuntu-latest
-    needs: [test-frontend, test-backend, test-cloud, test-cli]
+    needs: [test-frontend, test-backend, test-cli]
 
     steps:
       - name: Checkout code
@@ -257,7 +233,7 @@ jobs:
       - name: Install dependencies and CLI
         run: |
           npm install
-          cd packages/cloud && npm run build && cd ../..
+          npm run build:packages
           cd apps/cli && npm run build && npm link
 
       - name: Build all applications

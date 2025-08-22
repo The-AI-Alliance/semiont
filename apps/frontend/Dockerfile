@@ -66,8 +66,8 @@ RUN adduser --system --uid 1001 semiont
 
 # Copy Next.js build output
 COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/.next/static ./.next/static
-COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/public ./public
+COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --from=builder --chown=semiont:nodejs /app/apps/frontend/public ./apps/frontend/public
 
 USER semiont
 
@@ -80,4 +80,4 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/frontend/server.js"]

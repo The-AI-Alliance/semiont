@@ -19,6 +19,10 @@ import {
 } from './services.js';
 import { formatResults } from './output-formatter.js';
 import { printError } from './cli-logger.js';
+import { colors, getPreamble, getPreambleSeparator } from './cli-colors.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import * as path from 'path';
 
 /**
  * Registry of loaded command definitions
@@ -119,6 +123,36 @@ function isCommandDefinition(obj: any): obj is CommandDefinition<any> {
 }
 
 /**
+ * Get the CLI version from package.json
+ */
+function getVersion(): string {
+  // Simple approach: require the package.json which will be bundled
+  // @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
+  const pkg = require('../../package.json');
+  return pkg.version || '0.0.1';
+}
+
+/**
+ * Print the Semiont preamble for non-quiet, summary output
+ */
+function printPreamble(options: any): void {
+  // Only print preamble for summary output format and when not quiet
+  if (options.output !== 'summary' && options.output !== undefined) {
+    return;
+  }
+  if (options.quiet === true) {
+    return;
+  }
+  
+  // Get version (embedded at build time)
+  const version = getVersion();
+  
+  // Print the preamble with colors
+  console.log(getPreamble(version));
+  console.log(getPreambleSeparator());
+}
+
+/**
  * Execute a command with full lifecycle management
  */
 export async function executeCommand(
@@ -138,6 +172,9 @@ export async function executeCommand(
     // Parse and validate arguments
     const parser = createArgParser(command);
     const options = parser(argv);
+    
+    // Print preamble for summary output (before any command output)
+    printPreamble(options);
     
     // Validate environment if required
     if (command.requiresEnvironment) {
@@ -271,10 +308,11 @@ export async function generateGlobalHelp(): Promise<string> {
   
   lines.push('PROJECT RESOLUTION:');
   lines.push('  Semiont looks for configuration in the following order:');
-  lines.push('  1. SEMIONT_ROOT/config/environments/<env>.json (if set)');
-  lines.push('  2. Current directory: ./config/environments/<env>.json');
+  lines.push('  1. SEMIONT_ROOT/environments/<env>.json (if set)');
+  lines.push('  2. Current directory: ./environments/<env>.json');
   lines.push('  3. Parent directories (walks up looking for semiont.json)');
-  lines.push('  4. For build commands: use --semiont-repo to specify the repository path');
+  lines.push('  4. Environment files: ./environments/<env>.json');
+  lines.push('  5. For build commands: use --semiont-repo to specify the repository path');
   lines.push('');
   
   lines.push('COMMANDS:');

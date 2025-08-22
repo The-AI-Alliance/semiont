@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { api, type AdminUser } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSecureAPI } from '@/hooks/useSecureAPI';
 
 function UserTableRow({ 
   user, 
@@ -106,14 +107,35 @@ export default function AdminUsers() {
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   
+  // Ensure API client has authentication token
+  const { hasValidToken, isAuthenticated } = useSecureAPI();
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Admin Users Component - Auth Status:', { hasValidToken, isAuthenticated });
+  }, [hasValidToken, isAuthenticated]);
+  
   const queryClient = useQueryClient();
-  const { data: usersResponse, isLoading: usersLoading } = api.admin.users.list.useQuery();
-  const { data: statsResponse, isLoading: statsLoading } = api.admin.users.stats.useQuery();
+  // Only run queries when we have a valid token
+  const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.list.useQuery(
+    { enabled: hasValidToken }
+  );
+  const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery(
+    { enabled: hasValidToken }
+  );
+  
+  // Debug logging for API responses
+  React.useEffect(() => {
+    if (usersError) console.error('Users API Error:', usersError);
+    if (statsError) console.error('Stats API Error:', statsError);
+    if (usersResponse) console.log('Users Response:', usersResponse);
+    if (statsResponse) console.log('Stats Response:', statsResponse);
+  }, [usersError, statsError, usersResponse, statsResponse]);
   const updateUserMutation = api.admin.users.update.useMutation();
   const deleteUserMutation = api.admin.users.delete.useMutation();
 
-  const users = usersResponse?.users || [];
-  const userStats = statsResponse?.stats || { total: 0, active: 0, admins: 0, recent: 0 };
+  const users = (usersResponse as any)?.users || [];
+  const userStats = (statsResponse as any)?.stats || { total: 0, active: 0, admins: 0, recent: 0 };
 
   const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
@@ -143,7 +165,7 @@ export default function AdminUsers() {
     }
   };
 
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = users.filter((user: AdminUser) => {
     const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const userRole = user.isAdmin ? 'admin' : 'user';
@@ -301,43 +323,6 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* Manual Database Commands - Power Users */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-        <details className="group">
-          <summary className="cursor-pointer flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
-            <span>💻 Database Commands (Power Users)</span>
-            <svg className="ml-2 h-4 w-4 transform transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </summary>
-          <div className="mt-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">Access backend container:</div>
-              <code>./scripts/semiont exec backend</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">Database shell:</div>
-              <code>./scripts/semiont exec backend 'psql $DATABASE_URL'</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">View all users:</div>
-              <code>./scripts/semiont exec backend 'psql $DATABASE_URL -c "SELECT * FROM users;"'</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">View recent users (last 30 days):</div>
-              <code>./scripts/semiont exec backend 'psql $DATABASE_URL -c "SELECT id, email, name, created_at FROM users WHERE created_at &gt; NOW() - INTERVAL '"'"'30 days'"'"' ORDER BY created_at DESC;"'</code>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-md font-mono text-xs">
-              <div className="mb-2 font-semibold text-gray-800 dark:text-gray-200">Backend logs:</div>
-              <code>./scripts/semiont logs backend follow</code>
-            </div>
-            <div className="text-yellow-600 dark:text-yellow-400 text-xs">
-              ⚠️ Warning: Direct database access requires DevOps permissions and should be used with caution in production environments.
-            </div>
-          </div>
-        </details>
-      </div>
-
       {/* Users Table */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
@@ -374,7 +359,7 @@ export default function AdminUsers() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredUsers.map((user) => (
+              {filteredUsers.map((user: AdminUser) => (
                 <UserTableRow 
                   key={user.id} 
                   user={user} 

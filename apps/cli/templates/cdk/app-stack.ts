@@ -19,42 +19,103 @@ import * as efs from 'aws-cdk-lib/aws-efs';
 import { Construct } from 'constructs';
 
 interface SemiontAppStackProps extends cdk.StackProps {
-  vpc: ec2.Vpc;
-  fileSystem: efs.FileSystem;
-  database: rds.DatabaseInstance;
-  dbCredentials: secretsmanager.Secret;
-  appSecrets: secretsmanager.Secret;
-  jwtSecret: secretsmanager.Secret;
-  adminPassword: secretsmanager.Secret;
-  googleOAuth: secretsmanager.Secret;
-  githubOAuth: secretsmanager.Secret;
-  adminEmails: secretsmanager.Secret;
-  ecsSecurityGroup: ec2.SecurityGroup;
-  albSecurityGroup: ec2.SecurityGroup;
-  domainName?: string;
-  certificateArn?: string;
-  hostedZoneId?: string;
+  // No longer passing infra resources as props
+  // They will be imported via CloudFormation exports
 }
 
 export class SemiontAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: SemiontAppStackProps) {
     super(scope, id, props);
 
-    // Use resources passed as properties
-    const { 
-      vpc, 
-      fileSystem, 
-      database, 
-      dbCredentials,
-      appSecrets,
-      jwtSecret,
-      adminPassword,
-      googleOAuth,
-      githubOAuth: _githubOAuth, // TODO: Implement GitHub OAuth when needed
-      adminEmails,
-      ecsSecurityGroup,
-      albSecurityGroup
-    } = props;
+    // Import resources from data stack using CloudFormation exports
+    const dataStackName = 'SemiontDataStack';
+    
+    // Import VPC - we need to use fromVpcAttributes since fromLookup doesn't work with tokens
+    // We're using 2 AZs, so explicitly specify them
+    const vpc = ec2.Vpc.fromVpcAttributes(this, 'ImportedVpc', {
+      vpcId: cdk.Fn.importValue(`${dataStackName}-VpcId`),
+      availabilityZones: ['us-east-2a', 'us-east-2b'],  // First 2 AZs in us-east-2
+      publicSubnetIds: [
+        cdk.Fn.importValue(`${dataStackName}-PublicSubnet1Id`),
+        cdk.Fn.importValue(`${dataStackName}-PublicSubnet2Id`),
+      ],
+      privateSubnetIds: [
+        cdk.Fn.importValue(`${dataStackName}-PrivateSubnet1Id`),
+        cdk.Fn.importValue(`${dataStackName}-PrivateSubnet2Id`),
+      ],
+    });
+
+    // Import Security Groups
+    const dbSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'ImportedDbSecurityGroup',
+      cdk.Fn.importValue(`${dataStackName}-DbSecurityGroupId`)
+    );
+
+    const ecsSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'ImportedEcsSecurityGroup',
+      cdk.Fn.importValue(`${dataStackName}-EcsSecurityGroupId`)
+    );
+
+    const albSecurityGroup = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'ImportedAlbSecurityGroup',
+      cdk.Fn.importValue(`${dataStackName}-AlbSecurityGroupId`)
+    );
+
+    // Import EFS FileSystem
+    const fileSystem = efs.FileSystem.fromFileSystemAttributes(this, 'ImportedFileSystem', {
+      fileSystemId: cdk.Fn.importValue(`${dataStackName}-EfsFileSystemId`),
+      securityGroup: ecsSecurityGroup,
+    });
+
+    // Import Database (for endpoint reference)
+    const databaseEndpoint = cdk.Fn.importValue(`${dataStackName}-DatabaseEndpoint`);
+    const databasePort = cdk.Fn.importValue(`${dataStackName}-DatabasePort`);
+
+    // Import Secrets
+    const dbCredentials = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedDbCredentials',
+      cdk.Fn.importValue(`${dataStackName}-DbCredentialsSecretArn`)
+    );
+
+    const appSecrets = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedAppSecrets',
+      cdk.Fn.importValue(`${dataStackName}-AppSecretsSecretArn`)
+    );
+
+    const jwtSecret = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedJwtSecret',
+      cdk.Fn.importValue(`${dataStackName}-JwtSecretArn`)
+    );
+
+    const adminPassword = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedAdminPassword',
+      cdk.Fn.importValue(`${dataStackName}-AdminPasswordSecretArn`)
+    );
+
+    const googleOAuth = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedGoogleOAuth',
+      cdk.Fn.importValue(`${dataStackName}-GoogleOAuthSecretArn`)
+    );
+
+    const githubOAuth = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedGitHubOAuth',
+      cdk.Fn.importValue(`${dataStackName}-GitHubOAuthSecretArn`)
+    );
+
+    const adminEmails = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'ImportedAdminEmails',
+      cdk.Fn.importValue(`${dataStackName}-AdminEmailsSecretArn`)
+    );
 
     // Get configuration from CDK context
     const siteName = this.node.tryGetContext('siteName') || 'Semiont';
@@ -67,19 +128,22 @@ export class SemiontAppStack extends cdk.Stack {
 
     const certificateArn = new cdk.CfnParameter(this, 'CertificateArn', {
       type: 'String', 
-      default: props.certificateArn || awsCertificateArn || 'arn:aws:acm:us-east-1:123456789012:certificate/placeholder',
+      default: awsCertificateArn,
       description: 'ACM Certificate ARN for HTTPS'
     });
 
     const hostedZoneId = new cdk.CfnParameter(this, 'HostedZoneId', {
       type: 'String',
-      default: props.hostedZoneId || awsHostedZoneId || 'Z1234567890ABC', 
+      default: awsHostedZoneId, 
       description: 'Route53 Hosted Zone ID'
     });
 
-    // ECS Cluster
+    // ECS Cluster with Service Connect
     const cluster = new ecs.Cluster(this, 'SemiontCluster', {
       vpc,
+      defaultCloudMapNamespace: {
+        name: 'semiont.local',
+      },
     });
 
     // Enable Container Insights
@@ -207,9 +271,10 @@ export class SemiontAppStack extends cdk.Stack {
     const backendContainer = backendTaskDefinition.addContainer('semiont-backend', {
       image: backendImage,
       environment: {
-        NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-        DB_HOST: database.instanceEndpoint.hostname,
-        DB_PORT: database.instanceEndpoint.port.toString(),
+        NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
+        DEPLOYMENT_VERSION: new Date().toISOString(), // Forces new task definition on every deploy
+        DB_HOST: databaseEndpoint,
+        DB_PORT: '5432',
         DB_NAME: databaseName,
         PORT: '4000',
         API_PORT: '4000',
@@ -244,6 +309,7 @@ export class SemiontAppStack extends cdk.Stack {
 
     backendContainer.addPortMappings({
       containerPort: 4000,
+      name: 'backend',  // This name must match the portMappingName in Service Connect config
     });
 
     // Mount EFS volume for uploads
@@ -268,7 +334,8 @@ export class SemiontAppStack extends cdk.Stack {
     const frontendContainer = frontendTaskDefinition.addContainer('semiont-frontend', {
       image: frontendImage,
       environment: {
-        NODE_ENV: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+        NODE_ENV: this.node.tryGetContext('nodeEnv') || 'production',
+        DEPLOYMENT_VERSION: new Date().toISOString(), // Forces new task definition on every deploy
         PORT: '3000',
         HOSTNAME: '0.0.0.0',
         // Public environment variables (available to browser)
@@ -278,6 +345,8 @@ export class SemiontAppStack extends cdk.Stack {
         NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
         // NextAuth configuration
         NEXTAUTH_URL: `https://${domainName}`,
+        // Backend URL for server-side authentication calls
+        BACKEND_INTERNAL_URL: `https://${domainName}`,
       },
       secrets: {
         NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(appSecrets, 'nextAuthSecret'),
@@ -318,6 +387,15 @@ export class SemiontAppStack extends cdk.Stack {
       },
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
+      serviceConnectConfiguration: {
+        services: [
+          {
+            portMappingName: 'backend',
+            dnsName: 'backend',
+            port: 4000,
+          },
+        ],
+      },
     });
 
     // Frontend ECS Service  
@@ -337,6 +415,10 @@ export class SemiontAppStack extends cdk.Stack {
       },
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
+      serviceConnectConfiguration: {
+        // Frontend is a client-only service, it discovers backend but doesn't expose itself
+        services: [],
+      },
     });
 
     // Auto Scaling for Backend
