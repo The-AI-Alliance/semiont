@@ -18,6 +18,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
+
 import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
@@ -128,46 +129,26 @@ app.get('/api/openapi.json', docsAuthMiddleware, (c) => {
   return c.json(openApiSpec);
 });
 
-// Serve Swagger UI documentation - with authentication  
-// swaggerUI returns a handler function that expects only (c), not (c, next)
-app.get('/api/docs', async (c) => {
-  // Check for token in query parameter for browser-based access
+// Serve Swagger UI documentation - with authentication
+app.get('/api/docs', docsAuthMiddleware, async (c) => {
+  // User is authenticated via middleware
   const token = c.req.query('token');
-  if (token) {
-    try {
-      await OAuthService.getUserFromToken(token);
-      // User is authenticated, proceed to serve swagger UI
-    } catch (error) {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
-  } else {
-    // Check for Bearer token in header
-    const authHeader = c.req.header('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+  
+  try {
+    const swaggerHandler = swaggerUI({ 
+      url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
+      persistAuthorization: true,
+      title: 'Semiont API Documentation'
+    });
     
-    const headerToken = authHeader.substring(7).trim();
-    try {
-      await OAuthService.getUserFromToken(headerToken);
-      // User is authenticated, proceed to serve swagger UI
-    } catch (error) {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
+    // TypeScript workarounds: swaggerUI has type mismatches
+    // - It's typed as MiddlewareHandler expecting (c, next) but runtime only uses (c)
+    // - Context type incompatibility requires 'as any' cast
+    return await swaggerHandler(c as any, async () => {});
+  } catch (error) {
+    console.error('Error in /api/docs handler:', error);
+    return c.json({ error: 'Failed to load documentation', details: String(error) }, 500);
   }
-  
-  // If we get here, user is authenticated
-  // Call the swaggerUI middleware - it's typed as MiddlewareHandler but only uses (c)
-  const swaggerHandler = swaggerUI({ 
-    url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
-    persistAuthorization: true,
-    title: 'Semiont API Documentation'
-  });
-  
-  // swaggerUI is typed as needing (c, next) but actually only uses (c)
-  // We provide a dummy next function to satisfy TypeScript
-  // c as any: needed because our context type doesn't match the generic middleware expectation
-  return await swaggerHandler(c as any, async () => {});
 });
 
 // Redirect /api/swagger to /api/docs for convenience
@@ -193,7 +174,7 @@ app.use('/api/*', async (c, next) => {
     return next();
   }
   
-  // Documentation endpoints are handled separately above
+  // Documentation endpoints have their own auth via docsAuthMiddleware
   if (['/api/docs', '/api/swagger', '/api/openapi.json', '/api'].includes(path)) {
     return next();
   }
@@ -594,11 +575,13 @@ async function runMigrations() {
   }
 }
 
-// Run migrations before starting server (skip in test environment)
-if (CONFIG.NODE_ENV !== 'test') {
+// Run migrations before starting server (skip in test environment or if disabled)
+if (CONFIG.NODE_ENV !== 'test' && process.env.SKIP_MIGRATIONS !== 'true') {
   runMigrations().then(() => {
     console.log('🚀 Starting HTTP server...');
   });
+} else if (CONFIG.NODE_ENV !== 'test') {
+  console.log('🚀 Starting HTTP server (migrations skipped)...');
 }
 
 // Only start server if not in test environment
