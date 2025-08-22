@@ -638,8 +638,13 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: Authentication required')).toBeInTheDocument();
+      // When authenticated but missing backend token, we now show a more helpful message
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: Please sign out and sign in again to reconnect')).toBeInTheDocument();
       expect(screen.getByText('Sign in to view backend status')).toBeInTheDocument();
+      
+      // Should use orange color for this state
+      const statusText = screen.getByText(/Frontend Status: Ready/);
+      expect(statusText).toHaveClass('text-orange-800', 'dark:text-orange-200');
     });
 
     it('should display backend status when fully authenticated', () => {
