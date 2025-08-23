@@ -157,7 +157,7 @@ function getStarterEnvironmentTemplate(envName: string) {
         region: 'us-east-1',
         accountId: '123456789012',
         stacks: {
-          infra: 'SemiontInfraStack',
+          infra: 'SemiontDataStack',
           app: 'SemiontAppStack'
         },
         database: {
@@ -207,7 +207,7 @@ function getStarterEnvironmentTemplate(envName: string) {
         region: 'us-east-1',
         accountId: '987654321098',
         stacks: {
-          infra: 'SemiontInfraStack',
+          infra: 'SemiontDataStack',
           app: 'SemiontAppStack'
         },
         database: {
@@ -280,7 +280,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
-export class SemiontInfraStack extends cdk.Stack {
+export class SemiontDataStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
   public readonly fileSystem: efs.FileSystem;
   public readonly database: rds.DatabaseInstance;
@@ -494,7 +494,7 @@ export class SemiontInfraStack extends cdk.Stack {
 function getCDKAppTemplate(): string {
   return `#!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import { SemiontInfraStack } from './infra-stack';
+import { SemiontDataStack } from './infra-stack';
 import { SemiontAppStack } from './app-stack';
 
 const app = new cdk.App();
@@ -518,12 +518,12 @@ const stackProps = {
 };
 
 // Create stacks based on stack-type context
-let infraStack: SemiontInfraStack | undefined;
+let infraStack: SemiontDataStack | undefined;
 let appStack: SemiontAppStack | undefined;
 
 if (stackType === 'infra' || stackType === 'all') {
   console.log('Creating infrastructure stack...');
-  infraStack = new SemiontInfraStack(app, 'SemiontInfraStack', stackProps);
+  infraStack = new SemiontDataStack(app, 'SemiontDataStack', stackProps);
 }
 
 if ((stackType === 'app' || stackType === 'all') && infraStack) {

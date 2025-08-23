@@ -278,11 +278,11 @@ async function provisionService(serviceInfo: ServiceDeploymentInfo, options: Pro
 function getStackTypeName(serviceName: string): string {
   // Map service names to stack types
   const stackMapping: Record<string, string> = {
-    'infrastructure': 'SemiontInfraStack',
-    'infra': 'SemiontInfraStack',
-    'database': 'SemiontInfraStack',
-    'filesystem': 'SemiontInfraStack',
-    'secrets': 'SemiontInfraStack',
+    'infrastructure': 'SemiontDataStack',
+    'infra': 'SemiontDataStack',
+    'database': 'SemiontDataStack',
+    'filesystem': 'SemiontDataStack',
+    'secrets': 'SemiontDataStack',
     'application': 'SemiontAppStack',
     'app': 'SemiontAppStack',
     'backend': 'SemiontAppStack',
@@ -304,7 +304,7 @@ function getStackTypeName(serviceName: string): string {
   
   // Default based on patterns
   if (serviceName.toLowerCase().includes('infra')) {
-    return 'SemiontInfraStack';
+    return 'SemiontDataStack';
   }
   if (serviceName.toLowerCase().includes('app')) {
     return 'SemiontAppStack';
@@ -381,7 +381,7 @@ async function provisionAWSService(serviceInfo: ServiceDeploymentInfo, options: 
           }
         }
       ],
-      dependencies: stackName === 'SemiontAppStack' ? ['SemiontInfraStack'] : [],
+      dependencies: stackName === 'SemiontAppStack' ? ['SemiontDataStack'] : [],
       resourceId: {
         aws: {
           arn: existingStack?.StackId || '',

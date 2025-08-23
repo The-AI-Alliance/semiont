@@ -18,6 +18,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
+
 import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
 import { authMiddleware } from './middleware/auth';
@@ -63,28 +64,122 @@ app.use('*', cors({
   credentials: true,
 }));
 
+// Create OpenAPI documentation app
+const openAPIApp = new OpenAPIHono();
+
+// Register all route definitions for documentation
+Object.values(routes).forEach(route => {
+  // We're only using this for documentation generation, not actual routing
+  openAPIApp.openapi(route, async () => new Response());
+});
+
+// Generate OpenAPI specification
+const openApiSpec = openAPIApp.getOpenAPI31Document(openApiConfig);
+
+// Middleware for documentation authentication
+const docsAuthMiddleware = async (c: any, next: any) => {
+  // Check for token in query parameter for browser-based access
+  const token = c.req.query('token');
+  if (token) {
+    try {
+      const user = await OAuthService.getUserFromToken(token);
+      c.set('user', user);
+      return next();
+    } catch (error) {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+  }
+  
+  // Check for Bearer token in header
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  
+  const headerToken = authHeader.substring(7).trim();
+  try {
+    const user = await OAuthService.getUserFromToken(headerToken);
+    c.set('user', user);
+    return next();
+  } catch (error) {
+    return c.json({ error: 'Invalid token' }, 401);
+  }
+};
+
+// API Documentation root - redirect to appropriate format
+app.get('/api', docsAuthMiddleware, (c) => {
+  const acceptHeader = c.req.header('Accept') || '';
+  const userAgent = c.req.header('User-Agent') || '';
+  const token = c.req.query('token');
+  
+  // If request is from a browser, redirect to Swagger UI
+  if (acceptHeader.includes('text/html') || userAgent.includes('Mozilla')) {
+    // Preserve token in redirect if it was provided
+    const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
+    return c.redirect(redirectUrl);
+  }
+
+  // For API clients requesting JSON, redirect to OpenAPI spec
+  const redirectUrl = token ? `/api/openapi.json?token=${token}` : '/api/openapi.json';
+  return c.redirect(redirectUrl);
+});
+
+// Serve OpenAPI JSON specification
+app.get('/api/openapi.json', docsAuthMiddleware, (c) => {
+  return c.json(openApiSpec);
+});
+
+// Serve Swagger UI documentation - with authentication
+app.get('/api/docs', docsAuthMiddleware, async (c) => {
+  // User is authenticated via middleware
+  const token = c.req.query('token');
+  
+  try {
+    const swaggerHandler = swaggerUI({ 
+      url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
+      persistAuthorization: true,
+      title: 'Semiont API Documentation'
+    });
+    
+    // TypeScript workarounds: swaggerUI has type mismatches
+    // - It's typed as MiddlewareHandler expecting (c, next) but runtime only uses (c)
+    // - Context type incompatibility requires 'as any' cast
+    return await swaggerHandler(c as any, async () => {});
+  } catch (error) {
+    console.error('Error in /api/docs handler:', error);
+    return c.json({ error: 'Failed to load documentation', details: String(error) }, 500);
+  }
+});
+
+// Redirect /api/swagger to /api/docs for convenience
+app.get('/api/swagger', docsAuthMiddleware, (c) => {
+  const token = c.req.query('token');
+  const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
+  return c.redirect(redirectUrl);
+});
+
 // Public endpoints - these don't require authentication
 const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
   '/api/auth/google',     // OAuth login initiation
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
-  '/api',                 // API documentation root
-  '/api/openapi.json',    // OpenAPI specification
-  '/api/docs',            // Swagger UI documentation
-  '/api/swagger'          // Swagger UI redirect
 ];
 
 // Apply authentication middleware to all /api/* routes except public endpoints
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
   
-  // Check if this is a public endpoint
-  if (PUBLIC_ENDPOINTS.some(endpoint => path === endpoint || path.startsWith(endpoint + '/'))) {
+  // Check if this is a public endpoint (exact match only)
+  if (PUBLIC_ENDPOINTS.includes(path)) {
+    return next();
+  }
+  
+  // Documentation endpoints have their own auth via docsAuthMiddleware
+  if (['/api/docs', '/api/swagger', '/api/openapi.json', '/api'].includes(path)) {
     return next();
   }
   
   // All other endpoints require authentication
-  // Note: authMiddleware will handle the actual auth check
   return authMiddleware(c, next);
 });
 
@@ -406,47 +501,6 @@ app.get('/api/admin/oauth/config', adminMiddleware, async (c) => {
   }
 });
 
-// API Documentation endpoint - Redirect to OpenAPI/Swagger UI
-app.get('/api', (c) => {
-  const acceptHeader = c.req.header('Accept') || '';
-  const userAgent = c.req.header('User-Agent') || '';
-  
-  // If request is from a browser, redirect to Swagger UI
-  if (acceptHeader.includes('text/html') || userAgent.includes('Mozilla')) {
-    return c.redirect('/api/docs');
-  }
-
-  // For API clients requesting JSON, redirect to OpenAPI spec
-  return c.redirect('/api/openapi.json');
-});
-
-// Create OpenAPI documentation app
-const openAPIApp = new OpenAPIHono();
-
-// Register all route definitions for documentation
-Object.values(routes).forEach(route => {
-  // We're only using this for documentation generation, not actual routing
-  openAPIApp.openapi(route, async () => new Response());
-});
-
-// Generate OpenAPI specification
-const openApiSpec = openAPIApp.getOpenAPI31Document(openApiConfig);
-
-// Serve OpenAPI JSON specification
-app.get('/api/openapi.json', (c) => {
-  return c.json(openApiSpec);
-});
-
-// Serve Swagger UI documentation
-app.get('/api/docs', swaggerUI({ 
-  url: '/api/openapi.json',
-  persistAuthorization: true,
-}));
-
-// Redirect /api/swagger to /api/docs for convenience
-app.get('/api/swagger', (c) => {
-  return c.redirect('/api/docs');
-});
 
 // Health check endpoint
 app.get('/api/health', async (c) => {
@@ -505,27 +559,9 @@ console.log(`🚀 Starting Semiont Backend...`);
 console.log(`Environment: ${CONFIG.NODE_ENV}`);
 console.log(`Port: ${port}`);
 
-// Run database migrations on startup
-async function runMigrations() {
-  try {
-    console.log('📝 Running database migrations...');
-    const { execSync } = require('child_process');
-    execSync('npx prisma db push', { 
-      stdio: 'inherit',
-      env: { ...process.env }  // Pass all environment variables including DATABASE_URL
-    });
-    console.log('✅ Database migrations completed');
-  } catch (error) {
-    console.error('❌ Migration failed:', error);
-    // Don't exit - let the server try to start anyway
-  }
-}
-
-// Run migrations before starting server (skip in test environment)
+// Start server
 if (CONFIG.NODE_ENV !== 'test') {
-  runMigrations().then(() => {
-    console.log('🚀 Starting HTTP server...');
-  });
+  console.log('🚀 Starting HTTP server...');
 }
 
 // Only start server if not in test environment

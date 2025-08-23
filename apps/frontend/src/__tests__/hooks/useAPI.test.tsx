@@ -61,6 +61,20 @@ const createWrapper = () => {
 describe('useAPI hooks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock authenticated state by default
+    (useAuth as any).mockReturnValue({
+      isFullyAuthenticated: true,
+      session: { backendToken: 'test-token' },
+      isLoading: false,
+      isAuthenticated: true,
+      hasValidBackendToken: true,
+      user: null,
+      backendUser: null,
+      userDomain: null,
+      displayName: 'Test User',
+      avatarUrl: null,
+      isAdmin: false
+    });
   });
 
   describe('useGreeting', () => {
@@ -72,7 +86,10 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalledWith({});
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        token: 'test-token',
+        enabled: false, // Should be disabled when no name and authenticated
+      });
       expect(result.current).toEqual({ data: 'Hello!' });
     });
 
@@ -84,7 +101,11 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalledWith({ name: 'John' });
+      expect(mockUseQuery).toHaveBeenCalledWith({ 
+        name: 'John',
+        token: 'test-token',
+        enabled: true, // Should be enabled when name is provided and authenticated
+      });
       expect(result.current).toEqual({ data: 'Hello, John!' });
     });
   });
@@ -98,7 +119,10 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalled();
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        token: 'test-token',
+        enabled: true,
+      });
       expect(result.current).toEqual({ data: { status: 'healthy' } });
     });
 
@@ -113,8 +137,40 @@ describe('useAPI hooks', () => {
         }
       );
 
-      expect(mockUseQuery).toHaveBeenCalled();
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        token: 'test-token',
+        enabled: true,
+        pollingInterval: 5000,
+      });
       expect(result.current).toEqual({ data: { status: 'healthy' } });
+    });
+
+    it('should not enable query when not authenticated', () => {
+      (useAuth as any).mockReturnValue({
+        isFullyAuthenticated: false,
+        session: null,
+        isLoading: false,
+        isAuthenticated: false,
+        hasValidBackendToken: false,
+        user: null,
+        backendUser: null,
+        userDomain: null,
+        displayName: null,
+        avatarUrl: null,
+        isAdmin: false
+      });
+
+      const mockUseQuery = vi.fn().mockReturnValue({ data: null });
+      (api.hello.getStatus.useQuery as any).mockImplementation(mockUseQuery);
+
+      const { result } = renderHook(() => useBackendStatus(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        enabled: false,
+      });
+      expect(result.current).toEqual({ data: null });
     });
   });
 
@@ -341,7 +397,10 @@ describe('useAPI hooks', () => {
         wrapper: createWrapper(),
       });
 
-      expect(mockUseQuery).toHaveBeenCalledWith({});
+      expect(mockUseQuery).toHaveBeenCalledWith({
+        token: 'test-token',
+        enabled: false, // Should be disabled for empty string
+      });
       expect(result.current).toEqual({ data: 'Hello!' });
     });
 

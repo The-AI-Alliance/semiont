@@ -187,6 +187,16 @@ export class TypedAPIClient {
   clearAuthToken() {
     delete this.defaultHeaders['Authorization'];
   }
+
+  // Get current authorization header
+  getAuthToken(): string | undefined {
+    return this.defaultHeaders['Authorization'];
+  }
+
+  // Set authorization header directly (with Bearer prefix already included)
+  setAuthHeader(header: string) {
+    this.defaultHeaders['Authorization'] = header;
+  }
 }
 
 // Lazy-loaded API client manager - exported for testing
@@ -276,20 +286,66 @@ export const apiService = {
 export const api = {
   hello: {
     greeting: {
-      useQuery: (input: { name?: string }) => {
+      useQuery: (input: { name?: string; token?: string; enabled?: boolean }) => {
         return useQuery({
           queryKey: ['hello.greeting', input.name],
-          queryFn: () => apiService.hello.greeting(input.name),
-          enabled: !!input.name,
+          queryFn: async () => {
+            // If token is provided, use an authenticated request
+            if (input.token) {
+              const instance = LazyTypedAPIClient.getInstance();
+              const originalAuth = instance.getAuthToken();
+              try {
+                instance.setAuthToken(input.token);
+                return await apiService.hello.greeting(input.name);
+              } finally {
+                // Restore original auth state
+                if (originalAuth) {
+                  instance.setAuthHeader(originalAuth);
+                } else {
+                  instance.clearAuthToken();
+                }
+              }
+            }
+            // Otherwise make unauthenticated request (will fail since /api/hello requires auth)
+            return apiService.hello.greeting(input.name);
+          },
+          enabled: input.enabled !== false && !!input.name,
         });
       }
     },
     getStatus: {
-      useQuery: () => {
-        return useQuery({
-          queryKey: ['hello.getStatus'],
-          queryFn: () => apiService.status(),
-        });
+      useQuery: (options?: { 
+        token?: string; 
+        enabled?: boolean;
+        pollingInterval?: number;
+      }) => {
+        return useQuery(
+          ['hello.getStatus'],
+          async () => {
+            // If token is provided, use an authenticated request
+            if (options?.token) {
+              const instance = LazyTypedAPIClient.getInstance();
+              const originalAuth = instance.getAuthToken();
+              try {
+                instance.setAuthToken(options.token);
+                return await apiService.status();
+              } finally {
+                // Restore original auth state
+                if (originalAuth) {
+                  instance.setAuthHeader(originalAuth);
+                } else {
+                  instance.clearAuthToken();
+                }
+              }
+            }
+            // Otherwise make unauthenticated request (will likely fail)
+            return apiService.status();
+          },
+          {
+            enabled: options?.enabled !== false,
+            ...(options?.pollingInterval !== undefined ? { refetchInterval: options.pollingInterval } : {}),
+          }
+        );
       }
     }
   },

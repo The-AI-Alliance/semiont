@@ -6,7 +6,22 @@ import { useAuth } from './useAuth';
  * Hook for greeting API with enhanced error handling
  */
 export function useGreeting(name?: string) {
-  return api.hello.greeting.useQuery(name ? { name } : {});
+  const { session, isFullyAuthenticated } = useAuth();
+  
+  const queryParams: { name?: string; token?: string; enabled?: boolean } = {
+    enabled: isFullyAuthenticated && !!name
+  };
+  
+  // Only add properties if they have values (not undefined)
+  if (name) {
+    queryParams.name = name;
+  }
+  
+  if (session?.backendToken) {
+    queryParams.token = session.backendToken;
+  }
+  
+  return api.hello.greeting.useQuery(queryParams);
 }
 
 /**
@@ -16,7 +31,13 @@ export function useBackendStatus(options?: {
   pollingInterval?: number;
   enabled?: boolean;
 }) {
-  return api.hello.getStatus.useQuery();
+  const { session, isFullyAuthenticated } = useAuth();
+  
+  return api.hello.getStatus.useQuery({
+    ...(session?.backendToken ? { token: session.backendToken } : {}),
+    enabled: options?.enabled !== false && isFullyAuthenticated,
+    ...(options?.pollingInterval !== undefined ? { pollingInterval: options.pollingInterval } : {}),
+  });
 }
 
 /**
