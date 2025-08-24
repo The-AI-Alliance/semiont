@@ -976,6 +976,19 @@ export function DataComponent() {
 }
 ```
 
+### MCP Authentication Bridge
+
+The frontend provides a special authentication bridge for Model Context Protocol (MCP) clients:
+
+- `GET /api/auth/mcp-setup?callback=<url>` - OAuth flow for MCP clients
+  - Handles browser-based authentication using NextAuth session cookies
+  - If user is not authenticated, redirects to Google OAuth sign-in
+  - Once authenticated, calls backend to generate a 30-day refresh token
+  - Redirects to callback URL with the refresh token as a query parameter
+  - Used MCP clients for initial authentication
+
+This endpoint bridges the gap between browser-based OAuth (which uses cookies) and API-based authentication (which uses JWT tokens), allowing MCP clients to obtain valid tokens through a browser flow.
+
 ### Protected Routes
 
 Routes requiring authentication are automatically protected:

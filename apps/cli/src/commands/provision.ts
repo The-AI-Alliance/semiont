@@ -10,6 +10,8 @@ import { createVolume, listContainers } from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
+import * as http from 'http';
 import { 
   ProvisionResult, 
   CommandResults, 
@@ -955,7 +957,7 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
       
     case 'mcp':
       // MCP provisioning - handle authentication setup
-      const configDir = path.join(require('os').homedir(), '.config', 'semiont');
+      const configDir = path.join(os.homedir(), '.config', 'semiont');
       const authPath = path.join(configDir, `mcp-auth-${options.environment}.json`);
       
       if (options.destroy) {
@@ -1277,9 +1279,6 @@ async function provisionExternalService(serviceInfo: ServiceDeploymentInfo, opti
  */
 async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const http = require('http');
-    const open = require('open');
-    
     const server = http.createServer((req: any, res: any) => {
       const url = new URL(req.url!, `http://localhost:${port}`);
       
@@ -1307,7 +1306,19 @@ async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<str
     server.listen(port, () => {
       printInfo('Opening browser for authentication...');
       const authUrl = `https://${envConfig.site.domain}/api/auth/mcp-setup?callback=http://localhost:${port}/callback`;
-      open(authUrl);
+      
+      // Open browser using platform-specific command
+      const platform = process.platform;
+      let openCommand: string;
+      if (platform === 'darwin') {
+        openCommand = 'open';
+      } else if (platform === 'win32') {
+        openCommand = 'start';
+      } else {
+        openCommand = 'xdg-open';
+      }
+      
+      spawn(openCommand, [authUrl], { detached: true, stdio: 'ignore' }).unref();
     });
     
     // Timeout after 2 minutes

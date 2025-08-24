@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
@@ -486,7 +487,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       const apiUrl = `https://${envConfig.site.domain}`;
       
       // Check for provisioned auth
-      const authPath = path.join(require('os').homedir(), '.config', 'semiont', `mcp-auth-${mcpEnvironment}.json`);
+      const authPath = path.join(os.homedir(), '.config', 'semiont', `mcp-auth-${mcpEnvironment}.json`);
       
       if (!fs.existsSync(authPath)) {
         throw new Error(`MCP not provisioned for ${mcpEnvironment}. Run: semiont provision --service mcp --environment ${mcpEnvironment}`);

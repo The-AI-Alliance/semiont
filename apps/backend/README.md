@@ -895,6 +895,20 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   http://localhost:4000/api/hello
 ```
 
+#### MCP Authentication Endpoints
+
+Special endpoints for Model Context Protocol (MCP) authentication:
+
+- `POST /api/auth/mcp-generate-token` - Generate a 30-day refresh token for MCP clients
+  - Requires valid JWT access token in Authorization header
+  - Returns a refresh token that can be used by MCP clients
+  - Called internally by frontend's `/api/auth/mcp-setup` endpoint
+
+- `POST /api/auth/refresh` - Exchange refresh token for new access token
+  - Accepts refresh token in request body
+  - Returns new 1-hour access token
+  - Used by MCP clients to get fresh access tokens
+
 ### How Authentication Works
 
 1. **User logs in via Google OAuth**:

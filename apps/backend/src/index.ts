@@ -317,29 +317,27 @@ app.post('/api/auth/accept-terms', async (c) => {
 });
 
 // MCP refresh token endpoint - generates long-lived refresh token
-app.get('/api/auth/mcp-setup', authMiddleware, async (c) => {
+// This endpoint is called by the frontend after NextAuth authentication
+app.post('/api/auth/mcp-generate-token', authMiddleware, async (c) => {
   const user = c.get('user');
-  const callbackUrl = c.req.query('callback');
-  
-  if (!callbackUrl) {
-    return c.json<ErrorResponse>({ error: 'Callback URL required' }, 400);
-  }
   
   try {
     // Generate long-lived refresh token (30 days)
-    const refreshToken = JWTService.generateToken({
+    const tokenPayload: any = {
       userId: user.id,
       email: user.email,
-      name: user.name || undefined,
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin
-    }, '30d'); // 30 day expiration for refresh tokens
+    };
+    if (user.name) {
+      tokenPayload.name = user.name;
+    }
+    const refreshToken = JWTService.generateToken(tokenPayload, '30d'); // 30 day expiration for refresh tokens
     
-    // Redirect to local CLI callback with token
-    return c.redirect(`${callbackUrl}?token=${refreshToken}`);
+    return c.json({ refresh_token: refreshToken });
   } catch (error: any) {
-    console.error('MCP setup error:', error);
+    console.error('MCP token generation error:', error);
     return c.json<ErrorResponse>({ error: 'Failed to generate refresh token' }, 500);
   }
 });
@@ -357,6 +355,10 @@ app.post('/api/auth/refresh', async (c) => {
     // Verify refresh token
     const payload = JWTService.verifyToken(refresh_token);
     
+    if (!payload.userId) {
+      return c.json<ErrorResponse>({ error: 'Invalid token payload' }, 401);
+    }
+    
     // Get user from database to ensure they still exist and are active
     const prisma = DatabaseConnection.getClient();
     const user = await prisma.user.findUnique({
@@ -368,14 +370,17 @@ app.post('/api/auth/refresh', async (c) => {
     }
     
     // Generate new short-lived access token (1 hour)
-    const accessToken = JWTService.generateToken({
+    const accessTokenPayload: any = {
       userId: user.id,
       email: user.email,
-      name: user.name || undefined,
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin
-    }, '1h'); // 1 hour expiration for access tokens
+    };
+    if (user.name) {
+      accessTokenPayload.name = user.name;
+    }
+    const accessToken = JWTService.generateToken(accessTokenPayload, '1h'); // 1 hour expiration for access tokens
     
     return c.json({ access_token: accessToken });
   } catch (error: any) {

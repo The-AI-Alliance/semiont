@@ -159,9 +159,9 @@ export async function getServicesWithCapability(
       );
     
     case 'provision':
-      // Infrastructure provisioning typically for database and filesystem
+      // Infrastructure provisioning for database, filesystem, and MCP OAuth
       return allServices.filter(service => 
-        service === 'database' || service === 'filesystem'
+        service === 'database' || service === 'filesystem' || service === 'mcp'
       );
     
     case 'start':

@@ -9,7 +9,7 @@ import Link from 'next/link';
 function SignUpContent() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const callbackUrl = searchParams.get('callbackUrl') || '/auth/welcome';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/auth/welcome';
 
   const handleGoogleSignUp = async () => {
     setIsLoading(true);
