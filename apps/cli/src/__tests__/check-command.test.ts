@@ -606,4 +606,240 @@ describe('Check Command', () => {
       );
     });
   });
+
+  describe('MCP Service Health Checks', () => {
+    beforeEach(() => {
+      // Mock fs for MCP auth file operations
+      vi.mock('fs/promises', async () => {
+        const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+        return {
+          ...actual,
+          access: vi.fn().mockResolvedValue(undefined),
+          readFile: vi.fn().mockResolvedValue(JSON.stringify({
+            refresh_token: 'test-refresh-token',
+            api_url: 'https://test.semiont.com',
+            environment: 'test',
+            created_at: new Date().toISOString()
+          }))
+        };
+      });
+
+      // Mock os.homedir
+      vi.mock('os', () => ({
+        homedir: vi.fn(() => '/home/test')
+      }));
+    });
+
+    it('should check MCP provisioned status', async () => {
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result).toMatchObject({
+        command: 'check',
+        environment: 'test',
+        services: expect.arrayContaining([
+          expect.objectContaining({
+            service: 'mcp',
+            deploymentType: 'process',
+            success: true,
+            healthStatus: 'healthy',
+            checks: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'mcp-provisioned',
+                status: 'pass',
+                message: expect.stringContaining('provisioned')
+              })
+            ])
+          })
+        ])
+      });
+    });
+
+    it('should warn about old refresh tokens', async () => {
+      // Mock a token that's 26 days old
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 26);
+      
+      vi.mock('fs/promises', async () => {
+        const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+        return {
+          ...actual,
+          access: vi.fn().mockResolvedValue(undefined),
+          readFile: vi.fn().mockResolvedValue(JSON.stringify({
+            refresh_token: 'test-refresh-token',
+            api_url: 'https://test.semiont.com',
+            environment: 'test',
+            created_at: oldDate.toISOString()
+          }))
+        };
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'health',
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result.services[0]).toMatchObject({
+        service: 'mcp',
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'mcp-token-age',
+            status: 'warn',
+            message: expect.stringContaining('expires in')
+          })
+        ])
+      });
+    });
+
+    it('should detect MCP not provisioned', async () => {
+      // Mock missing auth file
+      vi.mock('fs/promises', async () => {
+        const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+        return {
+          ...actual,
+          access: vi.fn().mockRejectedValue(new Error('File not found'))
+        };
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'production',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result.services[0]).toMatchObject({
+        service: 'mcp',
+        healthStatus: 'unhealthy',
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'mcp-provisioned',
+            status: 'fail',
+            message: expect.stringContaining('not provisioned')
+          })
+        ])
+      });
+    });
+
+    it('should check MCP server running status', async () => {
+      // Mock checkProcessOnPort to return true (MCP is running)
+      vi.mock('../commands/check.js', async () => {
+        const actual = await vi.importActual('../commands/check.js');
+        return {
+          ...actual,
+          checkProcessOnPort: vi.fn().mockResolvedValue(true)
+        };
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'health',
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result.services[0]).toMatchObject({
+        service: 'mcp',
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'mcp-server-running',
+            status: 'pass',
+            message: expect.stringContaining('running')
+          })
+        ])
+      });
+    });
+
+    it('should handle missing refresh token in auth file', async () => {
+      // Mock auth file without refresh_token
+      vi.mock('fs/promises', async () => {
+        const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+        return {
+          ...actual,
+          access: vi.fn().mockResolvedValue(undefined),
+          readFile: vi.fn().mockResolvedValue(JSON.stringify({
+            api_url: 'https://test.semiont.com',
+            environment: 'test',
+            created_at: new Date().toISOString()
+            // refresh_token is missing
+          }))
+        };
+      });
+
+      const { check } = await import('../commands/check.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+
+      const options: CheckOptions = {
+        environment: 'test',
+        section: 'all',
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      const result = await check(serviceDeployments, options);
+
+      expect(result.services[0]).toMatchObject({
+        service: 'mcp',
+        healthStatus: 'unhealthy',
+        checks: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'mcp-provisioned',
+            status: 'fail',
+            message: expect.stringContaining('Missing refresh token')
+          })
+        ])
+      });
+    });
+  });
 });

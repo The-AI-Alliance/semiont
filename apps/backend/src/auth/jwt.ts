@@ -8,6 +8,7 @@ export interface JWTPayload {
   name?: string;
   domain: string;
   provider: string;
+  type?: 'access' | 'refresh';
   iat?: number;
   exp?: number;
 }
@@ -84,12 +85,17 @@ export class JWTService {
     return secret;
   }
 
-  static generateToken(payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>): string {
+  static generateToken(
+    payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>, 
+    expiresIn: string = '7d'
+  ): string {
     const config = this.getSiteConfig();
-    return jwt.sign(payload, this.getSecret(), {
-      expiresIn: '7d',
+    // Convert payload to plain object for jwt.sign
+    const tokenPayload: Record<string, any> = { ...payload };
+    return jwt.sign(tokenPayload, this.getSecret(), {
+      expiresIn: expiresIn,
       issuer: config.domain || 'localhost',
-    });
+    } as jwt.SignOptions);
   }
 
   static verifyToken(token: string): ValidatedJWTPayload {
@@ -101,7 +107,6 @@ export class JWTService {
       const validation = validateData(JWTPayloadSchema, decoded);
       
       if (!validation.success) {
-        console.error('JWT payload validation failed:', validation.error);
         throw new Error(`Invalid token payload: ${validation.error}`);
       }
       

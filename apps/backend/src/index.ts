@@ -21,6 +21,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 
 import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
+import { JWTService } from './auth/jwt';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
 import { openApiConfig, routes } from './openapi';
@@ -312,6 +313,83 @@ app.post('/api/auth/accept-terms', async (c) => {
   } catch (error: any) {
     console.error('Terms acceptance error:', error);
     return c.json<ErrorResponse>({ error: 'Failed to record terms acceptance' }, 500);
+  }
+});
+
+// MCP refresh token endpoint - generates long-lived refresh token
+app.get('/api/auth/mcp-setup', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const callbackUrl = c.req.query('callback');
+  
+  if (!callbackUrl) {
+    return c.json<ErrorResponse>({ error: 'Callback URL required' }, 400);
+  }
+  
+  try {
+    // Generate long-lived refresh token (30 days)
+    const refreshToken = JWTService.generateToken({
+      userId: user.id,
+      email: user.email,
+      name: user.name || undefined,
+      domain: user.domain,
+      provider: user.provider,
+      isAdmin: user.isAdmin
+    }, '30d'); // 30 day expiration for refresh tokens
+    
+    // Redirect to local CLI callback with token
+    return c.redirect(`${callbackUrl}?token=${refreshToken}`);
+  } catch (error: any) {
+    console.error('MCP setup error:', error);
+    return c.json<ErrorResponse>({ error: 'Failed to generate refresh token' }, 500);
+  }
+});
+
+// Refresh token endpoint for MCP - exchanges refresh token for access token
+app.post('/api/auth/refresh', async (c) => {
+  const body = await c.req.json();
+  const { refresh_token } = body;
+  
+  if (!refresh_token) {
+    return c.json<ErrorResponse>({ error: 'Refresh token required' }, 400);
+  }
+  
+  try {
+    // Verify refresh token
+    const payload = JWTService.verifyToken(refresh_token);
+    
+    // Get user from database to ensure they still exist and are active
+    const prisma = DatabaseConnection.getClient();
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId }
+    });
+    
+    if (!user) {
+      return c.json<ErrorResponse>({ error: 'User not found' }, 401);
+    }
+    
+    // Generate new short-lived access token (1 hour)
+    const accessToken = JWTService.generateToken({
+      userId: user.id,
+      email: user.email,
+      name: user.name || undefined,
+      domain: user.domain,
+      provider: user.provider,
+      isAdmin: user.isAdmin
+    }, '1h'); // 1 hour expiration for access tokens
+    
+    return c.json({ access_token: accessToken });
+  } catch (error: any) {
+    console.error('Token refresh error:', error);
+    
+    // Provide specific error messages for different failure modes
+    if (error.message?.includes('expired')) {
+      return c.json<ErrorResponse>({ error: 'Refresh token expired - please re-provision' }, 401);
+    }
+    if (error.message?.includes('signature')) {
+      return c.json<ErrorResponse>({ error: 'Invalid refresh token' }, 401);
+    }
+    
+    return c.json<ErrorResponse>({ error: 'Failed to refresh token' }, 401);
   }
 });
 

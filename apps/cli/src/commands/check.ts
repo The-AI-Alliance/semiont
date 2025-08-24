@@ -1090,6 +1090,81 @@ async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       }
       break;
       
+    case 'mcp':
+      // Check if MCP server is provisioned
+      const homedir = require('os').homedir();
+      const authPath = path.join(homedir, '.config', 'semiont', `mcp-auth-${options.environment}.json`);
+      
+      try {
+        await fs.access(authPath);
+        const authData = JSON.parse(await fs.readFile(authPath, 'utf-8'));
+        
+        // Check if refresh token exists
+        if (authData.refresh_token) {
+          printSuccess('MCP service is provisioned');
+          checks.push({
+            name: 'mcp-provisioned',
+            status: 'pass',
+            message: 'MCP service is provisioned with valid refresh token',
+            details: { 
+              environment: authData.environment,
+              createdAt: authData.created_at 
+            },
+          });
+          
+          // Check token age (warn if > 25 days old)
+          const tokenAge = Date.now() - new Date(authData.created_at).getTime();
+          const daysOld = Math.floor(tokenAge / (1000 * 60 * 60 * 24));
+          
+          if (daysOld > 25) {
+            printWarning(`MCP refresh token is ${daysOld} days old (expires at 30 days)`);
+            checks.push({
+              name: 'mcp-token-age',
+              status: 'warn',
+              message: `Refresh token expires in ${30 - daysOld} days`,
+              details: { daysOld },
+            });
+          }
+          
+          // Check if MCP server process is running (if started)
+          const mcpPort = serviceInfo.config.port || 8585;
+          const mcpRunning = await checkProcessOnPort(mcpPort);
+          
+          if (mcpRunning) {
+            printSuccess(`MCP server is running on port ${mcpPort}`);
+            checks.push({
+              name: 'mcp-server-running',
+              status: 'pass',
+              message: `MCP server is running on port ${mcpPort}`,
+            });
+          } else {
+            printInfo('MCP server is not currently running');
+            checks.push({
+              name: 'mcp-server-running',
+              status: 'info',
+              message: 'MCP server is not running (start with: semiont start --service mcp)',
+            });
+          }
+        } else {
+          printWarning('MCP service provisioned but missing refresh token');
+          checks.push({
+            name: 'mcp-provisioned',
+            status: 'fail',
+            message: 'Missing refresh token - reprovision required',
+          });
+          healthStatus = 'unhealthy';
+        }
+      } catch (error) {
+        printWarning('MCP service not provisioned');
+        checks.push({
+          name: 'mcp-provisioned',
+          status: 'fail',
+          message: `MCP not provisioned. Run: semiont provision --service mcp --environment ${options.environment}`,
+        });
+        healthStatus = 'unhealthy';
+      }
+      break;
+      
     default:
       checks.push({
         name: 'service-recognition',

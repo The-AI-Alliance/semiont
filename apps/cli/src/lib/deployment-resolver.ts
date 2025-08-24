@@ -36,6 +36,8 @@ export interface ServiceConfig {
   // AWS-specific fields
   multiAZ?: boolean;
   backupRetentionDays?: number;
+  // MCP-specific fields
+  authMode?: 'browser' | 'token';
 }
 
 export interface AWSConfig {

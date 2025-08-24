@@ -953,6 +953,91 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
         };
       }
       
+    case 'mcp':
+      // MCP provisioning - handle authentication setup
+      const configDir = path.join(require('os').homedir(), '.config', 'semiont');
+      const authPath = path.join(configDir, `mcp-auth-${options.environment}.json`);
+      
+      if (options.destroy) {
+        // Remove stored authentication
+        if (fs.existsSync(authPath)) {
+          fs.unlinkSync(authPath);
+          if (!isStructuredOutput && options.output === 'summary') {
+            printSuccess('MCP authentication removed');
+          }
+        }
+        
+        return {
+          ...baseResult,
+          resources: [{
+            type: 'mcp-auth',
+            id: `mcp-${options.environment}`,
+            status: 'destroyed',
+            metadata: { authPath }
+          }],
+          dependencies: [],
+          resourceId: { process: { path: authPath } },
+          status: 'destroyed',
+          metadata: { operation: 'destroy' }
+        };
+      }
+      
+      // Provision MCP - acquire refresh token via browser
+      if (!isStructuredOutput && options.output === 'summary') {
+        printInfo('🔐 Setting up MCP authentication...');
+      }
+      
+      try {
+        const envConfig = loadEnvironmentConfig(options.environment || 'development');
+        const refreshToken = await acquireMcpRefreshToken(envConfig, serviceInfo.config.port || 8585);
+        
+        // Save refresh token
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(authPath, JSON.stringify({
+          refresh_token: refreshToken,
+          api_url: `https://${envConfig.site.domain}`,
+          environment: options.environment,
+          created_at: new Date().toISOString()
+        }, null, 2));
+        
+        if (!isStructuredOutput && options.output === 'summary') {
+          printSuccess(`MCP service provisioned for ${options.environment}`);
+          printInfo('Add to AI application config:');
+          console.log(JSON.stringify({
+            "semiont": {
+              "command": "semiont",
+              "args": ["start", "--service", "mcp"],
+              "env": {
+                "SEMIONT_ROOT": PROJECT_ROOT,
+                "SEMIONT_ENV": options.environment
+              }
+            }
+          }, null, 2));
+        }
+        
+        return {
+          ...baseResult,
+          resources: [{
+            type: 'mcp-auth',
+            id: `mcp-${options.environment}`,
+            status: 'provisioned',
+            metadata: { authPath }
+          }],
+          dependencies: [],
+          resourceId: { process: { path: authPath } },
+          status: 'provisioned',
+          metadata: { 
+            environment: options.environment,
+            apiUrl: `https://${envConfig.site.domain}`
+          }
+        };
+      } catch (error: any) {
+        if (!isStructuredOutput && options.output === 'summary') {
+          printError(`Failed to provision MCP: ${error.message}`);
+        }
+        throw error;
+      }
+      
     case 'filesystem':
       const dataPath = serviceInfo.config.path || path.join(PROJECT_ROOT, 'data');
       
@@ -1186,6 +1271,52 @@ async function provisionExternalService(serviceInfo: ServiceDeploymentInfo, opti
 // =====================================================================
 // STRUCTURED OUTPUT FUNCTION  
 // =====================================================================
+
+/**
+ * Acquire MCP refresh token via browser OAuth flow
+ */
+async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const http = require('http');
+    const open = require('open');
+    
+    const server = http.createServer((req: any, res: any) => {
+      const url = new URL(req.url!, `http://localhost:${port}`);
+      
+      if (url.pathname === '/callback') {
+        const token = url.searchParams.get('token');
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <html>
+            <body style="font-family: system-ui; padding: 2rem; text-align: center;">
+              <h1>✅ Authentication Successful!</h1>
+              <p>You can close this window and return to the terminal.</p>
+            </body>
+          </html>
+        `);
+        server.close();
+        
+        if (token) {
+          resolve(token);
+        } else {
+          reject(new Error('No token received from authentication'));
+        }
+      }
+    });
+    
+    server.listen(port, () => {
+      printInfo('Opening browser for authentication...');
+      const authUrl = `https://${envConfig.site.domain}/api/auth/mcp-setup?callback=http://localhost:${port}/callback`;
+      open(authUrl);
+    });
+    
+    // Timeout after 2 minutes
+    setTimeout(() => {
+      server.close();
+      reject(new Error('Authentication timeout - please try again'));
+    }, 120000);
+  });
+}
 
 export async function provision(
   serviceDeployments: ServiceDeploymentInfo[],

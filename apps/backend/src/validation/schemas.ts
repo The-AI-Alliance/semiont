@@ -33,7 +33,7 @@ export function validateData<T>(
       
       return { 
         success: false, 
-        error: errorMessage,
+        error: errorMessage || 'Validation failed',
         details: error.flatten()
       };
     }

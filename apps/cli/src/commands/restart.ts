@@ -373,28 +373,108 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
   // Process deployment restart
   switch (serviceInfo.name) {
     case 'database':
-      printInfo(`Restarting PostgreSQL service for ${serviceInfo.name}`);
-      printWarning('Local PostgreSQL service restart not yet implemented');
+      printInfo(`Restarting PostgreSQL service`);
       
-      return {
-        ...baseResult,
-        stopTime,
-        startTime: new Date(Date.now() + options.gracePeriod * 1000),
-        downtime: options.gracePeriod * 1000,
-        gracefulRestart: true,
-        resourceId: {
-          process: {
-            path: '/usr/local/var/postgres',
-            port: 5432
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          implementation: 'pending',
-          service: 'postgresql',
-          gracePeriod: options.gracePeriod
-        },
-      };
+      // Detect platform and restart PostgreSQL accordingly
+      const platform = process.platform;
+      let restartCommand: string[] = [];
+      
+      if (platform === 'darwin') {
+        // macOS with Homebrew
+        restartCommand = ['brew', 'services', 'restart', 'postgresql'];
+      } else if (platform === 'linux') {
+        // Linux with systemctl
+        restartCommand = ['sudo', 'systemctl', 'restart', 'postgresql'];
+      } else {
+        printWarning(`PostgreSQL restart not supported on platform: ${platform}`);
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: new Date(Date.now() + options.gracePeriod * 1000),
+          downtime: options.gracePeriod * 1000,
+          gracefulRestart: false,
+          resourceId: {
+            process: {
+              path: '/usr/local/var/postgres',
+              port: 5432
+            }
+          },
+          status: 'not-supported',
+          metadata: {
+            platform,
+            reason: 'Platform not supported for PostgreSQL restart'
+          },
+        };
+      }
+      
+      try {
+        // Execute restart command
+        const { spawn } = await import('child_process');
+        const actualStartTime = new Date();
+        
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn(restartCommand[0]!, restartCommand.slice(1), {
+            stdio: options.verbose ? 'inherit' : 'pipe'
+          });
+          
+          proc.on('close', (code) => {
+            if (code === 0) {
+              resolve();
+            } else {
+              reject(new Error(`PostgreSQL restart failed with code ${code}`));
+            }
+          });
+          
+          proc.on('error', (err) => {
+            reject(err);
+          });
+        });
+        
+        printSuccess('PostgreSQL service restarted successfully');
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: actualStartTime,
+          downtime: actualStartTime.getTime() - stopTime.getTime(),
+          gracefulRestart: true,
+          resourceId: {
+            process: {
+              path: platform === 'darwin' ? '/usr/local/var/postgres' : '/var/lib/postgresql',
+              port: 5432
+            }
+          },
+          status: 'restarted',
+          metadata: {
+            service: 'postgresql',
+            platform,
+            command: restartCommand.join(' '),
+            gracePeriod: options.gracePeriod
+          },
+        };
+      } catch (error) {
+        printError(`Failed to restart PostgreSQL: ${(error as Error).message}`);
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: new Date(),
+          downtime: 0,
+          gracefulRestart: false,
+          resourceId: {
+            process: {
+              path: '/usr/local/var/postgres',
+              port: 5432
+            }
+          },
+          status: 'failed',
+          metadata: {
+            error: (error as Error).message,
+            service: 'postgresql',
+            platform
+          },
+        };
+      }
       
     case 'frontend':
     case 'backend':
@@ -470,6 +550,72 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
           reason: 'No process to restart for filesystem service'
         },
       };
+      
+    case 'mcp':
+      // Stop existing MCP server if running
+      const mcpPort = serviceInfo.config.port || 8585;
+      printInfo(`Stopping MCP server on port ${mcpPort}`);
+      await findAndKillProcess(`:${mcpPort}`, 'mcp-server', options);
+      
+      // Wait for grace period
+      if (options.gracePeriod > 0) {
+        debugLog(`Waiting ${options.gracePeriod} seconds before starting...`, options);
+        await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
+      }
+      
+      // Restart MCP server by delegating to start command
+      const mcpStartTime = new Date();
+      printInfo(`Restarting MCP server for environment ${options.environment}`);
+      
+      // Import start command functionality
+      const { startProcessService } = await import('./start.js');
+      const startOptions = {
+        ...options,
+        service: 'mcp',
+        environment: options.environment,
+      };
+      
+      try {
+        const startResult = await startProcessService(serviceInfo, startOptions, Date.now());
+        
+        if (startResult.status === 'started') {
+          printSuccess(`MCP server restarted successfully`);
+          
+          return {
+            ...baseResult,
+            stopTime,
+            startTime: mcpStartTime,
+            downtime: mcpStartTime.getTime() - stopTime.getTime(),
+            gracefulRestart: true,
+            resourceId: startResult.resourceId || { process: { port: mcpPort } },
+            status: 'restarted',
+            metadata: {
+              port: mcpPort,
+              environment: options.environment,
+              gracePeriod: options.gracePeriod
+            },
+          };
+        } else {
+          throw new Error(`Failed to restart MCP server: ${startResult.status}`);
+        }
+      } catch (error) {
+        printError(`Failed to restart MCP server: ${(error as Error).message}`);
+        
+        return {
+          ...baseResult,
+          stopTime,
+          startTime: mcpStartTime,
+          downtime: mcpStartTime.getTime() - stopTime.getTime(),
+          gracefulRestart: false,
+          resourceId: { process: { port: mcpPort } },
+          status: 'failed',
+          metadata: {
+            error: (error as Error).message,
+            port: mcpPort,
+            environment: options.environment
+          },
+        };
+      }
       
     default:
       throw new Error(`Unsupported process service: ${serviceInfo.name}`);

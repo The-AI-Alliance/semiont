@@ -685,4 +685,160 @@ describe('Provision Command', () => {
       });
     });
   });
+
+  describe('MCP Service Provisioning', () => {
+    beforeEach(() => {
+      // Mock fs for MCP auth file operations
+      vi.mock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: vi.fn(() => false),
+          mkdirSync: vi.fn(),
+          writeFileSync: vi.fn(),
+          readFileSync: vi.fn(() => JSON.stringify({
+            refresh_token: 'test-refresh-token',
+            api_url: 'https://test.semiont.com',
+            environment: 'test',
+            created_at: new Date().toISOString()
+          }))
+        };
+      });
+
+      // Mock the HTTP server for OAuth callback
+      vi.mock('http', () => ({
+        createServer: vi.fn(() => ({
+          listen: vi.fn((port, callback) => {
+            callback();
+          }),
+          close: vi.fn()
+        }))
+      }));
+
+      // Mock the open module for browser opening
+      vi.mock('open', () => ({
+        default: vi.fn()
+      }));
+    });
+
+    it('should handle MCP service provisioning with OAuth flow', async () => {
+      const { provision } = await import('../commands/provision.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
+      ]);
+      
+      const options: ProvisionOptions = {
+        environment: 'test',
+        stack: 'all',
+        destroy: false,
+        force: false,
+        requireApproval: false,
+        reset: false,
+        seed: false,
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      // Since OAuth flow requires actual browser interaction, we test dry-run mode
+      const dryRunOptions = { ...options, dryRun: true };
+      const result = await provision(serviceDeployments, dryRunOptions);
+
+      expect(result).toMatchObject({
+        command: 'provision',
+        environment: 'test',
+        services: expect.arrayContaining([
+          expect.objectContaining({
+            service: 'mcp',
+            deploymentType: 'process',
+            success: true,
+            status: 'dry-run'
+          })
+        ])
+      });
+    });
+
+    it('should handle MCP service destruction', async () => {
+      const { provision } = await import('../commands/provision.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
+      ]);
+      
+      const options: ProvisionOptions = {
+        environment: 'test',
+        stack: 'all',
+        destroy: true,
+        force: true,
+        requireApproval: false,
+        reset: false,
+        seed: false,
+        verbose: false,
+        dryRun: false,
+        output: 'json',
+        service: 'mcp'
+      };
+
+      const result = await provision(serviceDeployments, options);
+
+      expect(result).toMatchObject({
+        command: 'provision',
+        environment: 'test',
+        services: expect.arrayContaining([
+          expect.objectContaining({
+            service: 'mcp',
+            deploymentType: 'process',
+            success: true,
+            status: 'destroyed'
+          })
+        ])
+      });
+    });
+
+    it('should return proper structured output for MCP provisioning', async () => {
+      const { provision } = await import('../commands/provision.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
+      ]);
+      
+      const options: ProvisionOptions = {
+        environment: 'production',
+        stack: 'all',
+        destroy: false,
+        force: false,
+        requireApproval: false,
+        reset: false,
+        seed: false,
+        verbose: false,
+        dryRun: true, // Use dry-run to avoid actual OAuth flow
+        output: 'yaml',
+        service: 'mcp'
+      };
+
+      const result = await provision(serviceDeployments, options);
+
+      expect(result).toMatchObject({
+        command: 'provision',
+        environment: 'production',
+        timestamp: expect.any(Date),
+        duration: expect.any(Number),
+        services: [
+          {
+            command: 'provision',
+            service: 'mcp',
+            deploymentType: 'process',
+            environment: 'production',
+            success: true,
+            status: 'dry-run',
+            metadata: expect.objectContaining({
+              dryRun: true
+            })
+          }
+        ]
+      });
+    });
+  });
 });
