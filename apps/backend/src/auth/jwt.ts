@@ -90,10 +90,12 @@ export class JWTService {
     expiresIn: string = '7d'
   ): string {
     const config = this.getSiteConfig();
-    return jwt.sign(payload, this.getSecret(), {
-      expiresIn,
+    // Convert payload to plain object for jwt.sign
+    const tokenPayload: Record<string, any> = { ...payload };
+    return jwt.sign(tokenPayload, this.getSecret(), {
+      expiresIn: expiresIn,
       issuer: config.domain || 'localhost',
-    });
+    } as jwt.SignOptions);
   }
 
   static verifyToken(token: string): ValidatedJWTPayload {

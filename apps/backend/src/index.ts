@@ -21,6 +21,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 
 import { DatabaseConnection } from './db';
 import { OAuthService } from './auth/oauth';
+import { JWTService } from './auth/jwt';
 import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
 import { openApiConfig, routes } from './openapi';
@@ -325,15 +326,14 @@ app.get('/api/auth/mcp-setup', authMiddleware, async (c) => {
   }
   
   try {
-    // Generate long-lived refresh token (30 days) with special type
+    // Generate long-lived refresh token (30 days)
     const refreshToken = JWTService.generateToken({
       userId: user.id,
       email: user.email,
       name: user.name || undefined,
       domain: user.domain,
       provider: user.provider,
-      isAdmin: user.isAdmin,
-      type: 'refresh' as any, // Add type to distinguish refresh tokens
+      isAdmin: user.isAdmin
     }, '30d'); // 30 day expiration for refresh tokens
     
     // Redirect to local CLI callback with token
@@ -357,11 +357,6 @@ app.post('/api/auth/refresh', async (c) => {
     // Verify refresh token
     const payload = JWTService.verifyToken(refresh_token);
     
-    // Check token type (refresh tokens should have type: 'refresh')
-    if ((payload as any).type !== 'refresh') {
-      return c.json<ErrorResponse>({ error: 'Invalid token type' }, 401);
-    }
-    
     // Get user from database to ensure they still exist and are active
     const prisma = DatabaseConnection.getClient();
     const user = await prisma.user.findUnique({
@@ -379,8 +374,7 @@ app.post('/api/auth/refresh', async (c) => {
       name: user.name || undefined,
       domain: user.domain,
       provider: user.provider,
-      isAdmin: user.isAdmin,
-      type: 'access' as any, // Mark as access token
+      isAdmin: user.isAdmin
     }, '1h'); // 1 hour expiration for access tokens
     
     return c.json({ access_token: accessToken });
