@@ -474,29 +474,7 @@ export class SemiontAppStack extends cdk.Stack {
       certificates: [certificate],
     });
 
-    // Backend API target group for core API endpoints
-    httpsListener.addTargets('BackendAPI', {
-      port: 4000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [backendService],
-      conditions: [
-        elbv2.ListenerCondition.pathPatterns([
-          '/api',          // API root
-          '/api/*'         // All API routes
-        ]),
-      ],
-      healthCheck: {
-        path: '/api/health',
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        healthyThresholdCount: 2,
-        unhealthyThresholdCount: 5,
-        healthyHttpCodes: '200',
-      },
-      priority: 10,
-    });
-
-    // Backend OAuth endpoints (higher priority than NextAuth catch-all)
+    // Backend OAuth endpoints (HIGHEST PRIORITY - most specific)
     httpsListener.addTargets('BackendOAuth', {
       port: 4000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -518,10 +496,10 @@ export class SemiontAppStack extends cdk.Stack {
         unhealthyThresholdCount: 5,
         healthyHttpCodes: '200',
       },
-      priority: 20,
+      priority: 10,
     });
 
-    // NextAuth.js routes (lower priority, catches remaining /api/auth/* paths)
+    // NextAuth.js routes (catches remaining /api/auth/* paths)
     httpsListener.addTargets('NextAuth', {
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -531,6 +509,28 @@ export class SemiontAppStack extends cdk.Stack {
       ],
       healthCheck: {
         path: '/',
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(10),
+        healthyThresholdCount: 2,
+        unhealthyThresholdCount: 5,
+        healthyHttpCodes: '200',
+      },
+      priority: 20,
+    });
+
+    // Backend API target group (LOWEST PRIORITY - catch-all for /api/*)
+    httpsListener.addTargets('BackendAPI', {
+      port: 4000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targets: [backendService],
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns([
+          '/api',          // API root
+          '/api/*'         // All API routes
+        ]),
+      ],
+      healthCheck: {
+        path: '/api/health',
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(10),
         healthyThresholdCount: 2,
