@@ -8,6 +8,7 @@ export interface JWTPayload {
   name?: string;
   domain: string;
   provider: string;
+  type?: 'access' | 'refresh';
   iat?: number;
   exp?: number;
 }
@@ -84,10 +85,13 @@ export class JWTService {
     return secret;
   }
 
-  static generateToken(payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>): string {
+  static generateToken(
+    payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>, 
+    expiresIn: string = '7d'
+  ): string {
     const config = this.getSiteConfig();
     return jwt.sign(payload, this.getSecret(), {
-      expiresIn: '7d',
+      expiresIn,
       issuer: config.domain || 'localhost',
     });
   }

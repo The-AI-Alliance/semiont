@@ -19,6 +19,11 @@
     "database": {
       "type": "postgres",
       "port": 5432
+    },
+    "mcp": {
+      "deployment": "local",
+      "port": 8585,
+      "authMode": "browser"
     }
   }
 }
