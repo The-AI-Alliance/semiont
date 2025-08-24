@@ -105,7 +105,6 @@ export class JWTService {
       const validation = validateData(JWTPayloadSchema, decoded);
       
       if (!validation.success) {
-        console.error('JWT payload validation failed:', validation.error);
         throw new Error(`Invalid token payload: ${validation.error}`);
       }
       

@@ -358,4 +358,180 @@ describe('Start Command', () => {
       expect(result.services[0]!.service).toBe('backend');
     });
   });
+
+  describe('MCP Service Start', () => {
+    beforeEach(() => {
+      // Mock fs for reading MCP auth file
+      vi.mock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: vi.fn(() => true),
+          promises: {
+            ...actual.promises,
+            readFile: vi.fn().mockResolvedValue(JSON.stringify({
+              refresh_token: 'test-refresh-token',
+              api_url: 'https://test.semiont.com',
+              environment: 'test',
+              created_at: new Date().toISOString()
+            }))
+          }
+        };
+      });
+
+      // Mock fetch for token refresh
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'test-access-token' })
+      });
+    });
+
+    it('should start MCP server with token refresh', async () => {
+      const { start } = await import('../commands/start.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
+      ]);
+      
+      const options: StartOptions = {
+        environment: 'test',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        service: 'mcp'
+      };
+
+      const result = await start(serviceDeployments, options);
+
+      expect(result).toMatchObject({
+        command: 'start',
+        environment: 'test',
+        services: expect.arrayContaining([
+          expect.objectContaining({
+            service: 'mcp',
+            deploymentType: 'process',
+            status: 'started',
+            success: true
+          })
+        ])
+      });
+
+      // Verify fetch was called for token refresh
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/refresh'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: 'test-refresh-token' })
+        })
+      );
+    });
+
+    it('should handle missing MCP auth file', async () => {
+      // Override the mock for this test
+      vi.mock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: vi.fn(() => false)
+        };
+      });
+
+      const { start } = await import('../commands/start.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+      
+      const options: StartOptions = {
+        environment: 'test',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        service: 'mcp'
+      };
+
+      const result = await start(serviceDeployments, options);
+
+      expect(result.success).toBe(false);
+      expect(result.services[0]).toMatchObject({
+        service: 'mcp',
+        success: false,
+        error: expect.stringContaining('not provisioned')
+      });
+    });
+
+    it('should handle token refresh failure', async () => {
+      // Mock failed token refresh
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized'
+      });
+
+      const { start } = await import('../commands/start.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+      
+      const options: StartOptions = {
+        environment: 'production',
+        output: 'json',
+        quiet: true,
+        verbose: false,
+        dryRun: false,
+        service: 'mcp'
+      };
+
+      const result = await start(serviceDeployments, options);
+
+      expect(result.success).toBe(false);
+      expect(result.services[0]).toMatchObject({
+        service: 'mcp',
+        success: false,
+        error: expect.stringContaining('Failed to refresh access token')
+      });
+    });
+
+    it('should support dry-run mode for MCP', async () => {
+      const { start } = await import('../commands/start.js');
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'mcp', type: 'process', config: { port: 8585 } }
+      ]);
+      
+      const options: StartOptions = {
+        environment: 'test',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: true,
+        service: 'mcp'
+      };
+
+      const result = await start(serviceDeployments, options);
+
+      expect(result).toMatchObject({
+        command: 'start',
+        environment: 'test',
+        services: [
+          {
+            service: 'mcp',
+            deploymentType: 'process',
+            status: 'dry-run',
+            success: true,
+            metadata: expect.objectContaining({
+              dryRun: true
+            })
+          }
+        ]
+      });
+
+      // Verify no actual fetch was made in dry-run mode
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+  });
 });
