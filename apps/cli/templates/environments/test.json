@@ -33,6 +33,12 @@
         "POSTGRES_USER": "semiont",
         "POSTGRES_PASSWORD": "testpass"
       }
+    },
+    "mcp": {
+      "deployment": {
+        "type": "process"
+      },
+      "dependsOn": ["backend"]
     }
   }
 }

@@ -33,6 +33,12 @@
         "POSTGRES_USER": "semiont",
         "POSTGRES_PASSWORD": "localpass"
       }
+    },
+    "mcp": {
+      "deployment": {
+        "type": "process"
+      },
+      "dependsOn": ["backend"]
     }
   }
 }

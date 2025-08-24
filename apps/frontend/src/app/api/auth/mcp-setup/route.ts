@@ -10,6 +10,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Callback URL required' }, { status: 400 });
   }
 
+  // Allow localhost callbacks for MCP CLI (following Google OAuth pattern)
+  const allowedCallbackPatterns = [
+    /^http:\/\/localhost:\d+\/.*$/,
+    /^http:\/\/127\.0\.0\.1:\d+\/.*$/,
+    /^http:\/\/\[::1\]:\d+\/.*$/,  // IPv6 localhost
+  ];
+
+  // In production, only allow localhost callbacks
+  // In development, you might want to allow other patterns
+  const isAllowedCallback = allowedCallbackPatterns.some(pattern => pattern.test(callback));
+  
+  if (!isAllowedCallback) {
+    return NextResponse.json({ error: 'Invalid callback URL. Must be a localhost URL for CLI authentication.' }, { status: 400 });
+  }
+
   // Get the user's session
   const session = await getServerSession(authOptions);
   

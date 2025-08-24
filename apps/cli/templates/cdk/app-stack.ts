@@ -502,7 +502,13 @@ export class SemiontAppStack extends cdk.Stack {
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [backendService],
       conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/api/auth/google', '/api/auth/me', '/api/auth/logout']),
+        elbv2.ListenerCondition.pathPatterns([
+          '/api/auth/google', 
+          '/api/auth/me', 
+          '/api/auth/logout',
+          '/api/auth/mcp-generate-token',   // MCP token generation endpoint
+          '/api/auth/refresh'                // Token refresh endpoint
+        ]),
       ],
       healthCheck: {
         path: '/api/health',
@@ -670,9 +676,56 @@ export class SemiontAppStack extends cdk.Stack {
       scope: 'REGIONAL',
       defaultAction: { allow: {} },
       rules: [
+        // Allow MCP OAuth callbacks with localhost (before other rules)
+        {
+          name: 'AllowMCPCallbacks',
+          priority: 0,
+          action: { allow: {} },
+          statement: {
+            andStatement: {
+              statements: [
+                {
+                  byteMatchStatement: {
+                    searchString: '/api/auth/mcp-setup',
+                    fieldToMatch: { uriPath: {} },
+                    textTransformations: [{ priority: 0, type: 'LOWERCASE' }],
+                    positionalConstraint: 'STARTS_WITH'
+                  }
+                },
+                {
+                  orStatement: {
+                    statements: [
+                      {
+                        byteMatchStatement: {
+                          searchString: 'localhost',
+                          fieldToMatch: { queryString: {} },
+                          textTransformations: [{ priority: 0, type: 'LOWERCASE' }],
+                          positionalConstraint: 'CONTAINS'
+                        }
+                      },
+                      {
+                        byteMatchStatement: {
+                          searchString: '127.0.0.1',
+                          fieldToMatch: { queryString: {} },
+                          textTransformations: [{ priority: 0, type: 'NONE' }],
+                          positionalConstraint: 'CONTAINS'
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          visibilityConfig: {
+            sampledRequestsEnabled: true,
+            cloudWatchMetricsEnabled: true,
+            metricName: 'MCPCallbackAllowMetric',
+          },
+        },
         {
           name: 'AWSManagedRulesCommonRuleSet',
-          priority: 1,
+          priority: 10,
           overrideAction: { none: {} },
           statement: {
             managedRuleGroupStatement: {
@@ -698,7 +751,7 @@ export class SemiontAppStack extends cdk.Stack {
         },
         {
           name: 'AWSManagedRulesKnownBadInputsRuleSet',
-          priority: 2,
+          priority: 20,
           overrideAction: { none: {} },
           statement: {
             managedRuleGroupStatement: {
@@ -719,7 +772,7 @@ export class SemiontAppStack extends cdk.Stack {
         },
         {
           name: 'RateLimitRule',
-          priority: 3,
+          priority: 30,
           action: { block: {} },
           statement: {
             rateBasedStatement: {
