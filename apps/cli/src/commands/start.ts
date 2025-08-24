@@ -473,6 +473,86 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         throw new Error(`Failed to create directories: ${error}`);
       }
       
+    case 'mcp':
+      // MCP server startup with authentication
+      const mcpEnvironment = options.environment || process.env.SEMIONT_ENV;
+      
+      if (!mcpEnvironment) {
+        throw new Error('Environment must be specified via --environment or SEMIONT_ENV');
+      }
+      
+      // Load environment config
+      const envConfig = loadEnvironmentConfig(mcpEnvironment);
+      const apiUrl = `https://${envConfig.site.domain}`;
+      
+      // Check for provisioned auth
+      const authPath = path.join(require('os').homedir(), '.config', 'semiont', `mcp-auth-${mcpEnvironment}.json`);
+      
+      if (!fs.existsSync(authPath)) {
+        throw new Error(`MCP not provisioned for ${mcpEnvironment}. Run: semiont provision --service mcp --environment ${mcpEnvironment}`);
+      }
+      
+      try {
+        // Load stored refresh token
+        const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+        
+        // Get fresh access token from backend
+        const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: authData.refresh_token })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to refresh access token. You may need to re-provision.');
+        }
+        
+        const { access_token } = await response.json();
+        
+        // Start MCP server
+        const mcpServerPath = path.join(PROJECT_ROOT, 'packages/mcp-server/dist/index.js');
+        
+        if (!fs.existsSync(mcpServerPath)) {
+          throw new Error('MCP server not built. Run: npm run build -w packages/mcp-server');
+        }
+        
+        const mcpProc = spawn('node', [mcpServerPath], {
+          stdio: 'inherit',
+          env: {
+            ...process.env,
+            SEMIONT_API_URL: apiUrl,
+            SEMIONT_API_TOKEN: access_token
+          }
+        });
+        
+        if (!options.quiet) {
+          printSuccess(`MCP server started (PID: ${mcpProc.pid})`);
+          printInfo(`API URL: ${apiUrl}`);
+          debugLog(`Using auth from: ${authPath}`, options);
+        }
+        
+        return {
+          ...baseResult,
+          startTime: new Date(),
+          endpoint: `stdio://localhost`,
+          resourceId: {
+            process: {
+              pid: mcpProc.pid || 0,
+              path: mcpServerPath
+            }
+          },
+          status: 'running',
+          metadata: {
+            environment: mcpEnvironment,
+            apiUrl,
+            authPath,
+            pid: mcpProc.pid
+          }
+        };
+      } catch (error: any) {
+        throw new Error(`Failed to start MCP server: ${error.message}`);
+      }
+      
     default:
       throw new Error(`Unsupported process service: ${serviceInfo.name}`);
   }
@@ -707,3 +787,6 @@ export default startCommand;
 // Export the schema for use by CLI
 export type { StartOptions };
 export { StartOptionsSchema };
+
+// Export for restart command
+export { startProcessService };

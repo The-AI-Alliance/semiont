@@ -21,7 +21,9 @@
       "port": 5432
     },
     "mcp": {
-      "deployment": "local",
+      "deployment": {
+        "type": "process"
+      },
       "port": 8585,
       "authMode": "browser"
     }
