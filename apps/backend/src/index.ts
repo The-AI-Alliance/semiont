@@ -77,38 +77,9 @@ Object.values(routes).forEach(route => {
 // Generate OpenAPI specification
 const openApiSpec = openAPIApp.getOpenAPI31Document(openApiConfig);
 
-// Middleware for documentation authentication
-const docsAuthMiddleware = async (c: any, next: any) => {
-  // Check for token in query parameter for browser-based access
-  const token = c.req.query('token');
-  if (token) {
-    try {
-      const user = await OAuthService.getUserFromToken(token);
-      c.set('user', user);
-      return next();
-    } catch (error) {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
-  }
-  
-  // Check for Bearer token in header
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
-  
-  const headerToken = authHeader.substring(7).trim();
-  try {
-    const user = await OAuthService.getUserFromToken(headerToken);
-    c.set('user', user);
-    return next();
-  } catch (error) {
-    return c.json({ error: 'Invalid token' }, 401);
-  }
-};
 
 // API Documentation root - redirect to appropriate format
-app.get('/api', docsAuthMiddleware, (c) => {
+app.get('/api', (c) => {
   const acceptHeader = c.req.header('Accept') || '';
   const userAgent = c.req.header('User-Agent') || '';
   const token = c.req.query('token');
@@ -126,13 +97,13 @@ app.get('/api', docsAuthMiddleware, (c) => {
 });
 
 // Serve OpenAPI JSON specification
-app.get('/api/openapi.json', docsAuthMiddleware, (c) => {
+app.get('/api/openapi.json', (c) => {
   return c.json(openApiSpec);
 });
 
-// Serve Swagger UI documentation - with authentication
-app.get('/api/docs', docsAuthMiddleware, async (c) => {
-  // User is authenticated via middleware
+// Serve Swagger UI documentation - now public
+app.get('/api/docs', async (c) => {
+  // Token is optional for authenticated access
   const token = c.req.query('token');
   
   try {
@@ -153,7 +124,7 @@ app.get('/api/docs', docsAuthMiddleware, async (c) => {
 });
 
 // Redirect /api/swagger to /api/docs for convenience
-app.get('/api/swagger', docsAuthMiddleware, (c) => {
+app.get('/api/swagger', (c) => {
   const token = c.req.query('token');
   const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
   return c.redirect(redirectUrl);
@@ -178,10 +149,6 @@ app.use('/api/*', async (c, next) => {
     return next();
   }
   
-  // Documentation endpoints have their own auth via docsAuthMiddleware
-  if (['/api/docs', '/api/swagger', '/api/openapi.json', '/api'].includes(path)) {
-    return next();
-  }
   
   // All other endpoints require authentication
   return authMiddleware(c, next);
