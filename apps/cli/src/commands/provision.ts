@@ -1280,6 +1280,7 @@ async function provisionExternalService(serviceInfo: ServiceDeploymentInfo, opti
 async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<string> {
   return new Promise((resolve, reject) => {
     let timeoutId: NodeJS.Timeout;
+    const connections = new Set<any>();
     
     const server = http.createServer((req: any, res: any) => {
       const url = new URL(req.url!, `http://localhost:${port}`);
@@ -1298,14 +1299,23 @@ async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<str
         
         // Clear timeout and close server
         clearTimeout(timeoutId);
-        server.close();
         
-        if (token) {
-          resolve(token);
-        } else {
-          reject(new Error('No token received from authentication'));
-        }
+        // Force close all connections
+        connections.forEach(conn => conn.destroy());
+        server.close(() => {
+          if (token) {
+            resolve(token);
+          } else {
+            reject(new Error('No token received from authentication'));
+          }
+        });
       }
+    });
+    
+    // Track connections to force close them
+    server.on('connection', (conn) => {
+      connections.add(conn);
+      conn.on('close', () => connections.delete(conn));
     });
     
     server.listen(port, () => {
@@ -1328,6 +1338,7 @@ async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<str
     
     // Timeout after 2 minutes
     timeoutId = setTimeout(() => {
+      connections.forEach(conn => conn.destroy());
       server.close();
       reject(new Error('Authentication timeout - please try again'));
     }, 120000);
