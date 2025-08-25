@@ -474,13 +474,13 @@ export class SemiontAppStack extends cdk.Stack {
       certificates: [certificate],
     });
 
-    // NextAuth routes (Priority 10: /auth/* -> Frontend)
+    // NextAuth routes (Priority 10: /api/auth/* -> Frontend)
     httpsListener.addTargets('NextAuth', {
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [frontendService],
       conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/auth/*']),
+        elbv2.ListenerCondition.pathPatterns(['/api/auth/*']),
       ],
       healthCheck: {
         path: '/',

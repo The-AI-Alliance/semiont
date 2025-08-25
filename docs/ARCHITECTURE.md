@@ -237,13 +237,13 @@ The platform provides special authentication support for Model Context Protocol 
 - Redirects to MCP client callback with token
 
 **Backend Token Management**:
-- `POST /api/auth/mcp-generate-token`: Issues 30-day refresh tokens for MCP clients
-- `POST /api/auth/refresh`: Exchanges refresh tokens for 1-hour access tokens
+- `POST /api/tokens/mcp-generate`: Issues 30-day refresh tokens for MCP clients
+- `POST /api/tokens/refresh`: Exchanges refresh tokens for 1-hour access tokens
 
 **Token Lifecycle**:
 1. MCP client opens browser to `/auth/mcp-setup?callback=<url>`
 2. Frontend authenticates user via NextAuth (Google OAuth)
-3. Frontend calls backend's `/api/auth/mcp-generate-token` with session token
+3. Frontend calls backend's `/api/tokens/mcp-generate` with session token
 4. Backend generates 30-day refresh token
 5. Frontend redirects to callback URL with refresh token
 6. MCP client stores refresh token locally

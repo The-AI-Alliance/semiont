@@ -250,8 +250,19 @@ Creates all AWS resources (~10-15 minutes):
 semiont configure set database-password
 semiont configure set jwt-secret
 
-# Optional: OAuth configuration
+# OAuth configuration (required for authentication)
+## Google OAuth Setup:
+# 1. Go to https://console.cloud.google.com/
+# 2. Create or select a project
+# 3. Navigate to APIs & Services → Credentials
+# 4. Create OAuth 2.0 Client ID (Web application)
+# 5. Set Authorized redirect URIs:
+#    - https://yourdomain.com/api/auth/callback/google
+#    - http://localhost:3000/api/auth/callback/google (for local dev)
+# 6. Copy Client ID and Client Secret
 semiont configure set oauth/google
+
+# Optional: GitHub OAuth
 semiont configure set oauth/github
 
 # Verify configuration

@@ -938,10 +938,14 @@ The frontend integrates with the backend's secure-by-default authentication mode
 ### Authentication Flow
 
 1. **User Login**: Click "Sign In" button → redirects to Google OAuth
-2. **OAuth Validation**: Google validates credentials and returns to app
+2. **OAuth Validation**: Google validates credentials and returns to `/api/auth/callback/google`
 3. **Session Creation**: NextAuth.js creates encrypted session cookie
 4. **Backend Integration**: Frontend automatically includes JWT in API requests
 5. **Protected Access**: User can access authenticated features
+
+**Note**: The OAuth callback URL must be configured in Google Cloud Console as:
+- Production: `https://yourdomain.com/api/auth/callback/google`
+- Development: `http://localhost:3000/api/auth/callback/google`
 
 ### Using Authentication in Components
 

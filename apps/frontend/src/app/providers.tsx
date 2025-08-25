@@ -33,7 +33,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }));
 
   return (
-    <SessionProvider basePath="/auth">
+    <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <SecureAPIProvider>
           {children}

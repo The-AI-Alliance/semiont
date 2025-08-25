@@ -162,8 +162,9 @@ app.get('/api/swagger', docsAuthMiddleware, (c) => {
 // Public endpoints - these don't require authentication
 const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
-  '/api/auth/google',     // OAuth login initiation
-  '/api/auth/refresh',    // Token refresh endpoint (uses refresh token for auth)
+  '/api/auth/google',     // OAuth login initiation (keeping for compatibility)
+  '/api/tokens/google',   // New OAuth endpoint location
+  '/api/tokens/refresh',  // Token refresh endpoint (uses refresh token for auth)
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
 ];
 
@@ -225,6 +226,54 @@ app.get('/api/status', (c) => {
 });
 
 // OAuth endpoints
+// Duplicate at /api/tokens/google for new path structure
+app.post('/api/tokens/google', async (c) => {
+  try {
+    const body = await c.req.json();
+    
+    // Validate request body
+    const validation = validateData(GoogleAuthSchema, body);
+    if (!validation.success) {
+      return c.json<ErrorResponse>({ 
+        error: 'Invalid request body', 
+        details: validation.details 
+      }, 400);
+    }
+    
+    const { access_token } = validation.data as GoogleAuthRequest;
+
+    if (!access_token) {
+      return c.json<ErrorResponse>({
+        error: 'Missing access token'
+      }, 400);
+    }
+
+    // Verify Google token and get user info
+    const googleUser = await OAuthService.verifyGoogleToken(access_token);
+    
+    // Create or update user
+    const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+    
+    return c.json<AuthResponse>({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+        domain: user.domain,
+        isAdmin: user.isAdmin,
+      },
+      token,
+      isNewUser,
+    });
+  } catch (error: any) {
+    console.error('OAuth error:', error);
+    return c.json<ErrorResponse>({ error: error.message || 'Authentication failed' }, 400);
+  }
+});
+
+// Keep old endpoint for backward compatibility during transition
 app.post('/api/auth/google', async (c) => {
   try {
     const body = await c.req.json();
@@ -271,7 +320,7 @@ app.post('/api/auth/google', async (c) => {
   }
 });
 
-app.get('/api/auth/me', async (c) => {
+app.get('/api/users/me', async (c) => {
   const user = c.get('user'); // Auth already applied globally
   return c.json<UserResponse>({
     id: user.id,
@@ -288,14 +337,14 @@ app.get('/api/auth/me', async (c) => {
   });
 });
 
-app.post('/api/auth/logout', async (c) => {
+app.post('/api/users/logout', async (c) => {
   // Auth already applied globally
   // For stateless JWT, we just return success
   // The client should remove the token
   return c.json<LogoutResponse>({ success: true, message: 'Logged out successfully' });
 });
 
-app.post('/api/auth/accept-terms', async (c) => {
+app.post('/api/users/accept-terms', async (c) => {
   const user = c.get('user'); // Auth already applied globally
   
   try {
@@ -319,7 +368,7 @@ app.post('/api/auth/accept-terms', async (c) => {
 
 // MCP refresh token endpoint - generates long-lived refresh token
 // This endpoint is called by the frontend after NextAuth authentication
-app.post('/api/auth/mcp-generate-token', authMiddleware, async (c) => {
+app.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
   const user = c.get('user');
   
   try {
@@ -344,7 +393,7 @@ app.post('/api/auth/mcp-generate-token', authMiddleware, async (c) => {
 });
 
 // Refresh token endpoint for MCP - exchanges refresh token for access token
-app.post('/api/auth/refresh', async (c) => {
+app.post('/api/tokens/refresh', async (c) => {
   console.log('Refresh endpoint hit');
   const body = await c.req.json();
   const { refresh_token } = body;

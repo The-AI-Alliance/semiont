@@ -33,14 +33,14 @@ export async function GET(request: NextRequest) {
     const host = request.headers.get('host') || 'wiki.pingel.org';
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
     const currentUrl = `${protocol}://${host}${request.nextUrl.pathname}${request.nextUrl.search}`;
-    const signInUrl = `${protocol}://${host}/auth/signin?callbackUrl=${encodeURIComponent(currentUrl)}`;
+    const signInUrl = `${protocol}://${host}/api/auth/signin?callbackUrl=${encodeURIComponent(currentUrl)}`;
     return NextResponse.redirect(signInUrl);
   }
 
   try {
     // Call backend to generate refresh token
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/auth/mcp-generate-token`, {
+    const response = await fetch(`${backendUrl}/api/tokens/mcp-generate`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.backendToken}`,

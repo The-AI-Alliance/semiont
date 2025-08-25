@@ -72,7 +72,7 @@ describe('MCP OAuth Flow Integration', () => {
       };
 
       // Call the refresh token logic
-      const response = await fetch(`https://${mockEnvConfig.site.domain}/api/auth/refresh`, {
+      const response = await fetch(`https://${mockEnvConfig.site.domain}/api/tokens/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: authData.refresh_token })
@@ -84,7 +84,7 @@ describe('MCP OAuth Flow Integration', () => {
 
       // Verify the API was called correctly
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://test.semiont.com/api/auth/refresh',
+        'https://test.semiont.com/api/tokens/refresh',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ refresh_token: 'test-refresh-token' })
@@ -113,7 +113,7 @@ describe('MCP OAuth Flow Integration', () => {
       });
 
       // Try to refresh expired token
-      const response = await fetch('https://test.semiont.com/api/auth/refresh', {
+      const response = await fetch('https://test.semiont.com/api/tokens/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: authData.refresh_token })

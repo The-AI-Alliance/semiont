@@ -498,7 +498,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
         
         // Get fresh access token from backend
-        const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+        const response = await fetch(`${apiUrl}/api/tokens/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: authData.refresh_token })
