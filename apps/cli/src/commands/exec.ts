@@ -228,6 +228,57 @@ async function execInContainerService(serviceInfo: ServiceDeploymentInfo, option
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment!}`;
   
   try {
+    // Special handling for filesystem service
+    if (serviceInfo.name === 'filesystem') {
+      const volumeName = `semiont-filesystem-${options.environment}`;
+      printInfo(`Accessing filesystem volume via temporary container: ${volumeName}`);
+      
+      // Run a temporary busybox container with the volume mounted
+      const { spawn } = await import('child_process');
+      const dockerArgs = [
+        'run', '--rm', '-it',
+        '-v', `${volumeName}:/data`,
+        '-w', '/data',
+        'busybox',
+        options.command || 'sh'
+      ];
+      
+      const proc = spawn('docker', dockerArgs, {
+        stdio: 'inherit'
+      });
+      
+      const exitCode = await new Promise<number>((resolve, reject) => {
+        proc.on('close', (code) => {
+          resolve(code || 0);
+        });
+        proc.on('error', (err) => {
+          printError(`Failed to run temporary container: ${err.message}`);
+          reject(err);
+        });
+      });
+      
+      return {
+        ...baseResult,
+        command: options.command || 'sh',
+        exitCode,
+        output: '',
+        interactive: true,
+        executionTime: Date.now() - startTime,
+        resourceId: {
+          container: {
+            name: volumeName
+          }
+        } as ResourceIdentifier,
+        status: exitCode === 0 ? 'success' : 'failed',
+        metadata: {
+          volumeName,
+          containerImage: 'busybox',
+          workingDir: '/data'
+        }
+      };
+    }
+    
+    // Regular container exec for other services
     printInfo(`Executing in container: ${containerName}`);
     
     const success = await execInContainer(containerName, [options.command], {

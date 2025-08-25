@@ -27,7 +27,7 @@ const PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 const TestOptionsSchema = z.object({
   environment: z.string().optional(),
-  suite: z.enum(['all', 'integration', 'e2e', 'health', 'security', 'connectivity']).default('all'),
+  suite: z.enum(['all', 'integration', 'e2e', 'health', 'security', 'connectivity', 'unit', 'component']).default('all'),
   coverage: z.boolean().default(false),
   parallel: z.boolean().default(false),
   timeout: z.number().int().positive().default(300), // 5 minutes
@@ -35,6 +35,8 @@ const TestOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
+  pattern: z.string().optional(), // Test file pattern (e.g., "Header", "auth")
+  watch: z.boolean().default(false), // Watch mode for tests
 });
 
 type TestOptions = z.infer<typeof TestOptionsSchema> & BaseCommandOptions;
@@ -232,6 +234,23 @@ async function testContainerService(serviceInfo: ServiceDeploymentInfo, suite: s
       }
       return true;
       
+    case 'unit':
+      if (serviceInfo.name === 'frontend' || serviceInfo.name === 'backend') {
+        // For containers, we can exec into them to run tests
+        printInfo(`Unit tests in containers require exec access`);
+        return await runUnitTestsForService(serviceInfo, options);
+      }
+      printInfo(`Unit tests not applicable for ${serviceInfo.name}`);
+      return true;
+      
+    case 'component':
+      if (serviceInfo.name === 'frontend') {
+        printInfo(`Component tests in containers require exec access`);
+        return await runComponentTestsForService(serviceInfo, options);
+      }
+      printInfo(`Component tests not applicable for ${serviceInfo.name}`);
+      return true;
+      
     default:
       return true;
   }
@@ -282,6 +301,20 @@ async function testProcessService(serviceInfo: ServiceDeploymentInfo, suite: str
       if (serviceInfo.name === 'frontend' || serviceInfo.name === 'backend') {
         return await runE2ETestsForService(serviceInfo, options);
       }
+      return true;
+      
+    case 'unit':
+      if (serviceInfo.name === 'frontend' || serviceInfo.name === 'backend') {
+        return await runUnitTestsForService(serviceInfo, options);
+      }
+      printInfo(`Unit tests not applicable for ${serviceInfo.name}`);
+      return true;
+      
+    case 'component':
+      if (serviceInfo.name === 'frontend') {
+        return await runComponentTestsForService(serviceInfo, options);
+      }
+      printInfo(`Component tests not applicable for ${serviceInfo.name}`);
       return true;
       
     default:
@@ -669,6 +702,75 @@ async function runE2ETestsForService(serviceInfo: ServiceDeploymentInfo, options
   }
 }
 
+async function runUnitTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+  printInfo(`Running unit tests for ${serviceInfo.name}`);
+  
+  const servicePath = `${PROJECT_ROOT}/apps/${serviceInfo.name}`;
+  
+  // Build test command args based on service and options
+  const testArgs = ['run', 'test'];
+  
+  // Add pattern if specified
+  if (options.pattern) {
+    testArgs.push('--', options.pattern);
+  }
+  
+  // Add coverage flag
+  if (options.coverage) {
+    testArgs.push('--coverage');
+  }
+  
+  // Add watch mode
+  if (options.watch) {
+    testArgs.push('--watch');
+  }
+  
+  const success = await runCommand('npm', testArgs, servicePath, options);
+  
+  if (success) {
+    printSuccess(`Unit tests passed for ${serviceInfo.name}`);
+  } else {
+    printError(`Unit tests failed for ${serviceInfo.name}`);
+  }
+  
+  return success;
+}
+
+async function runComponentTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+  if (serviceInfo.name !== 'frontend') {
+    printInfo(`Component tests not applicable for ${serviceInfo.name}`);
+    return true;
+  }
+  
+  printInfo(`Running component tests for ${serviceInfo.name}`);
+  
+  const servicePath = `${PROJECT_ROOT}/apps/${serviceInfo.name}`;
+  
+  // Build test command for component tests
+  const testArgs = ['run', 'test'];
+  
+  // Add component test pattern
+  if (options.pattern) {
+    testArgs.push('--', `**/*${options.pattern}*.test.tsx`);
+  } else {
+    testArgs.push('--', '**/*.test.tsx');
+  }
+  
+  // Add coverage for component tests
+  if (options.coverage) {
+    testArgs.push('--coverage', '--collectCoverageFrom=src/components/**/*.{ts,tsx}');
+  }
+  
+  const success = await runCommand('npm', testArgs, servicePath, options);
+  
+  if (success) {
+    printSuccess(`Component tests passed for ${serviceInfo.name}`);
+  } else {
+    printError(`Component tests failed for ${serviceInfo.name}`);
+  }
+  
+  return success;
+}
 
 
 // =====================================================================
