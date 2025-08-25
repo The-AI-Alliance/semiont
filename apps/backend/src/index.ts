@@ -163,6 +163,7 @@ app.get('/api/swagger', docsAuthMiddleware, (c) => {
 const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
   '/api/auth/google',     // OAuth login initiation
+  '/api/auth/refresh',    // Token refresh endpoint (uses refresh token for auth)
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
 ];
 
@@ -344,18 +345,24 @@ app.post('/api/auth/mcp-generate-token', authMiddleware, async (c) => {
 
 // Refresh token endpoint for MCP - exchanges refresh token for access token
 app.post('/api/auth/refresh', async (c) => {
+  console.log('Refresh endpoint hit');
   const body = await c.req.json();
   const { refresh_token } = body;
   
   if (!refresh_token) {
+    console.log('Refresh endpoint: No refresh token provided');
     return c.json<ErrorResponse>({ error: 'Refresh token required' }, 400);
   }
+  
+  console.log('Refresh endpoint: Attempting to verify token');
   
   try {
     // Verify refresh token
     const payload = JWTService.verifyToken(refresh_token);
+    console.log('Refresh endpoint: Token verified, userId:', payload.userId);
     
     if (!payload.userId) {
+      console.log('Refresh endpoint: No userId in token payload');
       return c.json<ErrorResponse>({ error: 'Invalid token payload' }, 401);
     }
     
@@ -384,7 +391,8 @@ app.post('/api/auth/refresh', async (c) => {
     
     return c.json({ access_token: accessToken });
   } catch (error: any) {
-    console.error('Token refresh error:', error);
+    console.error('Token refresh error:', error.message || error);
+    console.error('Error stack:', error.stack);
     
     // Provide specific error messages for different failure modes
     if (error.message?.includes('expired')) {
