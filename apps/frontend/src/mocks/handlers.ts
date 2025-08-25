@@ -43,7 +43,7 @@ const handlers = [
   }),
 
   // Authentication endpoints
-  http.post('*/api/auth/google', () => {
+  http.post('*/api/tokens/google', () => {
     return HttpResponse.json({
       token: 'mock-jwt-token',
       user: mockUser,
@@ -51,7 +51,7 @@ const handlers = [
     })
   }),
 
-  http.get('*/api/auth/me', ({ request }) => {
+  http.get('*/api/users/me', ({ request }) => {
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return HttpResponse.json(
@@ -66,7 +66,7 @@ const handlers = [
     })
   }),
 
-  http.post('*/api/auth/accept-terms', ({ request }) => {
+  http.post('*/api/users/accept-terms', ({ request }) => {
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return HttpResponse.json(
@@ -216,14 +216,14 @@ const errorHandlers = [
     )
   }),
 
-  http.get('*/api/auth/me', () => {
+  http.get('*/api/users/me', () => {
     return HttpResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
   }),
 
-  http.post('*/api/auth/accept-terms', () => {
+  http.post('*/api/users/accept-terms', () => {
     return HttpResponse.json(
       { success: false, error: 'Failed to save terms acceptance' },
       { status: 500 }

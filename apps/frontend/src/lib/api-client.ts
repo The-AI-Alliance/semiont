@@ -243,13 +243,13 @@ export const apiService = {
   // Auth endpoints
   auth: {
     google: (access_token: string): Promise<AuthResponse> =>
-      apiClient.post('/api/auth/google', { body: { access_token } }),
+      apiClient.post('/api/tokens/google', { body: { access_token } }),
     
     me: (): Promise<UserResponse> =>
-      apiClient.get('/api/auth/me'),
+      apiClient.get('/api/users/me'),
     
     logout: (): Promise<LogoutResponse> =>
-      apiClient.post('/api/auth/logout'),
+      apiClient.post('/api/users/logout'),
   },
 
   // Health endpoints
