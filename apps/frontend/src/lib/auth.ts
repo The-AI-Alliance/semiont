@@ -2,6 +2,11 @@ import GoogleProvider from 'next-auth/providers/google';
 import { JWTTokenSchema, OAuthUserSchema, validateData } from '@/lib/validation';
 import type { NextAuthOptions } from 'next-auth';
 
+// Override the callback URL since NextAuth v4 doesn't properly detect its new location
+const callbackUrl = process.env.NODE_ENV === 'production' 
+  ? `${process.env.NEXTAUTH_URL}/auth/callback/google`
+  : 'http://localhost:3000/auth/callback/google';
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -9,6 +14,11 @@ export const authOptions: NextAuthOptions = {
       // For local dev, these can be set as environment variables
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          redirect_uri: callbackUrl,
+        },
+      },
     }),
   ],
   callbacks: {
