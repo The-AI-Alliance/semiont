@@ -173,6 +173,11 @@ export async function executeCommand(
     const parser = createArgParser(command);
     const options = parser(argv);
     
+    // Suppress preamble for MCP service to ensure clean JSON-RPC communication
+    if (commandName === 'start' && options.service === 'mcp') {
+      options.quiet = true;
+    }
+    
     // Print preamble for summary output (before any command output)
     printPreamble(options);
     

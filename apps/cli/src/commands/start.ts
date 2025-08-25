@@ -517,6 +517,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           throw new Error('MCP server not built. Run: npm run build -w packages/mcp-server');
         }
         
+        // Spawn MCP server
         const mcpProc = spawn('node', [mcpServerPath], {
           stdio: 'inherit',
           env: {
@@ -526,11 +527,29 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           }
         });
         
-        if (!options.quiet) {
-          printSuccess(`MCP server started (PID: ${mcpProc.pid})`);
-          printInfo(`API URL: ${apiUrl}`);
-          debugLog(`Using auth from: ${authPath}`, options);
+        // Handle errors
+        mcpProc.on('error', (err) => {
+          if (!options.quiet) {
+            console.error('Failed to start MCP server:', err);
+          }
+          process.exit(1);
+        });
+        
+        if (options.quiet) {
+          // MCP server takes over stdio completely
+          // Wait for it to exit
+          mcpProc.on('exit', (code) => {
+            process.exit(code || 0);
+          });
+          
+          // Return a promise that never resolves (will exit via process.exit above)
+          return new Promise(() => {});
         }
+        
+        // Normal non-quiet mode
+        printSuccess(`MCP server started (PID: ${mcpProc.pid})`);
+        printInfo(`API URL: ${apiUrl}`);
+        debugLog(`Using auth from: ${authPath}`, options);
         
         return {
           ...baseResult,
@@ -661,7 +680,7 @@ export async function start(
   // const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
-    if (!isStructuredOutput && options.output === 'summary') {
+    if (!isStructuredOutput && options.output === 'summary' && !options.quiet) {
       printInfo(`Starting services in ${colors.bright}${environment}${colors.reset} environment`);
     }
     

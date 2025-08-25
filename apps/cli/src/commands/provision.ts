@@ -1305,7 +1305,7 @@ async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<str
     
     server.listen(port, () => {
       printInfo('Opening browser for authentication...');
-      const authUrl = `https://${envConfig.site.domain}/api/auth/mcp-setup?callback=http://localhost:${port}/callback`;
+      const authUrl = `https://${envConfig.site.domain}/auth/mcp-setup?callback=http://localhost:${port}/callback`;
       
       // Open browser using platform-specific command
       const platform = process.platform;

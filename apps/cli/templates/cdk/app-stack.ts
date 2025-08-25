@@ -474,38 +474,13 @@ export class SemiontAppStack extends cdk.Stack {
       certificates: [certificate],
     });
 
-    // Backend OAuth endpoints (HIGHEST PRIORITY - most specific)
-    httpsListener.addTargets('BackendOAuth', {
-      port: 4000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [backendService],
-      conditions: [
-        elbv2.ListenerCondition.pathPatterns([
-          '/api/auth/google', 
-          '/api/auth/me', 
-          '/api/auth/logout',
-          '/api/auth/mcp-generate-token',   // MCP token generation endpoint
-          '/api/auth/refresh'                // Token refresh endpoint
-        ]),
-      ],
-      healthCheck: {
-        path: '/api/health',
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        healthyThresholdCount: 2,
-        unhealthyThresholdCount: 5,
-        healthyHttpCodes: '200',
-      },
-      priority: 10,
-    });
-
-    // NextAuth.js routes (catches remaining /api/auth/* paths)
+    // NextAuth routes (Priority 10: /auth/* -> Frontend)
     httpsListener.addTargets('NextAuth', {
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [frontendService],
       conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/api/auth/*']),
+        elbv2.ListenerCondition.pathPatterns(['/auth/*']),
       ],
       healthCheck: {
         path: '/',
@@ -515,10 +490,10 @@ export class SemiontAppStack extends cdk.Stack {
         unhealthyThresholdCount: 5,
         healthyHttpCodes: '200',
       },
-      priority: 20,
+      priority: 10,
     });
 
-    // Backend API target group (LOWEST PRIORITY - catch-all for /api/*)
+    // Backend API (Priority 20: /api/* -> Backend)
     httpsListener.addTargets('BackendAPI', {
       port: 4000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -537,7 +512,7 @@ export class SemiontAppStack extends cdk.Stack {
         unhealthyThresholdCount: 5,
         healthyHttpCodes: '200',
       },
-      priority: 30,
+      priority: 20,
     });
 
     // Frontend target group (default action for all other paths)
@@ -686,7 +661,7 @@ export class SemiontAppStack extends cdk.Stack {
               statements: [
                 {
                   byteMatchStatement: {
-                    searchString: '/api/auth/mcp-setup',
+                    searchString: '/auth/mcp-setup',
                     fieldToMatch: { uriPath: {} },
                     textTransformations: [{ priority: 0, type: 'LOWERCASE' }],
                     positionalConstraint: 'STARTS_WITH'
