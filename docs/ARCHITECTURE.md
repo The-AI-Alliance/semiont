@@ -103,9 +103,10 @@ Browser ↔ Frontend (Next.js) ↔ ALB ↔ Backend (Hono) ↔ PostgreSQL
 ```
 
 1. **Browser to Frontend**: Direct HTTPS connection via CloudFront/ALB
-2. **Frontend to Backend**: Internal ALB routing based on path patterns:
-   - `/api/auth/*` → Frontend (NextAuth.js)
-   - `/api/health`, `/api/status`, `/trpc/*` → Backend (Hono API)
+2. **Frontend to Backend**: Simplified ALB routing with clear separation:
+   - `/auth/*` → Frontend (NextAuth.js OAuth flows)
+   - `/api/*` → Backend (All API endpoints)
+   - `/*` → Frontend (Default - UI and static assets)
 3. **Backend to Database**: Direct connection via VPC private networking
 
 ## AWS Services Used
@@ -141,22 +142,24 @@ Browser ↔ Frontend (Next.js) ↔ ALB ↔ Backend (Hono) ↔ PostgreSQL
 
 ## Key Design Decisions
 
-### 1. **Microservices with ALB Routing**
-Instead of a monolithic application, we use separate frontend and backend services with intelligent ALB routing:
+### 1. **Simplified ALB Routing Architecture**
+We use a clean 3-rule routing pattern that eliminates path conflicts:
 
 ```typescript
-// NextAuth.js routes to frontend
-ListenerCondition.pathPatterns(['/api/auth/*'])
+// Priority 10: OAuth flows handled by frontend
+ListenerCondition.pathPatterns(['/auth/*'])
 
-// API routes to backend  
-ListenerCondition.pathPatterns(['/api/health', '/trpc/*'])
+// Priority 20: All API calls go to backend
+ListenerCondition.pathPatterns(['/api', '/api/*'])
+
+// Default: Everything else to frontend
 ```
 
 **Benefits**:
-- Independent scaling of frontend and backend
-- Technology flexibility (different Node.js versions, frameworks)
-- Easier debugging and maintenance
-- Better resource utilization
+- **No path conflicts**: NextAuth at `/auth/*` doesn't intercept backend `/api/auth/*` routes
+- **Clear separation**: Frontend handles OAuth, backend handles all API logic
+- **Simple mental model**: Easy to understand routing rules
+- **Independent scaling**: Frontend and backend scale separately
 
 ### 2. **Hono Over Express**
 We chose Hono web framework over traditional Express.js:
@@ -222,6 +225,31 @@ The platform implements a **secure-by-default** authentication model for API acc
    ↓
 6. Backend validates JWT on each request
 ```
+
+#### MCP Authentication Architecture
+
+The platform provides special authentication support for Model Context Protocol (MCP) clients:
+
+**Frontend MCP Bridge** (`/auth/mcp-setup`):
+- Handles browser-based OAuth flow for MCP clients
+- Uses NextAuth session cookies for authentication
+- Calls backend to generate long-lived refresh tokens
+- Redirects to MCP client callback with token
+
+**Backend Token Management**:
+- `POST /api/auth/mcp-generate-token`: Issues 30-day refresh tokens for MCP clients
+- `POST /api/auth/refresh`: Exchanges refresh tokens for 1-hour access tokens
+
+**Token Lifecycle**:
+1. MCP client opens browser to `/auth/mcp-setup?callback=<url>`
+2. Frontend authenticates user via NextAuth (Google OAuth)
+3. Frontend calls backend's `/api/auth/mcp-generate-token` with session token
+4. Backend generates 30-day refresh token
+5. Frontend redirects to callback URL with refresh token
+6. MCP client stores refresh token locally
+7. MCP client exchanges refresh token for access tokens as needed
+
+This architecture bridges the gap between browser-based authentication (cookies) and API-based authentication (JWT tokens), enabling secure MCP client integration.
 
 #### Public Endpoints
 

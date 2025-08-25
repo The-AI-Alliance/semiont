@@ -450,6 +450,20 @@ prisma/
 └── schema.prisma          # Database schema definition
 ```
 
+## API Routing Architecture
+
+The backend handles ALL `/api/*` routes. This clean separation from the frontend (which handles `/auth/*` for OAuth flows) eliminates routing conflicts:
+
+- **Backend owns**: `/api/*` - All API endpoints including `/api/auth/google`, `/api/auth/refresh`, etc.
+- **Frontend owns**: `/auth/*` - NextAuth.js OAuth flows
+- **ALB routing**: Simple 3-rule pattern (Priority 10: `/auth/*` → Frontend, Priority 20: `/api/*` → Backend, Default → Frontend)
+
+This architecture ensures:
+- No path conflicts between NextAuth and backend auth routes
+- Clear ownership of endpoints
+- Simple debugging (all API calls go to backend)
+- Easy to add new API endpoints without routing concerns
+
 ## Core Design Decisions
 
 ### 1. Type Safety First
@@ -902,7 +916,7 @@ Special endpoints for Model Context Protocol (MCP) authentication:
 - `POST /api/auth/mcp-generate-token` - Generate a 30-day refresh token for MCP clients
   - Requires valid JWT access token in Authorization header
   - Returns a refresh token that can be used by MCP clients
-  - Called internally by frontend's `/api/auth/mcp-setup` endpoint
+  - Called internally by frontend's `/auth/mcp-setup` endpoint
 
 - `POST /api/auth/refresh` - Exchange refresh token for new access token
   - Accepts refresh token in request body

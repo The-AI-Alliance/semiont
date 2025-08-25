@@ -200,9 +200,9 @@ The mock server (`npm run dev:mock`) provides:
 ```
 src/
 ├── app/                    # Next.js 14 App Router
-│   ├── api/               # API routes (NextAuth.js)
-│   │   └── auth/          # Authentication endpoints
-│   ├── auth/              # Authentication pages
+│   ├── auth/              # Authentication routes
+│   │   ├── [...nextauth]/ # NextAuth.js OAuth handlers
+│   │   ├── mcp-setup/     # MCP client authentication bridge
 │   │   ├── error/         # OAuth error handling
 │   │   └── signin/        # Custom sign-in page
 │   ├── globals.css        # Global styles and Tailwind imports
@@ -715,7 +715,7 @@ src/
 #### 🌐 API Tests
 ```
 src/
-└── app/api/
+└── app/
     ├── auth/[...nextauth]/__tests__/     # NextAuth.js route tests
     ├── cookies/consent/__tests__/        # Cookie consent API tests
     └── cookies/export/__tests__/         # Data export API tests
@@ -980,12 +980,12 @@ export function DataComponent() {
 
 The frontend provides a special authentication bridge for Model Context Protocol (MCP) clients:
 
-- `GET /api/auth/mcp-setup?callback=<url>` - OAuth flow for MCP clients
+- `GET /auth/mcp-setup?callback=<url>` - OAuth flow for MCP clients
   - Handles browser-based authentication using NextAuth session cookies
   - If user is not authenticated, redirects to Google OAuth sign-in
   - Once authenticated, calls backend to generate a 30-day refresh token
   - Redirects to callback URL with the refresh token as a query parameter
-  - Used MCP clients for initial authentication
+  - Used by MCP clients for initial authentication
 
 This endpoint bridges the gap between browser-based OAuth (which uses cookies) and API-based authentication (which uses JWT tokens), allowing MCP clients to obtain valid tokens through a browser flow.
 

@@ -29,6 +29,51 @@ npm link                    # Install globally
 semiont --help
 ```
 
+## Common Options
+
+All commands support these common options:
+
+- **Environment**: `<environment>` (positional) or `--environment <env>` - Target environment 
+- **Service Selection**: `-s, --service <service>` - Target specific service(s) (default: "all")
+- **Safety**: `--dry-run` - Preview changes without applying (comprehensive support)
+- **Output**: `-v, --verbose` - Show detailed output and debug information
+- **Help**: `-h, --help` - Show help for the command
+
+### Dry-Run Support
+
+All commands have comprehensive `--dry-run` support with two levels:
+
+1. **Overview Level**: Shows which services would be affected
+2. **Detail Level**: Shows specific actions that would be taken for each service
+
+```bash
+# Example dry-run output
+$ semiont start production --dry-run
+ℹ️  Starting services in production environment
+ℹ️  [DRY RUN] Would start the following services:
+  - frontend (aws)
+  - backend (aws)  
+  - database (aws)
+  - filesystem (aws)
+```
+
+### Service Selection
+
+Flexible service targeting:
+- `all` - All services in the environment (default)
+- `frontend` - Just the frontend service
+- `backend` - Just the backend service
+- `database` - Just the database service
+- `filesystem` - Just the filesystem service
+- Service combinations and patterns (future extension)
+
+### Environment Agnostic
+
+No special treatment of environment names:
+- `local`, `development`, `staging`, `production` are all treated equally
+- Behavior is determined by each service's **deployment type**, not environment name
+- Same commands work across all environments with appropriate adaptations
+
 ## Architecture
 
 ### Directory Structure
@@ -424,14 +469,17 @@ This table shows the **actual implemented actions** each command takes for each 
 | | backend | Start ECS service | Start container with image | Start npm/node process | Verify external endpoint |
 | | database | Start RDS instance | Start postgres container | Start PostgreSQL service | Verify external connection |
 | | filesystem | Mount EFS volumes | Create container volumes | Create local directories | Verify external mount |
+| | mcp | N/A | N/A | Refresh token & start MCP server | N/A |
 | **stop** | frontend | Stop ECS tasks | Stop container | Kill process on port | Note external service |
 | | backend | Stop ECS tasks | Stop container | Kill process on port | Note external service |
 | | database | Stop RDS instance | Stop container | Stop PostgreSQL service | Note external service |
 | | filesystem | Unmount EFS | Remove volumes | No action needed | Note external service |
+| | mcp | N/A | N/A | Kill MCP server process | N/A |
 | **restart** | frontend | Force ECS rolling update (zero downtime) | Stop + start container (picks up env changes) | Kill + restart process (picks up code/env) | Not applicable |
 | | backend | Force ECS rolling update (zero downtime) | Stop + start container (picks up env changes) | Kill + restart process (picks up code/env) | Not applicable |
 | | database | Not implemented (use AWS Console) | Stop + start container | Not implemented | Not applicable |
 | | filesystem | Not implemented | Not applicable | Not applicable | Not applicable |
+| | mcp | N/A | N/A | Stop + start MCP server | N/A |
 
 ### Infrastructure & Configuration
 
@@ -441,10 +489,12 @@ This table shows the **actual implemented actions** each command takes for each 
 | | backend | Create ECS service + ALB | Create container networks | Install dependencies | Validate external config |
 | | database | Create RDS instance | Pull postgres image, create volume | Install PostgreSQL locally | Validate external connection |
 | | filesystem | Create EFS mount | Create named volumes | Create local directories | Validate external paths |
+| | mcp | N/A | N/A | OAuth setup & store refresh token | N/A |
 | **configure** | frontend | Update ECS environment | Update container env vars | Update .env files | Note external config |
 | | backend | Update ECS environment | Update container env vars | Update .env files | Note external config |
 | | database | Update RDS parameters | Update container env vars | Update PostgreSQL config | Note external config |
 | | filesystem | Configure EFS permissions | Set volume permissions | Set directory permissions | Note external access |
+| | mcp | N/A | N/A | Update auth tokens | N/A |
 
 ### Development & Deployment
 
@@ -487,10 +537,12 @@ For AWS deployments, both commands use the same ECS update mechanism but with di
 | | backend | Query ECS service status | Check container health + HTTP | Check process on port + HTTP | HTTP health check |
 | | database | Check RDS status | Check container health | Check PostgreSQL service | Test database connection |
 | | filesystem | Check EFS mount status | Check volume mounts | Check directory access | Check external storage |
+| | mcp | N/A | N/A | Check MCP server status | N/A |
 | **watch** | frontend | Stream CloudWatch logs | Stream container logs | Tail log files | Monitor external endpoint |
 | | backend | Stream CloudWatch logs | Stream container logs | Tail log files | Monitor external endpoint |
 | | database | Stream RDS logs | Stream container logs | Tail PostgreSQL logs | Monitor external database |
 | | filesystem | Monitor CloudWatch metrics | Monitor volume usage | Monitor disk usage | Monitor external storage |
+| | mcp | N/A | N/A | Stream MCP server logs | N/A |
 | **test** | frontend | AWS integration tests | Container-based tests | Local process tests | External API tests |
 | | backend | AWS integration tests | Container-based tests | Local process tests | External API tests |
 | | database | RDS connection tests | Container database tests | Local database tests | External database tests |
@@ -510,50 +562,70 @@ For AWS deployments, both commands use the same ECS update mechanism but with di
 | | database | Create RDS snapshot | Container database dump | Local pg_dump | Note external backup |
 | | filesystem | EFS automatically backed up | Volume archive/snapshot | Local directory backup | Note external backup |
 
-## Common Options
+## MCP (Model Context Protocol) Server
 
-All commands support these common options:
+The Semiont CLI includes built-in support for MCP, allowing AI assistants to interact with Semiont APIs.
 
-- **Environment**: `<environment>` (positional) or `--environment <env>` - Target environment 
-- **Service Selection**: `-s, --service <service>` - Target specific service(s) (default: "all")
-- **Safety**: `--dry-run` - Preview changes without applying (comprehensive support)
-- **Output**: `-v, --verbose` - Show detailed output and debug information
-- **Help**: `-h, --help` - Show help for the command
+### MCP Setup
 
-### Dry-Run Support
-
-All commands have comprehensive `--dry-run` support with two levels:
-
-1. **Overview Level**: Shows which services would be affected
-2. **Detail Level**: Shows specific actions that would be taken for each service
+MCP requires one-time OAuth provisioning per environment:
 
 ```bash
-# Example dry-run output
-$ semiont start production --dry-run
-ℹ️  Starting services in production environment
-ℹ️  [DRY RUN] Would start the following services:
-  - frontend (aws)
-  - backend (aws)  
-  - database (aws)
-  - filesystem (aws)
+# Provision MCP for production environment
+semiont provision --service mcp --environment production
+
+# This will:
+# 1. Open your browser for OAuth authentication
+# 2. Store refresh token in ~/.config/semiont/mcp-auth-production.json
+# 3. Display AI application configuration
 ```
 
-### Service Selection
+### Starting MCP Server
 
-Flexible service targeting:
-- `all` - All services in the environment (default)
-- `frontend` - Just the frontend service
-- `backend` - Just the backend service
-- `database` - Just the database service
-- `filesystem` - Just the filesystem service
-- Service combinations and patterns (future extension)
+After provisioning, the MCP server can be started:
 
-### Environment Agnostic
+```bash
+# Start MCP server for production
+semiont start --service mcp --environment production
 
-No special treatment of environment names:
-- `local`, `development`, `staging`, `production` are all treated equally
-- Behavior is determined by each service's **deployment type**, not environment name
-- Same commands work across all environments with appropriate adaptations
+# Or with environment variable
+SEMIONT_ENV=production semiont start --service mcp
+```
+
+### AI Application Configuration
+
+After provisioning, add this configuration to your AI application:
+
+```json
+{
+  "semiont": {
+    "command": "semiont",
+    "args": ["start", "--service", "mcp"],
+    "env": {
+      "SEMIONT_ROOT": "/path/to/semiont",
+      "SEMIONT_ENV": "production"
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+The MCP server currently provides:
+- `semiont_hello` - Get a personalized greeting from Semiont API
+
+### Authentication Flow
+
+1. **Initial Setup**: Browser-based OAuth during `provision` command
+2. **Refresh Tokens**: Stored locally, valid for 30 days
+3. **Access Tokens**: Automatically refreshed on startup, valid for 1 hour
+4. **Unattended Operation**: No user interaction required after initial setup
+
+### Troubleshooting MCP
+
+- **Authentication Failed**: Re-run `semiont provision --service mcp --environment <env>`
+- **Token Expired**: Refresh tokens expire after 30 days, re-provision if needed
+- **Server Won't Start**: Check that the environment was provisioned first
 
 ## Development
 
