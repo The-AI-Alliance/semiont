@@ -30,7 +30,7 @@
     "dotenv": "^16.3.1",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^3.22.4"
+    "zod": "^4.1.1"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",
