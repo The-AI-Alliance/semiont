@@ -84,7 +84,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       
       // Mock API response for terms not yet accepted
       server.use(
-        http.get('*/api/auth/me', () => {
+        http.get('*/api/users/me', () => {
           return HttpResponse.json({
             id: 'newuser123',
             email: 'jane@example.com',
@@ -176,7 +176,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       
       // Mock API response for terms already accepted
       server.use(
-        http.get('*/api/auth/me', () => {
+        http.get('*/api/users/me', () => {
           return HttpResponse.json({
             id: 'accepteduser123',
             email: 'accepted@example.com',
@@ -240,7 +240,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       
       // Mock API failure for terms acceptance
       server.use(
-        http.post('*/api/auth/accept-terms', () => {
+        http.post('*/api/users/accept-terms', () => {
           return new HttpResponse(null, { status: 500 });
         })
       );

@@ -9,10 +9,10 @@ import Link from 'next/link';
 function SignInContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/';
 
   useEffect(() => {
-    const errorParam = searchParams.get('error');
+    const errorParam = searchParams?.get('error');
     if (errorParam) {
       switch (errorParam) {
         case 'Signin':

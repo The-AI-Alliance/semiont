@@ -174,8 +174,8 @@ export function writeTestConfigs(
     JSON.stringify(semiontJson, null, 2)
   );
   
-  // Create config/environments directory
-  const envDir = path.join(dir, 'config', 'environments');
+  // Create environments directory
+  const envDir = path.join(dir, 'environments');
   fs.mkdirSync(envDir, { recursive: true });
   
   // Write environment configs

@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
@@ -486,7 +487,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       const apiUrl = `https://${envConfig.site.domain}`;
       
       // Check for provisioned auth
-      const authPath = path.join(require('os').homedir(), '.config', 'semiont', `mcp-auth-${mcpEnvironment}.json`);
+      const authPath = path.join(os.homedir(), '.config', 'semiont', `mcp-auth-${mcpEnvironment}.json`);
       
       if (!fs.existsSync(authPath)) {
         throw new Error(`MCP not provisioned for ${mcpEnvironment}. Run: semiont provision --service mcp --environment ${mcpEnvironment}`);
@@ -497,7 +498,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
         
         // Get fresh access token from backend
-        const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+        const response = await fetch(`${apiUrl}/api/tokens/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: authData.refresh_token })
@@ -516,6 +517,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           throw new Error('MCP server not built. Run: npm run build -w packages/mcp-server');
         }
         
+        // Spawn MCP server
         const mcpProc = spawn('node', [mcpServerPath], {
           stdio: 'inherit',
           env: {
@@ -525,11 +527,29 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           }
         });
         
-        if (!options.quiet) {
-          printSuccess(`MCP server started (PID: ${mcpProc.pid})`);
-          printInfo(`API URL: ${apiUrl}`);
-          debugLog(`Using auth from: ${authPath}`, options);
+        // Handle errors
+        mcpProc.on('error', (err) => {
+          if (!options.quiet) {
+            console.error('Failed to start MCP server:', err);
+          }
+          process.exit(1);
+        });
+        
+        if (options.quiet) {
+          // MCP server takes over stdio completely
+          // Wait for it to exit
+          mcpProc.on('exit', (code) => {
+            process.exit(code || 0);
+          });
+          
+          // Return a promise that never resolves (will exit via process.exit above)
+          return new Promise(() => {});
         }
+        
+        // Normal non-quiet mode
+        printSuccess(`MCP server started (PID: ${mcpProc.pid})`);
+        printInfo(`API URL: ${apiUrl}`);
+        debugLog(`Using auth from: ${authPath}`, options);
         
         return {
           ...baseResult,
@@ -660,7 +680,7 @@ export async function start(
   // const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
-    if (!isStructuredOutput && options.output === 'summary') {
+    if (!isStructuredOutput && options.output === 'summary' && !options.quiet) {
       printInfo(`Starting services in ${colors.bright}${environment}${colors.reset} environment`);
     }
     

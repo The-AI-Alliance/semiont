@@ -7,36 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-
-// Walk up from current directory to find project root
-function findProjectRoot(): string {
-  // Common project markers - look for any of these
-  const projectMarkers = ['semiont.json', 'environments', 'package.json', '.git'];
-  
-  let currentDir = process.cwd();
-  while (currentDir !== '/' && currentDir) {
-    for (const marker of projectMarkers) {
-      if (fs.existsSync(path.join(currentDir, marker))) {
-        // For semiont.json, this is definitely the right directory
-        if (marker === 'semiont.json') {
-          return currentDir;
-        }
-        // For environments directory (new or old structure), this is the right directory
-        if (marker === 'environments') {
-          return currentDir;
-        }
-        // For package.json and .git, check if environments exists
-        if (fs.existsSync(path.join(currentDir, 'environments'))) {
-          return currentDir;
-        }
-      }
-    }
-    currentDir = path.dirname(currentDir);
-  }
-  
-  // Fallback to current directory if not found
-  return process.cwd();
-}
+import { findProjectRoot } from './deployment-resolver.js';
 
 // Built-in services that are always available
 export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;
@@ -92,7 +63,7 @@ async function loadEnvironmentServices(environment: string): Promise<string[]> {
   } catch (error) {
     // If we can't load the environment config, return built-in services
     const PROJECT_ROOT = findProjectRoot();
-    const configPath = path.join(PROJECT_ROOT, 'config', 'environments', `${environment}.json`);
+    const configPath = path.join(PROJECT_ROOT, 'environments', `${environment}.json`);
     
     console.warn(`❌ Failed to load environment configuration for '${environment}'`);
     console.warn(`   Config file: ${configPath}`);
@@ -159,9 +130,9 @@ export async function getServicesWithCapability(
       );
     
     case 'provision':
-      // Infrastructure provisioning typically for database and filesystem
+      // Infrastructure provisioning for database, filesystem, and MCP OAuth
       return allServices.filter(service => 
-        service === 'database' || service === 'filesystem'
+        service === 'database' || service === 'filesystem' || service === 'mcp'
       );
     
     case 'start':
@@ -204,7 +175,7 @@ export async function resolveServiceSelector(
     }
   } else {
     const availableServices = await getAvailableServices(environment);
-    const configPath = path.join(findProjectRoot(), 'config', 'environments', `${environment || 'default'}.json`);
+    const configPath = path.join(findProjectRoot(), 'environments', `${environment || 'default'}.json`);
     
     const errorMessage = [
       `❌ Unknown service '${selector}' in environment '${environment}'`,

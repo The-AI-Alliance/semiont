@@ -3,16 +3,9 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { CookiePreferences } from '@/components/CookiePreferences';
-import { useAuth } from '@/hooks/useAuth';
 
 export function Footer() {
   const [showCookiePreferences, setShowCookiePreferences] = useState(false);
-  const { session, isFullyAuthenticated } = useAuth();
-
-  // Build API docs URL with auth token if available
-  const apiDocsUrl = isFullyAuthenticated && session?.backendToken 
-    ? `/api/docs?token=${session.backendToken}`
-    : null;
 
   return (
     <>
@@ -42,16 +35,14 @@ export function Footer() {
               >
                 Terms of Service
               </Link>
-              {apiDocsUrl && (
-                <a 
-                  href={apiDocsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  API Docs
-                </a>
-              )}
+              <a 
+                href="/api/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                API Docs
+              </a>
             </div>
           </div>
         </div>

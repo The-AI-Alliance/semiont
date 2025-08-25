@@ -79,7 +79,7 @@ describe('Welcome Page', () => {
     it('redirects to home if terms already accepted', async () => {
       // Override MSW handler to return terms already accepted
       server.use(
-        http.get('*/api/auth/me', () => {
+        http.get('*/api/users/me', () => {
           return HttpResponse.json({
             id: 'user123',
             email: 'test@example.com',
@@ -132,7 +132,7 @@ describe('Welcome Page', () => {
       
       // Override MSW handler to throw an error
       server.use(
-        http.get('*/api/auth/me', () => {
+        http.get('*/api/users/me', () => {
           throw new Error('Network error');
         })
       );
@@ -201,7 +201,7 @@ describe('Welcome Page', () => {
       
       // Override MSW handler to capture request
       server.use(
-        http.post('*/api/auth/accept-terms', async ({ request }) => {
+        http.post('*/api/users/accept-terms', async ({ request }) => {
           capturedRequest = request;
           return HttpResponse.json({
             success: true,
@@ -273,7 +273,7 @@ describe('Welcome Page', () => {
       
       // Override MSW handler to return error response
       server.use(
-        http.post('*/api/auth/accept-terms', () => {
+        http.post('*/api/users/accept-terms', () => {
           return new HttpResponse(null, { status: 500 });
         })
       );

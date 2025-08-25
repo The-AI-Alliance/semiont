@@ -162,7 +162,10 @@ app.get('/api/swagger', docsAuthMiddleware, (c) => {
 // Public endpoints - these don't require authentication
 const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
-  '/api/auth/google',     // OAuth login initiation
+  '/api/docs',            // API documentation (OpenAPI/Swagger)
+  '/api/auth/google',     // OAuth login initiation (keeping for compatibility)
+  '/api/tokens/google',   // New OAuth endpoint location
+  '/api/tokens/refresh',  // Token refresh endpoint (uses refresh token for auth)
   // '/api/auth/callback',   // OAuth callback (reserved for future backend OAuth flow)
 ];
 
@@ -224,6 +227,54 @@ app.get('/api/status', (c) => {
 });
 
 // OAuth endpoints
+// Duplicate at /api/tokens/google for new path structure
+app.post('/api/tokens/google', async (c) => {
+  try {
+    const body = await c.req.json();
+    
+    // Validate request body
+    const validation = validateData(GoogleAuthSchema, body);
+    if (!validation.success) {
+      return c.json<ErrorResponse>({ 
+        error: 'Invalid request body', 
+        details: validation.details 
+      }, 400);
+    }
+    
+    const { access_token } = validation.data as GoogleAuthRequest;
+
+    if (!access_token) {
+      return c.json<ErrorResponse>({
+        error: 'Missing access token'
+      }, 400);
+    }
+
+    // Verify Google token and get user info
+    const googleUser = await OAuthService.verifyGoogleToken(access_token);
+    
+    // Create or update user
+    const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+    
+    return c.json<AuthResponse>({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+        domain: user.domain,
+        isAdmin: user.isAdmin,
+      },
+      token,
+      isNewUser,
+    });
+  } catch (error: any) {
+    console.error('OAuth error:', error);
+    return c.json<ErrorResponse>({ error: error.message || 'Authentication failed' }, 400);
+  }
+});
+
+// Keep old endpoint for backward compatibility during transition
 app.post('/api/auth/google', async (c) => {
   try {
     const body = await c.req.json();
@@ -270,7 +321,7 @@ app.post('/api/auth/google', async (c) => {
   }
 });
 
-app.get('/api/auth/me', async (c) => {
+app.get('/api/users/me', async (c) => {
   const user = c.get('user'); // Auth already applied globally
   return c.json<UserResponse>({
     id: user.id,
@@ -287,14 +338,14 @@ app.get('/api/auth/me', async (c) => {
   });
 });
 
-app.post('/api/auth/logout', async (c) => {
+app.post('/api/users/logout', async (c) => {
   // Auth already applied globally
   // For stateless JWT, we just return success
   // The client should remove the token
   return c.json<LogoutResponse>({ success: true, message: 'Logged out successfully' });
 });
 
-app.post('/api/auth/accept-terms', async (c) => {
+app.post('/api/users/accept-terms', async (c) => {
   const user = c.get('user'); // Auth already applied globally
   
   try {
@@ -317,45 +368,53 @@ app.post('/api/auth/accept-terms', async (c) => {
 });
 
 // MCP refresh token endpoint - generates long-lived refresh token
-app.get('/api/auth/mcp-setup', authMiddleware, async (c) => {
+// This endpoint is called by the frontend after NextAuth authentication
+app.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
   const user = c.get('user');
-  const callbackUrl = c.req.query('callback');
-  
-  if (!callbackUrl) {
-    return c.json<ErrorResponse>({ error: 'Callback URL required' }, 400);
-  }
   
   try {
     // Generate long-lived refresh token (30 days)
-    const refreshToken = JWTService.generateToken({
+    const tokenPayload: any = {
       userId: user.id,
       email: user.email,
-      name: user.name || undefined,
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin
-    }, '30d'); // 30 day expiration for refresh tokens
+    };
+    if (user.name) {
+      tokenPayload.name = user.name;
+    }
+    const refreshToken = JWTService.generateToken(tokenPayload, '30d'); // 30 day expiration for refresh tokens
     
-    // Redirect to local CLI callback with token
-    return c.redirect(`${callbackUrl}?token=${refreshToken}`);
+    return c.json({ refresh_token: refreshToken });
   } catch (error: any) {
-    console.error('MCP setup error:', error);
+    console.error('MCP token generation error:', error);
     return c.json<ErrorResponse>({ error: 'Failed to generate refresh token' }, 500);
   }
 });
 
 // Refresh token endpoint for MCP - exchanges refresh token for access token
-app.post('/api/auth/refresh', async (c) => {
+app.post('/api/tokens/refresh', async (c) => {
+  console.log('Refresh endpoint hit');
   const body = await c.req.json();
   const { refresh_token } = body;
   
   if (!refresh_token) {
+    console.log('Refresh endpoint: No refresh token provided');
     return c.json<ErrorResponse>({ error: 'Refresh token required' }, 400);
   }
+  
+  console.log('Refresh endpoint: Attempting to verify token');
   
   try {
     // Verify refresh token
     const payload = JWTService.verifyToken(refresh_token);
+    console.log('Refresh endpoint: Token verified, userId:', payload.userId);
+    
+    if (!payload.userId) {
+      console.log('Refresh endpoint: No userId in token payload');
+      return c.json<ErrorResponse>({ error: 'Invalid token payload' }, 401);
+    }
     
     // Get user from database to ensure they still exist and are active
     const prisma = DatabaseConnection.getClient();
@@ -368,18 +427,22 @@ app.post('/api/auth/refresh', async (c) => {
     }
     
     // Generate new short-lived access token (1 hour)
-    const accessToken = JWTService.generateToken({
+    const accessTokenPayload: any = {
       userId: user.id,
       email: user.email,
-      name: user.name || undefined,
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin
-    }, '1h'); // 1 hour expiration for access tokens
+    };
+    if (user.name) {
+      accessTokenPayload.name = user.name;
+    }
+    const accessToken = JWTService.generateToken(accessTokenPayload, '1h'); // 1 hour expiration for access tokens
     
     return c.json({ access_token: accessToken });
   } catch (error: any) {
-    console.error('Token refresh error:', error);
+    console.error('Token refresh error:', error.message || error);
+    console.error('Error stack:', error.stack);
     
     // Provide specific error messages for different failure modes
     if (error.message?.includes('expired')) {

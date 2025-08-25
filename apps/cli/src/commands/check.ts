@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { getProjectRoot } from '../lib/cli-paths.js';
 import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
@@ -1092,7 +1093,7 @@ async function checkProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
     case 'mcp':
       // Check if MCP server is provisioned
-      const homedir = require('os').homedir();
+      const homedir = os.homedir();
       const authPath = path.join(homedir, '.config', 'semiont', `mcp-auth-${options.environment}.json`);
       
       try {

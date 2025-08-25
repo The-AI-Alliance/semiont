@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
-import { printDebug, printWarning } from '../lib/cli-logger.js';
+import { printDebug, printWarning, printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
@@ -911,29 +911,100 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
   switch (serviceInfo.name) {
     case 'database':
       if (!isStructuredOutput && options.output === 'summary') {
-        printInfo(`PostgreSQL service updates require manual intervention`);
-        printWarning('Use your system\'s package manager to update PostgreSQL');
+        printInfo(`Running database migrations for ${serviceInfo.name}`);
       }
       
-      return {
-        ...baseResult,
-        updateTime: new Date(),
-        previousVersion: 'postgres-local',
-        newVersion: 'postgres-local',
-        rollbackAvailable: true,
-        changesApplied: [],
-        resourceId: {
-          process: {
-            path: '/usr/local/var/postgres',
-            port: 5432
+      // Run Prisma migrations
+      try {
+        const migrationResult = await new Promise<boolean>((resolve) => {
+          const proc = spawn('npm', ['run', 'prisma:migrate'], {
+            cwd: `${process.cwd()}/apps/backend`,
+            stdio: options.verbose ? 'inherit' : 'pipe',
+            env: {
+              ...process.env,
+              DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont'
+            }
+          });
+          
+          let output = '';
+          let errorOutput = '';
+          
+          if (!options.verbose) {
+            proc.stdout?.on('data', (data) => {
+              output += data.toString();
+            });
+            
+            proc.stderr?.on('data', (data) => {
+              errorOutput += data.toString();
+            });
           }
-        },
-        status: 'not-applicable',
-        metadata: {
-          reason: 'PostgreSQL service updates require manual intervention',
-          service: 'postgresql'
-        },
-      };
+          
+          proc.on('exit', (code) => {
+            if (code === 0) {
+              if (!isStructuredOutput && options.output === 'summary') {
+                printDebug('Database migrations completed successfully', options as any);
+              }
+              resolve(true);
+            } else {
+              if (!options.verbose && errorOutput) {
+                console.error(errorOutput);
+              }
+              printWarning('Database migrations failed or not needed');
+              resolve(false);
+            }
+          });
+          
+          proc.on('error', (error) => {
+            printWarning(`Migration error: ${error.message}`);
+            resolve(false);
+          });
+        });
+        
+        const status = migrationResult ? 'updated' : 'migration-failed';
+        const changesApplied = migrationResult ? ['Database schema updated'] : [];
+        
+        return {
+          ...baseResult,
+          updateTime: new Date(),
+          previousVersion: 'current-schema',
+          newVersion: migrationResult ? 'updated-schema' : 'current-schema',
+          rollbackAvailable: true,
+          changesApplied,
+          resourceId: {
+            process: {
+              path: '/usr/local/var/postgres',
+              port: 5432
+            }
+          },
+          status,
+          metadata: {
+            migrationsRun: migrationResult,
+            service: 'postgresql'
+          },
+        };
+      } catch (error) {
+        printWarning(`Failed to run migrations: ${(error as Error).message}`);
+        
+        return {
+          ...baseResult,
+          updateTime: new Date(),
+          previousVersion: 'current-schema',
+          newVersion: 'current-schema',
+          rollbackAvailable: false,
+          changesApplied: [],
+          resourceId: {
+            process: {
+              path: '/usr/local/var/postgres',
+              port: 5432
+            }
+          },
+          status: 'failed',
+          metadata: {
+            error: (error as Error).message,
+            service: 'postgresql'
+          },
+        };
+      }
       
     case 'frontend':
     case 'backend':

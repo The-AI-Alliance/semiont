@@ -112,12 +112,12 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  console.error('Semiont MCP Server started');
-  console.error(`API URL: ${SEMIONT_API_URL}`);
-  console.error(`Authentication: ${SEMIONT_API_TOKEN ? 'Token configured' : 'No token (will fail for protected routes)'}`);
+  // Don't output anything to stdout/stderr - it breaks the JSON-RPC protocol
+  // The MCP server communicates only via JSON-RPC over stdio
 }
 
 main().catch((error) => {
-  console.error('Server error:', error);
+  // Can't log to console - it would break JSON-RPC protocol
+  // Just exit with error code
   process.exit(1);
 });

@@ -419,7 +419,7 @@ describe('Start Command', () => {
 
       // Verify fetch was called for token refresh
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/auth/refresh'),
+        expect.stringContaining('/api/tokens/refresh'),
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

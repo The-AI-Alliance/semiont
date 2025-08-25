@@ -35,6 +35,12 @@
         "type": "aws"
       },
       "comment": "Provisioned via CDK data stack (EFS)"
+    },
+    "mcp": {
+      "deployment": {
+        "type": "process"
+      },
+      "dependsOn": ["backend"]
     }
   }
 }

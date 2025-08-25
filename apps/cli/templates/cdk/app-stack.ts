@@ -474,7 +474,26 @@ export class SemiontAppStack extends cdk.Stack {
       certificates: [certificate],
     });
 
-    // Backend API target group for core API endpoints
+    // NextAuth routes (Priority 10: /api/auth/* -> Frontend)
+    httpsListener.addTargets('NextAuth', {
+      port: 3000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targets: [frontendService],
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns(['/api/auth/*']),
+      ],
+      healthCheck: {
+        path: '/',
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(10),
+        healthyThresholdCount: 2,
+        unhealthyThresholdCount: 5,
+        healthyHttpCodes: '200',
+      },
+      priority: 10,
+    });
+
+    // Backend API (Priority 20: /api/* -> Backend)
     httpsListener.addTargets('BackendAPI', {
       port: 4000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -493,45 +512,7 @@ export class SemiontAppStack extends cdk.Stack {
         unhealthyThresholdCount: 5,
         healthyHttpCodes: '200',
       },
-      priority: 10,
-    });
-
-    // Backend OAuth endpoints (higher priority than NextAuth catch-all)
-    httpsListener.addTargets('BackendOAuth', {
-      port: 4000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [backendService],
-      conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/api/auth/google', '/api/auth/me', '/api/auth/logout']),
-      ],
-      healthCheck: {
-        path: '/api/health',
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        healthyThresholdCount: 2,
-        unhealthyThresholdCount: 5,
-        healthyHttpCodes: '200',
-      },
       priority: 20,
-    });
-
-    // NextAuth.js routes (lower priority, catches remaining /api/auth/* paths)
-    httpsListener.addTargets('NextAuth', {
-      port: 3000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [frontendService],
-      conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/api/auth/*']),
-      ],
-      healthCheck: {
-        path: '/',
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        healthyThresholdCount: 2,
-        unhealthyThresholdCount: 5,
-        healthyHttpCodes: '200',
-      },
-      priority: 30,
     });
 
     // Frontend target group (default action for all other paths)
@@ -670,9 +651,56 @@ export class SemiontAppStack extends cdk.Stack {
       scope: 'REGIONAL',
       defaultAction: { allow: {} },
       rules: [
+        // Allow MCP OAuth callbacks with localhost (before other rules)
+        {
+          name: 'AllowMCPCallbacks',
+          priority: 0,
+          action: { allow: {} },
+          statement: {
+            andStatement: {
+              statements: [
+                {
+                  byteMatchStatement: {
+                    searchString: '/auth/mcp-setup',
+                    fieldToMatch: { uriPath: {} },
+                    textTransformations: [{ priority: 0, type: 'LOWERCASE' }],
+                    positionalConstraint: 'STARTS_WITH'
+                  }
+                },
+                {
+                  orStatement: {
+                    statements: [
+                      {
+                        byteMatchStatement: {
+                          searchString: 'localhost',
+                          fieldToMatch: { queryString: {} },
+                          textTransformations: [{ priority: 0, type: 'LOWERCASE' }],
+                          positionalConstraint: 'CONTAINS'
+                        }
+                      },
+                      {
+                        byteMatchStatement: {
+                          searchString: '127.0.0.1',
+                          fieldToMatch: { queryString: {} },
+                          textTransformations: [{ priority: 0, type: 'NONE' }],
+                          positionalConstraint: 'CONTAINS'
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          visibilityConfig: {
+            sampledRequestsEnabled: true,
+            cloudWatchMetricsEnabled: true,
+            metricName: 'MCPCallbackAllowMetric',
+          },
+        },
         {
           name: 'AWSManagedRulesCommonRuleSet',
-          priority: 1,
+          priority: 10,
           overrideAction: { none: {} },
           statement: {
             managedRuleGroupStatement: {
@@ -698,7 +726,7 @@ export class SemiontAppStack extends cdk.Stack {
         },
         {
           name: 'AWSManagedRulesKnownBadInputsRuleSet',
-          priority: 2,
+          priority: 20,
           overrideAction: { none: {} },
           statement: {
             managedRuleGroupStatement: {
@@ -719,7 +747,7 @@ export class SemiontAppStack extends cdk.Stack {
         },
         {
           name: 'RateLimitRule',
-          priority: 3,
+          priority: 30,
           action: { block: {} },
           statement: {
             rateBasedStatement: {

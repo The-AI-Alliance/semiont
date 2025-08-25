@@ -15,40 +15,72 @@ npm install
 npm run build
 ```
 
-## Configuration
+## Authentication
 
-Set environment variables:
+The MCP server uses JWT tokens for API authentication. There are two types of tokens:
+- **Refresh Token**: Long-lived (30 days), used to obtain access tokens
+- **Access Token**: Short-lived (1 hour), used for API requests
+
+### Automatic Authentication Setup (Recommended)
+
+The easiest way to authenticate is through the browser-based OAuth flow:
+
+```bash
+# Use the CLI to provision MCP with OAuth authentication
+semiont provision --service mcp
+
+# This will:
+# 1. Open your browser for Google OAuth login
+# 2. Generate a 30-day refresh token
+# 3. Store it in ~/.config/semiont/mcp-auth-{environment}.json
+```
+
+### Manual Configuration
+
+If you need to manually configure authentication:
 
 ```bash
 # API endpoint (defaults to local development)
 export SEMIONT_API_URL=http://localhost:4000
 
-# JWT token for authentication (required for protected routes)
-export SEMIONT_API_TOKEN=your-jwt-token-here
+# Refresh token for authentication (30-day validity)
+export SEMIONT_REFRESH_TOKEN=your-refresh-token-here
 ```
 
-### Getting a JWT Token
+### Getting Tokens Manually
 
-1. **Via Frontend Login**:
+1. **Via Browser OAuth Flow**:
+   ```bash
+   # Open browser to authenticate and get refresh token
+   open "http://localhost:3000/api/auth/mcp-setup?callback=http://localhost:8080"
+   
+   # This will:
+   # - Redirect to Google OAuth login
+   # - Generate a 30-day refresh token
+   # - Redirect to callback with token as query parameter
+   ```
+
+2. **Via Frontend Login** (get access token):
    ```bash
    # 1. Start the Semiont platform
    semiont start
    
    # 2. Visit http://localhost:3000 and login with Google
    
-   # 3. Open browser DevTools and find the token in:
+   # 3. Open browser DevTools and find the access token in:
    #    - localStorage: 'token' key
    #    - Or Network tab: Authorization header in API requests
+   #    Note: This is a 1-hour access token, not a refresh token
    ```
 
-2. **Via Direct API Call** (if you have Google OAuth token):
+3. **Via Direct API Call** (if you have Google OAuth token):
    ```bash
    curl -X POST http://localhost:4000/api/auth/google \
      -H "Content-Type: application/json" \
      -d '{"access_token": "your-google-oauth-token"}'
    ```
 
-3. **For Testing** (create a test user directly):
+4. **For Testing** (create a test user directly):
    ```bash
    semiont exec --service backend \
      "npx ts-node -e \"
@@ -82,24 +114,34 @@ export SEMIONT_API_TOKEN=your-jwt-token-here
 
 ## Usage
 
-### With Claude Desktop
+### Desktop Apps (Claude Desktop)
 
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+1. **Provision MCP authentication**:
+   ```bash
+   semiont provision --service mcp --environment production
+   ```
+   This will:
+   - Open your browser for OAuth authentication
+   - Generate a long-lived refresh token (30 days)
+   - Store credentials in `~/.config/semiont/mcp-auth-<env>.json`
 
-```json
-{
-  "mcpServers": {
-    "semiont": {
-      "command": "node",
-      "args": ["/path/to/semiont/packages/mcp-server/dist/index.js"],
-      "env": {
-        "SEMIONT_API_URL": "http://localhost:4000",
-        "SEMIONT_API_TOKEN": "your-jwt-token"
-      }
-    }
-  }
-}
-```
+2. **Configure Claude Desktop**:
+   Add to your Claude Desktop configuration:
+   ```json
+   {
+     "mcpServers": {
+       "semiont": {
+         "command": "semiont",
+         "args": ["start", "--service", "mcp", "--environment", "production"]
+       }
+     }
+   }
+   ```
+
+3. **The MCP server will**:
+   - Automatically refresh access tokens (1-hour expiry)
+   - Provide Semiont API access to Claude
+   - Handle authentication transparently
 
 ### Programmatic Usage
 
@@ -112,8 +154,8 @@ import { spawn } from 'child_process';
 const serverProcess = spawn('node', ['dist/index.js'], {
   env: {
     ...process.env,
-    SEMIONT_API_URL: 'http://localhost:4000',
-    SEMIONT_API_TOKEN: 'your-token'
+    SEMIONT_API_URL: 'https://your-domain.com',
+    SEMIONT_API_TOKEN: 'your-access-token' // Note: Use refresh token flow for production
   }
 });
 
@@ -171,14 +213,14 @@ Get a personalized greeting from Semiont.
 {
   "name": "semiont_hello",
   "arguments": {
-    "name": "Claude"
+    "name": "John Doe"
   }
 }
 ```
 
 **Response**:
 ```
-Hello, Claude! Welcome to Semiont.
+Hello, John Doe! Welcome to Semiont.
 
 Platform: Semiont Semantic Knowledge Platform
 Timestamp: 2024-01-15T10:30:00.000Z
@@ -250,11 +292,25 @@ if (request.params.name === 'semiont_status') {
 }
 ```
 
+## Token Management
+
+The MCP server automatically handles token refresh:
+1. Uses refresh token to get initial access token
+2. Monitors access token expiration (1 hour)
+3. Automatically refreshes access token before expiration
+4. Refresh tokens are valid for 30 days
+
+When a refresh token expires after 30 days, you'll need to re-authenticate:
+```bash
+semiont provision --service mcp
+```
+
 ## Troubleshooting
 
 ### "Authentication failed"
-- Ensure `SEMIONT_API_TOKEN` is set with a valid JWT token
-- Check token hasn't expired (tokens expire after 7 days)
+- Ensure `SEMIONT_REFRESH_TOKEN` is set with a valid refresh token
+- Check refresh token hasn't expired (tokens expire after 30 days)
+- For expired tokens, run `semiont provision --service mcp` to re-authenticate
 - Verify the Semiont backend is running
 
 ### "Connection refused"
@@ -268,10 +324,11 @@ if (request.params.name === 'semiont_status') {
 
 ## Security Notes
 
-- Never commit JWT tokens to version control
-- Tokens expire after 7 days and need renewal
+- Never commit tokens to version control
+- Refresh tokens expire after 30 days and need renewal
+- Access tokens expire after 1 hour (automatically refreshed by the server)
 - Use environment variables or secure credential storage for tokens
-- Consider implementing token refresh logic for long-running servers
+- The MCP server implements automatic token refresh for long-running sessions
 
 ## Future Enhancements
 

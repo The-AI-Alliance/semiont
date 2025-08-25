@@ -57,8 +57,8 @@ export const authOptions: NextAuthOptions = {
           if (!apiUrl) {
             throw new Error('Backend API URL is required for authentication');
           }
-          console.log(`Calling backend at: ${apiUrl}/api/auth/google`);
-          const response = await fetch(`${apiUrl}/api/auth/google`, {
+          console.log(`Calling backend at: ${apiUrl}/api/tokens/google`);
+          const response = await fetch(`${apiUrl}/api/tokens/google`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

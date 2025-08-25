@@ -186,7 +186,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ access_token: 'google-token' });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/auth/google', {
+      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/tokens/google', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -234,7 +234,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/auth/me', {
+      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/users/me', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -268,7 +268,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync();
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/auth/logout', {
+      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/users/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
