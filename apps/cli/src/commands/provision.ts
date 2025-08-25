@@ -1005,12 +1005,14 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
         if (!isStructuredOutput && options.output === 'summary') {
           printSuccess(`MCP service provisioned for ${options.environment}`);
           printInfo('Add to AI application config:');
+          printInfo('Note: Replace SEMIONT_ROOT with your actual project path');
+          printInfo('      (Run "semiont init" in that directory if not already initialized)');
           console.log(JSON.stringify({
             "semiont": {
               "command": "semiont",
               "args": ["start", "--service", "mcp"],
               "env": {
-                "SEMIONT_ROOT": PROJECT_ROOT,
+                "SEMIONT_ROOT": "/PATH/TO/YOUR/SEMIONT/PROJECT",
                 "SEMIONT_ENV": options.environment
               }
             }
