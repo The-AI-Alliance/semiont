@@ -1289,9 +1289,13 @@ async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<str
       
       if (url.pathname === '/callback') {
         const token = url.searchParams.get('token');
-        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(`
           <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Authentication Successful</title>
+            </head>
             <body style="font-family: system-ui; padding: 2rem; text-align: center;">
               <h1>✅ Authentication Successful!</h1>
               <p>You can close this window and return to the terminal.</p>
