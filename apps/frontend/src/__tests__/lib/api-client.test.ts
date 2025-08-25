@@ -497,7 +497,7 @@ describe('apiService', () => {
     it('should call Google auth endpoint', async () => {
       await apiService.auth.google('test-token');
 
-      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/auth/google`, {
+      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/tokens/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -509,7 +509,7 @@ describe('apiService', () => {
     it('should call me endpoint', async () => {
       await apiService.auth.me();
 
-      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/auth/me`, {
+      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/users/me`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -520,7 +520,7 @@ describe('apiService', () => {
     it('should call logout endpoint', async () => {
       await apiService.auth.logout();
 
-      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/auth/logout`, {
+      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/users/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
