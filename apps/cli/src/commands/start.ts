@@ -510,12 +510,51 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         
         const { access_token } = await response.json();
         
-        // Start MCP server
-        const mcpServerPath = path.join(PROJECT_ROOT, 'packages/mcp-server/dist/index.js');
+        // Write debug information to log file
+        const logFile = path.join(process.cwd(), 'semiont-mcp-server.log');
+        const debugInfo: any = {
+          timestamp: new Date().toISOString(),
+          cwd: process.cwd(),
+          importMetaUrl: import.meta.url,
+          currentFilePath: new URL(import.meta.url).pathname,
+          distDir: path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'),
+          PROJECT_ROOT: PROJECT_ROOT,
+          processArgv0: process.argv0,
+          processExecPath: process.execPath,
+          env: {
+            SEMIONT_ROOT: process.env.SEMIONT_ROOT,
+            PATH: process.env.PATH,
+            NODE_PATH: process.env.NODE_PATH,
+          }
+        };
         
-        if (!fs.existsSync(mcpServerPath)) {
-          throw new Error('MCP server not built. Run: npm run build -w packages/mcp-server');
+        // Check various possible locations for MCP server
+        const currentFileDir = path.dirname(new URL(import.meta.url).pathname);
+        const possiblePaths = [
+          // Bundled with CLI in dist/mcp-server
+          path.join(currentFileDir, 'mcp-server', 'index.js'),
+          // In source repo when running from dist/commands/start.mjs
+          path.join(currentFileDir, '..', '..', '..', 'packages', 'mcp-server', 'dist', 'index.js'),
+          // In source repo when running from dist/cli.mjs (all commands bundled together)
+          path.join(currentFileDir, '..', '..', 'packages', 'mcp-server', 'dist', 'index.js'),
+        ];
+        
+        debugInfo.possiblePaths = possiblePaths.map(p => ({
+          path: p,
+          exists: fs.existsSync(p)
+        }));
+        
+        fs.writeFileSync(logFile, JSON.stringify(debugInfo, null, 2) + '\n');
+        
+        // Try to find MCP server
+        let mcpServerPath = possiblePaths.find(p => fs.existsSync(p));
+        
+        if (!mcpServerPath) {
+          fs.appendFileSync(logFile, '\nERROR: MCP server not found in any location\n');
+          throw new Error(`MCP server not found. Debug info written to: ${logFile}`);
         }
+        
+        fs.appendFileSync(logFile, `\nUsing MCP server at: ${mcpServerPath}\n`);
         
         // Spawn MCP server
         const mcpProc = spawn('node', [mcpServerPath], {
