@@ -32,6 +32,9 @@ export class SemiontAppStack extends cdk.Stack {
     
     // Import VPC - we need to use fromVpcAttributes since fromLookup doesn't work with tokens
     // We're using 2 AZs, so explicitly specify them
+    // Note: CDK will show warnings about missing routeTableIds. These warnings can be ignored
+    // as we're importing an existing VPC and not modifying routes. The warnings are due to
+    // CDK's limitation when importing VPCs via CloudFormation exports.
     const vpc = ec2.Vpc.fromVpcAttributes(this, 'ImportedVpc', {
       vpcId: cdk.Fn.importValue(`${dataStackName}-VpcId`),
       availabilityZones: ['us-east-2a', 'us-east-2b'],  // First 2 AZs in us-east-2
@@ -157,7 +160,8 @@ export class SemiontAppStack extends cdk.Stack {
 
     // Backend Task Definition
     // Note: CDK may show warnings about deprecated inferenceAccelerators property.
-    // This is a known issue in CDK's internal implementation and can be safely ignored.
+    // This is a known CDK bug (https://github.com/aws/aws-cdk/issues/11339) where CDK internally
+    // uses a deprecated CloudFormation property. The warning can be safely ignored.
     const backendTaskDefinition = new ecs.FargateTaskDefinition(this, 'SemiontBackendTaskDef', {
       memoryLimitMiB: 512,
       cpu: 256,

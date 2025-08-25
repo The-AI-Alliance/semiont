@@ -1005,12 +1005,14 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
         if (!isStructuredOutput && options.output === 'summary') {
           printSuccess(`MCP service provisioned for ${options.environment}`);
           printInfo('Add to AI application config:');
+          printInfo('Note: Replace SEMIONT_ROOT with your actual project path');
+          printInfo('      (Run "semiont init" in that directory if not already initialized)');
           console.log(JSON.stringify({
             "semiont": {
               "command": "semiont",
               "args": ["start", "--service", "mcp"],
               "env": {
-                "SEMIONT_ROOT": PROJECT_ROOT,
+                "SEMIONT_ROOT": "/PATH/TO/YOUR/SEMIONT/PROJECT",
                 "SEMIONT_ENV": options.environment
               }
             }
@@ -1287,9 +1289,13 @@ async function acquireMcpRefreshToken(envConfig: any, port: number): Promise<str
       
       if (url.pathname === '/callback') {
         const token = url.searchParams.get('token');
-        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(`
           <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Authentication Successful</title>
+            </head>
             <body style="font-family: system-ui; padding: 2rem; text-align: center;">
               <h1>✅ Authentication Successful!</h1>
               <p>You can close this window and return to the terminal.</p>
