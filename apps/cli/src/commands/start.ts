@@ -510,24 +510,6 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         
         const { access_token } = await response.json();
         
-        // Write debug information to log file
-        const logFile = path.join(process.cwd(), 'semiont-mcp-server.log');
-        const debugInfo: any = {
-          timestamp: new Date().toISOString(),
-          cwd: process.cwd(),
-          importMetaUrl: import.meta.url,
-          currentFilePath: new URL(import.meta.url).pathname,
-          distDir: path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'),
-          PROJECT_ROOT: PROJECT_ROOT,
-          processArgv0: process.argv0,
-          processExecPath: process.execPath,
-          env: {
-            SEMIONT_ROOT: process.env.SEMIONT_ROOT,
-            PATH: process.env.PATH,
-            NODE_PATH: process.env.NODE_PATH,
-          }
-        };
-        
         // Check various possible locations for MCP server
         const currentFileDir = path.dirname(new URL(import.meta.url).pathname);
         const possiblePaths = [
@@ -539,22 +521,27 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           path.join(currentFileDir, '..', '..', 'packages', 'mcp-server', 'dist', 'index.js'),
         ];
         
-        debugInfo.possiblePaths = possiblePaths.map(p => ({
-          path: p,
-          exists: fs.existsSync(p)
-        }));
-        
-        fs.writeFileSync(logFile, JSON.stringify(debugInfo, null, 2) + '\n');
+        if (options.verbose) {
+          console.error('MCP server search paths:');
+          possiblePaths.forEach((p, i) => {
+            console.error(`  ${i + 1}. ${p} (${fs.existsSync(p) ? 'exists' : 'not found'})`);
+          });
+        }
         
         // Try to find MCP server
         let mcpServerPath = possiblePaths.find(p => fs.existsSync(p));
         
         if (!mcpServerPath) {
-          fs.appendFileSync(logFile, '\nERROR: MCP server not found in any location\n');
-          throw new Error(`MCP server not found. Debug info written to: ${logFile}`);
+          console.error('ERROR: MCP server not found in any of these locations:');
+          possiblePaths.forEach((p, i) => {
+            console.error(`  ${i + 1}. ${p}`);
+          });
+          throw new Error('MCP server not found. Run: npm run install:cli');
         }
         
-        fs.appendFileSync(logFile, `\nUsing MCP server at: ${mcpServerPath}\n`);
+        if (options.verbose) {
+          console.error(`Using MCP server at: ${mcpServerPath}`);
+        }
         
         // Spawn MCP server
         const mcpProc = spawn('node', [mcpServerPath], {
