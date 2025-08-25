@@ -25,7 +25,7 @@ export default function Welcome() {
       if (!session?.backendToken) return;
       
       try {
-        const response = await fetch('/api/auth/me', {
+        const response = await fetch('/api/users/me', {
           headers: {
             'Authorization': `Bearer ${session.backendToken}`,
           },
@@ -64,7 +64,7 @@ export default function Welcome() {
 
     try {
       // Call backend API to record terms acceptance
-      const response = await fetch('/api/auth/accept-terms', {
+      const response = await fetch('/api/users/accept-terms', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.backendToken}`,
