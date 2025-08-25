@@ -162,6 +162,7 @@ app.get('/api/swagger', docsAuthMiddleware, (c) => {
 // Public endpoints - these don't require authentication
 const PUBLIC_ENDPOINTS = [
   '/api/health',          // Required for ALB health checks
+  '/api/docs',            // API documentation (OpenAPI/Swagger)
   '/api/auth/google',     // OAuth login initiation (keeping for compatibility)
   '/api/tokens/google',   // New OAuth endpoint location
   '/api/tokens/refresh',  // Token refresh endpoint (uses refresh token for auth)

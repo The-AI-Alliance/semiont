@@ -206,7 +206,7 @@ export const routes = {
 
   authGoogle: createRoute({
     method: 'post',
-    path: '/api/auth/google',
+    path: '/api/tokens/google',
     summary: 'Google OAuth Authentication',
     description: 'Authenticate with Google OAuth and receive JWT token',
     tags: ['Authentication'],
@@ -241,7 +241,7 @@ export const routes = {
 
   authMe: createRoute({
     method: 'get',
-    path: '/api/auth/me',
+    path: '/api/users/me',
     summary: 'Get Current User',
     description: 'Get current authenticated user information',
     tags: ['Authentication'],
@@ -268,7 +268,7 @@ export const routes = {
 
   authLogout: createRoute({
     method: 'post',
-    path: '/api/auth/logout',
+    path: '/api/users/logout',
     summary: 'Logout',
     description: 'Logout (stateless - client should discard token)',
     tags: ['Authentication'],
