@@ -296,6 +296,141 @@ export const routes = {
     },
   }),
 
+  tokenRefresh: createRoute({
+    method: 'post',
+    path: '/api/tokens/refresh',
+    summary: 'Refresh Access Token',
+    description: 'Exchange a refresh token for a new access token',
+    tags: ['Authentication'],
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              refresh_token: z.string().openapi({ 
+                example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', 
+                description: 'JWT refresh token'
+              }),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              access_token: z.string().openapi({ 
+                example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', 
+                description: 'New JWT access token (1 hour expiration)'
+              }),
+            }),
+          },
+        },
+        description: 'New access token generated successfully',
+      },
+      400: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Refresh token required',
+      },
+      401: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Invalid or expired refresh token',
+      },
+    },
+  }),
+
+  mcpTokenGenerate: createRoute({
+    method: 'post',
+    path: '/api/tokens/mcp-generate',
+    summary: 'Generate MCP Refresh Token',
+    description: 'Generate a long-lived refresh token for MCP authentication (30 days)',
+    tags: ['Authentication'],
+    security: [{ BearerAuth: [] }],
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              refresh_token: z.string().openapi({ 
+                example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', 
+                description: 'JWT refresh token (30 day expiration)'
+              }),
+            }),
+          },
+        },
+        description: 'Refresh token generated successfully',
+      },
+      401: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Unauthorized',
+      },
+      500: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Failed to generate refresh token',
+      },
+    },
+  }),
+
+  acceptTerms: createRoute({
+    method: 'post',
+    path: '/api/users/accept-terms',
+    summary: 'Accept Terms of Service',
+    description: 'Record user acceptance of terms of service',
+    tags: ['Authentication'],
+    security: [{ BearerAuth: [] }],
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              success: z.boolean(),
+              message: z.string(),
+              termsAcceptedAt: z.string().optional().openapi({ 
+                example: '2024-01-01T00:00:00.000Z',
+                description: 'ISO timestamp of terms acceptance'
+              }),
+            }),
+          },
+        },
+        description: 'Terms accepted successfully',
+      },
+      401: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Unauthorized',
+      },
+      500: {
+        content: {
+          'application/json': {
+            schema: ErrorResponseSchema,
+          },
+        },
+        description: 'Failed to record terms acceptance',
+      },
+    },
+  }),
+
   adminUsers: createRoute({
     method: 'get',
     path: '/api/admin/users',
