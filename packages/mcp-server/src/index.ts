@@ -4,6 +4,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
 /**
@@ -26,6 +28,8 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
+      resources: {},
+      prompts: {},
     },
   }
 );
@@ -48,6 +52,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
     ],
+  };
+});
+
+// Handle resources list (empty - we don't provide resources)
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  return {
+    resources: [],
+  };
+});
+
+// Handle prompts list (empty - we don't provide prompts)
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return {
+    prompts: [],
   };
 });
 

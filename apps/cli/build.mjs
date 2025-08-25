@@ -196,3 +196,15 @@ if (existsSync('templates')) {
   }
 }
 
+// Copy MCP server to dist
+const mcpServerSrc = '../../packages/mcp-server/dist'
+if (existsSync(mcpServerSrc)) {
+  try {
+    await cp(mcpServerSrc, 'dist/mcp-server', { recursive: true })
+    console.log('✅ Copied MCP server')
+  } catch (error) {
+    console.error('❌ Failed to copy MCP server:', error.message)
+    process.exit(1)
+  }
+}
+

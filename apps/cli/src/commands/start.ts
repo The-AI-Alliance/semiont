@@ -510,11 +510,37 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         
         const { access_token } = await response.json();
         
-        // Start MCP server
-        const mcpServerPath = path.join(PROJECT_ROOT, 'packages/mcp-server/dist/index.js');
+        // Check various possible locations for MCP server
+        const currentFileDir = path.dirname(new URL(import.meta.url).pathname);
+        const possiblePaths = [
+          // Bundled with CLI in dist/mcp-server
+          path.join(currentFileDir, 'mcp-server', 'index.js'),
+          // In source repo when running from dist/commands/start.mjs
+          path.join(currentFileDir, '..', '..', '..', 'packages', 'mcp-server', 'dist', 'index.js'),
+          // In source repo when running from dist/cli.mjs (all commands bundled together)
+          path.join(currentFileDir, '..', '..', 'packages', 'mcp-server', 'dist', 'index.js'),
+        ];
         
-        if (!fs.existsSync(mcpServerPath)) {
-          throw new Error('MCP server not built. Run: npm run build -w packages/mcp-server');
+        if (options.verbose) {
+          console.error('MCP server search paths:');
+          possiblePaths.forEach((p, i) => {
+            console.error(`  ${i + 1}. ${p} (${fs.existsSync(p) ? 'exists' : 'not found'})`);
+          });
+        }
+        
+        // Try to find MCP server
+        let mcpServerPath = possiblePaths.find(p => fs.existsSync(p));
+        
+        if (!mcpServerPath) {
+          console.error('ERROR: MCP server not found in any of these locations:');
+          possiblePaths.forEach((p, i) => {
+            console.error(`  ${i + 1}. ${p}`);
+          });
+          throw new Error('MCP server not found. Run: npm run install:cli');
+        }
+        
+        if (options.verbose) {
+          console.error(`Using MCP server at: ${mcpServerPath}`);
         }
         
         // Spawn MCP server
