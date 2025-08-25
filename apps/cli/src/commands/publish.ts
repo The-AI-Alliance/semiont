@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { z } from 'zod';
 import simpleGit from 'simple-git';
-import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
@@ -25,8 +24,6 @@ import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // AWS SDK imports for ECR operations
 import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand, DescribeImagesCommand } from '@aws-sdk/client-ecr';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-
-const DEFAULT_PROJECT_ROOT = getProjectRoot(import.meta.url);
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -189,11 +186,11 @@ async function buildContainerImage(
     serviceInfo.config.image.replace(/:.*$/, '') : 
     `semiont-${serviceInfo.name}`;
   
-  // Use semiontRepo if provided, otherwise use default
-  const projectRoot = options.semiontRepo || DEFAULT_PROJECT_ROOT;
+  // Use semiontRepo if provided, otherwise use current working directory
+  const semiontRepoRoot = options.semiontRepo || process.cwd();
   
   // Construct the full dockerfile path
-  const dockerfile = path.join(projectRoot, 'apps', serviceInfo.name, 'Dockerfile');
+  const dockerfile = path.join(semiontRepoRoot, 'apps', serviceInfo.name, 'Dockerfile');
   
   const imageName = `${baseImageName}:${tag}`;
   printDebug(`Building image: ${imageName}`, options);
@@ -233,7 +230,7 @@ async function buildContainerImage(
     baseImageName,
     tag,
     dockerfile,
-    projectRoot,
+    semiontRepoRoot,
     {
       verbose: options.verbose ?? false,
       buildArgs,
