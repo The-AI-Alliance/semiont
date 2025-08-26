@@ -122,4 +122,17 @@ export class OAuthService {
 
     return user;
   }
+  
+  static async acceptTerms(userId: string): Promise<User> {
+    const prisma = DatabaseConnection.getClient();
+    
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        termsAcceptedAt: new Date(),
+      }
+    });
+    
+    return user;
+  }
 }

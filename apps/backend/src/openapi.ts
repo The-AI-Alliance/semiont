@@ -1,5 +1,4 @@
 import { z } from '@hono/zod-openapi';
-import { createRoute } from '@hono/zod-openapi';
 
 // Re-export our existing schemas but with OpenAPI metadata
 export const HelloResponseSchema = z.object({
@@ -105,7 +104,17 @@ export const UpdateUserRequestSchema = z.object({
 }).openapi('UpdateUserRequest');
 
 // Create route definitions for OpenAPI documentation
-export const routes = {
+// Routes are now defined in separate files under src/routes/
+// This keeps the route definitions close to their implementations
+
+// Old routes object removed - routes are now defined in:
+// - src/routes/health.ts
+// - src/routes/hello.ts  
+// - src/routes/auth.ts
+// - src/routes/admin.ts
+// - src/routes/status.ts
+
+/* export const routes = {
   health: createRoute({
     method: 'get',
     path: '/api/health',
@@ -672,7 +681,7 @@ export const routes = {
       },
     },
   }),
-};
+}; */
 
 // OpenAPI configuration
 export const openApiConfig = {

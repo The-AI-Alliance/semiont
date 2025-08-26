@@ -1,6 +1,6 @@
 # Semiont Backend
 
-A type-safe Node.js backend API built with modern development practices and comprehensive validation.
+A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, optimized for the Next.js frontend with modern development practices and comprehensive validation.
 
 ## Quick Start
 
@@ -417,37 +417,84 @@ kill -9 <PID>
 
 ## Technology Stack
 
+- **Architecture**: Backend for Frontend (BFF) pattern - API layer optimized for the Next.js frontend
 - **Runtime**: Node.js with TypeScript
-- **Web Framework**: [Hono](https://hono.dev/) - Fast, lightweight, and type-safe
+- **Web Framework**: [OpenAPIHono](https://hono.dev/) - Hono with integrated OpenAPI documentation
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
 - **Authentication**: JWT with OAuth 2.0 (Google)
 - **Validation**: [Zod](https://zod.dev/) for runtime type validation
+- **API Documentation**: Automatic OpenAPI/Swagger generation from route definitions
 - **Environment**: Strict environment variable validation
 
 ## Project Structure
 
 ```
 src/
-├── auth/                   # Authentication & authorization
-│   ├── jwt.ts             # JWT token management with validation
-│   └── oauth.ts           # OAuth providers (Google)
-├── client/                # API client generation
-│   └── api-client.ts      # Type-safe API client for frontend
-├── config/                # Configuration management
-│   └── env.ts             # Environment variable validation
-├── middleware/            # HTTP middleware
-│   └── auth.ts            # Authentication middleware
-├── types/                 # Type definitions
-│   ├── api.ts             # API request/response types
-│   └── routes.ts          # Route type registry
-├── validation/            # Runtime validation schemas
-│   └── schemas.ts         # Zod validation schemas
-├── config.ts              # Application configuration
-├── db.ts                  # Database connection
-└── index.ts               # Main application entry point
+├── routes/                # Modular route definitions (OpenAPIHono routers)
+│   ├── health.ts         # Health check endpoint (public)
+│   ├── auth.ts          # Authentication & token endpoints
+│   ├── hello.ts         # Example protected endpoints
+│   ├── status.ts        # Status endpoint (protected)
+│   └── admin.ts         # Admin-only endpoints
+├── auth/                 # Authentication & authorization
+│   ├── jwt.ts           # JWT token management with validation
+│   └── oauth.ts         # OAuth providers (Google)
+├── client/              # API client generation
+│   └── api-client.ts    # Type-safe API client for frontend
+├── config/              # Configuration management
+│   └── env.ts           # Environment variable validation
+├── middleware/          # HTTP middleware
+│   └── auth.ts          # Authentication middleware
+├── types/               # Type definitions
+│   ├── api.ts           # API request/response types
+│   └── routes.ts        # Route type registry
+├── validation/          # Runtime validation schemas
+│   └── schemas.ts       # Zod validation schemas
+├── openapi.ts           # OpenAPI schemas and configuration
+├── config.ts            # Application configuration
+├── db.ts                # Database connection
+└── index.ts             # Main app - mounts all routers
 
 prisma/
-└── schema.prisma          # Database schema definition
+└── schema.prisma        # Database schema definition
+```
+
+### Modular Route Architecture
+
+Each router in `src/routes/` is a self-contained module that:
+
+1. **Defines OpenAPI route specifications** with request/response schemas
+2. **Applies authentication** as needed (no central auth list)
+3. **Validates requests** automatically against Zod schemas
+4. **Generates documentation** that appears in `/api/docs`
+
+Example router structure:
+```typescript
+// src/routes/hello.ts
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
+import { authMiddleware } from '../middleware/auth';
+
+// Define route with OpenAPI spec
+export const helloRoute = createRoute({
+  method: 'get',
+  path: '/api/hello/{name}',
+  security: [{ bearerAuth: [] }],  // Shows auth requirement in docs
+  request: { params: ParamsSchema },
+  responses: {
+    200: { 
+      content: { 
+        'application/json': { 
+          schema: HelloResponseSchema 
+        }
+      }
+    }
+  }
+});
+
+// Create router and apply middleware
+const router = new OpenAPIHono();
+router.use('/api/hello/*', authMiddleware);  // Protected route
+router.openapi(helloRoute, handler);          // Automatic validation
 ```
 
 ## API Routing Architecture
