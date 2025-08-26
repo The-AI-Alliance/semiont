@@ -19,7 +19,7 @@ export interface BaseCommandResult {
 
 // Resource identifiers for different deployment types
 export interface ResourceIdentifier {
-  aws?: { arn?: string; id?: string; name?: string };
+  aws?: { arn?: string; id?: string; name?: string; consoleUrl?: string };
   container?: { id?: string; name?: string };
   process?: { pid?: number; port?: number; path?: string };
   external?: { endpoint?: string; path?: string };

@@ -7,7 +7,7 @@
  */
 
 import { CommandBuilder } from '../lib/command-definition.js';
-import { Config, ServiceName, RestoreResult, RestoreOptions } from '../services/types.js';
+import { Config, ServiceName, RestoreResult, RestoreOptions as ServiceRestoreOptions } from '../services/types.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { DeploymentType, ServiceConfig } from '../services/types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
@@ -32,7 +32,7 @@ const RestoreOptionsSchema = z.object({
   verbose: z.boolean().optional()
 });
 
-type RestoreOptions = z.infer<typeof RestoreOptionsSchema> & BaseCommandOptions;
+type CommandRestoreOptions = z.infer<typeof RestoreOptionsSchema> & BaseCommandOptions;
 
 // Main handler function
 async function restoreHandler(
@@ -97,7 +97,7 @@ async function restoreHandler(
     );
     
     try {
-      const restoreOptions: RestoreOptions = {
+      const restoreOptions: ServiceRestoreOptions = {
         force: options.force,
         validate: options.validate,
         stopService: options.stopService,
@@ -217,7 +217,7 @@ async function restoreHandler(
 }
 
 // Build and export the command
-export const restoreNewCommand = new CommandBuilder<RestoreOptions>()
+export const restoreNewCommand = new CommandBuilder<CommandRestoreOptions>()
   .name('restore-new')
   .description('Restore services from backups (new implementation)')
   .schema(RestoreOptionsSchema as any)

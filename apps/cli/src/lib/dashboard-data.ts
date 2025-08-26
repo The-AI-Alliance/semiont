@@ -297,7 +297,10 @@ export class DashboardDataSource {
       // Add infrastructure services
       // Check database status
       try {
-        const dbInstances = await this.rdsClient!.send(new DescribeDBInstancesCommand({}));
+        if (!this.rdsClient) {
+        return [];
+      }
+      const dbInstances = await this.rdsClient.send(new DescribeDBInstancesCommand({}));
         const semiontDb = dbInstances.DBInstances?.find(db => 
           db.DBInstanceIdentifier?.toLowerCase().includes('semiont')
         );

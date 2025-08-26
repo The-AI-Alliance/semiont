@@ -582,7 +582,7 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
       try {
         // TODO: Implement startProcessService in new architecture
         // const startResult = await startProcessService(serviceInfo, startOptions, Date.now());
-        const startResult = { success: true, status: 'started' as const, resourceId: 'mcp-service' }; // Temporary placeholder
+        const startResult = { success: true, status: 'started' as const, resourceId: { process: { port: mcpPort } } }; // Temporary placeholder
         
         if (startResult.status === 'started') {
           printSuccess(`MCP server restarted successfully`);
@@ -593,7 +593,7 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
             startTime: mcpStartTime,
             downtime: mcpStartTime.getTime() - stopTime.getTime(),
             gracefulRestart: true,
-            resourceId: startResult.resourceId || { process: { port: mcpPort } },
+            resourceId: startResult.resourceId as ResourceIdentifier,
             status: 'restarted',
             metadata: {
               port: mcpPort,
