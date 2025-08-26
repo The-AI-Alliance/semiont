@@ -351,25 +351,20 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       let backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
       
-      // Use absolute paths for commands to ensure they work in detached processes
-      if (backendCommand[0] === 'npm') {
-        // Try to find npm's absolute path
-        try {
-          const npmPath = require('child_process').execSync('which npm', { encoding: 'utf8' }).trim();
-          if (npmPath) {
-            backendCommand[0] = npmPath;
-          }
-        } catch {
-          // Keep 'npm' as is if which fails
-        }
-      } else if (backendCommand[0] === 'node') {
-        // Use process.execPath for node's absolute path
-        backendCommand[0] = process.execPath;
+      // Check if the backend directory exists
+      if (!fs.existsSync(backendCwd)) {
+        throw new Error(`Backend directory not found: ${backendCwd}`);
       }
       
-      // Convert 'npm start' to direct node execution with absolute path
-      if (backendCommand[0].includes('npm') && backendCommand[1] === 'start') {
-        backendCommand = [process.execPath, 'dist/index.js'];
+      // Convert 'npm start' to direct node execution
+      if (backendCommand[0] === 'npm' && backendCommand[1] === 'start') {
+        // Check if dist/index.js exists
+        const distPath = path.join(backendCwd, 'dist/index.js');
+        if (!fs.existsSync(distPath)) {
+          throw new Error(`Backend dist not found: ${distPath}. Run 'npm run build' in backend first.`);
+        }
+        // Use node directly without absolute path - let it be found in PATH
+        backendCommand = ['node', 'dist/index.js'];
       }
       
       // Load config to get site domain and OAuth settings
@@ -398,15 +393,20 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         backendEnv.OAUTH_ALLOWED_DOMAINS = backendConfig.site.oauthAllowedDomains.join(',');
       }
       
+      // In CI, don't use detached mode as it causes issues with process management
+      const isCI = process.env.SEMIONT_CI === 'true' || environment === 'ci';
+      
       const backendProc = spawn(backendCommand[0]!, backendCommand.slice(1), {
         cwd: backendCwd,
         stdio: 'pipe',
-        detached: true,
+        detached: !isCI, // Only detach in non-CI environments
         env: backendEnv,
-        shell: process.platform === 'win32' // Only use shell on Windows
+        shell: false // Don't use shell, rely on PATH
       });
       
-      backendProc.unref();
+      if (!isCI) {
+        backendProc.unref();
+      }
       
       if (!options.quiet) {
         printSuccess(`Backend process started on port ${backendPort}`);
@@ -436,23 +436,18 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       let frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const frontendPort = serviceInfo.config.port || 3000;
       
-      // Use absolute paths for commands
-      if (frontendCommand[0] === 'npm') {
-        try {
-          const npmPath = require('child_process').execSync('which npm', { encoding: 'utf8' }).trim();
-          if (npmPath) {
-            frontendCommand[0] = npmPath;
-          }
-        } catch {
-          // Keep 'npm' as is if which fails
-        }
-      } else if (frontendCommand[0] === 'node') {
-        frontendCommand[0] = process.execPath;
+      // Check if the frontend directory exists
+      if (!fs.existsSync(frontendCwd)) {
+        throw new Error(`Frontend directory not found: ${frontendCwd}`);
       }
       
-      // Convert 'npm start' to direct node execution with absolute path
-      if (frontendCommand[0].includes('npm') && frontendCommand[1] === 'start') {
-        frontendCommand = [process.execPath, '.next/standalone/server.js'];
+      // Convert 'npm start' to direct node execution if needed
+      if (frontendCommand[0] === 'npm' && frontendCommand[1] === 'start') {
+        const standalonePath = path.join(frontendCwd, '.next/standalone/server.js');
+        if (fs.existsSync(standalonePath)) {
+          frontendCommand = ['node', '.next/standalone/server.js'];
+        }
+        // Otherwise keep npm start as is
       }
       
       // Properly copy environment variables
@@ -469,15 +464,20 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       frontendEnv.NEXT_PUBLIC_SITE_NAME = 'Semiont Dev';
       frontendEnv.PORT = frontendPort.toString();
       
+      // In CI, don't use detached mode
+      const isCIFrontend = process.env.SEMIONT_CI === 'true' || environment === 'ci';
+      
       const frontendProc = spawn(frontendCommand[0]!, frontendCommand.slice(1), {
         cwd: frontendCwd,
         stdio: 'pipe',
-        detached: true,
+        detached: !isCIFrontend,
         env: frontendEnv,
-        shell: process.platform === 'win32' // Only use shell on Windows
+        shell: false
       });
       
-      frontendProc.unref();
+      if (!isCIFrontend) {
+        frontendProc.unref();
+      }
       
       if (!options.quiet) {
         printSuccess(`Frontend process started on port ${frontendPort}`);
