@@ -12,9 +12,21 @@ export function getCliPaths(importMetaUrl: string) {
   const filename = fileURLToPath(importMetaUrl);
   const dirname = path.dirname(filename);
   
-  // From commands/ subdirectory, go up to apps/cli, then up to project root
-  const cliRoot = path.resolve(dirname, '../..');  // up from src/commands to apps/cli
-  const projectRoot = path.resolve(cliRoot, '../..');  // up from apps/cli to project root
+  // Determine if we're in dist/ (bundled) or src/ (development)
+  const isDist = dirname.includes('/dist/') || dirname.includes('\\dist\\');
+  
+  // Adjust path calculation based on whether we're bundled or not
+  let cliRoot: string;
+  if (isDist) {
+    // From dist/commands/ up to apps/cli
+    cliRoot = path.resolve(dirname, '../..');
+  } else {
+    // From src/commands/ up to apps/cli  
+    cliRoot = path.resolve(dirname, '../..');
+  }
+  
+  // From apps/cli up to project root
+  const projectRoot = path.resolve(cliRoot, '../..');
   
   return {
     filename,

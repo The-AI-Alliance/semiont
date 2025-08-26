@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import { getProjectRoot } from '../lib/cli-paths.js';
+import { fileURLToPath } from 'url';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, getNodeEnvForEnvironment, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
@@ -22,7 +22,7 @@ import * as fs from 'fs';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -350,6 +350,15 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       const backendCwd = path.join(PROJECT_ROOT, 'apps/backend');
       let backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
+      
+      // Debug logging in CI
+      if (process.env.SEMIONT_CI === 'true' || environment === 'ci') {
+        console.error('[DEBUG] import.meta.url:', import.meta.url);
+        console.error('[DEBUG] PROJECT_ROOT:', PROJECT_ROOT);
+        console.error('[DEBUG] backendCwd:', backendCwd);
+        console.error('[DEBUG] cwd:', process.cwd());
+        console.error('[DEBUG] __filename equivalent:', fileURLToPath(import.meta.url));
+      }
       
       // Check if the backend directory exists
       if (!fs.existsSync(backendCwd)) {
