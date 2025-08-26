@@ -7,7 +7,6 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getProjectRoot } from '../lib/cli-paths.js';
 import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';
@@ -31,7 +30,7 @@ import { LogAggregator } from '../lib/log-aggregator.js';
 import { CloudWatchLogFetcher } from '../lib/log-fetchers/cloudwatch-fetcher.js';
 import { type EnvironmentConfig, getAWSRegion } from '../lib/environment-config.js';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS

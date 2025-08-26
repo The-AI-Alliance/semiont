@@ -918,7 +918,7 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
       try {
         const migrationResult = await new Promise<boolean>((resolve) => {
           const proc = spawn('npm', ['run', 'prisma:migrate'], {
-            cwd: `${process.cwd()}/apps/backend`,
+            cwd: `${process.env.SEMIONT_ROOT || process.cwd()}/apps/backend`,
             stdio: options.verbose ? 'inherit' : 'pipe',
             env: {
               ...process.env,

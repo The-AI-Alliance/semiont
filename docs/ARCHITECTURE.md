@@ -81,12 +81,14 @@ The application layer consists of two separate ECS services running on Fargate:
 - Responsive design with dark mode support
 - Type-safe API client for backend communication
 
-#### Backend Service  
-- **Framework**: Hono (lightweight web framework)
+#### Backend Service (BFF)
+- **Architecture Pattern**: Backend for Frontend (BFF) - optimized API layer for the Next.js frontend
+- **Framework**: OpenAPIHono (Hono with OpenAPI integration)
 - **Language**: TypeScript
 - **Database ORM**: Prisma with PostgreSQL
 - **Authentication**: JWT tokens for API access
-- **API**: RESTful endpoints with automatic OpenAPI generation
+- **API**: RESTful endpoints with automatic OpenAPI documentation
+- **Validation**: Zod schemas for request/response validation
 - **Container**: Alpine Linux with Node.js 18
 
 **Key Features**:
@@ -95,6 +97,34 @@ The application layer consists of two separate ECS services running on Fargate:
 - JWT-based authentication middleware
 - Type-safe database queries with Prisma
 - Health check endpoints for monitoring
+- Automatic OpenAPI documentation generation
+- Request/response validation with Zod schemas
+
+**Modular Route Architecture**:
+The backend uses a modular router pattern where each domain has its own router file:
+
+```
+apps/backend/src/
+├── index.ts              # Main app, mounts all routers
+├── routes/
+│   ├── health.ts        # Health check endpoints (public)
+│   ├── auth.ts          # Authentication & token endpoints
+│   ├── hello.ts         # Example endpoints (protected)
+│   ├── status.ts        # Status endpoint (protected)
+│   └── admin.ts         # Admin endpoints (protected + admin check)
+├── middleware/
+│   └── auth.ts          # JWT authentication middleware
+├── auth/
+│   ├── jwt.ts           # JWT token generation/verification
+│   └── oauth.ts         # OAuth user management
+└── openapi.ts           # OpenAPI schemas and configuration
+```
+
+Each router:
+- Defines its own OpenAPI route specifications with Zod schemas
+- Applies authentication middleware as needed (no central auth list)
+- Provides type-safe request/response handling
+- Automatically contributes to the OpenAPI documentation
 
 ### Service Communication
 
@@ -161,15 +191,17 @@ ListenerCondition.pathPatterns(['/api', '/api/*'])
 - **Simple mental model**: Easy to understand routing rules
 - **Independent scaling**: Frontend and backend scale separately
 
-### 2. **Hono Over Express**
-We chose Hono web framework over traditional Express.js:
+### 2. **OpenAPIHono Over Express**
+We use OpenAPIHono (Hono + OpenAPI integration) over traditional Express.js:
 
 **Advantages**:
 - **Performance**: ~3x faster than Express
-- **Type Safety**: Built-in TypeScript support
+- **Type Safety**: Built-in TypeScript support with Zod validation
 - **Small Bundle**: Minimal dependencies
 - **Modern APIs**: Web Standards compliant
-- **Automatic OpenAPI**: Built-in API documentation
+- **Automatic OpenAPI**: Route definitions generate documentation
+- **Request/Response Validation**: Automatic validation against schemas
+- **Modular Architecture**: Each domain owns its routes and auth logic
 
 ### 3. **Prisma ORM with PostgreSQL**
 Database layer uses Prisma with PostgreSQL:

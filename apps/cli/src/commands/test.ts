@@ -7,7 +7,6 @@ import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { getProjectRoot } from '../lib/cli-paths.js';
 import { listContainers } from '../lib/container-runtime.js';
 import { 
   TestResult, 
@@ -19,7 +18,7 @@ import {
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS

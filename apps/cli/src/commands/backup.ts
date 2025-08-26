@@ -10,7 +10,6 @@ import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning, printDebug, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { execInContainer } from '../lib/container-runtime.js';
-import { getProjectRoot } from '../lib/cli-paths.js';
 import { 
   BackupResult, 
   CommandResults, 
@@ -24,7 +23,7 @@ import type { BaseCommandOptions } from '../lib/base-command-options.js';
 // AWS SDK imports for backup operations  
 import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS

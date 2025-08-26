@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import { getProjectRoot } from '../lib/cli-paths.js';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, getNodeEnvForEnvironment, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
@@ -22,7 +21,7 @@ import * as fs from 'fs';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-const PROJECT_ROOT = getProjectRoot(import.meta.url);
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS

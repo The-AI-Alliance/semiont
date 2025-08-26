@@ -21,6 +21,7 @@ vi.mock('../db', () => ({
         update: vi.fn(),
       },
     })),
+    checkHealth: vi.fn().mockResolvedValue(true),
   },
 }));
 
@@ -68,16 +69,30 @@ describe('Main Application (index.ts)', () => {
   });
 
   describe('API Documentation', () => {
-    it('should require authentication for API root', async () => {
+    it('should redirect API root to docs for browser requests', async () => {
+      const response = await app.request('http://localhost/api', {
+        headers: { 
+          'Accept': 'text/html',
+          'User-Agent': 'Mozilla/5.0 (Browser)'
+        },
+      });
+
+      // API documentation is now public and redirects to /api/docs
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('/api/docs');
+    });
+
+    it('should redirect API root to OpenAPI JSON for API requests', async () => {
       const response = await app.request('http://localhost/api', {
         headers: { 'Accept': 'application/json' },
       });
 
-      // API documentation now requires authentication
-      expect(response.status).toBe(401);
+      // API documentation is public and redirects to OpenAPI spec
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('/api/openapi.json');
     });
 
-    it('should require authentication for Swagger UI', async () => {
+    it('should redirect /api/swagger to /api/docs', async () => {
       const response = await app.request('http://localhost/api/swagger', {
         headers: { 
           'Accept': 'text/html',
@@ -85,34 +100,35 @@ describe('Main Application (index.ts)', () => {
         },
       });
 
-      // Swagger UI now requires authentication
-      expect(response.status).toBe(401);
+      // Swagger UI redirects to /api/docs
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('/api/docs');
     });
   });
 
   describe('Authentication Endpoints', () => {
     it('should handle OAuth endpoint structure', async () => {
-      const response = await app.request('http://localhost/api/auth/google', {
+      const response = await app.request('http://localhost/api/tokens/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
 
-      // Should return 400 for invalid request body (not 404)
+      // Should return 400 for invalid request body
       expect(response.status).toBe(400);
     });
   });
 
   describe('Error Handling', () => {
-    it('should require authentication for non-existent API routes', async () => {
+    it('should return 404 for non-existent API routes', async () => {
       const response = await app.request('http://localhost/api/nonexistent');
       
-      // Auth middleware runs before 404 handler, so non-existent API routes return 401
-      expect(response.status).toBe(401);
+      // Non-existent routes now return 404 (auth is applied per-router)
+      expect(response.status).toBe(404);
     });
 
     it('should handle invalid JSON in POST requests', async () => {
-      const response = await app.request('http://localhost/api/auth/google', {
+      const response = await app.request('http://localhost/api/tokens/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: 'invalid-json',
