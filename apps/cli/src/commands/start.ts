@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import { fileURLToPath } from 'url';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo, getNodeEnvForEnvironment, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
@@ -348,51 +347,19 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
     case 'backend':
       const backendCwd = path.join(PROJECT_ROOT, 'apps/backend');
-      let backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      const backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
-      
-      // Debug logging in CI
-      if (process.env.SEMIONT_CI === 'true' || environment === 'ci') {
-        console.error('[DEBUG] import.meta.url:', import.meta.url);
-        console.error('[DEBUG] PROJECT_ROOT:', PROJECT_ROOT);
-        console.error('[DEBUG] backendCwd:', backendCwd);
-        console.error('[DEBUG] cwd:', process.cwd());
-        console.error('[DEBUG] __filename equivalent:', fileURLToPath(import.meta.url));
-      }
-      
-      // Check if the backend directory exists
-      if (!fs.existsSync(backendCwd)) {
-        throw new Error(`Backend directory not found: ${backendCwd}`);
-      }
-      
-      // Convert 'npm start' to direct node execution
-      if (backendCommand[0] === 'npm' && backendCommand[1] === 'start') {
-        // Check if dist/index.js exists
-        const distPath = path.join(backendCwd, 'dist/index.js');
-        if (!fs.existsSync(distPath)) {
-          throw new Error(`Backend dist not found: ${distPath}. Run 'npm run build' in backend first.`);
-        }
-        // Use node directly without absolute path - let it be found in PATH
-        backendCommand = ['node', 'dist/index.js'];
-      }
       
       // Load config to get site domain and OAuth settings
       const backendConfig = loadEnvironmentConfig(environment);
-      
-      // Ensure we properly copy all environment variables, filtering out undefined values
-      const backendEnv: Record<string, string> = Object.entries(process.env).reduce((acc, [key, value]) => {
-        if (value !== undefined) {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, string>);
-      
-      // Override specific variables
-      backendEnv.NODE_ENV = getNodeEnvForEnvironment(environment);
-      backendEnv.SEMIONT_ENV = environment;
-      backendEnv.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont';
-      backendEnv.JWT_SECRET = process.env.JWT_SECRET || 'local-dev-secret';
-      backendEnv.PORT = backendPort.toString();
+      const backendEnv: Record<string, string> = {
+        ...process.env,
+        NODE_ENV: getNodeEnvForEnvironment(environment),
+        SEMIONT_ENV: environment,
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
+        JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
+        PORT: backendPort.toString(),
+      };
       
       // Add site configuration
       if (backendConfig.site?.domain) {
@@ -402,20 +369,14 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         backendEnv.OAUTH_ALLOWED_DOMAINS = backendConfig.site.oauthAllowedDomains.join(',');
       }
       
-      // In CI, don't use detached mode as it causes issues with process management
-      const isCI = process.env.SEMIONT_CI === 'true' || environment === 'ci';
-      
       const backendProc = spawn(backendCommand[0]!, backendCommand.slice(1), {
         cwd: backendCwd,
         stdio: 'pipe',
-        detached: !isCI, // Only detach in non-CI environments
-        env: backendEnv,
-        shell: false // Don't use shell, rely on PATH
+        detached: true,
+        env: backendEnv
       });
       
-      if (!isCI) {
-        backendProc.unref();
-      }
+      backendProc.unref();
       
       if (!options.quiet) {
         printSuccess(`Backend process started on port ${backendPort}`);
@@ -442,51 +403,23 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
     case 'frontend':
       const frontendCwd = path.join(PROJECT_ROOT, 'apps/frontend');
-      let frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      const frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const frontendPort = serviceInfo.config.port || 3000;
-      
-      // Check if the frontend directory exists
-      if (!fs.existsSync(frontendCwd)) {
-        throw new Error(`Frontend directory not found: ${frontendCwd}`);
-      }
-      
-      // Convert 'npm start' to direct node execution if needed
-      if (frontendCommand[0] === 'npm' && frontendCommand[1] === 'start') {
-        const standalonePath = path.join(frontendCwd, '.next/standalone/server.js');
-        if (fs.existsSync(standalonePath)) {
-          frontendCommand = ['node', '.next/standalone/server.js'];
-        }
-        // Otherwise keep npm start as is
-      }
-      
-      // Properly copy environment variables
-      const frontendEnv: Record<string, string> = Object.entries(process.env).reduce((acc, [key, value]) => {
-        if (value !== undefined) {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, string>);
-      
-      // Override specific variables
-      frontendEnv.NODE_ENV = getNodeEnvForEnvironment(environment);
-      frontendEnv.NEXT_PUBLIC_API_URL = `http://localhost:3001`;
-      frontendEnv.NEXT_PUBLIC_SITE_NAME = 'Semiont Dev';
-      frontendEnv.PORT = frontendPort.toString();
-      
-      // In CI, don't use detached mode
-      const isCIFrontend = process.env.SEMIONT_CI === 'true' || environment === 'ci';
       
       const frontendProc = spawn(frontendCommand[0]!, frontendCommand.slice(1), {
         cwd: frontendCwd,
         stdio: 'pipe',
-        detached: !isCIFrontend,
-        env: frontendEnv,
-        shell: false
+        detached: true,
+        env: {
+          ...process.env,
+          NODE_ENV: getNodeEnvForEnvironment(environment),
+          NEXT_PUBLIC_API_URL: `http://localhost:3001`,
+          NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
+          PORT: frontendPort.toString(),
+        }
       });
       
-      if (!isCIFrontend) {
-        frontendProc.unref();
-      }
+      frontendProc.unref();
       
       if (!options.quiet) {
         printSuccess(`Frontend process started on port ${frontendPort}`);

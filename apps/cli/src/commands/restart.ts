@@ -499,7 +499,6 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
         cwd: `apps/${serviceInfo.name}`,
         stdio: 'pipe',
         detached: true,
-        shell: process.platform === 'win32', // Only use shell on Windows
         env: {
           ...process.env,
           PORT: port.toString(),
