@@ -920,6 +920,7 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
           const proc = spawn('npm', ['run', 'prisma:migrate'], {
             cwd: `${process.cwd()}/apps/backend`,
             stdio: options.verbose ? 'inherit' : 'pipe',
+            shell: true,
             env: {
               ...process.env,
               DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont'
@@ -1034,6 +1035,7 @@ async function updateProcessService(serviceInfo: ServiceDeploymentInfo, options:
         cwd: `apps/${serviceInfo.name}`,
         stdio: 'pipe',
         detached: true,
+        shell: true,
         env: {
           ...process.env,
           PORT: port.toString(),

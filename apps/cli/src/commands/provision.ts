@@ -913,7 +913,8 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
         const installSuccess = await new Promise<boolean>((resolve) => {
           const proc = spawn('npm', ['install'], {
             cwd: appPath,
-            stdio: options.verbose ? 'inherit' : 'pipe'
+            stdio: options.verbose ? 'inherit' : 'pipe',
+            shell: true
           });
           
           proc.on('exit', (code) => resolve(code === 0));

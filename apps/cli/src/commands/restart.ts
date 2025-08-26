@@ -499,6 +499,7 @@ async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options
         cwd: `apps/${serviceInfo.name}`,
         stdio: 'pipe',
         detached: true,
+        shell: true,
         env: {
           ...process.env,
           PORT: port.toString(),

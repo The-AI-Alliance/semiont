@@ -374,7 +374,8 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         cwd: backendCwd,
         stdio: 'pipe',
         detached: true,
-        env: backendEnv
+        env: backendEnv,
+        shell: true
       });
       
       backendProc.unref();
@@ -417,7 +418,8 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           NEXT_PUBLIC_API_URL: `http://localhost:3001`,
           NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
           PORT: frontendPort.toString(),
-        }
+        },
+        shell: true
       });
       
       frontendProc.unref();
