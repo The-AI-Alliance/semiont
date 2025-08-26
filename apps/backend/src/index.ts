@@ -15,13 +15,9 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && p
 
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
 
-import { DatabaseConnection } from './db';
-import { OAuthService } from './auth/oauth';
-import { JWTService } from './auth/jwt';
-import { authMiddleware } from './middleware/auth';
 import { User } from '@prisma/client';
 
 // Configuration is loaded in JWT service when needed
@@ -42,24 +38,6 @@ import { adminRouter } from './routes/admin';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
-
-// Import legacy types for transition (will be removed gradually)
-import {
-  AuthResponse,
-  UserResponse,
-  ErrorResponse,
-  HelloResponse,
-  StatusResponse,
-  HealthResponse,
-  LogoutResponse,
-  HelloParams,
-  GoogleAuthRequest
-} from './types/api';
-import {
-  GoogleAuthSchema,
-  HelloParamsSchema,
-  validateData
-} from './validation/schemas';
 
 type Variables = {
   user: User;

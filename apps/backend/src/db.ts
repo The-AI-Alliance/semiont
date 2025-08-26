@@ -108,6 +108,22 @@ export class DatabaseConnection {
       await client.$disconnect();
     }
   }
+  
+  /**
+   * Check database health by attempting a simple query
+   * Returns true if connected, false otherwise
+   */
+  static async checkHealth(): Promise<boolean> {
+    try {
+      const client = this.getClient();
+      // Simple query to check connection
+      await client.$queryRaw`SELECT 1`;
+      return true;
+    } catch (error) {
+      console.error('Database health check failed:', error);
+      return false;
+    }
+  }
 }
 
 // For convenience, export a getter function
