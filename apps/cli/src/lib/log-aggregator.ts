@@ -37,7 +37,7 @@ export abstract class LogFetcher {
 export class LogAggregator {
   private fetchers: Map<string, LogFetcher> = new Map();
   
-  constructor(private environment: string, private region?: string) {
+  constructor() {
     // Fetchers will be registered as they're implemented
   }
   
@@ -64,7 +64,7 @@ export class LogAggregator {
       
       // Special case for AWS RDS
       if (service.deploymentType === 'aws' && service.name === 'database') {
-        fetcherType = 'rds';
+        fetcherType = 'rds' as any; // RDS is a special AWS sub-type
       }
       
       const fetcher = this.fetchers.get(fetcherType);

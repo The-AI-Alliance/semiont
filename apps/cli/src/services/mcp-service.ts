@@ -27,7 +27,7 @@ export class MCPServiceRefactored extends BaseService {
   
   override getCommand(): string {
     const mcpServerPath = this.findMCPServer();
-    return this.serviceConfig.command || `node ${mcpServerPath}`;
+    return this.config.command || `node ${mcpServerPath}`;
   }
   
   override getImage(): string {
@@ -48,7 +48,7 @@ export class MCPServiceRefactored extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected async preStart(): Promise<void> {
+  protected override async preStart(): Promise<void> {
     // MCP requires environment to be set
     if (!this.config.environment) {
       throw new Error('Environment must be specified for MCP service');
@@ -84,7 +84,7 @@ export class MCPServiceRefactored extends BaseService {
         throw new Error('Failed to refresh access token. You may need to re-provision.');
       }
       
-      const { access_token } = await response.json();
+      const { access_token } = await response.json() as { access_token: string };
       
       // Store the token in environment for the process
       process.env.SEMIONT_API_TOKEN = access_token;
@@ -93,7 +93,7 @@ export class MCPServiceRefactored extends BaseService {
     }
   }
   
-  protected async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CheckResult['health']> {
     // MCP runs on stdio, hard to health check
     return {
       healthy: true,
@@ -110,7 +110,7 @@ export class MCPServiceRefactored extends BaseService {
   
   private getApiUrl(): string {
     const envConfig = loadEnvironmentConfig(this.config.environment);
-    return `https://${envConfig.site.domain}`;
+    return `https://${envConfig.site?.domain || 'localhost'}`;
   }
   
   private getApiToken(): string {

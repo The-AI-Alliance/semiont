@@ -215,7 +215,7 @@ export class DashboardDataSource {
             }
             
             // Get Memory utilization for this service
-            const memResponse = await this.cloudWatchClient.send(
+            const memResponse = await this.cloudWatchClient!.send(
               new GetMetricStatisticsCommand({
                 Namespace: 'AWS/ECS',
                 MetricName: 'MemoryUtilization',
@@ -278,7 +278,6 @@ export class DashboardDataSource {
             deploymentStatus,
             cpuUtilization,
             memoryUtilization,
-            // AWS Console links data
             awsRegion: this.config.aws?.region,
             ecsServiceName: serviceName,
             ecsClusterName: clusterName,
@@ -503,7 +502,7 @@ export class DashboardDataSource {
                 if (arnParts.length >= 3) {
                   const albDimensionValue = arnParts.slice(-3).join('/'); // app/name/id
                   
-                  const metricsResponse = await this.cloudWatchClient.send(
+                  const metricsResponse = await this.cloudWatchClient!.send(
                     new GetMetricStatisticsCommand({
                       Namespace: 'AWS/ApplicationELB',
                       MetricName: 'RequestCount',
@@ -961,7 +960,7 @@ export class DashboardDataSource {
         
         try {
           // Get the latest log stream
-          const streamsResponse = await this.logsClient.send(
+          const streamsResponse = await this.logsClient!.send(
             new DescribeLogStreamsCommand({
               logGroupName,
               orderBy: 'LastEventTime',

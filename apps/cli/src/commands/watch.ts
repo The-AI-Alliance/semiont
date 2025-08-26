@@ -20,6 +20,7 @@ import {
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 import { ServiceFactory } from '../services/service-factory.js';
+import { ServiceName, DeploymentType, ServiceConfig } from '../services/types.js';
 import { Config, CheckResult } from '../services/types.js';
 
 // Import the React dashboard component dynamically to handle module loading
@@ -68,17 +69,17 @@ class EnhancedDashboardDataSource {
    */
   async getDashboardData() {
     const services = [];
-    const logs = [];
+    const logs: any[] = [];
     const metrics = [];
 
     // Use the new service implementations to check status
     for (const deployment of this.serviceDeployments) {
       try {
         const service = ServiceFactory.create(
-          deployment.name,
-          this.environment,
+          deployment.name as ServiceName,
+          this.environment as DeploymentType,
           this.config,
-          {} // Service config would come from deployment
+          { deploymentType: this.environment as DeploymentType } as ServiceConfig
         );
 
         // Get status using the new check method
@@ -228,7 +229,7 @@ async function launchDashboard(
           React.useEffect(() => {
             const loadData = async () => {
               const newData = await dataSource.getDashboardData();
-              setData(newData);
+              setData(() => newData);
             };
             
             loadData();
@@ -261,7 +262,7 @@ async function launchDashboard(
         
         // Create a custom server that uses the new service architecture
         class EnhancedWebDashboardServer extends WebDashboardServer {
-          private dataSource: EnhancedDashboardDataSource;
+          private override dataSource: EnhancedDashboardDataSource;
           
           constructor(environment: string, port: number, interval: number) {
             super(environment, port, interval);

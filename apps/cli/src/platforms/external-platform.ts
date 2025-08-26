@@ -205,7 +205,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async exec(context: ServiceContext, command: string, options: ExecOptions = {}): Promise<ExecResult> {
+  async exec(context: ServiceContext, command: string, _options: ExecOptions = {}): Promise<ExecResult> {
     // Can't exec on external services - they're managed externally
     if (!context.quiet) {
       printWarning(`Cannot execute commands on external ${context.name} service - managed externally`);
@@ -390,7 +390,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async restore(context: ServiceContext, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
+  async restore(context: ServiceContext, backupId: string, _options: RestoreOptions = {}): Promise<RestoreResult> {
     const restoreTime = new Date();
     const config = this.getExternalConfig(context);
     
@@ -515,7 +515,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
+  async collectLogs(_context: ServiceContext): Promise<CheckResult['logs']> {
     // Can't collect logs from external services
     return undefined;
   }

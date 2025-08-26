@@ -393,7 +393,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         }
         
         // Could install to /usr/local/bin or /opt
-        const backendTarget = `/usr/local/lib/semiont-backend`;
+        // Backend would be installed to: /usr/local/lib/semiont-backend
         rollback.supported = true;
         rollback.command = `systemctl restart semiont-backend`;
         break;
@@ -1037,7 +1037,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
   /**
    * Parse test failures
    */
-  private parseFailures(output: string, framework: string): any[] {
+  private parseFailures(output: string, _framework: string): any[] {
     const failures: any[] = [];
     
     // Basic failure extraction

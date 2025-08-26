@@ -5,7 +5,6 @@
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults as CommandResultsClass } from '../lib/command-results-class.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
@@ -39,7 +38,7 @@ async function checkHandler(
   services: ServiceDeploymentInfo[],
   options: CheckOptions
 ): Promise<CommandResults> {
-  const results = new CommandResultsClass();
+  const serviceResults: any[] = [];
   const commandStartTime = Date.now();
   
   // Create config for services
@@ -68,7 +67,8 @@ async function checkHandler(
       const result = await service.check();
       
       // Record result
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: result.success,
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
@@ -145,7 +145,8 @@ async function checkHandler(
       }
       
     } catch (error) {
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+      service: serviceInfo.name,
         success: false,
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
@@ -160,7 +161,6 @@ async function checkHandler(
   
   // Summary for multiple services
   if (!options.quiet && services.length > 1) {
-    const serviceResults = results.getResults();
     console.log('\n📊 Summary:');
     
     const running = serviceResults.filter((r: any) => r.data.status === 'running').length;
@@ -183,7 +183,6 @@ async function checkHandler(
   }
   
   // Build the CommandResults interface
-  const serviceResults = results.getResults();
   const commandResults: CommandResults = {
     command: 'check',
     environment: options.environment || 'unknown',

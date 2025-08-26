@@ -74,6 +74,6 @@ export class FilesystemServiceRefactored extends BaseService {
   // =====================================================================
   
   private getDataPath(): string {
-    return this.serviceConfig.path || path.join(this.config.projectRoot, 'data');
+    return this.config.path || path.join(this.config.projectRoot, 'data');
   }
 }

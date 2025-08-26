@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults } from '../lib/command-results-class.js';
+import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
@@ -39,7 +39,7 @@ async function updateHandler(
   options: UpdateOptions,
   services: ServiceDeploymentInfo[]
 ): Promise<CommandResults> {
-  const results = new CommandResults();
+  const serviceResults: any[] = [];
   
   // Create config for services
   const config: Config = {
@@ -68,7 +68,8 @@ async function updateHandler(
       const result = await service.update();
       
       // Record result
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: result.success,
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
@@ -122,7 +123,8 @@ async function updateHandler(
       }
       
     } catch (error) {
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: false,
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
@@ -137,7 +139,6 @@ async function updateHandler(
   
   // Summary for multiple services
   if (!options.quiet && services.length > 1) {
-    const serviceResults = results.getAllResults();
     console.log('\n📊 Update Summary:');
     
     const successful = serviceResults.filter((r: any) => r.data.success).length;
@@ -189,16 +190,49 @@ async function updateHandler(
     printInfo('\n🔍 This was a dry run. No actual changes were made.');
   }
   
-  return results;
+  // Convert service results to CommandResults format
+  const formattedResults = serviceResults.map((r: any) => ({
+    command: 'update',
+    service: r.service,
+    deploymentType: r.deployment as any,
+    environment: options.environment || 'default',
+    timestamp: new Date(),
+    success: r.success,
+    duration: r.duration,
+    resourceId: {} as any, // Update doesn't have specific resource IDs
+    status: r.success ? 'updated' : 'failed',
+    metadata: {
+      ...r.metadata,
+      strategy: r.strategy,
+      previousVersion: r.previousVersion,
+      newVersion: r.newVersion,
+      downtime: r.downtime
+    },
+    error: r.error
+  }));
+  
+  return {
+    command: 'update',
+    environment: options.environment || 'default',
+    timestamp: new Date(),
+    duration: Date.now() - (Date.now() - serviceResults[0]?.duration || 0),
+    services: formattedResults,
+    summary: {
+      total: services.length,
+      succeeded: serviceResults.filter((r: any) => r.success).length,
+      failed: serviceResults.filter((r: any) => !r.success).length,
+    },
+  } as CommandResults;
 }
 
 // =====================================================================
 // COMMAND DEFINITION
 // =====================================================================
 
-export const updateNewCommand = new CommandBuilder('update-new')
+export const updateNewCommand = new CommandBuilder<UpdateOptions>()
+  .name('update-new')
   .description('Update services to latest version using new service architecture')
-  .schema(UpdateOptionsSchema)
+  .schema(UpdateOptionsSchema as any)
   .requiresServices(true)
-  .handler(updateHandler)
+  .handler(updateHandler as any)
   .build();

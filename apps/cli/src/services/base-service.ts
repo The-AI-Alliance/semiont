@@ -270,7 +270,7 @@ export abstract class BaseService implements Service, ServiceContext {
         const healthResult = await this.checkHealth();
         result.health = healthResult;
         
-        if (!healthResult.healthy) {
+        if (healthResult && !healthResult.healthy) {
           result.status = 'unhealthy';
         }
       }
@@ -764,14 +764,14 @@ export abstract class BaseService implements Service, ServiceContext {
         if (result.success) {
           printSuccess(`✅ ${this.name} (${this.deployment}): Tests passed`);
           if (result.tests) {
-            printInfo(`   🧪 Tests: ${result.tests.passed} passed, ${result.tests.failed} failed (${(result.tests.duration/1000).toFixed(1)}s)`);
+            printInfo(`   🧪 Tests: ${result.tests.passed} passed, ${result.tests.failed || 0} failed (${((result.tests.duration || 0)/1000).toFixed(1)}s)`);
           }
           if (result.coverage?.enabled) {
             printInfo(`   📊 Coverage: Lines: ${result.coverage.lines}% Branches: ${result.coverage.branches}%`);
           }
         } else {
           printError(`❌ ${this.name} (${this.deployment}): Tests failed`);
-          if (result.tests && result.tests.failed > 0) {
+          if (result.tests && result.tests.failed && result.tests.failed > 0) {
             printError(`   🧪 ${result.tests.failed} test(s) failed`);
           }
           if (result.error) {
@@ -892,27 +892,27 @@ export abstract class BaseService implements Service, ServiceContext {
     // Override in subclasses for service-specific validation
   }
   
-  protected async preExec(command: string, options: ExecOptions): Promise<void> {
+  protected async preExec(_command: string, _options: ExecOptions): Promise<void> {
     // Override in subclasses for service-specific preparation
   }
   
-  protected async postExec(result: ExecResult): Promise<void> {
+  protected async postExec(_result: ExecResult): Promise<void> {
     // Override in subclasses for service-specific validation
   }
   
-  protected async preTest(options: TestOptions): Promise<void> {
+  protected async preTest(_options: TestOptions): Promise<void> {
     // Override in subclasses for service-specific preparation
   }
   
-  protected async postTest(result: TestResult): Promise<void> {
+  protected async postTest(_result: TestResult): Promise<void> {
     // Override in subclasses for service-specific validation
   }
   
-  protected async preRestore(backupId: string, options: RestoreOptions): Promise<void> {
+  protected async preRestore(_backupId: string, _options: RestoreOptions): Promise<void> {
     // Override in subclasses for service-specific preparation
   }
   
-  protected async postRestore(result: RestoreResult): Promise<void> {
+  protected async postRestore(_result: RestoreResult): Promise<void> {
     // Override in subclasses for service-specific validation
   }
   

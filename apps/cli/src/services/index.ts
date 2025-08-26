@@ -1,7 +1,7 @@
 // Service architecture exports
 
 export * from './types.js';
-export * from './base-service-refactored.js';
+export * from './base-service.js';
 export * from './service-factory.js';
 
 // Individual service exports (for testing or direct use)

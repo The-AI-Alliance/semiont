@@ -5,7 +5,6 @@
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults as CommandResultsClass } from '../lib/command-results-class.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
@@ -41,7 +40,7 @@ async function provisionHandler(
   services: ServiceDeploymentInfo[],
   options: ProvisionOptions
 ): Promise<CommandResults> {
-  const results = new CommandResultsClass();
+  const serviceResults: any[] = [];
   const commandStartTime = Date.now();
   
   // Create config for services
@@ -89,10 +88,11 @@ async function provisionHandler(
       }
       
       // Record result
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: result.success,
         duration: Date.now() - startTime,
-        deployment: serviceInfo.deployment,
+        deployment: serviceInfo.deploymentType,
         resources: result.resources,
         dependencies: result.dependencies,
         cost: result.cost,
@@ -103,7 +103,7 @@ async function provisionHandler(
       // Display result
       if (!options.quiet) {
         if (result.success) {
-          printSuccess(`✅ ${serviceInfo.name} (${serviceInfo.deployment}) provisioned`);
+          printSuccess(`✅ ${serviceInfo.name} (${serviceInfo.deploymentType}) provisioned`);
           
           // Show key resources
           if (result.resources) {
@@ -144,10 +144,11 @@ async function provisionHandler(
       }
       
     } catch (error) {
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: false,
         duration: Date.now() - startTime,
-        deployment: serviceInfo.deployment,
+        deployment: serviceInfo.deploymentType,
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -159,7 +160,6 @@ async function provisionHandler(
   
   // Summary for multiple services
   if (!options.quiet && services.length > 1) {
-    const serviceResults = results.getAllResults();
     console.log('\n📊 Provisioning Summary:');
     
     const successful = serviceResults.filter((r: any) => r.data.success).length;
@@ -202,7 +202,6 @@ async function provisionHandler(
   }
   
   // Build the CommandResults interface
-  const serviceResults = results.getResults();
   const commandResults: CommandResults = {
     command: 'provision',
     environment: options.environment || 'unknown',

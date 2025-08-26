@@ -19,7 +19,7 @@ export class CloudWatchLogFetcher extends LogFetcher {
   private cfnClient: CloudFormationClient;
   private logGroupCache: Map<string, string> = new Map();
   
-  constructor(private region: string) {
+  constructor(region: string) {
     super();
     this.logsClient = new CloudWatchLogsClient({ region });
     this.cfnClient = new CloudFormationClient({ region });
@@ -34,7 +34,7 @@ export class CloudWatchLogFetcher extends LogFetcher {
       let logGroupName = this.logGroupCache.get(service.name);
       
       if (!logGroupName) {
-        logGroupName = await this.getLogGroupName(service);
+        logGroupName = await this.getLogGroupName(service) || undefined;
         if (logGroupName) {
           this.logGroupCache.set(service.name, logGroupName);
         }

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults } from '../lib/command-results-class.js';
+import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
@@ -102,8 +102,8 @@ export async function start(
       }
     }
     
-    // Convert to legacy format for compatibility
-    const legacyResults = serviceResults.map(r => ({
+    // Convert service results to CommandResults format
+    const formattedResults = serviceResults.map(r => ({
       command: 'start',
       service: r.service,
       deploymentType: r.deployment,
@@ -122,31 +122,39 @@ export async function start(
       status: r.success ? 'running' : 'failed',
       endpoint: r.endpoint,
       metadata: r.metadata || {},
-      error: r.error
+      error: r.error || undefined
     }));
     
-    // Create aggregated results
+    // Create aggregated results structure
     const commandResults: CommandResults = {
       command: 'start',
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: legacyResults as any,
+      services: formattedResults,
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
         failed: serviceResults.filter(r => !r.success).length,
-        warnings: 0,
+        warnings: 0
       },
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false
       }
     };
     
+    // Create summary for display
+    const summary = {
+      total: serviceResults.length,
+      succeeded: serviceResults.filter(r => r.success).length,
+      failed: serviceResults.filter(r => !r.success).length,
+      warnings: 0,
+    };
+    
     if (!isStructuredOutput && !options.quiet) {
-      const { succeeded, failed } = commandResults.summary;
+      const { succeeded, failed } = summary;
       if (failed === 0) {
         printSuccess(`All ${succeeded} service(s) started successfully`);
       } else {

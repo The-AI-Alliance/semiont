@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import * as path from 'path';
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
 import { StartResult, StopResult, CheckResult, UpdateResult, ProvisionResult, PublishResult, BackupResult, ExecResult, ExecOptions, TestResult, TestOptions, RestoreResult, RestoreOptions } from '../services/types.js';
-import { printInfo, printWarning } from '../lib/cli-logger.js';
+import { printInfo } from '../lib/cli-logger.js';
 
 export class AWSPlatformStrategy extends BasePlatformStrategy {
   getPlatformName(): string {
@@ -71,7 +71,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  private async startFrontend(context: ServiceContext, resourceName: string): Promise<StartResult> {
+  private async startFrontend(context: ServiceContext, _resourceName: string): Promise<StartResult> {
     // Frontend is typically S3 + CloudFront
     const bucketName = `semiont-frontend-${context.environment}`;
     
@@ -94,7 +94,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  private async startDatabase(context: ServiceContext, resourceName: string): Promise<StartResult> {
+  private async startDatabase(context: ServiceContext, _resourceName: string): Promise<StartResult> {
     const instanceId = `semiont-db-${context.environment}`;
     
     try {
@@ -120,7 +120,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  private async startFilesystem(context: ServiceContext, resourceName: string): Promise<StartResult> {
+  private async startFilesystem(context: ServiceContext, _resourceName: string): Promise<StartResult> {
     // EFS doesn't really start/stop
     return {
       service: context.name,
@@ -135,7 +135,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  private async startGenericService(context: ServiceContext, resourceName: string): Promise<StartResult> {
+  private async startGenericService(context: ServiceContext, _resourceName: string): Promise<StartResult> {
     return {
       service: context.name,
       deployment: 'aws',
@@ -148,7 +148,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async stop(context: ServiceContext): Promise<StopResult> {
-    const resourceName = this.getResourceName(context);
+    // Resource name would be: this.getResourceName(context)
     
     switch (context.name) {
       case 'backend':
@@ -786,7 +786,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           );
           
           const functionData = JSON.parse(codeOutput);
-          const codeLocation = functionData.Code.Location;
+          // Code location: functionData.Code.Location
           
           backup.location = `Lambda: ${functionName}`;
           backup.application = {
@@ -1029,11 +1029,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           });
           
           // Invoke Lambda function
-          let lambdaOutput = '';
           let lambdaError = '';
           
           try {
-            lambdaOutput = execSync(
+            execSync(
               `aws lambda invoke --function-name ${functionName} --payload '${payload}' --region ${region} /tmp/lambda-output.json`,
               { encoding: 'utf-8' }
             );
@@ -1196,7 +1195,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const testPayload = JSON.stringify({ test: true, suite: options.suite });
         
         try {
-          const invokeOutput = execSync(
+          execSync(
             `aws lambda invoke --function-name ${functionName} --payload '${testPayload}' --region ${region} /tmp/test-output.json`,
             { encoding: 'utf-8' }
           );
@@ -1472,7 +1471,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
+  async collectLogs(_context: ServiceContext): Promise<CheckResult['logs']> {
     // CloudWatch logs collection would go here
     // For brevity, returning undefined for now
     return undefined;

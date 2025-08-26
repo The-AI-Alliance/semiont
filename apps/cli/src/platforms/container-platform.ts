@@ -204,14 +204,16 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     return {
       service: context.name,
       deployment: 'container',
-      success: true,
+      success: startResult.success,
       updateTime: new Date(),
       strategy: 'recreate',
       metadata: {
         image,
         runtime: this.runtime,
-        containerName
-      }
+        containerName,
+        ...startResult.metadata
+      },
+      error: startResult.error
     };
   }
   
@@ -414,8 +416,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         };
     }
     
-    // Tag for registry
-    if (context.name !== 'database' && context.name !== 'filesystem') {
+    // Tag for registry (skip for database which uses standard postgres image)
+    if (context.name !== 'database') {
       execSync(`${this.runtime} tag ${imageTag} ${registryImageTag}`);
       
       // Push to registry (if registry is configured)
@@ -589,7 +591,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           
           restore.command = `${this.runtime} load -i "${imageBackupPath}"`;
           if (volumeExists) {
-            restore.command += ` && ${this.runtime} run --rm -v ${volumeName}:/restore-data -v "${backupDir}":/backup alpine tar xzf /backup/${path.basename(configBackupPath)} -C /restore-data`;
+            restore.command += ` && ${this.runtime} run --rm -v ${dataVolumeName}:/restore-data -v "${backupDir}":/backup alpine tar xzf /backup/${path.basename(configBackupPath)} -C /restore-data`;
           }
           break;
           

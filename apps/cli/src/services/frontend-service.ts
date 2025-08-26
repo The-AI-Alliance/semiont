@@ -8,7 +8,6 @@ import { BaseService } from './base-service.js';
 import { CheckResult } from './types.js';
 import { getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
 import { execSync } from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
 
 export class FrontendServiceRefactored extends BaseService {
@@ -18,7 +17,7 @@ export class FrontendServiceRefactored extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.serviceConfig.port || 3000;
+    return this.config.port || 3000;
   }
   
   override getHealthEndpoint(): string {
@@ -26,11 +25,11 @@ export class FrontendServiceRefactored extends BaseService {
   }
   
   override getCommand(): string {
-    return this.serviceConfig.command || 'npm run dev';
+    return this.config.command || 'npm run dev';
   }
   
   override getImage(): string {
-    return this.serviceConfig.image || 'semiont/frontend:latest';
+    return this.config.image || 'semiont/frontend:latest';
   }
   
   override getEnvironmentVariables(): Record<string, string> {
@@ -50,7 +49,7 @@ export class FrontendServiceRefactored extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CheckResult['health']> {
     const endpoint = `http://localhost:${this.getPort()}/`;
     
     try {
@@ -147,7 +146,7 @@ export class FrontendServiceRefactored extends BaseService {
       case 'aws':
         return `https://api-${this.config.environment}.semiont.com`;
       case 'external':
-        return this.serviceConfig.backendUrl || 'http://localhost:3001';
+        return this.config.backendUrl || 'http://localhost:3001';
       default:
         return 'http://localhost:3001';
     }

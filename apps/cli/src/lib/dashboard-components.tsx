@@ -300,8 +300,7 @@ export const MetricsPanel: React.FC<{
   columns?: number;
 }> = ({ 
   metrics, 
-  title = "Metrics",
-  columns = 1 
+  title = "Metrics"
 }) => {
   const trendIndicators = {
     up: '↑',

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults } from '../lib/command-results-class.js';
+import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
@@ -106,8 +106,8 @@ export async function stop(
       }
     }
     
-    // Convert to legacy format for compatibility
-    const legacyResults = serviceResults.map(r => ({
+    // Convert service results to CommandResults format
+    const formattedResults = serviceResults.map(r => ({
       command: 'stop',
       service: r.service,
       deploymentType: r.deployment,
@@ -123,7 +123,7 @@ export async function stop(
       } as any,
       status: r.success ? 'stopped' : 'failed',
       metadata: r.metadata || {},
-      error: r.error
+      error: r.error || undefined
     }));
     
     // Create aggregated results
@@ -132,7 +132,7 @@ export async function stop(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - stopTime,
-      services: legacyResults as any,
+      services: formattedResults,
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,

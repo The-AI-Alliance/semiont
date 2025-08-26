@@ -8,6 +8,7 @@
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { beforeAll, afterAll } from 'vitest';
 import { execSync } from 'child_process';
 
 export interface TestEnvironment {

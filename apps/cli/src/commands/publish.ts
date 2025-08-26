@@ -5,13 +5,13 @@
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults } from '../lib/command-results-class.js';
+import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, PublishResult } from '../services/types.js';
+import { Config, ServiceName, DeploymentType, PublishResult, ServiceConfig } from '../services/types.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -41,7 +41,8 @@ async function publishHandler(
   options: PublishOptions,
   services: ServiceDeploymentInfo[]
 ): Promise<CommandResults> {
-  const results = new CommandResults();
+  const startTime = Date.now();
+  const serviceResults: any[] = [];
   
   // Create config for services
   const config: Config = {
@@ -66,17 +67,32 @@ async function publishHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.deployment as DeploymentType,
+        serviceInfo.deploymentType as DeploymentType,
         config,
         { 
+          deploymentType: serviceInfo.deploymentType as DeploymentType,
           tag: options.tag,
           registry: options.registry
-        }
+        } as ServiceConfig
       );
       
       // Publish the service
       const result = await service.publish();
       publishResults.set(serviceInfo.name, result);
+      
+      // Track in serviceResults for CommandResults
+      serviceResults.push({
+        service: serviceInfo.name,
+        success: result.success,
+        duration: Date.now() - startTime,
+        deployment: serviceInfo.deploymentType,
+        artifacts: result.artifacts,
+        version: result.version,
+        destinations: result.destinations,
+        rollback: result.rollback,
+        metadata: result.metadata,
+        error: result.error
+      });
       
       // Collect rollback command if available
       if (result.rollback?.supported && result.rollback.command) {
@@ -84,10 +100,11 @@ async function publishHandler(
       }
       
       // Record result
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: result.success,
         duration: Date.now() - startTime,
-        deployment: serviceInfo.deployment,
+        deployment: serviceInfo.deploymentType,
         artifacts: result.artifacts,
         version: result.version,
         destinations: result.destinations,
@@ -99,7 +116,7 @@ async function publishHandler(
       // Display result
       if (!options.quiet) {
         if (result.success) {
-          printSuccess(`🚀 ${serviceInfo.name} (${serviceInfo.deployment}) published`);
+          printSuccess(`🚀 ${serviceInfo.name} (${serviceInfo.deploymentType}) published`);
           
           // Show version info
           if (result.version?.current) {
@@ -156,10 +173,11 @@ async function publishHandler(
       }
       
     } catch (error) {
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: false,
         duration: Date.now() - startTime,
-        deployment: serviceInfo.deployment,
+        deployment: serviceInfo.deploymentType,
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -171,19 +189,18 @@ async function publishHandler(
   
   // Summary for multiple services
   if (!options.quiet && services.length > 1) {
-    const serviceResults = results.getAllResults();
     console.log('\n📊 Publishing Summary:');
     
-    const successful = serviceResults.filter((r: any) => r.data.success).length;
-    const failed = serviceResults.filter((r: any) => !r.data.success).length;
+    const successful = serviceResults.filter((r: any) => r.success).length;
+    const failed = serviceResults.filter((r: any) => !r.success).length;
     
     console.log(`   ✅ Successful: ${successful}`);
     if (failed > 0) console.log(`   ❌ Failed: ${failed}`);
     
     // Platform breakdown
     const platforms = serviceResults.reduce((acc: any, r: any) => {
-      if (r.data.success) {
-        acc[r.data.deployment] = (acc[r.data.deployment] || 0) + 1;
+      if (r.success) {
+        acc[r.deployment] = (acc[r.deployment] || 0) + 1;
       }
       return acc;
     }, {} as Record<string, number>);
@@ -218,7 +235,45 @@ async function publishHandler(
     printInfo('\n🔍 This was a dry run. No actual publishing was performed.');
   }
   
-  return results;
+  // Convert service results to CommandResults format
+  const formattedResults = serviceResults.map((r: any) => ({
+    command: 'publish',
+    service: r.service,
+    deploymentType: r.deployment as any,
+    environment: options.environment || 'default',
+    timestamp: new Date(),
+    success: r.success,
+    duration: r.duration,
+    resourceId: {} as any,
+    status: r.success ? 'published' : 'failed',
+    metadata: {
+      ...r.metadata,
+      artifacts: r.artifacts,
+      version: r.version,
+      destinations: r.destinations,
+      rollback: r.rollback
+    },
+    error: r.error
+  }));
+  
+  return {
+    command: 'publish',
+    environment: options.environment || 'default',
+    timestamp: new Date(),
+    duration: Date.now() - startTime,
+    services: formattedResults,
+    summary: {
+      total: services.length,
+      succeeded: serviceResults.filter((r: any) => r.success).length,
+      failed: serviceResults.filter((r: any) => !r.success).length,
+      warnings: 0
+    },
+    executionContext: {
+      user: process.env.USER || 'unknown',
+      workingDirectory: process.cwd(),
+      dryRun: options.dryRun || false
+    }
+  } as CommandResults;
 }
 
 /**
@@ -244,9 +299,10 @@ function sortServicesByPublishOrder(services: ServiceDeploymentInfo[]): ServiceD
 // COMMAND DEFINITION
 // =====================================================================
 
-export const publishNewCommand = new CommandBuilder('publish-new')
+export const publishNewCommand = new CommandBuilder<PublishOptions>()
+  .name('publish-new')
   .description('Publish and deploy service artifacts')
-  .schema(PublishOptionsSchema)
+  .schema(PublishOptionsSchema as any)
   .requiresServices(true)
-  .handler(publishHandler)
+  .handler(publishHandler as any)
   .build();

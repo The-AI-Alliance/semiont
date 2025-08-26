@@ -9,10 +9,12 @@
 import { CommandBuilder } from '../lib/command-definition.js';
 import { Config, ServiceName, RestoreResult, RestoreOptions } from '../services/types.js';
 import { ServiceFactory } from '../services/service-factory.js';
+import { DeploymentType, ServiceConfig } from '../services/types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
 import { z } from 'zod';
+import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-// Schema for restore options
+// Schema for restore options  
 const RestoreOptionsSchema = z.object({
   backupId: z.string().describe('ID of the backup to restore from'),
   force: z.boolean().optional().describe('Force restore without confirmation'),
@@ -22,8 +24,15 @@ const RestoreOptionsSchema = z.object({
   verifyChecksum: z.boolean().optional().default(true).describe('Verify backup checksum'),
   skipTests: z.boolean().optional().describe('Skip post-restore tests'),
   targetPath: z.string().optional().describe('Custom restore path'),
-  dryRun: z.boolean().optional().describe('Simulate restore without changes')
+  dryRun: z.boolean().optional().describe('Simulate restore without changes'),
+  // Base command options
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  environment: z.string().optional(),
+  quiet: z.boolean().optional(),
+  verbose: z.boolean().optional()
 });
+
+type RestoreOptions = z.infer<typeof RestoreOptionsSchema> & BaseCommandOptions;
 
 // Main handler function
 async function restoreHandler(
@@ -66,12 +75,8 @@ async function restoreHandler(
     printInfo('🔍 Validating backups...');
     
     for (const serviceName of orderedServices) {
-      const service = ServiceFactory.create(
-        serviceName,
-        config.environment,
-        config,
-        {} // Service config would come from real implementation
-      );
+      // Validation would be done in platform implementation
+      // serviceName will be validated by the platform
       
       // Check if backup exists (would be done in platform implementation)
       if (!config.quiet) {
@@ -86,9 +91,9 @@ async function restoreHandler(
   for (const serviceName of orderedServices) {
     const service = ServiceFactory.create(
       serviceName,
-      config.environment,
+      'process' as DeploymentType, // Default to process for now
       config,
-      {} // Service config would come from real implementation
+      { deploymentType: 'process' as DeploymentType } as ServiceConfig
     );
     
     try {
@@ -212,9 +217,10 @@ async function restoreHandler(
 }
 
 // Build and export the command
-export const restoreNewCommand = new CommandBuilder('restore-new')
+export const restoreNewCommand = new CommandBuilder<RestoreOptions>()
+  .name('restore-new')
   .description('Restore services from backups (new implementation)')
-  .schema(RestoreOptionsSchema)
+  .schema(RestoreOptionsSchema as any)
   .requiresServices(true)
-  .handler(restoreHandler)
+  .handler(restoreHandler as any)
   .build();

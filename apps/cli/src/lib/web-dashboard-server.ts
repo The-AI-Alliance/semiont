@@ -8,7 +8,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { DashboardDataSource } from './dashboard-data.js';
-import type { DashboardData } from './dashboard-layouts.js';
+import type { DashboardData as _DashboardData } from './dashboard-layouts.js';
 
 export class WebDashboardServer {
   private app: express.Application;
@@ -44,12 +44,12 @@ export class WebDashboardServer {
   
   private setupRoutes(): void {
     // Serve static HTML page
-    this.app.get('/', (req, res) => {
+    this.app.get('/', (_req, res) => {
       res.send(this.getHtmlPage());
     });
     
     // API endpoint for initial data
-    this.app.get('/api/dashboard', async (req, res) => {
+    this.app.get('/api/dashboard', async (_req, res) => {
       try {
         const data = await this.dataSource.getDashboardData();
         res.json(data);

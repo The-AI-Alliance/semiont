@@ -2,7 +2,8 @@
  * Platform Strategy exports and factory
  */
 
-export { PlatformStrategy, ServiceContext, BasePlatformStrategy } from './platform-strategy.js';
+export { BasePlatformStrategy } from './platform-strategy.js';
+export type { PlatformStrategy, ServiceContext } from './platform-strategy.js';
 export { ProcessPlatformStrategy } from './process-platform.js';
 export { ContainerPlatformStrategy } from './container-platform.js';
 export { AWSPlatformStrategy } from './aws-platform.js';

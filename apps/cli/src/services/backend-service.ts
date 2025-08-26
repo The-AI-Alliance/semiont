@@ -19,7 +19,7 @@ export class BackendServiceRefactored extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.serviceConfig.port || 3001;
+    return this.config.port || 3001;
   }
   
   override getHealthEndpoint(): string {
@@ -27,11 +27,11 @@ export class BackendServiceRefactored extends BaseService {
   }
   
   override getCommand(): string {
-    return this.serviceConfig.command || 'npm run start:prod';
+    return this.config.command || 'npm run start:prod';
   }
   
   override getImage(): string {
-    return this.serviceConfig.image || 'semiont/backend:latest';
+    return this.config.image || 'semiont/backend:latest';
   }
   
   override getEnvironmentVariables(): Record<string, string> {
@@ -95,7 +95,7 @@ export class BackendServiceRefactored extends BaseService {
     }
   }
   
-  protected override async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CheckResult['logs']> {
     switch (this.deployment) {
       case 'process':
         return this.collectProcessLogs();
@@ -184,8 +184,8 @@ export class BackendServiceRefactored extends BaseService {
   
   private getDatabaseUrl(): string {
     // Service-specific logic for determining database URL
-    if (this.serviceConfig.databaseUrl) {
-      return this.serviceConfig.databaseUrl;
+    if (this.config.databaseUrl) {
+      return this.config.databaseUrl;
     }
     
     switch (this.deployment) {
@@ -196,7 +196,7 @@ export class BackendServiceRefactored extends BaseService {
       case 'aws':
         return process.env.DATABASE_URL || '';
       case 'external':
-        const { host, port, name, user, password } = this.serviceConfig;
+        const { host, port, name, user, password } = this.config;
         return `postgresql://${user}:${password}@${host}:${port}/${name}`;
       default:
         return '';

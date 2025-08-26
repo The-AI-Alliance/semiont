@@ -17,7 +17,7 @@ export class DatabaseServiceRefactored extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.serviceConfig.port || 5432;
+    return this.config.port || 5432;
   }
   
   override getHealthEndpoint(): string {
@@ -25,11 +25,11 @@ export class DatabaseServiceRefactored extends BaseService {
   }
   
   override getCommand(): string {
-    return this.serviceConfig.command || 'postgres';
+    return this.config.command || 'postgres';
   }
   
   override getImage(): string {
-    return this.serviceConfig.image || 'postgres:latest';
+    return this.config.image || 'postgres:latest';
   }
   
   override getEnvironmentVariables(): Record<string, string> {
@@ -37,9 +37,9 @@ export class DatabaseServiceRefactored extends BaseService {
     
     return {
       ...baseEnv,
-      POSTGRES_DB: this.serviceConfig.name || 'semiont',
-      POSTGRES_USER: this.serviceConfig.user || 'postgres',
-      POSTGRES_PASSWORD: this.serviceConfig.password || 'localpassword',
+      POSTGRES_DB: this.config.name || 'semiont',
+      POSTGRES_USER: this.config.user || 'postgres',
+      POSTGRES_PASSWORD: this.config.password || 'localpassword',
       PGDATA: '/var/lib/postgresql/data'
     };
   }
@@ -48,10 +48,10 @@ export class DatabaseServiceRefactored extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CheckResult['health']> {
     const port = this.getPort();
-    const dbName = this.serviceConfig.name || 'semiont';
-    const user = this.serviceConfig.user || 'postgres';
+    const dbName = this.config.name || 'semiont';
+    const user = this.config.user || 'postgres';
     
     try {
       // First check if accepting connections
@@ -62,13 +62,13 @@ export class DatabaseServiceRefactored extends BaseService {
       let activeQueries = 0;
       try {
         const stats = execSync(
-          `PGPASSWORD=${this.serviceConfig.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='${dbName}'"`,
+          `PGPASSWORD=${this.config.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='${dbName}'"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         ).toString().trim();
         connectionCount = parseInt(stats) || 0;
         
         const queries = execSync(
-          `PGPASSWORD=${this.serviceConfig.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND datname='${dbName}'"`,
+          `PGPASSWORD=${this.config.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND datname='${dbName}'"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         ).toString().trim();
         activeQueries = parseInt(queries) || 0;

@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { printError, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults } from '../lib/command-results-class.js';
+import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
@@ -46,7 +46,7 @@ async function execHandler(
   options: ExecCommandOptions,
   services: ServiceDeploymentInfo[]
 ): Promise<CommandResults> {
-  const results = new CommandResults();
+  const serviceResults: any[] = [];
   
   // Exec only works with a single service
   if (services.length === 0) {
@@ -66,7 +66,6 @@ async function execHandler(
     quiet: options.quiet,
     dryRun: options.dryRun,
   };
-  
   const startTime = Date.now();
   
   try {
@@ -96,7 +95,8 @@ async function execHandler(
     const result = await service.exec(options.command, execOptions);
     
     // Record result
-    results.addResult(serviceInfo.name, {
+    serviceResults.push({
+      service: serviceInfo.name,
       success: result.success,
       duration: Date.now() - startTime,
       deployment: serviceInfo.deploymentType,
@@ -241,7 +241,8 @@ async function execHandler(
     }
     
   } catch (error) {
-    results.addResult(serviceInfo.name, {
+    serviceResults.push({
+      service: serviceInfo.name,
       success: false,
       duration: Date.now() - startTime,
       deployment: serviceInfo.deploymentType,
@@ -258,16 +259,67 @@ async function execHandler(
     printInfo('\n🔍 This was a dry run. No actual command was executed.');
   }
   
-  return results;
+  // Convert service results to CommandResults format
+  const formattedResults = serviceResults.map((r: any) => ({
+    command: 'exec',
+    service: r.service,
+    deploymentType: r.deployment as any,
+    environment: options.environment || 'default',
+    timestamp: new Date(),
+    success: r.success,
+    duration: r.duration,
+    resourceId: {
+      container: r.containerId ? { id: r.containerId } : undefined,
+      aws: r.instanceId ? { id: r.instanceId } : undefined,
+      process: r.workingDirectory ? { path: r.workingDirectory } : undefined
+    } as any,
+    status: r.success ? 'executed' : 'failed',
+    metadata: {
+      command: r.command,
+      exitCode: r.exitCode,
+      workingDirectory: r.workingDirectory,
+      user: r.user,
+      shell: r.shell,
+      interactive: r.interactive,
+      tty: r.tty,
+      stdout: r.stdout,
+      stderr: r.stderr,
+      truncated: r.truncated,
+      sessionId: r.sessionId,
+      streaming: r.streaming,
+      security: r.security
+    },
+    error: r.error
+  }));
+  
+  return {
+    command: 'exec',
+    environment: options.environment || 'default',
+    timestamp: new Date(),
+    duration: Date.now() - startTime,
+    services: formattedResults,
+    summary: {
+      total: serviceResults.length,
+      succeeded: serviceResults.filter((r: any) => r.success).length,
+      failed: serviceResults.filter((r: any) => !r.success).length,
+      warnings: 0
+    },
+    executionContext: {
+      user: process.env.USER || 'unknown',
+      workingDirectory: process.cwd(),
+      dryRun: options.dryRun || false
+    }
+  } as CommandResults;
 }
 
 // =====================================================================
 // COMMAND DEFINITION
 // =====================================================================
 
-export const execNewCommand = new CommandBuilder('exec-new')
+export const execNewCommand = new CommandBuilder<ExecCommandOptions>()
+  .name('exec-new')
   .description('Execute commands within running services')
-  .schema(ExecCommandOptionsSchema)
+  .schema(ExecCommandOptionsSchema as any)
   .requiresServices(true)
-  .handler(execHandler)
+  .handler(execHandler as any)
   .build();

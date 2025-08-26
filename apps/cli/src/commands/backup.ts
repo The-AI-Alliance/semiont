@@ -5,7 +5,6 @@
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { CommandResults as CommandResultsClass } from '../lib/command-results-class.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
@@ -45,7 +44,7 @@ async function backupHandler(
   services: ServiceDeploymentInfo[],
   options: BackupOptions
 ): Promise<CommandResults> {
-  const results = new CommandResultsClass();
+  const serviceResults: any[] = [];
   const commandStartTime = Date.now();
   
   // Create config for services
@@ -107,7 +106,8 @@ async function backupHandler(
       }
       
       // Record result
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: result.success,
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
@@ -197,7 +197,8 @@ async function backupHandler(
       }
       
     } catch (error) {
-      results.addResult(serviceInfo.name, {
+      serviceResults.push({
+        service: serviceInfo.name,
         success: false,
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
@@ -212,7 +213,6 @@ async function backupHandler(
   
   // Summary for multiple services
   if (!options.quiet && services.length > 1) {
-    const serviceResults = results.getResults();
     console.log('\n📊 Backup Summary:');
     
     const successful = serviceResults.filter((r: any) => r.data.success).length;
@@ -270,7 +270,6 @@ async function backupHandler(
   }
   
   // Build the CommandResults interface
-  const serviceResults = results.getResults();
   const commandResults: CommandResults = {
     command: 'backup',
     environment: options.environment || 'unknown',
