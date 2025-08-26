@@ -7,7 +7,7 @@
  * - Consistent error handling and help generation
  */
 
-import { colors, getPreamble, getPreambleSeparator } from './lib/cli-colors.js';
+import { getPreamble, getPreambleSeparator } from './lib/cli-colors.js';
 import { printError } from './lib/cli-logger.js';
 import { executeCommand as dynamicExecuteCommand, getAvailableCommands, generateGlobalHelp } from './lib/command-loader.js';
 

@@ -19,10 +19,7 @@ import {
 } from './services.js';
 import { formatResults } from './output-formatter.js';
 import { printError } from './cli-logger.js';
-import { colors, getPreamble, getPreambleSeparator } from './cli-colors.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import * as path from 'path';
+import { getPreamble, getPreambleSeparator } from './cli-colors.js';
 
 /**
  * Registry of loaded command definitions
@@ -81,7 +78,9 @@ export async function loadCommand(name: string): Promise<CommandDefinition<any>>
     }
     
     // Look for the command export (could be named export or default)
-    const command = module[`${name}Command`] || module.default || module[name];
+    // Handle hyphenated command names by converting to camelCase for the export name
+    const camelName = name.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+    const command = module[`${camelName}Command`] || module.default || module[name];
     
     if (!command) {
       throw new Error(`Command module does not export '${name}Command', 'default', or '${name}'`);

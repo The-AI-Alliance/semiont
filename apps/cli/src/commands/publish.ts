@@ -1,29 +1,19 @@
 /**
- * Publish Command - Unified command structure
+ * Publish Command - Service-based implementation
  */
 
-import { spawn } from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs/promises';
 import { z } from 'zod';
-import simpleGit from 'simple-git';
-import { colors } from '../lib/cli-colors.js';
-import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
-import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
-import { buildImage, tagImage, pushImage } from '../lib/container-runtime.js';
-import { 
-  PublishResult, 
-  CommandResults, 
-  createBaseResult, 
-  createErrorResult,
-  ResourceIdentifier 
-} from '../lib/command-results.js';
+import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { CommandResults } from '../lib/command-results-class.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-// AWS SDK imports for ECR operations
-import { ECRClient, GetAuthorizationTokenCommand, CreateRepositoryCommand, DescribeRepositoriesCommand, DescribeImagesCommand } from '@aws-sdk/client-ecr';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+// Import new service architecture
+import { ServiceFactory } from '../services/service-factory.js';
+import { Config, ServiceName, DeploymentType, PublishResult } from '../services/types.js';
+
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -31,900 +21,232 @@ import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-clo
 
 const PublishOptionsSchema = z.object({
   environment: z.string().optional(),
-  tag: z.string().default('latest'),
-  skipBuild: z.boolean().default(false),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
-  semiontRepo: z.string().optional(),
-  noCache: z.boolean().default(false),
+  all: z.boolean().default(false),
+  tag: z.string().optional(), // Custom version tag
+  registry: z.string().optional(), // Override default registry
 });
 
 type PublishOptions = z.infer<typeof PublishOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
-// HELPER FUNCTIONS
+// COMMAND HANDLER
 // =====================================================================
 
-function printError(message: string): void {
-  console.error(`${colors.red}❌ ${message}${colors.reset}`);
-}
-
-function printSuccess(message: string): void {
-  console.log(`${colors.green}✅ ${message}${colors.reset}`);
-}
-
-function printInfo(message: string): void {
-  console.log(`${colors.cyan}ℹ️  ${message}${colors.reset}`);
-}
-
-function printDebug(message: string, options: PublishOptions): void {
-  if (options.verbose) {
-    console.log(`${colors.dim}[DEBUG] ${message}${colors.reset}`);
-  }
-}
-
-async function runCommand(
-  command: string[],
-  cwd: string,
-  _description: string,
-  verbose: boolean = false
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const proc = spawn(command[0]!, command.slice(1), {
-      cwd,
-      stdio: verbose ? 'inherit' : 'pipe',
-    });
-
-    proc.on('exit', (code) => {
-      resolve(code === 0);
-    });
-
-    proc.on('error', () => {
-      resolve(false);
-    });
-  });
-}
-
-// =====================================================================
-// GIT TAG GENERATION
-// =====================================================================
-
-async function getImageTag(environment: string | undefined, userProvidedTag: string | undefined, options?: any): Promise<string> {
-  // If user explicitly provided a tag, use it
-  if (userProvidedTag && userProvidedTag !== 'latest') {
-    return userProvidedTag;
-  }
-
-  // Use 'latest' for local/development environments
-  if (!environment || environment === 'local' || environment === 'development') {
-    return 'latest';
-  }
-
-  // For production/staging, use git commit hash
-  // Use the semiont repo for git operations, not the current working directory
-  const semiontRepo = options?.semiontRepo || process.env.SEMIONT_ROOT || process.cwd();
-  const git = simpleGit(semiontRepo);
-  
-  try {
-    // Get short commit hash
-    const hash = await git.revparse(['--short', 'HEAD']);
-    const cleanHash = hash.trim();
-    
-    // Check if working directory is clean
-    const status = await git.status();
-    if (!status.isClean()) {
-      // Add -dirty suffix if there are uncommitted changes
-      printInfo(`Working directory has uncommitted changes, adding -dirty suffix to tag`);
-      return `${cleanHash}-dirty`;
-    }
-    
-    return cleanHash;
-  } catch (error) {
-    // Not in a git repo or git not available
-    printInfo(`Could not get git hash (${error}), using timestamp`);
-    return `build-${Date.now()}`;
-  }
-}
-
-// =====================================================================
-// CONFIGURATION LOADING
-// =====================================================================
-
-interface ServiceConfig {
-  deployment?: {
-    type: 'container' | 'aws' | 'process' | 'external';
-  };
-  image?: string;
-  tag?: string;
-  port?: number;
-}
-
-interface EnvironmentConfig {
-  deployment?: {
-    default: string;
-  };
-  services: Record<string, ServiceConfig>;
-  aws?: {
-    region: string;
-    accountId: string;
-  };
-}
-
-// Using loadEnvironmentConfig from deployment-resolver instead of local implementation
-
-// =====================================================================
-// BUILD FUNCTIONS
-// =====================================================================
-
-async function buildContainerImage(
-  serviceInfo: ServiceDeploymentInfo,
-  tag: string,
+async function publishHandler(
   options: PublishOptions,
-  isStructuredOutput: boolean = false,
-  envConfig?: EnvironmentConfig
-): Promise<{ imageName: string | null; buildDuration: number; imageSize?: number; layers?: number; digest?: string }> {
-  const startTime = Date.now();
+  services: ServiceDeploymentInfo[]
+): Promise<CommandResults> {
+  const results = new CommandResults();
   
-  if (options.skipBuild) {
-    if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Skipping build for ${serviceInfo.name} (--skip-build specified)`);
-    }
-    return { 
-      imageName: `semiont-${serviceInfo.name}:${tag}`, 
-      buildDuration: 0
-    };
-  }
-
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Building container image for ${serviceInfo.name}...`);
-  }
-
-  // Remove any existing tag from the image name (e.g., :latest)
-  const baseImageName = serviceInfo.config.image ? 
-    serviceInfo.config.image.replace(/:.*$/, '') : 
-    `semiont-${serviceInfo.name}`;
+  // Create config for services
+  const config: Config = {
+    projectRoot: PROJECT_ROOT,
+    environment: options.environment as any || 'dev',
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun,
+  };
   
-  // Use semiontRepo if provided, otherwise use current working directory
-  const semiontRepoRoot = options.semiontRepo || process.cwd();
+  // Sort services by publish order (backend first for dependency reasons)
+  const sortedServices = sortServicesByPublishOrder(services);
   
-  // Construct the full dockerfile path
-  const dockerfile = path.join(semiontRepoRoot, 'apps', serviceInfo.name, 'Dockerfile');
+  // Track publishing results
+  const publishResults = new Map<string, PublishResult>();
+  const rollbackCommands: string[] = [];
   
-  const imageName = `${baseImageName}:${tag}`;
-  printDebug(`Building image: ${imageName}`, options);
-  
-  // Prepare build args based on service type
-  let buildArgs: Record<string, string> = {};
-  
-  // Add cache buster to force rebuild when needed
-  if (options.noCache) {
-    buildArgs.CACHE_BUST = Date.now().toString();
-  }
-  
-  // For frontend, set the API URL to the site domain
-  if (serviceInfo.name === 'frontend') {
-    // Get domain from environment configuration (which includes semiont.json)
-    const domain = envConfig?.site?.domain;
+  for (const serviceInfo of sortedServices) {
+    const startTime = Date.now();
     
-    if (domain) {
-      // Use the configured domain for API calls
-      buildArgs.NEXT_PUBLIC_API_URL = `https://${domain}`;
-      printInfo(`Using API URL for frontend: https://${domain}`);
-    } else {
-      // Fall back to default if not found
-      buildArgs.NEXT_PUBLIC_API_URL = 'http://localhost:4000';
-      printInfo('No domain configured, using default API URL for frontend');
-    }
-    
-    // Add other frontend build args from site config
-    buildArgs.NEXT_PUBLIC_APP_NAME = envConfig?.site?.siteName || 'Semiont';
-    buildArgs.NEXT_PUBLIC_APP_VERSION = '1.0.0';
-  }
-  
-  // For AWS deployments, ensure we build for linux/amd64 (ECS runs on x86_64)
-  const platform = serviceInfo.deploymentType === 'aws' ? 'linux/amd64' : undefined;
-  
-  const buildSuccess = await buildImage(
-    baseImageName,
-    tag,
-    dockerfile,
-    semiontRepoRoot,
-    {
-      verbose: options.verbose ?? false,
-      buildArgs,
-      noCache: options.noCache ?? false,
-      platform
-    }
-  );
-  
-  const buildDuration = Date.now() - startTime;
-  
-  if (!buildSuccess) {
-    if (!isStructuredOutput && options.output === 'summary') {
-      printError(`Failed to build container image for ${serviceInfo.name}`);
-    }
-    return { imageName: null, buildDuration };
-  }
-  
-  const fullImageName = imageName;
-  
-  // Get image details
-  let imageSize: number | undefined;
-  let layers: number | undefined;
-  let digest: string | undefined;
-  
-  try {
-    const runtime = await detectContainerRuntime();
-    const { execSync } = await import('child_process');
-    
-    // Get image size
-    const sizeOutput = execSync(
-      `${runtime} images ${fullImageName} --format "{{.Size}}"`,
-      { encoding: 'utf8' }
-    ).trim();
-    
-    // Parse size (e.g., "312MB" or "1.2GB")
-    if (sizeOutput) {
-      const sizeMatch = sizeOutput.match(/^([\d.]+)([KMGT]?B)?$/);
-      if (sizeMatch) {
-        const value = parseFloat(sizeMatch[1]);
-        const unit = sizeMatch[2] || 'B';
-        const multipliers: Record<string, number> = {
-          'B': 1,
-          'KB': 1024,
-          'MB': 1024 * 1024,
-          'GB': 1024 * 1024 * 1024,
-          'TB': 1024 * 1024 * 1024 * 1024
-        };
-        imageSize = Math.round(value * (multipliers[unit] || 1));
-      }
-    }
-    
-    // Get image digest and layer count
-    const inspectOutput = execSync(
-      `${runtime} inspect ${fullImageName} --format "{{.Id}}|{{len .RootFS.Layers}}"`,
-      { encoding: 'utf8' }
-    ).trim();
-    
-    const [imageId, layerCount] = inspectOutput.split('|');
-    if (imageId) {
-      digest = imageId.replace('sha256:', '').substring(0, 12);
-    }
-    if (layerCount) {
-      layers = parseInt(layerCount);
-    }
-  } catch (error) {
-    // Non-critical - continue without details
-    printDebug(`Could not get image details: ${error}`, options as any);
-  }
-  
-  if (!isStructuredOutput && options.output === 'summary') {
-    let details = [`Built container image: ${fullImageName}`];
-    if (imageSize) {
-      const sizeMB = Math.round(imageSize / (1024 * 1024));
-      details.push(`Size: ${sizeMB} MB`);
-    }
-    if (layers) {
-      details.push(`Layers: ${layers}`);
-    }
-    printSuccess(details.join(' | '));
-  }
-  
-  return { imageName: fullImageName, buildDuration, imageSize, layers, digest };
-}
-
-// =====================================================================
-// AWS INFRASTRUCTURE FUNCTIONS
-// =====================================================================
-
-async function getApiUrlFromStack(config: EnvironmentConfig): Promise<string | undefined> {
-  if (!hasAWSConfig(config)) {
-    return undefined;
-  }
-  
-  try {
-    const cfnClient = new CloudFormationClient({ region: config.aws.region });
-    const stackName = config.aws.stacks?.app || 'SemiontAppStack';
-    
-    const result = await cfnClient.send(new DescribeStacksCommand({
-      StackName: stackName
-    }));
-    
-    const stack = result.Stacks?.[0];
-    if (!stack?.Outputs) {
-      return undefined;
-    }
-    
-    // Look for ALB URL in outputs
-    const albOutput = stack.Outputs.find(
-      output => output.OutputKey?.includes('ALB') || 
-                output.OutputKey?.includes('LoadBalancer') ||
-                output.OutputKey?.includes('ApiUrl')
-    );
-    
-    if (albOutput?.OutputValue) {
-      // Ensure it has the protocol
-      const url = albOutput.OutputValue;
-      return url.startsWith('http') ? url : `https://${url}`;
-    }
-    
-    return undefined;
-  } catch (error) {
-    printDebug(`Failed to get API URL from stack: ${error}`, { verbose: true } as any);
-    return undefined;
-  }
-}
-
-// =====================================================================
-// ECR FUNCTIONS
-// =====================================================================
-
-async function ensureECRRepository(repositoryName: string, ecrClient: ECRClient): Promise<boolean> {
-  try {
-    await ecrClient.send(new DescribeRepositoriesCommand({
-      repositoryNames: [repositoryName]
-    }));
-    return true; // Repository exists
-  } catch (error: any) {
-    if (error.name === 'RepositoryNotFoundException') {
-      // Create the repository
-      try {
-        await ecrClient.send(new CreateRepositoryCommand({
-          repositoryName,
-          imageScanningConfiguration: {
-            scanOnPush: true
-          }
-        }));
-        printSuccess(`Created ECR repository: ${repositoryName}`);
-        return true;
-      } catch (createError) {
-        printError(`Failed to create ECR repository ${repositoryName}: ${createError}`);
-        return false;
-      }
-    } else {
-      printError(`Failed to check ECR repository ${repositoryName}: ${error}`);
-      return false;
-    }
-  }
-}
-
-async function pushImageToECR(
-  localImageName: string,
-  serviceName: string,
-  config: EnvironmentConfig,
-  options: PublishOptions
-): Promise<{ uri: string; digest: string; tags: string[] } | null> {
-  if (!config.aws) {
-    printError('AWS configuration not found in environment config');
-    return null;
-  }
-
-  const { region, accountId } = config.aws;
-  const ecrClient = new ECRClient({ region });
-  
-  try {
-    // Get ECR authorization token
-    printInfo(`Getting ECR authorization for ${region}...`);
-    const authResponse = await ecrClient.send(new GetAuthorizationTokenCommand({}));
-    const authToken = authResponse.authorizationData?.[0]?.authorizationToken;
-    const registryUrl = authResponse.authorizationData?.[0]?.proxyEndpoint;
-    
-    if (!authToken || !registryUrl) {
-      printError('Failed to get ECR authorization');
-      return null;
-    }
-    
-    // Ensure ECR repository exists
-    const repositoryName = `semiont-${serviceName}`;
-    const repoExists = await ensureECRRepository(repositoryName, ecrClient);
-    if (!repoExists) {
-      return null;
-    }
-    
-    // Docker login to ECR using AWS CLI
-    printInfo(`Logging in to ECR registry...`);
-    
-    // Decode the auth token (it's base64 encoded username:password)
-    const decodedAuth = Buffer.from(authToken, 'base64').toString('utf-8');
-    const password = decodedAuth.split(':')[1];
-    
-    if (!password) {
-      printError('Failed to decode ECR authorization token');
-      return null;
-    }
-    
-    // Use the registryUrl without the https:// prefix for docker login
-    const registryHost = registryUrl.replace('https://', '').replace('http://', '');
-    
-    // Use spawn to properly handle stdin
-    const { spawn } = await import('child_process');
-    const loginProcess = spawn('docker', [
-      'login',
-      '--username', 'AWS',
-      '--password-stdin',
-      registryHost
-    ], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-    
-    // Write password to stdin
-    loginProcess.stdin.write(password);
-    loginProcess.stdin.end();
-    
-    // Wait for process to complete
-    const loginSuccess = await new Promise<boolean>((resolve) => {
-      loginProcess.on('exit', (code) => {
-        resolve(code === 0);
-      });
-      
-      loginProcess.on('error', (err) => {
-        printError(`Docker login error: ${err.message}`);
-        resolve(false);
-      });
-    });
-    
-    if (!loginSuccess) {
-      printError('Failed to login to ECR');
-      return null;
-    }
-    
-    // Determine tags to push
-    const tags: string[] = [];
-    const baseUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}`;
-    
-    // Always push with the specific tag (git hash or user-provided)
-    const primaryTag = options.tag || 'latest';
-    tags.push(primaryTag);
-    
-    // Also tag as 'latest' if we're not already using that tag
-    if (primaryTag !== 'latest') {
-      tags.push('latest');
-    }
-    
-    // Tag and push each tag
-    let digest: string | undefined;
-    
-    for (const tag of tags) {
-      const ecrImageUri = `${baseUri}:${tag}`;
-      printInfo(`Tagging image as: ${ecrImageUri}`);
-      
-      const tagSuccess = await tagImage(localImageName, ecrImageUri, {
-        verbose: options.verbose ?? false
-      });
-      
-      if (!tagSuccess) {
-        printError(`Failed to tag image for ECR`);
-        return null;
-      }
-    }
-    
-    // Push all tags to ECR
-    for (const tag of tags) {
-      const ecrImageUri = `${baseUri}:${tag}`;
-      printInfo(`Pushing ${tag} to ECR...`);
-      
-      // Store the digest before pushing
-      let preDigest: string | undefined;
-      try {
-        const describeCmd = new DescribeImagesCommand({
-          repositoryName,
-          imageIds: [{ imageTag: tag }]
-        });
-        const preResult = await ecrClient.send(describeCmd);
-        preDigest = preResult.imageDetails?.[0]?.imageDigest;
-      } catch (e) {
-        // Image doesn't exist yet
-      }
-      
-      const pushSuccess = await pushImage(ecrImageUri, {
-        verbose: options.verbose ?? false
-      });
-      
-      if (!pushSuccess) {
-        printError(`Failed to push ${serviceName}:${tag} to ECR`);
-        return null;
-      }
-      
-      // Check if image actually changed
-      try {
-        const describeCmd = new DescribeImagesCommand({
-          repositoryName,
-          imageIds: [{ imageTag: tag }]
-        });
-        const postResult = await ecrClient.send(describeCmd);
-        const postDigest = postResult.imageDetails?.[0]?.imageDigest;
-        
-        if (preDigest && postDigest && preDigest === postDigest) {
-          printWarning(`⚠️  Image unchanged - digest: ${postDigest.substring(0, 19)}...`);
-          printWarning(`⚠️  The image was already up-to-date in ECR. No new code was deployed.`);
-        } else if (postDigest) {
-          const shortDigest = postDigest.split(':').pop()?.substring(0, 12);
-          printSuccess(`✅ New image pushed - digest: ${shortDigest}`);
-          digest = postDigest;
-        }
-      } catch (e) {
-        // Couldn't verify
-      }
-    }
-    
-    // Get the image digest from ECR
     try {
-      const describeResponse = await ecrClient.send(new DescribeImagesCommand({
-        repositoryName,
-        imageIds: [{ imageTag: primaryTag }]
-      }));
+      // Create service instance
+      const service = ServiceFactory.create(
+        serviceInfo.name as ServiceName,
+        serviceInfo.deployment as DeploymentType,
+        config,
+        { 
+          tag: options.tag,
+          registry: options.registry
+        }
+      );
       
-      const imageDetail = describeResponse.imageDetails?.[0];
-      if (imageDetail?.imageId?.imageDigest) {
-        digest = imageDetail.imageId.imageDigest;
+      // Publish the service
+      const result = await service.publish();
+      publishResults.set(serviceInfo.name, result);
+      
+      // Collect rollback command if available
+      if (result.rollback?.supported && result.rollback.command) {
+        rollbackCommands.unshift(result.rollback.command); // Reverse order for rollback
       }
+      
+      // Record result
+      results.addResult(serviceInfo.name, {
+        success: result.success,
+        duration: Date.now() - startTime,
+        deployment: serviceInfo.deployment,
+        artifacts: result.artifacts,
+        version: result.version,
+        destinations: result.destinations,
+        rollback: result.rollback,
+        metadata: result.metadata,
+        error: result.error
+      });
+      
+      // Display result
+      if (!options.quiet) {
+        if (result.success) {
+          printSuccess(`🚀 ${serviceInfo.name} (${serviceInfo.deployment}) published`);
+          
+          // Show version info
+          if (result.version?.current) {
+            console.log(`   📦 Version: ${result.version.current}`);
+          }
+          
+          // Show artifacts
+          if (result.artifacts) {
+            if (result.artifacts.imageUrl) {
+              console.log(`   🐳 Image: ${result.artifacts.imageUrl}`);
+            }
+            if (result.artifacts.staticSiteUrl) {
+              console.log(`   🌐 Site: ${result.artifacts.staticSiteUrl}`);
+            }
+            if (result.artifacts.packageName) {
+              console.log(`   📦 Package: ${result.artifacts.packageName}@${result.artifacts.packageVersion}`);
+            }
+            if (result.artifacts.bundleUrl) {
+              console.log(`   📄 Bundle: ${result.artifacts.bundleUrl}`);
+            }
+          }
+          
+          // Show destinations
+          if (result.destinations) {
+            if (result.destinations.registry) {
+              console.log(`   📂 Registry: ${result.destinations.registry}`);
+            }
+            if (result.destinations.bucket) {
+              console.log(`   🪣 Bucket: ${result.destinations.bucket}`);
+            }
+            if (result.destinations.cdn) {
+              console.log(`   ⚡ CDN: ${result.destinations.cdn}`);
+            }
+          }
+          
+          // Show rollback info
+          if (result.rollback?.supported) {
+            const rollbackEmoji = result.rollback.supported ? '↩️' : '❌';
+            console.log(`   ${rollbackEmoji} Rollback: ${result.rollback.supported ? 'Available' : 'Not supported'}`);
+          }
+          
+          // Show git info
+          if (result.artifacts?.commitSha) {
+            console.log(`   🔗 Commit: ${result.artifacts.commitSha} (${result.artifacts.branch || 'unknown branch'})`);
+          }
+          
+          // Show metadata in verbose mode
+          if (options.verbose && result.metadata) {
+            console.log('   📝 Details:', JSON.stringify(result.metadata, null, 2));
+          }
+        } else {
+          printError(`❌ Failed to publish ${serviceInfo.name}: ${result.error}`);
+        }
+      }
+      
     } catch (error) {
-      printDebug(`Could not get image digest from ECR: ${error}`, options as any);
+      results.addResult(serviceInfo.name, {
+        success: false,
+        duration: Date.now() - startTime,
+        deployment: serviceInfo.deployment,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
+      if (!options.quiet) {
+        printError(`Failed to publish ${serviceInfo.name}: ${error}`);
+      }
     }
-    
-    printSuccess(`✅ Successfully pushed to ECR`);
-    printInfo(`📦 Repository: ${baseUri}`);
-    printInfo(`🏷️  Tags: ${tags.join(', ')}`);
-    if (digest) {
-      printInfo(`🔑 Digest: ${digest}`);
-    }
-    
-    // Add next steps guidance
-    printInfo(`\n📋 Next steps:`);
-    printInfo(`   Deploy this image: semiont update --service ${serviceName}`);
-    printInfo(`   Check deployment: semiont check --service ${serviceName} --verbose`);
-    
-    return {
-      uri: `${baseUri}:${primaryTag}`,
-      digest: digest || 'unknown',
-      tags
-    };
-    
-  } catch (error) {
-    printError(`ECR operation failed: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
   }
+  
+  // Summary for multiple services
+  if (!options.quiet && services.length > 1) {
+    const serviceResults = results.getAllResults();
+    console.log('\n📊 Publishing Summary:');
+    
+    const successful = serviceResults.filter((r: any) => r.data.success).length;
+    const failed = serviceResults.filter((r: any) => !r.data.success).length;
+    
+    console.log(`   ✅ Successful: ${successful}`);
+    if (failed > 0) console.log(`   ❌ Failed: ${failed}`);
+    
+    // Platform breakdown
+    const platforms = serviceResults.reduce((acc: any, r: any) => {
+      if (r.data.success) {
+        acc[r.data.deployment] = (acc[r.data.deployment] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
+    console.log('\n🖥️  Platform breakdown:');
+    Object.entries(platforms).forEach(([platform, count]) => {
+      const emoji = {
+        'process': '⚡',
+        'container': '🐳',
+        'aws': '☁️',
+        'external': '🔗'
+      }[platform] || '❓';
+      console.log(`   ${emoji} ${platform}: ${count} published`);
+    });
+    
+    // Rollback instructions
+    if (rollbackCommands.length > 0) {
+      console.log('\n↩️  Rollback commands (run in reverse order):');
+      rollbackCommands.forEach((cmd, index) => {
+        console.log(`   ${index + 1}. ${cmd}`);
+      });
+    }
+    
+    if (successful === services.length) {
+      printSuccess('\n🎉 All services published successfully!');
+    } else if (failed > 0) {
+      printWarning(`\n⚠️  ${failed} service(s) failed to publish.`);
+    }
+  }
+  
+  if (options.dryRun && !options.quiet) {
+    printInfo('\n🔍 This was a dry run. No actual publishing was performed.');
+  }
+  
+  return results;
 }
 
-async function tagForLocalRegistry(
-  localImageName: string,
-  serviceName: string,
-  tag: string,
-  options: PublishOptions
-): Promise<string | null> {
-  // For local container deployment, just ensure image is properly tagged
-  const finalImageName = `semiont-${serviceName}:${tag}`;
+/**
+ * Sort services by publish order
+ * Generally: backend first (others depend on it), then frontend, then utilities
+ */
+function sortServicesByPublishOrder(services: ServiceDeploymentInfo[]): ServiceDeploymentInfo[] {
+  const publishOrder = ['database', 'backend', 'mcp', 'frontend', 'filesystem', 'agent'];
   
-  if (localImageName === finalImageName) {
-    printInfo(`Image already tagged as: ${finalImageName}`);
-    return finalImageName;
-  }
-  
-  printInfo(`Tagging for local registry: ${finalImageName}`);
-  
-  const tagSuccess = await tagImage(localImageName, finalImageName, {
-    verbose: options.verbose ?? false
+  return services.sort((a, b) => {
+    const aIndex = publishOrder.indexOf(a.name);
+    const bIndex = publishOrder.indexOf(b.name);
+    
+    // If not in publish order, put at end
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    
+    return aIndex - bIndex;
   });
-  
-  if (!tagSuccess) {
-    printError(`Failed to tag image for local registry`);
-    return null;
-  }
-  
-  printSuccess(`Tagged for local registry: ${finalImageName}`);
-  return finalImageName;
 }
-
-// =====================================================================
-// MAIN PUBLISH LOGIC
-// =====================================================================
-
-async function publishService(
-  serviceInfo: ServiceDeploymentInfo,
-  options: PublishOptions,
-  isStructuredOutput: boolean = false,
-  envConfig: EnvironmentConfig
-): Promise<PublishResult> {
-  const startTime = Date.now();
-  
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Publishing ${serviceInfo.name} (deployment type: ${serviceInfo.deploymentType})`);
-  }
-  
-  if (serviceInfo.deploymentType !== 'container' && serviceInfo.deploymentType !== 'aws') {
-    if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Skipping ${serviceInfo.name} - deployment type '${serviceInfo.deploymentType}' does not use container images`);
-    }
-    
-    return {
-      ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
-      imageTag: '',
-      buildDuration: 0,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'skipped',
-      metadata: {
-        reason: `Deployment type '${serviceInfo.deploymentType}' does not use container images`
-      },
-    };
-  }
-  
-  // Handle dry run mode
-  if (options.dryRun) {
-    if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`[DRY RUN] Would publish ${serviceInfo.name} with tag ${options.tag}`);
-    }
-    
-    return {
-      ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
-      imageTag: options.tag,
-      buildDuration: 0,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'dry-run',
-      metadata: {
-        dryRun: true,
-        imageName: `semiont-${serviceInfo.name}:${options.tag}`,
-        deploymentType: serviceInfo.deploymentType
-      },
-    };
-  }
-  
-  try {
-    // Build the container image
-    const buildResult = await buildContainerImage(serviceInfo, options.tag, options, isStructuredOutput, envConfig);
-    if (!buildResult.imageName) {
-      throw new Error(`Failed to build container image for ${serviceInfo.name}`);
-    }
-    
-    // Push/tag based on deployment type
-    let publishedImage: string | null = null;
-    let repository: string | undefined;
-    let digest: string | undefined;
-    let pushedTags: string[] = [];
-    
-    if (serviceInfo.deploymentType === 'aws') {
-      // Use passed environment config for AWS settings
-      const pushResult = await pushImageToECR(buildResult.imageName, serviceInfo.name, envConfig, options);
-      if (pushResult) {
-        publishedImage = pushResult.uri;
-        digest = pushResult.digest;
-        pushedTags = pushResult.tags;
-        if (hasAWSConfig(envConfig)) {
-          repository = `${envConfig.aws.accountId}.dkr.ecr.${envConfig.aws.region}.amazonaws.com/semiont-${serviceInfo.name}`;
-        }
-      }
-    } else if (serviceInfo.deploymentType === 'container') {
-      publishedImage = await tagForLocalRegistry(buildResult.imageName, serviceInfo.name, options.tag, options);
-      repository = 'local';
-      digest = buildResult.digest;
-      pushedTags = [options.tag];
-    }
-    
-    if (!publishedImage) {
-      throw new Error(`Failed to publish ${serviceInfo.name}`);
-    }
-    
-    if (!isStructuredOutput && options.output === 'summary') {
-      printSuccess(`\n📦 Published ${serviceInfo.name} successfully!`);
-      console.log(`\n📋 Publishing Receipt:`);
-      console.log(`  Service: ${serviceInfo.name}`);
-      console.log(`  Repository: ${repository || 'local'}`);
-      console.log(`  Tags: ${pushedTags.join(', ')}`);
-      if (digest && digest !== 'unknown') {
-        console.log(`  Digest: ${digest}`);
-      }
-      if (buildResult.imageSize) {
-        const sizeMB = Math.round(buildResult.imageSize / (1024 * 1024));
-        console.log(`  Image Size: ${sizeMB} MB`);
-      }
-      if (buildResult.layers) {
-        console.log(`  Layers: ${buildResult.layers}`);
-      }
-      console.log(`  Build Duration: ${Math.round(buildResult.buildDuration / 1000)}s`);
-      console.log('');
-    }
-    
-    return {
-      ...createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime),
-      imageTag: options.tag,
-      ...(buildResult.imageSize !== undefined && { imageSize: buildResult.imageSize }),
-      buildDuration: buildResult.buildDuration,
-      ...(repository && { repository }),
-      ...(digest && { digest }),
-      resourceId: {
-        [serviceInfo.deploymentType]: {
-          name: serviceInfo.name,
-          ...(serviceInfo.deploymentType === 'container' && { name: publishedImage }),
-          ...(serviceInfo.deploymentType === 'aws' && { arn: `arn:aws:ecr:us-east-1:123456789012:repository/semiont-${serviceInfo.name}` })
-        }
-      } as ResourceIdentifier,
-      status: 'published',
-      metadata: {
-        imageName: publishedImage,
-        buildDuration: buildResult.buildDuration,
-        imageSize: buildResult.imageSize,
-        layers: buildResult.layers,
-        tags: pushedTags,
-        digest,
-        skipBuild: options.skipBuild,
-        deploymentType: serviceInfo.deploymentType
-      },
-    };
-    
-  } catch (error) {
-    const baseResult = createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, 'unknown', startTime);
-    const errorResult = createErrorResult(baseResult, error as Error);
-    
-    return {
-      ...errorResult,
-      imageTag: options.tag,
-      buildDuration: 0,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'failed',
-      metadata: { error: (error as Error).message },
-    };
-  }
-}
-
-
-// =====================================================================
-// STRUCTURED OUTPUT FUNCTION
-// =====================================================================
-
-export const publish = async (
-  serviceDeployments: ServiceDeploymentInfo[],
-  options: PublishOptions
-): Promise<CommandResults> => {
-  const startTime = Date.now();
-  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  
-  // Load environment config once for all operations
-  const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
-  
-  // Determine the image tag to use
-  const imageTag = await getImageTag(options.environment, options.tag, options);
-  
-  // Update options with the determined tag
-  const effectiveOptions = { ...options, tag: imageTag };
-  
-  if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Publishing services in ${options.environment} environment`);
-    if (imageTag !== options.tag) {
-      printInfo(`Using tag: ${imageTag}`);
-    }
-  }
-  
-  if (options.verbose && !isStructuredOutput && options.output === 'summary') {
-    console.log(`Options: ${JSON.stringify(effectiveOptions, null, 2)}`);
-  }
-  
-  try {
-    if (options.verbose && !isStructuredOutput && options.output === 'summary') {
-      console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
-    }
-    
-    // Publish services and collect results
-    const serviceResults: PublishResult[] = [];
-    
-    for (const serviceInfo of serviceDeployments) {
-      try {
-        const result = await publishService(serviceInfo, effectiveOptions, isStructuredOutput, envConfig);
-        serviceResults.push(result);
-      } catch (error) {
-        // Create error result
-        const baseResult = createBaseResult('publish', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-        const errorResult = createErrorResult(baseResult, error as Error);
-        
-        const publishErrorResult: PublishResult = {
-          ...errorResult,
-          imageTag: imageTag,
-          buildDuration: 0,
-          resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-          status: 'failed',
-          metadata: { error: (error as Error).message },
-        };
-        
-        serviceResults.push(publishErrorResult);
-        
-        if (!isStructuredOutput && options.output === 'summary') {
-          printError(`Failed to publish ${serviceInfo.name}: ${error}`);
-        }
-        
-        break; // Stop on first error
-      }
-    }
-    
-    // Create aggregated results
-    const commandResults: CommandResults = {
-      command: 'publish',
-      environment: options.environment!,
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      services: serviceResults,
-      summary: {
-        total: serviceResults.length,
-        succeeded: serviceResults.filter(r => r.success).length,
-        failed: serviceResults.filter(r => !r.success).length,
-        warnings: serviceResults.filter(r => r.status.includes('not-implemented')).length,
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun || false,
-      }
-    };
-    
-    return commandResults;
-    
-  } catch (error) {
-    if (!isStructuredOutput) {
-      printError(`Failed to publish services: ${error}`);
-    }
-    
-    return {
-      command: 'publish',
-      environment: options.environment!,
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      services: [],
-      summary: {
-        total: 0,
-        succeeded: 0,
-        failed: 1,
-        warnings: 0,
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun || false,
-      },
-    };
-  }
-};
 
 // =====================================================================
 // COMMAND DEFINITION
 // =====================================================================
 
-export const publishCommand = new CommandBuilder<PublishOptions>()
-  .name('publish')
-  .description('Build and push container images')
-  .schema(PublishOptionsSchema as any)
-  .requiresEnvironment(true)
+export const publishNewCommand = new CommandBuilder('publish-new')
+  .description('Publish and deploy service artifacts')
+  .schema(PublishOptionsSchema)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--tag': { type: 'string', description: 'Image tag' },
-      '--skip-build': { type: 'boolean', description: 'Skip building images' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-      '--semiont-repo': { type: 'string', description: 'Path to Semiont repository for building images' },
-      '--no-cache': { type: 'boolean', description: 'Build images without using Docker cache' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-t': '--tag',
-      '-v': '--verbose',
-      '-o': '--output',
-    }
-  })
-  .examples(
-    'semiont publish --environment staging',
-    'semiont publish --environment production --tag v1.0.0',
-    'semiont publish --environment staging --skip-build --tag latest'
-  )
-  .handler(publish)
+  .handler(publishHandler)
   .build();
-
-// Export default for compatibility
-export default publishCommand;
-
-// Note: The main function is removed as cli.ts now handles service resolution and output formatting
-// The publish function now accepts pre-resolved services and returns CommandResults
-
-export type { PublishOptions };
-export { PublishOptionsSchema };

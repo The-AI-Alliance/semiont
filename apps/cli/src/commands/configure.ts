@@ -6,12 +6,12 @@
  */
 
 import { z } from 'zod';
+import { colors } from '../lib/cli-colors.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import * as readline from 'readline';
-import { colors } from '../lib/cli-colors.js';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { 

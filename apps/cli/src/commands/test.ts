@@ -3,8 +3,8 @@
  */
 
 import { z } from 'zod';
-import { spawn } from 'child_process';
 import { colors } from '../lib/cli-colors.js';
+import { spawn } from 'child_process';
 import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';

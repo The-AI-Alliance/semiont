@@ -1,11 +1,14 @@
 /**
- * Watch Command - Unified command structure
+ * Watch Command - Minimal updates for new architecture
+ * 
+ * This is a minimally updated version that uses the new service implementations
+ * for checking status while keeping the dashboard functionality separate.
  */
 
 import { z } from 'zod';
+import { colors } from '../lib/cli-colors.js';
 import React from 'react';
 import { render } from 'ink';
-import { colors } from '../lib/cli-colors.js';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { 
@@ -16,6 +19,8 @@ import {
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { ServiceFactory } from '../services/service-factory.js';
+import { Config, CheckResult } from '../services/types.js';
 
 // Import the React dashboard component dynamically to handle module loading
 let DashboardApp: any;
@@ -28,29 +33,147 @@ const WatchOptionsSchema = z.object({
   environment: z.string().optional(),
   target: z.enum(['all', 'logs', 'metrics', 'services']).default('all'),
   noFollow: z.boolean().default(false),
-  interval: z.number().int().positive().default(30),  // Increased from 5s to 30s
+  interval: z.number().int().positive().default(30),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
-  terminal: z.boolean().default(false),  // Changed from web to terminal, default false (web is default)
-  term: z.boolean().optional(),  // Alias for terminal
+  terminal: z.boolean().default(false),
+  term: z.boolean().optional(),
   port: z.number().int().positive().default(3333),
 }).transform((opts) => ({
   ...opts,
-  terminal: opts.terminal || opts.term || false,  // Handle both --terminal and --term
-  term: undefined  // Remove the alias from the final options
+  terminal: opts.terminal || opts.term || false,
+  term: undefined
 }));
 
 type WatchOptions = z.infer<typeof WatchOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
-// HELPER FUNCTIONS
+// ENHANCED DATA SOURCE FOR NEW ARCHITECTURE
 // =====================================================================
 
-// Helper wrapper for printDebug that passes verbose option
-function debugLog(_message: string, _options: any): void {
-  // Debug logging disabled for now
+/**
+ * Enhanced dashboard data source that uses the new service implementations
+ */
+class EnhancedDashboardDataSource {
+  constructor(
+    private environment: string,
+    private serviceDeployments: ServiceDeploymentInfo[],
+    private config: Config
+  ) {}
+
+  /**
+   * Get dashboard data using the new service architecture
+   */
+  async getDashboardData() {
+    const services = [];
+    const logs = [];
+    const metrics = [];
+
+    // Use the new service implementations to check status
+    for (const deployment of this.serviceDeployments) {
+      try {
+        const service = ServiceFactory.create(
+          deployment.name,
+          this.environment,
+          this.config,
+          {} // Service config would come from deployment
+        );
+
+        // Get status using the new check method
+        const checkResult: CheckResult = await service.check();
+        
+        // Convert to dashboard format
+        services.push({
+          name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
+          status: this.mapStatus(checkResult.status),
+          details: this.getDetails(checkResult),
+          lastUpdated: new Date(),
+          // Additional fields from checkResult
+          resources: checkResult.resources,
+          health: checkResult.health
+        });
+
+        // Add logs if available
+        if (checkResult.logs?.recent) {
+          checkResult.logs.recent.forEach(log => {
+            logs.push({
+              service: deployment.name,
+              message: log,
+              timestamp: new Date(),
+              level: this.detectLogLevel(log)
+            });
+          });
+        }
+
+        // Add metrics if available
+        if (checkResult.resources) {
+          metrics.push({
+            service: deployment.name,
+            cpu: checkResult.resources.cpu,
+            memory: checkResult.resources.memory,
+            uptime: checkResult.resources.uptime,
+            timestamp: new Date()
+          });
+        }
+
+      } catch (error) {
+        // Handle services that fail to check
+        services.push({
+          name: deployment.name,
+          status: 'unknown',
+          details: `Error: ${error}`,
+          lastUpdated: new Date()
+        });
+      }
+    }
+
+    return {
+      services,
+      logs,
+      metrics,
+      lastUpdate: new Date(),
+      isRefreshing: false
+    };
+  }
+
+  private mapStatus(status: CheckResult['status']): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {
+    switch (status) {
+      case 'running': return 'healthy';
+      case 'stopped': return 'unhealthy';
+      case 'unhealthy': return 'unhealthy';
+      default: return 'unknown';
+    }
+  }
+
+  private getDetails(checkResult: CheckResult): string {
+    const parts = [];
+    
+    if (checkResult.health?.healthy) {
+      parts.push('Healthy');
+    }
+    
+    if (checkResult.resources?.pid) {
+      parts.push(`PID: ${checkResult.resources.pid}`);
+    }
+    
+    if (checkResult.resources?.containerId) {
+      parts.push(`Container: ${checkResult.resources.containerId.slice(0, 12)}`);
+    }
+    
+    if (checkResult.resources?.port) {
+      parts.push(`Port: ${checkResult.resources.port}`);
+    }
+    
+    return parts.join(', ') || checkResult.status;
+  }
+
+  private detectLogLevel(log: string): 'info' | 'warn' | 'error' {
+    if (log.match(/\b(error|ERROR|Error)\b/)) return 'error';
+    if (log.match(/\b(warning|WARNING|Warning|warn|WARN)\b/)) return 'warn';
+    return 'info';
+  }
 }
 
 // =====================================================================
@@ -60,9 +183,10 @@ function debugLog(_message: string, _options: any): void {
 async function launchDashboard(
   environment: string, 
   target: string, 
-  services: string[],
+  serviceDeployments: ServiceDeploymentInfo[],
+  config: Config,
   interval: number,
-  terminalMode: boolean = false,  // Changed from webMode to terminalMode
+  terminalMode: boolean = false,
   port: number = 3333
 ): Promise<{ duration: number; exitReason: string }> {
   const startTime = Date.now();
@@ -70,7 +194,6 @@ async function launchDashboard(
   return new Promise(async (resolve) => {
     // Check if we're in test mode
     if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
-      // Simulate a dashboard that runs briefly and exits normally
       setTimeout(() => {
         resolve({
           duration: 100,
@@ -82,42 +205,49 @@ async function launchDashboard(
     
     try {
       if (terminalMode) {
-        // Launch terminal dashboard
-        // Dynamically import the dashboard component
+        // Terminal dashboard mode
         const watchModule = await import('./watch-dashboard.js');
         DashboardApp = watchModule.default || watchModule.DashboardApp || watchModule;
         
-        // Ensure we have a valid component
         if (!DashboardApp || (typeof DashboardApp !== 'function' && !DashboardApp.$$typeof)) {
           throw new Error('Failed to load DashboardApp component');
         }
         
-        // Determine dashboard mode based on target
+        // Create enhanced data source
+        const dataSource = new EnhancedDashboardDataSource(environment, serviceDeployments, config);
+        
+        // Determine dashboard mode
         let mode: 'unified' | 'logs' | 'metrics' = 'unified';
-        if (target === 'logs') {
-          mode = 'logs';
-        } else if (target === 'metrics') {
-          mode = 'metrics';
-        }
+        if (target === 'logs') mode = 'logs';
+        else if (target === 'metrics') mode = 'metrics';
         
-        // Determine service filter
-        let service: 'frontend' | 'backend' | undefined;
-        if (services.length === 1) {
-          const svc = services[0];
-          if (svc === 'frontend' || svc === 'backend') {
-            service = svc as 'frontend' | 'backend';
-          }
-        }
-        
-        // Launch the React/Ink dashboard directly
-        const { waitUntilExit } = render(
-          React.createElement(DashboardApp, {
+        // Create a wrapper component that provides data
+        const EnhancedDashboard = () => {
+          const [data, setData] = React.useState(null);
+          
+          React.useEffect(() => {
+            const loadData = async () => {
+              const newData = await dataSource.getDashboardData();
+              setData(newData);
+            };
+            
+            loadData();
+            const timer = setInterval(loadData, interval * 1000);
+            return () => clearInterval(timer);
+          }, []);
+          
+          if (!data) return React.createElement('div', null, 'Loading...');
+          
+          return React.createElement(DashboardApp, {
             mode,
-            service,
+            data,
             refreshInterval: interval,
             environment
-          })
-        );
+          });
+        };
+        
+        // Launch the React/Ink dashboard
+        const { waitUntilExit } = render(React.createElement(EnhancedDashboard));
         
         await waitUntilExit();
         const duration = Date.now() - startTime;
@@ -126,10 +256,24 @@ async function launchDashboard(
           exitReason: 'user-quit'
         });
       } else {
-        // Launch web-based dashboard (default)
+        // Web dashboard mode
         const { WebDashboardServer } = await import('../lib/web-dashboard-server.js');
-        const server = new WebDashboardServer(environment, port, interval);
         
+        // Create a custom server that uses the new service architecture
+        class EnhancedWebDashboardServer extends WebDashboardServer {
+          private dataSource: EnhancedDashboardDataSource;
+          
+          constructor(environment: string, port: number, interval: number) {
+            super(environment, port, interval);
+            this.dataSource = new EnhancedDashboardDataSource(environment, serviceDeployments, config);
+          }
+          
+          async getDashboardData() {
+            return this.dataSource.getDashboardData();
+          }
+        }
+        
+        const server = new EnhancedWebDashboardServer(environment, port, interval);
         await server.start();
         
         // Wait for Ctrl+C
@@ -163,7 +307,7 @@ async function launchDashboard(
 }
 
 // =====================================================================
-// STRUCTURED OUTPUT FUNCTION
+// MAIN WATCH FUNCTION
 // =====================================================================
 
 export async function watch(
@@ -172,7 +316,16 @@ export async function watch(
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = options.environment!; // Environment is guaranteed by command loader
+  const environment = options.environment!;
+  
+  // Create config for the services
+  const config: Config = {
+    projectRoot: process.cwd(),
+    environment: environment as any,
+    verbose: options.verbose,
+    quiet: isStructuredOutput,
+    dryRun: options.dryRun
+  };
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
@@ -183,15 +336,13 @@ export async function watch(
         printInfo(`Starting terminal dashboard for ${colors.bright}${environment}${colors.reset} environment`);
         printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
         printInfo('Press "q" to quit, "r" to refresh');
+        printInfo('Using new service architecture for status checks');
       } else {
         printInfo(`Starting web dashboard for ${colors.bright}${environment}${colors.reset} environment`);
         printInfo(`Dashboard will be available at http://localhost:${options.port}`);
         printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
+        printInfo('Using new service architecture for status checks');
       }
-    }
-    
-    if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      debugLog(`Monitoring services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Launch the dashboard or simulate in dry-run mode
@@ -200,16 +351,17 @@ export async function watch(
     
     if (options.dryRun) {
       if (!isStructuredOutput && options.output === 'summary') {
-        printInfo('[DRY RUN] Would launch watch dashboard');
+        printInfo('[DRY RUN] Would launch watch dashboard with new service architecture');
       }
       sessionDuration = 0;
       exitReason = 'dry-run';
     } else {
-      // Launch the actual dashboard
+      // Launch the enhanced dashboard
       const result = await launchDashboard(
         environment,
         options.target,
-        serviceDeployments.map(s => s.name),
+        serviceDeployments,
+        config,
         options.interval,
         options.terminal,
         options.port
@@ -234,7 +386,8 @@ export async function watch(
           refreshInterval: options.interval,
           sessionDuration: sessionDuration,
           exitReason: exitReason,
-          interactive: !isStructuredOutput
+          interactive: !isStructuredOutput,
+          usingNewArchitecture: true
         },
       };
     });
@@ -248,7 +401,7 @@ export async function watch(
       services: serviceResults,
       summary: {
         total: serviceResults.length,
-        succeeded: serviceResults.length, // Watch sessions always "succeed"
+        succeeded: serviceResults.length,
         failed: 0,
         warnings: 0,
       },
@@ -271,9 +424,9 @@ export async function watch(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const watchCommand = new CommandBuilder<WatchOptions>()
-  .name('watch')
-  .description('Monitor logs and system metrics')
+export const watchNewCommand = new CommandBuilder<WatchOptions>()
+  .name('watch-new')
+  .description('Monitor services using new architecture')
   .schema(WatchOptionsSchema as any)
   .requiresEnvironment(true)
   .requiresServices(true)
@@ -297,25 +450,17 @@ export const watchCommand = new CommandBuilder<WatchOptions>()
       '-i': '--interval',
       '-v': '--verbose',
       '-o': '--output',
+      '-s': '--service'
     }
   })
   .examples(
-    'semiont watch --environment local',
-    'semiont watch --environment staging --target logs',
-    'semiont watch --environment production --service backend --interval 10',
-    'semiont watch --environment staging --port 8080',
-    'semiont watch --environment production --terminal'
+    'semiont watch-new -e production',
+    'semiont watch-new -e staging --terminal',
+    'semiont watch-new -e dev --target logs',
+    'semiont watch-new -e local --interval 10 --port 4444'
   )
   .handler(watch)
   .build();
 
-// Export default for compatibility
-export default watchCommand;
-
-// Note: The main function is removed as cli.ts now handles service resolution and output formatting
-// The watch function now accepts pre-resolved services and returns CommandResults
-
-// Export the schema for use by CLI
-
-export type { WatchOptions };
-export { WatchOptionsSchema };
+// Also export as default for compatibility
+export default watchNewCommand;

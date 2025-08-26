@@ -1,621 +1,273 @@
 /**
- * Exec Command - Unified command structure
+ * Exec Command - Service-based implementation
  */
 
 import { z } from 'zod';
-import { spawn } from 'child_process';
-import { colors } from '../lib/cli-colors.js';
-import { printError, printSuccess, printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
-import { type EnvironmentConfig } from '../lib/environment-config.js';
-import { execInContainer } from '../lib/container-runtime.js';
-import { 
-  ExecResult, 
-  CommandResults, 
-  createBaseResult, 
-  createErrorResult,
-  ResourceIdentifier 
-} from '../lib/command-results.js';
+import { printError, printInfo, printWarning } from '../lib/cli-logger.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { CommandResults } from '../lib/command-results-class.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import type { BaseCommandOptions } from '../lib/base-command-options.js';
 
-// AWS SDK imports for ECS operations
-import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
+// Import new service architecture
+import { ServiceFactory } from '../services/service-factory.js';
+import { Config, ServiceName, DeploymentType, ExecOptions } from '../services/types.js';
+
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const ExecOptionsSchema = z.object({
+const ExecCommandOptionsSchema = z.object({
   environment: z.string().optional(),
-  command: z.string().default('/bin/sh'),
-  interactive: z.boolean().default(true),
+  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  quiet: z.boolean().default(false),
   verbose: z.boolean().default(false),
   dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  service: z.string().optional(), // Single service for exec
+  service: z.string(), // Required - must specify which service to exec into
+  command: z.string(), // The command to execute
+  interactive: z.boolean().default(false),
+  tty: z.boolean().default(false),
+  user: z.string().optional(),
+  workingDirectory: z.string().optional(),
+  shell: z.string().optional(),
+  captureOutput: z.boolean().default(true),
+  timeout: z.number().optional(),
 });
 
-type ExecOptions = z.infer<typeof ExecOptionsSchema> & BaseCommandOptions;
+type ExecCommandOptions = z.infer<typeof ExecCommandOptionsSchema> & BaseCommandOptions;
 
 // =====================================================================
-// HELPER FUNCTIONS
+// COMMAND HANDLER
 // =====================================================================
 
-// Helper wrapper for printDebug that passes verbose option
-function debugLog(_message: string, _options: any): void {
-  // Debug logging disabled for now
-}
-
-
-
-// =====================================================================
-// DEPLOYMENT-TYPE-AWARE EXEC FUNCTIONS
-// =====================================================================
-
-async function execInServiceImpl(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, envConfig: EnvironmentConfig): Promise<ExecResult> {
+async function execHandler(
+  options: ExecCommandOptions,
+  services: ServiceDeploymentInfo[]
+): Promise<CommandResults> {
+  const results = new CommandResults();
+  
+  // Exec only works with a single service
+  if (services.length === 0) {
+    throw new Error('No service specified for exec');
+  }
+  if (services.length > 1) {
+    throw new Error('Exec can only be used with a single service');
+  }
+  
+  const serviceInfo = services[0];
+  
+  // Create config for service
+  const config: Config = {
+    projectRoot: PROJECT_ROOT,
+    environment: options.environment as any || 'dev',
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun,
+  };
+  
   const startTime = Date.now();
   
-  if (options.dryRun) {
-    printInfo(`[DRY RUN] Would execute "${options.command}" in ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    return {
-      ...createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime),
-      command: options.command,
-      exitCode: 0,
-      output: '[DRY RUN] Command not executed',
-      interactive: options.interactive,
-      executionTime: 0,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'dry-run',
-      metadata: { dryRun: true },
-    };
-  }
-  
-  printInfo(`Executing command in ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
-  
   try {
-    switch (serviceInfo.deploymentType) {
-      case 'aws':
-        return await execInAWSService(serviceInfo, options, startTime, envConfig);
-      case 'container':
-        return await execInContainerService(serviceInfo, options, startTime);
-      case 'process':
-        return await execInProcessService(serviceInfo, options, startTime);
-      case 'external':
-        return await execInExternalService(serviceInfo, options, startTime);
-      default:
-        throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
-    }
-  } catch (error) {
-    const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-    const errorResult = createErrorResult(baseResult, error as Error);
-    
-    return {
-      ...errorResult,
-      command: options.command,
-      exitCode: 1,
-      output: '',
-      interactive: options.interactive,
-      executionTime: Date.now() - startTime,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'failed',
-      metadata: { error: (error as Error).message },
-    };
-  }
-}
-
-async function execInAWSService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number, envConfig: EnvironmentConfig): Promise<ExecResult> {
-  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  
-  // AWS config is passed from main function
-  if (!envConfig?.aws?.region) {
-    printError('AWS configuration not found in environment config');
-    throw new Error('Missing AWS configuration');
-  }
-  
-  // AWS ECS exec
-  switch (serviceInfo.name) {
-    case 'frontend':
-    case 'backend':
-      const ecsClient = new ECSClient({ region: envConfig.aws.region });
-      const clusterName = `semiont-${options.environment!}`;
-      const serviceName = `semiont-${options.environment!}-${serviceInfo.name}`;
-      
-      try {
-        // Get running tasks
-        const response = await ecsClient.send(
-          new ListTasksCommand({
-            cluster: clusterName,
-            serviceName: serviceName,
-            desiredStatus: 'RUNNING',
-          })
-        );
-        
-        if (!response.taskArns || response.taskArns.length === 0) {
-          throw new Error(`No running ${serviceInfo.name} tasks found`);
-        }
-        
-        const taskArn = response.taskArns[0]!;
-        const taskId = taskArn.split('/').pop()!;
-        const containerName = `semiont-${serviceInfo.name}`;
-        
-        printInfo(`Connecting to task: ${taskId}`);
-        debugLog(`Cluster: ${clusterName}, Container: ${containerName}`, options);
-        
-        // Use AWS CLI for interactive commands
-        const awsCommand = [
-          'aws', 'ecs', 'execute-command',
-          '--cluster', clusterName,
-          '--task', taskId,
-          '--container', containerName,
-          '--command', options.command,
-          '--region', envConfig.aws.region
-        ];
-        
-        if (options.interactive) {
-          awsCommand.push('--interactive');
-        }
-        
-        debugLog(`Executing: ${awsCommand.join(' ')}`, options);
-        
-        const proc = spawn(awsCommand[0]!, awsCommand.slice(1), {
-          stdio: 'inherit'
-        });
-        
-        const exitCode = await new Promise<number>((resolve, reject) => {
-          proc.on('close', (code: number | null) => {
-            if (code === 0) {
-              resolve(code);
-            } else {
-              printError('ECS exec failed. Possible causes:');
-              printInfo('  • ECS Exec not enabled on service');
-              printInfo('  • Session Manager plugin not installed');
-              printInfo('  • Insufficient IAM permissions');
-              reject(new Error(`ECS exec failed with code ${code}`));
-            }
-          });
-          
-          proc.on('error', (error: Error) => {
-            reject(error);
-          });
-        });
-        
-        // Return successful result
-        return {
-          ...baseResult,
-          command: options.command,
-          exitCode,
-          output: '',
-          interactive: options.interactive,
-          executionTime: Date.now() - startTime,
-          resourceId: {
-            aws: {
-              taskId,
-              containerName,
-              cluster: clusterName
-            }
-          } as ResourceIdentifier,
-          status: 'success',
-          metadata: {
-            taskArn,
-            cluster: clusterName,
-            service: serviceName
-          }
-        };
-        
-      } catch (error) {
-        printError(`Failed to execute in ECS ${serviceInfo.name}: ${error}`);
-        throw error;
+    // Create service instance
+    const service = ServiceFactory.create(
+      serviceInfo.name as ServiceName,
+      serviceInfo.deploymentType as DeploymentType,
+      config,
+      {
+        deploymentType: serviceInfo.deploymentType as DeploymentType
       }
-      
-    case 'database':
-      printError('Cannot execute commands directly in RDS instances');
-      printInfo('Use database client tools to connect to RDS');
-      throw new Error('RDS exec not supported');
-      
-    case 'filesystem':
-      printError('Cannot execute commands in EFS filesystems');
-      throw new Error('EFS exec not supported');
-      
-    default:
-      printError(`Exec not supported for AWS service: ${serviceInfo.name}`);
-      throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
-  }
-}
-
-async function execInContainerService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
-  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment!}`;
-  
-  try {
-    // Special handling for filesystem service
-    if (serviceInfo.name === 'filesystem') {
-      const volumeName = `semiont-filesystem-${options.environment}`;
-      printInfo(`Accessing filesystem volume via temporary container: ${volumeName}`);
-      
-      // Run a temporary busybox container with the volume mounted
-      const { spawn } = await import('child_process');
-      const dockerArgs = [
-        'run', '--rm', '-it',
-        '-v', `${volumeName}:/data`,
-        '-w', '/data',
-        'busybox',
-        options.command || 'sh'
-      ];
-      
-      const proc = spawn('docker', dockerArgs, {
-        stdio: 'inherit'
-      });
-      
-      const exitCode = await new Promise<number>((resolve, reject) => {
-        proc.on('close', (code) => {
-          resolve(code || 0);
-        });
-        proc.on('error', (err) => {
-          printError(`Failed to run temporary container: ${err.message}`);
-          reject(err);
-        });
-      });
-      
-      return {
-        ...baseResult,
-        command: options.command || 'sh',
-        exitCode,
-        output: '',
-        interactive: true,
-        executionTime: Date.now() - startTime,
-        resourceId: {
-          container: {
-            name: volumeName
-          }
-        } as ResourceIdentifier,
-        status: exitCode === 0 ? 'success' : 'failed',
-        metadata: {
-          volumeName,
-          containerImage: 'busybox',
-          workingDir: '/data'
-        }
-      };
-    }
+    );
     
-    // Regular container exec for other services
-    printInfo(`Executing in container: ${containerName}`);
-    
-    const success = await execInContainer(containerName, [options.command], {
+    // Build exec options
+    const execOptions: ExecOptions = {
       interactive: options.interactive,
-      verbose: options.verbose
+      tty: options.tty,
+      ...(options.user && { user: options.user }),
+      ...(options.workingDirectory && { workingDirectory: options.workingDirectory }),
+      ...(options.shell && { shell: options.shell }),
+      captureOutput: options.captureOutput,
+      ...(options.timeout && { timeout: options.timeout }),
+      env: {} // Could be extended to pass custom env vars
+    };
+    
+    // Execute the command
+    const result = await service.exec(options.command, execOptions);
+    
+    // Record result
+    results.addResult(serviceInfo.name, {
+      success: result.success,
+      duration: Date.now() - startTime,
+      deployment: serviceInfo.deploymentType,
+      command: result.command,
+      exitCode: result.execution?.exitCode,
+      workingDirectory: result.execution?.workingDirectory,
+      user: result.execution?.user,
+      shell: result.execution?.shell,
+      interactive: result.execution?.interactive,
+      tty: result.execution?.tty,
+      stdout: result.output?.stdout,
+      stderr: result.output?.stderr,
+      truncated: result.output?.truncated,
+      containerId: result.execution?.containerId,
+      instanceId: result.execution?.instanceId,
+      sessionId: result.execution?.sessionId,
+      streaming: result.streaming,
+      security: result.security,
+      error: result.error,
+      metadata: result.metadata
     });
     
-    if (success) {
-      printSuccess(`Command executed successfully in ${containerName}`);
+    // Display result
+    if (!options.quiet) {
+      const icon = result.success ? '✅' : '❌';
+      const statusText = result.success ? 'executed' : 'failed';
+      console.log(`${icon} ${serviceInfo.name} (${serviceInfo.deploymentType}): Command ${statusText}`);
       
-      // Return successful result
-      return {
-        ...baseResult,
-        command: options.command,
-        exitCode: 0,
-        output: '',
-        interactive: options.interactive,
-        executionTime: Date.now() - startTime,
-        resourceId: {
-          container: {
-            name: containerName
-          }
-        } as ResourceIdentifier,
-        status: 'success',
-        metadata: {
-          containerName
+      // Show execution details
+      if (result.execution) {
+        if (result.execution.workingDirectory) {
+          console.log(`   📁 Working Dir: ${result.execution.workingDirectory}`);
         }
-      };
-    } else {
-      printError(`Command execution failed in ${containerName}`);
-      throw new Error('Container exec failed');
-    }
-  } catch (error) {
-    printError(`Failed to execute in container ${containerName}: ${error}`);
-    throw error;
-  }
-}
-
-async function execInProcessService(serviceInfo: ServiceDeploymentInfo, options: ExecOptions, startTime: number): Promise<ExecResult> {
-  const baseResult = createBaseResult('exec', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  
-  // For process deployments, we can either:
-  // 1. Execute in the context of the running process (limited)
-  // 2. Spawn a new process with the same environment
-  
-  switch (serviceInfo.name) {
-    case 'database':
-      // Connect to PostgreSQL
-      printInfo('Connecting to local PostgreSQL database');
-      const psqlCommand = ['psql', '-h', 'localhost', '-U', 'postgres', '-d', 'semiont'];
-      
-      const proc = spawn(psqlCommand[0]!, psqlCommand.slice(1), {
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          PGPASSWORD: serviceInfo.config.password || 'localpassword'
+        if (result.execution.user) {
+          console.log(`   👤 User: ${result.execution.user}`);
         }
-      });
-      
-      const dbExitCode = await new Promise<number>((resolve, reject) => {
-        proc.on('close', (code: number | null) => {
-          if (code === 0) {
-            resolve(code);
-          } else {
-            reject(new Error(`psql failed with code ${code}`));
-          }
-        });
-        proc.on('error', reject);
-      });
-      
-      // Return successful result for database
-      return {
-        ...baseResult,
-        command: 'psql',
-        exitCode: dbExitCode,
-        output: '',
-        interactive: true,
-        executionTime: Date.now() - startTime,
-        resourceId: {
-          process: {
-            path: 'localhost:5432'
-          }
-        } as ResourceIdentifier,
-        status: 'success',
-        metadata: {
-          method: 'psql'
+        if (result.execution.shell) {
+          console.log(`   🐚 Shell: ${result.execution.shell}`);
         }
-      };
+        if (result.execution.exitCode !== undefined && result.execution.exitCode !== 0) {
+          console.log(`   ⚠️  Exit Code: ${result.execution.exitCode}`);
+        }
+        if (result.execution.duration) {
+          console.log(`   ⏱️  Duration: ${result.execution.duration}ms`);
+        }
+        if (result.execution.containerId) {
+          console.log(`   🐳 Container ID: ${result.execution.containerId}`);
+        }
+        if (result.execution.instanceId) {
+          console.log(`   ☁️  Instance: ${result.execution.instanceId}`);
+        }
+        if (result.execution.sessionId) {
+          console.log(`   🔗 Session: ${result.execution.sessionId}`);
+        }
+      }
       
-    case 'frontend':
-    case 'backend':
-      printInfo(`Executing command in ${serviceInfo.name} process context`);
-      
-      const command = options.command === '/bin/sh' 
-        ? (process.platform === 'win32' ? 'cmd' : 'bash')
-        : options.command;
+      // Show security info
+      if (result.security) {
+        const securityDetails = [];
+        if (result.security.authenticated) securityDetails.push('authenticated');
+        if (result.security.authorization) securityDetails.push(result.security.authorization);
+        if (result.security.audit) securityDetails.push('audited');
+        if (result.security.sudoRequired) securityDetails.push('sudo');
         
-      const appProc = spawn(command, {
-        stdio: 'inherit',
-        shell: true,
-        cwd: `apps/${serviceInfo.name}`,
-        env: {
-          ...process.env,
-          PORT: serviceInfo.config.port?.toString() || (serviceInfo.name === 'frontend' ? '3000' : '3001')
+        if (securityDetails.length > 0) {
+          console.log(`   🔐 Security: ${securityDetails.join(', ')}`);
         }
-      });
+      }
       
-      const appExitCode = await new Promise<number>((resolve, reject) => {
-        appProc.on('close', (code: number | null) => {
-          if (code === 0) {
-            resolve(code);
-          } else {
-            reject(new Error(`Command failed with code ${code}`));
-          }
-        });
-        appProc.on('error', reject);
-      });
-      
-      // Return successful result for app
-      return {
-        ...baseResult,
-        command: command,
-        exitCode: appExitCode,
-        output: '',
-        interactive: options.interactive,
-        executionTime: Date.now() - startTime,
-        resourceId: {
-          process: {
-            path: `apps/${serviceInfo.name}`
-          }
-        } as ResourceIdentifier,
-        status: 'success',
-        metadata: {
-          method: 'spawn',
-          cwd: `apps/${serviceInfo.name}`
+      // Show streaming support
+      if (result.streaming?.supported) {
+        console.log(`   📡 Streaming: Supported`);
+        if (result.streaming.websocketUrl) {
+          console.log(`      WebSocket: ${result.streaming.websocketUrl}`);
         }
-      };
+        if (result.streaming.streamId) {
+          console.log(`      Stream ID: ${result.streaming.streamId}`);
+        }
+      }
       
-    case 'filesystem':
-      printInfo('Opening filesystem location');
-      const dataPath = serviceInfo.config.path || './data';
-      
-      const explorerCommand = process.platform === 'darwin' 
-        ? ['open', dataPath]
-        : process.platform === 'win32' 
-          ? ['explorer', dataPath]
-          : ['ls', '-la', dataPath];
+      // Show output (if not interactive and output was captured)
+      if (!options.interactive && result.output) {
+        if (result.output.stdout) {
+          const lines = result.output.stdout.split('\n');
+          const maxLines = options.verbose ? lines.length : 10;
+          const displayLines = lines.slice(0, maxLines);
           
-      const fsProc = spawn(explorerCommand[0]!, explorerCommand.slice(1), {
-        stdio: 'inherit'
-      });
-      
-      await new Promise<void>((resolve, reject) => {
-        fsProc.on('close', () => resolve());
-        fsProc.on('error', reject);
-      });
-      
-      // Return result for filesystem
-      return {
-        ...baseResult,
-        command: explorerCommand.join(' '),
-        exitCode: 0,
-        output: '',
-        interactive: false,
-        executionTime: Date.now() - startTime,
-        resourceId: {
-          process: {
-            path: dataPath
+          if (displayLines.length > 0 && displayLines.some(l => l.trim())) {
+            console.log('\n📤 Output:');
+            displayLines.forEach(line => {
+              if (line.trim()) console.log(`   ${line}`);
+            });
+            
+            if (lines.length > maxLines) {
+              console.log(`   ... (${lines.length - maxLines} more lines)`);
+            }
           }
-        } as ResourceIdentifier,
-        status: 'success',
-        metadata: {
-          method: 'file-explorer',
-          path: dataPath
         }
-      };
-      
-    default:
-      throw new Error(`Unsupported process service: ${serviceInfo.name}`);
-  }
-}
-
-async function execInExternalService(serviceInfo: ServiceDeploymentInfo, _options: ExecOptions, _startTime: number): Promise<ExecResult> {
-  printError(`Cannot execute commands in external ${serviceInfo.name} service`);
-  
-  switch (serviceInfo.name) {
-    case 'database':
-      if (serviceInfo.config.host) {
-        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
-        printInfo('Use database client tools to connect to the external database');
+        
+        if (result.output.stderr) {
+          const lines = result.output.stderr.split('\n');
+          const displayLines = lines.slice(0, 5);
+          
+          if (displayLines.length > 0 && displayLines.some(l => l.trim())) {
+            console.log('\n⚠️  Errors:');
+            displayLines.forEach(line => {
+              if (line.trim()) console.log(`   ${line}`);
+            });
+            
+            if (lines.length > 5) {
+              console.log(`   ... (${lines.length - 5} more lines)`);
+            }
+          }
+        }
+        
+        if (result.output.truncated) {
+          printWarning(`Output was truncated (max ${result.output.maxBytes} bytes)`);
+        }
       }
-      break;
       
-    case 'filesystem':
-      if (serviceInfo.config.path) {
-        printInfo(`External storage path: ${serviceInfo.config.path}`);
-        printInfo('Access this path through your system\'s file manager or appropriate tools');
+      // Show recommendations for failed commands or external services
+      if (!result.success) {
+        if (result.error) {
+          printError(`Error: ${result.error}`);
+        }
+        
+        if (serviceInfo.deploymentType === 'external' && result.metadata?.recommendations) {
+          console.log('\n💡 Recommendations:');
+          result.metadata.recommendations.forEach((rec: string) => {
+            console.log(`   • ${rec}`);
+          });
+        } else if (serviceInfo.deploymentType === 'process' && options.interactive) {
+          console.log('\n💡 Note: Interactive execution is not supported in process platform.');
+          console.log('   Consider using the container platform for interactive sessions.');
+        }
       }
-      break;
-      
-    default:
-      printInfo(`External ${serviceInfo.name} must be accessed through its own interface`);
-  }
-  
-  throw new Error(`Cannot exec into external ${serviceInfo.name}`);
-}
-
-
-// =====================================================================
-// STRUCTURED OUTPUT FUNCTION
-// =====================================================================
-
-// Wrapper function to match the expected signature
-async function execHandler(
-  serviceDeployments: ServiceDeploymentInfo[],
-  options: ExecOptions
-): Promise<CommandResults> {
-  // Exec only works with a single service, take the first one
-  const serviceDeployment = serviceDeployments[0];
-  if (!serviceDeployment) {
-    throw new Error('No service specified for exec command');
-  }
-  return exec(serviceDeployment, options);
-}
-
-export async function exec(
-  serviceDeployment: ServiceDeploymentInfo,
-  options: ExecOptions
-): Promise<CommandResults> {
-  const startTime = Date.now();
-  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  
-  // Load environment config once for all operations
-  const envConfig = loadEnvironmentConfig(options.environment || 'development') as EnvironmentConfig;
-  
-  // Suppress output for structured formats
-  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
-  
-  try {
-    if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`Executing command in ${colors.bright}${options.environment!}${colors.reset} environment`);
     }
     
-    if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      debugLog(`Target service: ${serviceDeployment.name}(${serviceDeployment.deploymentType})`, options);
+    // Interactive mode message
+    if (options.interactive && result.success && !options.quiet) {
+      console.log('\n📝 Interactive session completed');
     }
     
-    // Execute command in the service
-    let result: ExecResult;
-    try {
-      result = await execInServiceImpl(serviceDeployment, options, envConfig);
-    } catch (error) {
-      // Convert errors to failed results
-      const baseResult = createBaseResult('exec', serviceDeployment.name, serviceDeployment.deploymentType, options.environment!, startTime);
-      const errorResult = createErrorResult(baseResult, error as Error);
-      
-      result = {
-        ...errorResult,
-        command: options.command,
-        exitCode: 1,
-        output: '',
-        interactive: options.interactive,
-        executionTime: Date.now() - startTime,
-        resourceId: { [serviceDeployment.deploymentType]: {} } as ResourceIdentifier,
-        status: 'failed',
-        metadata: { error: (error as Error).message },
-      };
-    }
-    
-    // Create aggregated results
-    const commandResults: CommandResults = {
-      command: 'exec',
-      environment: options.environment!,
-      timestamp: new Date(),
+  } catch (error) {
+    results.addResult(serviceInfo.name, {
+      success: false,
       duration: Date.now() - startTime,
-      services: [result],
-      summary: {
-        total: 1,
-        succeeded: result.status === 'success' ? 1 : 0,
-        failed: result.status === 'failed' ? 1 : 0,
-        warnings: 0,
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
-      }
-    };
+      deployment: serviceInfo.deploymentType,
+      command: options.command,
+      error: error instanceof Error ? error.message : String(error)
+    });
     
-    return commandResults;
-    
-  } finally {
-    // Restore output suppression state
-    setSuppressOutput(previousSuppressOutput);
+    if (!options.quiet) {
+      printError(`Failed to execute command in ${serviceInfo.name}: ${error}`);
+    }
   }
+  
+  if (options.dryRun && !options.quiet) {
+    printInfo('\n🔍 This was a dry run. No actual command was executed.');
+  }
+  
+  return results;
 }
 
 // =====================================================================
 // COMMAND DEFINITION
 // =====================================================================
 
-export const execCommand = new CommandBuilder<ExecOptions>()
-  .name('exec')
-  .description('Execute commands in services')
-  .schema(ExecOptionsSchema as any)
-  .requiresEnvironment(true)
+export const execNewCommand = new CommandBuilder('exec-new')
+  .description('Execute commands within running services')
+  .schema(ExecCommandOptionsSchema)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--command': { type: 'string', description: 'Command to execute' },
-      '--interactive': { type: 'boolean', description: 'Interactive mode' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service to execute command in' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-c': '--command',
-      '-i': '--interactive',
-      '-v': '--verbose',
-      '-o': '--output',
-      '-s': '--service',
-    }
-  })
-  .examples(
-    'semiont exec --environment local --service backend',
-    'semiont exec --environment staging --service frontend --command "ls -la"',
-    'semiont exec --environment prod --service backend --command "npm run migrate"'
-  )
   .handler(execHandler)
   .build();
-
-// Export default for compatibility
-export default execCommand;
-
-// Export the schema for use by CLI
-export type { ExecOptions };
-export { ExecOptionsSchema };

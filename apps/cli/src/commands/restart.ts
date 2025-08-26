@@ -111,7 +111,7 @@ async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: Re
       
       try {
         // Import AWS SDK components
-        const { ECSClient, UpdateServiceCommand, DescribeServicesCommand } = await import('@aws-sdk/client-ecs');
+        const { ECSClient, UpdateServiceCommand } = await import('@aws-sdk/client-ecs');
         const { loadEnvironmentConfig } = await import('../lib/deployment-resolver.js');
         
         // Load configuration
