@@ -50,5 +50,5 @@ statusRouter.openapi(statusRoute, async (c) => {
     },
     message: 'Ready to build the future of knowledge management!',
     authenticatedAs: user?.email,
-  });
+  }, 200);
 });

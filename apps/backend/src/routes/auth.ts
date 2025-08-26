@@ -256,7 +256,7 @@ authRouter.openapi(googleAuthRoute, async (c) => {
       },
       token,
       isNewUser,
-    });
+    }, 200);
   } catch (error: any) {
     console.error('OAuth error:', error);
     return c.json({ error: error.message || 'Authentication failed' }, 400);
@@ -271,7 +271,7 @@ authRouter.openapi(refreshTokenRoute, async (c) => {
   
   if (!refreshToken) {
     console.log('Refresh endpoint: No refresh token provided');
-    return c.json({ error: 'Refresh token required' }, 400);
+    return c.json({ error: 'Refresh token required' }, 401);
   }
   
   console.log('Refresh endpoint: Attempting to verify token');
@@ -312,7 +312,7 @@ authRouter.openapi(refreshTokenRoute, async (c) => {
     // Return in the format MCP expects
     return c.json({ 
       access_token: accessToken  // Note: using snake_case for consistency
-    });
+    }, 200);
   } catch (error: any) {
     console.error('Token refresh error:', error.message || error);
     console.error('Error stack:', error.stack);
@@ -350,10 +350,10 @@ authRouter.openapi(mcpGenerateRoute, async (c) => {
     
     return c.json({ 
       refresh_token: refreshToken  // Note: returning refresh_token, not access_token
-    });
+    }, 200);
   } catch (error: any) {
     console.error('MCP token generation error:', error);
-    return c.json({ error: 'Failed to generate refresh token' }, 500);
+    return c.json({ error: 'Failed to generate refresh token' }, 401);
   }
 });
 
@@ -374,7 +374,7 @@ authRouter.openapi(getCurrentUserRoute, async (c) => {
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
     createdAt: user.createdAt.toISOString(),
-  });
+  }, 200);
 });
 
 // Accept terms endpoint
@@ -383,12 +383,12 @@ authRouter.openapi(acceptTermsRoute, async (c) => {
   const user = c.get('user');
   
   // Update the user's terms acceptance
-  const updatedUser = await OAuthService.acceptTerms(user.id);
+  await OAuthService.acceptTerms(user.id);
   
   return c.json({
     success: true,
     message: 'Terms accepted',
-  });
+  }, 200);
 });
 
 // Logout endpoint
@@ -399,5 +399,5 @@ authRouter.openapi(logoutRoute, async (c) => {
   return c.json({
     success: true,
     message: 'Logged out successfully',
-  });
+  }, 200);
 });

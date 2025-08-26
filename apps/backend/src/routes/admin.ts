@@ -323,7 +323,7 @@ adminRouter.openapi(listUsersRoute, async (c) => {
       createdAt: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),
     })),
-  });
+  }, 200);
 });
 
 // User statistics
@@ -371,7 +371,7 @@ adminRouter.openapi(userStatsRoute, async (c) => {
         createdAt: u.createdAt.toISOString(),
       })),
     },
-  });
+  }, 200);
 });
 
 // Update user
@@ -414,7 +414,7 @@ adminRouter.openapi(updateUserRoute, async (c) => {
       createdAt: updatedUser.createdAt.toISOString(),
       updatedAt: updatedUser.updatedAt.toISOString(),
     },
-  });
+  }, 200);
 });
 
 // Delete user
@@ -445,7 +445,7 @@ adminRouter.openapi(deleteUserRoute, async (c) => {
   return c.json({
     success: true,
     message: `User ${existingUser.email} deleted successfully`,
-  });
+  }, 200);
 });
 
 // OAuth configuration
@@ -470,5 +470,5 @@ adminRouter.openapi(oauthConfigRoute, async (c) => {
   return c.json({
     providers,
     allowedDomains
-  });
+  }, 200);
 });

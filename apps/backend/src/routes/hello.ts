@@ -91,7 +91,7 @@ helloRouter.openapi(helloRoute, async (c) => {
     timestamp: new Date().toISOString(),
     platform: 'Semiont Semantic Knowledge Platform',
     user: user ? user.email : undefined,
-  });
+  }, 200);
 });
 
 helloRouter.openapi(helloRouteNoName, async (c) => {
@@ -102,5 +102,5 @@ helloRouter.openapi(helloRouteNoName, async (c) => {
     timestamp: new Date().toISOString(),
     platform: 'Semiont Semantic Knowledge Platform',
     user: user ? user.email : undefined,
-  });
+  }, 200);
 });

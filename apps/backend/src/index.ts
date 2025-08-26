@@ -55,6 +55,7 @@ const app = new OpenAPIHono<{ Variables: Variables }>({
         400
       );
     }
+    return undefined;
   },
 });
 

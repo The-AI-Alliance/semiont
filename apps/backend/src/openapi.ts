@@ -90,10 +90,20 @@ export const UserListResponseSchema = z.object({
 export const UserStatsResponseSchema = z.object({
   success: z.boolean(),
   stats: z.object({
-    total: z.number(),
-    active: z.number(),
-    admins: z.number(),
-    recent: z.number(),
+    totalUsers: z.number(),
+    activeUsers: z.number(),
+    adminUsers: z.number(),
+    regularUsers: z.number(),
+    domainBreakdown: z.array(z.object({
+      domain: z.string(),
+      count: z.number(),
+    })),
+    recentSignups: z.array(z.object({
+      id: z.string(),
+      email: z.string(),
+      name: z.string().nullable(),
+      createdAt: z.string(),
+    })),
   }),
 }).openapi('UserStatsResponse');
 
