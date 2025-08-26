@@ -351,22 +351,44 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       let backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
       
-      // Use node directly to run the backend in CI to avoid shell issues
-      // Check if this is 'npm start' and convert to direct node execution
-      if (backendCommand[0] === 'npm' && backendCommand[1] === 'start') {
-        backendCommand = ['node', 'dist/index.js'];
+      // Use absolute paths for commands to ensure they work in detached processes
+      if (backendCommand[0] === 'npm') {
+        // Try to find npm's absolute path
+        try {
+          const npmPath = require('child_process').execSync('which npm', { encoding: 'utf8' }).trim();
+          if (npmPath) {
+            backendCommand[0] = npmPath;
+          }
+        } catch {
+          // Keep 'npm' as is if which fails
+        }
+      } else if (backendCommand[0] === 'node') {
+        // Use process.execPath for node's absolute path
+        backendCommand[0] = process.execPath;
+      }
+      
+      // Convert 'npm start' to direct node execution with absolute path
+      if (backendCommand[0].includes('npm') && backendCommand[1] === 'start') {
+        backendCommand = [process.execPath, 'dist/index.js'];
       }
       
       // Load config to get site domain and OAuth settings
       const backendConfig = loadEnvironmentConfig(environment);
-      const backendEnv: Record<string, string> = {
-        ...process.env,
-        NODE_ENV: getNodeEnvForEnvironment(environment),
-        SEMIONT_ENV: environment,
-        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont',
-        JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-        PORT: backendPort.toString(),
-      };
+      
+      // Ensure we properly copy all environment variables, filtering out undefined values
+      const backendEnv: Record<string, string> = Object.entries(process.env).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+      
+      // Override specific variables
+      backendEnv.NODE_ENV = getNodeEnvForEnvironment(environment);
+      backendEnv.SEMIONT_ENV = environment;
+      backendEnv.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:localpassword@localhost:5432/semiont';
+      backendEnv.JWT_SECRET = process.env.JWT_SECRET || 'local-dev-secret';
+      backendEnv.PORT = backendPort.toString();
       
       // Add site configuration
       if (backendConfig.site?.domain) {
@@ -414,22 +436,44 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       let frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const frontendPort = serviceInfo.config.port || 3000;
       
-      // Use node directly in CI to avoid shell issues
-      if (frontendCommand[0] === 'npm' && frontendCommand[1] === 'start') {
-        frontendCommand = ['node', '.next/standalone/server.js'];
+      // Use absolute paths for commands
+      if (frontendCommand[0] === 'npm') {
+        try {
+          const npmPath = require('child_process').execSync('which npm', { encoding: 'utf8' }).trim();
+          if (npmPath) {
+            frontendCommand[0] = npmPath;
+          }
+        } catch {
+          // Keep 'npm' as is if which fails
+        }
+      } else if (frontendCommand[0] === 'node') {
+        frontendCommand[0] = process.execPath;
       }
+      
+      // Convert 'npm start' to direct node execution with absolute path
+      if (frontendCommand[0].includes('npm') && frontendCommand[1] === 'start') {
+        frontendCommand = [process.execPath, '.next/standalone/server.js'];
+      }
+      
+      // Properly copy environment variables
+      const frontendEnv: Record<string, string> = Object.entries(process.env).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+      
+      // Override specific variables
+      frontendEnv.NODE_ENV = getNodeEnvForEnvironment(environment);
+      frontendEnv.NEXT_PUBLIC_API_URL = `http://localhost:3001`;
+      frontendEnv.NEXT_PUBLIC_SITE_NAME = 'Semiont Dev';
+      frontendEnv.PORT = frontendPort.toString();
       
       const frontendProc = spawn(frontendCommand[0]!, frontendCommand.slice(1), {
         cwd: frontendCwd,
         stdio: 'pipe',
         detached: true,
-        env: {
-          ...process.env,
-          NODE_ENV: getNodeEnvForEnvironment(environment),
-          NEXT_PUBLIC_API_URL: `http://localhost:3001`,
-          NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
-          PORT: frontendPort.toString(),
-        },
+        env: frontendEnv,
         shell: process.platform === 'win32' // Only use shell on Windows
       });
       
