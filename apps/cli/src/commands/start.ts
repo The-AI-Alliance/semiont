@@ -348,8 +348,14 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
     case 'backend':
       const backendCwd = path.join(PROJECT_ROOT, 'apps/backend');
-      const backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      let backendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const backendPort = serviceInfo.config.port || 3001;
+      
+      // Use node directly to run the backend in CI to avoid shell issues
+      // Check if this is 'npm start' and convert to direct node execution
+      if (backendCommand[0] === 'npm' && backendCommand[1] === 'start') {
+        backendCommand = ['node', 'dist/index.js'];
+      }
       
       // Load config to get site domain and OAuth settings
       const backendConfig = loadEnvironmentConfig(environment);
@@ -375,7 +381,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
         stdio: 'pipe',
         detached: true,
         env: backendEnv,
-        shell: true
+        shell: process.platform === 'win32' // Only use shell on Windows
       });
       
       backendProc.unref();
@@ -405,8 +411,13 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
       
     case 'frontend':
       const frontendCwd = path.join(PROJECT_ROOT, 'apps/frontend');
-      const frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
+      let frontendCommand = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
       const frontendPort = serviceInfo.config.port || 3000;
+      
+      // Use node directly in CI to avoid shell issues
+      if (frontendCommand[0] === 'npm' && frontendCommand[1] === 'start') {
+        frontendCommand = ['node', '.next/standalone/server.js'];
+      }
       
       const frontendProc = spawn(frontendCommand[0]!, frontendCommand.slice(1), {
         cwd: frontendCwd,
@@ -419,7 +430,7 @@ async function startProcessService(serviceInfo: ServiceDeploymentInfo, options: 
           NEXT_PUBLIC_SITE_NAME: 'Semiont Dev',
           PORT: frontendPort.toString(),
         },
-        shell: true
+        shell: process.platform === 'win32' // Only use shell on Windows
       });
       
       frontendProc.unref();

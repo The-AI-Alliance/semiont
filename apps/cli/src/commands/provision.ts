@@ -914,7 +914,7 @@ async function provisionProcessService(serviceInfo: ServiceDeploymentInfo, optio
           const proc = spawn('npm', ['install'], {
             cwd: appPath,
             stdio: options.verbose ? 'inherit' : 'pipe',
-            shell: true
+            shell: process.platform === 'win32' // Only use shell on Windows
           });
           
           proc.on('exit', (code) => resolve(code === 0));
