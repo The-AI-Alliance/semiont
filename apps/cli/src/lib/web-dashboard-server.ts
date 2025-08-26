@@ -14,7 +14,7 @@ export class WebDashboardServer {
   private app: express.Application;
   private server: ReturnType<typeof createServer>;
   private io: SocketIOServer;
-  private dataSource: DashboardDataSource;
+  protected dataSource: DashboardDataSource;
   private updateInterval: NodeJS.Timeout | null = null;
   private port: number;
   private environment: string;

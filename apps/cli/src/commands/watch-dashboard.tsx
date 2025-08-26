@@ -8,8 +8,8 @@
 import React, { useState, useEffect } from 'react';
 import { render, useApp, useInput } from 'ink';
 import { ServiceType, isServiceType } from '../lib/types.js';
-import { DashboardDataSource } from '../lib/dashboard-data.js';
-import { UnifiedDashboard, LogsOnlyDashboard, MetricsOnlyDashboard, DashboardData } from '../lib/dashboard-layouts.js';
+import { DashboardDataSource, DashboardData } from '../lib/dashboard-data.js';
+import { UnifiedDashboard, LogsOnlyDashboard, MetricsOnlyDashboard } from '../lib/dashboard-layouts.js';
 
 // Dashboard mode types
 type DashboardMode = 'unified' | 'logs' | 'metrics';
