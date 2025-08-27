@@ -11,7 +11,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of an update operation
  */
 export interface UpdateResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   updateTime: Date;

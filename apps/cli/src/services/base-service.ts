@@ -19,7 +19,7 @@ import { RestoreResult, RestoreOptions } from './restore-service.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { Platform } from '../lib/platform-resolver.js';
 import { printInfo, printSuccess, printWarning, printError } from '../lib/cli-logger.js';
-import { StateManager, ServiceState } from './state-manager.js';
+import { StateManager, ServiceState } from '../lib/state-manager.js';
 import { PlatformFactory, PlatformStrategy, ServiceContext } from '../platforms/index.js';
 
 export abstract class BaseService implements Service, ServiceContext {
@@ -934,12 +934,32 @@ export abstract class BaseService implements Service, ServiceContext {
     checkResult: CheckResult
   ): Promise<boolean> {
     // Override in subclasses for specific verification
-    // Base implementation just checks if resource IDs match
-    if (savedState.resourceId.pid && checkResult.resources?.pid) {
-      return savedState.resourceId.pid === checkResult.resources.pid;
-    }
-    if (savedState.resourceId.containerId && checkResult.resources?.containerId) {
-      return savedState.resourceId.containerId === checkResult.resources.containerId;
+    // Check using resources field
+    if (savedState.resources && checkResult.resources) {
+      // Both must be same platform
+      if (savedState.resources.platform !== checkResult.resources.platform) {
+        return false;
+      }
+      
+      // Check platform-specific identifiers
+      switch (savedState.resources.platform) {
+        case 'process':
+          if (checkResult.resources.platform === 'process') {
+            return savedState.resources.data.pid === checkResult.resources.data.pid;
+          }
+          break;
+        case 'container':
+          if (checkResult.resources.platform === 'container') {
+            return savedState.resources.data.containerId === checkResult.resources.data.containerId;
+          }
+          break;
+        case 'aws':
+          if (checkResult.resources.platform === 'aws') {
+            return savedState.resources.data.arn === checkResult.resources.data.arn ||
+                   savedState.resources.data.instanceId === checkResult.resources.data.instanceId;
+          }
+          break;
+      }
     }
     return true;
   }

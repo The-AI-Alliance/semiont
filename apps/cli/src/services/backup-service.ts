@@ -12,7 +12,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of a backup operation
  */
 export interface BackupResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   backupTime: Date;

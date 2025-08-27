@@ -12,7 +12,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of a restart operation
  */
 export interface RestartResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   status?: string;  // Optional status for legacy commands

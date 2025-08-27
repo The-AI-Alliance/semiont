@@ -11,7 +11,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of a check/status operation
  */
 export interface CheckResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   checkTime: Date;

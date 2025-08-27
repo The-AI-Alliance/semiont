@@ -145,6 +145,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
         
         return {
           ...baseResult,
+          entity: baseResult.service,
           stopTime,
           startTime: new Date(Date.now() + 30000), // ECS rolling update typically takes 30-60 seconds
           downtime: 0, // Rolling update means zero downtime
@@ -152,7 +153,8 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
           resources: { platform: 'aws', data: {
               arn: `arn:aws:ecs:${awsRegion}:${envConfig.aws?.accountId}:service/${clusterName}/${actualServiceName}`,
               id: actualServiceName,
-              name: actualServiceName
+              name: actualServiceName,
+              region: awsRegion
             }
           },
           status: 'restarted',
@@ -169,6 +171,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
         
         return {
           ...baseResult,
+          entity: baseResult.service,
           stopTime,
           startTime: stopTime,
           downtime: 0,
@@ -176,7 +179,8 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
           resources: { platform: 'aws', data: {
               arn: `arn:aws:ecs:us-east-1:unknown:service/unknown/${serviceInfo.name}`,
               id: serviceInfo.name,
-              name: serviceInfo.name
+              name: serviceInfo.name,
+              region: 'us-east-1'
             }
           },
           status: 'failed',
@@ -193,6 +197,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
       
       return {
         ...baseResult,
+        entity: baseResult.service,
         stopTime,
         startTime: new Date(Date.now() + options.gracePeriod * 1000),
         downtime: options.gracePeriod * 1000,
@@ -200,7 +205,8 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
         resources: { platform: 'aws', data: {
             arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
             id: `semiont-${options.environment}-db`,
-            name: `semiont-${options.environment}-database`
+            name: `semiont-${options.environment}-database`,
+            region: 'us-east-1'
           }
         },
         status: 'not-implemented',
@@ -217,6 +223,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
       
       return {
         ...baseResult,
+        entity: baseResult.service,
         stopTime,
         startTime: new Date(Date.now() + options.gracePeriod * 1000),
         downtime: options.gracePeriod * 1000,
@@ -224,7 +231,8 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
         resources: { platform: 'aws', data: {
             arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
             id: `fs-semiont${options.environment}`,
-            name: `semiont-${options.environment}-efs`
+            name: `semiont-${options.environment}-efs`,
+            region: 'us-east-1'
           }
         },
         status: 'not-implemented',
@@ -309,13 +317,14 @@ async function restartContainerService(serviceInfo: ServicePlatformInfo, options
       
       return {
         ...baseResult,
+        entity: baseResult.service,
         stopTime,
         startTime: actualStartTime,
         downtime: actualStartTime.getTime() - stopTime.getTime(),
         gracefulRestart: !forcedContinue,
         resources: { platform: 'container', data: {
             id: containerName,
-            name: containerName
+            containerId: containerName  // ContainerResources requires containerId
           }
         },
         status: forcedContinue ? 'force-continued' : 'restarted',
@@ -337,13 +346,14 @@ async function restartContainerService(serviceInfo: ServicePlatformInfo, options
       
       return {
         ...baseResult,
+        entity: baseResult.service,
         stopTime,
         startTime: new Date(),
         downtime: 0,
         gracefulRestart: false,
         resources: { platform: 'container', data: {
             id: containerName,
-            name: containerName
+            containerId: containerName  // ContainerResources requires containerId
           }
         },
         status: 'force-continued',
@@ -382,6 +392,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
         printWarning(`PostgreSQL restart not supported on platform: ${platform}`);
         return {
           ...baseResult,
+          entity: baseResult.service,
           stopTime,
           startTime: new Date(Date.now() + options.gracePeriod * 1000),
           downtime: options.gracePeriod * 1000,
@@ -427,6 +438,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
         return {
           ...baseResult,
           stopTime,
+          entity: baseResult.service,
           startTime: actualStartTime,
           downtime: actualStartTime.getTime() - stopTime.getTime(),
           gracefulRestart: true,
@@ -449,6 +461,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
         return {
           ...baseResult,
           stopTime,
+          entity: baseResult.service,
           startTime: new Date(),
           downtime: 0,
           gracefulRestart: false,
@@ -501,6 +514,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
       return {
         ...baseResult,
         stopTime,
+        entity: baseResult.service,
         startTime: actualStartTime,
         downtime: actualStartTime.getTime() - stopTime.getTime(),
         gracefulRestart: !options.force,
@@ -526,6 +540,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
       return {
         ...baseResult,
         stopTime,
+        entity: baseResult.service,
         startTime: stopTime, // No restart needed
         downtime: 0,
         gracefulRestart: true,
@@ -595,6 +610,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
         return {
           ...baseResult,
           stopTime,
+          entity: baseResult.service,
           startTime: mcpStartTime,
           downtime: mcpStartTime.getTime() - stopTime.getTime(),
           gracefulRestart: false,
@@ -629,6 +645,7 @@ async function restartExternalService(serviceInfo: ServicePlatformInfo, options:
         return {
           ...baseResult,
           stopTime,
+          entity: baseResult.service,
           startTime: stopTime, // No restart needed
           downtime: 0,
           gracefulRestart: true,
@@ -654,6 +671,7 @@ async function restartExternalService(serviceInfo: ServicePlatformInfo, options:
         return {
           ...baseResult,
           stopTime,
+          entity: baseResult.service,
           startTime: stopTime, // No restart needed
           downtime: 0,
           gracefulRestart: true,
@@ -679,7 +697,7 @@ async function restartExternalService(serviceInfo: ServicePlatformInfo, options:
   return {
     ...baseResult,
     stopTime,
-    startTime: stopTime, // No restart needed
+    entity: baseResult.service,    startTime: stopTime, // No restart needed
     downtime: 0,
     gracefulRestart: true,
     resources: { platform: 'external', data: {
@@ -805,7 +823,7 @@ export async function restart(
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
         failed: serviceResults.filter(r => !r.success).length,
-        warnings: serviceResults.filter(r => r.status.includes('not-implemented')).length,
+        warnings: serviceResults.filter(r => r.status?.includes('not-implemented')).length,
       },
       executionContext: {
         user: process.env.USER || 'unknown',

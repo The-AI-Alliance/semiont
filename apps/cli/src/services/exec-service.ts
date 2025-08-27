@@ -12,7 +12,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of an exec operation
  */
 export interface ExecResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   execTime: Date;

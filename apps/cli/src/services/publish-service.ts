@@ -12,7 +12,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of a publish operation
  */
 export interface PublishResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   publishTime: Date;

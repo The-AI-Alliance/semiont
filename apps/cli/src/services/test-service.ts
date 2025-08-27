@@ -12,7 +12,7 @@ import type { PlatformResources } from '../lib/platform-resources.js';
  * Result of a test operation
  */
 export interface TestResult {
-  entity: ServiceName;
+  entity: ServiceName | string;
   platform: Platform;
   success: boolean;
   testTime: Date;

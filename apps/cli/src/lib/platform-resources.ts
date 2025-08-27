@@ -14,6 +14,7 @@ import type { Platform } from './platform-resolver.js';
 export interface ProcessResources {
   pid?: number;
   port?: number;
+  path?: string;              // File system path (for filesystem services)
   workingDirectory?: string;
   command?: string;
   logFile?: string;
@@ -23,12 +24,15 @@ export interface ProcessResources {
  * Container platform resources - for services running in Docker/Podman
  */
 export interface ContainerResources {
-  containerId: string;
+  id?: string;                // Short container ID
+  containerId: string;        // Full container ID
   containerName?: string;
+  image?: string;             // Full image name with tag
   imageName?: string;
   imageTag?: string;
   networkId?: string;
   networkName?: string;
+  volumeId?: string;          // Volume ID for persistent storage
   ports?: Record<string, string>;  // host:container port mapping
   volumes?: Array<{
     host: string;
@@ -43,11 +47,13 @@ export interface ContainerResources {
 export interface AWSResources {
   // Core identifiers
   arn?: string;
-  resourceId?: string;
+  id?: string;                // Generic resource ID
+  name?: string;              // Resource name
   
   // Service-specific
   taskArn?: string;          // ECS
   taskDefinitionArn?: string;
+  clusterId?: string;         // ECS cluster ID
   clusterArn?: string;
   serviceArn?: string;
   instanceId?: string;        // EC2
@@ -55,6 +61,8 @@ export interface AWSResources {
   bucketName?: string;        // S3
   distributionId?: string;    // CloudFront
   databaseId?: string;        // RDS
+  volumeId?: string;          // EBS/EFS volume ID
+  networkId?: string;         // VPC/subnet ID
   
   // Common metadata
   region: string;

@@ -13,6 +13,7 @@ import { CheckResult } from "../services/check-service.js";
 import { UpdateResult } from "../services/update-service.js";
 import { ProvisionResult } from "../services/provision-service.js";
 import { PublishResult } from "../services/publish-service.js";
+import { PlatformResources, AWSResources } from "../lib/platform-resources.js";
 import { BackupResult } from "../services/backup-service.js";
 import { ExecResult, ExecOptions } from "../services/exec-service.js";
 import { TestResult, TestOptions } from "../services/test-service.js";
@@ -492,7 +493,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       printInfo(`Provisioning AWS infrastructure for ${context.name}...`);
     }
     
-    const resources: ProvisionResult['resources'] = {};
+    // Create AWS-specific resources
+    const awsResources: AWSResources = {
+      region: process.env.AWS_REGION || 'us-east-1'
+    };
     const dependencies: string[] = [];
     let cost = { estimatedMonthly: 0, currency: 'USD' };
     
@@ -502,7 +506,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const clusterName = `semiont-${context.environment}`;
         try {
           execSync(`aws ecs create-cluster --cluster-name ${clusterName}`);
-          resources.clusterId = clusterName;
+          awsResources.clusterId = clusterName;
+          awsResources.clusterArn = `arn:aws:ecs:${awsResources.region}:*:cluster/${clusterName}`;
           cost.estimatedMonthly = 50; // ECS Fargate estimate
         } catch {
           // Cluster might exist
@@ -515,7 +520,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const bucketName = `semiont-frontend-${context.environment}`;
         try {
           execSync(`aws s3 mb s3://${bucketName}`);
-          resources.bucketName = bucketName;
+          awsResources.bucketName = bucketName;
           cost.estimatedMonthly = 15; // S3 + CloudFront
         } catch {
           // Bucket might exist
@@ -528,7 +533,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const instanceId = `semiont-db-${context.environment}`;
         try {
           execSync(`aws rds create-db-instance --db-instance-identifier ${instanceId} --db-instance-class db.t3.micro --engine postgres --master-username postgres --master-user-password temp123`);
-          resources.instanceId = instanceId;
+          awsResources.instanceId = instanceId;
+          awsResources.databaseId = instanceId;
           cost.estimatedMonthly = 25; // RDS t3.micro
         } catch {
           // Instance might exist
@@ -540,13 +546,19 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         try {
           const efsResult = execSync(`aws efs create-file-system --creation-token semiont-${context.environment}`, { encoding: 'utf-8' });
           const efsData = JSON.parse(efsResult);
-          resources.volumeId = efsData.FileSystemId;
+          awsResources.volumeId = efsData.FileSystemId;
           cost.estimatedMonthly = 10; // EFS storage
         } catch {
           // EFS might exist
         }
         break;
     }
+    
+    // Create proper discriminated union for resources
+    const resources: PlatformResources = {
+      platform: 'aws',
+      data: awsResources
+    };
     
     return {
       entity: context.name,
@@ -557,7 +569,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       dependencies,
       cost,
       metadata: {
-        region: process.env.AWS_REGION || 'us-east-1'
+        region: awsResources.region
       }
     };
   }

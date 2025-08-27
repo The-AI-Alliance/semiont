@@ -15,11 +15,12 @@ import { UpdateResult } from "../services/update-service.js";
 import { ProvisionResult } from "../services/provision-service.js";
 import { PublishResult } from "../services/publish-service.js";
 import { BackupResult } from "../services/backup-service.js";
+import { PlatformResources } from "../lib/platform-resources.js";
 import { ExecResult, ExecOptions } from "../services/exec-service.js";
 import { TestResult, TestOptions } from "../services/test-service.js";
 import { RestoreResult, RestoreOptions } from "../services/restore-service.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { StateManager } from '../services/state-manager.js';
+import { StateManager } from '../lib/state-manager.js';
 import { printInfo, printWarning } from '../lib/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
@@ -187,9 +188,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       status,
       stateVerified: true,
       resources: {
-        containerId,
-        port: context.getPort()
-      },
+        platform: 'container',
+        data: {
+          containerId,
+          port: context.getPort()
+        }
+      } as PlatformResources,
       logs
     };
   }
@@ -245,13 +249,13 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       printInfo(`Provisioning ${context.name} for container deployment...`);
     }
     
-    const resources: ProvisionResult['resources'] = {};
+    let resources: PlatformResources | undefined = undefined;
     const dependencies: string[] = [];
     
     // Ensure network exists
     const networkName = `semiont-${context.environment}`;
     await this.ensureNetwork(context.environment);
-    resources.networkId = networkName;
+    // Network will be set up when starting the container
     
     // Service-specific provisioning
     switch (context.name) {
@@ -285,7 +289,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         } catch {
           // Volume might already exist
         }
-        resources.volumeId = volumeName;
+        resources = {
+          platform: 'container',
+          data: {
+            volumeId: volumeName
+          }
+        } as PlatformResources;
         
         // Pull PostgreSQL image
         const dbImage = context.getImage();
@@ -300,7 +309,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         } catch {
           // Volume might already exist
         }
-        resources.volumeId = fsVolume;
+        resources = {
+          platform: 'container',
+          data: {
+            volumeId: fsVolume
+          }
+        } as PlatformResources;
         break;
         
       case 'mcp':

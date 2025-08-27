@@ -10,6 +10,7 @@ import { CheckResult } from '../services/check-service.js';
 import { ServiceConfig } from '../lib/cli-config.js';
 import { type ServicePlatformInfo, Platform } from './platform-resolver.js';
 import { Config } from '../lib/cli-config.js';
+import { isPlatformResources } from './platform-resources.js';
 
 import type { ServiceStatus, LogEntry, MetricData } from './dashboard-components.js';
 
@@ -80,26 +81,30 @@ export class DashboardDataSource {
           });
         }
 
-        // Add metrics if available
-        if (checkResult.resources) {
-          if (checkResult.resources.cpu !== undefined) {
+        // Add metrics if available (these would typically come from health checks or monitoring)
+        // Note: cpu, memory, and uptime are not typically stored in resources
+        // They would come from runtime monitoring. For now, we'll skip these
+        // unless they're added to the health check results.
+        if (checkResult.health?.details) {
+          const details = checkResult.health.details;
+          if (details.cpu !== undefined) {
             metrics.push({
               name: `${deployment.name} CPU`,
-              value: checkResult.resources.cpu,
+              value: details.cpu,
               unit: '%'
             });
           }
-          if (checkResult.resources.memory !== undefined) {
+          if (details.memory !== undefined) {
             metrics.push({
               name: `${deployment.name} Memory`,
-              value: checkResult.resources.memory,
+              value: details.memory,
               unit: 'MB'
             });
           }
-          if (checkResult.resources.uptime !== undefined) {
+          if (details.uptime !== undefined) {
             metrics.push({
               name: `${deployment.name} Uptime`,
-              value: checkResult.resources.uptime,
+              value: details.uptime,
               unit: 's'
             });
           }
@@ -141,16 +146,35 @@ export class DashboardDataSource {
       parts.push('Healthy');
     }
     
-    if (checkResult.resources?.pid) {
-      parts.push(`PID: ${checkResult.resources.pid}`);
-    }
-    
-    if (checkResult.resources?.containerId) {
-      parts.push(`Container: ${checkResult.resources.containerId.slice(0, 12)}`);
-    }
-    
-    if (checkResult.resources?.port) {
-      parts.push(`Port: ${checkResult.resources.port}`);
+    // Extract resource info based on platform
+    if (checkResult.resources) {
+      if (isPlatformResources(checkResult.resources, 'process')) {
+        if (checkResult.resources.data.pid) {
+          parts.push(`PID: ${checkResult.resources.data.pid}`);
+        }
+        if (checkResult.resources.data.port) {
+          parts.push(`Port: ${checkResult.resources.data.port}`);
+        }
+      } else if (isPlatformResources(checkResult.resources, 'container')) {
+        if (checkResult.resources.data.containerId) {
+          parts.push(`Container: ${checkResult.resources.data.containerId.slice(0, 12)}`);
+        }
+        // Container ports are stored differently
+        const ports = checkResult.resources.data.ports;
+        if (ports) {
+          const firstPort = Object.keys(ports)[0];
+          if (firstPort) {
+            parts.push(`Port: ${firstPort}`);
+          }
+        }
+      } else if (isPlatformResources(checkResult.resources, 'aws')) {
+        if (checkResult.resources.data.instanceId) {
+          parts.push(`Instance: ${checkResult.resources.data.instanceId}`);
+        } else if (checkResult.resources.data.taskArn) {
+          const taskId = checkResult.resources.data.taskArn.split('/').pop()?.slice(0, 12);
+          parts.push(`Task: ${taskId}`);
+        }
+      }
     }
     
     return parts.join(', ') || checkResult.status;

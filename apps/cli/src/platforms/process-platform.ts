@@ -15,11 +15,12 @@ import { UpdateResult } from "../services/update-service.js";
 import { ProvisionResult } from "../services/provision-service.js";
 import { PublishResult } from "../services/publish-service.js";
 import { BackupResult } from "../services/backup-service.js";
+import { PlatformResources } from "../lib/platform-resources.js";
 import { ExecResult, ExecOptions } from "../services/exec-service.js";
 import { TestResult, TestOptions } from "../services/test-service.js";
 import { RestoreResult, RestoreOptions } from "../services/restore-service.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { StateManager } from '../services/state-manager.js';
+import { StateManager } from '../lib/state-manager.js';
 import { printInfo, printWarning } from '../lib/cli-logger.js';
 import { isPortInUse } from '../lib/network-utils.js';
 
@@ -88,7 +89,9 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       context.name
     );
     
-    if (!savedState?.resourceId.pid) {
+    const savedPid = savedState?.resources?.platform === 'process' ? savedState.resources.data.pid : undefined;
+    
+    if (!savedPid) {
       // Try to find process by port
       const port = context.getPort();
       if (port) {
@@ -119,7 +122,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       };
     }
     
-    const pid = savedState.resourceId.pid;
+    const pid = savedPid;
     
     try {
       // Send SIGTERM for graceful shutdown
@@ -169,8 +172,10 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     let pid: number | undefined;
     
     // Check if saved process is running
-    if (savedState?.resourceId.pid && StateManager.isProcessRunning(savedState.resourceId.pid)) {
-      pid = savedState.resourceId.pid;
+    if (savedState?.resources?.platform === 'process' && 
+        savedState.resources.data.pid && 
+        StateManager.isProcessRunning(savedState.resources.data.pid)) {
+      pid = savedState.resources.data.pid;
       status = 'running';
     } else {
       // Try to find process by port
@@ -201,9 +206,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       status,
       stateVerified: true,
       resources: {
-        pid,
-        port: context.getPort()
-      },
+        platform: 'process',
+        data: {
+          pid,
+          port: context.getPort()
+        }
+      } as PlatformResources,
       logs
     };
   }
@@ -246,7 +254,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       printInfo(`Provisioning ${context.name} for process deployment...`);
     }
     
-    const resources: ProvisionResult['resources'] = {};
+    const resources: PlatformResources | undefined = undefined;
     const dependencies: string[] = [];
     
     // Create necessary directories
@@ -312,7 +320,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         // Create filesystem structure
         const fsPath = context.config.path || path.join(dataPath, context.name);
         await fs.promises.mkdir(fsPath, { recursive: true });
-        resources.volumeId = fsPath;
+        // Resources will be set when service starts
         break;
         
       case 'mcp':

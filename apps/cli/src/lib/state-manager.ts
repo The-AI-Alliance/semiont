@@ -7,22 +7,17 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceName } from './service-interface.js';
+import { ServiceName } from '../services/service-interface.js';
 import { Platform } from '../lib/platform-resolver.js';
+import { PlatformResources } from '../lib/platform-resources.js';
 
 export interface ServiceState {
   entity: ServiceName;
   platform: Platform;
   environment: string;
   startTime: string;
-  resourceId: {
-    pid?: number;
-    containerId?: string;
-    containerName?: string;
-    taskArn?: string;
-    port?: number;
-    endpoint?: string;
-  };
+  resources?: PlatformResources;
+  endpoint?: string;  // Keep endpoint at top level for easy access
   metadata?: Record<string, any>;
 }
 
@@ -176,12 +171,17 @@ export class StateManager {
       let isStale = false;
       
       // Check if resource still exists
-      if (state.resourceId.pid && !this.isProcessRunning(state.resourceId.pid)) {
-        isStale = true;
+      if (state.resources) {
+        switch (state.resources.platform) {
+          case 'process':
+            if (state.resources.data.pid && !this.isProcessRunning(state.resources.data.pid)) {
+              isStale = true;
+            }
+            break;
+          // TODO: Add container existence check
+          // TODO: Add AWS resource existence check
+        }
       }
-      
-      // TODO: Add container existence check
-      // TODO: Add AWS resource existence check
       
       if (isStale) {
         await this.clear(projectRoot, environment, state.entity);
