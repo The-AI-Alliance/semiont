@@ -130,7 +130,7 @@ async function provisionHandler(
       
     } catch (error) {
       serviceResults.push({
-        service: serviceInfo.name as ServiceName,
+        entity: serviceInfo.name as ServiceName,
         deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
         provisionTime: new Date(),
@@ -192,7 +192,7 @@ async function provisionHandler(
     environment: options.environment || 'unknown',
     timestamp: new Date(),
     duration: Date.now() - commandStartTime,
-    services: serviceResults,  // Rich types preserved!
+    results: serviceResults,  // Rich types preserved!
     summary: {
       total: serviceResults.length,
       succeeded: serviceResults.filter(r => r.success).length,

@@ -10,7 +10,7 @@ import * as path from 'path';
 import { ServiceName, DeploymentType } from './types.js';
 
 export interface ServiceState {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   environment: string;
   startTime: string;
@@ -183,7 +183,7 @@ export class StateManager {
       // TODO: Add AWS resource existence check
       
       if (isStale) {
-        await this.clear(projectRoot, environment, state.service);
+        await this.clear(projectRoot, environment, state.entity);
       }
     }
   }

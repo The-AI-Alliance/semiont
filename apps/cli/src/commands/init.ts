@@ -103,7 +103,7 @@ async function init(
     environment: 'none',
     timestamp: new Date(),
     duration: 0,
-    services: [],
+    results: [],
     summary: {
       total: 0,
       succeeded: 0,
@@ -272,6 +272,3 @@ export const initCommand = new CommandBuilder()
   )
   .handler(init)
   .build();
-
-// Also export as default for compatibility
-export default initCommand;

@@ -52,7 +52,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     proc.unref();
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'process',
       success: true,
       startTime: new Date(),
@@ -94,7 +94,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: true,
         stopTime: new Date(),
@@ -119,7 +119,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: true,
         stopTime: new Date(),
@@ -131,7 +131,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       // Process might already be gone
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: true,
         stopTime: new Date(),
@@ -179,7 +179,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'process',
       success: true,
       checkTime: new Date(),
@@ -208,7 +208,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     const startResult = await this.start(context);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'process',
       success: true,
       updateTime: new Date(),
@@ -319,7 +319,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'process',
       success: true,
       provisionTime: new Date(),
@@ -452,7 +452,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'process',
       success: true,
       publishTime: new Date(),
@@ -600,7 +600,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: true,
         backupTime: new Date(),
@@ -621,7 +621,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         backupTime: new Date(),
@@ -642,7 +642,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Check if service directory exists
     if (!fs.existsSync(workingDirectory)) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         execTime,
@@ -673,7 +673,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         // Interactive execution not fully supported in process platform
         // Would require more sophisticated terminal handling
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'process',
           success: false,
           execTime,
@@ -739,7 +739,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: exitCode === 0,
         execTime,
@@ -774,7 +774,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         execTime,
@@ -796,7 +796,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Check if service directory exists
     if (!fs.existsSync(servicePath)) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         testTime,
@@ -922,7 +922,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: exitCode === 0,
         testTime,
@@ -958,7 +958,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         testTime,
@@ -1070,7 +1070,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Check if backup exists
     if (!fs.existsSync(backupPath)) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         restoreTime,
@@ -1089,7 +1089,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
           
           if (expectedChecksum !== actualChecksum) {
             return {
-              service: context.name,
+              entity: context.name,
               deployment: 'process',
               success: false,
               restoreTime,
@@ -1263,7 +1263,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         const duration = Date.now() - startTime;
         
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'process',
           success: true,
           restoreTime,
@@ -1325,7 +1325,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'process',
         success: false,
         restoreTime,

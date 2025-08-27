@@ -8,7 +8,6 @@
 import arg from 'arg';
 import { z } from 'zod';
 import type { CommandDefinition, ArgSpec } from './command-definition.js';
-import type { BaseCommandOptions } from './base-command-options.js';
 
 /**
  * Type mapping from our declarative types to arg library types
@@ -23,7 +22,7 @@ const ARG_TYPE_MAP = {
 /**
  * Create a parser function for a command
  */
-export function createArgParser<T extends BaseCommandOptions>(
+export function createArgParser<T>(
   command: CommandDefinition<T>
 ): (argv: string[]) => T {
   const argSpec = buildArgSpec(command.argSpec);
@@ -192,7 +191,7 @@ function findAliases(
 /**
  * Validate that required arguments are present
  */
-export function validateRequiredArgs<T extends BaseCommandOptions>(
+export function validateRequiredArgs<T>(
   parsed: T,
   command: CommandDefinition<T>
 ): void {

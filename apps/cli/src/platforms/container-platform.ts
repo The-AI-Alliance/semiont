@@ -61,7 +61,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     await this.waitForContainer(containerName);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'container',
       success: true,
       startTime: new Date(),
@@ -90,7 +90,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       execSync(`${this.runtime} rm ${containerName}`);
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: true,
         stopTime: new Date(),
@@ -102,7 +102,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       };
     } catch {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: true,
         stopTime: new Date(),
@@ -164,7 +164,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'container',
       success: true,
       checkTime: new Date(),
@@ -202,7 +202,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     const startResult = await this.start(context);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'container',
       success: startResult.success,
       updateTime: new Date(),
@@ -300,7 +300,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     };
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'container',
       success: true,
       provisionTime: new Date(),
@@ -406,7 +406,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           printInfo('Filesystem service uses volumes - no image to publish');
         }
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'container',
           success: true,
           publishTime: new Date(),
@@ -441,7 +441,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'container',
       success: true,
       publishTime: new Date(),
@@ -612,7 +612,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: true,
         backupTime: new Date(),
@@ -637,7 +637,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: false,
         backupTime: new Date(),
@@ -655,7 +655,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     // Check if container is running
     if (!this.isContainerRunning(containerName)) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: false,
         execTime,
@@ -723,7 +723,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           });
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'container',
             success: true,
             execTime,
@@ -749,7 +749,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error: any) {
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'container',
             success: false,
             execTime,
@@ -832,7 +832,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: exitCode === 0,
         execTime,
@@ -873,7 +873,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: false,
         execTime,
@@ -949,7 +949,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const failed = testMatch ? parseInt(testMatch[1]) : 0;
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: exitCode === 0,
         testTime,
@@ -978,7 +978,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: false,
         testTime,
@@ -1002,7 +1002,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     // Check if backup exists
     if (!fs.existsSync(backupPath)) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: false,
         restoreTime,
@@ -1113,7 +1113,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const backupSize = fs.statSync(backupPath).size;
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: true,
         restoreTime,
@@ -1164,7 +1164,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'container',
         success: false,
         restoreTime,

@@ -25,6 +25,3 @@ export type CommandFunction<TOptions = any, TResult = any> = (
   serviceDeployments: ServiceDeploymentInfo[],
   options: TOptions
 ) => Promise<CommandResults<TResult>>;
-
-// Re-export BaseCommandOptions for backward compatibility
-export type { BaseCommandOptions } from './base-command-options.js';

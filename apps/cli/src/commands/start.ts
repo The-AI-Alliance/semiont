@@ -83,7 +83,7 @@ export async function start(
         
       } catch (error) {
         const errorResult: StartResult = {
-          service: serviceInfo.name as ServiceName,
+          entity: serviceInfo.name as ServiceName,
           deployment: serviceInfo.deploymentType as DeploymentType,
           success: false,
           startTime: new Date(),
@@ -104,7 +104,7 @@ export async function start(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: serviceResults,  // Rich types preserved!
+      results: serviceResults,  // Rich types preserved!
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
@@ -147,7 +147,7 @@ export async function start(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: [],
+      results: [],
       summary: {
         total: 0,
         succeeded: 0,
@@ -184,6 +184,5 @@ export const startCommand = new CommandBuilder()
   .handler(start)
   .build();
 
-export default startCommand;
 export type { StartOptions };
 export { StartOptionsSchema };

@@ -40,7 +40,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       execSync(`aws ecs update-service --cluster semiont-${context.environment} --service backend --desired-count 1`);
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         startTime: new Date(),
@@ -48,7 +48,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         metadata: {
           type: 'ecs',
           cluster: `semiont-${context.environment}`,
-          service: 'backend'
+          entity: 'backend'
         }
       };
     } catch {
@@ -58,7 +58,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         startTime: new Date(),
@@ -81,7 +81,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     // S3 static hosting doesn't really "start"
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'aws',
       success: true,
       startTime: new Date(),
@@ -106,7 +106,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         startTime: new Date(),
@@ -123,7 +123,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   private async startFilesystem(context: ServiceContext, _resourceName: string): Promise<StartResult> {
     // EFS doesn't really start/stop
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'aws',
       success: true,
       startTime: new Date(),
@@ -137,7 +137,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private async startGenericService(context: ServiceContext, _resourceName: string): Promise<StartResult> {
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'aws',
       success: true,
       startTime: new Date(),
@@ -156,7 +156,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         try {
           execSync(`aws ecs update-service --cluster semiont-${context.environment} --service backend --desired-count 0`);
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             stopTime: new Date(),
@@ -166,7 +166,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         } catch {
           // Lambda doesn't stop
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             stopTime: new Date(),
@@ -183,7 +183,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         try {
           execSync(`aws rds stop-db-instance --db-instance-identifier ${instanceId}`);
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             stopTime: new Date(),
@@ -192,7 +192,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch {
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             stopTime: new Date(),
@@ -203,7 +203,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       default:
         // Most AWS services don't stop
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           stopTime: new Date(),
@@ -238,7 +238,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       const running = parseInt(status) > 0;
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         checkTime: new Date(),
@@ -258,7 +258,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         ).trim();
         
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           checkTime: new Date(),
@@ -271,7 +271,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         };
       } catch {
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           checkTime: new Date(),
@@ -293,7 +293,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       execSync(`aws s3api head-bucket --bucket ${bucketName}`, { stdio: 'ignore' });
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         checkTime: new Date(),
@@ -306,7 +306,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       };
     } catch {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         checkTime: new Date(),
@@ -338,7 +338,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         checkTime: new Date(),
@@ -352,7 +352,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       };
     } catch {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         checkTime: new Date(),
@@ -367,7 +367,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private async checkGeneric(context: ServiceContext): Promise<CheckResult> {
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'aws',
       success: true,
       checkTime: new Date(),
@@ -386,7 +386,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         try {
           execSync(`aws ecs update-service --cluster semiont-${context.environment} --service backend --force-new-deployment`);
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             updateTime: new Date(),
@@ -401,7 +401,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           try {
             execSync(`aws lambda update-function-code --function-name semiont-backend-${context.environment} --image-uri latest`);
             return {
-              service: context.name,
+              entity: context.name,
               deployment: 'aws',
               success: true,
               updateTime: new Date(),
@@ -426,7 +426,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           updateTime: new Date(),
@@ -450,7 +450,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         execSync(`aws rds modify-db-instance --db-instance-identifier ${instanceId} --apply-immediately`);
         
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           updateTime: new Date(),
@@ -465,7 +465,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       default:
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           updateTime: new Date(),
@@ -540,7 +540,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'aws',
       success: true,
       provisionTime: new Date(),
@@ -629,7 +629,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       case 'filesystem':
         // EFS doesn't need publishing
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           publishTime: new Date(),
@@ -640,7 +640,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'aws',
       success: true,
       publishTime: new Date(),
@@ -811,7 +811,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: true,
         backupTime: new Date(),
@@ -836,7 +836,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: false,
         backupTime: new Date(),
@@ -877,7 +877,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             }
           } catch {
             return {
-              service: context.name,
+              entity: context.name,
               deployment: 'aws',
               success: false,
               execTime,
@@ -926,7 +926,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           }
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: exitCode === 0,
             execTime,
@@ -967,7 +967,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           // RDS database exec would require a bastion host or proxy
           // For now, provide guidance
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             execTime,
@@ -986,7 +986,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         case 'frontend':
           // S3/CloudFront is static, no exec possible
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             execTime,
@@ -1000,7 +1000,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         case 'filesystem':
           // EFS doesn't support direct exec
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             execTime,
@@ -1042,7 +1042,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             const result = JSON.parse(fs.readFileSync('/tmp/lambda-output.json', 'utf-8'));
             
             return {
-              service: context.name,
+              entity: context.name,
               deployment: 'aws',
               success: true,
               execTime,
@@ -1075,7 +1075,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             lambdaError = error.message;
             
             return {
-              service: context.name,
+              entity: context.name,
               deployment: 'aws',
               success: false,
               execTime,
@@ -1090,7 +1090,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           
         default:
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             execTime,
@@ -1100,7 +1100,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: false,
         execTime,
@@ -1137,7 +1137,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           await new Promise(resolve => setTimeout(resolve, 30000));
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             testTime,
@@ -1156,7 +1156,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             testTime,
@@ -1172,7 +1172,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: true,
           testTime,
@@ -1201,7 +1201,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           );
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             testTime,
@@ -1219,7 +1219,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             testTime,
@@ -1230,7 +1230,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       default:
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'aws',
           success: false,
           testTime,
@@ -1266,7 +1266,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             );
           } catch {
             return {
-              service: context.name,
+              entity: context.name,
               deployment: 'aws',
               success: false,
               restoreTime,
@@ -1308,7 +1308,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           const downtimeEnd = new Date();
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             restoreTime,
@@ -1361,7 +1361,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           );
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             restoreTime,
@@ -1415,7 +1415,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           );
           
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: true,
             restoreTime,
@@ -1444,7 +1444,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         default:
           // ECS/Lambda services - restore from ECR image or Lambda package
           return {
-            service: context.name,
+            entity: context.name,
             deployment: 'aws',
             success: false,
             restoreTime,
@@ -1461,7 +1461,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
     } catch (error) {
       return {
-        service: context.name,
+        entity: context.name,
         deployment: 'aws',
         success: false,
         restoreTime,

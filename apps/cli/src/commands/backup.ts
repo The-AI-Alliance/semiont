@@ -57,7 +57,7 @@ async function backupHandler(
   
   // Track backup results
   const backupResults = new Map<string, BackupResult>();
-  const restoreCommands: { service: string; command: string }[] = [];
+  const restoreCommands: { entity: string; command: string }[] = [];
   let totalBackupSize = 0;
   let totalBackupCost = 0;
   
@@ -95,7 +95,7 @@ async function backupHandler(
       // Collect restore command if available
       if (result.restore?.supported && result.restore.command) {
         restoreCommands.push({
-          service: serviceInfo.name,
+          entity: serviceInfo.name,
           command: result.restore.command
         });
       }
@@ -177,7 +177,7 @@ async function backupHandler(
       
     } catch (error) {
       serviceResults.push({
-        service: serviceInfo.name as ServiceName,
+        entity: serviceInfo.name as ServiceName,
         deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
         backupTime: new Date(),
@@ -233,8 +233,8 @@ async function backupHandler(
     // Restore instructions
     if (restoreCommands.length > 0) {
       console.log('\n♻️  Restore commands:');
-      restoreCommands.forEach(({ service, command }) => {
-        console.log(`   ${service}: ${command}`);
+      restoreCommands.forEach(({ entity, command }) => {
+        console.log(`   ${entity}: ${command}`);
       });
     }
     
@@ -255,7 +255,7 @@ async function backupHandler(
     environment: options.environment || 'unknown',
     timestamp: new Date(),
     duration: Date.now() - commandStartTime,
-    services: serviceResults,  // Rich types preserved!
+    results: serviceResults,  // Rich types preserved!
     summary: {
       total: serviceResults.length,
       succeeded: serviceResults.filter(r => r.success).length,

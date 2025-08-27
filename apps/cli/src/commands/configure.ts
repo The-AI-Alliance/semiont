@@ -436,7 +436,7 @@ async function configure(
       environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: configureResults,
+      results: configureResults,
       summary: {
         total: configureResults.length,
         succeeded: configureResults.filter(r => r.success).length,
@@ -489,6 +489,3 @@ export const configureCommand = new CommandBuilder()
   )
   .handler(configure)
   .build();
-
-// Also export as default for compatibility
-export default configureCommand;

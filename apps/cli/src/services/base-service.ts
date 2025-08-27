@@ -105,7 +105,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would start ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           startTime,
@@ -145,7 +145,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         startTime,
@@ -163,7 +163,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would stop ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           stopTime,
@@ -203,7 +203,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         stopTime,
@@ -304,7 +304,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         checkTime,
@@ -324,7 +324,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would update ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           updateTime,
@@ -377,7 +377,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         updateTime,
@@ -396,7 +396,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would provision ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           provisionTime,
@@ -439,7 +439,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         provisionTime,
@@ -457,7 +457,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would publish ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           publishTime,
@@ -506,7 +506,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         publishTime,
@@ -524,7 +524,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would backup ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           backupTime,
@@ -576,7 +576,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         backupTime,
@@ -595,7 +595,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would execute '${command}' in ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           execTime,
@@ -619,7 +619,7 @@ export abstract class BaseService implements Service, ServiceContext {
             printWarning(`Service ${this.name} is not running`);
           }
           return {
-            service: this.name,
+            entity: this.name,
             deployment: this.deployment,
             success: false,
             execTime,
@@ -685,7 +685,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         execTime,
@@ -741,7 +741,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would run tests for ${this.name} (${this.deployment})`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           testTime,
@@ -787,7 +787,7 @@ export abstract class BaseService implements Service, ServiceContext {
         printError(`Failed to run tests for ${this.name}: ${errorMessage}`);
       }
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         testTime,
@@ -806,7 +806,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printInfo(`[DRY RUN] Would restore ${this.name} from backup ${backupId}`);
         }
         return {
-          service: this.name,
+          entity: this.name,
           deployment: this.deployment,
           success: true,
           restoreTime,
@@ -866,7 +866,7 @@ export abstract class BaseService implements Service, ServiceContext {
         printError(`Failed to restore ${this.name}: ${errorMessage}`);
       }
       return {
-        service: this.name,
+        entity: this.name,
         deployment: this.deployment,
         success: false,
         restoreTime,
@@ -947,7 +947,7 @@ export abstract class BaseService implements Service, ServiceContext {
   
   protected async saveState(result: StartResult): Promise<void> {
     const state: ServiceState = {
-      service: this.name,
+      entity: this.name,
       deployment: this.deployment,
       environment: this.systemConfig.environment,
       startTime: result.startTime.toISOString(),

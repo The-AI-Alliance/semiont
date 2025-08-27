@@ -26,7 +26,7 @@ export interface ServiceConfig {
 }
 
 export interface StartResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   startTime: Date;
@@ -38,7 +38,7 @@ export interface StartResult {
 }
 
 export interface StopResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   stopTime: Date;
@@ -48,7 +48,7 @@ export interface StopResult {
 }
 
 export interface CheckResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   checkTime: Date;
@@ -84,7 +84,7 @@ export interface CheckResult {
 }
 
 export interface UpdateResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   updateTime: Date;
@@ -97,7 +97,7 @@ export interface UpdateResult {
 }
 
 export interface ProvisionResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   provisionTime: Date;
@@ -127,7 +127,7 @@ export interface ProvisionResult {
 }
 
 export interface PublishResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   publishTime: Date;
@@ -166,7 +166,7 @@ export interface PublishResult {
 }
 
 export interface BackupResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   backupTime: Date;
@@ -222,7 +222,7 @@ export interface BackupResult {
 }
 
 export interface ExecResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   execTime: Date;
@@ -232,8 +232,8 @@ export interface ExecResult {
     workingDirectory?: string;
     user?: string; // User context (e.g., root, app, www-data)
     shell?: string; // Shell used (bash, sh, etc.)
-    interactive?: boolean; // Was it an interactive session?
-    tty?: boolean; // Was a TTY allocated?
+    interactive?: boolean; // Whether this is an interactive session
+    tty?: boolean; // Whether a TTY is allocated
     
     // Process information
     pid?: number; // Process ID of executed command
@@ -251,7 +251,7 @@ export interface ExecResult {
     stdout?: string; // Standard output
     stderr?: string; // Standard error
     combined?: string; // Combined output (if captured together)
-    truncated?: boolean; // Was output truncated due to size?
+    truncated?: boolean; // Whether output was truncated due to size
     maxBytes?: number; // Maximum bytes captured
   };
   streaming?: {
@@ -260,10 +260,10 @@ export interface ExecResult {
     streamId?: string; // Stream identifier
   };
   security?: {
-    authenticated?: boolean; // Was authentication required?
+    authenticated?: boolean; // Whether authentication was required
     authorization?: string; // Authorization method used
     sudoRequired?: boolean; // Did command require sudo?
-    audit?: boolean; // Was execution audited/logged?
+    audit?: boolean; // Whether execution is audited/logged
   };
   error?: string;
   metadata?: Record<string, any>;
@@ -300,7 +300,7 @@ export interface ExecOptions {
 }
 
 export interface TestResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   testTime: Date;
@@ -392,7 +392,7 @@ export interface TestResult {
     framework?: string; // Test framework (jest, mocha, pytest, etc.)
     runner?: string; // Test runner
     version?: string; // Framework version
-    parallel?: boolean; // Were tests run in parallel?
+    parallel?: boolean; // Whether tests run in parallel
     workers?: number; // Number of parallel workers
     seed?: string; // Random seed for test ordering
   };
@@ -415,7 +415,7 @@ export interface TestOptions {
 }
 
 export interface RestoreResult {
-  service: ServiceName;
+  entity: ServiceName;
   deployment: DeploymentType;
   success: boolean;
   restoreTime: Date;
@@ -431,32 +431,32 @@ export interface RestoreResult {
     database?: {
       tables?: number; // Number of tables restored
       records?: number; // Number of records restored
-      schemas?: boolean; // Were schemas restored?
-      indexes?: boolean; // Were indexes rebuilt?
-      constraints?: boolean; // Were constraints restored?
+      schemas?: boolean; // Whether schemas were restored
+      indexes?: boolean; // Whether indexes were rebuilt
+      constraints?: boolean; // Whether constraints were restored
     };
     filesystem?: {
       files?: number; // Number of files restored
       directories?: number; // Number of directories
-      permissions?: boolean; // Were permissions preserved?
-      symlinks?: boolean; // Were symlinks preserved?
+      permissions?: boolean; // Whether permissions were preserved
+      symlinks?: boolean; // Whether symlinks were preserved
     };
     configuration?: {
       envFiles?: string[]; // Environment files restored
       configFiles?: string[]; // Config files restored
-      secrets?: boolean; // Were secrets restored?
+      secrets?: boolean; // Whether secrets were restored
     };
     application?: {
       version?: string; // Application version restored
-      state?: boolean; // Was application state restored?
-      cache?: boolean; // Was cache restored?
+      state?: boolean; // Whether application state was restored
+      cache?: boolean; // Whether cache was restored
     };
   };
   validation?: {
     // Post-restore validation
-    checksumVerified?: boolean; // Was integrity verified?
+    checksumVerified?: boolean; // Whether integrity was verified
     dataComplete?: boolean; // Is all data present?
-    servicesRestarted?: boolean; // Were services restarted?
+    servicesRestarted?: boolean; // Whether services were restarted
     healthCheck?: boolean; // Did health check pass?
     testsPassed?: boolean; // Did smoke tests pass?
   };
@@ -471,7 +471,7 @@ export interface RestoreResult {
     start?: Date; // When service was stopped
     end?: Date; // When service was restarted
     duration?: number; // Total downtime in ms
-    planned?: boolean; // Was this planned downtime?
+    planned?: boolean; // Whether this is planned downtime
   };
   warnings?: string[]; // Any warnings during restore
   error?: string;

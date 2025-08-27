@@ -27,7 +27,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     this.validateConfig(context, config);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true,
       startTime: new Date(),
@@ -46,7 +46,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true,
       stopTime: new Date(),
@@ -106,7 +106,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true,
       checkTime: new Date(),
@@ -127,7 +127,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true,
       updateTime: new Date(),
@@ -149,7 +149,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     this.validateConfig(context, config);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true,
       provisionTime: new Date(),
@@ -167,7 +167,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true,
       publishTime: new Date(),
@@ -190,7 +190,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     const backupId = `${context.name}-${context.environment}-${Date.now()}`;
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: true, // "Success" means we acknowledged the limitation
       backupTime: new Date(),
@@ -219,7 +219,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     const recommendations = this.getExecRecommendations(context.name, config);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: false,
       execTime,
@@ -317,7 +317,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         });
         
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'external',
           success: response.ok,
           testTime,
@@ -336,7 +336,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         };
       } catch (error) {
         return {
-          service: context.name,
+          entity: context.name,
           deployment: 'external',
           success: false,
           testTime,
@@ -355,7 +355,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: false,
       testTime,
@@ -403,7 +403,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     const guidance = this.getRestoreGuidance(context.name, backupId, config);
     
     return {
-      service: context.name,
+      entity: context.name,
       deployment: 'external',
       success: false,
       restoreTime,

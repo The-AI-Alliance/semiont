@@ -5,7 +5,7 @@
  * output formats while maintaining backward compatibility with human-readable output.
  */
 
-import { CommandResults, BaseServiceResult } from './command-results.js';
+import { CommandResults, BaseResult } from './command-results.js';
 import { createStringTable } from './string-utils.js';
 
 export type OutputFormat = 'summary' | 'table' | 'json' | 'yaml';
@@ -37,7 +37,7 @@ export class OutputFormatter {
    * Main entry point for formatting command results
    * Now generic to handle service-specific result types
    */
-  static format<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, options: OutputOptions): string {
+  static format<T extends BaseResult = BaseResult>(results: CommandResults<T>, options: OutputOptions): string {
     switch (options.format) {
       case 'json':
         return this.formatJSON(results, options);
@@ -80,7 +80,7 @@ export class OutputFormatter {
   /**
    * Human-readable summary format (default CLI output)
    */
-  private static formatSummary<T extends BaseServiceResult>(results: CommandResults<T>, options: OutputOptions): string {
+  private static formatSummary<T extends BaseResult>(results: CommandResults<T>, options: OutputOptions): string {
     const c = options.colors !== false ? this.colors : this.createNoColorMap();
     let output = '';
 
@@ -99,28 +99,28 @@ export class OutputFormatter {
       }
     }
 
-    // Service results
-    for (const service of results.services) {
+    // Command results
+    for (const result of results.results) {
       // Determine appropriate status indicator and color
       let statusIndicator = '';
       let statusColor = '';
       
-      if (!service.success) {
+      if (!result.success) {
         statusIndicator = '[FAIL]';
         statusColor = c.red;
-      } else if (service.status === 'running' || service.status === 'healthy') {
+      } else if (result.status === 'running' || result.status === 'healthy') {
         statusIndicator = '[OK]';
         statusColor = c.green;
-      } else if (service.status === 'stopped') {
+      } else if (result.status === 'stopped') {
         statusIndicator = '[--]';
         statusColor = c.yellow;
-      } else if (service.status === 'error') {
+      } else if (result.status === 'error') {
         statusIndicator = '[ERR]';
         statusColor = c.red;
-      } else if (service.status === 'unknown') {
+      } else if (result.status === 'unknown') {
         statusIndicator = '[??]';
         statusColor = c.dim;
-      } else if (service.status === 'degraded') {
+      } else if (result.status === 'degraded') {
         statusIndicator = '[WARN]';
         statusColor = c.yellow;
       } else {
@@ -128,38 +128,38 @@ export class OutputFormatter {
         statusColor = c.dim;
       }
       
-      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${service.service}${c.reset} (${service.deploymentType}): ${statusColor}${service.status}${c.reset}\n`;
+      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${result.entity}${c.reset} (${result.deploymentType}): ${statusColor}${result.status}${c.reset}\n`;
       
       // Show endpoint if available (for start results)
-      if ('endpoint' in service && service.endpoint && !options.quiet) {
-        output += `   ${c.dim}endpoint: ${service.endpoint}${c.reset}\n`;
+      if ('endpoint' in result && result.endpoint && !options.quiet) {
+        output += `   ${c.dim}endpoint: ${result.endpoint}${c.reset}\n`;
       }
       
       // Show revision information for update results
-      if ('previousVersion' in service && 'newVersion' in service && !options.quiet) {
-        if (service.previousVersion && service.newVersion) {
-          output += `   ${c.dim}revision: ${service.previousVersion} → ${service.newVersion}${c.reset}\n`;
-        } else if (service.newVersion) {
-          output += `   ${c.dim}revision: ${service.newVersion}${c.reset}\n`;
+      if ('previousVersion' in result && 'newVersion' in result && !options.quiet) {
+        if (result.previousVersion && result.newVersion) {
+          output += `   ${c.dim}revision: ${result.previousVersion} → ${result.newVersion}${c.reset}\n`;
+        } else if (result.newVersion) {
+          output += `   ${c.dim}revision: ${result.newVersion}${c.reset}\n`;
         }
       }
       
       // Show resource ID and console URL
-      if (options.verbose && service.resourceId) {
-        const resourceInfo = this.formatResourceId(service.resourceId);
+      if (options.verbose && result.resourceId) {
+        const resourceInfo = this.formatResourceId(result.resourceId);
         if (resourceInfo) {
           output += `   ${c.dim}resource: ${resourceInfo}${c.reset}\n`;
         }
         
         // Show AWS console URL if available
-        if (service.resourceId.aws?.consoleUrl) {
-          output += `   ${c.cyan}console: ${service.resourceId.aws.consoleUrl}${c.reset}\n`;
+        if (result.resourceId.aws?.consoleUrl) {
+          output += `   ${c.cyan}console: ${result.resourceId.aws.consoleUrl}${c.reset}\n`;
         }
       }
       
       // Show metadata in verbose mode
-      if (options.verbose && service.metadata && Object.keys(service.metadata).length > 0) {
-        for (const [key, value] of Object.entries(service.metadata)) {
+      if (options.verbose && result.metadata && Object.keys(result.metadata).length > 0) {
+        for (const [key, value] of Object.entries(result.metadata)) {
           if (value !== undefined && value !== null) {
             output += `   ${c.dim}${key}: ${this.formatValue(value)}${c.reset}\n`;
           }
@@ -167,13 +167,13 @@ export class OutputFormatter {
       }
       
       // Show error details
-      if (!service.success && service.error) {
-        output += `   ${c.red}error: ${service.error}${c.reset}\n`;
+      if (!result.success && result.error) {
+        output += `   ${c.red}error: ${result.error}${c.reset}\n`;
       }
     }
 
     // Summary statistics
-    if (!options.quiet && results.services.length > 1) {
+    if (!options.quiet && results.results.length > 1) {
       output += '\n';
       output += `${c.cyan}Summary:${c.reset} `;
       output += `${c.green}${results.summary.succeeded} succeeded${c.reset}, `;
@@ -195,9 +195,9 @@ export class OutputFormatter {
   /**
    * ASCII table format using custom ink table utility
    */
-  private static formatTable<T extends BaseServiceResult>(results: CommandResults<T>, options: OutputOptions): string {
-    if (results.services.length === 0) {
-      return 'No services to display\n';
+  private static formatTable<T extends BaseResult>(results: CommandResults<T>, options: OutputOptions): string {
+    if (results.results.length === 0) {
+      return 'No results to display\n';
     }
 
     // Check if terminal supports hyperlinks
@@ -206,10 +206,10 @@ export class OutputFormatter {
                                process.env.TERM_PROGRAM === 'vscode';
     
     // Determine columns to display
-    const columns = ['Service', 'Type', 'Status'];
+    const columns = ['Entity', 'Type', 'Status'];
     
-    // Add endpoint column if any service has an endpoint
-    const hasEndpoints = results.services.some(s => 'endpoint' in s && s.endpoint);
+    // Add endpoint column if any result has an endpoint
+    const hasEndpoints = results.results.some(s => 'endpoint' in s && s.endpoint);
     if (hasEndpoints) {
       columns.push('Endpoint');
     }
@@ -219,38 +219,38 @@ export class OutputFormatter {
       columns.push('Resource');
     }
 
-    // Transform service data for table
-    const tableData = results.services.map(service => {
+    // Transform result data for table
+    const tableData = results.results.map(result => {
       // Determine appropriate status text with color codes
       const c = options.colors !== false ? this.colors : this.createNoColorMap();
       let statusText = '';
       
-      if (!service.success) {
-        statusText = `${c.red}[FAIL]${c.reset} ${service.status}`;
-      } else if (service.status === 'running' || service.status === 'healthy') {
-        statusText = `${c.green}[OK]${c.reset} ${service.status}`;
-      } else if (service.status === 'stopped') {
-        statusText = `${c.yellow}[--]${c.reset} ${service.status}`;
-      } else if (service.status === 'error') {
-        statusText = `${c.red}[ERR]${c.reset} ${service.status}`;
-      } else if (service.status === 'unknown') {
-        statusText = `${c.dim}[??]${c.reset} ${service.status}`;
-      } else if (service.status === 'degraded') {
-        statusText = `${c.yellow}[WARN]${c.reset} ${service.status}`;
+      if (!result.success) {
+        statusText = `${c.red}[FAIL]${c.reset} ${result.status}`;
+      } else if (result.status === 'running' || result.status === 'healthy') {
+        statusText = `${c.green}[OK]${c.reset} ${result.status}`;
+      } else if (result.status === 'stopped') {
+        statusText = `${c.yellow}[--]${c.reset} ${result.status}`;
+      } else if (result.status === 'error') {
+        statusText = `${c.red}[ERR]${c.reset} ${result.status}`;
+      } else if (result.status === 'unknown') {
+        statusText = `${c.dim}[??]${c.reset} ${result.status}`;
+      } else if (result.status === 'degraded') {
+        statusText = `${c.yellow}[WARN]${c.reset} ${result.status}`;
       } else {
-        statusText = `${c.dim}[--]${c.reset} ${service.status}`;
+        statusText = `${c.dim}[--]${c.reset} ${result.status}`;
       }
       
       const row: Record<string, any> = {
-        Service: service.service,
-        Type: service.deploymentType,
+        Entity: result.entity,
+        Type: result.deploymentType,
         Status: statusText,
       };
 
       // Add endpoint if available
       if (hasEndpoints) {
-        if ('endpoint' in service && service.endpoint) {
-          row.Endpoint = service.endpoint;
+        if ('endpoint' in result && result.endpoint) {
+          row.Endpoint = result.endpoint;
         } else {
           row.Endpoint = '-';
         }
@@ -258,11 +258,11 @@ export class OutputFormatter {
 
       // Add resource ID in verbose mode
       if (options.verbose) {
-        const resourceText = this.formatResourceId(service.resourceId);
+        const resourceText = this.formatResourceId(result.resourceId);
         
         // If terminal supports hyperlinks and we have a console URL, make the resource clickable
-        if (supportsHyperlinks && service.resourceId?.aws?.consoleUrl) {
-          const url = service.resourceId.aws.consoleUrl;
+        if (supportsHyperlinks && result.resourceId?.aws?.consoleUrl) {
+          const url = result.resourceId.aws.consoleUrl;
           // OSC 8 hyperlink format: \x1b]8;;URL\x1b\\TEXT\x1b]8;;\x1b\\
           row.Resource = `\x1b]8;;${url}\x1b\\${resourceText}\x1b]8;;\x1b\\`;
         } else {
@@ -464,7 +464,7 @@ export class OutputFormatter {
 /**
  * Utility function for quick formatting
  */
-export function formatResults<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, format: OutputFormat = 'summary', verbose: boolean = false): string {
+export function formatResults<T extends BaseResult = BaseResult>(results: CommandResults<T>, format: OutputFormat = 'summary', verbose: boolean = false): string {
   return OutputFormatter.format(results, {
     format,
     quiet: false,
@@ -476,7 +476,7 @@ export function formatResults<T extends BaseServiceResult = BaseServiceResult>(r
 /**
  * Utility function for quiet output
  */
-export function formatResultsQuiet<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, format: OutputFormat = 'summary'): string {
+export function formatResultsQuiet<T extends BaseResult = BaseResult>(results: CommandResults<T>, format: OutputFormat = 'summary'): string {
   return OutputFormatter.format(results, {
     format,
     quiet: true,
@@ -488,7 +488,7 @@ export function formatResultsQuiet<T extends BaseServiceResult = BaseServiceResu
 /**
  * Utility function for verbose output
  */
-export function formatResultsVerbose<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, format: OutputFormat = 'summary'): string {
+export function formatResultsVerbose<T extends BaseResult = BaseResult>(results: CommandResults<T>, format: OutputFormat = 'summary'): string {
   return OutputFormatter.format(results, {
     format,
     quiet: false,

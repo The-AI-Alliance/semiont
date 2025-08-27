@@ -148,7 +148,7 @@ async function restoreHandler(
       
     } catch (error) {
       results.push({
-        service: serviceName,
+        entity: serviceName,
         deployment: service.deployment,
         success: false,
         restoreTime: new Date(),
@@ -174,7 +174,7 @@ async function restoreHandler(
     
     for (const result of results) {
       if (result.success && result.validation?.testsPassed === false) {
-        printWarning(`⚠️ ${result.service}: Post-restore tests failed`);
+        printWarning(`⚠️ ${result.entity}: Post-restore tests failed`);
       }
     }
   }
@@ -207,7 +207,7 @@ async function restoreHandler(
     printInfo(`\n🔙 Rollback Commands Available:`);
     rollbackSupported.forEach(r => {
       if (r.rollback?.command) {
-        printInfo(`   ${r.service}: ${r.rollback.command}`);
+        printInfo(`   ${r.entity}: ${r.rollback.command}`);
       }
     });
   }
@@ -225,7 +225,7 @@ async function restoreHandler(
     environment: options.environment || 'unknown',
     timestamp: new Date(),
     duration: Date.now() - startTime,
-    services: results,  // Rich types preserved!
+    results: results,  // Rich types preserved!
     summary: {
       total: results.length,
       succeeded: successful,

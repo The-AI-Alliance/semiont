@@ -482,7 +482,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
     }
     
     return {
-      service: serviceInfo.name as ServiceName,
+      entity: serviceInfo.name as ServiceName,
       deployment: serviceInfo.deploymentType as DeploymentType,
       success: true,
       testTime: new Date(),
@@ -513,7 +513,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   setSuppressOutput(previousSuppressOutput);
   
   return {
-    service: serviceInfo.name as ServiceName,
+    entity: serviceInfo.name as ServiceName,
     deployment: serviceInfo.deploymentType as DeploymentType,
     success: passed,
     testTime: new Date(),
@@ -573,7 +573,7 @@ export async function test(
           serviceResults.push(result);
         } catch (error) {
           const testErrorResult: TestResult = {
-            service: serviceInfo.name as ServiceName,
+            entity: serviceInfo.name as ServiceName,
             deployment: serviceInfo.deploymentType as DeploymentType,
             success: false,
             testTime: new Date(),
@@ -611,7 +611,7 @@ export async function test(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: serviceResults,  // Rich types preserved!
+      results: serviceResults,  // Rich types preserved!
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
@@ -635,7 +635,7 @@ export async function test(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: [],
+      results: [],
       summary: {
         total: 0,
         succeeded: 0,
@@ -803,9 +803,6 @@ export const testCommand = new CommandBuilder()
   )
   .handler(test)
   .build();
-
-// Export default for compatibility
-export default testCommand;
 
 // Note: The main function is removed as cli.ts now handles service resolution and output formatting
 // The test function now accepts pre-resolved services and returns CommandResults

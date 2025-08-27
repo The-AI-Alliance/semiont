@@ -87,7 +87,7 @@ export async function stop(
         
       } catch (error) {
         const errorResult: StopResult = {
-          service: serviceInfo.name as ServiceName,
+          entity: serviceInfo.name as ServiceName,
           deployment: serviceInfo.deploymentType as DeploymentType,
           success: false,
           stopTime: new Date(),
@@ -108,7 +108,7 @@ export async function stop(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - stopTime,
-      services: serviceResults,  // Rich types preserved!
+      results: serviceResults,  // Rich types preserved!
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
@@ -143,7 +143,7 @@ export async function stop(
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - stopTime,
-      services: [],
+      results: [],
       summary: {
         total: 0,
         succeeded: 0,
@@ -183,6 +183,5 @@ export const stopCommand = new CommandBuilder()
   .handler(stop)
   .build();
 
-export default stopCommand;
 export type { StopOptions };
 export { StopOptionsSchema };

@@ -283,7 +283,7 @@ export async function watch(
       environment: environment,
       timestamp: new Date(),
       duration: sessionDuration || Date.now() - startTime,
-      services: serviceResults,
+      results: serviceResults,
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.length,
@@ -336,6 +336,3 @@ export const watchNewCommand = new CommandBuilder()
   )
   .handler(watch)
   .build();
-
-// Also export as default for compatibility
-export default watchNewCommand;

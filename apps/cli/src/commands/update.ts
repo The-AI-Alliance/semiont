@@ -108,7 +108,7 @@ async function updateHandler(
       
     } catch (error) {
       serviceResults.push({
-        service: serviceInfo.name as ServiceName,
+        entity: serviceInfo.name as ServiceName,
         deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
         updateTime: new Date(),
@@ -182,7 +182,7 @@ async function updateHandler(
     environment: options.environment || 'default',
     timestamp: new Date(),
     duration: Date.now() - startTime,
-    services: serviceResults,  // Rich types preserved!
+    results: serviceResults,  // Rich types preserved!
     summary: {
       total: services.length,
       succeeded: serviceResults.filter(r => r.success).length,

@@ -814,7 +814,7 @@ export async function restart(
       environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: serviceResults,
+      results: serviceResults,
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
@@ -861,9 +861,6 @@ export const restartCommand = new CommandBuilder()
   )
   .handler(restart)
   .build();
-
-// Export default for compatibility
-export default restartCommand;
 
 // Export the schema for use by CLI
 export type { RestartOptions };
