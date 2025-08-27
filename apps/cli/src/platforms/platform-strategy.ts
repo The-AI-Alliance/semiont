@@ -6,24 +6,19 @@
  * to provide platform-specific behavior for common operations.
  */
 
-import { 
-  ServiceName, 
-  Environment,
-  StartResult, 
-  StopResult, 
-  CheckResult, 
-  UpdateResult,
-  ProvisionResult,
-  PublishResult,
-  BackupResult,
-  ExecResult,
-  ExecOptions,
-  TestResult,
-  TestOptions,
-  RestoreResult,
-  RestoreOptions,
-  ServiceConfig 
-} from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { StartResult } from '../services/start-service.js';
+import { StopResult } from '../services/stop-service.js';
+import { CheckResult } from '../services/check-service.js';
+import { UpdateResult } from '../services/update-service.js';
+import { ProvisionResult } from '../services/provision-service.js';
+import { PublishResult } from '../services/publish-service.js';
+import { BackupResult } from '../services/backup-service.js';
+import { ExecResult, ExecOptions } from '../services/exec-service.js';
+import { TestResult, TestOptions } from '../services/test-service.js';
+import { RestoreResult, RestoreOptions } from '../services/restore-service.js';
+import { ServiceConfig } from '../lib/cli-config.js';
+import { Environment } from '../lib/environment-validator.js';
 
 /**
  * Service context provided to platform strategies

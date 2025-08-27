@@ -7,7 +7,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceName, Platform } from './types.js';
+import { ServiceName } from './service-interface.js';
+import { Platform } from '../lib/platform-resolver.js';
 
 export interface ServiceState {
   entity: ServiceName;

@@ -2,7 +2,7 @@
  * Environment validation utilities
  */
 
-import { Environment } from '../services/types.js';
+export type Environment = 'dev' | 'staging' | 'prod' | 'ci' | 'local';
 
 const VALID_ENVIRONMENTS = ['dev', 'staging', 'prod', 'ci', 'local'] as const;
 

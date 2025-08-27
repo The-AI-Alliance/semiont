@@ -11,7 +11,9 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, Platform, ProvisionResult } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { ProvisionResult } from '../services/provision-service.js';
+import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -61,10 +63,10 @@ async function provisionHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.platform as Platform,
+        serviceInfo.platform,
         config,
         {
-          platform: serviceInfo.platform as Platform
+          platform: serviceInfo.platform
         } // Service config would come from project config
       );
       
@@ -90,22 +92,25 @@ async function provisionHandler(
         if (result.success) {
           printSuccess(`✅ ${serviceInfo.name} (${serviceInfo.platform}) provisioned`);
           
-          // Show key resources
+          // Show key resources based on platform
           if (result.resources) {
-            if (result.resources.clusterId) {
-              console.log(`   🖥️  Cluster: ${result.resources.clusterId}`);
-            }
-            if (result.resources.instanceId) {
-              console.log(`   🗄️  Instance: ${result.resources.instanceId}`);
-            }
-            if (result.resources.bucketName) {
-              console.log(`   🪣  Bucket: ${result.resources.bucketName}`);
-            }
-            if (result.resources.volumeId) {
-              console.log(`   💾 Volume: ${result.resources.volumeId}`);
-            }
-            if (result.resources.networkId) {
-              console.log(`   🌐 Network: ${result.resources.networkId}`);
+            if (result.resources.platform === 'aws') {
+              const awsData = result.resources.data;
+              if (awsData.clusterId) {
+                console.log(`   🖥️  Cluster: ${awsData.clusterId}`);
+              }
+              if (awsData.instanceId) {
+                console.log(`   🗄️  Instance: ${awsData.instanceId}`);
+              }
+              if (awsData.bucketName) {
+                console.log(`   🪣  Bucket: ${awsData.bucketName}`);
+              }
+              if (awsData.volumeId) {
+                console.log(`   💾 Volume: ${awsData.volumeId}`);
+              }
+              if (awsData.networkId) {
+                console.log(`   🌐 Network: ${awsData.networkId}`);
+              }
             }
           }
           
@@ -131,7 +136,7 @@ async function provisionHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform as Platform,
+        platform: serviceInfo.platform,
         success: false,
         provisionTime: new Date(),
         error: error instanceof Error ? error.message : String(error)

@@ -34,7 +34,7 @@ vi.mock('readline');
 // Now import after mocks are set up
 import configureCommand, { ConfigureOptions } from '../commands/configure.js';
 const configure = configureCommand.handler;
-import { ConfigureResult } from '../lib/command-results.js';
+import { ConfigureResult } from '../services/configure-service.js';
 import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 

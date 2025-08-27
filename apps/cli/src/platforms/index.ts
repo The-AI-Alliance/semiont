@@ -14,7 +14,7 @@ import { ProcessPlatformStrategy } from './process-platform.js';
 import { ContainerPlatformStrategy } from './container-platform.js';
 import { AWSPlatformStrategy } from './aws-platform.js';
 import { ExternalPlatformStrategy } from './external-platform.js';
-import { Platform } from '../services/types.js';
+import { Platform } from '../lib/platform-resolver.js';
 
 /**
  * Factory for creating platform strategy instances

@@ -7,9 +7,11 @@
  */
 
 import { CommandBuilder } from '../lib/command-definition.js';
-import { Config, ServiceName, RestoreResult, RestoreOptions as ServiceRestoreOptions } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { RestoreResult, RestoreOptions as ServiceRestoreOptions } from '../services/restore-service.js';
+import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { Platform, ServiceConfig } from '../services/types.js';
+import { Platform } from '../lib/platform-resolver.js';
 import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
 import { z } from 'zod';
 import { BaseOptionsSchema } from '../lib/base-options-schema.js';

@@ -6,7 +6,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './types.js';
+import { CheckResult } from './check-service.js';
 import { execSync } from 'child_process';
 import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import * as path from 'path';

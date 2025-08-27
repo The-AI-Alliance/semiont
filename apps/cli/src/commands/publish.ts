@@ -11,7 +11,9 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, Platform, PublishResult, ServiceConfig } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { PublishResult } from '../services/publish-service.js';
+import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -62,10 +64,10 @@ async function publishHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.platform as Platform,
+        serviceInfo.platform,
         config,
         { 
-          platform: serviceInfo.platform as Platform,
+          platform: serviceInfo.platform,
           tag: options.tag,
           registry: options.registry
         } as ServiceConfig
@@ -145,7 +147,7 @@ async function publishHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform as Platform,
+        platform: serviceInfo.platform,
         success: false,
         publishTime: new Date(),
         error: error instanceof Error ? error.message : String(error)

@@ -12,7 +12,9 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, Platform, StartResult } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { StartResult } from '../services/start-service.js';
+import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -38,9 +40,9 @@ async function startServiceImpl(
   // Create the service instance
   const service = ServiceFactory.create(
     serviceInfo.name as ServiceName,
-    serviceInfo.platform as Platform,
+    serviceInfo.platform,
     config,
-    { ...serviceInfo.config, platform: serviceInfo.platform as Platform }
+    { ...serviceInfo.config, platform: serviceInfo.platform }
   );
   
   // Start the service
@@ -84,7 +86,7 @@ export async function start(
       } catch (error) {
         const errorResult: StartResult = {
           entity: serviceInfo.name as ServiceName,
-          platform: serviceInfo.platform as Platform,
+          platform: serviceInfo.platform,
           success: false,
           startTime: new Date(),
           error: (error as Error).message

@@ -5,7 +5,19 @@
  * PlatformStrategy instances, dramatically simplifying service implementations.
  */
 
-import { Service, ServiceName, Platform, Config, StartResult, StopResult, CheckResult, UpdateResult, ProvisionResult, PublishResult, BackupResult, ExecResult, ExecOptions, TestResult, TestOptions, RestoreResult, RestoreOptions, ServiceConfig } from './types.js';
+import { Service, ServiceName } from './service-interface.js';
+import { StartResult } from './start-service.js';
+import { StopResult } from './stop-service.js';
+import { CheckResult } from './check-service.js';
+import { UpdateResult } from './update-service.js';
+import { ProvisionResult } from './provision-service.js';
+import { PublishResult } from './publish-service.js';
+import { BackupResult } from './backup-service.js';
+import { ExecResult, ExecOptions } from './exec-service.js';
+import { TestResult, TestOptions } from './test-service.js';
+import { RestoreResult, RestoreOptions } from './restore-service.js';
+import { Config, ServiceConfig } from '../lib/cli-config.js';
+import { Platform } from '../lib/platform-resolver.js';
 import { printInfo, printSuccess, printWarning, printError } from '../lib/cli-logger.js';
 import { StateManager, ServiceState } from './state-manager.js';
 import { PlatformFactory, PlatformStrategy, ServiceContext } from '../platforms/index.js';
@@ -951,13 +963,8 @@ export abstract class BaseService implements Service, ServiceContext {
       platform: this.platform,
       environment: this.systemConfig.environment,
       startTime: result.startTime.toISOString(),
-      resourceId: {
-        pid: result.pid,
-        containerId: result.containerId,
-        containerName: result.metadata?.containerName,
-        port: result.metadata?.port,
-        endpoint: result.endpoint
-      },
+      resources: result.resources,
+      endpoint: result.endpoint,
       metadata: result.metadata
     };
     

@@ -5,7 +5,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './types.js';
+import { CheckResult } from './check-service.js';
 import { loadEnvironmentConfig } from '../lib/platform-resolver.js';
 import * as path from 'path';
 import * as os from 'os';

@@ -6,10 +6,19 @@
  */
 
 import { execSync } from 'child_process';
+import * as path from "path";
 import * as fs from 'fs';
-import * as path from 'path';
+import { StartResult } from "../services/start-service.js";
+import { StopResult } from "../services/stop-service.js";
+import { CheckResult } from "../services/check-service.js";
+import { UpdateResult } from "../services/update-service.js";
+import { ProvisionResult } from "../services/provision-service.js";
+import { PublishResult } from "../services/publish-service.js";
+import { BackupResult } from "../services/backup-service.js";
+import { ExecResult, ExecOptions } from "../services/exec-service.js";
+import { TestResult, TestOptions } from "../services/test-service.js";
+import { RestoreResult, RestoreOptions } from "../services/restore-service.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { StartResult, StopResult, CheckResult, UpdateResult, ProvisionResult, PublishResult, BackupResult, ExecResult, ExecOptions, TestResult, TestOptions, RestoreResult, RestoreOptions } from '../services/types.js';
 import { StateManager } from '../services/state-manager.js';
 import { printInfo, printWarning } from '../lib/cli-logger.js';
 
@@ -66,7 +75,14 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       success: true,
       startTime: new Date(),
       endpoint: port ? `http://localhost:${port}` : undefined,
-      containerId: containerId.substring(0, 12),
+      resources: {
+        platform: 'container',
+        data: {
+          containerId: containerId.substring(0, 12),
+          containerName,
+          image
+        }
+      },
       metadata: {
         containerName,
         image,

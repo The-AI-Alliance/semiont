@@ -11,15 +11,14 @@ import React from 'react';
 import { render } from 'ink';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
+import { WatchResult } from '../services/watch-service.js';
 import { 
-  WatchResult, 
   CommandResults, 
   createBaseResult,
-  ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
-import { Config } from '../services/types.js';
+import { Config } from '../lib/cli-config.js';
 import { DashboardDataSource } from '../lib/dashboard-data.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
@@ -261,10 +260,10 @@ export async function watch(
       
       return {
         ...baseResult,
+        entity: baseResult.service,
         watchType: options.target === 'logs' ? 'logs' as const : 
                    options.target === 'metrics' ? 'metrics' as const : 
                    'events' as const,
-        resourceId: { [serviceInfo.platform]: {} } as ResourceIdentifier,
         status: 'session-ended',
         metadata: {
           mode: options.target,

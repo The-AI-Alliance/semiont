@@ -5,7 +5,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './types.js';
+import { CheckResult } from './check-service.js';
 import * as path from 'path';
 
 export class FilesystemServiceRefactored extends BaseService {

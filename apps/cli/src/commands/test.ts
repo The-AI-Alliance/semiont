@@ -13,7 +13,8 @@ import {
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
-import { ServiceName, Platform, TestResult } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { TestResult } from '../services/test-service.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -483,7 +484,7 @@ async function testService(serviceInfo: ServicePlatformInfo, suite: string, opti
     
     return {
       entity: serviceInfo.name as ServiceName,
-      platform: serviceInfo.platform as Platform,
+      platform: serviceInfo.platform,
       success: true,
       testTime: new Date(),
       suite: suite,
@@ -514,7 +515,7 @@ async function testService(serviceInfo: ServicePlatformInfo, suite: string, opti
   
   return {
     entity: serviceInfo.name as ServiceName,
-    platform: serviceInfo.platform as Platform,
+    platform: serviceInfo.platform,
     success: passed,
     testTime: new Date(),
     suite: suite,
@@ -574,7 +575,7 @@ export async function test(
         } catch (error) {
           const testErrorResult: TestResult = {
             entity: serviceInfo.name as ServiceName,
-            platform: serviceInfo.platform as Platform,
+            platform: serviceInfo.platform,
             success: false,
             testTime: new Date(),
             suite: suite,

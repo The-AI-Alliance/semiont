@@ -11,7 +11,9 @@ import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, Platform, BackupResult } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { BackupResult } from '../services/backup-service.js';
+import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -67,10 +69,10 @@ async function backupHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.platform as Platform,
+        serviceInfo.platform,
         config,
         { 
-          platform: serviceInfo.platform as Platform,
+          platform: serviceInfo.platform,
           name: options.name || serviceInfo.config.name || serviceInfo.name,
           port: serviceInfo.config.port || 3000,
           image: serviceInfo.config.image || `semiont/${serviceInfo.name}:latest`
@@ -178,7 +180,7 @@ async function backupHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform as Platform,
+        platform: serviceInfo.platform,
         success: false,
         backupTime: new Date(),
         backupId: `error-${Date.now()}`,

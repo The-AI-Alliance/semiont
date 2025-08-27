@@ -8,12 +8,11 @@ import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } 
 import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
+import { RestartResult } from '../services/restart-service.js';
 import { 
-  RestartResult, 
   CommandResults, 
   createBaseResult, 
   createErrorResult,
-  ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
@@ -51,13 +50,14 @@ async function restartServiceImpl(serviceInfo: ServicePlatformInfo, options: Res
   if (options.dryRun) {
     printInfo(`[DRY RUN] Would restart ${serviceInfo.name} (${serviceInfo.platform})`);
     
+    const dryRunBase = createBaseResult('restart', serviceInfo.name, serviceInfo.platform, options.environment!, startTime);
     return {
-      ...createBaseResult('restart', serviceInfo.name, serviceInfo.platform, options.environment!, startTime),
+      ...dryRunBase,
+      entity: dryRunBase.service,
       stopTime,
       startTime: new Date(Date.now() + options.gracePeriod * 1000),
       downtime: options.gracePeriod * 1000,
       gracefulRestart: true,
-      resourceId: { [serviceInfo.platform]: {} } as ResourceIdentifier,
       status: 'dry-run',
       metadata: { dryRun: true, gracePeriod: options.gracePeriod },
     };
@@ -84,11 +84,11 @@ async function restartServiceImpl(serviceInfo: ServicePlatformInfo, options: Res
     
     return {
       ...errorResult,
+      entity: errorResult.service,
       stopTime,
       startTime: stopTime,
       downtime: 0,
       gracefulRestart: false,
-      resourceId: { [serviceInfo.platform]: {} } as ResourceIdentifier,
       status: 'failed',
       metadata: { error: (error as Error).message },
     };
@@ -149,8 +149,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
           startTime: new Date(Date.now() + 30000), // ECS rolling update typically takes 30-60 seconds
           downtime: 0, // Rolling update means zero downtime
           gracefulRestart: true,
-          resourceId: {
-            aws: {
+          resources: { platform: 'aws', data: {
               arn: `arn:aws:ecs:${awsRegion}:${envConfig.aws?.accountId}:service/${clusterName}/${actualServiceName}`,
               id: actualServiceName,
               name: actualServiceName
@@ -174,8 +173,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
           startTime: stopTime,
           downtime: 0,
           gracefulRestart: false,
-          resourceId: {
-            aws: {
+          resources: { platform: 'aws', data: {
               arn: `arn:aws:ecs:us-east-1:unknown:service/unknown/${serviceInfo.name}`,
               id: serviceInfo.name,
               name: serviceInfo.name
@@ -199,8 +197,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
         startTime: new Date(Date.now() + options.gracePeriod * 1000),
         downtime: options.gracePeriod * 1000,
         gracefulRestart: true,
-        resourceId: {
-          aws: {
+        resources: { platform: 'aws', data: {
             arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
             id: `semiont-${options.environment}-db`,
             name: `semiont-${options.environment}-database`
@@ -224,8 +221,7 @@ async function restartAWSService(serviceInfo: ServicePlatformInfo, options: Rest
         startTime: new Date(Date.now() + options.gracePeriod * 1000),
         downtime: options.gracePeriod * 1000,
         gracefulRestart: true,
-        resourceId: {
-          aws: {
+        resources: { platform: 'aws', data: {
             arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
             id: `fs-semiont${options.environment}`,
             name: `semiont-${options.environment}-efs`
@@ -317,8 +313,7 @@ async function restartContainerService(serviceInfo: ServicePlatformInfo, options
         startTime: actualStartTime,
         downtime: actualStartTime.getTime() - stopTime.getTime(),
         gracefulRestart: !forcedContinue,
-        resourceId: {
-          container: {
+        resources: { platform: 'container', data: {
             id: containerName,
             name: containerName
           }
@@ -346,8 +341,7 @@ async function restartContainerService(serviceInfo: ServicePlatformInfo, options
         startTime: new Date(),
         downtime: 0,
         gracefulRestart: false,
-        resourceId: {
-          container: {
+        resources: { platform: 'container', data: {
             id: containerName,
             name: containerName
           }
@@ -392,8 +386,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
           startTime: new Date(Date.now() + options.gracePeriod * 1000),
           downtime: options.gracePeriod * 1000,
           gracefulRestart: false,
-          resourceId: {
-            process: {
+          resources: { platform: 'process', data: {
               path: '/usr/local/var/postgres',
               port: 5432
             }
@@ -437,8 +430,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
           startTime: actualStartTime,
           downtime: actualStartTime.getTime() - stopTime.getTime(),
           gracefulRestart: true,
-          resourceId: {
-            process: {
+          resources: { platform: 'process', data: {
               path: platform === 'darwin' ? '/usr/local/var/postgres' : '/var/lib/postgresql',
               port: 5432
             }
@@ -460,8 +452,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
           startTime: new Date(),
           downtime: 0,
           gracefulRestart: false,
-          resourceId: {
-            process: {
+          resources: { platform: 'process', data: {
               path: '/usr/local/var/postgres',
               port: 5432
             }
@@ -513,8 +504,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
         startTime: actualStartTime,
         downtime: actualStartTime.getTime() - stopTime.getTime(),
         gracefulRestart: !options.force,
-        resourceId: {
-          process: {
+        resources: { platform: 'process', data: {
             pid: proc.pid || 0,
             port: port,
             path: `apps/${serviceInfo.name}`
@@ -539,8 +529,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
         startTime: stopTime, // No restart needed
         downtime: 0,
         gracefulRestart: true,
-        resourceId: {
-          process: {
+        resources: { platform: 'process', data: {
             path: serviceInfo.config.path || '/tmp/filesystem'
           }
         },
@@ -578,18 +567,18 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
       try {
         // TODO: Implement startProcessService in new architecture
         // const startResult = await startProcessService(serviceInfo, startOptions, Date.now());
-        const startResult = { success: true, status: 'started' as const, resourceId: { process: { port: mcpPort } } }; // Temporary placeholder
+        const startResult = { success: true, status: 'started' as const, resources: { platform: 'process', data: { port: mcpPort } } }; // Temporary placeholder
         
         if (startResult.status === 'started') {
           printSuccess(`MCP server restarted successfully`);
           
           return {
             ...baseResult,
+            entity: baseResult.service,
             stopTime,
             startTime: mcpStartTime,
             downtime: mcpStartTime.getTime() - stopTime.getTime(),
             gracefulRestart: true,
-            resourceId: startResult.resourceId as ResourceIdentifier,
             status: 'restarted',
             metadata: {
               port: mcpPort,
@@ -609,7 +598,7 @@ async function restartProcessService(serviceInfo: ServicePlatformInfo, options: 
           startTime: mcpStartTime,
           downtime: mcpStartTime.getTime() - stopTime.getTime(),
           gracefulRestart: false,
-          resourceId: { process: { port: mcpPort } },
+          resources: { platform: 'process', data: { port: mcpPort } },
           status: 'failed',
           metadata: {
             error: (error as Error).message,
@@ -643,8 +632,7 @@ async function restartExternalService(serviceInfo: ServicePlatformInfo, options:
           startTime: stopTime, // No restart needed
           downtime: 0,
           gracefulRestart: true,
-          resourceId: {
-            external: {
+          resources: { platform: 'external', data: {
               endpoint: `${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`
             }
           },
@@ -669,8 +657,7 @@ async function restartExternalService(serviceInfo: ServicePlatformInfo, options:
           startTime: stopTime, // No restart needed
           downtime: 0,
           gracefulRestart: true,
-          resourceId: {
-            external: {
+          resources: { platform: 'external', data: {
               path: serviceInfo.config.path
             }
           },
@@ -695,8 +682,7 @@ async function restartExternalService(serviceInfo: ServicePlatformInfo, options:
     startTime: stopTime, // No restart needed
     downtime: 0,
     gracefulRestart: true,
-    resourceId: {
-      external: {
+    resources: { platform: 'external', data: {
         endpoint: 'external-service'
       }
     },
@@ -789,11 +775,11 @@ export async function restart(
         
         const restartErrorResult: RestartResult = {
           ...errorResult,
+          entity: errorResult.service,
           stopTime: new Date(),
           startTime: new Date(),
           downtime: 0,
           gracefulRestart: false,
-          resourceId: { [serviceInfo.platform]: {} } as ResourceIdentifier,
           status: 'failed',
           metadata: { error: (error as Error).message },
         };

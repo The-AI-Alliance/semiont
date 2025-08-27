@@ -14,8 +14,8 @@ import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.
 import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
+import { ConfigureResult } from '../services/configure-service.js';
 import { 
-  ConfigureResult, 
   CommandResults, 
   createBaseResult,
   createErrorResult 
@@ -196,11 +196,13 @@ async function configure(
           for (const env of environments) {
             try {
               const config = loadEnvironmentConfig(env);
+              const baseResult = createBaseResult('configure', 'configuration', 'external', env, startTime);
               const result: ConfigureResult = {
-                ...createBaseResult('configure', 'configuration', 'external', env, startTime),
+                ...baseResult,
+                entity: baseResult.service,
                 configurationChanges: [],
                 restartRequired: false,
-                resourceId: { external: { endpoint: 'config-file' } },
+                resources: { platform: 'external', data: { endpoint: 'config-file' } },
                 status: 'shown',
                 metadata: {
                   action: 'show',
@@ -227,13 +229,15 @@ async function configure(
                 console.log(`\n${colors.bright}${env}:${colors.reset} ${colors.red}Error loading config${colors.reset}`);
               }
               
-              const result = createErrorResult(
-                createBaseResult('configure', 'configuration', 'external', env, startTime),
-                error as Error
-              ) as ConfigureResult;
-              result.configurationChanges = [];
-              result.restartRequired = false;
-              result.resourceId = { external: { endpoint: 'config-file' } };
+              const baseResult = createBaseResult('configure', 'configuration', 'external', env, startTime);
+              const errorBaseResult = createErrorResult(baseResult, error as Error);
+              const result: ConfigureResult = {
+                ...errorBaseResult,
+                entity: errorBaseResult.service,
+                configurationChanges: [],
+                restartRequired: false,
+                resources: { platform: 'external', data: { endpoint: 'config-file' } }
+              };
               configureResults.push(result);
             }
           }
@@ -241,11 +245,13 @@ async function configure(
         }
         
         case 'list': {
+          const baseResult = createBaseResult('configure', 'secrets', 'external', options.environment!, startTime);
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'secrets', 'external', options.environment!, startTime),
+            ...baseResult,
+            entity: baseResult.service,
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { external: { endpoint: 'secrets-manager' } },
+            resources: { platform: 'external', data: { endpoint: 'secrets-manager' } },
             status: 'listed',
             metadata: {
               action: 'list',
@@ -275,11 +281,13 @@ async function configure(
             issues.push('AWS deployment requires aws configuration');
           }
           
+          const baseResult = createBaseResult('configure', 'validation', 'external', options.environment!, startTime);
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'validation', 'external', options.environment!, startTime),
+            ...baseResult,
+            entity: baseResult.service,
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { external: { endpoint: 'config-file' } },
+            resources: { platform: 'external', data: { endpoint: 'config-file' } },
             status: issues.length === 0 ? 'validated' : 'validation-failed',
             success: issues.length === 0, // Override success based on validation
             metadata: {
@@ -311,11 +319,13 @@ async function configure(
           const secretName = await getSecretFullName(options.environment!, options.secretPath!);
           const value = await getCurrentSecret(envConfig!, secretName);
           
+          const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
+            ...baseResult,
+            entity: baseResult.service,
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+            resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
             status: value ? 'retrieved' : 'not-found',
             success: value !== null, // Set success based on whether secret was found
             metadata: {
@@ -364,8 +374,10 @@ async function configure(
           }
           
           if (options.dryRun) {
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
             const result: ConfigureResult = {
-              ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
+              ...baseResult,
+              entity: baseResult.service,
               configurationChanges: [{
                 key: options.secretPath,
                 oldValue: 'masked',
@@ -373,7 +385,7 @@ async function configure(
                 source: 'aws-secrets-manager',
               }],
               restartRequired: true,
-              resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
               status: 'dry-run',
               metadata: {
                 action: 'set',
@@ -390,8 +402,10 @@ async function configure(
           } else {
             await updateSecret(envConfig!, secretName, newValue);
             
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
             const result: ConfigureResult = {
-              ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
+              ...baseResult,
+              entity: baseResult.service,
               configurationChanges: [{
                 key: options.secretPath,
                 oldValue: 'masked',
@@ -399,7 +413,7 @@ async function configure(
                 source: 'aws-secrets-manager',
               }],
               restartRequired: true,
-              resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
               status: 'updated',
               metadata: {
                 action: 'set',
@@ -419,10 +433,14 @@ async function configure(
       }
     } catch (error) {
       const baseResult = createBaseResult('configure', 'error', 'external', options.environment!, startTime);
-      const errorResult = createErrorResult(baseResult, error as Error) as ConfigureResult;
-      errorResult.configurationChanges = [];
-      errorResult.restartRequired = false;
-      errorResult.resourceId = { external: { endpoint: 'error' } };
+      const errorBaseResult = createErrorResult(baseResult, error as Error);
+      const errorResult: ConfigureResult = {
+        ...errorBaseResult,
+        entity: errorBaseResult.service,
+        configurationChanges: [],
+        restartRequired: false,
+        resources: { platform: 'external', data: { endpoint: 'error' } }
+      };
       configureResults.push(errorResult);
       
       if (!isStructuredOutput && options.output === 'summary') {

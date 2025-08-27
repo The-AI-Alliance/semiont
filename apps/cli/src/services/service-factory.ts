@@ -5,7 +5,9 @@
  * Much simpler than the original factory.
  */
 
-import { Service, ServiceName, Platform, Config, ServiceConfig } from './types.js';
+import { Service, ServiceName } from './service-interface.js';
+import { Config, ServiceConfig } from '../lib/cli-config.js';
+import { Platform } from '../lib/platform-resolver.js';
 import { BackendServiceRefactored } from './backend-service.js';
 import { FrontendServiceRefactored } from './frontend-service.js';
 import { DatabaseServiceRefactored } from './database-service.js';

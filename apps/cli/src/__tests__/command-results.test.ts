@@ -7,13 +7,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { 
-  createBaseResult, 
-  createErrorResult, 
-  type CommandResults,
-  type StartResult,
-  type CheckResult,
-  type UpdateResult
+  createBaseResult,
+  createErrorResult,
+  type CommandResults 
 } from '../lib/command-results.js';
+import { type StartResult } from '../services/start-service.js';
+import { type CheckResult } from '../services/check-service.js';
+import { type UpdateResult } from '../services/update-service.js';
 
 describe('Command Result Type System', () => {
   const startTime = Date.now();

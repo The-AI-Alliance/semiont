@@ -12,7 +12,9 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, Platform, StopResult } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { StopResult } from '../services/stop-service.js';
+import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -39,9 +41,9 @@ async function stopServiceImpl(
   // Create the service instance
   const service = ServiceFactory.create(
     serviceInfo.name as ServiceName,
-    serviceInfo.platform as Platform,
+    serviceInfo.platform,
     config,
-    { ...serviceInfo.config, platform: serviceInfo.platform as Platform }
+    { ...serviceInfo.config, platform: serviceInfo.platform }
   );
   
   // Stop the service
@@ -88,7 +90,7 @@ export async function stop(
       } catch (error) {
         const errorResult: StopResult = {
           entity: serviceInfo.name as ServiceName,
-          platform: serviceInfo.platform as Platform,
+          platform: serviceInfo.platform,
           success: false,
           stopTime: new Date(),
           error: (error as Error).message

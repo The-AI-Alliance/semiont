@@ -11,7 +11,9 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, Platform, CheckResult } from '../services/types.js';
+import { ServiceName } from '../services/service-interface.js';
+import { CheckResult } from '../services/check-service.js';
+import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -52,10 +54,10 @@ async function checkHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.platform as Platform,
+        serviceInfo.platform,
         config,
         {
-          platform: serviceInfo.platform as Platform
+          platform: serviceInfo.platform
         } // Service config would come from project config
       );
       
@@ -76,15 +78,17 @@ async function checkHandler(
         console.log(`${statusEmoji} ${serviceInfo.name}: ${result.status}`);
         
         if (result.status === 'running' || result.status === 'unhealthy') {
-          // Show resource info
-          if (result.resources?.pid) {
-            console.log(`   PID: ${result.resources.pid}`);
-          }
-          if (result.resources?.containerId) {
-            console.log(`   Container: ${result.resources.containerId}`);
-          }
-          if (result.resources?.port) {
-            console.log(`   Port: ${result.resources.port}`);
+          // Show resource info based on platform
+          if (result.resources) {
+            if (result.resources.platform === 'process' && result.resources.data.pid) {
+              console.log(`   PID: ${result.resources.data.pid}`);
+            }
+            if (result.resources.platform === 'container' && result.resources.data.containerId) {
+              console.log(`   Container: ${result.resources.data.containerId}`);
+            }
+            if (result.resources.platform === 'process' && result.resources.data.port) {
+              console.log(`   Port: ${result.resources.data.port}`);
+            }
           }
           
           // Show health info
@@ -130,7 +134,7 @@ async function checkHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform as Platform,
+        platform: serviceInfo.platform,
         success: false,
         checkTime: new Date(),
         status: 'unknown',
