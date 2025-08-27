@@ -246,5 +246,21 @@ export const restoreNewCommand = new CommandBuilder()
   .description('Restore services from backups (new implementation)')
   .schema(RestoreOptionsSchema)
   .requiresServices(true)
+  .args({
+    args: {
+      '--backup-id': { type: 'string', description: 'ID of the backup to restore from', required: true },
+      '--force': { type: 'boolean', description: 'Force restore without confirmation' },
+      '--validate': { type: 'boolean', description: 'Validate backup before restoring', default: true },
+      '--stop-service': { type: 'boolean', description: 'Stop service before restore', default: true },
+      '--start-service': { type: 'boolean', description: 'Start service after restore', default: true },
+      '--verify-checksum': { type: 'boolean', description: 'Verify backup checksum', default: true },
+      '--skip-tests': { type: 'boolean', description: 'Skip post-restore tests' },
+      '--target-path': { type: 'string', description: 'Custom restore path' },
+    },
+    aliases: {
+      '-b': '--backup-id',
+      '-f': '--force',
+    }
+  })
   .handler(restoreHandler)
   .build();

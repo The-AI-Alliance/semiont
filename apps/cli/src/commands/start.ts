@@ -8,7 +8,7 @@ import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
@@ -173,22 +173,9 @@ export const startCommand = new CommandBuilder()
   .schema(StartOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--quiet': { type: 'boolean', description: 'Suppress output' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-o': '--output',
-      '-q': '--quiet',
-      '-v': '--verbose',
-    }
-  })
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service name or "all" for all services' },
+  }))
   .examples(
     'semiont start --environment local',
     'semiont start --environment staging --service backend',

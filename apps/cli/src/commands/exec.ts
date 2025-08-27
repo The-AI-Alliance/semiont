@@ -7,7 +7,7 @@ import { printError, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
@@ -263,5 +263,21 @@ export const execNewCommand = new CommandBuilder()
   .description('Execute commands within running services')
   .schema(ExecCommandOptionsSchema)
   .requiresServices(true)
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service to execute command in', required: true },
+    '--command': { type: 'string', description: 'The command to execute', required: true },
+    '--interactive': { type: 'boolean', description: 'Interactive mode' },
+    '--tty': { type: 'boolean', description: 'Allocate a TTY' },
+    '--user': { type: 'string', description: 'User to run command as' },
+    '--working-directory': { type: 'string', description: 'Working directory' },
+    '--shell': { type: 'string', description: 'Shell to use' },
+    '--capture-output': { type: 'boolean', description: 'Capture command output', default: true },
+    '--timeout': { type: 'number', description: 'Command timeout in seconds' },
+  }, {
+    '-c': '--command',
+    '-i': '--interactive',
+    '-u': '--user',
+    '-w': '--working-directory',
+  }))
   .handler(execHandler)
   .build();

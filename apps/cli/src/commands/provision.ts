@@ -7,7 +7,7 @@ import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-lo
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
@@ -235,5 +235,11 @@ export const provisionNewCommand = new CommandBuilder()
   .description('Provision infrastructure and resources for services')
   .schema(ProvisionOptionsSchema)
   .requiresServices(true)
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--force': { type: 'boolean', description: 'Force re-provisioning' },
+  }, {
+    '-f': '--force',
+  }))
   .handler(provisionHandler)
   .build();

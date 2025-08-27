@@ -16,7 +16,7 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -846,24 +846,14 @@ export const restartCommand = new CommandBuilder()
   .schema(RestartOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--force': { type: 'boolean', description: 'Force restart services' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-f': '--force',
-      '-v': '--verbose',
-      '-o': '--output',
-      '-g': '--grace-period',
-    }
-  })
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--force': { type: 'boolean', description: 'Force restart services' },
+    '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
+  }, {
+    '-f': '--force',
+    '-g': '--grace-period',
+  }))
   .examples(
     'semiont restart --environment local',
     'semiont restart --environment staging --grace-period 5',

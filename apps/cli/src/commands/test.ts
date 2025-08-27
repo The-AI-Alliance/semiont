@@ -12,7 +12,7 @@ import {
   CommandResults
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 import { ServiceName, DeploymentType, TestResult } from '../services/types.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -784,28 +784,18 @@ export const testCommand = new CommandBuilder()
   .schema(TestOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--suite': { type: 'string', description: 'Test suite to run (all, integration, e2e, health, security, connectivity)' },
-      '--coverage': { type: 'boolean', description: 'Generate coverage report' },
-      '--parallel': { type: 'boolean', description: 'Run tests in parallel' },
-      '--timeout': { type: 'number', description: 'Test timeout in seconds' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-s': '--suite',
-      '-c': '--coverage',
-      '-p': '--parallel',
-      '-t': '--timeout',
-      '-v': '--verbose',
-      '-o': '--output',
-    }
-  })
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--suite': { type: 'string', description: 'Test suite to run (all, integration, e2e, health, security, connectivity)' },
+    '--coverage': { type: 'boolean', description: 'Generate coverage report' },
+    '--parallel': { type: 'boolean', description: 'Run tests in parallel' },
+    '--timeout': { type: 'number', description: 'Test timeout in seconds' },
+  }, {
+    '-s': '--suite',
+    '-c': '--coverage',
+    '-p': '--parallel',
+    '-t': '--timeout',
+  }))
   .examples(
     'semiont test --environment local --suite integration',
     'semiont test --environment staging --suite e2e --parallel',

@@ -21,7 +21,7 @@ import {
   createErrorResult 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -466,46 +466,18 @@ export const configureCommand = new CommandBuilder()
   .name('configure')
   .description('Manage configuration and secrets')
   .schema(ConfigureOptionsSchema)
-  .args({
-    args: {
-      '--environment': {
-        type: 'string',
-        description: 'Target environment',
-        required: true,
-      },
-      '--secret-path': {
-        type: 'string',
-        description: 'Secret path (e.g., oauth/google, jwt-secret)',
-      },
-      '--value': {
-        type: 'string',
-        description: 'Secret value (will prompt if not provided)',
-      },
-      '--output': {
-        type: 'string',
-        description: 'Output format',
-        choices: ['summary', 'table', 'json', 'yaml'],
-        default: 'summary',
-      },
-      '--verbose': {
-        type: 'boolean',
-        description: 'Verbose output',
-        default: false,
-      },
-      '--dry-run': {
-        type: 'boolean',
-        description: 'Preview changes without applying',
-        default: false,
-      },
+  .args(withBaseArgs({
+    '--secret-path': {
+      type: 'string',
+      description: 'Secret path (e.g., oauth/google, jwt-secret)',
     },
-    aliases: {
-      '-e': '--environment',
-      '-s': '--secret-path',
-      '-o': '--output',
-      '-v': '--verbose',
+    '--value': {
+      type: 'string',
+      description: 'Secret value (will prompt if not provided)',
     },
-    positional: ['action'], // First positional arg is the action
-  })
+  }, {
+    '-s': '--secret-path',
+  }, ['action']))
   .requiresEnvironment(true)
   .requiresServices(false)
   .examples(

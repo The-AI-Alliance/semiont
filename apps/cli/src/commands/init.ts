@@ -12,7 +12,8 @@ import { fileURLToPath } from 'url';
 import { colors } from '../lib/cli-colors.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -238,56 +239,29 @@ export const initCommand = new CommandBuilder()
   .name('init')
   .description('Initialize a new Semiont project')
   .schema(InitOptionsSchema) // Schema types are compatible but TS can't infer it
-  .args({
-    args: {
-      '--name': {
-        type: 'string',
-        description: 'Project name',
-      },
-      '--directory': {
-        type: 'string',
-        description: 'Project directory',
-      },
-      '--force': {
-        type: 'boolean',
-        description: 'Overwrite existing configuration',
-        default: false,
-      },
-      '--environments': {
-        type: 'array',
-        description: 'Comma-separated list of environments to create',
-      },
-      '--output': {
-        type: 'string',
-        description: 'Output format',
-        choices: ['summary', 'json', 'yaml'],
-        default: 'summary',
-      },
-      '--quiet': {
-        type: 'boolean',
-        description: 'Suppress output except errors',
-        default: false,
-      },
-      '--verbose': {
-        type: 'boolean',
-        description: 'Verbose output',
-        default: false,
-      },
-      '--dry-run': {
-        type: 'boolean',
-        description: 'Preview changes without creating files',
-        default: false,
-      },
+  .args(withBaseArgs({
+    '--name': {
+      type: 'string',
+      description: 'Project name',
     },
-    aliases: {
-      '-n': '--name',
-      '-d': '--directory',
-      '-f': '--force',
-      '-o': '--output',
-      '-q': '--quiet',
-      '-v': '--verbose',
+    '--directory': {
+      type: 'string',
+      description: 'Project directory',
     },
-  })
+    '--force': {
+      type: 'boolean',
+      description: 'Overwrite existing configuration',
+      default: false,
+    },
+    '--environments': {
+      type: 'array',
+      description: 'Comma-separated list of environments to create',
+    },
+  }, {
+    '-n': '--name',
+    '-d': '--directory',
+    '-f': '--force',
+  }))
   .requiresEnvironment(false)
   .requiresServices(false)
   .examples(

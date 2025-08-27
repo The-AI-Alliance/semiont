@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { type ArgDefinition } from './command-definition.js';
 
 /**
  * Base Zod schema for options common to all commands
@@ -38,3 +39,61 @@ export const CommonExtensions = {
   tag: z.string().optional(),
   registry: z.string().optional(),
 } as const;
+
+/**
+ * Common argument definitions that match BaseOptionsSchema
+ * These can be spread into any command's args definition
+ */
+export const BASE_ARGS: Record<string, ArgDefinition> = {
+  '--environment': { 
+    type: 'string', 
+    description: 'Target environment',
+    required: false,
+  },
+  '--verbose': { 
+    type: 'boolean', 
+    description: 'Verbose output',
+    default: false,
+  },
+  '--dry-run': { 
+    type: 'boolean', 
+    description: 'Simulate actions without executing',
+    default: false,
+  },
+  '--quiet': { 
+    type: 'boolean', 
+    description: 'Suppress output',
+    default: false,
+  },
+  '--output': { 
+    type: 'string', 
+    description: 'Output format',
+    choices: ['summary', 'table', 'json', 'yaml'],
+    default: 'summary',
+  },
+};
+
+/**
+ * Common aliases for base arguments
+ */
+export const BASE_ALIASES: Record<string, string> = {
+  '-e': '--environment',
+  '-v': '--verbose',
+  '-q': '--quiet',
+  '-o': '--output',
+};
+
+/**
+ * Helper to merge base args with command-specific args
+ */
+export function withBaseArgs(
+  commandArgs: Record<string, ArgDefinition> = {},
+  commandAliases: Record<string, string> = {},
+  positional?: string[]
+) {
+  return {
+    args: { ...BASE_ARGS, ...commandArgs },
+    aliases: { ...BASE_ALIASES, ...commandAliases },
+    ...(positional && { positional }),
+  };
+}

@@ -18,7 +18,7 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 import { Config } from '../services/types.js';
 import { DashboardDataSource } from '../lib/dashboard-data.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
@@ -315,29 +315,19 @@ export const watchNewCommand = new CommandBuilder()
   .schema(WatchOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--target': { type: 'string', description: 'What to watch (all, logs, metrics, services)' },
-      '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },
-      '--interval': { type: 'number', description: 'Refresh interval in seconds' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-      '--terminal': { type: 'boolean', description: 'Use terminal-based dashboard instead of web' },
-      '--term': { type: 'boolean', description: 'Alias for --terminal' },
-      '--port': { type: 'number', description: 'Port for web dashboard (default: 3333)' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-t': '--target',
-      '-i': '--interval',
-      '-v': '--verbose',
-      '-o': '--output',
-      '-s': '--service'
-    }
-  })
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--target': { type: 'string', description: 'What to watch (all, logs, metrics, services)' },
+    '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },
+    '--interval': { type: 'number', description: 'Refresh interval in seconds' },
+    '--terminal': { type: 'boolean', description: 'Use terminal-based dashboard instead of web' },
+    '--term': { type: 'boolean', description: 'Alias for --terminal' },
+    '--port': { type: 'number', description: 'Port for web dashboard (default: 3333)' },
+  }, {
+    '-t': '--target',
+    '-i': '--interval',
+    '-s': '--service'
+  }))
   .examples(
     'semiont watch-new -e production',
     'semiont watch-new -e staging --terminal',

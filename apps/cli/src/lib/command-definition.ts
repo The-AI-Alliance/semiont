@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import type { CommandFunction } from './command-types.js';
+import { BASE_ARGS, BASE_ALIASES } from './base-options-schema.js';
 
 /**
  * Declarative argument definition for CLI parsing
@@ -58,6 +59,11 @@ export class CommandBuilder<TInput = any, TOutput = TInput, TResult = any> {
     requiresEnvironment: true, // Most commands need this
     requiresServices: true,     // Most commands need this
     examples: [],
+    // Provide default args based on common patterns
+    argSpec: {
+      args: BASE_ARGS,
+      aliases: BASE_ALIASES,
+    },
   };
 
   name(name: string): this {
@@ -76,7 +82,12 @@ export class CommandBuilder<TInput = any, TOutput = TInput, TResult = any> {
   }
 
   args(spec: ArgSpec): this {
-    this.definition.argSpec = spec;
+    // Merge with defaults rather than replace
+    this.definition.argSpec = {
+      args: { ...BASE_ARGS, ...spec.args },
+      aliases: { ...BASE_ALIASES, ...spec.aliases },
+      positional: spec.positional,
+    };
     return this;
   }
 
