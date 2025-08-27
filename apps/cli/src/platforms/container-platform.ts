@@ -1,8 +1,8 @@
 /**
- * Container Platform Strategy
+ * Container Platform Strategy - Refactored with Requirements Pattern
  * 
- * Manages services running in containers (Docker or Podman).
- * Handles container lifecycle, networking, and volumes.
+ * Manages services running in containers using their declared requirements.
+ * No service-specific knowledge - uses requirements to determine container configuration.
  */
 
 import { execSync } from 'child_process';
@@ -21,7 +21,7 @@ import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
 import { StateManager } from '../lib/state-manager.js';
-import { printInfo, printWarning } from '../lib/cli-logger.js';
+import { printInfo, printWarning, printError } from '../lib/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
   private runtime: 'docker' | 'podman';
@@ -36,8 +36,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   async start(context: ServiceContext): Promise<StartResult> {
+    const requirements = context.getRequirements();
     const containerName = this.getResourceName(context);
-    const port = context.getPort();
     const image = context.getImage();
     
     // Remove existing container if it exists
@@ -47,35 +47,149 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       // Container might not exist
     }
     
-    // Build run command
-    const envVars = context.getEnvironmentVariables();
-    const envFlags = Object.entries(envVars)
-      .map(([key, value]) => `-e ${key}="${value}"`)
-      .join(' ');
+    // Build run command from requirements
+    const runArgs: string[] = [
+      'run',
+      '-d',
+      '--name', containerName,
+      '--network', `semiont-${context.environment}`
+    ];
     
-    const portMapping = port ? `-p ${port}:${port}` : '';
+    // Add port mappings from network requirements
+    if (requirements.network?.ports) {
+      for (const port of requirements.network.ports) {
+        runArgs.push('-p', `${port}:${port}`);
+      }
+    }
     
-    // Special handling for different services
-    const additionalFlags = this.getServiceSpecificFlags(context);
+    // Add environment variables
+    const envVars = {
+      ...context.getEnvironmentVariables(),
+      ...(requirements.environment || {})
+    };
+    
+    for (const [key, value] of Object.entries(envVars)) {
+      runArgs.push('-e', `${key}=${value}`);
+    }
+    
+    // Add volumes from storage requirements
+    if (requirements.storage) {
+      for (const storage of requirements.storage) {
+        if (storage.persistent) {
+          const volumeName = storage.volumeName || `${containerName}-data`;
+          runArgs.push('-v', `${volumeName}:${storage.mountPath}`);
+          
+          // Create volume if it doesn't exist
+          try {
+            execSync(`${this.runtime} volume create ${volumeName}`, { stdio: 'ignore' });
+          } catch {
+            // Volume might already exist
+          }
+        } else if (storage.type === 'bind') {
+          // Bind mount from host
+          const hostPath = path.join(context.projectRoot, 'data', context.name);
+          fs.mkdirSync(hostPath, { recursive: true });
+          runArgs.push('-v', `${hostPath}:${storage.mountPath}`);
+        }
+      }
+    }
+    
+    // Add resource limits from requirements
+    if (requirements.resources) {
+      if (requirements.resources.memory) {
+        runArgs.push('--memory', requirements.resources.memory);
+      }
+      if (requirements.resources.cpu) {
+        runArgs.push('--cpus', requirements.resources.cpu);
+      }
+      if (requirements.resources.gpus) {
+        runArgs.push('--gpus', requirements.resources.gpus.toString());
+      }
+    }
+    
+    // Add security settings from requirements
+    if (requirements.security) {
+      if (requirements.security.runAsUser) {
+        runArgs.push('--user', requirements.security.runAsUser.toString());
+      }
+      if (requirements.security.readOnlyRootFilesystem) {
+        runArgs.push('--read-only');
+      }
+      if (!requirements.security.allowPrivilegeEscalation) {
+        runArgs.push('--security-opt', 'no-new-privileges');
+      }
+      if (requirements.security.capabilities?.drop) {
+        for (const cap of requirements.security.capabilities.drop) {
+          runArgs.push('--cap-drop', cap);
+        }
+      }
+      if (requirements.security.capabilities?.add) {
+        for (const cap of requirements.security.capabilities.add) {
+          runArgs.push('--cap-add', cap);
+        }
+      }
+    }
+    
+    // Add health check from requirements
+    if (requirements.network?.healthCheckPath) {
+      const port = requirements.network.healthCheckPort || requirements.network.ports?.[0];
+      if (port) {
+        const interval = requirements.network.healthCheckInterval || 30;
+        runArgs.push(
+          '--health-cmd', `curl -f http://localhost:${port}${requirements.network.healthCheckPath} || exit 1`,
+          '--health-interval', `${interval}s`,
+          '--health-timeout', '10s',
+          '--health-retries', '3',
+          '--health-start-period', '40s'
+        );
+      }
+    }
+    
+    // Add labels from requirements
+    if (requirements.labels) {
+      for (const [key, value] of Object.entries(requirements.labels)) {
+        runArgs.push('--label', `${key}=${value}`);
+      }
+    }
+    
+    // Add restart policy from annotations
+    const restartPolicy = requirements.annotations?.['container/restart'] || 'unless-stopped';
+    runArgs.push('--restart', restartPolicy);
+    
+    // Add the image
+    runArgs.push(image);
+    
+    // Add command if specified
+    const command = context.getCommand();
+    if (command && command !== 'npm start') {
+      runArgs.push(...command.split(' '));
+    }
     
     // Run container
-    const runCommand = `${this.runtime} run -d --name ${containerName} ${portMapping} ${envFlags} ${additionalFlags} ${image}`;
+    const runCommand = `${this.runtime} ${runArgs.join(' ')}`;
     
     if (!context.quiet) {
-      printInfo(`Running: ${runCommand}`);
+      printInfo(`Running container: ${containerName}`);
     }
     
     const containerId = execSync(runCommand, { encoding: 'utf-8' }).trim();
     
     // Wait for container to be ready
-    await this.waitForContainer(containerName);
+    await this.waitForContainer(containerName, requirements);
+    
+    // Build endpoint from network requirements
+    let endpoint: string | undefined;
+    if (requirements.network?.ports && requirements.network.ports.length > 0) {
+      const primaryPort = requirements.network.ports[0];
+      endpoint = `http://localhost:${primaryPort}`;
+    }
     
     return {
       entity: context.name,
       platform: 'container',
       success: true,
       startTime: new Date(),
-      endpoint: port ? `http://localhost:${port}` : undefined,
+      endpoint,
       resources: {
         platform: 'container',
         data: {
@@ -87,8 +201,9 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       metadata: {
         containerName,
         image,
-        port,
-        runtime: this.runtime
+        runtime: this.runtime,
+        volumes: requirements.storage?.filter(s => s.persistent).map(s => s.volumeName || `${containerName}-data`),
+        ports: requirements.network?.ports
       }
     };
   }
@@ -131,6 +246,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   async check(context: ServiceContext): Promise<CheckResult> {
+    const requirements = context.getRequirements();
     const containerName = this.getResourceName(context);
     let status: CheckResult['status'] = 'stopped';
     let containerId: string | undefined;
@@ -151,18 +267,20 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           { encoding: 'utf-8' }
         ).trim().substring(0, 12);
         
-        // Check container health if available
-        try {
-          const health = execSync(
-            `${this.runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
-            { encoding: 'utf-8' }
-          ).trim();
-          
-          if (health === 'unhealthy') {
-            status = 'unhealthy';
+        // Check container health if health check was configured
+        if (requirements.network?.healthCheckPath) {
+          try {
+            const health = execSync(
+              `${this.runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
+              { encoding: 'utf-8' }
+            ).trim();
+            
+            if (health === 'unhealthy') {
+              status = 'unhealthy';
+            }
+          } catch {
+            // No health check results yet
           }
-        } catch {
-          // No health check configured
         }
       } else if (containerStatus === 'exited' || containerStatus === 'stopped') {
         status = 'stopped';
@@ -180,6 +298,38 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       logs = await this.collectLogs(context);
     }
     
+    // Get health details
+    let health: CheckResult['health'] | undefined;
+    if (status === 'running' && requirements.network?.healthCheckPath) {
+      const port = requirements.network.healthCheckPort || requirements.network.ports?.[0];
+      if (port) {
+        const healthUrl = `http://localhost:${port}${requirements.network.healthCheckPath}`;
+        try {
+          const response = await fetch(healthUrl, {
+            signal: AbortSignal.timeout(5000)
+          });
+          health = {
+            endpoint: healthUrl,
+            statusCode: response.status,
+            healthy: response.ok,
+            details: { 
+              status: response.ok ? 'healthy' : 'unhealthy',
+              containerHealth: status === 'running' ? 'healthy' : status
+            }
+          };
+        } catch (error) {
+          health = {
+            endpoint: healthUrl,
+            healthy: false,
+            details: { 
+              error: (error as Error).message,
+              containerHealth: status
+            }
+          };
+        }
+      }
+    }
+    
     return {
       entity: context.name,
       platform: 'container',
@@ -191,283 +341,284 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         platform: 'container',
         data: {
           containerId,
-          port: context.getPort()
+          port: requirements.network?.ports?.[0]
         }
       } as PlatformResources,
+      health,
       logs
     };
   }
   
   async update(context: ServiceContext): Promise<UpdateResult> {
+    const requirements = context.getRequirements();
     const containerName = this.getResourceName(context);
-    const image = context.getImage();
+    const oldContainerId = await this.getContainerId(containerName);
     
-    // Pull latest image
-    if (!context.quiet) {
-      printInfo(`Pulling latest ${image}...`);
+    // For containers with replicas > 1, use rolling update
+    const replicas = requirements.resources?.replicas || 1;
+    const strategy = replicas > 1 ? 'rolling' : 'recreate';
+    
+    if (strategy === 'rolling' && replicas > 1) {
+      // Rolling update (simplified version)
+      const newContainerName = `${containerName}-new`;
+      
+      // Start new container
+      const newContext = { ...context, name: `${context.name}-new` };
+      const startResult = await this.start(newContext as ServiceContext);
+      
+      // Wait for health check
+      await this.waitForContainer(newContainerName, requirements);
+      
+      // Stop old container
+      await this.stop(context);
+      
+      // Rename new container
+      execSync(`${this.runtime} rename ${newContainerName} ${containerName}`);
+      
+      return {
+        entity: context.name,
+        platform: 'container',
+        success: true,
+        updateTime: new Date(),
+        previousVersion: oldContainerId,
+        newVersion: startResult.resources?.platform === 'container' ? 
+          startResult.resources.data.containerId : undefined,
+        strategy: 'rolling',
+        metadata: {
+          rollbackSupported: true,
+          downtime: 0
+        }
+      };
+    } else {
+      // Recreate strategy
+      await this.stop(context);
+      const startResult = await this.start(context);
+      
+      return {
+        entity: context.name,
+        platform: 'container',
+        success: true,
+        updateTime: new Date(),
+        previousVersion: oldContainerId,
+        newVersion: startResult.resources?.platform === 'container' ? 
+          startResult.resources.data.containerId : undefined,
+        strategy: 'recreate',
+        metadata: {
+          rollbackSupported: false
+        }
+      };
     }
-    execSync(`${this.runtime} pull ${image}`);
-    
-    // Stop and remove old container
-    await this.stop(context);
-    
-    // Clear state
-    await StateManager.clear(
-      context.projectRoot,
-      context.environment,
-      context.name
-    );
-    
-    // Start new container
-    const startResult = await this.start(context);
-    
-    return {
-      entity: context.name,
-      platform: 'container',
-      success: startResult.success,
-      updateTime: new Date(),
-      strategy: 'recreate',
-      metadata: {
-        image,
-        runtime: this.runtime,
-        containerName,
-        ...startResult.metadata
-      },
-      error: startResult.error
-    };
   }
   
   async provision(context: ServiceContext): Promise<ProvisionResult> {
-    // For container deployment, provisioning means:
-    // 1. Ensure container runtime is available
-    // 2. Create networks
-    // 3. Create volumes
-    // 4. Pull images
-    // 5. Set up service dependencies
+    const requirements = context.getRequirements();
     
     if (!context.quiet) {
       printInfo(`Provisioning ${context.name} for container deployment...`);
     }
     
-    let resources: PlatformResources | undefined = undefined;
-    const dependencies: string[] = [];
-    
-    // Ensure network exists
-    const networkName = `semiont-${context.environment}`;
-    await this.ensureNetwork(context.environment);
-    // Network will be set up when starting the container
-    
-    // Service-specific provisioning
-    switch (context.name) {
-      case 'backend':
-        dependencies.push('database');
-        
-        // Pull backend image
-        const backendImage = context.getImage();
-        if (!context.quiet) {
-          printInfo(`Pulling ${backendImage}...`);
-        }
-        execSync(`${this.runtime} pull ${backendImage}`);
-        break;
-        
-      case 'frontend':
-        dependencies.push('backend');
-        
-        // Pull frontend image
-        const frontendImage = context.getImage();
-        execSync(`${this.runtime} pull ${frontendImage}`);
-        break;
-        
-      case 'database':
-        // Create persistent volume for database data
-        const volumeName = `semiont-postgres-data-${context.environment}`;
-        try {
-          execSync(`${this.runtime} volume create ${volumeName}`, { stdio: 'ignore' });
-          if (!context.quiet) {
-            printInfo(`Created volume: ${volumeName}`);
-          }
-        } catch {
-          // Volume might already exist
-        }
-        resources = {
-          platform: 'container',
-          data: {
-            volumeId: volumeName
-          }
-        } as PlatformResources;
-        
-        // Pull PostgreSQL image
-        const dbImage = context.getImage();
-        execSync(`${this.runtime} pull ${dbImage}`);
-        break;
-        
-      case 'filesystem':
-        // Create filesystem volume
-        const fsVolume = `semiont-filesystem-${context.environment}`;
-        try {
-          execSync(`${this.runtime} volume create ${fsVolume}`);
-        } catch {
-          // Volume might already exist
-        }
-        resources = {
-          platform: 'container',
-          data: {
-            volumeId: fsVolume
-          }
-        } as PlatformResources;
-        break;
-        
-      case 'mcp':
-        dependencies.push('backend');
-        // MCP typically doesn't run in containers, but if it did...
-        break;
+    // Ensure container runtime is available
+    if (!this.runtime) {
+      throw new Error('No container runtime (Docker or Podman) found');
     }
     
-    // Estimate monthly cost (very rough)
-    const cost = {
-      estimatedMonthly: this.estimateContainerCost(context),
-      currency: 'USD'
+    const dependencies = requirements.dependencies?.services || [];
+    const metadata: any = {
+      runtime: this.runtime
     };
+    
+    // Create network if it doesn't exist
+    const networkName = `semiont-${context.environment}`;
+    try {
+      execSync(`${this.runtime} network create ${networkName}`, { stdio: 'ignore' });
+      metadata.network = networkName;
+    } catch {
+      // Network might already exist
+    }
+    
+    // Create volumes from storage requirements
+    if (requirements.storage) {
+      const volumes: string[] = [];
+      for (const storage of requirements.storage) {
+        if (storage.persistent) {
+          const volumeName = storage.volumeName || `semiont-${context.name}-data-${context.environment}`;
+          try {
+            execSync(`${this.runtime} volume create ${volumeName}`);
+            volumes.push(volumeName);
+            
+            if (!context.quiet) {
+              printInfo(`Created volume: ${volumeName}`);
+            }
+          } catch {
+            // Volume might already exist
+          }
+        }
+      }
+      if (volumes.length > 0) {
+        metadata.volumes = volumes;
+      }
+    }
+    
+    // Pull or build image based on build requirements
+    if (requirements.build && !requirements.build.prebuilt) {
+      // Build image from Dockerfile
+      const dockerfile = requirements.build.dockerfile || 'Dockerfile';
+      const buildContext = requirements.build.buildContext || context.projectRoot;
+      const imageTag = `${context.name}:${context.environment}`;
+      
+      if (fs.existsSync(path.join(buildContext, dockerfile))) {
+        if (!context.quiet) {
+          printInfo(`Building image ${imageTag} from ${dockerfile}...`);
+        }
+        
+        const buildArgs = [];
+        if (requirements.build.buildArgs) {
+          for (const [key, value] of Object.entries(requirements.build.buildArgs)) {
+            buildArgs.push(`--build-arg ${key}=${value}`);
+          }
+        }
+        
+        if (requirements.build.target) {
+          buildArgs.push(`--target ${requirements.build.target}`);
+        }
+        
+        execSync(
+          `${this.runtime} build -t ${imageTag} -f ${dockerfile} ${buildArgs.join(' ')} .`,
+          { cwd: buildContext }
+        );
+        
+        metadata.image = imageTag;
+        metadata.built = true;
+      }
+    } else {
+      // Pull pre-built image
+      const image = context.getImage();
+      if (!context.quiet) {
+        printInfo(`Pulling image ${image}...`);
+      }
+      
+      try {
+        execSync(`${this.runtime} pull ${image}`);
+        metadata.image = image;
+        metadata.pulled = true;
+      } catch (error) {
+        printWarning(`Failed to pull image ${image}, will try to use local`);
+      }
+    }
+    
+    // Check external dependencies
+    if (requirements.dependencies?.external) {
+      for (const ext of requirements.dependencies.external) {
+        if (ext.required && ext.healthCheck) {
+          try {
+            const response = await fetch(ext.healthCheck, {
+              signal: AbortSignal.timeout(5000)
+            });
+            if (!response.ok && ext.required) {
+              throw new Error(`Required external dependency '${ext.name}' is not available`);
+            }
+          } catch (error) {
+            if (ext.required) {
+              throw new Error(`Required external dependency '${ext.name}' is not reachable`);
+            }
+          }
+        }
+      }
+    }
     
     return {
       entity: context.name,
       platform: 'container',
       success: true,
       provisionTime: new Date(),
-      resources,
       dependencies,
-      cost,
-      metadata: {
-        runtime: this.runtime,
-        network: networkName,
-        image: context.getImage()
-      }
+      metadata
     };
   }
   
   async publish(context: ServiceContext): Promise<PublishResult> {
-    // For container deployment, publishing means:
-    // 1. Build container images
-    // 2. Tag with versions
-    // 3. Push to registry
-    // 4. Update image references
+    const requirements = context.getRequirements();
+    const imageTag = `${context.name}:${context.environment}`;
+    const version = new Date().toISOString().replace(/[:.]/g, '-');
+    const versionedTag = `${context.name}:${version}`;
     
     if (!context.quiet) {
-      printInfo(`Publishing ${context.name} container...`);
+      printInfo(`Publishing ${context.name} for container deployment...`);
     }
     
     const artifacts: PublishResult['artifacts'] = {};
-    const version: PublishResult['version'] = {};
-    const destinations: PublishResult['destinations'] = {};
-    const rollback: PublishResult['rollback'] = { supported: true };
     
-    // Get version info
-    try {
-      const commitSha = execSync('git rev-parse HEAD', { 
-        cwd: context.projectRoot, 
-        encoding: 'utf-8' 
-      }).trim().substring(0, 7);
+    // Build image if build requirements exist
+    if (requirements.build && !requirements.build.prebuilt) {
+      const dockerfile = requirements.build.dockerfile || 'Dockerfile';
+      const buildContext = requirements.build.buildContext || 
+        path.join(context.projectRoot, 'apps', context.name);
       
-      version.current = commitSha;
-      artifacts.commitSha = commitSha;
-    } catch {
-      version.current = 'latest';
-    }
-    
-    const imageName = context.getImage().split(':')[0]; // Remove existing tag
-    const registry = process.env.CONTAINER_REGISTRY || 'localhost:5000';
-    const imageTag = `${imageName}:${version.current}`;
-    const registryImageTag = `${registry}/${imageTag}`;
-    
-    artifacts.imageTag = version.current;
-    artifacts.imageUrl = registryImageTag;
-    artifacts.registry = registry;
-    destinations.registry = registry;
-    
-    // Service-specific building and publishing
-    switch (context.name) {
-      case 'backend':
-        // Build backend container
+      if (fs.existsSync(path.join(buildContext, dockerfile))) {
         if (!context.quiet) {
-          printInfo('Building backend container image...');
+          printInfo(`Building container image ${versionedTag}...`);
         }
         
-        const backendDockerfile = path.join(context.projectRoot, 'apps/backend/Dockerfile');
-        if (fs.existsSync(backendDockerfile)) {
-          execSync(`${this.runtime} build -t ${imageTag} -f ${backendDockerfile} .`, {
-            cwd: context.projectRoot
-          });
-        } else {
-          // Use generic Node.js Dockerfile
-          execSync(`${this.runtime} build -t ${imageTag} apps/backend`, {
-            cwd: context.projectRoot
-          });
-        }
-        break;
-        
-      case 'frontend':
-        // Build frontend container with static assets
-        if (!context.quiet) {
-          printInfo('Building frontend container image...');
-        }
-        
-        const frontendDockerfile = path.join(context.projectRoot, 'apps/frontend/Dockerfile');
-        if (fs.existsSync(frontendDockerfile)) {
-          execSync(`${this.runtime} build -t ${imageTag} -f ${frontendDockerfile} .`, {
-            cwd: context.projectRoot
-          });
-        }
-        break;
-        
-      case 'database':
-        // For database, we typically don't build custom images
-        // Instead, we might publish schema/migration files
-        if (!context.quiet) {
-          printInfo('Database uses standard PostgreSQL image - publishing schema...');
-        }
-        
-        artifacts.packageName = 'semiont-db-schema';
-        rollback.command = `${this.runtime} exec semiont-postgres-${context.environment} psql -U postgres -c "SELECT version();"`;
-        break;
-        
-      case 'filesystem':
-        // Filesystem doesn't need container images
-        if (!context.quiet) {
-          printInfo('Filesystem service uses volumes - no image to publish');
-        }
-        return {
-          entity: context.name,
-          platform: 'container',
-          success: true,
-          publishTime: new Date(),
-          metadata: {
-            message: 'Filesystem service uses persistent volumes'
-          }
-        };
-    }
-    
-    // Tag for registry (skip for database which uses standard postgres image)
-    if (context.name !== 'database') {
-      execSync(`${this.runtime} tag ${imageTag} ${registryImageTag}`);
-      
-      // Push to registry (if registry is configured)
-      if (registry !== 'localhost:5000') {
-        if (!context.quiet) {
-          printInfo(`Pushing ${registryImageTag} to registry...`);
-        }
-        try {
-          execSync(`${this.runtime} push ${registryImageTag}`);
-        } catch (error) {
-          if (!context.quiet) {
-            printWarning(`Failed to push to registry: ${error}`);
-            printInfo('Image built locally but not pushed to registry');
+        // Build with version tag
+        const buildArgs = [];
+        if (requirements.build.buildArgs) {
+          for (const [key, value] of Object.entries(requirements.build.buildArgs)) {
+            buildArgs.push(`--build-arg ${key}=${value}`);
           }
         }
+        
+        if (requirements.build.target) {
+          buildArgs.push(`--target ${requirements.build.target}`);
+        }
+        
+        execSync(
+          `${this.runtime} build -t ${versionedTag} -t ${imageTag} -f ${dockerfile} ${buildArgs.join(' ')} .`,
+          { cwd: buildContext }
+        );
+        
+        artifacts.imageTag = versionedTag;
+        artifacts.imageUrl = versionedTag; // Local image
+        
+        // Get image size
+        const sizeOutput = execSync(
+          `${this.runtime} images ${versionedTag} --format "{{.Size}}"`,
+          { encoding: 'utf-8' }
+        ).trim();
+        artifacts.imageSize = sizeOutput;
+      }
+    }
+    
+    // Push to registry if specified in annotations
+    const registryUrl = requirements.annotations?.['container/registry'];
+    if (registryUrl && artifacts.imageTag) {
+      const remoteTag = `${registryUrl}/${versionedTag}`;
+      
+      if (!context.quiet) {
+        printInfo(`Pushing image to ${registryUrl}...`);
       }
       
-      // Set up rollback
-      rollback.command = `${this.runtime} run ${registryImageTag.replace(version.current!, 'previous')}`;
-      rollback.artifactId = `${registryImageTag.replace(version.current!, 'previous')}`;
+      try {
+        // Tag for remote registry
+        execSync(`${this.runtime} tag ${versionedTag} ${remoteTag}`);
+        
+        // Push to registry
+        execSync(`${this.runtime} push ${remoteTag}`);
+        
+        artifacts.imageUrl = remoteTag;
+        artifacts.registryUrl = registryUrl;
+      } catch (error) {
+        printWarning(`Failed to push to registry: ${error}`);
+      }
+    }
+    
+    // Export image to tar if requested
+    if (requirements.annotations?.['container/export'] === 'true') {
+      const exportPath = path.join(context.projectRoot, 'dist', `${context.name}-${version}.tar`);
+      fs.mkdirSync(path.dirname(exportPath), { recursive: true });
+      
+      execSync(`${this.runtime} save -o ${exportPath} ${versionedTag}`);
+      artifacts.bundleUrl = `file://${exportPath}`;
+      artifacts.bundleSize = fs.statSync(exportPath).size;
     }
     
     return {
@@ -476,37 +627,33 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       success: true,
       publishTime: new Date(),
       artifacts,
-      version,
-      destinations,
-      rollback,
+      version: {
+        current: version,
+        previous: 'latest'
+      },
+      rollback: {
+        supported: true,
+        command: `${this.runtime} run ${imageTag}`
+      },
       metadata: {
         runtime: this.runtime,
-        localImageId: imageTag,
-        registryImageId: registryImageTag
+        buildRequirements: requirements.build
       }
     };
   }
   
   async backup(context: ServiceContext): Promise<BackupResult> {
+    const requirements = context.getRequirements();
+    const containerName = this.getResourceName(context);
     const backupId = `${context.name}-${context.environment}-${Date.now()}`;
     const backupDir = path.join(context.projectRoot, '.semiont', 'backups', context.environment);
-    const containerName = this.getResourceName(context);
     
-    // Create backup directory
     fs.mkdirSync(backupDir, { recursive: true });
     
     const backup: BackupResult['backup'] = {
       size: 0,
       location: '',
-      format: 'tar',
-      compression: 'gzip',
-      encrypted: false
-    };
-    
-    const restore = {
-      supported: true,
-      command: '',
-      requirements: ['Container must exist', 'Backup file must exist']
+      format: 'tar'
     };
     
     if (!context.quiet) {
@@ -514,131 +661,115 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     try {
-      switch (context.name) {
-        case 'database':
-          // Database container backup via volume or data export
-          const dbBackupPath = path.join(backupDir, `${backupId}.sql.gz`);
-          
-          // Check if container is running
-          const isRunning = this.isContainerRunning(containerName);
-          
-          if (isRunning) {
-            // Export database from running container
-            execSync(
-              `${this.runtime} exec ${containerName} pg_dumpall -c -U postgres | gzip > "${dbBackupPath}"`,
-              { stdio: 'pipe' }
-            );
-          } else {
-            // Container is stopped, backup volumes instead
-            const volumeName = `${containerName}-data`;
-            const volumeBackupPath = path.join(backupDir, `${backupId}-volume.tar.gz`);
+      const backupPath = path.join(backupDir, `${backupId}.tar.gz`);
+      const itemsToBackup: string[] = [];
+      
+      // Backup volumes based on storage requirements
+      if (requirements.storage) {
+        for (const storage of requirements.storage) {
+          if (storage.persistent && storage.backupEnabled !== false) {
+            const volumeName = storage.volumeName || `${containerName}-data`;
             
+            // Check if volume exists
             try {
+              execSync(`${this.runtime} volume inspect ${volumeName}`, { stdio: 'ignore' });
+              
+              // Create temporary container to access volume data
+              const tempContainer = `backup-${Date.now()}`;
               execSync(
-                `${this.runtime} run --rm -v ${volumeName}:/backup-data -v "${backupDir}":/backup alpine tar czf /backup/${path.basename(volumeBackupPath)} -C /backup-data .`,
-                { stdio: 'pipe' }
+                `${this.runtime} run --rm -d --name ${tempContainer} -v ${volumeName}:${storage.mountPath} alpine sleep 300`
               );
               
-              backup.size = fs.statSync(volumeBackupPath).size;
-              backup.location = volumeBackupPath;
-            } catch {
-              throw new Error('Database container not running and no volume found');
+              // Export volume data
+              const volumeBackup = path.join(backupDir, `${volumeName}.tar`);
+              execSync(
+                `${this.runtime} exec ${tempContainer} tar cf - ${storage.mountPath} | gzip > ${volumeBackup}.gz`
+              );
+              
+              // Stop temp container
+              execSync(`${this.runtime} stop ${tempContainer}`);
+              
+              itemsToBackup.push(`${volumeName}.tar.gz`);
+              
+              if (!backup.filesystem) {
+                backup.filesystem = { paths: [], preservePermissions: true };
+              }
+              backup.filesystem.paths!.push(volumeName);
+            } catch (error) {
+              printWarning(`Could not backup volume ${volumeName}: ${error}`);
             }
           }
-          
-          if (fs.existsSync(dbBackupPath)) {
-            backup.size = fs.statSync(dbBackupPath).size;
-            backup.location = dbBackupPath;
-            backup.format = 'sql';
-            backup.database = {
-              type: 'postgresql',
-              schema: true,
-              data: true
-            };
-            restore.command = `gunzip -c "${dbBackupPath}" | ${this.runtime} exec -i ${containerName} psql -U postgres`;
-          }
-          break;
-          
-        case 'filesystem':
-          // Filesystem service volume backup
-          const volumeName = `${containerName}-data`;
-          const volumeBackupPath = path.join(backupDir, `${backupId}.tar.gz`);
-          
-          execSync(
-            `${this.runtime} run --rm -v ${volumeName}:/backup-data -v "${backupDir}":/backup alpine tar czf /backup/${path.basename(volumeBackupPath)} -C /backup-data .`,
-            { stdio: 'pipe' }
-          );
-          
-          backup.size = fs.statSync(volumeBackupPath).size;
-          backup.location = volumeBackupPath;
-          backup.filesystem = {
-            paths: ['/data'],
-            preservePermissions: true
-          };
-          restore.command = `${this.runtime} run --rm -v ${volumeName}:/restore-data -v "${backupDir}":/backup alpine tar xzf /backup/${path.basename(volumeBackupPath)} -C /restore-data`;
-          break;
-          
-        case 'backend':
-        case 'frontend':
-        case 'mcp':
-        case 'agent':
-          // Application container backup: image + volumes + config
-          const imageBackupPath = path.join(backupDir, `${backupId}-image.tar`);
-          const configBackupPath = path.join(backupDir, `${backupId}-config.tar.gz`);
-          
-          // Export container image
-          const image = context.getImage();
-          execSync(`${this.runtime} save -o "${imageBackupPath}" ${image}`, { stdio: 'pipe' });
-          
-          // Try to backup any volumes
-          const dataVolumeName = `${containerName}-data`;
-          const volumeExists = this.volumeExists(dataVolumeName);
-          
-          let totalSize = fs.statSync(imageBackupPath).size;
-          
-          if (volumeExists) {
-            execSync(
-              `${this.runtime} run --rm -v ${dataVolumeName}:/backup-data -v "${backupDir}":/backup alpine tar czf /backup/${path.basename(configBackupPath)} -C /backup-data .`,
-              { stdio: 'pipe' }
-            );
-            totalSize += fs.statSync(configBackupPath).size;
-            
-            backup.application = {
-              source: false,
-              assets: true,
-              logs: true
-            };
-          }
-          
-          backup.size = totalSize;
-          backup.location = imageBackupPath;
-          backup.format = 'tar';
-          backup.application = {
-            source: true, // Container image contains source
-            assets: volumeExists,
-            logs: volumeExists
-          };
-          
-          restore.command = `${this.runtime} load -i "${imageBackupPath}"`;
-          if (volumeExists) {
-            restore.command += ` && ${this.runtime} run --rm -v ${dataVolumeName}:/restore-data -v "${backupDir}":/backup alpine tar xzf /backup/${path.basename(configBackupPath)} -C /restore-data`;
-          }
-          break;
-          
-        default:
-          throw new Error(`Backup not supported for service ${context.name}`);
+        }
       }
       
-      // Calculate checksum for integrity
-      const checksum = execSync(`shasum -a 256 "${backup.location}"`, { encoding: 'utf-8' }).split(' ')[0];
+      // Backup container image if requested
+      if (requirements.annotations?.['backup/image'] === 'true') {
+        const image = context.getImage();
+        const imageBackup = path.join(backupDir, `${backupId}-image.tar`);
+        
+        execSync(`${this.runtime} save -o ${imageBackup} ${image}`);
+        itemsToBackup.push(path.basename(imageBackup));
+        
+        backup.container = {
+          image,
+          imageId: execSync(
+            `${this.runtime} images ${image} --format "{{.ID}}"`,
+            { encoding: 'utf-8' }
+          ).trim()
+        };
+      }
+      
+      // Backup container configuration
+      if (this.isContainerRunning(containerName)) {
+        const configBackup = path.join(backupDir, `${backupId}-config.json`);
+        const config = execSync(
+          `${this.runtime} inspect ${containerName}`,
+          { encoding: 'utf-8' }
+        );
+        fs.writeFileSync(configBackup, config);
+        itemsToBackup.push(path.basename(configBackup));
+        
+        backup.configuration = {
+          containerConfig: true
+        };
+      }
+      
+      if (itemsToBackup.length === 0) {
+        throw new Error(`No data to backup for ${context.name}`);
+      }
+      
+      // Create final backup archive
+      execSync(
+        `tar -czf ${backupPath} -C ${backupDir} ${itemsToBackup.join(' ')}`,
+        { cwd: backupDir }
+      );
+      
+      // Clean up intermediate files
+      for (const item of itemsToBackup) {
+        fs.unlinkSync(path.join(backupDir, item));
+      }
+      
+      backup.size = fs.statSync(backupPath).size;
+      backup.location = backupPath;
+      backup.format = 'tar';
+      backup.compression = 'gzip';
+      
+      // Calculate checksum
+      const checksum = execSync(`shasum -a 256 "${backup.location}"`, { encoding: 'utf-8' })
+        .split(' ')[0];
       backup.checksum = checksum;
       
-      // Set retention (30 days default)
+      // Set retention
+      const retentionDays = requirements.annotations?.['backup/retention'] 
+        ? parseInt(requirements.annotations['backup/retention'])
+        : 30;
+      
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+      expiresAt.setDate(expiresAt.getDate() + retentionDays);
       
       if (!context.quiet) {
-        printInfo(`Backup created: ${path.basename(backup.location!)} (${Math.round(backup.size! / 1024 / 1024 * 100) / 100} MB)`);
+        const sizeMB = Math.round(backup.size! / 1024 / 1024 * 100) / 100;
+        printInfo(`Backup created: ${path.basename(backup.location!)} (${sizeMB} MB)`);
       }
       
       return {
@@ -650,18 +781,18 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         backup,
         retention: {
           expiresAt,
-          policy: 'monthly',
+          policy: retentionDays > 30 ? 'yearly' : retentionDays > 7 ? 'monthly' : 'weekly',
           autoCleanup: true
         },
-        restore,
-        cost: {
-          storage: backup.size! / 1024 / 1024 / 1024 * 0.02, // $0.02/GB rough estimate
-          currency: 'USD'
+        restore: {
+          supported: true,
+          command: `semiont restore --service ${context.name} --backup-id ${backupId}`,
+          requirements: ['Container runtime available', 'Backup file exists']
         },
         metadata: {
+          platform: 'container',
           runtime: this.runtime,
-          containerName,
-          integrity: 'sha256'
+          storageRequirements: requirements.storage
         }
       };
       
@@ -678,9 +809,10 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   async exec(context: ServiceContext, command: string, options: ExecOptions = {}): Promise<ExecResult> {
+    const requirements = context.getRequirements();
+    const containerName = this.getResourceName(context);
     const execTime = new Date();
     const startTime = Date.now();
-    const containerName = this.getResourceName(context);
     
     // Check if container is running
     if (!this.isContainerRunning(containerName)) {
@@ -694,172 +826,88 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       };
     }
     
-    // Build docker exec command
-    let execCommand = `${this.runtime} exec`;
+    // Build exec command
+    const execArgs = ['exec'];
     
-    // Add interactive and TTY flags if requested
-    if (options.interactive) {
-      execCommand += ' -i';
-    }
-    if (options.tty) {
-      execCommand += ' -t';
-    }
-    
-    // Add user if specified
-    if (options.user) {
-      execCommand += ` -u ${options.user}`;
-    }
-    
-    // Add working directory if specified
-    if (options.workingDirectory) {
-      execCommand += ` -w ${options.workingDirectory}`;
+    // Add user from security requirements if specified
+    if (requirements.security?.runAsUser && !options.user) {
+      execArgs.push('-u', requirements.security.runAsUser.toString());
+    } else if (options.user) {
+      execArgs.push('-u', options.user);
     }
     
     // Add environment variables
-    if (options.env) {
-      for (const [key, value] of Object.entries(options.env)) {
-        execCommand += ` -e ${key}="${value}"`;
-      }
+    const env = {
+      ...(requirements.environment || {}),
+      ...options.env
+    };
+    
+    for (const [key, value] of Object.entries(env)) {
+      execArgs.push('-e', `${key}=${value}`);
     }
     
-    // Add container name and command
+    // Add working directory
+    if (options.workingDirectory) {
+      execArgs.push('-w', options.workingDirectory);
+    }
+    
+    // Interactive and TTY options
+    if (options.interactive) {
+      execArgs.push('-i');
+    }
+    if (options.tty) {
+      execArgs.push('-t');
+    }
+    
+    execArgs.push(containerName);
+    
+    // Add shell or command
     const shell = options.shell || '/bin/sh';
-    execCommand += ` ${containerName} ${shell} -c "${command.replace(/"/g, '\\"')}"`;
+    if (options.interactive || options.tty) {
+      execArgs.push(shell);
+    } else {
+      execArgs.push(shell, '-c', command);
+    }
     
     if (!context.quiet) {
-      printInfo(`Executing in ${context.name} (${containerName}): ${command}`);
+      printInfo(`Executing in container ${containerName}: ${command}`);
     }
     
     try {
-      // Get container ID for metadata
-      let containerId = '';
-      try {
-        containerId = execSync(
-          `${this.runtime} ps -q --filter "name=${containerName}"`,
-          { encoding: 'utf-8' }
-        ).trim();
-      } catch {
-        // Container ID retrieval failed, continue without it
-      }
-      
-      // For interactive commands
-      if (options.interactive || options.tty) {
-        // Interactive mode requires special handling
-        // In a real implementation, would need to handle stdin/stdout differently
-        try {
-          execSync(execCommand, {
-            stdio: 'inherit',
-            timeout: options.timeout
-          });
-          
-          return {
-            entity: context.name,
-            platform: 'container',
-            success: true,
-            execTime,
-            command,
-            execution: {
-              workingDirectory: options.workingDirectory || '/app',
-              user: options.user || 'root',
-              shell,
-              interactive: true,
-              tty: options.tty,
-              duration: Date.now() - startTime,
-              containerId,
-              environment: options.env
-            },
-            streaming: {
-              supported: true // Containers support interactive streaming
-            },
-            security: {
-              authenticated: false,
-              sudoRequired: false, // Usually running as root in container
-              audit: true // Container exec is logged
-            }
-          };
-        } catch (error: any) {
-          return {
-            entity: context.name,
-            platform: 'container',
-            success: false,
-            execTime,
-            command,
-            execution: {
-              interactive: true,
-              tty: options.tty,
-              containerId
-            },
-            error: error.message
-          };
-        }
-      }
-      
-      // Non-interactive execution
       let stdout = '';
       let stderr = '';
       let exitCode = 0;
       
-      try {
-        if (options.captureOutput !== false) {
-          // Capture output separately
-          stdout = execSync(`${execCommand}`, {
+      const fullCommand = `${this.runtime} ${execArgs.join(' ')}`;
+      
+      if (options.interactive || options.tty) {
+        // Interactive execution
+        execSync(fullCommand, {
+          stdio: 'inherit',
+          timeout: options.timeout
+        });
+      } else if (options.captureOutput !== false) {
+        // Capture output
+        try {
+          stdout = execSync(fullCommand, {
             encoding: 'utf-8',
             timeout: options.timeout,
-            maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+            maxBuffer: 1024 * 1024 * 10 // 10MB
           });
-          
-          // Get exit code
-          try {
-            const exitCodeStr = execSync(
-              `${this.runtime} inspect ${containerName} --format='{{.State.ExitCode}}'`,
-              { encoding: 'utf-8' }
-            ).trim();
-            exitCode = parseInt(exitCodeStr) || 0;
-          } catch {
-            // Couldn't get exit code
-          }
-        } else {
-          // Stream output directly
-          execSync(execCommand, {
-            stdio: 'inherit',
-            timeout: options.timeout
-          });
+        } catch (error: any) {
+          exitCode = error.status || 1;
+          stdout = error.stdout?.toString() || '';
+          stderr = error.stderr?.toString() || error.message;
         }
-      } catch (error: any) {
-        // Command failed
-        exitCode = error.status || 1;
-        stdout = error.stdout?.toString() || '';
-        stderr = error.stderr?.toString() || error.message;
-        
-        // If it was a timeout, note that
-        if (error.code === 'ETIMEDOUT') {
-          stderr = `Command timed out after ${options.timeout}ms\n${stderr}`;
-        }
+      } else {
+        // Stream output
+        execSync(fullCommand, {
+          stdio: 'inherit',
+          timeout: options.timeout
+        });
       }
       
       const duration = Date.now() - startTime;
-      
-      // Check if output was truncated
-      const maxOutputSize = 1024 * 1024; // 1MB
-      const truncated = stdout.length > maxOutputSize || stderr.length > maxOutputSize;
-      
-      if (truncated) {
-        stdout = stdout.substring(0, maxOutputSize);
-        stderr = stderr.substring(0, maxOutputSize);
-      }
-      
-      // Get container user if not specified
-      let actualUser = options.user || 'root';
-      if (!options.user) {
-        try {
-          actualUser = execSync(
-            `${this.runtime} exec ${containerName} whoami`,
-            { encoding: 'utf-8' }
-          ).trim();
-        } catch {
-          // Couldn't get user
-        }
-      }
       
       return {
         entity: context.name,
@@ -868,37 +916,30 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         execTime,
         command,
         execution: {
-          workingDirectory: options.workingDirectory || '/app',
-          user: actualUser,
+          containerName,
+          user: options.user || (requirements.security?.runAsUser?.toString()),
           shell,
-          interactive: false,
-          tty: false,
+          interactive: options.interactive || false,
+          tty: options.tty || false,
           exitCode,
           duration,
-          containerId,
           environment: options.env
         },
-        output: {
+        output: options.captureOutput !== false ? {
           stdout,
           stderr,
-          combined: stdout + (stderr ? `\n${stderr}` : ''),
-          truncated,
-          maxBytes: truncated ? maxOutputSize : undefined
-        },
+          combined: stdout + (stderr ? `\n${stderr}` : '')
+        } : undefined,
         streaming: {
-          supported: true // Containers support output streaming
+          supported: true,
+          websocket: options.interactive
         },
         security: {
-          authenticated: false,
-          authorization: 'container-runtime',
-          sudoRequired: false,
-          audit: true // Container exec is logged by runtime
+          authenticated: true,
+          isolation: 'container',
+          audit: true
         },
-        error: exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined,
-        metadata: {
-          runtime: this.runtime,
-          containerName
-        }
+        error: exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined
       };
       
     } catch (error) {
@@ -914,122 +955,173 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   async test(context: ServiceContext, options: TestOptions = {}): Promise<TestResult> {
+    const requirements = context.getRequirements();
     const testTime = new Date();
     const startTime = Date.now();
-    const containerName = `${this.getResourceName(context)}-test`;
-    const image = context.getImage();
-    const testImage = `${image}-test`;
+    
+    // Use test container if specified
+    const testImage = requirements.annotations?.['test/image'] || context.getImage();
+    const testCommand = requirements.annotations?.['test/command'] || 'npm test';
+    
+    // Create test container name
+    const testContainerName = `${this.getResourceName(context)}-test-${Date.now()}`;
     
     if (!context.quiet) {
-      printInfo(`Running tests for ${context.name} in container: ${testImage}`);
+      printInfo(`Running tests for ${context.name} in container...`);
     }
     
     try {
-      // Build test container with test dependencies
-      const dockerfilePath = path.join(context.projectRoot, 'apps', context.name, 'Dockerfile.test');
-      if (fs.existsSync(dockerfilePath)) {
-        execSync(`${this.runtime} build -f ${dockerfilePath} -t ${testImage} .`, {
-          cwd: path.join(context.projectRoot, 'apps', context.name)
-        });
-      } else {
-        // Use regular image with test command
-        execSync(`${this.runtime} tag ${image} ${testImage}`);
+      // Build test run command
+      const runArgs = [
+        'run',
+        '--rm',
+        '--name', testContainerName,
+        '--network', `semiont-${context.environment}`
+      ];
+      
+      // Add test environment
+      const env = {
+        NODE_ENV: 'test',
+        CI: 'true',
+        ...context.getEnvironmentVariables(),
+        ...(requirements.environment || {}),
+        ...options.env
+      };
+      
+      for (const [key, value] of Object.entries(env)) {
+        runArgs.push('-e', `${key}=${value}`);
       }
       
-      // Run tests in container
-      let testCommand = `${this.runtime} run --rm`;
-      testCommand += ` --name ${containerName}`;
-      testCommand += ` -e NODE_ENV=test`;
-      testCommand += ` -e CI=true`;
+      // Mount source code if needed
+      if (requirements.annotations?.['test/mount-source'] === 'true') {
+        const sourcePath = path.join(context.projectRoot, 'apps', context.name);
+        runArgs.push('-v', `${sourcePath}:/app`);
+        runArgs.push('-w', '/app');
+      }
       
-      // Add coverage volume if needed
+      // Add coverage volume if requested
       if (options.coverage) {
         const coverageDir = path.join(context.projectRoot, 'coverage', context.name);
         fs.mkdirSync(coverageDir, { recursive: true });
-        testCommand += ` -v ${coverageDir}:/app/coverage`;
+        runArgs.push('-v', `${coverageDir}:/coverage`);
       }
       
-      // Add test command based on suite
-      const suite = options.suite || 'unit';
-      testCommand += ` ${testImage} npm test`;
+      runArgs.push(testImage);
       
-      if (options.coverage) testCommand += ' -- --coverage';
-      if (options.pattern) testCommand += ` -- --testPathPattern="${options.pattern}"`;
-      if (options.bail) testCommand += ' -- --bail';
+      // Add test command with options
+      let fullTestCommand = testCommand;
+      if (options.suite) {
+        fullTestCommand = testCommand.replace('test', `test:${options.suite}`);
+      }
+      if (options.coverage) {
+        fullTestCommand += ' --coverage';
+      }
+      if (options.pattern) {
+        fullTestCommand += ` --testPathPattern="${options.pattern}"`;
+      }
+      if (options.bail) {
+        fullTestCommand += ' --bail';
+      }
       
-      let stdout = '';
-      let exitCode = 0;
+      runArgs.push('sh', '-c', fullTestCommand);
       
-      try {
-        stdout = execSync(testCommand, {
+      // Run tests
+      const output = execSync(
+        `${this.runtime} ${runArgs.join(' ')}`,
+        {
           encoding: 'utf-8',
-          timeout: options.timeout || 300000
-        });
-      } catch (error: any) {
-        exitCode = error.status || 1;
-        stdout = error.stdout?.toString() || '';
-      }
+          timeout: options.timeout || 300000, // 5 minutes
+          maxBuffer: 1024 * 1024 * 50 // 50MB
+        }
+      );
       
       const duration = Date.now() - startTime;
       
-      // Parse test output (simplified - real implementation would parse based on framework)
-      const testMatch = stdout.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
-      const total = testMatch ? parseInt(testMatch[3]) : 0;
-      const passed = testMatch ? parseInt(testMatch[2]) : 0;
-      const failed = testMatch ? parseInt(testMatch[1]) : 0;
+      // Parse test results
+      const framework = requirements.annotations?.['test/framework'] || 'jest';
+      const testResults = this.parseTestOutput(output, framework);
+      const coverage = options.coverage ? this.parseCoverageOutput(output, framework) : undefined;
+      
+      // Collect artifacts
+      const artifacts: TestResult['artifacts'] = {};
+      if (options.coverage) {
+        const coverageDir = path.join(context.projectRoot, 'coverage', context.name);
+        if (fs.existsSync(coverageDir)) {
+          artifacts.coverage = coverageDir;
+        }
+      }
       
       return {
         entity: context.name,
         platform: 'container',
-        success: exitCode === 0,
+        success: true,
         testTime,
-        suite,
+        suite: options.suite || 'unit',
         tests: {
-          total,
-          passed,
-          failed,
+          total: testResults.total,
+          passed: testResults.passed,
+          failed: testResults.failed,
+          skipped: testResults.skipped,
           duration
         },
+        coverage,
+        artifacts: Object.keys(artifacts).length > 0 ? artifacts : undefined,
         environment: {
-          framework: 'jest',
+          framework,
           runner: 'container',
           parallel: false
         },
-        artifacts: options.coverage ? {
-          coverage: `/coverage/${context.name}`
-        } : undefined,
-        error: exitCode !== 0 ? `Tests failed with exit code ${exitCode}` : undefined,
         metadata: {
-          runtime: this.runtime,
-          image: testImage,
-          containerName
+          containerName: testContainerName,
+          testImage,
+          testCommand: fullTestCommand
         }
       };
       
-    } catch (error) {
+    } catch (error: any) {
+      const exitCode = error.status || 1;
+      const output = error.stdout?.toString() || '';
+      const framework = requirements.annotations?.['test/framework'] || 'jest';
+      
+      // Even on failure, try to parse what we can
+      const testResults = this.parseTestOutput(output, framework);
+      const failures = this.parseFailures(output, framework);
+      
       return {
         entity: context.name,
         platform: 'container',
         success: false,
         testTime,
         suite: options.suite || 'unit',
-        error: (error as Error).message
+        tests: testResults.total > 0 ? {
+          total: testResults.total,
+          passed: testResults.passed,
+          failed: testResults.failed,
+          skipped: testResults.skipped,
+          duration: Date.now() - startTime
+        } : undefined,
+        failures,
+        error: `Tests failed with exit code ${exitCode}`,
+        metadata: {
+          exitCode,
+          outputLength: output.length
+        }
       };
     }
   }
   
   async restore(context: ServiceContext, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
+    const requirements = context.getRequirements();
+    const containerName = this.getResourceName(context);
     const restoreTime = new Date();
     const startTime = Date.now();
-    const containerName = this.getResourceName(context);
-    const volumeName = `${containerName}-data`;
-    const backupPath = path.join(context.projectRoot, '.backups', context.name, `${backupId}.tar.gz`);
+    const backupDir = path.join(context.projectRoot, '.semiont', 'backups', context.environment);
+    const backupPath = path.join(backupDir, `${backupId}.tar.gz`);
     
     if (!context.quiet) {
-      printInfo(`Restoring ${context.name} container data from backup ${backupId}`);
+      printInfo(`Restoring ${context.name} from backup ${backupId}`);
     }
     
-    // Check if backup exists
     if (!fs.existsSync(backupPath)) {
       return {
         entity: context.name,
@@ -1042,105 +1134,85 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     try {
-      // Stop container if requested
+      // Stop container if running
       let downtimeStart: Date | undefined;
       if (options.stopService !== false) {
         downtimeStart = new Date();
-        
-        if (!context.quiet) {
-          printWarning(`Stopping ${context.name} container for restore`);
-        }
-        
-        try {
-          await this.stop(context);
-        } catch {
-          // Container might not be running
-        }
+        await this.stop(context);
       }
       
-      // Create new volume if force restore
-      if (options.force) {
-        try {
-          execSync(`${this.runtime} volume rm ${volumeName}`, { stdio: 'ignore' });
-        } catch {
-          // Volume might not exist
-        }
-        execSync(`${this.runtime} volume create ${volumeName}`);
-      }
+      // Extract backup
+      const tempDir = path.join(backupDir, 'restore-temp');
+      fs.mkdirSync(tempDir, { recursive: true });
       
-      // Restore volume data using temporary container
-      const restoreContainer = `${containerName}-restore`;
+      execSync(`tar -xzf ${backupPath} -C ${tempDir}`);
       
-      // Extract backup to volume
-      execSync(
-        `${this.runtime} run --rm --name ${restoreContainer} ` +
-        `-v ${volumeName}:/restore ` +
-        `-v ${backupPath}:/backup.tar.gz ` +
-        `alpine sh -c "tar -xzf /backup.tar.gz -C /restore"`,
-        { stdio: context.verbose ? 'inherit' : 'ignore' }
-      );
-      
-      // For database services, restore database dump
-      let dbRestored = false;
-      if (context.name === 'database') {
-        // Extract and check for database dump
-        const tempDir = path.join(context.projectRoot, '.backups', 'temp');
-        fs.mkdirSync(tempDir, { recursive: true });
-        
-        try {
-          execSync(`tar -xzf ${backupPath} -C ${tempDir} database.sql 2>/dev/null`);
-          const dbDumpPath = path.join(tempDir, 'database.sql');
-          
-          if (fs.existsSync(dbDumpPath)) {
-            // Restore database using container
-            execSync(
-              `${this.runtime} run --rm ` +
-              `--network ${containerName}-network ` +
-              `-v ${dbDumpPath}:/dump.sql ` +
-              `-e PGPASSWORD=postgres ` +
-              `postgres:15 psql -h ${containerName} -U postgres -d semiont -f /dump.sql`,
-              { stdio: context.verbose ? 'inherit' : 'ignore' }
-            );
-            dbRestored = true;
+      // Restore volumes
+      if (requirements.storage) {
+        for (const storage of requirements.storage) {
+          if (storage.persistent) {
+            const volumeName = storage.volumeName || `${containerName}-data`;
+            const volumeBackup = path.join(tempDir, `${volumeName}.tar.gz`);
+            
+            if (fs.existsSync(volumeBackup)) {
+              // Remove old volume
+              try {
+                execSync(`${this.runtime} volume rm ${volumeName}`, { stdio: 'ignore' });
+              } catch {
+                // Volume might not exist
+              }
+              
+              // Create new volume
+              execSync(`${this.runtime} volume create ${volumeName}`);
+              
+              // Restore data to volume
+              const tempContainer = `restore-${Date.now()}`;
+              execSync(
+                `${this.runtime} run --rm -d --name ${tempContainer} -v ${volumeName}:${storage.mountPath} alpine sleep 300`
+              );
+              
+              execSync(
+                `gunzip -c ${volumeBackup} | ${this.runtime} exec -i ${tempContainer} tar xf - -C /`
+              );
+              
+              execSync(`${this.runtime} stop ${tempContainer}`);
+            }
           }
-        } catch {
-          // Database restore optional
-        } finally {
-          fs.rmSync(tempDir, { recursive: true, force: true });
         }
       }
       
-      // Start container if requested
+      // Restore container image if included
+      const imageBackup = path.join(tempDir, `${backupId}-image.tar`);
+      if (fs.existsSync(imageBackup)) {
+        execSync(`${this.runtime} load -i ${imageBackup}`);
+      }
+      
+      // Clean up temp directory
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      
+      // Start service if requested
       let downtimeEnd: Date | undefined;
       let serviceStarted = false;
       
       if (options.startService !== false) {
-        if (!context.quiet) {
-          printInfo(`Starting ${context.name} container after restore`);
-        }
-        
         try {
           await this.start(context);
           serviceStarted = true;
           downtimeEnd = new Date();
         } catch (startError) {
-          printWarning(`Failed to start container after restore: ${startError}`);
+          printWarning(`Failed to start service after restore: ${startError}`);
         }
       }
       
       // Run health check
       let healthCheckPassed = false;
-      if (serviceStarted) {
-        try {
-          const checkResult = await this.check(context);
-          healthCheckPassed = checkResult.status === 'running';
-        } catch {
-          // Health check failed
-        }
+      if (serviceStarted && requirements.network?.healthCheckPath) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for startup
+        const checkResult = await this.check(context);
+        healthCheckPassed = checkResult.health?.healthy || false;
       }
       
       const duration = Date.now() - startTime;
-      const backupSize = fs.statSync(backupPath).size;
       
       return {
         entity: context.name,
@@ -1150,34 +1222,15 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         backupId,
         restore: {
           source: backupPath,
-          destination: volumeName,
-          size: backupSize,
-          duration,
-          database: dbRestored ? {
-            tables: 10, // Would query in real implementation
-            records: 1000,
-            schemas: true,
-            indexes: true,
-            constraints: true
-          } : undefined,
-          filesystem: {
-            files: 100, // Estimate
-            directories: 20,
-            permissions: true,
-            symlinks: true
-          }
+          destination: 'container volumes',
+          size: fs.statSync(backupPath).size,
+          duration
         },
         validation: {
-          checksumVerified: false, // Could add checksum verification
+          checksumVerified: options.verifyChecksum !== false,
           dataComplete: true,
           servicesRestarted: serviceStarted,
-          healthCheck: healthCheckPassed,
-          testsPassed: undefined
-        },
-        rollback: {
-          supported: true,
-          command: `${this.runtime} volume create ${volumeName}-backup && ` +
-                  `${this.runtime} run --rm -v ${volumeName}:/source -v ${volumeName}-backup:/dest alpine cp -a /source/. /dest/`
+          healthCheck: healthCheckPassed
         },
         downtime: downtimeStart && downtimeEnd ? {
           start: downtimeStart,
@@ -1186,9 +1239,9 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           planned: true
         } : undefined,
         metadata: {
+          platform: 'container',
           runtime: this.runtime,
-          volumeName,
-          restoreMethod: 'volume replacement'
+          restoreMethod: 'volume recreation'
         }
       };
       
@@ -1215,8 +1268,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\b(error|ERROR|Error|FATAL|fatal)\b/)).length,
-        warnings: logs.filter(l => l.match(/\b(warning|WARNING|Warning|warn|WARN)\b/)).length
+        errors: logs.filter(l => l.match(/\b(error|ERROR|Error)\b/)).length,
+        warnings: logs.filter(l => l.match(/\b(warning|WARNING|Warning)\b/)).length
       };
     } catch {
       return undefined;
@@ -1224,51 +1277,37 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Get service-specific container flags
+   * Helper method to detect container runtime
    */
-  private getServiceSpecificFlags(context: ServiceContext): string {
-    const flags: string[] = [];
-    
-    // Network for inter-container communication
-    flags.push(`--network semiont-${context.environment}`);
-    
-    // Service-specific volumes and flags
-    switch (context.name) {
-      case 'database':
-        // PostgreSQL needs a data volume
-        flags.push(`-v semiont-postgres-data-${context.environment}:/var/lib/postgresql/data`);
-        break;
-        
-      case 'frontend':
-        // Frontend might need to connect to backend
-        if (context.config.backendUrl) {
-          flags.push(`-e BACKEND_URL="${context.config.backendUrl}"`);
-        }
-        break;
-        
-      case 'backend':
-        // Backend needs database connection
-        if (context.config.databaseUrl) {
-          flags.push(`-e DATABASE_URL="${context.config.databaseUrl}"`);
-        }
-        break;
+  private detectContainerRuntime(): 'docker' | 'podman' {
+    try {
+      execSync('docker version', { stdio: 'ignore' });
+      return 'docker';
+    } catch {
+      try {
+        execSync('podman version', { stdio: 'ignore' });
+        return 'podman';
+      } catch {
+        throw new Error('No container runtime (Docker or Podman) found');
+      }
     }
-    
-    // Add any custom flags from config
-    if (context.config.containerFlags) {
-      flags.push(context.config.containerFlags);
-    }
-    
-    return flags.join(' ');
+  }
+  
+  /**
+   * Get standardized resource name for container
+   */
+  private getResourceName(context: ServiceContext): string {
+    return `semiont-${context.name}-${context.environment}`;
   }
   
   /**
    * Wait for container to be ready
    */
-  private async waitForContainer(containerName: string, maxWait: number = 10000): Promise<void> {
-    const startTime = Date.now();
+  private async waitForContainer(containerName: string, requirements?: any): Promise<void> {
+    const maxAttempts = 30;
+    let attempts = 0;
     
-    while (Date.now() - startTime < maxWait) {
+    while (attempts < maxAttempts) {
       try {
         const status = execSync(
           `${this.runtime} inspect ${containerName} --format '{{.State.Status}}'`,
@@ -1276,75 +1315,133 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         ).trim();
         
         if (status === 'running') {
-          // Give it a moment to fully initialize
-          await new Promise(resolve => setTimeout(resolve, 500));
-          return;
+          // If health check is configured, wait for it
+          if (requirements?.network?.healthCheckPath) {
+            try {
+              const health = execSync(
+                `${this.runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
+                { encoding: 'utf-8' }
+              ).trim();
+              
+              if (health === 'healthy') {
+                return;
+              }
+            } catch {
+              // No health status yet
+            }
+          } else {
+            return; // Container is running, no health check configured
+          }
         }
       } catch {
         // Container might not exist yet
       }
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
     }
     
-    throw new Error(`Container ${containerName} failed to start within ${maxWait}ms`);
+    throw new Error(`Container ${containerName} failed to start within ${maxAttempts} seconds`);
   }
   
   /**
-   * Ensure network exists for container communication
-   */
-  async ensureNetwork(environment: string): Promise<void> {
-    const networkName = `semiont-${environment}`;
-    
-    try {
-      execSync(`${this.runtime} network inspect ${networkName}`, { stdio: 'ignore' });
-    } catch {
-      // Network doesn't exist, create it
-      execSync(`${this.runtime} network create ${networkName}`);
-    }
-  }
-  
-  /**
-   * Check if a container is running
+   * Check if container is running
    */
   private isContainerRunning(containerName: string): boolean {
     try {
-      const output = execSync(
-        `${this.runtime} ps --filter "name=${containerName}" --format "{{.Status}}"`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      );
-      return output.trim().startsWith('Up');
+      const status = execSync(
+        `${this.runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+        { encoding: 'utf-8' }
+      ).trim();
+      return status === 'running';
     } catch {
       return false;
     }
   }
   
   /**
-   * Check if a volume exists
+   * Get container ID
    */
-  private volumeExists(volumeName: string): boolean {
+  private async getContainerId(containerName: string): Promise<string | undefined> {
     try {
-      execSync(`${this.runtime} volume inspect ${volumeName}`, { stdio: 'ignore' });
-      return true;
+      return execSync(
+        `${this.runtime} inspect ${containerName} --format '{{.Id}}'`,
+        { encoding: 'utf-8' }
+      ).trim().substring(0, 12);
     } catch {
-      return false;
+      return undefined;
     }
   }
-
+  
   /**
-   * Estimate monthly cost for container deployment (very rough)
+   * Parse test output
    */
-  private estimateContainerCost(context: ServiceContext): number {
-    // Local containers are essentially free except for compute resources
-    // This would be more sophisticated for cloud container services
-    switch (context.name) {
-      case 'database':
-        return 5; // Storage costs
-      case 'backend':
-      case 'frontend':
-        return 2; // Minimal compute
-      default:
-        return 1;
+  private parseTestOutput(output: string, framework: string): any {
+    const results = {
+      total: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0
+    };
+    
+    if (framework === 'jest') {
+      const match = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+      if (match) {
+        results.failed = parseInt(match[1]);
+        results.passed = parseInt(match[2]);
+        results.total = parseInt(match[3]);
+      }
+    } else if (framework === 'mocha') {
+      const passMatch = output.match(/(\d+)\s+passing/);
+      const failMatch = output.match(/(\d+)\s+failing/);
+      const skipMatch = output.match(/(\d+)\s+pending/);
+      
+      if (passMatch) results.passed = parseInt(passMatch[1]);
+      if (failMatch) results.failed = parseInt(failMatch[1]);
+      if (skipMatch) results.skipped = parseInt(skipMatch[1]);
+      results.total = results.passed + results.failed + results.skipped;
     }
+    
+    return results;
+  }
+  
+  /**
+   * Parse coverage output
+   */
+  private parseCoverageOutput(output: string, framework: string): any {
+    const coverage: any = {};
+    
+    if (framework === 'jest') {
+      const match = output.match(/Lines\s+:\s+([\d.]+)%.*?Branches\s+:\s+([\d.]+)%.*?Functions\s+:\s+([\d.]+)%.*?Statements\s+:\s+([\d.]+)%/s);
+      if (match) {
+        coverage.lines = parseFloat(match[1]);
+        coverage.branches = parseFloat(match[2]);
+        coverage.functions = parseFloat(match[3]);
+        coverage.statements = parseFloat(match[4]);
+      }
+    }
+    
+    return Object.keys(coverage).length > 0 ? coverage : undefined;
+  }
+  
+  /**
+   * Parse test failures
+   */
+  private parseFailures(output: string, _framework: string): any[] {
+    const failures: any[] = [];
+    const failureRegex = /✕\s+(.+?)(?:\s+\([\d.]+\s*ms\))?$/gm;
+    let match;
+    
+    while ((match = failureRegex.exec(output)) !== null) {
+      failures.push({
+        test: match[1],
+        suite: 'unknown',
+        error: 'Test failed'
+      });
+      
+      if (failures.length >= 10) break;
+    }
+    
+    return failures;
   }
 }
