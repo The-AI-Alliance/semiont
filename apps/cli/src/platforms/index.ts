@@ -8,12 +8,14 @@ export { ProcessPlatformStrategy } from './process-platform.js';
 export { ContainerPlatformStrategy } from './container-platform.js';
 export { AWSPlatformStrategy } from './aws-platform.js';
 export { ExternalPlatformStrategy } from './external-platform.js';
+export { MockPlatformStrategy } from './mock-platform.js';
 
 import { PlatformStrategy } from './platform-strategy.js';
 import { ProcessPlatformStrategy } from './process-platform.js';
 import { ContainerPlatformStrategy } from './container-platform.js';
 import { AWSPlatformStrategy } from './aws-platform.js';
 import { ExternalPlatformStrategy } from './external-platform.js';
+import { MockPlatformStrategy } from './mock-platform.js';
 import { Platform } from '../lib/platform-resolver.js';
 
 /**
@@ -45,6 +47,8 @@ export class PlatformFactory {
         return new AWSPlatformStrategy();
       case 'external':
         return new ExternalPlatformStrategy();
+      case 'mock':
+        return new MockPlatformStrategy();
       default:
         throw new Error(`Unknown deployment type: ${type}`);
     }
