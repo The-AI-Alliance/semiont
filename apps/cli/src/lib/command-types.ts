@@ -14,14 +14,17 @@ import type { CommandResults } from './command-results.js';
  * All commands receive pre-resolved services as the first parameter
  * and command-specific options as the second parameter.
  * 
+ * @template TOptions - The type of command-specific options
+ * @template TResult - The type of service-specific results (defaults to ServiceResult)
+ * 
  * @param serviceDeployments - Pre-resolved array of service deployment configurations
- * @param options - Command-specific options (must extend BaseCommandOptions)
- * @returns Promise of structured command results
+ * @param options - Command-specific options
+ * @returns Promise of structured command results with preserved service types
  */
-export type CommandFunction<TOptions = any> = (
+export type CommandFunction<TOptions = any, TResult = any> = (
   serviceDeployments: ServiceDeploymentInfo[],
   options: TOptions
-) => Promise<CommandResults>;
+) => Promise<CommandResults<TResult>>;
 
 // Re-export BaseCommandOptions for backward compatibility
 export type { BaseCommandOptions } from './base-command-options.js';

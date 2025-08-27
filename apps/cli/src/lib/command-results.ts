@@ -17,6 +17,14 @@ export interface BaseCommandResult {
   error?: string;
 }
 
+// Minimal interface that all service results must satisfy for formatting
+export interface BaseServiceResult {
+  service: string;
+  success: boolean;
+  error?: string;
+  [key: string]: any; // Allow additional properties
+}
+
 // Resource identifiers for different deployment types
 export interface ResourceIdentifier {
   aws?: { arn?: string; id?: string; name?: string; consoleUrl?: string };
@@ -250,12 +258,14 @@ export interface ExternalServiceResult extends ServiceResult {
 // AGGREGATED RESULTS FOR MULTI-SERVICE OPERATIONS
 // =====================================================================
 
-export interface CommandResults {
+// Aggregated command results structure
+// Now generic to preserve service-specific result types
+export interface CommandResults<TServiceResult = ServiceResult> {
   command: string;
   environment: string;
   timestamp: Date;
   duration: number;
-  services: ServiceResult[];
+  services: TServiceResult[];
   summary: {
     total: number;
     succeeded: number;

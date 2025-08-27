@@ -33,8 +33,9 @@ export interface ArgSpec {
  * 
  * @template TInput - The input type (what the CLI parser provides)
  * @template TOutput - The output type (what the handler receives after schema processing)
+ * @template TResult - The type of service-specific results (defaults to any)
  */
-export interface CommandDefinition<TInput = any, TOutput = TInput> {
+export interface CommandDefinition<TInput = any, TOutput = TInput, TResult = any> {
   name: string;
   description: string;
   schema: z.ZodType<TOutput, any, TInput>;
@@ -42,7 +43,7 @@ export interface CommandDefinition<TInput = any, TOutput = TInput> {
   requiresEnvironment: boolean;
   requiresServices: boolean;
   examples: string[];
-  handler: CommandFunction<TOutput>;
+  handler: CommandFunction<TOutput, TResult>;
 }
 
 /**
@@ -50,9 +51,10 @@ export interface CommandDefinition<TInput = any, TOutput = TInput> {
  * 
  * @template TInput - The input type (what the CLI parser provides)
  * @template TOutput - The output type (what the handler receives after schema processing)
+ * @template TResult - The type of service-specific results (defaults to any)
  */
-export class CommandBuilder<TInput = any, TOutput = TInput> {
-  private definition: Partial<CommandDefinition<TInput, TOutput>> = {
+export class CommandBuilder<TInput = any, TOutput = TInput, TResult = any> {
+  private definition: Partial<CommandDefinition<TInput, TOutput, TResult>> = {
     requiresEnvironment: true, // Most commands need this
     requiresServices: true,     // Most commands need this
     examples: [],
@@ -68,7 +70,7 @@ export class CommandBuilder<TInput = any, TOutput = TInput> {
     return this;
   }
 
-  schema<S extends z.ZodSchema>(schema: S): CommandBuilder<z.input<S>, z.output<S>> {
+  schema<S extends z.ZodSchema>(schema: S): CommandBuilder<z.input<S>, z.output<S>, TResult> {
     (this.definition as any).schema = schema;
     return this as any;
   }
@@ -93,12 +95,12 @@ export class CommandBuilder<TInput = any, TOutput = TInput> {
     return this;
   }
 
-  handler(fn: CommandFunction<TOutput>): this {
-    this.definition.handler = fn;
-    return this;
+  handler<R>(fn: CommandFunction<TOutput, R>): CommandBuilder<TInput, TOutput, R> {
+    (this.definition as any).handler = fn;
+    return this as any;
   }
 
-  build(): CommandDefinition<TInput, TOutput> {
+  build(): CommandDefinition<TInput, TOutput, TResult> {
     const { name, description, schema, argSpec, handler } = this.definition;
     
     if (!name) throw new Error('Command name is required');
@@ -107,16 +109,16 @@ export class CommandBuilder<TInput = any, TOutput = TInput> {
     if (!argSpec) throw new Error('Command argSpec is required');
     if (!handler) throw new Error('Command handler is required');
     
-    return this.definition as CommandDefinition<TInput, TOutput>;
+    return this.definition as CommandDefinition<TInput, TOutput, TResult>;
   }
 }
 
 /**
  * Helper function to define a command with type safety
  */
-export function defineCommand<TInput, TOutput = TInput>(
-  definition: CommandDefinition<TInput, TOutput>
-): CommandDefinition<TInput, TOutput> {
+export function defineCommand<TInput, TOutput = TInput, TResult = any>(
+  definition: CommandDefinition<TInput, TOutput, TResult>
+): CommandDefinition<TInput, TOutput, TResult> {
   return definition;
 }
 

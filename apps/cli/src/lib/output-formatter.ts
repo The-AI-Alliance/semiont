@@ -5,7 +5,7 @@
  * output formats while maintaining backward compatibility with human-readable output.
  */
 
-import { CommandResults } from './command-results.js';
+import { CommandResults, BaseServiceResult } from './command-results.js';
 import { createStringTable } from './string-utils.js';
 
 export type OutputFormat = 'summary' | 'table' | 'json' | 'yaml';
@@ -35,8 +35,9 @@ export class OutputFormatter {
 
   /**
    * Main entry point for formatting command results
+   * Now generic to handle service-specific result types
    */
-  static format(results: CommandResults, options: OutputOptions): string {
+  static format<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, options: OutputOptions): string {
     switch (options.format) {
       case 'json':
         return this.formatJSON(results, options);
@@ -53,7 +54,7 @@ export class OutputFormatter {
   /**
    * JSON format output
    */
-  private static formatJSON(results: CommandResults, options: OutputOptions): string {
+  private static formatJSON<T>(results: CommandResults<T>, options: OutputOptions): string {
     const output = options.fields 
       ? this.selectFields(results, options.fields)
       : results;
@@ -67,7 +68,7 @@ export class OutputFormatter {
   /**
    * YAML format output
    */
-  private static formatYAML(results: CommandResults, options: OutputOptions): string {
+  private static formatYAML<T>(results: CommandResults<T>, options: OutputOptions): string {
     const output = options.fields 
       ? this.selectFields(results, options.fields)
       : results;
@@ -79,7 +80,7 @@ export class OutputFormatter {
   /**
    * Human-readable summary format (default CLI output)
    */
-  private static formatSummary(results: CommandResults, options: OutputOptions): string {
+  private static formatSummary<T extends BaseServiceResult>(results: CommandResults<T>, options: OutputOptions): string {
     const c = options.colors !== false ? this.colors : this.createNoColorMap();
     let output = '';
 
@@ -194,7 +195,7 @@ export class OutputFormatter {
   /**
    * ASCII table format using custom ink table utility
    */
-  private static formatTable(results: CommandResults, options: OutputOptions): string {
+  private static formatTable<T extends BaseServiceResult>(results: CommandResults<T>, options: OutputOptions): string {
     if (results.services.length === 0) {
       return 'No services to display\n';
     }
@@ -283,7 +284,7 @@ export class OutputFormatter {
   /**
    * Select specific fields from results
    */
-  private static selectFields(results: CommandResults, fields: string[]): Partial<CommandResults> {
+  private static selectFields<T>(results: CommandResults<T>, fields: string[]): Partial<CommandResults<T>> {
     const selected: any = {};
     
     for (const field of fields) {
@@ -463,7 +464,7 @@ export class OutputFormatter {
 /**
  * Utility function for quick formatting
  */
-export function formatResults(results: CommandResults, format: OutputFormat = 'summary', verbose: boolean = false): string {
+export function formatResults<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, format: OutputFormat = 'summary', verbose: boolean = false): string {
   return OutputFormatter.format(results, {
     format,
     quiet: false,
@@ -475,7 +476,7 @@ export function formatResults(results: CommandResults, format: OutputFormat = 's
 /**
  * Utility function for quiet output
  */
-export function formatResultsQuiet(results: CommandResults, format: OutputFormat = 'summary'): string {
+export function formatResultsQuiet<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, format: OutputFormat = 'summary'): string {
   return OutputFormatter.format(results, {
     format,
     quiet: true,
@@ -487,7 +488,7 @@ export function formatResultsQuiet(results: CommandResults, format: OutputFormat
 /**
  * Utility function for verbose output
  */
-export function formatResultsVerbose(results: CommandResults, format: OutputFormat = 'summary'): string {
+export function formatResultsVerbose<T extends BaseServiceResult = BaseServiceResult>(results: CommandResults<T>, format: OutputFormat = 'summary'): string {
   return OutputFormatter.format(results, {
     format,
     quiet: false,
