@@ -759,7 +759,7 @@ async function findAndKillProcess(pattern: string, name: string, options: Restar
 export async function restart(
   serviceDeployments: ServiceDeploymentInfo[],
   options: RestartOptions
-): Promise<CommandResults> {
+): Promise<CommandResults<RestartResult>> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   
@@ -809,7 +809,7 @@ export async function restart(
     }
     
     // Create aggregated results
-    const commandResults: CommandResults = {
+    const commandResults: CommandResults<RestartResult> = {
       command: 'restart',
       environment: options.environment!,
       timestamp: new Date(),

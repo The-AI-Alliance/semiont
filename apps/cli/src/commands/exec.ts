@@ -11,7 +11,7 @@ import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, ExecOptions } from '../services/types.js';
+import { Config, ServiceName, DeploymentType, ExecOptions, ExecResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -41,31 +41,8 @@ type ExecCommandOptions = z.output<typeof ExecCommandOptionsSchema>;
 async function execHandler(
   services: ServiceDeploymentInfo[],
   options: ExecCommandOptions
-): Promise<CommandResults> {
-  interface ServiceExecResult {
-    service: string;
-    success: boolean;
-    duration: number;
-    deployment: string;
-    command: string;
-    exitCode?: number;
-    workingDirectory?: string;
-    user?: string;
-    shell?: string;
-    interactive?: boolean;
-    tty?: boolean;
-    stdout?: string;
-    stderr?: string;
-    truncated?: boolean;
-    containerId?: string;
-    instanceId?: string;
-    sessionId?: string;
-    streaming?: any;
-    security?: any;
-    error?: string;
-    metadata?: Record<string, any>;
-  }
-  const serviceResults: ServiceExecResult[] = [];
+): Promise<CommandResults<ExecResult>> {
+  const serviceResults: ExecResult[] = [];
   
   // Exec only works with a single service
   if (services.length === 0) {
@@ -113,30 +90,8 @@ async function execHandler(
     // Execute the command
     const result = await service.exec(options.command, execOptions);
     
-    // Record result
-    serviceResults.push({
-      service: serviceInfo.name,
-      success: result.success,
-      duration: Date.now() - startTime,
-      deployment: serviceInfo.deploymentType,
-      command: result.command,
-      exitCode: result.execution?.exitCode,
-      workingDirectory: result.execution?.workingDirectory,
-      user: result.execution?.user,
-      shell: result.execution?.shell,
-      interactive: result.execution?.interactive,
-      tty: result.execution?.tty,
-      stdout: result.output?.stdout,
-      stderr: result.output?.stderr,
-      truncated: result.output?.truncated,
-      containerId: result.execution?.containerId,
-      instanceId: result.execution?.instanceId,
-      sessionId: result.execution?.sessionId,
-      streaming: result.streaming,
-      security: result.security,
-      error: result.error,
-      metadata: result.metadata
-    });
+    // Record result directly - no conversion needed!
+    serviceResults.push(result);
     
     // Display result
     if (!options.quiet) {
@@ -261,10 +216,10 @@ async function execHandler(
     
   } catch (error) {
     serviceResults.push({
-      service: serviceInfo.name,
+      service: serviceInfo.name as ServiceName,
+      deployment: serviceInfo.deploymentType as DeploymentType,
       success: false,
-      duration: Date.now() - startTime,
-      deployment: serviceInfo.deploymentType,
+      execTime: new Date(),
       command: options.command,
       error: error instanceof Error ? error.message : String(error)
     });
@@ -278,49 +233,17 @@ async function execHandler(
     printInfo('\n🔍 This was a dry run. No actual command was executed.');
   }
   
-  // Convert service results to CommandResults format
-  const formattedResults = serviceResults.map(r => ({
-    command: 'exec',
-    service: r.service,
-    deploymentType: r.deployment,
-    environment: options.environment || 'default',
-    timestamp: new Date(),
-    success: r.success,
-    duration: r.duration,
-    resourceId: {
-      container: r.containerId ? { id: r.containerId } : undefined,
-      aws: r.instanceId ? { id: r.instanceId } : undefined,
-      process: r.workingDirectory ? { path: r.workingDirectory } : undefined
-    },
-    status: r.success ? 'executed' : 'failed',
-    metadata: {
-      command: r.command,
-      exitCode: r.exitCode,
-      workingDirectory: r.workingDirectory,
-      user: r.user,
-      shell: r.shell,
-      interactive: r.interactive,
-      tty: r.tty,
-      stdout: r.stdout,
-      stderr: r.stderr,
-      truncated: r.truncated,
-      sessionId: r.sessionId,
-      streaming: r.streaming,
-      security: r.security
-    },
-    error: r.error
-  }));
-  
+  // Return results directly - no conversion needed!
   return {
     command: 'exec',
     environment: options.environment || 'default',
     timestamp: new Date(),
     duration: Date.now() - startTime,
-    services: formattedResults,
+    services: serviceResults,  // Rich types preserved!
     summary: {
       total: serviceResults.length,
-      succeeded: serviceResults.filter((r: any) => r.success).length,
-      failed: serviceResults.filter((r: any) => !r.success).length,
+      succeeded: serviceResults.filter(r => r.success).length,
+      failed: serviceResults.filter(r => !r.success).length,
       warnings: 0
     },
     executionContext: {
@@ -328,7 +251,7 @@ async function execHandler(
       workingDirectory: process.cwd(),
       dryRun: options.dryRun || false
     }
-  } as CommandResults;
+  } as CommandResults<ExecResult>;
 }
 
 // =====================================================================

@@ -9,14 +9,11 @@ import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } 
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';
 import { 
-  TestResult, 
-  CommandResults, 
-  createBaseResult, 
-  createErrorResult,
-  ResourceIdentifier 
+  CommandResults
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { ServiceName, DeploymentType, TestResult } from '../services/types.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -478,7 +475,6 @@ async function runIntegrationTestsForService(serviceInfo: ServiceDeploymentInfo,
 
 async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions, isStructuredOutput: boolean = false): Promise<TestResult> {
   const startTime = Date.now();
-  const environment = options.environment!; // Environment is guaranteed by command loader
   
   if (options.dryRun) {
     if (!isStructuredOutput && options.output === 'summary') {
@@ -486,16 +482,18 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
     }
     
     return {
-      ...createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, environment, startTime),
-      testSuite: suite,
-      testsRun: 0,
-      testsPassed: 0,
-      testsFailed: 0,
-      testsSkipped: 0,
-      testDuration: 0,
-      failures: [],
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'dry-run',
+      service: serviceInfo.name as ServiceName,
+      deployment: serviceInfo.deploymentType as DeploymentType,
+      success: true,
+      testTime: new Date(),
+      suite: suite,
+      tests: {
+        total: 0,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        duration: 0,
+      },
       metadata: { dryRun: true },
     };
   }
@@ -514,23 +512,27 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   // Restore output suppression state
   setSuppressOutput(previousSuppressOutput);
   
-  // The test command itself succeeded - it ran the tests
-  // We just need to report whether the tests passed or failed
-  const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
-  
   return {
-    ...baseResult,
-    success: true, // The test command executed successfully
-    testSuite: suite,
-    testsRun: 1, // Simplified for now
-    testsPassed: passed ? 1 : 0,
-    testsFailed: passed ? 0 : 1,
-    testsSkipped: 0,
-    testDuration,
-    failures: passed ? [] : [{ test: suite, error: 'Test suite failed' }],
-    resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-    status: passed ? 'passed' : 'failed',
-    metadata: { suite },
+    service: serviceInfo.name as ServiceName,
+    deployment: serviceInfo.deploymentType as DeploymentType,
+    success: passed,
+    testTime: new Date(),
+    suite: suite,
+    tests: {
+      total: 1,
+      passed: passed ? 1 : 0,
+      failed: passed ? 0 : 1,
+      skipped: 0,
+      duration: testDuration,
+    },
+    failures: passed ? undefined : [{ 
+      test: suite,
+      suite: suite,
+      error: 'Test suite failed',
+      stack: undefined,
+      actual: undefined,
+      expected: undefined
+    }],
   };
 }
 
@@ -541,7 +543,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
 export async function test(
   serviceDeployments: ServiceDeploymentInfo[],
   options: TestOptions
-): Promise<CommandResults> {
+): Promise<CommandResults<TestResult>> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   const environment = options.environment!; // Environment is guaranteed by command loader
@@ -570,22 +572,28 @@ export async function test(
           const result = await testService(serviceInfo, suite, options, isStructuredOutput);
           serviceResults.push(result);
         } catch (error) {
-          // Create error result
-          const baseResult = createBaseResult('test', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
-          const errorResult = createErrorResult(baseResult, error as Error);
-          
           const testErrorResult: TestResult = {
-            ...errorResult,
-            testSuite: suite,
-            testsRun: 0,
-            testsPassed: 0,
-            testsFailed: 1,
-            testsSkipped: 0,
-            testDuration: Date.now() - startTime,
-            failures: [{ test: 'setup', error: (error as Error).message }],
-            resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-            status: 'failed',
-            metadata: { error: (error as Error).message },
+            service: serviceInfo.name as ServiceName,
+            deployment: serviceInfo.deploymentType as DeploymentType,
+            success: false,
+            testTime: new Date(),
+            suite: suite,
+            tests: {
+              total: 0,
+              passed: 0,
+              failed: 1,
+              skipped: 0,
+              duration: Date.now() - startTime,
+            },
+            failures: [{ 
+              test: 'setup',
+              suite: suite,
+              error: (error as Error).message,
+              stack: (error as Error).stack,
+              actual: undefined,
+              expected: undefined
+            }],
+            error: (error as Error).message,
           };
           
           serviceResults.push(testErrorResult);
@@ -597,13 +605,13 @@ export async function test(
       }
     }
     
-    // Create aggregated results
-    const commandResults: CommandResults = {
+    // Return results directly - no conversion needed!
+    return {
       command: 'test',
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: serviceResults,
+      services: serviceResults,  // Rich types preserved!
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,
@@ -613,11 +621,9 @@ export async function test(
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false,
       }
-    };
-    
-    return commandResults;
+    } as CommandResults<TestResult>;
     
   } catch (error) {
     if (!isStructuredOutput) {
@@ -639,9 +645,9 @@ export async function test(
       executionContext: {
         user: process.env.USER || 'unknown',
         workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+        dryRun: options.dryRun || false,
       },
-    };
+    } as CommandResults<TestResult>;
   }
 }
 

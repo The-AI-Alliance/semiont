@@ -54,7 +54,7 @@ async function startServiceImpl(
 export async function start(
   serviceDeployments: ServiceDeploymentInfo[],
   options: StartOptions
-): Promise<CommandResults> {
+): Promise<CommandResults<StartResult>> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   const environment = options.environment!; // Environment is guaranteed by command loader
@@ -98,36 +98,13 @@ export async function start(
       }
     }
     
-    // Convert service results to CommandResults format
-    const formattedResults = serviceResults.map(r => ({
-      command: 'start',
-      service: r.service,
-      deploymentType: r.deployment,
-      environment: environment,
-      timestamp: r.startTime,
-      duration: Date.now() - r.startTime.getTime(),
-      success: r.success,
-      startTime: r.startTime,
-      resourceId: {
-        [r.deployment]: {
-          pid: r.pid,
-          id: r.containerId,
-          endpoint: r.endpoint
-        }
-      },
-      status: r.success ? 'running' : 'failed',
-      endpoint: r.endpoint,
-      metadata: r.metadata || {},
-      error: r.error || undefined
-    }));
-    
-    // Create aggregated results structure
-    const commandResults: CommandResults = {
+    // Create aggregated results structure - no conversion needed!
+    const commandResults: CommandResults<StartResult> = {
       command: 'start',
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: formattedResults,
+      services: serviceResults,  // Rich types preserved!
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,

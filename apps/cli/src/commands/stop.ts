@@ -55,7 +55,7 @@ async function stopServiceImpl(
 export async function stop(
   serviceDeployments: ServiceDeploymentInfo[],
   options: StopOptions
-): Promise<CommandResults> {
+): Promise<CommandResults<StopResult>> {
   const stopTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   const environment = options.environment!; // Environment is guaranteed by command loader
@@ -102,33 +102,13 @@ export async function stop(
       }
     }
     
-    // Convert service results to CommandResults format
-    const formattedResults = serviceResults.map(r => ({
-      command: 'stop',
-      service: r.service,
-      deploymentType: r.deployment,
-      environment: environment,
-      timestamp: r.stopTime,
-      duration: Date.now() - r.stopTime.getTime(),
-      success: r.success,
-      stopTime: r.stopTime,
-      gracefulShutdown: r.gracefulShutdown || false,
-      forcedTermination: r.metadata?.forcedKill || false,
-      resourceId: {
-        [r.deployment]: r.metadata || {}
-      },
-      status: r.success ? 'stopped' : 'failed',
-      metadata: r.metadata || {},
-      error: r.error || undefined
-    }));
-    
-    // Create aggregated results
-    const commandResults: CommandResults = {
+    // Create aggregated results - no conversion needed!
+    const commandResults: CommandResults<StopResult> = {
       command: 'stop',
       environment: environment,
       timestamp: new Date(),
       duration: Date.now() - stopTime,
-      services: formattedResults,
+      services: serviceResults,  // Rich types preserved!
       summary: {
         total: serviceResults.length,
         succeeded: serviceResults.filter(r => r.success).length,

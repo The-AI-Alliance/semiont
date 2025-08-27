@@ -35,8 +35,8 @@ type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 async function provisionHandler(
   services: ServiceDeploymentInfo[],
   options: ProvisionOptions
-): Promise<CommandResults> {
-  const serviceResults: any[] = [];
+): Promise<CommandResults<ProvisionResult>> {
+  const serviceResults: ProvisionResult[] = [];
   const commandStartTime = Date.now();
   
   // Create config for services
@@ -56,7 +56,6 @@ async function provisionHandler(
   let totalCost = 0;
   
   for (const serviceInfo of sortedServices) {
-    const startTime = Date.now();
     
     try {
       // Create service instance
@@ -83,18 +82,8 @@ async function provisionHandler(
         totalCost += result.cost.estimatedMonthly;
       }
       
-      // Record result
-      serviceResults.push({
-        service: serviceInfo.name,
-        success: result.success,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
-        resources: result.resources,
-        dependencies: result.dependencies,
-        cost: result.cost,
-        metadata: result.metadata,
-        error: result.error
-      });
+      // Record result directly - no conversion needed!
+      serviceResults.push(result);
       
       // Display result
       if (!options.quiet) {
@@ -141,10 +130,10 @@ async function provisionHandler(
       
     } catch (error) {
       serviceResults.push({
-        service: serviceInfo.name,
+        service: serviceInfo.name as ServiceName,
+        deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
+        provisionTime: new Date(),
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -158,8 +147,8 @@ async function provisionHandler(
   if (!options.quiet && services.length > 1) {
     console.log('\n📊 Provisioning Summary:');
     
-    const successful = serviceResults.filter((r: any) => r.data.success).length;
-    const failed = serviceResults.filter((r: any) => !r.data.success).length;
+    const successful = serviceResults.filter(r => r.success).length;
+    const failed = serviceResults.filter(r => !r.success).length;
     
     console.log(`   ✅ Successful: ${successful}`);
     if (failed > 0) console.log(`   ❌ Failed: ${failed}`);
@@ -170,8 +159,8 @@ async function provisionHandler(
     }
     
     // Platform breakdown
-    const platforms = serviceResults.reduce((acc: any, r: any) => {
-      acc[r.data.deployment] = (acc[r.data.deployment] || 0) + 1;
+    const platforms = serviceResults.reduce((acc, r) => {
+      acc[r.deployment] = (acc[r.deployment] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     
@@ -197,39 +186,25 @@ async function provisionHandler(
     printInfo('\n🔍 This was a dry run. No actual provisioning was performed.');
   }
   
-  // Build the CommandResults interface
-  const commandResults: CommandResults = {
+  // Return results directly - no conversion needed!
+  return {
     command: 'provision',
     environment: options.environment || 'unknown',
     timestamp: new Date(),
     duration: Date.now() - commandStartTime,
-    services: serviceResults.map((r: any) => ({
-      command: 'provision',
-      service: r.service,
-      deploymentType: r.data.deployment,
-      environment: options.environment || 'unknown',
-      timestamp: new Date(),
-      duration: r.data.duration,
-      success: r.data.success,
-      resourceId: { [r.data.deployment]: {} },
-      status: r.data.success ? 'provisioned' : 'failed',
-      metadata: r.data,
-      error: r.data.error
-    })),
+    services: serviceResults,  // Rich types preserved!
     summary: {
       total: serviceResults.length,
-      succeeded: serviceResults.filter((r: any) => r.data.success).length,
-      failed: serviceResults.filter((r: any) => !r.data.success).length,
+      succeeded: serviceResults.filter(r => r.success).length,
+      failed: serviceResults.filter(r => !r.success).length,
       warnings: 0
     },
     executionContext: {
       user: process.env.USER || 'unknown',
       workingDirectory: process.cwd(),
-      dryRun: options.dryRun
+      dryRun: options.dryRun || false
     }
-  };
-  
-  return commandResults;
+  } as CommandResults<ProvisionResult>;
 }
 
 /**

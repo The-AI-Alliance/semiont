@@ -36,40 +36,9 @@ type PublishOptions = z.output<typeof PublishOptionsSchema>;
 async function publishHandler(
   services: ServiceDeploymentInfo[],
   options: PublishOptions
-): Promise<CommandResults> {
+): Promise<CommandResults<PublishResult>> {
   const startTime = Date.now();
-  interface ServicePublishResult {
-    service: string;
-    success: boolean;
-    duration: number;
-    deployment: string;
-    registryUrl?: string;
-    imageTag?: string;
-    size?: number;
-    layers?: number;
-    platform?: string;
-    architecture?: string;
-    baseImage?: string;
-    error?: string;
-    buildTime?: number;
-    pushTime?: number;
-    scanTime?: number;
-    cacheUsed?: boolean;
-    cacheRatio?: number;
-    multiArch?: boolean;
-    architectures?: string[];
-    vulnerabilities?: any;
-    compliance?: any;
-    labels?: Record<string, string>;
-    annotations?: Record<string, string>;
-    signature?: any;
-    metadata?: Record<string, any>;
-    artifacts?: any;
-    version?: string;
-    destinations?: any;
-    rollback?: any;
-  }
-  const serviceResults: ServicePublishResult[] = [];
+  const serviceResults: PublishResult[] = [];
   
   // Create config for services
   const config: Config = {
@@ -88,7 +57,6 @@ async function publishHandler(
   const rollbackCommands: string[] = [];
   
   for (const serviceInfo of sortedServices) {
-    const startTime = Date.now();
     
     try {
       // Create service instance
@@ -107,38 +75,13 @@ async function publishHandler(
       const result = await service.publish();
       publishResults.set(serviceInfo.name, result);
       
-      // Track in serviceResults for CommandResults
-      serviceResults.push({
-        service: serviceInfo.name,
-        success: result.success,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
-        artifacts: result.artifacts,
-        version: typeof result.version === 'object' ? JSON.stringify(result.version) : result.version,
-        destinations: result.destinations,
-        rollback: result.rollback,
-        metadata: result.metadata,
-        error: result.error
-      });
+      // Track result directly - no conversion needed!
+      serviceResults.push(result);
       
       // Collect rollback command if available
       if (result.rollback?.supported && result.rollback.command) {
         rollbackCommands.unshift(result.rollback.command); // Reverse order for rollback
       }
-      
-      // Record result
-      serviceResults.push({
-        service: serviceInfo.name,
-        success: result.success,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
-        artifacts: result.artifacts,
-        version: typeof result.version === 'object' ? JSON.stringify(result.version) : result.version,
-        destinations: result.destinations,
-        rollback: result.rollback,
-        metadata: result.metadata,
-        error: result.error
-      });
       
       // Display result
       if (!options.quiet) {
@@ -201,10 +144,10 @@ async function publishHandler(
       
     } catch (error) {
       serviceResults.push({
-        service: serviceInfo.name,
+        service: serviceInfo.name as ServiceName,
+        deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
+        publishTime: new Date(),
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -262,33 +205,13 @@ async function publishHandler(
     printInfo('\n🔍 This was a dry run. No actual publishing was performed.');
   }
   
-  // Convert service results to CommandResults format
-  const formattedResults = serviceResults.map(r => ({
-    command: 'publish',
-    service: r.service,
-    deploymentType: r.deployment,
-    environment: options.environment || 'default',
-    timestamp: new Date(),
-    success: r.success,
-    duration: r.duration,
-    // resourceId is optional for publish
-    status: r.success ? 'published' : 'failed',
-    metadata: {
-      ...r.metadata,
-      artifacts: r.artifacts,
-      version: r.version,
-      destinations: r.destinations,
-      rollback: r.rollback
-    },
-    error: r.error
-  }));
-  
+  // Return results directly - no conversion needed!
   return {
     command: 'publish',
     environment: options.environment || 'default',
     timestamp: new Date(),
     duration: Date.now() - startTime,
-    services: formattedResults,
+    services: serviceResults,  // Rich types preserved!
     summary: {
       total: services.length,
       succeeded: serviceResults.filter((r: any) => r.success).length,
@@ -300,7 +223,7 @@ async function publishHandler(
       workingDirectory: process.cwd(),
       dryRun: options.dryRun || false
     }
-  } as CommandResults;
+  } as CommandResults<PublishResult>;
 }
 
 /**

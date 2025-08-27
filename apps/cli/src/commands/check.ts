@@ -11,7 +11,7 @@ import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType } from '../services/types.js';
+import { Config, ServiceName, DeploymentType, CheckResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -34,8 +34,8 @@ type CheckOptions = z.output<typeof CheckOptionsSchema>;
 async function checkHandler(
   services: ServiceDeploymentInfo[],
   options: CheckOptions
-): Promise<CommandResults> {
-  const serviceResults: any[] = [];
+): Promise<CommandResults<CheckResult>> {
+  const serviceResults: CheckResult[] = [];
   const commandStartTime = Date.now();
   
   // Create config for services
@@ -47,7 +47,6 @@ async function checkHandler(
   };
   
   for (const serviceInfo of services) {
-    const startTime = Date.now();
     
     try {
       // Create service instance
@@ -63,21 +62,8 @@ async function checkHandler(
       // Check the service
       const result = await service.check();
       
-      // Record result
-      serviceResults.push({
-        service: serviceInfo.name,
-        success: result.success,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
-        status: result.status,
-        stateVerified: result.stateVerified,
-        stateMismatch: result.stateMismatch,
-        health: result.health,
-        resources: result.resources,
-        logs: result.logs,
-        metadata: result.metadata,
-        error: result.error
-      });
+      // Record result directly - no conversion needed!
+      serviceResults.push(result);
       
       // Display result
       if (!options.quiet) {
@@ -143,10 +129,12 @@ async function checkHandler(
       
     } catch (error) {
       serviceResults.push({
-      service: serviceInfo.name,
+        service: serviceInfo.name as ServiceName,
+        deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
+        checkTime: new Date(),
+        status: 'unknown',
+        stateVerified: false,
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -160,10 +148,10 @@ async function checkHandler(
   if (!options.quiet && services.length > 1) {
     console.log('\n📊 Summary:');
     
-    const running = serviceResults.filter((r: any) => r.data.status === 'running').length;
-    const stopped = serviceResults.filter((r: any) => r.data.status === 'stopped').length;
-    const unhealthy = serviceResults.filter((r: any) => r.data.status === 'unhealthy').length;
-    const unknown = serviceResults.filter((r: any) => r.data.status === 'unknown').length;
+    const running = serviceResults.filter(r => r.status === 'running').length;
+    const stopped = serviceResults.filter(r => r.status === 'stopped').length;
+    const unhealthy = serviceResults.filter(r => r.status === 'unhealthy').length;
+    const unknown = serviceResults.filter(r => r.status === 'unknown').length;
     
     console.log(`   Running: ${running}`);
     console.log(`   Stopped: ${stopped}`);
@@ -179,29 +167,17 @@ async function checkHandler(
     }
   }
   
-  // Build the CommandResults interface
-  const commandResults: CommandResults = {
+  // Return results directly - no conversion needed!
+  return {
     command: 'check',
     environment: options.environment || 'unknown',
     timestamp: new Date(),
     duration: Date.now() - commandStartTime,
-    services: serviceResults.map((r: any) => ({
-      command: 'check',
-      service: r.service,
-      deploymentType: r.data.deployment,
-      environment: options.environment || 'unknown',
-      timestamp: new Date(),
-      duration: r.data.duration,
-      success: r.data.success,
-      resourceId: { [r.data.deployment]: {} },
-      status: r.data.status || 'unknown',
-      metadata: r.data,
-      error: r.data.error
-    })),
+    services: serviceResults,  // Rich types preserved!
     summary: {
       total: serviceResults.length,
-      succeeded: serviceResults.filter((r: any) => r.data.success).length,
-      failed: serviceResults.filter((r: any) => !r.data.success).length,
+      succeeded: serviceResults.filter(r => r.success).length,
+      failed: serviceResults.filter(r => !r.success).length,
       warnings: 0
     },
     executionContext: {
@@ -209,9 +185,7 @@ async function checkHandler(
       workingDirectory: process.cwd(),
       dryRun: false
     }
-  };
-  
-  return commandResults;
+  } as CommandResults<CheckResult>;
 }
 
 // =====================================================================

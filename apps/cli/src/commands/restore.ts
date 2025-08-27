@@ -35,7 +35,7 @@ type CommandRestoreOptions = z.output<typeof RestoreOptionsSchema>;
 async function restoreHandler(
   serviceDeployments: ServiceDeploymentInfo[],
   options: CommandRestoreOptions
-): Promise<CommandResults> {
+): Promise<CommandResults<RestoreResult>> {
   const startTime = Date.now();
   
   // Create config from options
@@ -219,23 +219,13 @@ async function restoreHandler(
     warnings.forEach(w => printWarning(`   ${w}`));
   }
   
-  // Return structured results
+  // Return results directly - no conversion needed!
   return {
     command: 'restore',
     environment: options.environment || 'unknown',
     timestamp: new Date(),
     duration: Date.now() - startTime,
-    services: results.map(r => ({
-      command: 'restore',
-      service: r.service,
-      deploymentType: r.deployment,
-      environment: options.environment || 'unknown',
-      timestamp: r.restoreTime,
-      success: r.success,
-      duration: r.downtime?.duration || 0,
-      status: r.success ? 'restored' : 'failed',
-      error: r.error
-    })),
+    services: results,  // Rich types preserved!
     summary: {
       total: results.length,
       succeeded: successful,
@@ -247,7 +237,7 @@ async function restoreHandler(
       workingDirectory: process.cwd(),
       dryRun: options.dryRun || false
     }
-  } as CommandResults;
+  } as CommandResults<RestoreResult>;
 }
 
 // Build and export the command

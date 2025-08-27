@@ -11,7 +11,7 @@ import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType } from '../services/types.js';
+import { Config, ServiceName, DeploymentType, UpdateResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -34,20 +34,8 @@ type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
 async function updateHandler(
   services: ServiceDeploymentInfo[],
   options: UpdateOptions
-): Promise<CommandResults> {
-  interface ServiceUpdateResult {
-    service: string;
-    success: boolean;
-    duration: number;
-    deployment: string;
-    strategy?: string;
-    previousVersion?: string;
-    newVersion?: string;
-    downtime?: number;
-    metadata?: Record<string, any>;
-    error?: string;
-  }
-  const serviceResults: ServiceUpdateResult[] = [];
+): Promise<CommandResults<UpdateResult>> {
+  const serviceResults: UpdateResult[] = [];
   
   // Create config for services
   const config: Config = {
@@ -59,7 +47,6 @@ async function updateHandler(
   };
   
   for (const serviceInfo of services) {
-    const startTime = Date.now();
     
     try {
       // Create service instance
@@ -75,19 +62,8 @@ async function updateHandler(
       // Update the service
       const result = await service.update();
       
-      // Record result
-      serviceResults.push({
-        service: serviceInfo.name,
-        success: result.success,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
-        strategy: result.strategy,
-        previousVersion: result.previousVersion,
-        newVersion: result.newVersion,
-        downtime: result.downtime,
-        metadata: result.metadata,
-        error: result.error
-      });
+      // Record result directly - no conversion needed!
+      serviceResults.push(result);
       
       // Display result
       if (!options.quiet) {
@@ -132,10 +108,11 @@ async function updateHandler(
       
     } catch (error) {
       serviceResults.push({
-        service: serviceInfo.name,
+        service: serviceInfo.name as ServiceName,
+        deployment: serviceInfo.deploymentType as DeploymentType,
         success: false,
-        duration: Date.now() - startTime,
-        deployment: serviceInfo.deploymentType,
+        updateTime: new Date(),
+        strategy: 'none',
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -198,33 +175,14 @@ async function updateHandler(
     printInfo('\n🔍 This was a dry run. No actual changes were made.');
   }
   
-  // Convert service results to CommandResults format
-  const formattedResults = serviceResults.map(r => ({
-    command: 'update',
-    service: r.service,
-    deploymentType: r.deployment,
-    environment: options.environment || 'default',
-    timestamp: new Date(),
-    success: r.success,
-    duration: r.duration,
-    // resourceId is optional - update doesn't have specific resource IDs
-    status: r.success ? 'updated' : 'failed',
-    metadata: {
-      ...r.metadata,
-      strategy: r.strategy,
-      previousVersion: r.previousVersion,
-      newVersion: r.newVersion,
-      downtime: r.downtime
-    },
-    error: r.error
-  }));
-  
+  // Return results directly - no conversion needed!
+  const startTime = Date.now();
   return {
     command: 'update',
     environment: options.environment || 'default',
     timestamp: new Date(),
-    duration: Date.now() - (Date.now() - serviceResults[0]?.duration || 0),
-    services: formattedResults,
+    duration: Date.now() - startTime,
+    services: serviceResults,  // Rich types preserved!
     summary: {
       total: services.length,
       succeeded: serviceResults.filter(r => r.success).length,
@@ -236,7 +194,7 @@ async function updateHandler(
       workingDirectory: process.cwd(),
       dryRun: options.dryRun || false
     }
-  } as CommandResults;
+  } as CommandResults<UpdateResult>;
 }
 
 // =====================================================================
