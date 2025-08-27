@@ -22,8 +22,7 @@ global.fetch = vi.fn();
 function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    platform: service.type as any,
-    platform: { type: service.type },
+    platform: service.type as Platform,
     config: service.config || {}
   }));
 }
