@@ -234,7 +234,7 @@ async function init(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const initCommand = new CommandBuilder<InitOptions>()
+export const initCommand = new CommandBuilder()
   .name('init')
   .description('Initialize a new Semiont project')
   .schema(InitOptionsSchema) // Schema types are compatible but TS can't infer it

@@ -190,7 +190,7 @@ export async function start(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const startCommand = new CommandBuilder<StartOptions>()
+export const startCommand = new CommandBuilder()
   .name('start')
   .description('Start services in an environment')
   .schema(StartOptionsSchema)

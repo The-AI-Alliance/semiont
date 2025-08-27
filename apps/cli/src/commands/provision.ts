@@ -255,7 +255,7 @@ function sortServicesByDependencies(services: ServiceDeploymentInfo[]): ServiceD
 // COMMAND DEFINITION
 // =====================================================================
 
-export const provisionNewCommand = new CommandBuilder<ProvisionOptions>()
+export const provisionNewCommand = new CommandBuilder()
   .name('provision-new')
   .description('Provision infrastructure and resources for services')
   .schema(ProvisionOptionsSchema)

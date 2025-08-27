@@ -326,7 +326,7 @@ function sortServicesByPublishOrder(services: ServiceDeploymentInfo[]): ServiceD
 // COMMAND DEFINITION
 // =====================================================================
 
-export const publishNewCommand = new CommandBuilder<PublishOptions>()
+export const publishNewCommand = new CommandBuilder()
   .name('publish-new')
   .description('Publish and deploy service artifacts')
   .schema(PublishOptionsSchema)

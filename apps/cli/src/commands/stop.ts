@@ -183,7 +183,7 @@ export async function stop(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const stopCommand = new CommandBuilder<StopOptions>()
+export const stopCommand = new CommandBuilder()
   .name('stop')
   .description('Stop services in an environment')
   .schema(StopOptionsSchema)

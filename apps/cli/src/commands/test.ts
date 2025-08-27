@@ -772,7 +772,7 @@ async function runComponentTestsForService(serviceInfo: ServiceDeploymentInfo, o
 // COMMAND DEFINITION
 // =====================================================================
 
-export const testCommand = new CommandBuilder<TestOptions>()
+export const testCommand = new CommandBuilder()
   .name('test')
   .description('Run tests against services')
   .schema(TestOptionsSchema)

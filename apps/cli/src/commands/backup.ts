@@ -323,10 +323,10 @@ function sortServicesByBackupPriority(services: ServiceDeploymentInfo[]): Servic
 // COMMAND DEFINITION
 // =====================================================================
 
-export const backupCommand = new CommandBuilder<BackupOptions>()
+export const backupCommand = new CommandBuilder()
   .name('backup')
   .description('Create backups of service data and state')
-  .schema(BackupOptionsSchema as z.ZodType<BackupOptions>)
+  .schema(BackupOptionsSchema)
   .requiresServices(true)
   .handler(backupHandler)
   .build();

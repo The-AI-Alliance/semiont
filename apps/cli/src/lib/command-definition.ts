@@ -30,23 +30,29 @@ export interface ArgSpec {
 
 /**
  * Complete command definition with all metadata
+ * 
+ * @template TInput - The input type (what the CLI parser provides)
+ * @template TOutput - The output type (what the handler receives after schema processing)
  */
-export interface CommandDefinition<TOptions = any> {
+export interface CommandDefinition<TInput = any, TOutput = TInput> {
   name: string;
   description: string;
-  schema: z.ZodType<TOptions>;
+  schema: z.ZodType<TOutput, any, TInput>;
   argSpec: ArgSpec;
   requiresEnvironment: boolean;
   requiresServices: boolean;
   examples: string[];
-  handler: CommandFunction<TOptions>;
+  handler: CommandFunction<TOutput>;
 }
 
 /**
  * Type-safe command builder for creating command definitions
+ * 
+ * @template TInput - The input type (what the CLI parser provides)
+ * @template TOutput - The output type (what the handler receives after schema processing)
  */
-export class CommandBuilder<TOptions = any> {
-  private definition: Partial<CommandDefinition<TOptions>> = {
+export class CommandBuilder<TInput = any, TOutput = TInput> {
+  private definition: Partial<CommandDefinition<TInput, TOutput>> = {
     requiresEnvironment: true, // Most commands need this
     requiresServices: true,     // Most commands need this
     examples: [],
@@ -62,9 +68,9 @@ export class CommandBuilder<TOptions = any> {
     return this;
   }
 
-  schema(schema: z.ZodType<TOptions>): this {
-    this.definition.schema = schema;
-    return this;
+  schema<S extends z.ZodSchema>(schema: S): CommandBuilder<z.input<S>, z.output<S>> {
+    (this.definition as any).schema = schema;
+    return this as any;
   }
 
   args(spec: ArgSpec): this {
@@ -87,12 +93,12 @@ export class CommandBuilder<TOptions = any> {
     return this;
   }
 
-  handler(fn: CommandFunction<TOptions>): this {
+  handler(fn: CommandFunction<TOutput>): this {
     this.definition.handler = fn;
     return this;
   }
 
-  build(): CommandDefinition<TOptions> {
+  build(): CommandDefinition<TInput, TOutput> {
     const { name, description, schema, argSpec, handler } = this.definition;
     
     if (!name) throw new Error('Command name is required');
@@ -101,16 +107,16 @@ export class CommandBuilder<TOptions = any> {
     if (!argSpec) throw new Error('Command argSpec is required');
     if (!handler) throw new Error('Command handler is required');
     
-    return this.definition as CommandDefinition<TOptions>;
+    return this.definition as CommandDefinition<TInput, TOutput>;
   }
 }
 
 /**
  * Helper function to define a command with type safety
  */
-export function defineCommand<TOptions>(
-  definition: CommandDefinition<TOptions>
-): CommandDefinition<TOptions> {
+export function defineCommand<TInput, TOutput = TInput>(
+  definition: CommandDefinition<TInput, TOutput>
+): CommandDefinition<TInput, TOutput> {
   return definition;
 }
 

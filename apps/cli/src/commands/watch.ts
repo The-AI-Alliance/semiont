@@ -29,6 +29,7 @@ type DashboardAppType = React.FC<{
   service?: string;
   refreshInterval?: number;
   environment: string;
+  data?: any; // Dashboard data passed from the wrapper
 }>;
 let DashboardApp: DashboardAppType | undefined;
 
@@ -308,7 +309,7 @@ export async function watch(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const watchNewCommand = new CommandBuilder<WatchOptions>()
+export const watchNewCommand = new CommandBuilder()
   .name('watch-new')
   .description('Monitor services using new architecture')
   .schema(WatchOptionsSchema)

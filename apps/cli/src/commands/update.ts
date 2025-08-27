@@ -243,7 +243,7 @@ async function updateHandler(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const updateNewCommand = new CommandBuilder<UpdateOptions>()
+export const updateNewCommand = new CommandBuilder()
   .name('update-new')
   .description('Update services to latest version using new service architecture')
   .schema(UpdateOptionsSchema)

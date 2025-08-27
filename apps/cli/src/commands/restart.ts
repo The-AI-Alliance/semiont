@@ -840,7 +840,7 @@ export async function restart(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const restartCommand = new CommandBuilder<RestartOptions>()
+export const restartCommand = new CommandBuilder()
   .name('restart')
   .description('Restart services in an environment')
   .schema(RestartOptionsSchema)

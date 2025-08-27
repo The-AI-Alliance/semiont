@@ -251,7 +251,7 @@ async function restoreHandler(
 }
 
 // Build and export the command
-export const restoreNewCommand = new CommandBuilder<CommandRestoreOptions>()
+export const restoreNewCommand = new CommandBuilder()
   .name('restore-new')
   .description('Restore services from backups (new implementation)')
   .schema(RestoreOptionsSchema)

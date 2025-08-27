@@ -462,7 +462,7 @@ async function configure(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const configureCommand = new CommandBuilder<ConfigureOptions>()
+export const configureCommand = new CommandBuilder()
   .name('configure')
   .description('Manage configuration and secrets')
   .schema(ConfigureOptionsSchema)
