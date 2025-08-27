@@ -8,11 +8,12 @@ import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType, StopResult } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -20,17 +21,12 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StopOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
+const StopOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   force: z.boolean().default(false),
 });
 
-type StopOptions = z.infer<typeof StopOptionsSchema> & BaseCommandOptions;
+type StopOptions = z.output<typeof StopOptionsSchema>;
 
 // =====================================================================
 // SERVICE-BASED STOP IMPLEMENTATION
@@ -67,7 +63,7 @@ export async function stop(
   // Create shared config
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: environment as any,
+    environment: parseEnvironment(environment),
     verbose: options.verbose,
     quiet: options.quiet || isStructuredOutput,
     dryRun: options.dryRun
@@ -120,7 +116,7 @@ export async function stop(
       forcedTermination: r.metadata?.forcedKill || false,
       resourceId: {
         [r.deployment]: r.metadata || {}
-      } as any,
+      },
       status: r.success ? 'stopped' : 'failed',
       metadata: r.metadata || {},
       error: r.error || undefined
@@ -190,7 +186,7 @@ export async function stop(
 export const stopCommand = new CommandBuilder<StopOptions>()
   .name('stop')
   .description('Stop services in an environment')
-  .schema(StopOptionsSchema as any)
+  .schema(StopOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
   .args({

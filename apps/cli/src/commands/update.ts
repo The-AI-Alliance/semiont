@@ -7,11 +7,12 @@ import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-lo
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -19,32 +20,39 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const UpdateOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
+const UpdateOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
 });
 
-type UpdateOptions = z.infer<typeof UpdateOptionsSchema> & BaseCommandOptions;
+type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
 
 // =====================================================================
 // COMMAND HANDLER
 // =====================================================================
 
 async function updateHandler(
-  options: UpdateOptions,
-  services: ServiceDeploymentInfo[]
+  services: ServiceDeploymentInfo[],
+  options: UpdateOptions
 ): Promise<CommandResults> {
-  const serviceResults: any[] = [];
+  interface ServiceUpdateResult {
+    service: string;
+    success: boolean;
+    duration: number;
+    deployment: string;
+    strategy?: string;
+    previousVersion?: string;
+    newVersion?: string;
+    downtime?: number;
+    metadata?: Record<string, any>;
+    error?: string;
+  }
+  const serviceResults: ServiceUpdateResult[] = [];
   
   // Create config for services
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: options.environment as any || 'dev',
+    environment: parseEnvironment(options.environment),
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
@@ -191,15 +199,15 @@ async function updateHandler(
   }
   
   // Convert service results to CommandResults format
-  const formattedResults = serviceResults.map((r: any) => ({
+  const formattedResults = serviceResults.map(r => ({
     command: 'update',
     service: r.service,
-    deploymentType: r.deployment as any,
+    deploymentType: r.deployment,
     environment: options.environment || 'default',
     timestamp: new Date(),
     success: r.success,
     duration: r.duration,
-    resourceId: {} as any, // Update doesn't have specific resource IDs
+    // resourceId is optional - update doesn't have specific resource IDs
     status: r.success ? 'updated' : 'failed',
     metadata: {
       ...r.metadata,
@@ -219,9 +227,15 @@ async function updateHandler(
     services: formattedResults,
     summary: {
       total: services.length,
-      succeeded: serviceResults.filter((r: any) => r.success).length,
-      failed: serviceResults.filter((r: any) => !r.success).length,
+      succeeded: serviceResults.filter(r => r.success).length,
+      failed: serviceResults.filter(r => !r.success).length,
+      warnings: 0
     },
+    executionContext: {
+      user: process.env.USER || 'unknown',
+      workingDirectory: process.cwd(),
+      dryRun: options.dryRun || false
+    }
   } as CommandResults;
 }
 
@@ -232,7 +246,7 @@ async function updateHandler(
 export const updateNewCommand = new CommandBuilder<UpdateOptions>()
   .name('update-new')
   .description('Update services to latest version using new service architecture')
-  .schema(UpdateOptionsSchema as any)
+  .schema(UpdateOptionsSchema)
   .requiresServices(true)
-  .handler(updateHandler as any)
+  .handler(updateHandler)
   .build();

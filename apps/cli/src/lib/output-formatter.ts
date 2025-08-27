@@ -129,18 +129,18 @@ export class OutputFormatter {
       
       output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${service.service}${c.reset} (${service.deploymentType}): ${statusColor}${service.status}${c.reset}\n`;
       
-      // Show endpoint if available
-      const startResult = service as any;
-      if (startResult.endpoint && !options.quiet) {
-        output += `   ${c.dim}endpoint: ${startResult.endpoint}${c.reset}\n`;
+      // Show endpoint if available (for start results)
+      if ('endpoint' in service && service.endpoint && !options.quiet) {
+        output += `   ${c.dim}endpoint: ${service.endpoint}${c.reset}\n`;
       }
       
       // Show revision information for update results
-      const updateResult = service as any;
-      if (updateResult.previousVersion && updateResult.newVersion && !options.quiet) {
-        output += `   ${c.dim}revision: ${updateResult.previousVersion} → ${updateResult.newVersion}${c.reset}\n`;
-      } else if (updateResult.newVersion && !options.quiet) {
-        output += `   ${c.dim}revision: ${updateResult.newVersion}${c.reset}\n`;
+      if ('previousVersion' in service && 'newVersion' in service && !options.quiet) {
+        if (service.previousVersion && service.newVersion) {
+          output += `   ${c.dim}revision: ${service.previousVersion} → ${service.newVersion}${c.reset}\n`;
+        } else if (service.newVersion) {
+          output += `   ${c.dim}revision: ${service.newVersion}${c.reset}\n`;
+        }
       }
       
       // Show resource ID and console URL
@@ -208,7 +208,7 @@ export class OutputFormatter {
     const columns = ['Service', 'Type', 'Status'];
     
     // Add endpoint column if any service has an endpoint
-    const hasEndpoints = results.services.some(s => (s as any).endpoint);
+    const hasEndpoints = results.services.some(s => 'endpoint' in s && s.endpoint);
     if (hasEndpoints) {
       columns.push('Endpoint');
     }
@@ -247,11 +247,12 @@ export class OutputFormatter {
       };
 
       // Add endpoint if available
-      const startResult = service as any;
-      if (hasEndpoints && startResult.endpoint) {
-        row.Endpoint = startResult.endpoint;
-      } else if (hasEndpoints) {
-        row.Endpoint = '-';
+      if (hasEndpoints) {
+        if ('endpoint' in service && service.endpoint) {
+          row.Endpoint = service.endpoint;
+        } else {
+          row.Endpoint = '-';
+        }
       }
 
       // Add resource ID in verbose mode

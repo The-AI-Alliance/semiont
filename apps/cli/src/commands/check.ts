@@ -7,11 +7,12 @@ import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-lo
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -19,16 +20,12 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const CheckOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
+const CheckOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
 });
 
-type CheckOptions = z.infer<typeof CheckOptionsSchema> & BaseCommandOptions;
+type CheckOptions = z.output<typeof CheckOptionsSchema>;
 
 // =====================================================================
 // COMMAND HANDLER
@@ -44,7 +41,7 @@ async function checkHandler(
   // Create config for services
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: options.environment as any || 'dev',
+    environment: parseEnvironment(options.environment),
     verbose: options.verbose,
     quiet: options.quiet,
   };
@@ -196,7 +193,7 @@ async function checkHandler(
       timestamp: new Date(),
       duration: r.data.duration,
       success: r.data.success,
-      resourceId: { [r.data.deployment]: {} } as any,
+      resourceId: { [r.data.deployment]: {} },
       status: r.data.status || 'unknown',
       metadata: r.data,
       error: r.data.error
@@ -224,7 +221,7 @@ async function checkHandler(
 export const checkNewCommand = new CommandBuilder<CheckOptions>()
   .name('check-new')
   .description('Check service status using new service architecture')
-  .schema(CheckOptionsSchema as any)
+  .schema(CheckOptionsSchema)
   .requiresServices(true)
   .handler(checkHandler)
   .build();

@@ -7,11 +7,12 @@ import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-lo
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType, PublishResult, ServiceConfig } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -19,35 +20,61 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const PublishOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
+const PublishOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
   tag: z.string().optional(), // Custom version tag
   registry: z.string().optional(), // Override default registry
 });
 
-type PublishOptions = z.infer<typeof PublishOptionsSchema> & BaseCommandOptions;
+type PublishOptions = z.output<typeof PublishOptionsSchema>;
 
 // =====================================================================
 // COMMAND HANDLER
 // =====================================================================
 
 async function publishHandler(
-  options: PublishOptions,
-  services: ServiceDeploymentInfo[]
+  services: ServiceDeploymentInfo[],
+  options: PublishOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
-  const serviceResults: any[] = [];
+  interface ServicePublishResult {
+    service: string;
+    success: boolean;
+    duration: number;
+    deployment: string;
+    registryUrl?: string;
+    imageTag?: string;
+    size?: number;
+    layers?: number;
+    platform?: string;
+    architecture?: string;
+    baseImage?: string;
+    error?: string;
+    buildTime?: number;
+    pushTime?: number;
+    scanTime?: number;
+    cacheUsed?: boolean;
+    cacheRatio?: number;
+    multiArch?: boolean;
+    architectures?: string[];
+    vulnerabilities?: any;
+    compliance?: any;
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+    signature?: any;
+    metadata?: Record<string, any>;
+    artifacts?: any;
+    version?: string;
+    destinations?: any;
+    rollback?: any;
+  }
+  const serviceResults: ServicePublishResult[] = [];
   
   // Create config for services
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: options.environment as any || 'dev',
+    environment: parseEnvironment(options.environment),
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
@@ -87,7 +114,7 @@ async function publishHandler(
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
         artifacts: result.artifacts,
-        version: result.version,
+        version: typeof result.version === 'object' ? JSON.stringify(result.version) : result.version,
         destinations: result.destinations,
         rollback: result.rollback,
         metadata: result.metadata,
@@ -106,7 +133,7 @@ async function publishHandler(
         duration: Date.now() - startTime,
         deployment: serviceInfo.deploymentType,
         artifacts: result.artifacts,
-        version: result.version,
+        version: typeof result.version === 'object' ? JSON.stringify(result.version) : result.version,
         destinations: result.destinations,
         rollback: result.rollback,
         metadata: result.metadata,
@@ -236,15 +263,15 @@ async function publishHandler(
   }
   
   // Convert service results to CommandResults format
-  const formattedResults = serviceResults.map((r: any) => ({
+  const formattedResults = serviceResults.map(r => ({
     command: 'publish',
     service: r.service,
-    deploymentType: r.deployment as any,
+    deploymentType: r.deployment,
     environment: options.environment || 'default',
     timestamp: new Date(),
     success: r.success,
     duration: r.duration,
-    resourceId: {} as any,
+    // resourceId is optional for publish
     status: r.success ? 'published' : 'failed',
     metadata: {
       ...r.metadata,
@@ -302,7 +329,7 @@ function sortServicesByPublishOrder(services: ServiceDeploymentInfo[]): ServiceD
 export const publishNewCommand = new CommandBuilder<PublishOptions>()
   .name('publish-new')
   .description('Publish and deploy service artifacts')
-  .schema(PublishOptionsSchema as any)
+  .schema(PublishOptionsSchema)
   .requiresServices(true)
-  .handler(publishHandler as any)
+  .handler(publishHandler)
   .build();

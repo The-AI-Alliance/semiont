@@ -12,10 +12,13 @@ import { ServiceFactory } from '../services/service-factory.js';
 import { DeploymentType, ServiceConfig } from '../services/types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
 import { z } from 'zod';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { CommandResults } from '../lib/command-results.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 // Schema for restore options  
-const RestoreOptionsSchema = z.object({
+const RestoreOptionsSchema = BaseOptionsSchema.extend({
   backupId: z.string().describe('ID of the backup to restore from'),
   force: z.boolean().optional().describe('Force restore without confirmation'),
   validate: z.boolean().optional().default(true).describe('Validate backup before restoring'),
@@ -24,22 +27,29 @@ const RestoreOptionsSchema = z.object({
   verifyChecksum: z.boolean().optional().default(true).describe('Verify backup checksum'),
   skipTests: z.boolean().optional().describe('Skip post-restore tests'),
   targetPath: z.string().optional().describe('Custom restore path'),
-  dryRun: z.boolean().optional().describe('Simulate restore without changes'),
-  // Base command options
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  environment: z.string().optional(),
-  quiet: z.boolean().optional(),
-  verbose: z.boolean().optional()
 });
 
-type CommandRestoreOptions = z.infer<typeof RestoreOptionsSchema> & BaseCommandOptions;
+type CommandRestoreOptions = z.output<typeof RestoreOptionsSchema>;
 
 // Main handler function
 async function restoreHandler(
-  config: Config,
-  services: ServiceName[],
-  options: z.infer<typeof RestoreOptionsSchema>
-): Promise<void> {
+  serviceDeployments: ServiceDeploymentInfo[],
+  options: CommandRestoreOptions
+): Promise<CommandResults> {
+  const startTime = Date.now();
+  
+  // Create config from options
+  const config: Config = {
+    projectRoot: process.cwd(),
+    environment: parseEnvironment(options.environment),
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun
+  };
+  
+  // Extract service names from deployments
+  const services = serviceDeployments.map(sd => sd.name as ServiceName);
+  
   printInfo(`🔄 Restoring ${services.length} service(s) from backup ${options.backupId}`);
   
   // Warn about potential downtime
@@ -68,7 +78,6 @@ async function restoreHandler(
   const orderedServices = restoreOrder.filter(s => services.includes(s));
   
   const results: RestoreResult[] = [];
-  const startTime = Date.now();
   
   // Pre-restore validation phase
   if (options.validate !== false && !config.dryRun) {
@@ -210,17 +219,42 @@ async function restoreHandler(
     warnings.forEach(w => printWarning(`   ${w}`));
   }
   
-  // Exit with error if any restore failed
-  if (failed > 0 && !options.force) {
-    process.exit(1);
-  }
+  // Return structured results
+  return {
+    command: 'restore',
+    environment: options.environment || 'unknown',
+    timestamp: new Date(),
+    duration: Date.now() - startTime,
+    services: results.map(r => ({
+      command: 'restore',
+      service: r.service,
+      deploymentType: r.deployment,
+      environment: options.environment || 'unknown',
+      timestamp: r.restoreTime,
+      success: r.success,
+      duration: r.downtime?.duration || 0,
+      status: r.success ? 'restored' : 'failed',
+      error: r.error
+    })),
+    summary: {
+      total: results.length,
+      succeeded: successful,
+      failed: failed,
+      warnings: warnings.length
+    },
+    executionContext: {
+      user: process.env.USER || 'unknown',
+      workingDirectory: process.cwd(),
+      dryRun: options.dryRun || false
+    }
+  } as CommandResults;
 }
 
 // Build and export the command
 export const restoreNewCommand = new CommandBuilder<CommandRestoreOptions>()
   .name('restore-new')
   .description('Restore services from backups (new implementation)')
-  .schema(RestoreOptionsSchema as any)
+  .schema(RestoreOptionsSchema)
   .requiresServices(true)
-  .handler(restoreHandler as any)
+  .handler(restoreHandler)
   .build();

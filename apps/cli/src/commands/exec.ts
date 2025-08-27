@@ -7,11 +7,12 @@ import { printError, printInfo, printWarning } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType, ExecOptions } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -19,12 +20,7 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const ExecCommandOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
+const ExecCommandOptionsSchema = BaseOptionsSchema.extend({
   service: z.string(), // Required - must specify which service to exec into
   command: z.string(), // The command to execute
   interactive: z.boolean().default(false),
@@ -36,17 +32,40 @@ const ExecCommandOptionsSchema = z.object({
   timeout: z.number().optional(),
 });
 
-type ExecCommandOptions = z.infer<typeof ExecCommandOptionsSchema> & BaseCommandOptions;
+type ExecCommandOptions = z.output<typeof ExecCommandOptionsSchema>;
 
 // =====================================================================
 // COMMAND HANDLER
 // =====================================================================
 
 async function execHandler(
-  options: ExecCommandOptions,
-  services: ServiceDeploymentInfo[]
+  services: ServiceDeploymentInfo[],
+  options: ExecCommandOptions
 ): Promise<CommandResults> {
-  const serviceResults: any[] = [];
+  interface ServiceExecResult {
+    service: string;
+    success: boolean;
+    duration: number;
+    deployment: string;
+    command: string;
+    exitCode?: number;
+    workingDirectory?: string;
+    user?: string;
+    shell?: string;
+    interactive?: boolean;
+    tty?: boolean;
+    stdout?: string;
+    stderr?: string;
+    truncated?: boolean;
+    containerId?: string;
+    instanceId?: string;
+    sessionId?: string;
+    streaming?: any;
+    security?: any;
+    error?: string;
+    metadata?: Record<string, any>;
+  }
+  const serviceResults: ServiceExecResult[] = [];
   
   // Exec only works with a single service
   if (services.length === 0) {
@@ -61,7 +80,7 @@ async function execHandler(
   // Create config for service
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: options.environment as any || 'dev',
+    environment: parseEnvironment(options.environment),
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
@@ -260,10 +279,10 @@ async function execHandler(
   }
   
   // Convert service results to CommandResults format
-  const formattedResults = serviceResults.map((r: any) => ({
+  const formattedResults = serviceResults.map(r => ({
     command: 'exec',
     service: r.service,
-    deploymentType: r.deployment as any,
+    deploymentType: r.deployment,
     environment: options.environment || 'default',
     timestamp: new Date(),
     success: r.success,
@@ -272,7 +291,7 @@ async function execHandler(
       container: r.containerId ? { id: r.containerId } : undefined,
       aws: r.instanceId ? { id: r.instanceId } : undefined,
       process: r.workingDirectory ? { path: r.workingDirectory } : undefined
-    } as any,
+    },
     status: r.success ? 'executed' : 'failed',
     metadata: {
       command: r.command,
@@ -319,7 +338,7 @@ async function execHandler(
 export const execNewCommand = new CommandBuilder<ExecCommandOptions>()
   .name('exec-new')
   .description('Execute commands within running services')
-  .schema(ExecCommandOptionsSchema as any)
+  .schema(ExecCommandOptionsSchema)
   .requiresServices(true)
-  .handler(execHandler as any)
+  .handler(execHandler)
   .build();

@@ -60,12 +60,10 @@ export class LogAggregator {
     
     // Fetch logs from each service in parallel
     const promises = services.map(async service => {
-      let fetcherType = service.deploymentType;
-      
-      // Special case for AWS RDS
-      if (service.deploymentType === 'aws' && service.name === 'database') {
-        fetcherType = 'rds' as any; // RDS is a special AWS sub-type
-      }
+      // Determine fetcher type - use special 'rds' key for AWS databases
+      const fetcherType = (service.deploymentType === 'aws' && service.name === 'database') 
+        ? 'rds' 
+        : service.deploymentType;
       
       const fetcher = this.fetchers.get(fetcherType);
       

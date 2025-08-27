@@ -18,25 +18,28 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 import { Config } from '../services/types.js';
 import { DashboardDataSource } from '../lib/dashboard-data.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 // Import the React dashboard component dynamically to handle module loading
-let DashboardApp: any;
+type DashboardAppType = React.FC<{
+  mode: 'unified' | 'logs' | 'metrics';
+  service?: string;
+  refreshInterval?: number;
+  environment: string;
+}>;
+let DashboardApp: DashboardAppType | undefined;
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const WatchOptionsSchema = z.object({
-  environment: z.string().optional(),
+const WatchOptionsSchema = BaseOptionsSchema.extend({
   target: z.enum(['all', 'logs', 'metrics', 'services']).default('all'),
   noFollow: z.boolean().default(false),
   interval: z.number().int().positive().default(30),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
   terminal: z.boolean().default(false),
   term: z.boolean().optional(),
@@ -47,7 +50,7 @@ const WatchOptionsSchema = z.object({
   term: undefined
 }));
 
-type WatchOptions = z.infer<typeof WatchOptionsSchema> & BaseCommandOptions;
+type WatchOptions = z.output<typeof WatchOptionsSchema>;
 
 // =====================================================================
 // ENHANCED DATA SOURCE FOR NEW ARCHITECTURE
@@ -88,10 +91,10 @@ async function launchDashboard(
     try {
       if (terminalMode) {
         // Terminal dashboard mode
-        const watchModule = await import('./watch-dashboard.js') as any;
-        DashboardApp = watchModule.default || watchModule.DashboardApp || watchModule;
+        const watchModule = await import('./watch-dashboard.js');
+        DashboardApp = watchModule.default as DashboardAppType;
         
-        if (!DashboardApp || (typeof DashboardApp !== 'function' && !DashboardApp.$$typeof)) {
+        if (!DashboardApp || (typeof DashboardApp !== 'function' && !('$$typeof' in DashboardApp))) {
           throw new Error('Failed to load DashboardApp component');
         }
         
@@ -120,7 +123,7 @@ async function launchDashboard(
           
           if (!data) return React.createElement('div', null, 'Loading...');
           
-          return React.createElement(DashboardApp, {
+          return React.createElement(DashboardApp!, {
             mode,
             data,
             refreshInterval: interval,
@@ -145,7 +148,8 @@ async function launchDashboard(
         class EnhancedWebDashboardServer extends WebDashboardServer {
           constructor(environment: string, port: number, interval: number) {
             super(environment, port, interval);
-            (this as any).dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+            // Override the parent's dataSource with our enhanced version
+            this.dataSource = new DashboardDataSource(environment, serviceDeployments, config);
           }
           
           async getDashboardData() {
@@ -201,7 +205,7 @@ export async function watch(
   // Create config for the services
   const config: Config = {
     projectRoot: process.cwd(),
-    environment: environment as any,
+    environment: parseEnvironment(environment),
     verbose: options.verbose,
     quiet: isStructuredOutput,
     dryRun: options.dryRun
@@ -307,7 +311,7 @@ export async function watch(
 export const watchNewCommand = new CommandBuilder<WatchOptions>()
   .name('watch-new')
   .description('Monitor services using new architecture')
-  .schema(WatchOptionsSchema as any)
+  .schema(WatchOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
   .args({

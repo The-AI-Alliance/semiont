@@ -7,7 +7,6 @@
 
 import { z } from 'zod';
 import type { CommandFunction } from './command-types.js';
-import type { BaseCommandOptions } from './base-command-options.js';
 
 /**
  * Declarative argument definition for CLI parsing
@@ -32,7 +31,7 @@ export interface ArgSpec {
 /**
  * Complete command definition with all metadata
  */
-export interface CommandDefinition<TOptions extends BaseCommandOptions = BaseCommandOptions> {
+export interface CommandDefinition<TOptions = any> {
   name: string;
   description: string;
   schema: z.ZodType<TOptions>;
@@ -46,7 +45,7 @@ export interface CommandDefinition<TOptions extends BaseCommandOptions = BaseCom
 /**
  * Type-safe command builder for creating command definitions
  */
-export class CommandBuilder<TOptions extends BaseCommandOptions> {
+export class CommandBuilder<TOptions = any> {
   private definition: Partial<CommandDefinition<TOptions>> = {
     requiresEnvironment: true, // Most commands need this
     requiresServices: true,     // Most commands need this
@@ -109,7 +108,7 @@ export class CommandBuilder<TOptions extends BaseCommandOptions> {
 /**
  * Helper function to define a command with type safety
  */
-export function defineCommand<TOptions extends BaseCommandOptions>(
+export function defineCommand<TOptions>(
   definition: CommandDefinition<TOptions>
 ): CommandDefinition<TOptions> {
   return definition;

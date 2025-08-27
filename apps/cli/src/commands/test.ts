@@ -16,7 +16,7 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -24,21 +24,17 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const TestOptionsSchema = z.object({
-  environment: z.string().optional(),
+const TestOptionsSchema = BaseOptionsSchema.extend({
   suite: z.enum(['all', 'integration', 'e2e', 'health', 'security', 'connectivity', 'unit', 'component']).default('all'),
   coverage: z.boolean().default(false),
   parallel: z.boolean().default(false),
   timeout: z.number().int().positive().default(300), // 5 minutes
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
   pattern: z.string().optional(), // Test file pattern (e.g., "Header", "auth")
   watch: z.boolean().default(false), // Watch mode for tests
 });
 
-type TestOptions = z.infer<typeof TestOptionsSchema> & BaseCommandOptions;
+type TestOptions = z.output<typeof TestOptionsSchema>;
 
 
 // =====================================================================
@@ -779,7 +775,7 @@ async function runComponentTestsForService(serviceInfo: ServiceDeploymentInfo, o
 export const testCommand = new CommandBuilder<TestOptions>()
   .name('test')
   .description('Run tests against services')
-  .schema(TestOptionsSchema as any)
+  .schema(TestOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
   .args({

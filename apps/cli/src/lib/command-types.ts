@@ -7,7 +7,6 @@
 
 import type { ServiceDeploymentInfo } from './deployment-resolver.js';
 import type { CommandResults } from './command-results.js';
-import type { BaseCommandOptions } from './base-command-options.js';
 
 /**
  * Standard command function signature for all commands.
@@ -19,7 +18,7 @@ import type { BaseCommandOptions } from './base-command-options.js';
  * @param options - Command-specific options (must extend BaseCommandOptions)
  * @returns Promise of structured command results
  */
-export type CommandFunction<TOptions extends BaseCommandOptions = BaseCommandOptions> = (
+export type CommandFunction<TOptions = any> = (
   serviceDeployments: ServiceDeploymentInfo[],
   options: TOptions
 ) => Promise<CommandResults>;

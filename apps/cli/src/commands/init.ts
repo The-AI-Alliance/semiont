@@ -12,25 +12,24 @@ import { fileURLToPath } from 'url';
 import { colors } from '../lib/cli-colors.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-export const InitOptionsSchema = z.object({
-  environment: z.string().default('_init_'), // Dummy value - init doesn't use environment
+export const InitOptionsSchema = BaseOptionsSchema.extend({
   name: z.string().optional(),
   directory: z.string().optional(),
   force: z.boolean().default(false),
   environments: z.array(z.string()).default(['local', 'test', 'staging', 'production']),
-  output: z.enum(['summary', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-});
+}).transform((data) => ({
+  ...data,
+  environment: data.environment || '_init_', // Dummy value - init doesn't use environment
+  output: data.output === 'table' ? 'summary' : data.output, // Init doesn't support table output
+}));
 
-export type InitOptions = z.infer<typeof InitOptionsSchema>;
+export type InitOptions = z.output<typeof InitOptionsSchema>;
 
 // =====================================================================
 // TEMPLATE CONFIGURATIONS
@@ -238,7 +237,7 @@ async function init(
 export const initCommand = new CommandBuilder<InitOptions>()
   .name('init')
   .description('Initialize a new Semiont project')
-  .schema(InitOptionsSchema as any) // Schema types are compatible but TS can't infer it
+  .schema(InitOptionsSchema) // Schema types are compatible but TS can't infer it
   .args({
     args: {
       '--name': {

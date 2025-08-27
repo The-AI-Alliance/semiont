@@ -7,11 +7,12 @@ import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-lo
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType, ProvisionResult } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -19,18 +20,13 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const ProvisionOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
+const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
   force: z.boolean().default(false), // Force re-provisioning
 });
 
-type ProvisionOptions = z.infer<typeof ProvisionOptionsSchema> & BaseCommandOptions;
+type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 
 // =====================================================================
 // COMMAND HANDLER
@@ -46,7 +42,7 @@ async function provisionHandler(
   // Create config for services
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: options.environment as any || 'dev',
+    environment: parseEnvironment(options.environment),
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
@@ -215,7 +211,7 @@ async function provisionHandler(
       timestamp: new Date(),
       duration: r.data.duration,
       success: r.data.success,
-      resourceId: { [r.data.deployment]: {} } as any,
+      resourceId: { [r.data.deployment]: {} },
       status: r.data.success ? 'provisioned' : 'failed',
       metadata: r.data,
       error: r.data.error
@@ -262,7 +258,7 @@ function sortServicesByDependencies(services: ServiceDeploymentInfo[]): ServiceD
 export const provisionNewCommand = new CommandBuilder<ProvisionOptions>()
   .name('provision-new')
   .description('Provision infrastructure and resources for services')
-  .schema(ProvisionOptionsSchema as any)
+  .schema(ProvisionOptionsSchema)
   .requiresServices(true)
   .handler(provisionHandler)
   .build();

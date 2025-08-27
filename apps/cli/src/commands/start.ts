@@ -8,11 +8,12 @@ import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
 import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { Config, ServiceName, DeploymentType, StartResult } from '../services/types.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -20,16 +21,11 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StartOptionsSchema = z.object({
-  environment: z.string().optional(),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
-  quiet: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
+const StartOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
 });
 
-type StartOptions = z.infer<typeof StartOptionsSchema> & BaseCommandOptions;
+type StartOptions = z.output<typeof StartOptionsSchema>;
 
 // =====================================================================
 // SERVICE-BASED START IMPLEMENTATION
@@ -66,7 +62,7 @@ export async function start(
   // Create shared config
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: environment as any,
+    environment: parseEnvironment(environment),
     verbose: options.verbose,
     quiet: options.quiet || isStructuredOutput,
     dryRun: options.dryRun
@@ -118,7 +114,7 @@ export async function start(
           id: r.containerId,
           endpoint: r.endpoint
         }
-      } as any,
+      },
       status: r.success ? 'running' : 'failed',
       endpoint: r.endpoint,
       metadata: r.metadata || {},
@@ -197,7 +193,7 @@ export async function start(
 export const startCommand = new CommandBuilder<StartOptions>()
   .name('start')
   .description('Start services in an environment')
-  .schema(StartOptionsSchema as any)
+  .schema(StartOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
   .args({

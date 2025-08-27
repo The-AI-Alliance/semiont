@@ -1179,9 +1179,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         const filesPath = path.join(tempDir, 'files');
         if (fs.existsSync(filesPath)) {
           // Copy files from backup to destination
-          const files = fs.readdirSync(filesPath, { recursive: true, withFileTypes: true }) as any[];
+          const files = fs.readdirSync(filesPath, { recursive: true, withFileTypes: true });
           
           for (const file of files) {
+            if (typeof file === 'string') continue; // Skip string entries
+            // TypeScript doesn't properly type recursive+withFileTypes, but we know it's Dirent
+            if (!('name' in file && 'path' in file)) continue;
             const srcPath = path.join(file.path, file.name);
             const relPath = path.relative(filesPath, srcPath);
             const destPath = path.join(destination, relPath);

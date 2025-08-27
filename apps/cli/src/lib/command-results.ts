@@ -28,7 +28,7 @@ export interface ResourceIdentifier {
 
 // Base service result that includes resource identification
 export interface ServiceResult extends BaseCommandResult {
-  resourceId: ResourceIdentifier;
+  resourceId?: ResourceIdentifier;
   status: string;
   metadata: Record<string, any>;
 }
@@ -346,17 +346,17 @@ export function createErrorResult(
 
 // Type guards for deployment-specific results
 export function isAWSResult(result: ServiceResult): result is AWSServiceResult {
-  return result.deploymentType === 'aws' && !!result.resourceId.aws;
+  return result.deploymentType === 'aws' && !!result.resourceId?.aws;
 }
 
 export function isContainerResult(result: ServiceResult): result is ContainerServiceResult {
-  return result.deploymentType === 'container' && !!result.resourceId.container;
+  return result.deploymentType === 'container' && !!result.resourceId?.container;
 }
 
 export function isProcessResult(result: ServiceResult): result is ProcessServiceResult {
-  return result.deploymentType === 'process' && !!result.resourceId.process;
+  return result.deploymentType === 'process' && !!result.resourceId?.process;
 }
 
 export function isExternalResult(result: ServiceResult): result is ExternalServiceResult {
-  return result.deploymentType === 'external' && !!result.resourceId.external;
+  return result.deploymentType === 'external' && !!result.resourceId?.external;
 }

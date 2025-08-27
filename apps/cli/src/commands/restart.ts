@@ -16,23 +16,19 @@ import {
   ResourceIdentifier 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const RestartOptionsSchema = z.object({
-  environment: z.string().optional(),
+const RestartOptionsSchema = BaseOptionsSchema.extend({
   force: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
   gracePeriod: z.number().int().positive().default(3), // seconds to wait between stop and start
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
   service: z.string().optional(),
 });
 
-type RestartOptions = z.infer<typeof RestartOptionsSchema> & BaseCommandOptions;
+type RestartOptions = z.output<typeof RestartOptionsSchema>;
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -847,7 +843,7 @@ export async function restart(
 export const restartCommand = new CommandBuilder<RestartOptions>()
   .name('restart')
   .description('Restart services in an environment')
-  .schema(RestartOptionsSchema as any)
+  .schema(RestartOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
   .args({

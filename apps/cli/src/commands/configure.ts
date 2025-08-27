@@ -21,28 +21,20 @@ import {
   createErrorResult 
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseCommandOptions } from '../lib/base-command-options.js';
+import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-export const ConfigureOptionsSchema = z.object({
+export const ConfigureOptionsSchema = BaseOptionsSchema.extend({
   action: z.enum(['show', 'list', 'validate', 'get', 'set']).default('show'),
-  environment: z.string().optional(),
   secretPath: z.string().optional(),
   value: z.string().optional(),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
-// Explicitly define the type to ensure it satisfies BaseCommandOptions
-export interface ConfigureOptions extends BaseCommandOptions {
-  action: 'show' | 'list' | 'validate' | 'get' | 'set';
-  secretPath?: string;
-  value?: string;
-}
+// Type is inferred from the schema
+export type ConfigureOptions = z.output<typeof ConfigureOptionsSchema>;
 
 // =====================================================================
 // CONSTANTS
@@ -473,7 +465,7 @@ async function configure(
 export const configureCommand = new CommandBuilder<ConfigureOptions>()
   .name('configure')
   .description('Manage configuration and secrets')
-  .schema(ConfigureOptionsSchema as any)
+  .schema(ConfigureOptionsSchema)
   .args({
     args: {
       '--environment': {

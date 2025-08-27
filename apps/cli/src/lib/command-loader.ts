@@ -15,7 +15,8 @@ import {
 } from './deployment-resolver.js';
 import { 
   validateServiceSelector, 
-  resolveServiceSelector 
+  resolveServiceSelector,
+  type ServiceCapability 
 } from './services.js';
 import { formatResults } from './output-formatter.js';
 import { printError } from './cli-logger.js';
@@ -208,11 +209,14 @@ export async function executeCommand(
     // Resolve services if required
     let services: ServiceDeploymentInfo[] = [];
     if (command.requiresServices) {
-      const service = (options as any).service || 'all';
+      // Service property is optional in options, default to 'all' if not specified
+      const service = 'service' in options && typeof options.service === 'string' 
+        ? options.service 
+        : 'all';
       // At this point, environment is guaranteed to be defined if requiresEnvironment is true
       const environment = options.environment!;
-      await validateServiceSelector(service, commandName as any, environment);
-      const resolvedServices = await resolveServiceSelector(service, commandName as any, environment);
+      await validateServiceSelector(service, commandName as ServiceCapability, environment);
+      const resolvedServices = await resolveServiceSelector(service, commandName as ServiceCapability, environment);
       services = resolveServiceDeployments(resolvedServices, environment);
     }
     
