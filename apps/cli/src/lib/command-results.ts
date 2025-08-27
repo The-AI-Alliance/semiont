@@ -17,13 +17,17 @@ export interface BaseCommandResult {
   error?: string;
 }
 
-// Minimal interface that all service results must satisfy for formatting
+// Minimal interface that all command results must satisfy for formatting
+// Note: Named BaseServiceResult for backward compatibility, but applies to all command results
 export interface BaseServiceResult {
-  service: string;
+  service: string;  // Note: 'service' field kept for compatibility, may represent any entity
   success: boolean;
   error?: string;
   [key: string]: any; // Allow additional properties
 }
+
+// Type alias for clarity - prefer this in new code
+export type BaseResult = BaseServiceResult;
 
 // Resource identifiers for different deployment types
 export interface ResourceIdentifier {
@@ -260,12 +264,12 @@ export interface ExternalServiceResult extends ServiceResult {
 
 // Aggregated command results structure
 // Now generic to preserve service-specific result types
-export interface CommandResults<TServiceResult = ServiceResult> {
+export interface CommandResults<TResult = ServiceResult> {
   command: string;
   environment: string;
   timestamp: Date;
   duration: number;
-  services: TServiceResult[];
+  services: TResult[];  // Note: Named 'services' for backward compatibility, but holds any command results
   summary: {
     total: number;
     succeeded: number;
