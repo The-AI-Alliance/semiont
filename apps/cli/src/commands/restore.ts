@@ -9,11 +9,11 @@
 import { CommandBuilder } from '../lib/command-definition.js';
 import { Config, ServiceName, RestoreResult, RestoreOptions as ServiceRestoreOptions } from '../services/types.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { DeploymentType, ServiceConfig } from '../services/types.js';
+import { Platform, ServiceConfig } from '../services/types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
 import { z } from 'zod';
 import { BaseOptionsSchema } from '../lib/base-options-schema.js';
-import { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
@@ -33,7 +33,7 @@ type CommandRestoreOptions = z.output<typeof RestoreOptionsSchema>;
 
 // Main handler function
 async function restoreHandler(
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: CommandRestoreOptions
 ): Promise<CommandResults<RestoreResult>> {
   const startTime = Date.now();
@@ -100,9 +100,9 @@ async function restoreHandler(
   for (const serviceName of orderedServices) {
     const service = ServiceFactory.create(
       serviceName,
-      'process' as DeploymentType, // Default to process for now
+      'process' as Platform, // Default to process for now
       config,
-      { deploymentType: 'process' as DeploymentType } as ServiceConfig
+      { platform: 'process' as Platform } as ServiceConfig
     );
     
     try {
@@ -149,7 +149,7 @@ async function restoreHandler(
     } catch (error) {
       results.push({
         entity: serviceName,
-        deployment: service.deployment,
+        platform: service.platform,
         success: false,
         restoreTime: new Date(),
         backupId: options.backupId,

@@ -8,17 +8,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export type DeploymentType = 'aws' | 'container' | 'process' | 'external' | 'mock';
+export type Platform = 'aws' | 'container' | 'process' | 'external' | 'mock';
 
-export interface ServiceDeploymentInfo {
+export interface ServicePlatformInfo {
   name: string;
-  deploymentType: DeploymentType;
+  platform: Platform;
   config: ServiceConfig;
 }
 
 export interface ServiceConfig {
   deployment?: {
-    type: DeploymentType;
+    type: Platform;
   };
   // Container/Process fields
   image?: string;
@@ -96,7 +96,7 @@ export interface AppConfig {
 
 export interface EnvironmentConfig {
   deployment?: {
-    default: DeploymentType;
+    default: Platform;
   };
   services: Record<string, ServiceConfig>;  // Dynamic access - the key fix!
   aws?: AWSConfig;
@@ -135,8 +135,8 @@ export function getNodeEnvForEnvironment(environment: string): 'development' | '
   // Default based on deployment type if not specified
   if (!nodeEnv) {
     // Default to production for AWS, development for local/container
-    const deploymentType = config.deployment?.default || 'container';
-    return deploymentType === 'aws' ? 'production' : 'development';
+    const platform = config.deployment?.default || 'container';
+    return platform === 'aws' ? 'production' : 'development';
   }
   
   return nodeEnv;
@@ -344,10 +344,10 @@ export class ConfigurationError extends Error {
 /**
  * Get deployment type for a specific service in an environment
  */
-export function getServiceDeploymentType(
+export function getServicePlatform(
   serviceName: string, 
   environment: string
-): DeploymentType {
+): Platform {
   const config = loadEnvironmentConfig(environment);
   const serviceConfig = config.services?.[serviceName];
   
@@ -375,9 +375,9 @@ export function getServiceDeploymentType(
 export function resolveServiceDeployments(
   serviceNames: string[],
   environment: string
-): ServiceDeploymentInfo[] {
+): ServicePlatformInfo[] {
   const config = loadEnvironmentConfig(environment);
-  const deploymentInfos: ServiceDeploymentInfo[] = [];
+  const deploymentInfos: ServicePlatformInfo[] = [];
   
   for (const serviceName of serviceNames) {
     const serviceConfig = config.services?.[serviceName];
@@ -405,11 +405,11 @@ export function resolveServiceDeployments(
       continue;
     }
     
-    const deploymentType = serviceConfig.deployment?.type || config.deployment?.default || 'process';
+    const platform = serviceConfig.deployment?.type || config.deployment?.default || 'process';
     
     deploymentInfos.push({
       name: serviceName,
-      deploymentType,
+      platform,
       config: serviceConfig
     });
   }
@@ -420,20 +420,20 @@ export function resolveServiceDeployments(
 /**
  * Get all services of a specific deployment type in an environment
  */
-export function getServicesByDeploymentType(
-  deploymentType: DeploymentType,
+export function getServicesByPlatform(
+  platform: Platform,
   environment: string
-): ServiceDeploymentInfo[] {
+): ServicePlatformInfo[] {
   const config = loadEnvironmentConfig(environment);
-  const matchingServices: ServiceDeploymentInfo[] = [];
+  const matchingServices: ServicePlatformInfo[] = [];
   
   for (const [serviceName, serviceConfig] of Object.entries(config.services || {})) {
-    const serviceDeploymentType = serviceConfig.deployment?.type || config.deployment?.default || 'process';
+    const servicePlatform = serviceConfig.deployment?.type || config.deployment?.default || 'process';
     
-    if (serviceDeploymentType === deploymentType) {
+    if (servicePlatform === platform) {
       matchingServices.push({
         name: serviceName,
-        deploymentType,
+        platform,
         config: serviceConfig
       });
     }
@@ -446,17 +446,17 @@ export function getServicesByDeploymentType(
  * Check if a service supports a specific capability based on its deployment type
  */
 export function serviceSupportsCapability(
-  deploymentType: DeploymentType,
+  platform: Platform,
   capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'exec' | 'watch'
 ): boolean {
   switch (capability) {
     case 'publish':
       // Only containerized services can be published (built/pushed)
-      return deploymentType === 'aws' || deploymentType === 'container';
+      return platform === 'aws' || platform === 'container';
     
     case 'exec':
       // Can exec into AWS ECS tasks and containers, but not processes or external
-      return deploymentType === 'aws' || deploymentType === 'container';
+      return platform === 'aws' || platform === 'container';
     
     case 'backup':
       // Database backups are universal, filesystem backups depend on deployment type
@@ -482,10 +482,10 @@ export function getServicesWithCapability(
   serviceNames: string[],
   capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'exec' | 'watch',
   environment: string
-): ServiceDeploymentInfo[] {
+): ServicePlatformInfo[] {
   const serviceDeployments = resolveServiceDeployments(serviceNames, environment);
   
   return serviceDeployments.filter(service => 
-    serviceSupportsCapability(service.deploymentType, capability)
+    serviceSupportsCapability(service.platform, capability)
   );
 }

@@ -7,11 +7,11 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { CheckOptions } from '../commands/check.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
 
-// Mock deployment-resolver to avoid filesystem access
-vi.mock('../lib/deployment-resolver.js');
+// Mock platform-resolver to avoid filesystem access
+vi.mock('../lib/platform-resolver.js');
 
 let testDir: string;
 let originalCwd: string;
@@ -89,10 +89,10 @@ describe('Check Command', () => {
   });
 
   // Helper function to create service deployments for tests
-  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
     return services.map(service => ({
       name: service.name,
-      deploymentType: service.type as any,
+      platform: service.type as any,
       config: service.config || {}
     }));
   }
@@ -125,7 +125,7 @@ describe('Check Command', () => {
           expect.objectContaining({
             command: 'check',
             service: 'frontend',
-            deploymentType: 'container',
+            platform: 'container',
             success: true,
             lastCheck: expect.any(Date),
             healthStatus: expect.any(String),
@@ -225,7 +225,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'aws',
+        platform: 'aws',
         status: expect.any(String),
         resourceId: expect.objectContaining({
           aws: expect.any(Object)
@@ -255,7 +255,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         resourceId: expect.objectContaining({
           container: expect.objectContaining({
             name: 'semiont-postgres-staging'
@@ -283,7 +283,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         resourceId: expect.objectContaining({
           process: expect.any(Object)
         })
@@ -309,7 +309,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         checks: expect.arrayContaining([
           expect.objectContaining({
             name: expect.any(String),
@@ -338,7 +338,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'mock',
+        platform: 'mock',
         healthStatus: 'healthy',
         checks: expect.arrayContaining([
           expect.objectContaining({
@@ -654,7 +654,7 @@ describe('Check Command', () => {
         services: expect.arrayContaining([
           expect.objectContaining({
             service: 'mcp',
-            deploymentType: 'process',
+            platform: 'process',
             success: true,
             healthStatus: 'healthy',
             checks: expect.arrayContaining([

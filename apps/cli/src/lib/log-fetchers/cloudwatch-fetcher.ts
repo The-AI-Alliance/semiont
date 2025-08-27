@@ -12,7 +12,7 @@ import {
   DescribeStacksCommand 
 } from '@aws-sdk/client-cloudformation';
 import { LogFetcher, LogEntry, LogFetchOptions } from '../log-aggregator.js';
-import { type ServiceDeploymentInfo } from '../deployment-resolver.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
 
 export class CloudWatchLogFetcher extends LogFetcher {
   private logsClient: CloudWatchLogsClient;
@@ -26,7 +26,7 @@ export class CloudWatchLogFetcher extends LogFetcher {
   }
   
   async fetchLogs(
-    service: ServiceDeploymentInfo,
+    service: ServicePlatformInfo,
     options: LogFetchOptions
   ): Promise<LogEntry[]> {
     try {
@@ -68,7 +68,7 @@ export class CloudWatchLogFetcher extends LogFetcher {
     }
   }
   
-  private async getLogGroupName(service: ServiceDeploymentInfo): Promise<string | null> {
+  private async getLogGroupName(service: ServicePlatformInfo): Promise<string | null> {
     // First try to get from CloudFormation outputs
     try {
       const stackResult = await this.cfnClient.send(new DescribeStacksCommand({

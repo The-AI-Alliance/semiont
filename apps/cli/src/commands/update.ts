@@ -4,14 +4,14 @@
 
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, UpdateResult } from '../services/types.js';
+import { Config, ServiceName, Platform, UpdateResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -32,7 +32,7 @@ type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
 // =====================================================================
 
 async function updateHandler(
-  services: ServiceDeploymentInfo[],
+  services: ServicePlatformInfo[],
   options: UpdateOptions
 ): Promise<CommandResults<UpdateResult>> {
   const serviceResults: UpdateResult[] = [];
@@ -52,10 +52,10 @@ async function updateHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.deploymentType as DeploymentType,
+        serviceInfo.platform as Platform,
         config,
         {
-          deploymentType: serviceInfo.deploymentType as DeploymentType
+          platform: serviceInfo.platform as Platform
         } // Service config would come from project config
       );
       
@@ -109,7 +109,7 @@ async function updateHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        deployment: serviceInfo.deploymentType as DeploymentType,
+        platform: serviceInfo.platform as Platform,
         success: false,
         updateTime: new Date(),
         strategy: 'none',

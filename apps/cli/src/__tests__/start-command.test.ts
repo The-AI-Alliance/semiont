@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { StartOptions } from '../commands/start.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // Mock the container runtime to avoid actual Docker calls
 vi.mock('../lib/container-runtime.js', () => ({
@@ -38,9 +38,9 @@ vi.mock('fs', async () => {
   };
 });
 
-// Mock deployment-resolver to avoid environment config loading issues
-vi.mock('../lib/deployment-resolver.js', async () => {
-  const actual = await vi.importActual('../lib/deployment-resolver.js');
+// Mock platform-resolver to avoid environment config loading issues
+vi.mock('../lib/platform-resolver.js', async () => {
+  const actual = await vi.importActual('../lib/platform-resolver.js');
   return {
     ...actual,
     getNodeEnvForEnvironment: vi.fn(() => 'test'),
@@ -66,10 +66,10 @@ describe('Start Command', () => {
   });
 
   // Helper function to create service deployments for tests
-  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
     return services.map(service => ({
       name: service.name,
-      deploymentType: service.type as any,
+      platform: service.type as any,
       config: service.config || {}
     }));
   }
@@ -103,7 +103,7 @@ describe('Start Command', () => {
           expect.objectContaining({
             command: 'start',
             service: 'database',
-            deploymentType: 'container',
+            platform: 'container',
             success: true,
             startTime: expect.any(Date),
             status: expect.stringMatching(/running|ready/)
@@ -111,7 +111,7 @@ describe('Start Command', () => {
           expect.objectContaining({
             command: 'start',
             service: 'backend',
-            deploymentType: 'container',
+            platform: 'container',
             success: true
           })
         ]),
@@ -193,7 +193,7 @@ describe('Start Command', () => {
       const result = await start(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'aws',
+        platform: 'aws',
         service: 'backend',
         status: 'not-implemented'
       });
@@ -218,7 +218,7 @@ describe('Start Command', () => {
       const result = await start(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         service: 'database',
         command: 'start'
       });
@@ -243,7 +243,7 @@ describe('Start Command', () => {
       const result = await start(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         service: 'backend',
         resourceId: expect.objectContaining({
           process: expect.objectContaining({
@@ -272,7 +272,7 @@ describe('Start Command', () => {
       const result = await start(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         service: 'database',
         status: 'external',
         metadata: expect.objectContaining({
@@ -410,7 +410,7 @@ describe('Start Command', () => {
         services: expect.arrayContaining([
           expect.objectContaining({
             service: 'mcp',
-            deploymentType: 'process',
+            platform: 'process',
             status: 'started',
             success: true
           })
@@ -520,7 +520,7 @@ describe('Start Command', () => {
         services: [
           {
             service: 'mcp',
-            deploymentType: 'process',
+            platform: 'process',
             status: 'dry-run',
             success: true,
             metadata: expect.objectContaining({

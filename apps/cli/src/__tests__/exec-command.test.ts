@@ -23,14 +23,14 @@ import {
 vi.mock('../lib/container-runtime.js');
 vi.mock('@aws-sdk/client-ecs');
 vi.mock('child_process');
-vi.mock('../lib/deployment-resolver.js', async () => {
-  const actual = await vi.importActual('../lib/deployment-resolver.js');
+vi.mock('../lib/platform-resolver.js', async () => {
+  const actual = await vi.importActual('../lib/platform-resolver.js');
   return {
     ...actual,
     loadEnvironmentConfig: vi.fn(() => ({
       aws: { region: 'us-east-1', accountId: '123456789012' },
       services: {},
-      deployment: {}
+      platform: {}
     }))
   };
 });
@@ -92,7 +92,7 @@ describe('exec command with structured output', () => {
       }
       
       expect(execResult.service).toBe('backend');
-      expect(execResult.deploymentType).toBe('aws');
+      expect(execResult.platform).toBe('aws');
       expect(execResult.command).toBe('/bin/sh');
       expect(execResult.interactive).toBe(true);
       expect(execResult.status).toBe('success');
@@ -184,7 +184,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
-      expect(execResult.deploymentType).toBe('container');
+      expect(execResult.platform).toBe('container');
       expect(execResult.command).toBe('ls -la');
       expect(execResult.status).toBe('success');
       
@@ -213,7 +213,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as ExecResult;
-      expect(dbResult.deploymentType).toBe('container');
+      expect(dbResult.platform).toBe('container');
       expect(dbResult.status).toBe('success');
       
       // Verify correct container name for database
@@ -285,7 +285,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
       expect(results.services).toHaveLength(1);
       const execResult = results.services[0]! as ExecResult;
-      expect(execResult.deploymentType).toBe('process');
+      expect(execResult.platform).toBe('process');
       expect(execResult.status).toBe('success');
       
       // Verify spawn was called with appropriate shell
@@ -322,7 +322,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as ExecResult;
-      expect(dbResult.deploymentType).toBe('process');
+      expect(dbResult.platform).toBe('process');
       expect(dbResult.status).toBe('success');
       
       // Verify psql was called
@@ -360,7 +360,7 @@ describe('exec command with structured output', () => {
       const results = await execPromise;
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0]! as ExecResult;
-      expect(fsResult.deploymentType).toBe('process');
+      expect(fsResult.platform).toBe('process');
       expect(fsResult.status).toBe('success');
       
       // Verify appropriate command was used (varies by platform)
@@ -444,7 +444,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
       expect(results.services).toHaveLength(1);
       const extResult = results.services[0]! as ExecResult;
-      expect(extResult.deploymentType).toBe('external');
+      expect(extResult.platform).toBe('external');
       expect(extResult.status).toBe('failed');
       expect(extResult.error).toContain('Cannot exec into external database');
       expect(extResult.metadata).toHaveProperty('error');
@@ -464,7 +464,7 @@ describe('exec command with structured output', () => {
       const results = await exec(deployment, options);
       expect(results.services).toHaveLength(1);
       const fsResult = results.services[0]! as ExecResult;
-      expect(fsResult.deploymentType).toBe('external');
+      expect(fsResult.platform).toBe('external');
       expect(fsResult.status).toBe('failed');
       expect(fsResult.error).toContain('Cannot exec into external filesystem');
     });

@@ -14,18 +14,18 @@ import { ProcessPlatformStrategy } from './process-platform.js';
 import { ContainerPlatformStrategy } from './container-platform.js';
 import { AWSPlatformStrategy } from './aws-platform.js';
 import { ExternalPlatformStrategy } from './external-platform.js';
-import { DeploymentType } from '../services/types.js';
+import { Platform } from '../services/types.js';
 
 /**
  * Factory for creating platform strategy instances
  */
 export class PlatformFactory {
-  private static instances = new Map<DeploymentType, PlatformStrategy>();
+  private static instances = new Map<Platform, PlatformStrategy>();
   
   /**
    * Get a platform strategy instance (singleton per type)
    */
-  static getPlatform(type: DeploymentType): PlatformStrategy {
+  static getPlatform(type: Platform): PlatformStrategy {
     if (!this.instances.has(type)) {
       this.instances.set(type, this.createPlatform(type));
     }
@@ -35,7 +35,7 @@ export class PlatformFactory {
   /**
    * Create a new platform strategy instance
    */
-  private static createPlatform(type: DeploymentType): PlatformStrategy {
+  private static createPlatform(type: Platform): PlatformStrategy {
     switch (type) {
       case 'process':
         return new ProcessPlatformStrategy();

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { test, TestOptions } from '../commands/test.js';
 import { TestResult } from '../lib/command-results.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 import * as containerRuntime from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
@@ -19,11 +19,11 @@ vi.mock('fs/promises');
 global.fetch = vi.fn();
 
 // Helper function to create service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    deploymentType: service.type as any,
-    deployment: { type: service.type },
+    platform: service.type as any,
+    platform: { type: service.type },
     config: service.config || {}
   }));
 }
@@ -86,7 +86,7 @@ describe('test command with structured output', () => {
       const frontendResult = results.services.find(s => s.service === 'frontend')! as TestResult;
       expect(frontendResult).toBeDefined();
       expect(frontendResult.testSuite).toBe('health');
-      expect(frontendResult.deploymentType).toBe('container');
+      expect(frontendResult.platform).toBe('container');
       expect(frontendResult.success).toBe(true);
       expect(frontendResult.testsPassed).toBeGreaterThan(0);
       expect(frontendResult.testsFailed).toBe(0);
@@ -279,11 +279,11 @@ describe('test command with structured output', () => {
       expect(results.services).toHaveLength(2);
       
       const frontendResult = results.services.find(s => s.service === 'frontend')! as TestResult;
-      expect(frontendResult.deploymentType).toBe('aws');
+      expect(frontendResult.platform).toBe('aws');
       expect(frontendResult.resourceId).toHaveProperty('aws');
       
       const dbResult = results.services.find(s => s.service === 'database')! as TestResult;
-      expect(dbResult.deploymentType).toBe('aws');
+      expect(dbResult.platform).toBe('aws');
     });
   });
 
@@ -390,7 +390,7 @@ describe('test command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as TestResult;
-      expect(dbResult.deploymentType).toBe('external');
+      expect(dbResult.platform).toBe('external');
       expect(dbResult.testSuite).toBe('connectivity');
     });
   });
@@ -437,7 +437,7 @@ describe('test command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       const backendResult = results.services[0]! as TestResult;
-      expect(backendResult.deploymentType).toBe('process');
+      expect(backendResult.platform).toBe('process');
       expect(backendResult.success).toBe(true);
     });
   });

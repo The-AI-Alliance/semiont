@@ -5,7 +5,7 @@
  * Much simpler than the original factory.
  */
 
-import { Service, ServiceName, DeploymentType, Config, ServiceConfig } from './types.js';
+import { Service, ServiceName, Platform, Config, ServiceConfig } from './types.js';
 import { BackendServiceRefactored } from './backend-service.js';
 import { FrontendServiceRefactored } from './frontend-service.js';
 import { DatabaseServiceRefactored } from './database-service.js';
@@ -18,25 +18,25 @@ export class ServiceFactory {
    */
   static create(
     name: ServiceName,
-    deployment: DeploymentType,
+    platform: Platform,
     config: Config,
     serviceConfig: ServiceConfig
   ): Service {
     switch (name) {
       case 'backend':
-        return new BackendServiceRefactored(name, deployment, config, serviceConfig);
+        return new BackendServiceRefactored(name, platform, config, serviceConfig);
         
       case 'frontend':
-        return new FrontendServiceRefactored(name, deployment, config, serviceConfig);
+        return new FrontendServiceRefactored(name, platform, config, serviceConfig);
         
       case 'database':
-        return new DatabaseServiceRefactored(name, deployment, config, serviceConfig);
+        return new DatabaseServiceRefactored(name, platform, config, serviceConfig);
         
       case 'filesystem':
-        return new FilesystemServiceRefactored(name, deployment, config, serviceConfig);
+        return new FilesystemServiceRefactored(name, platform, config, serviceConfig);
         
       case 'mcp':
-        return new MCPServiceRefactored(name, deployment, config, serviceConfig);
+        return new MCPServiceRefactored(name, platform, config, serviceConfig);
         
       case 'agent':
         // Agent service would be implemented similarly

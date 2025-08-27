@@ -10,7 +10,7 @@ import { colors } from '../lib/cli-colors.js';
 import React from 'react';
 import { render } from 'ink';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { 
   WatchResult, 
   CommandResults, 
@@ -69,7 +69,7 @@ type WatchOptions = z.output<typeof WatchOptionsSchema>;
 async function launchDashboard(
   environment: string, 
   target: string, 
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   config: Config,
   interval: number,
   terminalMode: boolean = false,
@@ -196,7 +196,7 @@ async function launchDashboard(
 // =====================================================================
 
 export async function watch(
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: WatchOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
@@ -257,14 +257,14 @@ export async function watch(
     
     // Create watch results for each monitored service
     const serviceResults: WatchResult[] = serviceDeployments.map(serviceInfo => {
-      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
+      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.platform, environment, startTime);
       
       return {
         ...baseResult,
         watchType: options.target === 'logs' ? 'logs' as const : 
                    options.target === 'metrics' ? 'metrics' as const : 
                    'events' as const,
-        resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
+        resourceId: { [serviceInfo.platform]: {} } as ResourceIdentifier,
         status: 'session-ended',
         metadata: {
           mode: options.target,

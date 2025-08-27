@@ -5,14 +5,14 @@
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, StartResult } from '../services/types.js';
+import { Config, ServiceName, Platform, StartResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -32,15 +32,15 @@ type StartOptions = z.output<typeof StartOptionsSchema>;
 // =====================================================================
 
 async function startServiceImpl(
-  serviceInfo: ServiceDeploymentInfo, 
+  serviceInfo: ServicePlatformInfo, 
   config: Config
 ): Promise<StartResult> {
   // Create the service instance
   const service = ServiceFactory.create(
     serviceInfo.name as ServiceName,
-    serviceInfo.deploymentType as DeploymentType,
+    serviceInfo.platform as Platform,
     config,
-    { ...serviceInfo.config, deploymentType: serviceInfo.deploymentType as DeploymentType }
+    { ...serviceInfo.config, platform: serviceInfo.platform as Platform }
   );
   
   // Start the service
@@ -52,7 +52,7 @@ async function startServiceImpl(
 // =====================================================================
 
 export async function start(
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: StartOptions
 ): Promise<CommandResults<StartResult>> {
   const startTime = Date.now();
@@ -84,7 +84,7 @@ export async function start(
       } catch (error) {
         const errorResult: StartResult = {
           entity: serviceInfo.name as ServiceName,
-          deployment: serviceInfo.deploymentType as DeploymentType,
+          platform: serviceInfo.platform as Platform,
           success: false,
           startTime: new Date(),
           error: (error as Error).message

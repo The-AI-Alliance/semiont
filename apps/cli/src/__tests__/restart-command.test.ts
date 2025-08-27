@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { RestartOptions } from '../commands/restart.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // Mock the container runtime
 vi.mock('../lib/container-runtime.js', () => ({
@@ -46,10 +46,10 @@ describe('Restart Command', () => {
   })
 
   // Helper function to create service deployments for tests
-  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
     return services.map(service => ({
       name: service.name,
-      deploymentType: service.type as any,
+      platform: service.type as any,
       config: service.config || {}
     }));
   }
@@ -86,7 +86,7 @@ describe('Restart Command', () => {
           expect.objectContaining({
             command: 'restart',
             service: 'backend',
-            deploymentType: 'container',
+            platform: 'container',
             success: true,
             stopTime: expect.any(Date),
             startTime: expect.any(Date),
@@ -226,7 +226,7 @@ describe('Restart Command', () => {
       const result = await restart(serviceDeployments, options);
 
       // AWS restart is not implemented, so we just check basic structure
-      expect(result.services[0]!).toHaveProperty('deploymentType');
+      expect(result.services[0]!).toHaveProperty('platform');
       expect(result.services[0]!.status).toMatch(/not-implemented|failed|success/);
     });
 
@@ -253,7 +253,7 @@ describe('Restart Command', () => {
       const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         status: 'restarted',
         resourceId: expect.objectContaining({
           container: expect.objectContaining({
@@ -282,7 +282,7 @@ describe('Restart Command', () => {
       const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         status: 'restarted',
         resourceId: expect.objectContaining({
           process: expect.objectContaining({
@@ -316,7 +316,7 @@ describe('Restart Command', () => {
       const result = await restart(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         status: 'external',
         downtime: 0, // External services don't have downtime
         resourceId: expect.objectContaining({

@@ -13,7 +13,7 @@ import { colors } from '../lib/cli-colors.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -85,7 +85,7 @@ function copyTemplate(source: string, dest: string, replacements?: Record<string
 // =====================================================================
 
 async function init(
-  _serviceDeployments: ServiceDeploymentInfo[], // Not used by init
+  _serviceDeployments: ServicePlatformInfo[], // Not used by init
   options: InitOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();

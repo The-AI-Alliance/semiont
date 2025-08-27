@@ -28,7 +28,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true,
       startTime: new Date(),
       endpoint: config.endpoint,
@@ -47,7 +47,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true,
       stopTime: new Date(),
       metadata: {
@@ -107,7 +107,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true,
       checkTime: new Date(),
       status,
@@ -128,7 +128,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true,
       updateTime: new Date(),
       strategy: 'none',
@@ -150,7 +150,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true,
       provisionTime: new Date(),
       metadata: {
@@ -168,7 +168,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true,
       publishTime: new Date(),
       rollback: {
@@ -191,7 +191,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: true, // "Success" means we acknowledged the limitation
       backupTime: new Date(),
       backupId,
@@ -220,7 +220,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: false,
       execTime,
       command,
@@ -318,7 +318,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         
         return {
           entity: context.name,
-          deployment: 'external',
+          platform: 'external',
           success: response.ok,
           testTime,
           suite: 'smoke',
@@ -337,7 +337,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
       } catch (error) {
         return {
           entity: context.name,
-          deployment: 'external',
+          platform: 'external',
           success: false,
           testTime,
           suite: 'smoke',
@@ -356,7 +356,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: false,
       testTime,
       suite: options.suite || 'unit',
@@ -404,7 +404,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'external',
+      platform: 'external',
       success: false,
       restoreTime,
       backupId,

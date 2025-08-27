@@ -1,7 +1,7 @@
 // Service architecture types
 
 export type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp' | 'agent';
-export type DeploymentType = 'aws' | 'container' | 'process' | 'external';
+export type Platform = 'aws' | 'container' | 'process' | 'external';
 export type Environment = 'dev' | 'staging' | 'prod' | 'ci' | 'local';
 
 export interface Config {
@@ -13,7 +13,7 @@ export interface Config {
 }
 
 export interface ServiceConfig {
-  deploymentType: DeploymentType;
+  platform: Platform;
   port?: number;
   command?: string;
   image?: string;
@@ -27,7 +27,7 @@ export interface ServiceConfig {
 
 export interface StartResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   startTime: Date;
   endpoint?: string;
@@ -39,7 +39,7 @@ export interface StartResult {
 
 export interface StopResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   stopTime: Date;
   gracefulShutdown?: boolean;
@@ -49,7 +49,7 @@ export interface StopResult {
 
 export interface CheckResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   checkTime: Date;
   status: 'running' | 'stopped' | 'unhealthy' | 'unknown';
@@ -85,7 +85,7 @@ export interface CheckResult {
 
 export interface UpdateResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   updateTime: Date;
   previousVersion?: string;
@@ -98,7 +98,7 @@ export interface UpdateResult {
 
 export interface ProvisionResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   provisionTime: Date;
   resources?: {
@@ -128,7 +128,7 @@ export interface ProvisionResult {
 
 export interface PublishResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   publishTime: Date;
   artifacts?: {
@@ -167,7 +167,7 @@ export interface PublishResult {
 
 export interface BackupResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   backupTime: Date;
   backupId: string; // Unique identifier for this backup
@@ -223,7 +223,7 @@ export interface BackupResult {
 
 export interface ExecResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   execTime: Date;
   command: string; // The command that was executed
@@ -272,7 +272,7 @@ export interface ExecResult {
 // Service interface - will grow with each migration phase
 export interface Service {
   readonly name: ServiceName;
-  readonly deployment: DeploymentType;
+  readonly platform: Platform;
   
   start(): Promise<StartResult>;
   stop(): Promise<StopResult>;
@@ -301,7 +301,7 @@ export interface ExecOptions {
 
 export interface TestResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   testTime: Date;
   suite: string; // Test suite name (unit, integration, e2e, smoke, etc.)
@@ -416,7 +416,7 @@ export interface TestOptions {
 
 export interface RestoreResult {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   success: boolean;
   restoreTime: Date;
   backupId: string; // ID of backup that was restored

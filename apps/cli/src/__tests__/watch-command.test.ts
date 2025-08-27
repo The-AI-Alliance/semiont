@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { watch, WatchOptions } from '../commands/watch.js';
 import { WatchResult } from '../lib/command-results.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // Mock dependencies
 vi.mock('ink', () => ({
@@ -13,11 +13,11 @@ vi.mock('ink', () => ({
 }));
 
 // Helper function to create service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    deploymentType: service.type as any,
-    deployment: { type: service.type },
+    platform: service.type as any,
+    platform: { type: service.type },
     config: service.config || {}
   }));
 }
@@ -290,7 +290,7 @@ describe('watch command with structured output', () => {
 
   describe('Error handling', () => {
     it('should handle empty service deployments', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
 
       const options: WatchOptions = {
         environment: 'local',
@@ -419,7 +419,7 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       const watchResult = results.services[0]! as WatchResult;
-      expect(watchResult.deploymentType).toBe('aws');
+      expect(watchResult.platform).toBe('aws');
     });
 
     it('should handle container deployments', async () => {
@@ -440,7 +440,7 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       const watchResult = results.services[0]! as WatchResult;
-      expect(watchResult.deploymentType).toBe('container');
+      expect(watchResult.platform).toBe('container');
     });
 
     it('should handle process deployments', async () => {
@@ -461,7 +461,7 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       const watchResult = results.services[0]! as WatchResult;
-      expect(watchResult.deploymentType).toBe('process');
+      expect(watchResult.platform).toBe('process');
     });
 
     it('should handle external deployments', async () => {
@@ -482,7 +482,7 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       const watchResult = results.services[0]! as WatchResult;
-      expect(watchResult.deploymentType).toBe('external');
+      expect(watchResult.platform).toBe('external');
     });
   });
 

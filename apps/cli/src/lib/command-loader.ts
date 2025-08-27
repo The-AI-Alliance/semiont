@@ -6,13 +6,13 @@
  */
 
 import type { CommandDefinition } from './command-definition.js';
-import type { ServiceDeploymentInfo } from './deployment-resolver.js';
+import type { ServicePlatformInfo } from './platform-resolver.js';
 import { createArgParser, generateHelp } from './arg-parser.js';
 import { 
   getAvailableEnvironments, 
   isValidEnvironment,
   resolveServiceDeployments 
-} from './deployment-resolver.js';
+} from './platform-resolver.js';
 import { 
   validateServiceSelector, 
   resolveServiceSelector,
@@ -207,7 +207,7 @@ export async function executeCommand(
     }
     
     // Resolve services if required
-    let services: ServiceDeploymentInfo[] = [];
+    let services: ServicePlatformInfo[] = [];
     if (command.requiresServices) {
       // Service property is optional in options, default to 'all' if not specified
       const service = 'service' in options && typeof options.service === 'string' 

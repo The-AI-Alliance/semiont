@@ -8,7 +8,7 @@
 import { BaseService } from './base-service.js';
 import { CheckResult } from './types.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
+import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -96,7 +96,7 @@ export class BackendServiceRefactored extends BaseService {
   }
   
   protected async doCollectLogs(): Promise<CheckResult['logs']> {
-    switch (this.deployment) {
+    switch (this.platform) {
       case 'process':
         return this.collectProcessLogs();
       case 'container':
@@ -188,7 +188,7 @@ export class BackendServiceRefactored extends BaseService {
       return this.config.databaseUrl;
     }
     
-    switch (this.deployment) {
+    switch (this.platform) {
       case 'process':
         return 'postgresql://postgres:localpassword@localhost:5432/semiont';
       case 'container':

@@ -4,14 +4,14 @@
 
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, BackupResult } from '../services/types.js';
+import { Config, ServiceName, Platform, BackupResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -37,7 +37,7 @@ type BackupOptions = z.output<typeof BackupOptionsSchema>;
 // =====================================================================
 
 async function backupHandler(
-  services: ServiceDeploymentInfo[],
+  services: ServicePlatformInfo[],
   options: BackupOptions
 ): Promise<CommandResults<BackupResult>> {
   const serviceResults: BackupResult[] = [];
@@ -67,10 +67,10 @@ async function backupHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.deploymentType as DeploymentType,
+        serviceInfo.platform as Platform,
         config,
         { 
-          deploymentType: serviceInfo.deploymentType as DeploymentType,
+          platform: serviceInfo.platform as Platform,
           name: options.name || serviceInfo.config.name || serviceInfo.name,
           port: serviceInfo.config.port || 3000,
           image: serviceInfo.config.image || `semiont/${serviceInfo.name}:latest`
@@ -106,7 +106,7 @@ async function backupHandler(
       // Display result
       if (!options.quiet) {
         if (result.success) {
-          printSuccess(`💾 ${serviceInfo.name} (${serviceInfo.deploymentType}) backed up`);
+          printSuccess(`💾 ${serviceInfo.name} (${serviceInfo.platform}) backed up`);
           
           // Show backup ID
           if (result.backupId) {
@@ -166,7 +166,7 @@ async function backupHandler(
           printError(`❌ Failed to backup ${serviceInfo.name}: ${result.error}`);
           
           // For external services, show recommendations
-          if (serviceInfo.deploymentType === 'external' && result.metadata?.recommendations) {
+          if (serviceInfo.platform === 'external' && result.metadata?.recommendations) {
             console.log(`   📝 Recommendations:`);
             result.metadata.recommendations.forEach((rec: string) => {
               console.log(`      • ${rec}`);
@@ -178,7 +178,7 @@ async function backupHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        deployment: serviceInfo.deploymentType as DeploymentType,
+        platform: serviceInfo.platform as Platform,
         success: false,
         backupTime: new Date(),
         backupId: `error-${Date.now()}`,
@@ -204,7 +204,7 @@ async function backupHandler(
     // Platform breakdown
     const platforms = serviceResults.reduce((acc, r) => {
       if (r.success) {
-        acc[r.deployment] = (acc[r.deployment] || 0) + 1;
+        acc[r.platform] = (acc[r.platform] || 0) + 1;
       }
       return acc;
     }, {} as Record<string, number>);
@@ -274,7 +274,7 @@ async function backupHandler(
  * Sort services by backup priority
  * Generally: data services first (database, filesystem), then applications
  */
-function sortServicesByBackupPriority(services: ServiceDeploymentInfo[]): ServiceDeploymentInfo[] {
+function sortServicesByBackupPriority(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
   const backupOrder = ['database', 'filesystem', 'backend', 'mcp', 'frontend', 'agent'];
   
   return services.sort((a, b) => {

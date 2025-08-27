@@ -6,7 +6,7 @@
 
 import { BaseService } from './base-service.js';
 import { CheckResult } from './types.js';
-import { loadEnvironmentConfig } from '../lib/deployment-resolver.js';
+import { loadEnvironmentConfig } from '../lib/platform-resolver.js';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -55,8 +55,8 @@ export class MCPServiceRefactored extends BaseService {
     }
     
     // MCP only works as process deployment
-    if (this.deployment !== 'process') {
-      throw new Error(`MCP service only supports process deployment, got: ${this.deployment}`);
+    if (this.platform !== 'process') {
+      throw new Error(`MCP service only supports process deployment, got: ${this.platform}`);
     }
     
     // Check for provisioned auth

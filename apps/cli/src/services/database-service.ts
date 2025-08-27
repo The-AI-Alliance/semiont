@@ -98,7 +98,7 @@ export class DatabaseServiceRefactored extends BaseService {
   }
   
   protected async doCollectLogs(): Promise<CheckResult['logs']> {
-    switch (this.deployment) {
+    switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
       case 'process':

@@ -3,11 +3,11 @@
  * This allows for easy testing without mocking
  */
 
-import { ServiceDeploymentInfo } from './deployment-resolver.js';
+import { ServicePlatformInfo } from './platform-resolver.js';
 import { RDSClient } from '@aws-sdk/client-rds';
 import * as fs from 'fs/promises';
 import { validateServiceSelector, resolveServiceSelector } from './services.js';
-import { resolveServiceDeployments } from './deployment-resolver.js';
+import { resolveServiceDeployments } from './platform-resolver.js';
 import { execInContainer } from './container-runtime.js';
 
 export interface ServiceResolver {
@@ -16,7 +16,7 @@ export interface ServiceResolver {
 }
 
 export interface DeploymentResolver {
-  resolve(services: string[], environment: string): ServiceDeploymentInfo[];
+  resolve(services: string[], environment: string): ServicePlatformInfo[];
 }
 
 export interface ContainerExecutor {

@@ -4,14 +4,14 @@
 
 import { z } from 'zod';
 import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, ProvisionResult } from '../services/types.js';
+import { Config, ServiceName, Platform, ProvisionResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -33,7 +33,7 @@ type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 // =====================================================================
 
 async function provisionHandler(
-  services: ServiceDeploymentInfo[],
+  services: ServicePlatformInfo[],
   options: ProvisionOptions
 ): Promise<CommandResults<ProvisionResult>> {
   const serviceResults: ProvisionResult[] = [];
@@ -61,10 +61,10 @@ async function provisionHandler(
       // Create service instance
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
-        serviceInfo.deploymentType as DeploymentType,
+        serviceInfo.platform as Platform,
         config,
         {
-          deploymentType: serviceInfo.deploymentType as DeploymentType
+          platform: serviceInfo.platform as Platform
         } // Service config would come from project config
       );
       
@@ -88,7 +88,7 @@ async function provisionHandler(
       // Display result
       if (!options.quiet) {
         if (result.success) {
-          printSuccess(`✅ ${serviceInfo.name} (${serviceInfo.deploymentType}) provisioned`);
+          printSuccess(`✅ ${serviceInfo.name} (${serviceInfo.platform}) provisioned`);
           
           // Show key resources
           if (result.resources) {
@@ -131,7 +131,7 @@ async function provisionHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        deployment: serviceInfo.deploymentType as DeploymentType,
+        platform: serviceInfo.platform as Platform,
         success: false,
         provisionTime: new Date(),
         error: error instanceof Error ? error.message : String(error)
@@ -160,7 +160,7 @@ async function provisionHandler(
     
     // Platform breakdown
     const platforms = serviceResults.reduce((acc, r) => {
-      acc[r.deployment] = (acc[r.deployment] || 0) + 1;
+      acc[r.platform] = (acc[r.platform] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     
@@ -211,7 +211,7 @@ async function provisionHandler(
  * Sort services by dependency order
  * Database first, then backend, then frontend, etc.
  */
-function sortServicesByDependencies(services: ServiceDeploymentInfo[]): ServiceDeploymentInfo[] {
+function sortServicesByDependencies(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
   const dependencyOrder = ['filesystem', 'database', 'backend', 'frontend', 'mcp', 'agent'];
   
   return services.sort((a, b) => {

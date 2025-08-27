@@ -7,10 +7,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PublishOptions } from '../commands/publish.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 
-// Mock deployment-resolver to avoid filesystem access
-vi.mock('../lib/deployment-resolver.js');
+// Mock platform-resolver to avoid filesystem access
+vi.mock('../lib/platform-resolver.js');
 
 let testDir: string;
 let originalCwd: string;
@@ -60,11 +60,11 @@ vi.mock('../lib/load-environment-config.js', () => ({
 }));
 
 // Helper function to create dummy service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    deploymentType: service.type as any,
-    deployment: { type: service.type },
+    platform: service.type as any,
+    platform: { type: service.type },
     config: service.config || {}
   }));
 }
@@ -127,7 +127,7 @@ describe('Publish Command', () => {
         services: expect.arrayContaining([
           expect.objectContaining({
             command: 'publish',
-            deploymentType: 'container',
+            platform: 'container',
             success: true,
             imageTag: 'v1.2.3',
             repository: 'local',
@@ -246,7 +246,7 @@ describe('Publish Command', () => {
       const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'aws',
+        platform: 'aws',
         imageTag: 'v1.0.0',
         resourceId: {
           aws: expect.any(Object)
@@ -277,7 +277,7 @@ describe('Publish Command', () => {
       
       result.services.forEach(service => {
         expect(service).toMatchObject({
-          deploymentType: 'container',
+          platform: 'container',
           imageTag: 'staging-latest',
           repository: 'local',
           metadata: expect.objectContaining({
@@ -307,7 +307,7 @@ describe('Publish Command', () => {
       const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         imageTag: 'dev',
         repository: 'local',
         metadata: expect.objectContaining({
@@ -335,7 +335,7 @@ describe('Publish Command', () => {
       const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         status: 'skipped',
         metadata: expect.objectContaining({
           reason: expect.stringContaining('does not use container images')
@@ -362,7 +362,7 @@ describe('Publish Command', () => {
       const result = await publish(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         status: 'skipped',
         metadata: expect.objectContaining({
           reason: expect.stringContaining('does not use container images')

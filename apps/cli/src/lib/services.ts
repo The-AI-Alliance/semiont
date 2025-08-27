@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { findProjectRoot } from './deployment-resolver.js';
+import { findProjectRoot } from './platform-resolver.js';
 
 // Built-in services that are always available
 export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;
@@ -50,7 +50,7 @@ async function loadEnvironmentServices(environment: string): Promise<string[]> {
     const configPath = path.join(PROJECT_ROOT, 'environments', `${environment}.json`);
     
     if (!fs.existsSync(configPath)) {
-      // Don't show error here - deployment-resolver will handle it
+      // Don't show error here - platform-resolver will handle it
       return [...BUILT_IN_SERVICES];
     }
     

@@ -5,14 +5,14 @@
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
-import { Config, ServiceName, DeploymentType, StopResult } from '../services/types.js';
+import { Config, ServiceName, Platform, StopResult } from '../services/types.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
@@ -33,15 +33,15 @@ type StopOptions = z.output<typeof StopOptionsSchema>;
 // =====================================================================
 
 async function stopServiceImpl(
-  serviceInfo: ServiceDeploymentInfo,
+  serviceInfo: ServicePlatformInfo,
   config: Config
 ): Promise<StopResult> {
   // Create the service instance
   const service = ServiceFactory.create(
     serviceInfo.name as ServiceName,
-    serviceInfo.deploymentType as DeploymentType,
+    serviceInfo.platform as Platform,
     config,
-    { ...serviceInfo.config, deploymentType: serviceInfo.deploymentType as DeploymentType }
+    { ...serviceInfo.config, platform: serviceInfo.platform as Platform }
   );
   
   // Stop the service
@@ -53,7 +53,7 @@ async function stopServiceImpl(
 // =====================================================================
 
 export async function stop(
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: StopOptions
 ): Promise<CommandResults<StopResult>> {
   const stopTime = Date.now();
@@ -88,7 +88,7 @@ export async function stop(
       } catch (error) {
         const errorResult: StopResult = {
           entity: serviceInfo.name as ServiceName,
-          deployment: serviceInfo.deploymentType as DeploymentType,
+          platform: serviceInfo.platform as Platform,
           success: false,
           stopTime: new Date(),
           error: (error as Error).message

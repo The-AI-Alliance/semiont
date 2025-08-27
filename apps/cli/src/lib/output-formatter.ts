@@ -128,7 +128,7 @@ export class OutputFormatter {
         statusColor = c.dim;
       }
       
-      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${result.entity}${c.reset} (${result.deploymentType}): ${statusColor}${result.status}${c.reset}\n`;
+      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${result.entity}${c.reset} (${result.platform}): ${statusColor}${result.status}${c.reset}\n`;
       
       // Show endpoint if available (for start results)
       if ('endpoint' in result && result.endpoint && !options.quiet) {
@@ -243,7 +243,7 @@ export class OutputFormatter {
       
       const row: Record<string, any> = {
         Entity: result.entity,
-        Type: result.deploymentType,
+        Type: result.platform,
         Status: statusText,
       };
 

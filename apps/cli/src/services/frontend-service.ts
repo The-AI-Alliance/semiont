@@ -6,7 +6,7 @@
 
 import { BaseService } from './base-service.js';
 import { CheckResult } from './types.js';
-import { getNodeEnvForEnvironment } from '../lib/deployment-resolver.js';
+import { getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 
@@ -79,7 +79,7 @@ export class FrontendServiceRefactored extends BaseService {
   }
   
   protected async doCollectLogs(): Promise<CheckResult['logs']> {
-    switch (this.deployment) {
+    switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
       case 'aws':
@@ -138,7 +138,7 @@ export class FrontendServiceRefactored extends BaseService {
   // =====================================================================
   
   private getBackendUrl(): string {
-    switch (this.deployment) {
+    switch (this.platform) {
       case 'process':
         return 'http://localhost:3001';
       case 'container':
@@ -153,7 +153,7 @@ export class FrontendServiceRefactored extends BaseService {
   }
   
   private getPublicUrl(): string {
-    switch (this.deployment) {
+    switch (this.platform) {
       case 'aws':
         return `https://${this.config.environment}.semiont.com`;
       default:

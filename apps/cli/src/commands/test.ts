@@ -6,14 +6,14 @@ import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { spawn } from 'child_process';
 import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { listContainers } from '../lib/container-runtime.js';
 import { 
   CommandResults
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
-import { ServiceName, DeploymentType, TestResult } from '../services/types.js';
+import { ServiceName, Platform, TestResult } from '../services/types.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -98,15 +98,15 @@ async function runCommand(command: string, args: string[], cwd: string, options:
   });
 }
 
-async function testServiceImpl(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+async function testServiceImpl(serviceInfo: ServicePlatformInfo, suite: string, options: TestOptions): Promise<boolean> {
   if (options.dryRun) {
-    printInfo(`[DRY RUN] Would test ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}`);
+    printInfo(`[DRY RUN] Would test ${serviceInfo.name} (${serviceInfo.platform}) - ${suite}`);
     return true;
   }
   
-  printInfo(`Testing ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}...`);
+  printInfo(`Testing ${serviceInfo.name} (${serviceInfo.platform}) - ${suite}...`);
   
-  switch (serviceInfo.deploymentType) {
+  switch (serviceInfo.platform) {
     case 'aws':
       return await testAWSService(serviceInfo, suite, options);
     case 'container':
@@ -116,12 +116,12 @@ async function testServiceImpl(serviceInfo: ServiceDeploymentInfo, suite: string
     case 'external':
       return await testExternalService(serviceInfo, suite, options);
     default:
-      printWarning(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
+      printWarning(`Unknown deployment type '${serviceInfo.platform}' for ${serviceInfo.name}`);
       return false;
   }
 }
 
-async function testAWSService(serviceInfo: ServiceDeploymentInfo, suite: string, _options: TestOptions): Promise<boolean> {
+async function testAWSService(serviceInfo: ServicePlatformInfo, suite: string, _options: TestOptions): Promise<boolean> {
   // AWS service testing
   switch (suite) {
     case 'health':
@@ -170,7 +170,7 @@ async function testAWSService(serviceInfo: ServiceDeploymentInfo, suite: string,
   }
 }
 
-async function testContainerService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+async function testContainerService(serviceInfo: ServicePlatformInfo, suite: string, options: TestOptions): Promise<boolean> {
   const environment = options.environment!; // Environment is guaranteed by command loader
   const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${environment}`;
   
@@ -248,7 +248,7 @@ async function testContainerService(serviceInfo: ServiceDeploymentInfo, suite: s
   }
 }
 
-async function testProcessService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions): Promise<boolean> {
+async function testProcessService(serviceInfo: ServicePlatformInfo, suite: string, options: TestOptions): Promise<boolean> {
   switch (suite) {
     case 'health':
       switch (serviceInfo.name) {
@@ -314,7 +314,7 @@ async function testProcessService(serviceInfo: ServiceDeploymentInfo, suite: str
   }
 }
 
-async function testExternalService(serviceInfo: ServiceDeploymentInfo, suite: string, _options: TestOptions): Promise<boolean> {
+async function testExternalService(serviceInfo: ServicePlatformInfo, suite: string, _options: TestOptions): Promise<boolean> {
   switch (suite) {
     case 'health':
     case 'connectivity':
@@ -423,7 +423,7 @@ async function testHttpHealth(url: string, serviceName: string): Promise<boolean
   }
 }
 
-async function runIntegrationTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+async function runIntegrationTestsForService(serviceInfo: ServicePlatformInfo, options: TestOptions): Promise<boolean> {
   printInfo(`Running integration tests for ${serviceInfo.name}`);
   
   const testDirs = [
@@ -473,17 +473,17 @@ async function runIntegrationTestsForService(serviceInfo: ServiceDeploymentInfo,
 // STRUCTURED OUTPUT FUNCTIONS
 // =====================================================================
 
-async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, options: TestOptions, isStructuredOutput: boolean = false): Promise<TestResult> {
+async function testService(serviceInfo: ServicePlatformInfo, suite: string, options: TestOptions, isStructuredOutput: boolean = false): Promise<TestResult> {
   const startTime = Date.now();
   
   if (options.dryRun) {
     if (!isStructuredOutput && options.output === 'summary') {
-      printInfo(`[DRY RUN] Would test ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}`);
+      printInfo(`[DRY RUN] Would test ${serviceInfo.name} (${serviceInfo.platform}) - ${suite}`);
     }
     
     return {
       entity: serviceInfo.name as ServiceName,
-      deployment: serviceInfo.deploymentType as DeploymentType,
+      platform: serviceInfo.platform as Platform,
       success: true,
       testTime: new Date(),
       suite: suite,
@@ -499,7 +499,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   }
   
   if (!isStructuredOutput && options.output === 'summary') {
-    printInfo(`Testing ${serviceInfo.name} (${serviceInfo.deploymentType}) - ${suite}...`);
+    printInfo(`Testing ${serviceInfo.name} (${serviceInfo.platform}) - ${suite}...`);
   }
   
   // Suppress output when in structured mode
@@ -514,7 +514,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
   
   return {
     entity: serviceInfo.name as ServiceName,
-    deployment: serviceInfo.deploymentType as DeploymentType,
+    platform: serviceInfo.platform as Platform,
     success: passed,
     testTime: new Date(),
     suite: suite,
@@ -541,7 +541,7 @@ async function testService(serviceInfo: ServiceDeploymentInfo, suite: string, op
 // =====================================================================
 
 export async function test(
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: TestOptions
 ): Promise<CommandResults<TestResult>> {
   const startTime = Date.now();
@@ -555,7 +555,7 @@ export async function test(
   try {
     
     if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`);
+      console.log(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.platform})`).join(', ')}`);
     }
     
     // Determine which test suites to run
@@ -574,7 +574,7 @@ export async function test(
         } catch (error) {
           const testErrorResult: TestResult = {
             entity: serviceInfo.name as ServiceName,
-            deployment: serviceInfo.deploymentType as DeploymentType,
+            platform: serviceInfo.platform as Platform,
             success: false,
             testTime: new Date(),
             suite: suite,
@@ -651,7 +651,7 @@ export async function test(
   }
 }
 
-async function runSecurityTestsForService(serviceInfo: ServiceDeploymentInfo, _options: TestOptions): Promise<boolean> {
+async function runSecurityTestsForService(serviceInfo: ServicePlatformInfo, _options: TestOptions): Promise<boolean> {
   printInfo(`Running security tests for ${serviceInfo.name}`);
   
   switch (serviceInfo.name) {
@@ -683,7 +683,7 @@ async function runSecurityTestsForService(serviceInfo: ServiceDeploymentInfo, _o
   }
 }
 
-async function runE2ETestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+async function runE2ETestsForService(serviceInfo: ServicePlatformInfo, options: TestOptions): Promise<boolean> {
   printInfo(`Running E2E tests for ${serviceInfo.name}`);
   
   try {
@@ -703,7 +703,7 @@ async function runE2ETestsForService(serviceInfo: ServiceDeploymentInfo, options
   }
 }
 
-async function runUnitTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+async function runUnitTestsForService(serviceInfo: ServicePlatformInfo, options: TestOptions): Promise<boolean> {
   printInfo(`Running unit tests for ${serviceInfo.name}`);
   
   const servicePath = `${PROJECT_ROOT}/apps/${serviceInfo.name}`;
@@ -737,7 +737,7 @@ async function runUnitTestsForService(serviceInfo: ServiceDeploymentInfo, option
   return success;
 }
 
-async function runComponentTestsForService(serviceInfo: ServiceDeploymentInfo, options: TestOptions): Promise<boolean> {
+async function runComponentTestsForService(serviceInfo: ServicePlatformInfo, options: TestOptions): Promise<boolean> {
   if (serviceInfo.name !== 'frontend') {
     printInfo(`Component tests not applicable for ${serviceInfo.name}`);
     return true;

@@ -98,7 +98,7 @@ const DashboardApp: React.FC<{
   }
 };
 
-import { getAvailableEnvironments } from '../lib/deployment-resolver.js';
+import { getAvailableEnvironments } from '../lib/platform-resolver.js';
 
 // Argument parsing with environment support
 function parseArgs(): { environment: string; mode: DashboardMode; service?: ServiceType } {

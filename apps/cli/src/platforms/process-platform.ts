@@ -53,7 +53,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'process',
+      platform: 'process',
       success: true,
       startTime: new Date(),
       endpoint: port ? `http://localhost:${port}` : undefined,
@@ -95,7 +95,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: true,
         stopTime: new Date(),
         metadata: {
@@ -120,7 +120,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: true,
         stopTime: new Date(),
         gracefulShutdown: true,
@@ -132,7 +132,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       // Process might already be gone
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: true,
         stopTime: new Date(),
         metadata: {
@@ -180,7 +180,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'process',
+      platform: 'process',
       success: true,
       checkTime: new Date(),
       status,
@@ -209,7 +209,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'process',
+      platform: 'process',
       success: true,
       updateTime: new Date(),
       strategy: 'restart',
@@ -320,7 +320,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'process',
+      platform: 'process',
       success: true,
       provisionTime: new Date(),
       resources,
@@ -453,7 +453,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'process',
+      platform: 'process',
       success: true,
       publishTime: new Date(),
       artifacts,
@@ -601,7 +601,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: true,
         backupTime: new Date(),
         backupId,
@@ -622,7 +622,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         backupTime: new Date(),
         backupId,
@@ -643,7 +643,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(workingDirectory)) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         execTime,
         command,
@@ -674,7 +674,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         // Would require more sophisticated terminal handling
         return {
           entity: context.name,
-          deployment: 'process',
+          platform: 'process',
           success: false,
           execTime,
           command,
@@ -740,7 +740,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: exitCode === 0,
         execTime,
         command,
@@ -775,7 +775,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         execTime,
         command,
@@ -797,7 +797,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(servicePath)) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         testTime,
         suite: options.suite || 'unit',
@@ -923,7 +923,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: exitCode === 0,
         testTime,
         suite: options.suite || 'unit',
@@ -959,7 +959,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         testTime,
         suite: options.suite || 'unit',
@@ -1071,7 +1071,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(backupPath)) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         restoreTime,
         backupId,
@@ -1090,7 +1090,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
           if (expectedChecksum !== actualChecksum) {
             return {
               entity: context.name,
-              deployment: 'process',
+              platform: 'process',
               success: false,
               restoreTime,
               backupId,
@@ -1264,7 +1264,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         
         return {
           entity: context.name,
-          deployment: 'process',
+          platform: 'process',
           success: true,
           restoreTime,
           backupId,
@@ -1326,7 +1326,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'process',
+        platform: 'process',
         success: false,
         restoreTime,
         backupId,

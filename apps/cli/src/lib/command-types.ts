@@ -5,7 +5,7 @@
  * CLI commands must follow.
  */
 
-import type { ServiceDeploymentInfo } from './deployment-resolver.js';
+import type { ServicePlatformInfo } from './platform-resolver.js';
 import type { CommandResults } from './command-results.js';
 
 /**
@@ -22,6 +22,6 @@ import type { CommandResults } from './command-results.js';
  * @returns Promise of structured command results with preserved service types
  */
 export type CommandFunction<TOptions = any, TResult = any> = (
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: TOptions
 ) => Promise<CommandResults<TResult>>;

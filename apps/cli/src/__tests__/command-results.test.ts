@@ -25,7 +25,7 @@ describe('Command Result Type System', () => {
       expect(baseResult).toMatchObject({
         command: 'start',
         service: 'frontend',
-        deploymentType: 'container',
+        platform: 'container',
         environment: 'local',
         success: true,
         timestamp: expect.any(Date),

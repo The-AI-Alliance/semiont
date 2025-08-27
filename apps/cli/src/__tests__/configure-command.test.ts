@@ -11,7 +11,7 @@ let testDir: string;
 let originalCwd: string;
 
 // Only mock the things we need to mock (AWS SDK, readline, etc)
-// Don't mock deployment-resolver since we want it to read real config files
+// Don't mock platform-resolver since we want it to read real config files
 vi.mock('../lib/stack-config.js', () => ({
   SemiontStackConfig: vi.fn(() => ({
     getConfig: vi.fn().mockResolvedValue({
@@ -28,22 +28,22 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
 }));
 vi.mock('readline');
 
-// Don't mock deployment-resolver for configure tests - use real filesystem
+// Don't mock platform-resolver for configure tests - use real filesystem
 // Only mock the parts that need overriding for specific tests
 
 // Now import after mocks are set up
 import configureCommand, { ConfigureOptions } from '../commands/configure.js';
 const configure = configureCommand.handler;
 import { ConfigureResult } from '../lib/command-results.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 
 // Helper function to create dummy service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    deploymentType: service.type as any,
-    deployment: { type: service.type },
+    platform: service.type as any,
+    platform: { type: service.type },
     config: service.config || {}
   }));
 }
@@ -66,7 +66,7 @@ describe('configure command with structured output', () => {
     // Create custom configs for specific test cases
     // Add a 'local-no-aws' environment without AWS config for error testing
     const noAwsConfig = {
-      deployment: { default: 'container' },
+      platform: { default: 'container' },
       services: {
         frontend: { port: 3000 },
         backend: { port: 3001 }
@@ -250,7 +250,7 @@ describe('configure command with structured output', () => {
 
       // Create a production environment without AWS config for testing
       const prodNoAwsConfig = {
-        deployment: { default: 'aws' }, // AWS deployment but no AWS config
+        platform: { default: 'aws' }, // AWS deployment but no AWS config
         services: {
           frontend: { port: 3000 },
           backend: { port: 3001 }
@@ -332,7 +332,7 @@ describe('configure command with structured output', () => {
         console.log('Error:', getResult.error);
       }
       expect(getResult.service).toBe('secret');
-      expect(getResult.deploymentType).toBe('external');
+      expect(getResult.platform).toBe('external');
       expect(getResult.status).toBe('retrieved');
       expect(getResult.success).toBe(true);
       expect(getResult.metadata).toHaveProperty('action', 'get');

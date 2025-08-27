@@ -7,11 +7,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceName, DeploymentType } from './types.js';
+import { ServiceName, Platform } from './types.js';
 
 export interface ServiceState {
   entity: ServiceName;
-  deployment: DeploymentType;
+  platform: Platform;
   environment: string;
   startTime: string;
   resourceId: {

@@ -37,20 +37,17 @@ export const loadEnvironmentConfig = vi.fn((environment: string) => ({
 export const resolveServiceDeployments = vi.fn((environment: string) => [
   {
     name: 'frontend',
-    deploymentType: environment === 'local' ? 'process' : 'container',
-    deployment: { type: environment === 'local' ? 'process' : 'container' },
+    platform: environment === 'local' ? 'process' : 'container',
     config: { port: 3000 }
   },
   {
     name: 'backend', 
-    deploymentType: environment === 'local' ? 'process' : 'container',
-    deployment: { type: environment === 'local' ? 'process' : 'container' },
+    platform: environment === 'local' ? 'process' : 'container',
     config: { port: 3001 }
   },
   {
     name: 'database',
-    deploymentType: 'external',
-    deployment: { type: 'external' },
+    platform: 'external',
     config: { host: 'localhost', port: 5432 }
   }
 ]);

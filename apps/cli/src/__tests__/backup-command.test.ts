@@ -75,7 +75,7 @@ describe('backup command with structured output', () => {
       
       const dbResult = results.services[0]! as BackupResult;
       expect(dbResult.service).toBe('database');
-      expect(dbResult.deploymentType).toBe('aws');
+      expect(dbResult.platform).toBe('aws');
       expect(dbResult.backupName).toBe('test-backup');
       expect(dbResult.backupType).toBe('full');
       expect(dbResult.compressed).toBe(false); // RDS handles compression internally
@@ -124,7 +124,7 @@ describe('backup command with structured output', () => {
 
       expect(results.services).toHaveLength(1);
       const dbResult = results.services[0]! as BackupResult;
-      expect(dbResult.deploymentType).toBe('container');
+      expect(dbResult.platform).toBe('container');
       expect(dbResult.backupName).toBe('local-backup');
       expect(dbResult.compressed).toBe(false);
       

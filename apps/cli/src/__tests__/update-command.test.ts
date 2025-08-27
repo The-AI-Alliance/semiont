@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi, test } from 'vitest';
 import type { UpdateOptions } from '../commands/update.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -39,11 +39,11 @@ vi.mock('child_process', () => ({
   }))
 }));
 // Helper function to create dummy service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    deploymentType: service.type as any,
-    deployment: { type: service.type },
+    platform: service.type as any,
+    platform: { type: service.type },
     config: service.config || {}
   }));
 }
@@ -90,7 +90,7 @@ describe('Update Command', () => {
         services: expect.arrayContaining([
           expect.objectContaining({
             command: 'update',
-            deploymentType: 'container',
+            platform: 'container',
             success: true,
             updateTime: expect.any(Date),
             rollbackAvailable: true,
@@ -235,7 +235,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'aws',
+        platform: 'aws',
         status: 'not-applicable',
         success: true,
         previousVersion: 'postgres-15',
@@ -275,7 +275,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'aws',
+        platform: 'aws',
         status: 'no-action-needed',
         success: true,
         previousVersion: 'efs-standard',
@@ -320,7 +320,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         status: 'updated',
         success: true,
         rollbackAvailable: true,
@@ -385,7 +385,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         status: 'updated',
         success: true
       });
@@ -426,7 +426,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         status: 'updated',
         success: true,
         previousVersion: 'volume',
@@ -461,7 +461,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         status: 'updated',
         success: true,
         previousVersion: 'development',
@@ -509,7 +509,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         status: 'not-applicable',
         success: true,
         previousVersion: 'postgres-local',
@@ -543,7 +543,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         status: 'external',
         success: true,
         previousVersion: 'external',
@@ -584,7 +584,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         status: 'external',
         success: true,
         resourceId: expect.objectContaining({

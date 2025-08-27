@@ -5,7 +5,7 @@
  * PlatformStrategy instances, dramatically simplifying service implementations.
  */
 
-import { Service, ServiceName, DeploymentType, Config, StartResult, StopResult, CheckResult, UpdateResult, ProvisionResult, PublishResult, BackupResult, ExecResult, ExecOptions, TestResult, TestOptions, RestoreResult, RestoreOptions, ServiceConfig } from './types.js';
+import { Service, ServiceName, Platform, Config, StartResult, StopResult, CheckResult, UpdateResult, ProvisionResult, PublishResult, BackupResult, ExecResult, ExecOptions, TestResult, TestOptions, RestoreResult, RestoreOptions, ServiceConfig } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../lib/cli-logger.js';
 import { StateManager, ServiceState } from './state-manager.js';
 import { PlatformFactory, PlatformStrategy, ServiceContext } from '../platforms/index.js';
@@ -14,18 +14,18 @@ export abstract class BaseService implements Service, ServiceContext {
   protected readonly systemConfig: Config;
   public readonly config: ServiceConfig;
   protected envVars: Record<string, string | undefined> = {};
-  private platform: PlatformStrategy;
+  private platformStrategy: PlatformStrategy;
   
   constructor(
     public readonly name: ServiceName,
-    public readonly deployment: DeploymentType,
+    public readonly platform: Platform,
     systemConfig: Config,
     serviceConfig: ServiceConfig
   ) {
     this.systemConfig = systemConfig;
     this.config = serviceConfig;
     this.envVars = { ...process.env } as Record<string, string | undefined>;
-    this.platform = PlatformFactory.getPlatform(deployment);
+    this.platformStrategy = PlatformFactory.getPlatform(platform);
   }
   
   // =====================================================================
@@ -102,11 +102,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would start ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would start ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           startTime,
           metadata: { dryRun: true }
@@ -114,14 +114,14 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Starting ${this.name} (${this.deployment})...`);
+        printInfo(`Starting ${this.name} (${this.platform})...`);
       }
       
       // Pre-start hook for service-specific setup
       await this.preStart();
       
       // Delegate to platform strategy
-      const result = await this.platform.start(this);
+      const result = await this.platformStrategy.start(this);
       
       // Post-start hook for service-specific validation
       await this.postStart();
@@ -146,7 +146,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         startTime,
         error: (error as Error).message
@@ -160,11 +160,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would stop ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would stop ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           stopTime,
           metadata: { dryRun: true }
@@ -172,14 +172,14 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Stopping ${this.name} (${this.deployment})...`);
+        printInfo(`Stopping ${this.name} (${this.platform})...`);
       }
       
       // Pre-stop hook for service-specific cleanup
       await this.preStop();
       
       // Delegate to platform strategy
-      const result = await this.platform.stop(this);
+      const result = await this.platformStrategy.stop(this);
       
       // Post-stop hook for service-specific validation
       await this.postStop();
@@ -204,7 +204,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         stopTime,
         error: (error as Error).message
@@ -217,14 +217,14 @@ export abstract class BaseService implements Service, ServiceContext {
     
     try {
       if (!this.systemConfig.quiet) {
-        printInfo(`Checking ${this.name} (${this.deployment})...`);
+        printInfo(`Checking ${this.name} (${this.platform})...`);
       }
       
       // Load saved state to verify
       const savedState = await this.loadState();
       
       // Delegate to platform strategy
-      const result = await this.platform.check(this);
+      const result = await this.platformStrategy.check(this);
       
       // Verify state matches reality
       if (savedState && result.status === 'running') {
@@ -277,7 +277,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       // Collect logs if available
       if (result.status === 'running' || result.status === 'unhealthy') {
-        const logs = await this.platform.collectLogs(this);
+        const logs = await this.platformStrategy.collectLogs(this);
         if (logs) {
           result.logs = logs;
         }
@@ -305,7 +305,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         checkTime,
         status: 'unknown',
@@ -321,11 +321,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would update ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would update ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           updateTime,
           strategy: 'none',
@@ -334,7 +334,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Updating ${this.name} (${this.deployment})...`);
+        printInfo(`Updating ${this.name} (${this.platform})...`);
       }
       
       // Check current state
@@ -348,7 +348,7 @@ export abstract class BaseService implements Service, ServiceContext {
       const downtimeStart = wasRunning ? Date.now() : undefined;
       
       // Delegate to platform strategy
-      const result = await this.platform.update(this);
+      const result = await this.platformStrategy.update(this);
       
       // Calculate downtime if applicable
       if (downtimeStart && result.strategy !== 'rolling' && result.strategy !== 'blue-green') {
@@ -378,7 +378,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         updateTime,
         strategy: 'none',
@@ -393,11 +393,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would provision ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would provision ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           provisionTime,
           metadata: { dryRun: true }
@@ -405,14 +405,14 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Provisioning ${this.name} (${this.deployment})...`);
+        printInfo(`Provisioning ${this.name} (${this.platform})...`);
       }
       
       // Pre-provision hook for service-specific preparation
       await this.preProvision();
       
       // Delegate to platform strategy
-      const result = await this.platform.provision(this);
+      const result = await this.platformStrategy.provision(this);
       
       // Post-provision hook for service-specific validation
       await this.postProvision();
@@ -440,7 +440,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         provisionTime,
         error: (error as Error).message
@@ -454,11 +454,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would publish ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would publish ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           publishTime,
           metadata: { dryRun: true }
@@ -466,14 +466,14 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Publishing ${this.name} (${this.deployment})...`);
+        printInfo(`Publishing ${this.name} (${this.platform})...`);
       }
       
       // Pre-publish hook for service-specific preparation
       await this.prePublish();
       
       // Delegate to platform strategy
-      const result = await this.platform.publish(this);
+      const result = await this.platformStrategy.publish(this);
       
       // Post-publish hook for service-specific validation
       await this.postPublish();
@@ -507,7 +507,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         publishTime,
         error: (error as Error).message
@@ -521,11 +521,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would backup ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would backup ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           backupTime,
           backupId: `${this.name}-${this.systemConfig.environment}-dry-run`,
@@ -534,14 +534,14 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Backing up ${this.name} (${this.deployment})...`);
+        printInfo(`Backing up ${this.name} (${this.platform})...`);
       }
       
       // Pre-backup hook for service-specific preparation
       await this.preBackup();
       
       // Delegate to platform strategy
-      const result = await this.platform.backup(this);
+      const result = await this.platformStrategy.backup(this);
       
       // Post-backup hook for service-specific validation
       await this.postBackup();
@@ -577,7 +577,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         backupTime,
         backupId: `${this.name}-${this.systemConfig.environment}-failed`,
@@ -592,11 +592,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would execute '${command}' in ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would execute '${command}' in ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           execTime,
           command,
@@ -612,7 +612,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       // Check if service is running (for most platforms)
-      if (this.deployment !== 'external') {
+      if (this.platform !== 'external') {
         const checkResult = await this.check();
         if (checkResult.status === 'stopped') {
           if (!this.systemConfig.quiet) {
@@ -620,7 +620,7 @@ export abstract class BaseService implements Service, ServiceContext {
           }
           return {
             entity: this.name,
-            deployment: this.deployment,
+            platform: this.platform,
             success: false,
             execTime,
             command,
@@ -630,14 +630,14 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       
       if (!this.systemConfig.quiet) {
-        printInfo(`Executing command in ${this.name} (${this.deployment}): ${command}`);
+        printInfo(`Executing command in ${this.name} (${this.platform}): ${command}`);
       }
       
       // Pre-exec hook for service-specific preparation
       await this.preExec(command, options);
       
       // Delegate to platform strategy
-      const result = await this.platform.exec(this, command, options);
+      const result = await this.platformStrategy.exec(this, command, options);
       
       // Post-exec hook for service-specific validation
       await this.postExec(result);
@@ -668,7 +668,7 @@ export abstract class BaseService implements Service, ServiceContext {
           printError(`Failed to execute command in ${this.name}: ${result.error}`);
           
           // Show recommendations for external services
-          if (this.deployment === 'external' && result.metadata?.recommendations) {
+          if (this.platform === 'external' && result.metadata?.recommendations) {
             console.log('Recommendations:');
             result.metadata.recommendations.forEach((rec: string) => {
               console.log(`  • ${rec}`);
@@ -686,7 +686,7 @@ export abstract class BaseService implements Service, ServiceContext {
       
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         execTime,
         command,
@@ -738,11 +738,11 @@ export abstract class BaseService implements Service, ServiceContext {
     try {
       if (this.systemConfig.dryRun) {
         if (!this.systemConfig.quiet) {
-          printInfo(`[DRY RUN] Would run tests for ${this.name} (${this.deployment})`);
+          printInfo(`[DRY RUN] Would run tests for ${this.name} (${this.platform})`);
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           testTime,
           suite: options.suite || 'unit',
@@ -754,7 +754,7 @@ export abstract class BaseService implements Service, ServiceContext {
       await this.preTest(options);
       
       // Delegate to platform strategy
-      const result = await this.platform.test(this, options);
+      const result = await this.platformStrategy.test(this, options);
       
       // Post-test hook  
       await this.postTest(result);
@@ -762,7 +762,7 @@ export abstract class BaseService implements Service, ServiceContext {
       // Display results
       if (!this.systemConfig.quiet) {
         if (result.success) {
-          printSuccess(`✅ ${this.name} (${this.deployment}): Tests passed`);
+          printSuccess(`✅ ${this.name} (${this.platform}): Tests passed`);
           if (result.tests) {
             printInfo(`   🧪 Tests: ${result.tests.passed} passed, ${result.tests.failed || 0} failed (${((result.tests.duration || 0)/1000).toFixed(1)}s)`);
           }
@@ -770,7 +770,7 @@ export abstract class BaseService implements Service, ServiceContext {
             printInfo(`   📊 Coverage: Lines: ${result.coverage.lines}% Branches: ${result.coverage.branches}%`);
           }
         } else {
-          printError(`❌ ${this.name} (${this.deployment}): Tests failed`);
+          printError(`❌ ${this.name} (${this.platform}): Tests failed`);
           if (result.tests && result.tests.failed && result.tests.failed > 0) {
             printError(`   🧪 ${result.tests.failed} test(s) failed`);
           }
@@ -788,7 +788,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         testTime,
         suite: options.suite || 'unit',
@@ -807,7 +807,7 @@ export abstract class BaseService implements Service, ServiceContext {
         }
         return {
           entity: this.name,
-          deployment: this.deployment,
+          platform: this.platform,
           success: true,
           restoreTime,
           backupId,
@@ -819,7 +819,7 @@ export abstract class BaseService implements Service, ServiceContext {
       await this.preRestore(backupId, options);
       
       // Delegate to platform strategy
-      const result = await this.platform.restore(this, backupId, options);
+      const result = await this.platformStrategy.restore(this, backupId, options);
       
       // Post-restore hook
       await this.postRestore(result);
@@ -827,7 +827,7 @@ export abstract class BaseService implements Service, ServiceContext {
       // Display results
       if (!this.systemConfig.quiet) {
         if (result.success) {
-          printSuccess(`✅ ${this.name} (${this.deployment}): Restore completed`);
+          printSuccess(`✅ ${this.name} (${this.platform}): Restore completed`);
           if (result.restore) {
             printInfo(`   📦 Restored from: ${result.restore.source}`);
             if (result.restore.database) {
@@ -847,7 +847,7 @@ export abstract class BaseService implements Service, ServiceContext {
             printInfo(`   ↩️ Rollback available: ${result.rollback.command}`);
           }
         } else {
-          printError(`❌ ${this.name} (${this.deployment}): Restore failed`);
+          printError(`❌ ${this.name} (${this.platform}): Restore failed`);
           if (result.error) {
             printError(`   Error: ${result.error}`);
           }
@@ -867,7 +867,7 @@ export abstract class BaseService implements Service, ServiceContext {
       }
       return {
         entity: this.name,
-        deployment: this.deployment,
+        platform: this.platform,
         success: false,
         restoreTime,
         backupId,
@@ -948,7 +948,7 @@ export abstract class BaseService implements Service, ServiceContext {
   protected async saveState(result: StartResult): Promise<void> {
     const state: ServiceState = {
       entity: this.name,
-      deployment: this.deployment,
+      platform: this.platform,
       environment: this.systemConfig.environment,
       startTime: result.startTime.toISOString(),
       resourceId: {

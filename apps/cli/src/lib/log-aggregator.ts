@@ -2,7 +2,7 @@
  * Log Aggregator - Fetches and aggregates logs from various sources
  */
 
-import { type ServiceDeploymentInfo } from './deployment-resolver.js';
+import { type ServicePlatformInfo } from './platform-resolver.js';
 
 export interface LogEntry {
   timestamp: Date;
@@ -22,7 +22,7 @@ export interface LogFetchOptions {
 
 export abstract class LogFetcher {
   abstract fetchLogs(
-    service: ServiceDeploymentInfo,
+    service: ServicePlatformInfo,
     options: LogFetchOptions
   ): Promise<LogEntry[]>;
   
@@ -46,7 +46,7 @@ export class LogAggregator {
   }
   
   async fetchRecentLogs(
-    services: ServiceDeploymentInfo[],
+    services: ServicePlatformInfo[],
     options: LogFetchOptions = {}
   ): Promise<LogEntry[]> {
     const allLogs: LogEntry[] = [];
@@ -61,9 +61,9 @@ export class LogAggregator {
     // Fetch logs from each service in parallel
     const promises = services.map(async service => {
       // Determine fetcher type - use special 'rds' key for AWS databases
-      const fetcherType = (service.deploymentType === 'aws' && service.name === 'database') 
+      const fetcherType = (service.platform === 'aws' && service.name === 'database') 
         ? 'rds' 
-        : service.deploymentType;
+        : service.platform;
       
       const fetcher = this.fetchers.get(fetcherType);
       

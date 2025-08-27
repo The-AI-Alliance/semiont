@@ -62,7 +62,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'container',
+      platform: 'container',
       success: true,
       startTime: new Date(),
       endpoint: port ? `http://localhost:${port}` : undefined,
@@ -91,7 +91,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: true,
         stopTime: new Date(),
         gracefulShutdown: true,
@@ -103,7 +103,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     } catch {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: true,
         stopTime: new Date(),
         metadata: {
@@ -165,7 +165,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'container',
+      platform: 'container',
       success: true,
       checkTime: new Date(),
       status,
@@ -203,7 +203,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'container',
+      platform: 'container',
       success: startResult.success,
       updateTime: new Date(),
       strategy: 'recreate',
@@ -301,7 +301,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'container',
+      platform: 'container',
       success: true,
       provisionTime: new Date(),
       resources,
@@ -407,7 +407,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         }
         return {
           entity: context.name,
-          deployment: 'container',
+          platform: 'container',
           success: true,
           publishTime: new Date(),
           metadata: {
@@ -442,7 +442,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: context.name,
-      deployment: 'container',
+      platform: 'container',
       success: true,
       publishTime: new Date(),
       artifacts,
@@ -613,7 +613,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: true,
         backupTime: new Date(),
         backupId,
@@ -638,7 +638,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: false,
         backupTime: new Date(),
         backupId,
@@ -656,7 +656,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     if (!this.isContainerRunning(containerName)) {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: false,
         execTime,
         command,
@@ -724,7 +724,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           
           return {
             entity: context.name,
-            deployment: 'container',
+            platform: 'container',
             success: true,
             execTime,
             command,
@@ -750,7 +750,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         } catch (error: any) {
           return {
             entity: context.name,
-            deployment: 'container',
+            platform: 'container',
             success: false,
             execTime,
             command,
@@ -833,7 +833,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: exitCode === 0,
         execTime,
         command,
@@ -874,7 +874,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: false,
         execTime,
         command,
@@ -950,7 +950,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: exitCode === 0,
         testTime,
         suite,
@@ -979,7 +979,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: false,
         testTime,
         suite: options.suite || 'unit',
@@ -1003,7 +1003,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(backupPath)) {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: false,
         restoreTime,
         backupId,
@@ -1114,7 +1114,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: true,
         restoreTime,
         backupId,
@@ -1165,7 +1165,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: context.name,
-        deployment: 'container',
+        platform: 'container',
         success: false,
         restoreTime,
         backupId,

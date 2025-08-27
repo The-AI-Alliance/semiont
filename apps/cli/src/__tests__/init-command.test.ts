@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ServiceDeploymentInfo } from '../lib/deployment-resolver';
+import { ServicePlatformInfo } from '../lib/platform-resolver';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -43,7 +43,7 @@ describe('init command', () => {
 
   describe('basic functionality', () => {
     it('should initialize a project with default settings', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = []; // Init doesn't use services
+      const serviceDeployments: ServicePlatformInfo[] = []; // Init doesn't use services
       const options = {
         environment: 'none',
         force: false,
@@ -71,7 +71,7 @@ describe('init command', () => {
     });
 
     it('should use custom project name when provided', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         name: 'my-awesome-project',
@@ -90,7 +90,7 @@ describe('init command', () => {
     });
 
     it('should use custom directory when provided', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const customDir = path.join(testDir, 'custom-project');
       const options = {
         environment: 'none',
@@ -117,7 +117,7 @@ describe('init command', () => {
       // Create an existing semiont.json
       fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -143,7 +143,7 @@ describe('init command', () => {
       // Create an existing semiont.json
       fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: true,
@@ -177,7 +177,7 @@ describe('init command', () => {
         return;
       }
       
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         directory: readOnlyDir,
@@ -199,7 +199,7 @@ describe('init command', () => {
 
   describe('environment configuration', () => {
     it('should create configs for custom environment list', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         environments: ['dev', 'qa', 'prod'],
@@ -223,7 +223,7 @@ describe('init command', () => {
     });
 
     it('should generate appropriate configs for each environment type', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         environments: ['local', 'staging', 'production'],
@@ -254,7 +254,7 @@ describe('init command', () => {
 
   describe('output modes', () => {
     it('should suppress output in quiet mode', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -271,7 +271,7 @@ describe('init command', () => {
     });
 
     it('should show verbose output when requested', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -288,7 +288,7 @@ describe('init command', () => {
     });
 
     it('should handle dry run mode', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -307,8 +307,8 @@ describe('init command', () => {
   });
 
   describe('CommandFunction compliance', () => {
-    it('should accept ServiceDeploymentInfo[] as first parameter', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+    it('should accept ServicePlatformInfo[] as first parameter', async () => {
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -324,7 +324,7 @@ describe('init command', () => {
     });
 
     it('should return CommandResults structure', async () => {
-      const serviceDeployments: ServiceDeploymentInfo[] = [];
+      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -360,7 +360,7 @@ describe('init command', () => {
           fs.rmSync('cdk', { recursive: true });
         }
         
-        const serviceDeployments: ServiceDeploymentInfo[] = [];
+        const serviceDeployments: ServicePlatformInfo[] = [];
         const options = {
           environment: 'none',
           force: false,

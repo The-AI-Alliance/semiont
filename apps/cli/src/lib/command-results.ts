@@ -9,7 +9,7 @@
 export interface BaseCommandResult {
   command: string;
   service: string;
-  deploymentType: 'aws' | 'container' | 'process' | 'external' | 'mock';
+  platform: 'aws' | 'container' | 'process' | 'external' | 'mock';
   environment: string;
   timestamp: Date;
   success: boolean;
@@ -327,14 +327,14 @@ export type ResultByCommand<T extends string> =
 export function createBaseResult(
   command: string,
   service: string,
-  deploymentType: 'aws' | 'container' | 'process' | 'external' | 'mock',
+  platform: 'aws' | 'container' | 'process' | 'external' | 'mock',
   environment: string,
   startTime: number
 ): BaseCommandResult {
   return {
     command,
     service,
-    deploymentType,
+    platform,
     environment,
     timestamp: new Date(),
     success: true,
@@ -356,17 +356,17 @@ export function createErrorResult(
 
 // Type guards for deployment-specific results
 export function isAWSResult(result: ServiceResult): result is AWSServiceResult {
-  return result.deploymentType === 'aws' && !!result.resourceId?.aws;
+  return result.platform === 'aws' && !!result.resourceId?.aws;
 }
 
 export function isContainerResult(result: ServiceResult): result is ContainerServiceResult {
-  return result.deploymentType === 'container' && !!result.resourceId?.container;
+  return result.platform === 'container' && !!result.resourceId?.container;
 }
 
 export function isProcessResult(result: ServiceResult): result is ProcessServiceResult {
-  return result.deploymentType === 'process' && !!result.resourceId?.process;
+  return result.platform === 'process' && !!result.resourceId?.process;
 }
 
 export function isExternalResult(result: ServiceResult): result is ExternalServiceResult {
-  return result.deploymentType === 'external' && !!result.resourceId?.external;
+  return result.platform === 'external' && !!result.resourceId?.external;
 }

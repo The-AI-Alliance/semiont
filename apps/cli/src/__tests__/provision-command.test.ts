@@ -7,15 +7,15 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ProvisionOptions } from '../commands/provision.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { useSemiontProject } from './test-setup.js';
 
 // Helper function to create service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
   return services.map(service => ({
     name: service.name,
-    deploymentType: service.type as any,
-    deployment: { type: service.type },
+    platform: service.type as any,
+    platform: { type: service.type },
     config: service.config || {}
   }));
 }
@@ -99,7 +99,7 @@ describe('Provision Command', () => {
           expect.objectContaining({
             command: 'provision',
             service: 'database',
-            deploymentType: 'aws',
+            platform: 'aws',
             success: true,
             timestamp: expect.any(Date),
             duration: expect.any(Number),
@@ -296,7 +296,7 @@ describe('Provision Command', () => {
 
       expect(result.services.length).toBeGreaterThanOrEqual(1);
       result.services.forEach(service => {
-        expect(service.deploymentType).toBe('aws');
+        expect(service.platform).toBe('aws');
       });
     });
 
@@ -324,7 +324,7 @@ describe('Provision Command', () => {
 
       expect(result.services[0]!).toMatchObject({
         service: 'backend',
-        deploymentType: 'container'
+        platform: 'container'
       });
     });
 
@@ -352,7 +352,7 @@ describe('Provision Command', () => {
 
       expect(result.services[0]!).toMatchObject({
         service: 'frontend',
-        deploymentType: 'process',
+        platform: 'process',
         success: true
       });
     });
@@ -381,7 +381,7 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       result.services.forEach(service => {
-        expect(service.deploymentType).toBe('external');
+        expect(service.platform).toBe('external');
         expect(service.status).toBe('configured');
       });
     });
@@ -650,7 +650,7 @@ describe('Provision Command', () => {
       expect(result.services).toHaveLength(1);
       expect(result.services[0]!).toMatchObject({
         service: 'database',
-        deploymentType: 'container',
+        platform: 'container',
         success: true
       });
     });
@@ -680,7 +680,7 @@ describe('Provision Command', () => {
       expect(result.services).toHaveLength(1);
       expect(result.services[0]!).toMatchObject({
         service: 'filesystem',
-        deploymentType: 'container',
+        platform: 'container',
         success: true
       });
     });
@@ -752,7 +752,7 @@ describe('Provision Command', () => {
         services: expect.arrayContaining([
           expect.objectContaining({
             service: 'mcp',
-            deploymentType: 'process',
+            platform: 'process',
             success: true,
             status: 'dry-run'
           })
@@ -789,7 +789,7 @@ describe('Provision Command', () => {
         services: expect.arrayContaining([
           expect.objectContaining({
             service: 'mcp',
-            deploymentType: 'process',
+            platform: 'process',
             success: true,
             status: 'destroyed'
           })
@@ -829,7 +829,7 @@ describe('Provision Command', () => {
           {
             command: 'provision',
             service: 'mcp',
-            deploymentType: 'process',
+            platform: 'process',
             environment: 'production',
             success: true,
             status: 'dry-run',

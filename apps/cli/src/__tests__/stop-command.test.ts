@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { StopOptions } from '../commands/stop.js';
-import type { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // Mock the container runtime to avoid actual Docker calls
 vi.mock('../lib/container-runtime.js', () => ({
@@ -45,10 +45,10 @@ describe('Stop Command', () => {
   });
 
   // Helper function to create service deployments for tests
-  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServiceDeploymentInfo[] {
+  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
     return services.map(service => ({
       name: service.name,
-      deploymentType: service.type as any,
+      platform: service.type as any,
       config: service.config || {}
     }));
   }
@@ -85,7 +85,7 @@ describe('Stop Command', () => {
           expect.objectContaining({
             command: 'stop',
             service: 'backend',
-            deploymentType: 'container',
+            platform: 'container',
             success: true,
             stopTime: expect.any(Date),
             status: 'stopped'
@@ -93,7 +93,7 @@ describe('Stop Command', () => {
           expect.objectContaining({
             command: 'stop',
             service: 'database',
-            deploymentType: 'container',
+            platform: 'container',
             success: true
           })
         ]),
@@ -180,7 +180,7 @@ describe('Stop Command', () => {
       const result = await stop(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'aws',
+        platform: 'aws',
         service: 'backend',
         status: 'not-implemented'
       });
@@ -208,7 +208,7 @@ describe('Stop Command', () => {
       const result = await stop(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'container',
+        platform: 'container',
         service: 'database',
         command: 'stop'
       });
@@ -233,7 +233,7 @@ describe('Stop Command', () => {
       const result = await stop(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'process',
+        platform: 'process',
         service: 'backend',
         resourceId: expect.objectContaining({
           process: expect.objectContaining({
@@ -262,7 +262,7 @@ describe('Stop Command', () => {
       const result = await stop(serviceDeployments, options);
 
       expect(result.services[0]!).toMatchObject({
-        deploymentType: 'external',
+        platform: 'external',
         service: 'database',
         status: 'external',
         metadata: expect.objectContaining({

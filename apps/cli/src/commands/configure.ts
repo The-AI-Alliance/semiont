@@ -9,11 +9,11 @@ import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from '../lib/stack-config.js';
-import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
+import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/platform-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 import { 
   ConfigureResult, 
   CommandResults, 
@@ -168,7 +168,7 @@ async function updateSecret(envConfig: EnvironmentConfig, secretName: string, se
 // =====================================================================
 
 async function configure(
-  _serviceDeployments: ServiceDeploymentInfo[], // Not used but kept for API consistency
+  _serviceDeployments: ServicePlatformInfo[], // Not used but kept for API consistency
   options: ConfigureOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
@@ -205,7 +205,7 @@ async function configure(
                 metadata: {
                   action: 'show',
                   domain: config.site?.domain || 'Not configured',
-                  deployment: config.deployment?.default || 'Not specified',
+                  platform: config.deployment?.default || 'Not specified',
                   services: Object.keys(config.services || {}),
                   awsRegion: config.aws?.region,
                 },
@@ -215,7 +215,7 @@ async function configure(
               if (!isStructuredOutput && options.output === 'summary') {
                 console.log(`\n${colors.bright}${env}:${colors.reset}`);
                 console.log(`  Domain: ${config.site?.domain || 'Not configured'}`);
-                console.log(`  Default deployment: ${config.deployment?.default || 'Not specified'}`);
+                console.log(`  Default platform: ${config.deployment?.default || 'Not specified'}`);
                 console.log(`  Services: ${Object.keys(config.services || {}).join(', ') || 'None'}`);
                 if (config.aws) {
                   console.log(`  AWS Region: ${config.aws.region || 'Not specified'}`);

@@ -5,8 +5,8 @@
  */
 
 import { ServiceFactory } from '../services/service-factory.js';
-import { ServiceName, DeploymentType, ServiceConfig, CheckResult } from '../services/types.js';
-import { type ServiceDeploymentInfo } from './deployment-resolver.js';
+import { ServiceName, Platform, ServiceConfig, CheckResult } from '../services/types.js';
+import { type ServicePlatformInfo } from './platform-resolver.js';
 import { Config } from '../services/types.js';
 
 import type { ServiceStatus, LogEntry, MetricData } from './dashboard-components.js';
@@ -22,7 +22,7 @@ export interface DashboardData {
 export class DashboardDataSource {
   constructor(
     private environment: string,
-    private serviceDeployments?: ServiceDeploymentInfo[],
+    private serviceDeployments?: ServicePlatformInfo[],
     private config?: Config
   ) {}
 
@@ -50,9 +50,9 @@ export class DashboardDataSource {
       try {
         const service = ServiceFactory.create(
           deployment.name as ServiceName,
-          this.environment as DeploymentType,
+          this.environment as Platform,
           this.config,
-          { deploymentType: this.environment as DeploymentType } as ServiceConfig
+          { platform: this.environment as Platform } as ServiceConfig
         );
 
         // Get status using the new check method
