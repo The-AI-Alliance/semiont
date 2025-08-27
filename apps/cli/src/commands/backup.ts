@@ -12,11 +12,76 @@ import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
-import { BackupResult } from '../services/backup-service.js';
+import { Platform } from '../lib/platform-resolver.js';
+import { PlatformResources } from '../lib/platform-resources.js';
 import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a backup operation
+ */
+export interface BackupResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  backupTime: Date;
+  backupId: string; // Unique identifier for this backup
+  backup?: {
+    // Backup artifacts and metadata
+    size?: number; // Size in bytes
+    location?: string; // Where the backup is stored
+    format?: 'tar' | 'sql' | 'json' | 'binary' | 'snapshot';
+    compression?: 'gzip' | 'bzip2' | 'xz' | 'none';
+    encrypted?: boolean;
+    checksum?: string; // For integrity verification
+    // Backup content types
+    database?: {
+      type: 'postgresql' | 'mysql' | 'sqlite' | 'mongodb';
+      schema?: boolean;
+      data?: boolean;
+      tables?: string[];
+    };
+    filesystem?: {
+      paths?: string[];
+      excludePatterns?: string[];
+      preservePermissions?: boolean;
+    };
+    configuration?: {
+      envFiles?: string[];
+      configMaps?: string[];
+      secrets?: boolean; // Whether secrets were backed up
+    };
+    application?: {
+      source?: boolean;
+      assets?: boolean;
+      logs?: boolean;
+    };
+  };
+  retention?: {
+    expiresAt?: Date;
+    policy?: string; // e.g., "daily", "weekly", "monthly"
+    autoCleanup?: boolean;
+  };
+  restore?: {
+    supported: boolean;
+    command?: string;
+    requirements?: string[]; // Prerequisites for restoration
+  };
+  cost?: {
+    storage?: number; // Storage cost
+    transfer?: number; // Transfer cost
+    currency?: string;
+  };
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

@@ -12,11 +12,33 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
-import { UpdateResult } from '../services/update-service.js';
+import { Platform } from '../lib/platform-resolver.js';
+import { PlatformResources } from '../lib/platform-resources.js';
 import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of an update operation
+ */
+export interface UpdateResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  updateTime: Date;
+  previousVersion?: string;
+  newVersion?: string;
+  strategy: 'restart' | 'rolling' | 'blue-green' | 'recreate' | 'none';
+  downtime?: number; // milliseconds
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

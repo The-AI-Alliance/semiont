@@ -1,11 +1,10 @@
 /**
  * MCP Service - Refactored with Platform Strategy
  * 
- * Now ~40 lines instead of 309 lines!
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './check-service.js';
+import { CheckResult } from '../commands/check.js';
 import { loadEnvironmentConfig } from '../lib/platform-resolver.js';
 import * as path from 'path';
 import * as os from 'os';

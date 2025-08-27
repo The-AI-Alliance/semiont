@@ -1,11 +1,10 @@
 /**
  * Filesystem Service - Refactored with Platform Strategy
  * 
- * Now ~30 lines instead of 245 lines!
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './check-service.js';
+import { CheckResult } from '../commands/check.js';
 import * as path from 'path';
 
 export class FilesystemServiceRefactored extends BaseService {

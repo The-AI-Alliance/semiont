@@ -7,17 +7,17 @@
 
 import { execSync } from 'child_process';
 import * as path from 'path';
-import { StartResult } from "../services/start-service.js";
-import { StopResult } from "../services/stop-service.js";
-import { CheckResult } from "../services/check-service.js";
-import { UpdateResult } from "../services/update-service.js";
-import { ProvisionResult } from "../services/provision-service.js";
-import { PublishResult } from "../services/publish-service.js";
+import { StartResult } from "../commands/start.js";
+import { StopResult } from "../commands/stop.js";
+import { CheckResult } from "../commands/check.js";
+import { UpdateResult } from "../commands/update.js";
+import { ProvisionResult } from "../commands/provision.js";
+import { PublishResult } from "../commands/publish.js";
 import { PlatformResources, AWSResources } from "../lib/platform-resources.js";
-import { BackupResult } from "../services/backup-service.js";
-import { ExecResult, ExecOptions } from "../services/exec-service.js";
-import { TestResult, TestOptions } from "../services/test-service.js";
-import { RestoreResult, RestoreOptions } from "../services/restore-service.js";
+import { BackupResult } from "../commands/backup.js";
+import { ExecResult, ExecOptions } from "../commands/exec.js";
+import { TestResult, TestOptions } from "../commands/test.js";
+import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
 import { printInfo } from '../lib/cli-logger.js';
 

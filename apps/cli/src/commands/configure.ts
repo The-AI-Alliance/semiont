@@ -13,8 +13,9 @@ import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/platform
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
-import { ConfigureResult } from '../services/configure-service.js';
+import { type ServicePlatformInfo, type Platform } from '../lib/platform-resolver.js';
+import type { PlatformResources } from '../lib/platform-resources.js';
+import type { ServiceName } from '../services/service-interface.js';
 import { 
   CommandResults, 
   createBaseResult,
@@ -22,6 +23,30 @@ import {
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a configure operation
+ */
+export interface ConfigureResult {
+  entity: ServiceName | string;  // Can be a service or other entity
+  platform?: Platform;
+  success: boolean;
+  status?: string;  // Optional status for legacy commands
+  configurationChanges: Array<{
+    key: string;
+    oldValue?: any;
+    newValue: any;
+    source: string;
+  }>;
+  restartRequired: boolean;
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

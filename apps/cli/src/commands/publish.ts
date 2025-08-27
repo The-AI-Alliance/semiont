@@ -12,11 +12,59 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
-import { PublishResult } from '../services/publish-service.js';
+import { Platform } from '../lib/platform-resolver.js';
+import { PlatformResources } from '../lib/platform-resources.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a publish operation
+ */
+export interface PublishResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  publishTime: Date;
+  artifacts?: {
+    // Published artifacts
+    imageTag?: string;
+    imageUrl?: string;
+    packageName?: string;
+    packageVersion?: string;
+    bundleUrl?: string;
+    staticSiteUrl?: string;
+    // Registry/repository info
+    registry?: string;
+    repository?: string;
+    branch?: string;
+    commitSha?: string;
+  };
+  version?: {
+    previous?: string;
+    current?: string;
+    tag?: string;
+  };
+  destinations?: {
+    registry?: string;
+    bucket?: string;
+    cdn?: string;
+    repository?: string;
+  };
+  rollback?: {
+    supported: boolean;
+    command?: string;
+    artifactId?: string;
+  };
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

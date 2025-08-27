@@ -7,18 +7,26 @@
  */
 
 import { ServiceName } from '../services/service-interface.js';
-import { StartResult } from '../services/start-service.js';
-import { StopResult } from '../services/stop-service.js';
-import { CheckResult } from '../services/check-service.js';
-import { UpdateResult } from '../services/update-service.js';
-import { ProvisionResult } from '../services/provision-service.js';
-import { PublishResult } from '../services/publish-service.js';
-import { BackupResult } from '../services/backup-service.js';
-import { ExecResult, ExecOptions } from '../services/exec-service.js';
-import { TestResult, TestOptions } from '../services/test-service.js';
-import { RestoreResult, RestoreOptions } from '../services/restore-service.js';
+import { StartResult } from '../commands/start.js';
+import { StopResult } from '../commands/stop.js';
+import { CheckResult } from '../commands/check.js';
+import { UpdateResult } from '../commands/update.js';
+import { ProvisionResult } from '../commands/provision.js';
+import { PublishResult } from '../commands/publish.js';
+import { BackupResult } from '../commands/backup.js';
+import { ExecResult, ExecOptions } from '../commands/exec.js';
+import { TestResult, TestOptions } from '../commands/test.js';
+import { RestoreResult, RestoreOptions } from '../commands/restore.js';
 import { ServiceConfig } from '../lib/cli-config.js';
 import { Environment } from '../lib/environment-validator.js';
+import { 
+  ServiceRequirements, 
+  StorageRequirement, 
+  NetworkRequirement, 
+  ResourceRequirement, 
+  BuildRequirement,
+  SecurityRequirement 
+} from '../lib/service-requirements.js';
 
 /**
  * Service context provided to platform strategies
@@ -39,6 +47,19 @@ export interface ServiceContext {
   getCommand(): string;
   getImage(): string;
   getEnvironmentVariables(): Record<string, string>;
+  
+  // New requirement methods
+  getRequirements(): ServiceRequirements;
+  
+  // Convenience methods for specific requirements
+  needsPersistentStorage(): boolean;
+  getStorageRequirements(): StorageRequirement[];
+  getNetworkRequirements(): NetworkRequirement | undefined;
+  getDependencyServices(): ServiceName[];
+  getBuildRequirements(): BuildRequirement | undefined;
+  getResourceRequirements(): ResourceRequirement | undefined;
+  getSecurityRequirements(): SecurityRequirement | undefined;
+  getRequiredSecrets(): string[];
 }
 
 /**

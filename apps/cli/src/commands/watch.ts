@@ -10,8 +10,9 @@ import { colors } from '../lib/cli-colors.js';
 import React from 'react';
 import { render } from 'ink';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
-import { WatchResult } from '../services/watch-service.js';
+import { type ServicePlatformInfo, type Platform } from '../lib/platform-resolver.js';
+import type { PlatformResources } from '../lib/platform-resources.js';
+import type { ServiceName } from '../services/service-interface.js';
 import { 
   CommandResults, 
   createBaseResult,
@@ -21,6 +22,37 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 import { Config } from '../lib/cli-config.js';
 import { DashboardDataSource } from '../lib/dashboard-data.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a watch operation
+ */
+export interface WatchResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  status?: string;  // Optional status for legacy commands
+  watchType: 'logs' | 'metrics' | 'events';
+  streamUrl?: string;
+  logLines?: Array<{
+    timestamp: Date;
+    level: string;
+    message: string;
+    source?: string;
+  }>;
+  metrics?: Array<{
+    name: string;
+    value: number;
+    unit: string;
+    timestamp: Date;
+  }>;
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // Import the React dashboard component dynamically to handle module loading
 type DashboardAppType = React.FC<{

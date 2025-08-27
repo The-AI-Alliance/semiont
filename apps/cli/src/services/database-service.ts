@@ -1,16 +1,61 @@
 /**
  * Database Service - Refactored with Platform Strategy
  * 
- * Now ~40 lines instead of 499 lines!
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './check-service.js';
+import { CheckResult } from '../commands/check.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
 
 export class DatabaseServiceRefactored extends BaseService {
+  
+  // =====================================================================
+  // Service Requirements
+  // =====================================================================
+  
+  override getRequirements(): ServiceRequirements {
+    // Start with stateful database preset
+    const baseRequirements = RequirementPresets.statefulDatabase();
+    
+    // Define database-specific requirements
+    const dbRequirements: ServiceRequirements = {
+      storage: [{
+        persistent: true,
+        volumeName: `postgres-data-${this.systemConfig.environment}`,
+        size: this.config.storageSize || '10Gi',
+        mountPath: '/var/lib/postgresql/data',
+        type: 'volume',
+        backupEnabled: true
+      }],
+      network: {
+        ports: [this.getPort()],
+        protocol: 'tcp',
+        healthCheckPort: this.getPort()
+      },
+      resources: {
+        memory: this.config.memory || '1Gi',
+        cpu: this.config.cpu || '0.5',
+        replicas: 1  // Databases are typically single instance
+      },
+      security: {
+        secrets: ['POSTGRES_PASSWORD'],
+        runAsUser: 999,  // postgres user
+        runAsGroup: 999,
+        allowPrivilegeEscalation: false
+      },
+      environment: {
+        POSTGRES_DB: this.config.database || 'semiont',
+        POSTGRES_USER: this.config.user || 'postgres',
+        PGDATA: '/var/lib/postgresql/data'
+      }
+    };
+    
+    // Merge preset with specific requirements
+    return mergeRequirements(baseRequirements, dbRequirements);
+  }
   
   // =====================================================================
   // Service-specific configuration  
@@ -34,13 +79,14 @@ export class DatabaseServiceRefactored extends BaseService {
   
   override getEnvironmentVariables(): Record<string, string> {
     const baseEnv = super.getEnvironmentVariables();
+    const requirements = this.getRequirements();
     
+    // Merge base env with requirements env
     return {
       ...baseEnv,
-      POSTGRES_DB: this.config.name || 'semiont',
-      POSTGRES_USER: this.config.user || 'postgres',
-      POSTGRES_PASSWORD: this.config.password || 'localpassword',
-      PGDATA: '/var/lib/postgresql/data'
+      ...(requirements.environment || {}),
+      // Add password from environment if available
+      POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || this.config.password || 'localpassword'
     };
   }
   

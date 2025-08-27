@@ -1,16 +1,17 @@
 // Service architecture exports
 
 export * from './service-interface.js';
-export * from './start-service.js';
-export * from './stop-service.js';
-export * from './check-service.js';
-export * from './update-service.js';
-export * from './provision-service.js';
-export * from './publish-service.js';
-export * from './backup-service.js';
-export * from './exec-service.js';
-export * from './test-service.js';
-export * from './restore-service.js';
+// Result types are now exported from their respective command files
+export * from '../commands/start.js';
+export * from '../commands/stop.js';
+export * from '../commands/check.js';
+export * from '../commands/update.js';
+export * from '../commands/provision.js';
+export * from '../commands/publish.js';
+export * from '../commands/backup.js';
+export * from '../commands/exec.js';
+export * from '../commands/test.js';
+export * from '../commands/restore.js';
 export * from './base-service.js';
 export * from './service-factory.js';
 

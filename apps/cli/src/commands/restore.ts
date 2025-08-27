@@ -8,7 +8,7 @@
 
 import { CommandBuilder } from '../lib/command-definition.js';
 import { ServiceName } from '../services/service-interface.js';
-import { RestoreResult, RestoreOptions as ServiceRestoreOptions } from '../services/restore-service.js';
+import { PlatformResources } from '../lib/platform-resources.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { Platform } from '../lib/platform-resolver.js';
@@ -16,6 +16,92 @@ import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-lo
 import { z } from 'zod';
 import { BaseOptionsSchema } from '../lib/base-options-schema.js';
 import { ServicePlatformInfo } from '../lib/platform-resolver.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a restore operation
+ */
+export interface RestoreResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  restoreTime: Date;
+  backupId: string; // ID of backup that was restored
+  restore?: {
+    // Restoration details
+    source?: string; // Source location of backup
+    destination?: string; // Where data was restored to
+    size?: number; // Size of restored data
+    duration?: number; // Time taken to restore (ms)
+    
+    // What was restored
+    database?: {
+      tables?: number; // Number of tables restored
+      records?: number; // Number of records restored
+      schemas?: boolean; // Whether schemas were restored
+      indexes?: boolean; // Whether indexes were rebuilt
+      constraints?: boolean; // Whether constraints were restored
+    };
+    filesystem?: {
+      files?: number; // Number of files restored
+      directories?: number; // Number of directories
+      permissions?: boolean; // Whether permissions were preserved
+      symlinks?: boolean; // Whether symlinks were preserved
+    };
+    configuration?: {
+      envFiles?: string[]; // Environment files restored
+      configFiles?: string[]; // Config files restored
+      secrets?: boolean; // Whether secrets were restored
+    };
+    application?: {
+      version?: string; // Application version restored
+      state?: boolean; // Whether application state was restored
+      cache?: boolean; // Whether cache was restored
+    };
+  };
+  validation?: {
+    // Post-restore validation
+    checksumVerified?: boolean; // Whether integrity was verified
+    dataComplete?: boolean; // Is all data present?
+    servicesRestarted?: boolean; // Whether services were restarted
+    healthCheck?: boolean; // Did health check pass?
+    testsPassed?: boolean; // Did smoke tests pass?
+  };
+  rollback?: {
+    // Rollback information
+    supported: boolean; // Can we rollback this restore?
+    previousBackupId?: string; // Previous backup before restore
+    command?: string; // Command to rollback
+  };
+  downtime?: {
+    // Service downtime during restore
+    start?: Date; // When service was stopped
+    end?: Date; // When service was restarted
+    duration?: number; // Total downtime in ms
+    planned?: boolean; // Whether this is planned downtime
+  };
+  warnings?: string[]; // Any warnings during restore
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Options for restore operation
+ */
+export interface RestoreOptions {
+  force?: boolean; // Force restore even if service is running
+  validate?: boolean; // Validate backup before restoring
+  stopService?: boolean; // Stop service before restore
+  startService?: boolean; // Start service after restore
+  verifyChecksum?: boolean; // Verify backup integrity
+  skipTests?: boolean; // Skip post-restore tests
+  targetPath?: string; // Custom restore path
+  dryRun?: boolean; // Simulate restore without changes
+}
 import { CommandResults } from '../lib/command-results.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
@@ -108,7 +194,7 @@ async function restoreHandler(
     );
     
     try {
-      const restoreOptions: ServiceRestoreOptions = {
+      const restoreOptions: RestoreOptions = {
         force: options.force,
         validate: options.validate,
         stopService: options.stopService,

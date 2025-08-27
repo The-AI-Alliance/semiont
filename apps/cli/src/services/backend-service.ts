@@ -1,18 +1,88 @@
 /**
  * Backend Service - Refactored with Platform Strategy
  * 
- * Now ~60 lines instead of 964 lines!
- * All platform-specific logic moved to strategies.
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './check-service.js';
+import { CheckResult } from '../commands/check.js';
 import { execSync } from 'child_process';
 import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
 
 export class BackendServiceRefactored extends BaseService {
+  
+  // =====================================================================
+  // Service Requirements
+  // =====================================================================
+  
+  override getRequirements(): ServiceRequirements {
+    // Start with stateless API preset
+    const baseRequirements = RequirementPresets.statelessApi();
+    
+    // Define backend-specific requirements
+    const backendRequirements: ServiceRequirements = {
+      network: {
+        ports: [this.getPort()],
+        protocol: 'tcp',
+        needsLoadBalancer: true,
+        healthCheckPath: '/health',
+        healthCheckPort: this.getPort(),
+        healthCheckInterval: 30
+      },
+      dependencies: {
+        services: ['database'],
+        external: [
+          {
+            name: 'Redis',
+            url: this.config.redisUrl,
+            required: false
+          }
+        ]
+      },
+      build: {
+        dockerfile: 'Dockerfile.backend',
+        buildContext: path.join(this.systemConfig.projectRoot, 'apps/backend'),
+        buildArgs: {
+          NODE_ENV: this.systemConfig.environment,
+          VERSION: process.env.VERSION || 'latest'
+        },
+        prebuilt: false
+      },
+      resources: {
+        memory: this.config.memory || '512Mi',
+        cpu: this.config.cpu || '0.25',
+        replicas: this.systemConfig.environment === 'prod' ? 2 : 1
+      },
+      security: {
+        secrets: ['JWT_SECRET', 'DATABASE_URL', 'API_KEY'],
+        readOnlyRootFilesystem: false,  // Node.js needs write access for tmp
+        allowPrivilegeEscalation: false,
+        runAsUser: 1000,  // node user
+        runAsGroup: 1000
+      },
+      environment: this.buildEnvironment()
+    };
+    
+    // Merge preset with specific requirements
+    return mergeRequirements(baseRequirements, backendRequirements);
+  }
+  
+  private buildEnvironment(): Record<string, string> {
+    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
+    
+    return {
+      PORT: this.getPort().toString(),
+      NODE_ENV: getNodeEnvForEnvironment(this.systemConfig.environment),
+      SEMIONT_ENV: this.systemConfig.environment,
+      SEMIONT_ENVIRONMENT: this.systemConfig.environment,
+      ...(envConfig.site?.domain && { SITE_DOMAIN: envConfig.site.domain }),
+      ...(envConfig.site?.oauthAllowedDomains && { 
+        OAUTH_ALLOWED_DOMAINS: JSON.stringify(envConfig.site.oauthAllowedDomains) 
+      })
+    };
+  }
   
   // =====================================================================
   // Service-specific configuration
@@ -36,20 +106,15 @@ export class BackendServiceRefactored extends BaseService {
   
   override getEnvironmentVariables(): Record<string, string> {
     const baseEnv = super.getEnvironmentVariables();
-    const envConfig = loadEnvironmentConfig(this.config.environment);
+    const requirements = this.getRequirements();
     
     return {
       ...baseEnv,
-      PORT: this.getPort().toString(),
+      ...(requirements.environment || {}),
+      // Add dynamic values and secrets
       DATABASE_URL: this.getDatabaseUrl(),
-      NODE_ENV: getNodeEnvForEnvironment(this.config.environment),
-      SEMIONT_ENV: this.config.environment,
-      SEMIONT_ENVIRONMENT: this.config.environment,
       JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-      ...(envConfig.site?.domain && { SITE_DOMAIN: envConfig.site.domain }),
-      ...(envConfig.site?.oauthAllowedDomains && { 
-        OAUTH_ALLOWED_DOMAINS: envConfig.site.oauthAllowedDomains.join(',') 
-      })
+      API_KEY: process.env.API_KEY || 'local-api-key'
     };
   }
   

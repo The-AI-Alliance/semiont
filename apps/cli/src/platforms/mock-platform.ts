@@ -5,17 +5,17 @@
  * Useful for unit tests and dry-run scenarios.
  */
 
-import { StartResult } from "../services/start-service.js";
-import { StopResult } from "../services/stop-service.js";
-import { CheckResult } from "../services/check-service.js";
-import { UpdateResult } from "../services/update-service.js";
-import { ProvisionResult } from "../services/provision-service.js";
-import { PublishResult } from "../services/publish-service.js";
-import { BackupResult } from "../services/backup-service.js";
+import { StartResult } from "../commands/start.js";
+import { StopResult } from "../commands/stop.js";
+import { CheckResult } from "../commands/check.js";
+import { UpdateResult } from "../commands/update.js";
+import { ProvisionResult } from "../commands/provision.js";
+import { PublishResult } from "../commands/publish.js";
+import { BackupResult } from "../commands/backup.js";
 import { PlatformResources } from "../lib/platform-resources.js";
-import { ExecResult, ExecOptions } from "../services/exec-service.js";
-import { TestResult, TestOptions } from "../services/test-service.js";
-import { RestoreResult, RestoreOptions } from "../services/restore-service.js";
+import { ExecResult, ExecOptions } from "../commands/exec.js";
+import { TestResult, TestOptions } from "../commands/test.js";
+import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
 
 export class MockPlatformStrategy extends BasePlatformStrategy {
@@ -26,14 +26,46 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   }
   
   async start(context: ServiceContext): Promise<StartResult> {
+    const requirements = context.getRequirements();
     const mockId = `mock-${context.name}-${Date.now()}`;
-    const endpoint = context.getPort() ? `http://localhost:${context.getPort()}` : undefined;
     
-    // Store mock state
+    // Build endpoint from network requirements
+    let endpoint: string | undefined;
+    if (requirements.network?.ports && requirements.network.ports.length > 0) {
+      const primaryPort = requirements.network.ports[0];
+      endpoint = `http://localhost:${primaryPort}`;
+      
+      if (requirements.network.customDomains?.length) {
+        // Mock custom domain support
+        endpoint = `https://${requirements.network.customDomains[0]}`;
+      }
+    }
+    
+    // Check dependencies are met
+    if (requirements.dependencies?.services) {
+      for (const dep of requirements.dependencies.services) {
+        const depState = this.mockState.get(dep);
+        if (!depState?.running) {
+          console.log(`[MOCK] Dependency ${dep} not running, would normally fail`);
+        }
+      }
+    }
+    
+    // Simulate resource allocation
+    const allocatedResources = {
+      cpu: requirements.resources?.cpu || '0.1',
+      memory: requirements.resources?.memory || '128Mi',
+      replicas: requirements.resources?.replicas || 1
+    };
+    
+    // Store mock state with requirements info
     this.mockState.set(context.name, {
       id: mockId,
       running: true,
-      startTime: new Date()
+      startTime: new Date(),
+      requirements,
+      allocatedResources,
+      endpoint
     });
     
     return {
@@ -46,12 +78,14 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
         platform: 'mock',
         data: {
           mockId: mockId,
-          mockPort: context.getPort(),
+          mockPort: requirements.network?.ports?.[0],
           mockEndpoint: endpoint
         }
       } as PlatformResources,
       metadata: {
-        mockImplementation: true
+        mockImplementation: true,
+        allocatedResources,
+        requirementsMet: true
       }
     };
   }
@@ -124,6 +158,48 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   }
   
   async provision(context: ServiceContext): Promise<ProvisionResult> {
+    const requirements = context.getRequirements();
+    const mockResources: any = {};
+    const dependencies = requirements.dependencies?.services || [];
+    
+    // Mock storage provisioning
+    if (requirements.storage) {
+      for (const storage of requirements.storage) {
+        if (storage.persistent) {
+          mockResources[`volume-${storage.volumeName || 'default'}`] = {
+            size: storage.size,
+            mountPath: storage.mountPath,
+            created: new Date()
+          };
+        }
+      }
+    }
+    
+    // Mock network provisioning
+    if (requirements.network?.needsLoadBalancer) {
+      mockResources.loadBalancer = {
+        ports: requirements.network.ports,
+        domains: requirements.network.customDomains || [],
+        created: new Date()
+      };
+    }
+    
+    // Mock resource allocation
+    if (requirements.resources) {
+      mockResources.allocation = {
+        cpu: requirements.resources.cpu,
+        memory: requirements.resources.memory,
+        replicas: requirements.resources.replicas
+      };
+    }
+    
+    // Store mock provisioning state
+    this.mockState.set(`provision-${context.name}`, {
+      requirements,
+      resources: mockResources,
+      time: new Date()
+    });
+    
     return {
       entity: context.name,
       platform: 'mock',
@@ -132,18 +208,48 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       resources: {
         platform: 'mock',
         data: {
-          mockId: `mock-provision-${context.name}`
+          mockId: `mock-provision-${context.name}`,
+          metadata: mockResources
         }
       } as PlatformResources,
-      dependencies: [],
+      dependencies,
       metadata: {
-        mockImplementation: true
+        mockImplementation: true,
+        provisionedRequirements: requirements
       }
     };
   }
   
   async publish(context: ServiceContext): Promise<PublishResult> {
+    const requirements = context.getRequirements();
     const version = `mock-${Date.now()}`;
+    
+    // Simulate build process if needed
+    if (requirements.build && !requirements.build.prebuilt) {
+      console.log(`[MOCK] Building from ${requirements.build.dockerfile || 'Dockerfile'}`);
+      console.log(`[MOCK] Build context: ${requirements.build.buildContext || '.'}`);
+      if (requirements.build.buildArgs) {
+        console.log(`[MOCK] Build args:`, requirements.build.buildArgs);
+      }
+    }
+    
+    const artifacts: PublishResult['artifacts'] = {};
+    
+    // Mock different artifact types based on requirements
+    if (requirements.build || context.getImage()) {
+      // Container image artifact
+      artifacts.imageTag = version;
+      artifacts.imageUrl = `mock://registry/${context.name}:${version}`;
+    } else if (context.name === 'frontend') {
+      // Static site artifact
+      artifacts.packageName = context.name;
+      artifacts.packageVersion = version;
+      artifacts.staticSiteUrl = `https://mock-cdn.example.com/${context.name}/${version}`;
+    } else {
+      // Generic package
+      artifacts.packageName = context.name;
+      artifacts.packageVersion = version;
+    }
     
     return {
       entity: context.name,
@@ -154,20 +260,37 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
         current: version,
         previous: `mock-${Date.now() - 1000}`
       },
-      artifacts: {
-        imageTag: version,
-        imageUrl: `mock://artifacts/${context.name}/${version}`,
-        packageName: context.name,
-        packageVersion: version
-      },
+      artifacts,
       metadata: {
-        mockImplementation: true
+        mockImplementation: true,
+        buildRequirements: requirements.build
       }
     };
   }
   
   async backup(context: ServiceContext): Promise<BackupResult> {
+    const requirements = context.getRequirements();
     const backupId = `backup-${context.name}-${Date.now()}`;
+    
+    // Calculate backup size based on storage requirements
+    let totalSize = 0;
+    const backedUpVolumes: string[] = [];
+    
+    if (requirements.storage) {
+      for (const storage of requirements.storage) {
+        if (storage.persistent && storage.backupEnabled !== false) {
+          // Mock size calculation (convert size spec to bytes)
+          const sizeInBytes = this.parseSizeToBytes(storage.size || '1Gi');
+          totalSize += sizeInBytes;
+          backedUpVolumes.push(storage.volumeName || 'default');
+        }
+      }
+    }
+    
+    // Default size if no storage requirements
+    if (totalSize === 0) {
+      totalSize = 1024 * 1024; // 1MB default
+    }
     
     return {
       entity: context.name,
@@ -176,14 +299,36 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       backupTime: new Date(),
       backupId,
       backup: {
-        size: 2048,
+        size: totalSize,
         location: `mock://backups/${backupId}`,
-        format: 'tar'
+        format: requirements.storage?.length ? 'tar' : 'json'
       },
       metadata: {
-        mockImplementation: true
+        mockImplementation: true,
+        storageRequirements: requirements.storage
       }
     };
+  }
+  
+  private parseSizeToBytes(size: string): number {
+    const units: Record<string, number> = {
+      'Ki': 1024,
+      'Mi': 1024 * 1024,
+      'Gi': 1024 * 1024 * 1024,
+      'Ti': 1024 * 1024 * 1024 * 1024,
+      'K': 1000,
+      'M': 1000 * 1000,
+      'G': 1000 * 1000 * 1000,
+      'T': 1000 * 1000 * 1000 * 1000
+    };
+    
+    const match = size.match(/^(\d+)([KMGT]i?)$/);
+    if (match) {
+      const value = parseInt(match[1]);
+      const unit = match[2];
+      return value * (units[unit] || 1);
+    }
+    return parseInt(size) || 0;
   }
   
   async restore(context: ServiceContext, backupId: string, _options?: RestoreOptions): Promise<RestoreResult> {

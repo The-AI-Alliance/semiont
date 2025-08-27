@@ -5,10 +5,11 @@
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
+import { type ServicePlatformInfo, type Platform } from '../lib/platform-resolver.js';
 import { stopContainer, runContainer } from '../lib/container-runtime.js';
 import { spawn } from 'child_process';
-import { RestartResult } from '../services/restart-service.js';
+import type { PlatformResources } from '../lib/platform-resources.js';
+import type { ServiceName } from '../services/service-interface.js';
 import { 
   CommandResults, 
   createBaseResult, 
@@ -16,6 +17,27 @@ import {
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a restart operation
+ */
+export interface RestartResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  status?: string;  // Optional status for legacy commands
+  stopTime: Date;
+  startTime: Date;
+  downtime: number; // milliseconds
+  gracefulRestart: boolean;
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

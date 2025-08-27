@@ -13,11 +13,30 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
-import { StartResult } from '../services/start-service.js';
 import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
+import type { Platform } from '../lib/platform-resolver.js';
+import type { PlatformResources } from '../lib/platform-resources.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a start operation
+ */
+export interface StartResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  startTime: Date;
+  endpoint?: string;
+  resources?: PlatformResources;  // Platform-specific resource identifiers
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

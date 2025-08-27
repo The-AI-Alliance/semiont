@@ -12,11 +12,48 @@ import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
-import { CheckResult } from '../services/check-service.js';
 import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
+import type { Platform } from '../lib/platform-resolver.js';
+import type { PlatformResources } from '../lib/platform-resources.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a check/status operation
+ */
+export interface CheckResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  checkTime: Date;
+  status: 'running' | 'stopped' | 'unhealthy' | 'unknown';
+  stateVerified: boolean; // Did saved state match reality?
+  stateMismatch?: {
+    expected: any;
+    actual: any;
+    reason: string;
+  };
+  health?: {
+    endpoint?: string;
+    statusCode?: number;
+    responseTime?: number;
+    healthy: boolean;
+    details?: Record<string, any>;
+  };
+  logs?: {
+    recent?: string[];
+    errors?: number;
+    warnings?: number;
+  };
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS

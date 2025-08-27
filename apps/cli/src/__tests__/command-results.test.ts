@@ -11,9 +11,9 @@ import {
   createErrorResult,
   type CommandResults 
 } from '../lib/command-results.js';
-import { type StartResult } from '../services/start-service.js';
-import { type CheckResult } from '../services/check-service.js';
-import { type UpdateResult } from '../services/update-service.js';
+import { type StartResult } from '../commands/start.js';
+import { type CheckResult } from '../commands/check.js';
+import { type UpdateResult } from '../commands/update.js';
 
 describe('Command Result Type System', () => {
   const startTime = Date.now();

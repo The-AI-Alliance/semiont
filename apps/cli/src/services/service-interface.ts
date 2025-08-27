@@ -6,16 +6,16 @@
  */
 
 import type { Platform } from '../lib/platform-resolver.js';
-import type { StartResult } from './start-service.js';
-import type { StopResult } from './stop-service.js';
-import type { CheckResult } from './check-service.js';
-import type { UpdateResult } from './update-service.js';
-import type { ProvisionResult } from './provision-service.js';
-import type { PublishResult } from './publish-service.js';
-import type { BackupResult } from './backup-service.js';
-import type { ExecResult, ExecOptions } from './exec-service.js';
-import type { TestResult, TestOptions } from './test-service.js';
-import type { RestoreResult, RestoreOptions } from './restore-service.js';
+import type { StartResult } from '../commands/start.js';
+import type { StopResult } from '../commands/stop.js';
+import type { CheckResult } from '../commands/check.js';
+import type { UpdateResult } from '../commands/update.js';
+import type { ProvisionResult } from '../commands/provision.js';
+import type { PublishResult } from '../commands/publish.js';
+import type { BackupResult } from '../commands/backup.js';
+import type { ExecResult, ExecOptions } from '../commands/exec.js';
+import type { TestResult, TestOptions } from '../commands/test.js';
+import type { RestoreResult, RestoreOptions } from '../commands/restore.js';
 
 /**
  * Available service types in the system

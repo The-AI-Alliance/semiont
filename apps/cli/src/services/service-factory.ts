@@ -2,7 +2,7 @@
  * Service Factory - Refactored Version
  * 
  * Creates service instances using the new platform strategy pattern.
- * Much simpler than the original factory.
+ * Uses GenericService for unknown service types.
  */
 
 import { Service, ServiceName } from './service-interface.js';
@@ -13,6 +13,8 @@ import { FrontendServiceRefactored } from './frontend-service.js';
 import { DatabaseServiceRefactored } from './database-service.js';
 import { FilesystemServiceRefactored } from './filesystem-service.js';
 import { MCPServiceRefactored } from './mcp-service.js';
+import { AgentServiceRefactored } from './agent-service.js';
+import { GenericService } from './generic-service.js';
 
 export class ServiceFactory {
   /**
@@ -41,11 +43,13 @@ export class ServiceFactory {
         return new MCPServiceRefactored(name, platform, config, serviceConfig);
         
       case 'agent':
-        // Agent service would be implemented similarly
-        throw new Error('Agent service not yet implemented in refactored version');
+        return new AgentServiceRefactored(name, platform, config, serviceConfig);
         
       default:
-        throw new Error(`Unknown service: ${name}`);
+        // Use GenericService for unknown service types
+        // This allows extending the system with new services without modifying the factory
+        console.log(`Using GenericService for unknown service type: ${name}`);
+        return new GenericService(name as any, platform, config, serviceConfig);
     }
   }
 }

@@ -1,11 +1,10 @@
 /**
  * Frontend Service - Refactored with Platform Strategy
  * 
- * Now ~50 lines instead of 581 lines!
  */
 
 import { BaseService } from './base-service.js';
-import { CheckResult } from './check-service.js';
+import { CheckResult } from '../commands/check.js';
 import { getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';

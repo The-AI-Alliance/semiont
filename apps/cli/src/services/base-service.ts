@@ -6,21 +6,29 @@
  */
 
 import { Service, ServiceName } from './service-interface.js';
-import { StartResult } from './start-service.js';
-import { StopResult } from './stop-service.js';
-import { CheckResult } from './check-service.js';
-import { UpdateResult } from './update-service.js';
-import { ProvisionResult } from './provision-service.js';
-import { PublishResult } from './publish-service.js';
-import { BackupResult } from './backup-service.js';
-import { ExecResult, ExecOptions } from './exec-service.js';
-import { TestResult, TestOptions } from './test-service.js';
-import { RestoreResult, RestoreOptions } from './restore-service.js';
+import { StartResult } from '../commands/start.js';
+import { StopResult } from '../commands/stop.js';
+import { CheckResult } from '../commands/check.js';
+import { UpdateResult } from '../commands/update.js';
+import { ProvisionResult } from '../commands/provision.js';
+import { PublishResult } from '../commands/publish.js';
+import { BackupResult } from '../commands/backup.js';
+import { ExecResult, ExecOptions } from '../commands/exec.js';
+import { TestResult, TestOptions } from '../commands/test.js';
+import { RestoreResult, RestoreOptions } from '../commands/restore.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { Platform } from '../lib/platform-resolver.js';
 import { printInfo, printSuccess, printWarning, printError } from '../lib/cli-logger.js';
 import { StateManager, ServiceState } from '../lib/state-manager.js';
 import { PlatformFactory, PlatformStrategy, ServiceContext } from '../platforms/index.js';
+import { 
+  ServiceRequirements,
+  StorageRequirement,
+  NetworkRequirement,
+  ResourceRequirement,
+  BuildRequirement,
+  SecurityRequirement
+} from '../lib/service-requirements.js';
 
 export abstract class BaseService implements Service, ServiceContext {
   protected readonly systemConfig: Config;
@@ -101,6 +109,111 @@ export abstract class BaseService implements Service, ServiceContext {
       NODE_ENV: this.systemConfig.environment,
       ...envVars
     };
+  }
+  
+  // =====================================================================
+  // Service Requirements Implementation
+  // Default implementations that can be overridden by specific services
+  // =====================================================================
+  
+  /**
+   * Get complete service requirements.
+   * Override this in service implementations to declare specific needs.
+   */
+  getRequirements(): ServiceRequirements {
+    // Default implementation builds requirements from config
+    const requirements: ServiceRequirements = {};
+    
+    // Infer network requirements from port
+    const port = this.getPort();
+    if (port) {
+      requirements.network = {
+        ports: [port],
+        protocol: 'tcp'
+      };
+    }
+    
+    // Infer environment requirements
+    const envVars = this.getEnvironmentVariables();
+    if (Object.keys(envVars).length > 0) {
+      requirements.environment = envVars;
+    }
+    
+    // Check for configured storage
+    if (this.config.storage) {
+      requirements.storage = [this.config.storage as StorageRequirement];
+    }
+    
+    // Check for configured resources
+    if (this.config.resources) {
+      requirements.resources = this.config.resources as ResourceRequirement;
+    }
+    
+    // Check for configured dependencies
+    if (this.config.dependencies) {
+      requirements.dependencies = {
+        services: this.config.dependencies as ServiceName[]
+      };
+    }
+    
+    return requirements;
+  }
+  
+  /**
+   * Check if service needs persistent storage
+   */
+  needsPersistentStorage(): boolean {
+    const storage = this.getStorageRequirements();
+    return storage.some(s => s.persistent);
+  }
+  
+  /**
+   * Get storage requirements
+   */
+  getStorageRequirements(): StorageRequirement[] {
+    return this.getRequirements().storage || [];
+  }
+  
+  /**
+   * Get network requirements
+   */
+  getNetworkRequirements(): NetworkRequirement | undefined {
+    return this.getRequirements().network;
+  }
+  
+  /**
+   * Get service dependencies
+   */
+  getDependencyServices(): ServiceName[] {
+    return this.getRequirements().dependencies?.services || [];
+  }
+  
+  /**
+   * Get build requirements
+   */
+  getBuildRequirements(): BuildRequirement | undefined {
+    return this.getRequirements().build;
+  }
+  
+  /**
+   * Get resource requirements
+   */
+  getResourceRequirements(): ResourceRequirement | undefined {
+    return this.getRequirements().resources;
+  }
+  
+  /**
+   * Get security requirements
+   */
+  getSecurityRequirements(): SecurityRequirement | undefined {
+    return this.getRequirements().security;
+  }
+  
+  /**
+   * Get required secrets
+   */
+  getRequiredSecrets(): string[] {
+    return this.getRequirements().security?.secrets || [];
   }
   
   // =====================================================================
