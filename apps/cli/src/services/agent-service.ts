@@ -8,7 +8,7 @@
 import { BaseService } from './base-service.js';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
 
-export class AgentServiceRefactored extends BaseService {
+export class AgentService extends BaseService {
   
   // =====================================================================
   // Service Requirements

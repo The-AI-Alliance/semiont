@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
 
-export class DatabaseServiceRefactored extends BaseService {
+export class DatabaseService extends BaseService {
   
   // =====================================================================
   // Service Requirements

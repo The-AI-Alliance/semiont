@@ -9,7 +9,7 @@ import { getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 
-export class FrontendServiceRefactored extends BaseService {
+export class FrontendService extends BaseService {
   
   // =====================================================================
   // Service-specific configuration

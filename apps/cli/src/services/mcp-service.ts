@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 
-export class MCPServiceRefactored extends BaseService {
+export class MCPService extends BaseService {
   
   // =====================================================================
   // Service-specific configuration

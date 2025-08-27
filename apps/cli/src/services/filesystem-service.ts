@@ -7,7 +7,7 @@ import { BaseService } from './base-service.js';
 import { CheckResult } from '../commands/check.js';
 import * as path from 'path';
 
-export class FilesystemServiceRefactored extends BaseService {
+export class FilesystemService extends BaseService {
   
   // =====================================================================
   // Service-specific configuration

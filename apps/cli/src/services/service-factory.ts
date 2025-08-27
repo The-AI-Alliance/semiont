@@ -8,12 +8,12 @@
 import { Service, ServiceName } from './service-interface.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { Platform } from '../lib/platform-resolver.js';
-import { BackendServiceRefactored } from './backend-service.js';
-import { FrontendServiceRefactored } from './frontend-service.js';
-import { DatabaseServiceRefactored } from './database-service.js';
-import { FilesystemServiceRefactored } from './filesystem-service.js';
-import { MCPServiceRefactored } from './mcp-service.js';
-import { AgentServiceRefactored } from './agent-service.js';
+import { BackendService } from './backend-service.js';
+import { FrontendService } from './frontend-service.js';
+import { DatabaseService } from './database-service.js';
+import { FilesystemService } from './filesystem-service.js';
+import { MCPService } from './mcp-service.js';
+import { AgentService } from './agent-service.js';
 import { GenericService } from './generic-service.js';
 
 export class ServiceFactory {
@@ -28,22 +28,22 @@ export class ServiceFactory {
   ): Service {
     switch (name) {
       case 'backend':
-        return new BackendServiceRefactored(name, platform, config, serviceConfig);
+        return new BackendService(name, platform, config, serviceConfig);
         
       case 'frontend':
-        return new FrontendServiceRefactored(name, platform, config, serviceConfig);
+        return new FrontendService(name, platform, config, serviceConfig);
         
       case 'database':
-        return new DatabaseServiceRefactored(name, platform, config, serviceConfig);
+        return new DatabaseService(name, platform, config, serviceConfig);
         
       case 'filesystem':
-        return new FilesystemServiceRefactored(name, platform, config, serviceConfig);
+        return new FilesystemService(name, platform, config, serviceConfig);
         
       case 'mcp':
-        return new MCPServiceRefactored(name, platform, config, serviceConfig);
+        return new MCPService(name, platform, config, serviceConfig);
         
       case 'agent':
-        return new AgentServiceRefactored(name, platform, config, serviceConfig);
+        return new AgentService(name, platform, config, serviceConfig);
         
       default:
         // Use GenericService for unknown service types

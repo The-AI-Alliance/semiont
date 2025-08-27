@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
 
-export class BackendServiceRefactored extends BaseService {
+export class BackendService extends BaseService {
   
   // =====================================================================
   // Service Requirements
