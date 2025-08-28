@@ -1,6 +1,31 @@
 /**
- * Frontend Service - Refactored with Platform Strategy
+ * Frontend Service
  * 
+ * Represents web user interfaces, static sites, and client-side applications.
+ * Frontend services serve HTML, CSS, JavaScript, and other static assets,
+ * often with build steps for modern frameworks.
+ * 
+ * Common Use Cases:
+ * - React, Vue, Angular single-page applications
+ * - Static site generators (Next.js, Gatsby, Hugo)
+ * - Progressive Web Apps (PWAs)
+ * - Mobile web applications
+ * - Documentation sites and marketing pages
+ * 
+ * Default Requirements:
+ * - Compute: 256MB RAM, 0.25 CPU cores (for build/serve)
+ * - Network: Exposes port 3001 for development server
+ * - Storage: 512MB ephemeral for build artifacts
+ * - Build: Often requires Node.js build step
+ * 
+ * Platform Adaptations:
+ * - Process: Runs development server or builds to static files
+ * - Container: Nginx/Apache serving built assets
+ * - AWS: Deployed to S3 + CloudFront for static hosting
+ * - External: Points to existing CDN or hosting service
+ * 
+ * Supports hot module replacement in development, CDN integration,
+ * compression, caching strategies, and SSL/TLS termination.
  */
 
 import { BaseService } from './base-service.js';

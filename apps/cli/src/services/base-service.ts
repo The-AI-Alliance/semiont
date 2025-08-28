@@ -1,8 +1,27 @@
 /**
  * Base Service Implementation
  * 
- * Services provide capabilities and configuration to platforms.
- * All services are ServiceContexts - they provide the hooks platforms need.
+ * Abstract base class for all service types in the Semiont CLI.
+ * This class establishes the contract between services and platforms,
+ * allowing services to declare their requirements while platforms
+ * handle the actual infrastructure provisioning.
+ * 
+ * Key Responsibilities:
+ * - Declares infrastructure requirements (compute, network, storage)
+ * - Defines service capabilities (what operations are supported)
+ * - Provides configuration and environment variables
+ * - Implements lifecycle hooks for platform integration
+ * - Manages platform strategy selection and delegation
+ * 
+ * Design Principles:
+ * - Platform-agnostic: Services don't know how they'll be deployed
+ * - Requirement-driven: Services declare what they need, not how to get it
+ * - Extensible: New service types can extend and customize behavior
+ * - Testable: Can be tested with mock platforms without real infrastructure
+ * 
+ * All concrete service types (backend, frontend, database, etc.) extend
+ * this base class and override methods to specify their unique requirements
+ * and behaviors.
  */
 
 import { Service, ServiceName } from './service-interface.js';

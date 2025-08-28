@@ -1,6 +1,32 @@
 /**
- * Filesystem Service - Refactored with Platform Strategy
+ * Filesystem Service
  * 
+ * Provides shared filesystem storage for services that need persistent,
+ * mountable file storage. This service manages traditional filesystem
+ * access rather than object storage APIs.
+ * 
+ * Common Use Cases:
+ * - Shared data directories between services
+ * - Application file uploads and downloads
+ * - Configuration and state files
+ * - Media and asset storage
+ * - Database file storage
+ * 
+ * Default Requirements:
+ * - Compute: Minimal (filesystem is passive storage)
+ * - Network: No dedicated ports (accessed via mount)
+ * - Storage: 100GB persistent for file storage
+ * - Backup: Regular snapshots of file data
+ * 
+ * Platform Adaptations:
+ * - Process: Local directory on host filesystem
+ * - Container: Docker volume mounts shared between containers
+ * - AWS: EFS (Elastic File System) mounted by ECS tasks
+ * - External: Network-attached storage (NAS/NFS)
+ * 
+ * Provides POSIX-compliant filesystem semantics, allowing services
+ * to read and write files using standard filesystem APIs. The Semiont
+ * backend and other services mount this filesystem directly.
  */
 
 import { BaseService } from './base-service.js';

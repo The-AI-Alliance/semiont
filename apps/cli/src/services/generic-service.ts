@@ -1,8 +1,32 @@
 /**
- * Generic Service Implementation
+ * Generic Service
  * 
- * Provides a flexible service implementation for services without specific classes.
- * Requirements are derived from configuration.
+ * A flexible service implementation for custom or unrecognized service types.
+ * This service adapts to any configuration, making it useful for prototyping,
+ * legacy systems, or services that don't fit standard categories.
+ * 
+ * Common Use Cases:
+ * - Custom microservices with unique requirements
+ * - Third-party applications wrapped as services
+ * - Legacy systems being migrated incrementally
+ * - Experimental or prototype services
+ * - Services with highly dynamic configurations
+ * 
+ * Requirements:
+ * - Fully configurable via service configuration
+ * - Derives all settings from environment config
+ * - No default assumptions about resources
+ * - Platform-specific hints in configuration
+ * 
+ * Platform Adaptations:
+ * - Process: Uses configured command and environment
+ * - Container: Uses configured image or Dockerfile
+ * - AWS: Interprets config for appropriate AWS service
+ * - External: Acts as a proxy to external endpoints
+ * 
+ * The ultimate fallback that ensures any service can be managed
+ * through Semiont, even without a dedicated service class.
+ * Configuration-driven behavior allows complete customization.
  */
 
 import { BaseService } from './base-service.js';

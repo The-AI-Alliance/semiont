@@ -1,6 +1,31 @@
 /**
- * Backend Service - Refactored with Platform Strategy
+ * Backend Service
  * 
+ * Represents API servers, application logic, and business services.
+ * Backend services typically handle HTTP requests, process business logic,
+ * interact with databases, and provide APIs for frontend applications.
+ * 
+ * Common Use Cases:
+ * - REST APIs and GraphQL servers
+ * - Microservices and monolithic applications
+ * - WebSocket servers and real-time services
+ * - Background workers and job processors
+ * - Authentication and authorization services
+ * 
+ * Default Requirements:
+ * - Compute: 512MB RAM, 0.5 CPU cores
+ * - Network: Exposes port 3000 for HTTP traffic
+ * - Storage: 256MB ephemeral for temp files
+ * - Dependencies: Often requires database service
+ * 
+ * Platform Adaptations:
+ * - Process: Runs as Node.js, Python, or other runtime process
+ * - Container: Packaged with dependencies in Docker image
+ * - AWS: Deployed to ECS Fargate or Lambda (if stateless)
+ * - External: Connects to existing backend services
+ * 
+ * Supports health checks, auto-scaling, load balancing, and
+ * integration with monitoring and logging systems.
  */
 
 import { BaseService } from './base-service.js';

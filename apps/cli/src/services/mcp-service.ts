@@ -1,6 +1,36 @@
 /**
- * MCP Service - Refactored with Platform Strategy
+ * MCP Service
  * 
+ * Model Context Protocol (MCP) server that exposes the Semiont API
+ * to any MCP-compatible client. This service makes Semiont's capabilities
+ * available wherever MCP is spoken, enabling integration with AI assistants
+ * and other MCP-aware systems.
+ * 
+ * Current Capabilities:
+ * - "hello" service for basic connectivity testing
+ * - Foundation for future API expansion
+ * 
+ * Planned Features:
+ * - Graph retrieval for GraphRAG-like systems
+ * - Service orchestration APIs
+ * - Infrastructure query and management
+ * - Knowledge graph traversal
+ * 
+ * Default Requirements:
+ * - Compute: 512MB RAM, 0.5 CPU cores
+ * - Network: Uses stdio or HTTP transport
+ * - Storage: Minimal, mainly for configuration
+ * - Security: Controlled access to Semiont APIs
+ * 
+ * Platform Adaptations:
+ * - Process: Runs as stdio server for local MCP clients
+ * - Container: Isolated MCP endpoint with defined API surface
+ * - AWS: Lambda functions for serverless MCP API
+ * - External: Bridges to existing MCP infrastructures
+ * 
+ * Acts as the MCP gateway to Semiont, translating MCP requests
+ * into Semiont operations and exposing Semiont's knowledge graph
+ * and service management capabilities through the MCP protocol.
  */
 
 import { BaseService } from './base-service.js';

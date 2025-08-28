@@ -1,6 +1,31 @@
 /**
- * Database Service - Refactored with Platform Strategy
+ * Database Service
  * 
+ * Represents data persistence layers including SQL and NoSQL databases.
+ * Database services manage structured data storage, queries, transactions,
+ * and data integrity for applications.
+ * 
+ * Common Use Cases:
+ * - PostgreSQL, MySQL, MariaDB relational databases
+ * - MongoDB, DynamoDB, Cassandra NoSQL stores
+ * - Redis, Memcached caching layers
+ * - Elasticsearch, Solr search engines
+ * - TimescaleDB, InfluxDB time-series databases
+ * 
+ * Default Requirements:
+ * - Compute: 1024MB RAM, 1.0 CPU cores
+ * - Network: Exposes port 5432 (PostgreSQL) or service-specific
+ * - Storage: 10GB persistent for data files
+ * - Backup: Automated snapshots and point-in-time recovery
+ * 
+ * Platform Adaptations:
+ * - Process: Runs database daemon locally with data directory
+ * - Container: Official database images with volume mounts
+ * - AWS: RDS managed instances or DynamoDB tables
+ * - External: Connects to cloud databases (Atlas, Aiven, etc.)
+ * 
+ * Supports replication, clustering, automatic backups, monitoring,
+ * connection pooling, and encryption at rest and in transit.
  */
 
 import { BaseService } from './base-service.js';
