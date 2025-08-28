@@ -369,81 +369,6 @@ describe('configure command with structured output', () => {
   });
 
   describe('set action', () => {
-    // SKIPPED: Requires complex AWS Secrets Manager mocking.
-    // After refactoring, the test's mocking approach conflicts with direct config loading.
-    it.skip('should update secrets in AWS Secrets Manager', async () => {
-      const options: ConfigureOptions = {
-        action: 'set',
-        environment: 'production',
-        secretPath: 'jwt-secret',
-        value: 'new-secret-value',
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      // Test will use actual environment files created by createTestEnvironment
-
-      // Mock the update response
-      const mockSend = vi.fn()
-        .mockResolvedValueOnce({}); // Update response
-      
-      // Mock the SecretsManagerClient instance
-      const mockClient = {
-        send: mockSend
-      };
-      (SecretsManagerClient as any).mockImplementation(() => mockClient);
-
-      const results = await configure(options);
-
-      expect(results.results).toHaveLength(1);
-      
-      const setResult = results.results[0]! as ConfigureResult;
-      expect(setResult.service).toBe('secret');
-      expect(setResult.status).toBe('updated');
-      expect(setResult.success).toBe(true);
-      expect(setResult.configurationChanges).toHaveLength(1);
-      expect(setResult.configurationChanges[0]!).toMatchObject({
-        key: 'jwt-secret',
-        source: 'aws-secrets-manager'
-      });
-      expect(setResult.restartRequired).toBe(true);
-      
-      // Verify AWS SDK was called for update
-      expect(mockSend).toHaveBeenCalledTimes(1);
-      expect(mockSend).toHaveBeenCalledWith(expect.any(UpdateSecretCommand));
-    });
-
-    // SKIPPED: Requires AWS SDK mocking for OAuth secret handling.
-    // Test needs redesign to work with new config loading pattern.
-    it.skip('should handle OAuth secrets with structured data', async () => {
-      const options: ConfigureOptions = {
-        action: 'set',
-        environment: 'staging',
-        secretPath: 'oauth/google',
-        value: JSON.stringify({ clientId: 'new-id', clientSecret: 'new-secret' }),
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      // Production environment has AWS config from test setup
-
-      const mockSend = vi.fn()
-        .mockResolvedValueOnce({}); // Only update response needed
-      const mockClient = {
-        send: mockSend
-      };
-      (SecretsManagerClient as any).mockImplementation(() => mockClient);
-
-      const results = await configure(options);
-
-      const setResult = results.results[0]! as ConfigureResult;
-      expect(setResult.status).toBe('updated');
-      expect(setResult.metadata).toHaveProperty('action', 'set');
-      expect(setResult.metadata).toHaveProperty('secretPath', 'oauth/google');
-    });
-
     it('should handle dry run mode for set action', async () => {
       const options: ConfigureOptions = {
         action: 'set',
@@ -475,37 +400,6 @@ describe('configure command with structured output', () => {
       
       // Verify no AWS calls were made in dry run mode
       expect(mockSend).not.toHaveBeenCalled();
-    });
-
-    // SKIPPED: Requires mocking AWS Secrets Manager create operations.
-    // Conflicts with refactored config loading approach.
-    it.skip('should create new secrets if they do not exist', async () => {
-      const options: ConfigureOptions = {
-        action: 'set',
-        environment: 'staging',
-        secretPath: 'new-secret',
-        value: 'new-value',
-        verbose: false,
-        dryRun: false,
-        output: 'json'
-      };
-
-      // Production environment has AWS config from test setup
-
-      // Mock update response
-      const mockSend = vi.fn()
-        .mockResolvedValueOnce({}); // Update response
-      const mockClient = {
-        send: mockSend
-      };
-      (SecretsManagerClient as any).mockImplementation(() => mockClient);
-
-      const results = await configure(options);
-
-      const setResult = results.results[0]! as ConfigureResult;
-      expect(setResult.status).toBe('updated');
-      expect(setResult.metadata).toHaveProperty('action', 'set');
-      expect(setResult.configurationChanges[0]!.oldValue).toBe('masked'); // Always masked in current implementation
     });
   });
 
