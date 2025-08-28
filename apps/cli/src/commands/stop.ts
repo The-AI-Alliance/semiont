@@ -130,6 +130,11 @@ export async function stop(
     const serviceResults: StopResult[] = [];
     
     for (const serviceInfo of reversedDeployments) {
+      // Get the platform outside try block so it's accessible in catch
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      const actualPlatformName = platform.getPlatformName();
+      
       try {
         const result = await stopServiceImpl(serviceInfo, config);
         serviceResults.push(result);
@@ -137,7 +142,7 @@ export async function stop(
       } catch (error) {
         const errorResult: StopResult = {
           entity: serviceInfo.name as ServiceName,
-          platform: serviceInfo.platform,
+          platform: actualPlatformName,  // Use actual platform name
           success: false,
           stopTime: new Date(),
           error: (error as Error).message

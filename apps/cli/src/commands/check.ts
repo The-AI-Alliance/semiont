@@ -110,12 +110,12 @@ async function checkHandler(
   };
   
   for (const serviceInfo of services) {
+    // Get the platform outside try block so it's accessible in catch
+    const { PlatformFactory } = await import('../platforms/index.js');
+    const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+    const actualPlatformName = platform.getPlatformName();
     
     try {
-      // Get the platform strategy
-      const { PlatformFactory } = await import('../platforms/index.js');
-      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-      
       // Create service instance to act as ServiceContext
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
@@ -199,7 +199,7 @@ async function checkHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform,
+        platform: actualPlatformName,  // Use actual platform name
         success: false,
         checkTime: new Date(),
         status: 'unknown',

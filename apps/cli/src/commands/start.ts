@@ -126,6 +126,11 @@ export async function start(
     const serviceResults: StartResult[] = [];
     
     for (const serviceInfo of serviceDeployments) {
+      // Get the platform outside try block so it's accessible in catch
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      const actualPlatformName = platform.getPlatformName();
+      
       try {
         const result = await startServiceImpl(serviceInfo, config);
         serviceResults.push(result);
@@ -133,7 +138,7 @@ export async function start(
       } catch (error) {
         const errorResult: StartResult = {
           entity: serviceInfo.name as ServiceName,
-          platform: serviceInfo.platform,
+          platform: actualPlatformName,  // Use actual platform name
           success: false,
           startTime: new Date(),
           error: (error as Error).message

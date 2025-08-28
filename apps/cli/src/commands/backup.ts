@@ -139,12 +139,12 @@ async function backupHandler(
   let totalBackupCost = 0;
   
   for (const serviceInfo of sortedServices) {
+    // Get the platform outside try block so it's accessible in catch
+    const { PlatformFactory } = await import('../platforms/index.js');
+    const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+    const actualPlatformName = platform.getPlatformName();
     
     try {
-      // Create service instance
-      // Get the platform strategy
-      const { PlatformFactory } = await import('../platforms/index.js');
-      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
       
       // Create service instance to act as ServiceContext
       const service = ServiceFactory.create(
@@ -260,7 +260,7 @@ async function backupHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform,
+        platform: actualPlatformName,  // Use actual platform name
         success: false,
         backupTime: new Date(),
         backupId: `error-${Date.now()}`,
