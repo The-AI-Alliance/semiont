@@ -57,7 +57,11 @@ async function stopServiceImpl(
   serviceInfo: ServicePlatformInfo,
   config: Config
 ): Promise<StopResult> {
-  // Create the service instance
+  // Get the platform strategy
+  const { PlatformFactory } = await import('../platforms/index.js');
+  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+  
+  // Create service instance to act as ServiceContext
   const service = ServiceFactory.create(
     serviceInfo.name as ServiceName,
     serviceInfo.platform,
@@ -65,8 +69,8 @@ async function stopServiceImpl(
     { ...serviceInfo.config, platform: serviceInfo.platform }
   );
   
-  // Stop the service
-  return await service.stop();
+  // Platform handles the stop command with service as context
+  return await platform.stop(service);
 }
 
 // =====================================================================
@@ -95,7 +99,7 @@ export async function stop(
       printInfo(`Stopping services in ${colors.bright}${environment}${colors.reset} environment`);
     }
     
-    // Stop services in reverse order (frontend before backend, services before database)
+    // Stop services in reverse order
     const reversedDeployments = [...serviceDeployments].reverse();
     
     // Stop services and collect results
@@ -198,7 +202,7 @@ export const stopCommand = new CommandBuilder()
   }))
   .examples(
     'semiont stop --environment local',
-    'semiont stop --environment staging --service backend',
+    'semiont stop --environment staging --service myservice',
     'semiont stop --environment prod --force'
   )
   .handler(stop)

@@ -73,7 +73,7 @@ async function provisionHandler(
     dryRun: options.dryRun,
   };
   
-  // Sort services by dependency order (database first, etc.)
+  // Let platforms handle dependency ordering
   const sortedServices = sortServicesByDependencies(services);
   
   // Track provisioning results for dependency resolution
@@ -98,8 +98,12 @@ async function provisionHandler(
         // Could implement provisioning state check here
       }
       
-      // Provision the service
-      const result = await service.provision();
+      // Get the platform strategy
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      
+      // Platform handles the provision command
+      const result = await platform.provision(service);
       provisionResults.set(serviceInfo.name, result);
       
       // Track total cost
@@ -236,22 +240,13 @@ async function provisionHandler(
 }
 
 /**
- * Sort services by dependency order
- * Database first, then backend, then frontend, etc.
+ * Sort services by dependencies
+ * Platforms determine the actual ordering
  */
 function sortServicesByDependencies(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  const dependencyOrder = ['filesystem', 'database', 'backend', 'frontend', 'mcp'];
-  
-  return services.sort((a, b) => {
-    const aIndex = dependencyOrder.indexOf(a.name);
-    const bIndex = dependencyOrder.indexOf(b.name);
-    
-    // If not in dependency order, put at end
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    
-    return aIndex - bIndex;
-  });
+  // Platforms handle dependency resolution
+  // Just return services in the order provided
+  return services;
 }
 
 // =====================================================================

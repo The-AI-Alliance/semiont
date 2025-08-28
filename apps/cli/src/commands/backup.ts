@@ -40,23 +40,8 @@ export interface BackupResult {
     compression?: 'gzip' | 'bzip2' | 'xz' | 'none';
     encrypted?: boolean;
     checksum?: string; // For integrity verification
-    // Backup content types
-    database?: {
-      type: 'postgresql' | 'mysql' | 'sqlite' | 'mongodb';
-      schema?: boolean;
-      data?: boolean;
-      tables?: string[];
-    };
-    filesystem?: {
-      paths?: string[];
-      excludePatterns?: string[];
-      preservePermissions?: boolean;
-    };
-    configuration?: {
-      envFiles?: string[];
-      configMaps?: string[];
-      secrets?: boolean; // Whether secrets were backed up
-    };
+    // Platform/service-specific backup details
+    details?: Record<string, any>;
     application?: {
       source?: boolean;
       assets?: boolean;
@@ -132,6 +117,11 @@ async function backupHandler(
     
     try {
       // Create service instance
+      // Get the platform strategy
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      
+      // Create service instance to act as ServiceContext
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
         serviceInfo.platform,
@@ -144,8 +134,8 @@ async function backupHandler(
         }
       );
       
-      // Backup the service
-      const result = await service.backup();
+      // Platform handles the backup command
+      const result = await platform.backup(service);
       backupResults.set(serviceInfo.name, result);
       
       // Accumulate statistics
@@ -338,22 +328,13 @@ async function backupHandler(
 }
 
 /**
- * Sort services by backup priority
- * Generally: data services first (database, filesystem), then applications
+ * Sort services by backup priority using service-defined behaviors
+ * Services define their own backup priority instead of hardcoded order
  */
 function sortServicesByBackupPriority(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  const backupOrder = ['database', 'filesystem', 'backend', 'mcp', 'frontend'];
-  
-  return services.sort((a, b) => {
-    const aIndex = backupOrder.indexOf(a.name);
-    const bIndex = backupOrder.indexOf(b.name);
-    
-    // If not in backup order, put at end
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    
-    return aIndex - bIndex;
-  });
+  // Simply maintain the order provided
+  // Platforms can determine their own backup strategies
+  return services;
 }
 
 // =====================================================================

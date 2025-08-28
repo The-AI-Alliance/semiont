@@ -17,6 +17,31 @@ import { BackupResult } from '../commands/backup.js';
 import { ExecResult, ExecOptions } from '../commands/exec.js';
 import { TestResult, TestOptions } from '../commands/test.js';
 import { RestoreResult, RestoreOptions } from '../commands/restore.js';
+
+/**
+ * Secret management options
+ */
+export interface SecretOptions {
+  environment?: string;
+  format?: 'json' | 'string' | 'env';
+  encrypted?: boolean;
+  ttl?: number; // Time to live in seconds
+}
+
+/**
+ * Result of secret management operations
+ */
+export interface SecretResult {
+  success: boolean;
+  action: 'get' | 'set' | 'list' | 'delete';
+  secretPath: string;
+  value?: any; // Only for 'get' action
+  values?: string[]; // Only for 'list' action
+  platform: string;
+  storage?: string; // Where secret is stored (e.g., 'aws-secrets-manager', 'env-file', 'docker-secret')
+  error?: string;
+  metadata?: Record<string, any>;
+}
 import { ServiceConfig } from '../lib/cli-config.js';
 import { Environment } from '../lib/environment-validator.js';
 import { 
@@ -126,6 +151,20 @@ export interface PlatformStrategy {
    * Get the platform name for logging
    */
   getPlatformName(): string;
+  
+  /**
+   * Manage secrets for this platform
+   * @param action - The secret operation to perform
+   * @param secretPath - Path/name of the secret
+   * @param value - Value to set (only for 'set' action)
+   * @param options - Additional options for secret management
+   */
+  manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: SecretOptions
+  ): Promise<SecretResult>;
 }
 
 /**
@@ -144,6 +183,24 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   abstract restore(context: ServiceContext, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
   abstract collectLogs(context: ServiceContext): Promise<CheckResult['logs']>;
   abstract getPlatformName(): string;
+  
+  /**
+   * Default implementation throws - platforms should override
+   */
+  async manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: SecretOptions
+  ): Promise<SecretResult> {
+    return {
+      success: false,
+      action,
+      secretPath,
+      platform: this.getPlatformName(),
+      error: `Secret management not implemented for ${this.getPlatformName()} platform`
+    };
+  }
   
   /**
    * Helper to generate container/instance names

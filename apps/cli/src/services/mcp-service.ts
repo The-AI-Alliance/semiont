@@ -4,6 +4,7 @@
  */
 
 import { BaseService } from './base-service.js';
+import { ServiceRequirements, RequirementPresets } from '../lib/service-requirements.js';
 import { CheckResult } from '../commands/check.js';
 import { loadEnvironmentConfig } from '../lib/platform-resolver.js';
 import * as path from 'path';
@@ -11,6 +12,15 @@ import * as os from 'os';
 import * as fs from 'fs';
 
 export class MCPService extends BaseService {
+  
+  // =====================================================================
+  // Service Requirements
+  // =====================================================================
+  
+  override getRequirements(): ServiceRequirements {
+    // MCP service acts like a background worker/API
+    return RequirementPresets.backgroundWorker();
+  }
   
   // =====================================================================
   // Service-specific configuration

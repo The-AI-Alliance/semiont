@@ -78,13 +78,13 @@ async function updateHandler(
         serviceInfo.name as ServiceName,
         serviceInfo.platform,
         config,
-        {
-          platform: serviceInfo.platform
-        } // Service config would come from project config
+        { ...serviceInfo.config, platform: serviceInfo.platform }
       );
       
-      // Update the service
-      const result = await service.update();
+      // Get platform and delegate update to it
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      const result = await platform.update(service);
       
       // Record result directly - no conversion needed!
       serviceResults.push(result);
@@ -92,13 +92,14 @@ async function updateHandler(
       // Display result
       if (!options.quiet) {
         if (result.success) {
-          const strategyEmoji = {
+          const strategyEmojis: Record<string, string> = {
             'restart': '🔄',
             'recreate': '♻️',
             'rolling': '🌊',
             'blue-green': '🔵🟢',
             'none': '⏸️'
-          }[result.strategy] || '❓';
+          };
+          const strategyEmoji = strategyEmojis[result.strategy || ''] || '❓';
           
           printSuccess(`${strategyEmoji} ${serviceInfo.name} updated (${result.strategy} strategy)`);
           

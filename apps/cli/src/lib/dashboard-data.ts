@@ -58,8 +58,10 @@ export class DashboardDataSource {
           { platform: this.environment as Platform } as ServiceConfig
         );
 
-        // Get status using the new check method
-        const checkResult: CheckResult = await service.check();
+        // Get platform and delegate check to it
+        const { PlatformFactory } = await import('../platforms/index.js');
+        const platform = PlatformFactory.getPlatform(deployment.platform);
+        const checkResult: CheckResult = await platform.check(service);
         
         // Convert to dashboard format
         services.push({

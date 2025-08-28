@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import type { CommandFunction } from './command-types.js';
+import type { CommandFunction, ServiceCommandFunction, SetupCommandFunction } from './command-types.js';
 import { BASE_ARGS, BASE_ALIASES } from './base-options-schema.js';
 
 /**
@@ -45,6 +45,11 @@ export interface CommandDefinition<TInput = any, TOptions = TInput, TResult = an
   requiresServices: boolean;
   examples: string[];
   handler: CommandFunction<TOptions, TResult>;
+  
+  /**
+   * Discriminator to help runtime determine handler type
+   */
+  handlerType?: 'service' | 'setup';
 }
 
 /**
@@ -108,6 +113,28 @@ export class CommandBuilder<TInput = any, TOptions = TInput, TResult = any> {
 
   handler<R>(fn: CommandFunction<TOptions, R>): CommandBuilder<TInput, TOptions, R> {
     (this.definition as any).handler = fn;
+    // Auto-detect handler type based on requiresServices flag
+    (this.definition as any).handlerType = this.definition.requiresServices ? 'service' : 'setup';
+    return this as any;
+  }
+  
+  /**
+   * Type-safe handler for service commands
+   */
+  serviceHandler<R>(fn: ServiceCommandFunction<TOptions, R>): CommandBuilder<TInput, TOptions, R> {
+    (this.definition as any).handler = fn;
+    (this.definition as any).handlerType = 'service';
+    this.definition.requiresServices = true;
+    return this as any;
+  }
+  
+  /**
+   * Type-safe handler for setup commands
+   */
+  setupHandler<R>(fn: SetupCommandFunction<TOptions, R>): CommandBuilder<TInput, TOptions, R> {
+    (this.definition as any).handler = fn;
+    (this.definition as any).handlerType = 'setup';
+    this.definition.requiresServices = false;
     return this as any;
   }
 

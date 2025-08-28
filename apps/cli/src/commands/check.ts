@@ -88,7 +88,11 @@ async function checkHandler(
   for (const serviceInfo of services) {
     
     try {
-      // Create service instance
+      // Get the platform strategy
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      
+      // Create service instance to act as ServiceContext
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
         serviceInfo.platform,
@@ -98,8 +102,8 @@ async function checkHandler(
         } // Service config would come from project config
       );
       
-      // Check the service
-      const result = await service.check();
+      // Platform handles the check command with service as context
+      const result = await platform.check(service);
       
       // Record result directly - no conversion needed!
       serviceResults.push(result);

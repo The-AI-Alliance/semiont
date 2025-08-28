@@ -193,7 +193,6 @@ async function updateSecret(envConfig: EnvironmentConfig, secretName: string, se
 // =====================================================================
 
 async function configure(
-  _serviceDeployments: ServicePlatformInfo[], // Not used but kept for API consistency
   options: ConfigureOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
@@ -530,5 +529,5 @@ export const configureCommand = new CommandBuilder()
     'semiont configure -e production get oauth/google',
     'semiont configure -e staging set jwt-secret'
   )
-  .handler(configure)
+  .setupHandler(configure)
   .build();

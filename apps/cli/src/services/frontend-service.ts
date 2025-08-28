@@ -8,8 +8,18 @@ import { CheckResult } from '../commands/check.js';
 import { getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
+import { ServiceRequirements, RequirementPresets } from '../lib/service-requirements.js';
 
 export class FrontendService extends BaseService {
+  
+  // =====================================================================
+  // Service Requirements
+  // =====================================================================
+  
+  override getRequirements(): ServiceRequirements {
+    // Frontend typically needs network access and build capabilities
+    return RequirementPresets.webFrontend();
+  }
   
   // =====================================================================
   // Service-specific configuration

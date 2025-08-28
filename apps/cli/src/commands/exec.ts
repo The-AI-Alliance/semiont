@@ -160,8 +160,12 @@ async function execHandler(
       env: {} // Could be extended to pass custom env vars
     };
     
-    // Execute the command
-    const result = await service.exec(options.command, execOptions);
+    // Get the platform strategy
+    const { PlatformFactory } = await import('../platforms/index.js');
+    const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+    
+    // Platform handles the exec command
+    const result = await platform.exec(service, options.command, execOptions);
     
     // Record result directly - no conversion needed!
     serviceResults.push(result);

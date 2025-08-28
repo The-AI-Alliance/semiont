@@ -33,7 +33,7 @@
     // Additional Checks
     "noUnusedLocals": true,                     // Error on unused locals
     "noUnusedParameters": true,                 // Error on unused parameters
-    "exactOptionalPropertyTypes": true,         // Exact optional property types
+    "exactOptionalPropertyTypes": false,        // Disabled - too restrictive for optional properties
     "noImplicitReturns": true,                  // Error when not all paths return
     "noFallthroughCasesInSwitch": true,        // Error on fallthrough in switch
     "noUncheckedIndexedAccess": false,         // Don't add undefined to index signatures (too strict for existing code)

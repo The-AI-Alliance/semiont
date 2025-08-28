@@ -220,8 +220,16 @@ export async function executeCommand(
       services = resolveServiceDeployments(resolvedServices, environment);
     }
     
-    // Execute the command handler
-    const results = await command.handler(services, options);
+    // Execute the command handler based on its type
+    let results;
+    if (command.requiresServices) {
+      // Service command - pass services and options
+      results = await command.handler(services, options);
+    } else {
+      // Setup command - pass only options
+      const setupHandler = command.handler as any; // TypeScript needs help here
+      results = await setupHandler(options);
+    }
     
     // Format and output results
     const formatted = formatResults(results, options.output, options.verbose);

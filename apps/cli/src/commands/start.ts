@@ -56,7 +56,11 @@ async function startServiceImpl(
   serviceInfo: ServicePlatformInfo, 
   config: Config
 ): Promise<StartResult> {
-  // Create the service instance
+  // Get the platform strategy
+  const { PlatformFactory } = await import('../platforms/index.js');
+  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+  
+  // Create service instance to act as ServiceContext
   const service = ServiceFactory.create(
     serviceInfo.name as ServiceName,
     serviceInfo.platform,
@@ -64,8 +68,8 @@ async function startServiceImpl(
     { ...serviceInfo.config, platform: serviceInfo.platform }
   );
   
-  // Start the service
-  return await service.start();
+  // Platform handles the start command with service as context
+  return await platform.start(service);
 }
 
 // =====================================================================
@@ -199,7 +203,7 @@ export const startCommand = new CommandBuilder()
   }))
   .examples(
     'semiont start --environment local',
-    'semiont start --environment staging --service backend',
+    'semiont start --environment staging --service myservice',
     'semiont start --environment prod --dry-run'
   )
   .handler(start)

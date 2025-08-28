@@ -4,10 +4,20 @@
  */
 
 import { BaseService } from './base-service.js';
+import { ServiceRequirements, RequirementPresets } from '../lib/service-requirements.js';
 import { CheckResult } from '../commands/check.js';
 import * as path from 'path';
 
 export class FilesystemService extends BaseService {
+  
+  // =====================================================================
+  // Service Requirements
+  // =====================================================================
+  
+  override getRequirements(): ServiceRequirements {
+    // Filesystem service needs persistent storage
+    return RequirementPresets.statefulDatabase(); // Similar storage needs
+  }
   
   // =====================================================================
   // Service-specific configuration

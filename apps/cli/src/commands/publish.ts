@@ -99,7 +99,7 @@ async function publishHandler(
     dryRun: options.dryRun,
   };
   
-  // Sort services by publish order (backend first for dependency reasons)
+  // Let platforms handle publish ordering
   const sortedServices = sortServicesByPublishOrder(services);
   
   // Track publishing results
@@ -121,8 +121,12 @@ async function publishHandler(
         } as ServiceConfig
       );
       
-      // Publish the service
-      const result = await service.publish();
+      // Get the platform strategy
+      const { PlatformFactory } = await import('../platforms/index.js');
+      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+      
+      // Platform handles the publish command
+      const result = await platform.publish(service);
       publishResults.set(serviceInfo.name, result);
       
       // Track result directly - no conversion needed!
@@ -277,22 +281,13 @@ async function publishHandler(
 }
 
 /**
- * Sort services by publish order
- * Generally: backend first (others depend on it), then frontend, then utilities
+ * Sort services for publishing
+ * Platforms determine the actual ordering
  */
 function sortServicesByPublishOrder(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  const publishOrder = ['database', 'backend', 'mcp', 'frontend', 'filesystem'];
-  
-  return services.sort((a, b) => {
-    const aIndex = publishOrder.indexOf(a.name);
-    const bIndex = publishOrder.indexOf(b.name);
-    
-    // If not in publish order, put at end
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    
-    return aIndex - bIndex;
-  });
+  // Platforms handle publish ordering
+  // Just return services in the order provided
+  return services;
 }
 
 // =====================================================================

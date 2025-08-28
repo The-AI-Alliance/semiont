@@ -38,19 +38,7 @@ export interface RestoreResult {
     duration?: number; // Time taken to restore (ms)
     
     // What was restored
-    database?: {
-      tables?: number; // Number of tables restored
-      records?: number; // Number of records restored
-      schemas?: boolean; // Whether schemas were restored
-      indexes?: boolean; // Whether indexes were rebuilt
-      constraints?: boolean; // Whether constraints were restored
-    };
-    filesystem?: {
-      files?: number; // Number of files restored
-      directories?: number; // Number of directories
-      permissions?: boolean; // Whether permissions were preserved
-      symlinks?: boolean; // Whether symlinks were preserved
-    };
+    details?: Record<string, any>; // Platform/service-specific restore details
     configuration?: {
       envFiles?: string[]; // Environment files restored
       configFiles?: string[]; // Config files restored
@@ -135,10 +123,7 @@ async function restoreHandler(
     dryRun: options.dryRun
   };
   
-  // Extract service names from deployments
-  const services = serviceDeployments.map(sd => sd.name as ServiceName);
-  
-  printInfo(`🔄 Restoring ${services.length} service(s) from backup ${options.backupId}`);
+  printInfo(`🔄 Restoring ${serviceDeployments.length} service(s) from backup ${options.backupId}`);
   
   // Warn about potential downtime
   if (!options.force && options.stopService !== false) {
@@ -151,32 +136,19 @@ async function restoreHandler(
     }
   }
   
-  // Service restore order (inverse of backup order)
-  // Critical services restored last to minimize downtime
-  const restoreOrder: ServiceName[] = [
-    'frontend',    // Restore UI first (least critical)
-    'mcp',         // Then MCP services
-    'backend',     // Then backend
-    'filesystem',  // Then filesystem
-    'database'     // Database last (most critical)
-  ];
-  
-  // Filter and order services
-  const orderedServices = restoreOrder.filter(s => services.includes(s));
-  
   const results: RestoreResult[] = [];
   
   // Pre-restore validation phase
   if (options.validate !== false && !config.dryRun) {
     printInfo('🔍 Validating backups...');
     
-    for (const serviceName of orderedServices) {
+    for (const deployment of serviceDeployments) {
       // Validation would be done in platform implementation
-      // serviceName will be validated by the platform
+      // deployment will be validated by the platform
       
       // Check if backup exists (would be done in platform implementation)
       if (!config.quiet) {
-        printInfo(`  Validating backup for ${serviceName}...`);
+        printInfo(`  Validating backup for ${deployment.name}...`);
       }
     }
   }
@@ -184,12 +156,15 @@ async function restoreHandler(
   // Restore phase
   printInfo('📦 Starting restore operations...');
   
-  for (const serviceName of orderedServices) {
+  // Import PlatformFactory
+  const { PlatformFactory } = await import('../platforms/index.js');
+  
+  for (const deployment of serviceDeployments) {
     const service = ServiceFactory.create(
-      serviceName,
-      'process' as Platform, // Default to process for now
+      deployment.name as ServiceName,
+      deployment.platform,
       config,
-      { platform: 'process' as Platform } as ServiceConfig
+      deployment.config as ServiceConfig
     );
     
     try {
@@ -204,19 +179,20 @@ async function restoreHandler(
         dryRun: options.dryRun
       };
       
-      const result = await service.restore(options.backupId, restoreOptions);
+      // Get platform and delegate restore to it
+      const platform = PlatformFactory.getPlatform(deployment.platform);
+      const result = await platform.restore(service, options.backupId, restoreOptions);
       results.push(result);
       
       // Show progress
       if (!config.quiet) {
         if (result.success) {
-          printSuccess(`✅ ${serviceName}: Restored successfully`);
+          printSuccess(`✅ ${deployment.name}: Restored successfully`);
           
-          if (result.restore?.database) {
-            printInfo(`   Database: ${result.restore.database.tables} tables restored`);
-          }
-          if (result.restore?.filesystem) {
-            printInfo(`   Files: ${result.restore.filesystem.files} files restored`);
+          if (result.restore?.details) {
+            Object.entries(result.restore.details).forEach(([key, value]) => {
+              printInfo(`   ${key}: ${value}`);
+            });
           }
           if (result.downtime?.duration) {
             const downtimeSeconds = (result.downtime.duration / 1000).toFixed(1);
@@ -226,7 +202,7 @@ async function restoreHandler(
             printSuccess(`   Health check: Passed`);
           }
         } else {
-          printError(`❌ ${serviceName}: Restore failed`);
+          printError(`❌ ${deployment.name}: Restore failed`);
           if (result.error) {
             printError(`   ${result.error}`);
           }
@@ -235,8 +211,8 @@ async function restoreHandler(
       
     } catch (error) {
       results.push({
-        entity: serviceName,
-        platform: service.platform,
+        entity: deployment.name,
+        platform: deployment.platform,
         success: false,
         restoreTime: new Date(),
         backupId: options.backupId,
@@ -244,7 +220,7 @@ async function restoreHandler(
       });
       
       if (!config.quiet) {
-        printError(`❌ ${serviceName}: ${(error as Error).message}`);
+        printError(`❌ ${deployment.name}: ${(error as Error).message}`);
       }
       
       // Stop on first failure unless force

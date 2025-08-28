@@ -85,7 +85,6 @@ function copyTemplate(source: string, dest: string, replacements?: Record<string
 // =====================================================================
 
 async function init(
-  _serviceDeployments: ServicePlatformInfo[], // Not used by init
   options: InitOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
@@ -270,5 +269,5 @@ export const initCommand = new CommandBuilder()
     'semiont init --environments local,staging,production',
     'semiont init --directory ./my-app --force'
   )
-  .handler(init)
+  .setupHandler(init)
   .build();
