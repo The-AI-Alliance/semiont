@@ -10,7 +10,6 @@ import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { initCommand } from '../commands/init.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 const init = initCommand.handler;
 
@@ -41,8 +40,7 @@ export async function createTestEnvironment(
     
     // Initialize Semiont project using the actual init command
     try {
-      // init expects (ServicePlatformInfo[], options)
-      const serviceDeployments: ServicePlatformInfo[] = []; // init doesn't use services
+      // init is a SetupCommandFunction, it only expects options
       const options = {
         name: projectName,
         directory: tmpDir,
@@ -54,7 +52,7 @@ export async function createTestEnvironment(
         verbose: false,
         dryRun: false
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       
       // Check if init failed
       if (result && result.summary && result.summary.failed > 0) {

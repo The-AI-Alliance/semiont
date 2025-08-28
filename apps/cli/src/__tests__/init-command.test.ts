@@ -4,7 +4,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ServicePlatformInfo } from '../platforms/platform-resolver';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -43,7 +42,7 @@ describe('init command', () => {
 
   describe('basic functionality', () => {
     it('should initialize a project with default settings', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = []; // Init doesn't use services
+      // init is a SetupCommandFunction, it only expects options
       const options = {
         environment: 'none',
         force: false,
@@ -53,7 +52,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       expect(result.command).toBe('init');
       expect(result.summary.succeeded).toBe(1);
       expect(result.summary.failed).toBe(0);
@@ -71,7 +70,6 @@ describe('init command', () => {
     });
 
     it('should use custom project name when provided', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         name: 'my-awesome-project',
@@ -82,7 +80,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      await init(serviceDeployments, options);
+      await init(options);
       
       // Check that project name is in semiont.json
       const semiontContent = JSON.parse(fs.readFileSync('semiont.json', 'utf-8'));
@@ -90,7 +88,6 @@ describe('init command', () => {
     });
 
     it('should use custom directory when provided', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const customDir = path.join(testDir, 'custom-project');
       const options = {
         environment: 'none',
@@ -102,7 +99,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       expect(result.command).toBe('init');
       expect(result.summary.succeeded).toBe(1);
       
@@ -117,7 +114,6 @@ describe('init command', () => {
       // Create an existing semiont.json
       fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -128,7 +124,7 @@ describe('init command', () => {
         dryRun: false,
       };
 
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
 
       // Should fail because file exists
       expect(result.summary.failed).toBe(1);
@@ -143,7 +139,6 @@ describe('init command', () => {
       // Create an existing semiont.json
       fs.writeFileSync('semiont.json', JSON.stringify({ version: '0.0.1' }));
       
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: true,
@@ -154,7 +149,7 @@ describe('init command', () => {
         dryRun: false,
       };
 
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
 
       // Should succeed with force flag
       expect(result.summary.succeeded).toBe(1);
@@ -177,7 +172,6 @@ describe('init command', () => {
         return;
       }
       
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         directory: readOnlyDir,
@@ -188,7 +182,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       expect(result.summary.failed).toBe(1);
       expect(result.summary.succeeded).toBe(0);
       
@@ -199,7 +193,6 @@ describe('init command', () => {
 
   describe('environment configuration', () => {
     it('should create configs for custom environment list', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         environments: ['dev', 'qa', 'prod'],
@@ -210,7 +203,7 @@ describe('init command', () => {
         dryRun: false,
       };
 
-      await init(serviceDeployments, options);
+      await init(options);
 
       // Check that custom environment files were created
       expect(fs.existsSync('environments/dev.json')).toBe(true);
@@ -223,7 +216,6 @@ describe('init command', () => {
     });
 
     it('should generate appropriate configs for each environment type', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         environments: ['local', 'staging', 'production'],
@@ -233,7 +225,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      await init(serviceDeployments, options);
+      await init(options);
       
       // Check local environment config - uses container as default but services use process
       const localConfig = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
@@ -254,7 +246,6 @@ describe('init command', () => {
 
   describe('output modes', () => {
     it('should suppress output in quiet mode', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -264,14 +255,13 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       // Should still succeed even in quiet mode
       expect(result.summary.succeeded).toBe(1);
       expect(result.summary.failed).toBe(0);
     });
 
     it('should show verbose output when requested', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -281,14 +271,13 @@ describe('init command', () => {
         verbose: true,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       // Verbose mode should still succeed
       expect(result.summary.succeeded).toBe(1);
       expect(result.summary.failed).toBe(0);
     });
 
     it('should handle dry run mode', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -298,7 +287,7 @@ describe('init command', () => {
         verbose: false,
         dryRun: true,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       // In dry run mode, files should not be written
       // (Though current implementation doesn't check dryRun for init)
       // This test is here for future implementation
@@ -307,8 +296,7 @@ describe('init command', () => {
   });
 
   describe('CommandFunction compliance', () => {
-    it('should accept ServicePlatformInfo[] as first parameter', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
+    it('should accept options as parameter', async () => {
       const options = {
         environment: 'none',
         force: false,
@@ -318,13 +306,12 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       expect(result).toBeDefined();
       expect(result.command).toBe('init');
     });
 
     it('should return CommandResults structure', async () => {
-      const serviceDeployments: ServicePlatformInfo[] = [];
       const options = {
         environment: 'none',
         force: false,
@@ -334,19 +321,19 @@ describe('init command', () => {
         verbose: false,
         dryRun: false,
       };
-      const result = await init(serviceDeployments, options);
+      const result = await init(options);
       // Verify CommandResults structure
       expect(result).toHaveProperty('command');
       expect(result).toHaveProperty('environment');
       expect(result).toHaveProperty('timestamp');
       expect(result).toHaveProperty('duration');
-      expect(result).toHaveProperty('services');
+      expect(result).toHaveProperty('results');
       expect(result).toHaveProperty('summary');
       expect(result).toHaveProperty('executionContext');
       
       expect(result.command).toBe('init');
       expect(result.environment).toBe('none');
-      expect(result.services).toEqual([]);
+      expect(result.results).toEqual([]);
     });
 
     it('should work with all output formats', async () => {
@@ -360,7 +347,6 @@ describe('init command', () => {
           fs.rmSync('cdk', { recursive: true });
         }
         
-        const serviceDeployments: ServicePlatformInfo[] = [];
         const options = {
           environment: 'none',
           force: false,
@@ -370,7 +356,7 @@ describe('init command', () => {
           verbose: false,
           dryRun: false,
         };
-        const result = await init(serviceDeployments, options);
+        const result = await init(options);
         expect(result.command).toBe('init');
         expect(result.summary.succeeded).toBe(1);
       }

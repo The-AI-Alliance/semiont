@@ -10,7 +10,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { beforeAll, afterAll } from 'vitest';
 import { initCommand } from '../commands/init.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 export interface TestEnvironment {
   projectDir: string;
@@ -32,7 +31,7 @@ export async function setupTestProject(environments: string[] = ['local', 'stagi
     
     // Call the init command handler directly, simulating what the CLI would do
     const init = initCommand.handler;
-    const serviceDeployments: ServicePlatformInfo[] = []; // init doesn't use services
+    // init is a SetupCommandFunction, it only expects options
     const options = {
       environment: 'none',
       name: 'semiont-test',
@@ -44,7 +43,7 @@ export async function setupTestProject(environments: string[] = ['local', 'stagi
       output: 'summary' as const
     };
     
-    await init(serviceDeployments, options);
+    await init(options);
     
     // Return to original directory
     process.chdir(originalCwd);

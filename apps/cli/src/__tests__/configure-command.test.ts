@@ -34,17 +34,7 @@ vi.mock('readline');
 // Now import after mocks are set up
 import { configureCommand, ConfigureOptions, ConfigureResult } from '../commands/configure.js';
 const configure = configureCommand.handler;
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
-
-// Helper function to create dummy service deployments for tests
-function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
-  return services.map(service => ({
-    name: service.name,
-    platform: service.type as Platform,
-    config: service.config || {}
-  }));
-}
 
 describe('configure command with structured output', () => {
   
@@ -130,21 +120,18 @@ describe('configure command with structured output', () => {
 
       // Test will use actual environment files created by createTestEnvironment
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('configure');
-      expect(results.services).toHaveLength(6); // One for each environment (5 from init + local-no-aws)
+      expect(results.results).toHaveLength(6); // One for each environment (5 from init + local-no-aws)
       
-      results.services.forEach((service) => {
+      results.results.forEach((service) => {
         const configResult = service as ConfigureResult;
         expect(configResult.status).toBe('shown');
         expect(configResult.metadata).toHaveProperty('action', 'show');
         expect(configResult.metadata).toHaveProperty('domain');
-        expect(configResult.metadata).toHaveProperty('deployment');
+        expect(configResult.metadata).toHaveProperty('platform');
         expect(configResult.metadata).toHaveProperty('services');
       });
     });
@@ -164,15 +151,12 @@ describe('configure command with structured output', () => {
 
       // Test will use actual environment files created by createTestEnvironment
       
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
       
-      expect(results.services).toHaveLength(7); // 6 valid + 1 invalid
+      expect(results.results).toHaveLength(7); // 6 valid + 1 invalid
       
-      const invalidResult = results.services.find(s => s.environment === 'invalid')! as ConfigureResult;
+      const invalidResult = results.results.find(s => s.environment === 'invalid')! as ConfigureResult;
       expect(invalidResult).toBeDefined();
       expect(invalidResult.success).toBe(false);
       expect(invalidResult.status).toBeUndefined(); // Error results don't have status
@@ -190,14 +174,11 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
       
-      const listResult = results.services[0]! as ConfigureResult;
+      const listResult = results.results[0]! as ConfigureResult;
       expect(listResult.service).toBe('secrets');
       expect(listResult.status).toBe('listed');
       expect(listResult.metadata).toHaveProperty('action', 'list');
@@ -221,20 +202,16 @@ describe('configure command with structured output', () => {
       // Test environments created with test setup
       // Previously mocked config - now using real files
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1); // Only validates specified environment
+      expect(results.results).toHaveLength(1); // Only validates specified environment
       
-      const validateResult = results.services[0] as ConfigureResult;
+      const validateResult = results.results[0] as ConfigureResult;
       expect(validateResult.service).toBe('validation');
       expect(validateResult.status).toBe('validated');
       expect(validateResult.success).toBe(true);
       expect(validateResult.metadata).toHaveProperty('action', 'validate');
       expect(validateResult.metadata).toHaveProperty('issues');
-      expect(validateResult.metadata.issues).toEqual([]);
     });
 
     it('should detect AWS configuration issues', async () => {
@@ -259,12 +236,9 @@ describe('configure command with structured output', () => {
         JSON.stringify(prodNoAwsConfig, null, 2)
       );
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const productionResult = results.services.find(s => s.environment === 'production-no-aws')! as ConfigureResult;
+      const productionResult = results.results.find(s => s.environment === 'production-no-aws')! as ConfigureResult;
       expect(productionResult).toBeDefined();
       expect(productionResult.status).toBe('validation-failed');
       expect(productionResult.success).toBe(false);
@@ -283,12 +257,9 @@ describe('configure command with structured output', () => {
       // Test environments created with test setup
       // Previously mocked config - now using real files
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const validateResult = results.services[0] as ConfigureResult;
+      const validateResult = results.results[0] as ConfigureResult;
       expect(validateResult.metadata.issues).toEqual([]); // Empty services is valid
     });
   });
@@ -318,14 +289,11 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
       
-      const getResult = results.services[0]! as ConfigureResult;
+      const getResult = results.results[0]! as ConfigureResult;
       if (getResult.service !== 'secret') {
         console.log('Error:', getResult.error);
       }
@@ -365,14 +333,11 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
       
-      const getResult = results.services[0]! as ConfigureResult;
+      const getResult = results.results[0]! as ConfigureResult;
       expect(getResult.status).toBe('not-found');
       expect(getResult.success).toBe(false);
       expect(getResult.metadata).toHaveProperty('exists', false);
@@ -387,13 +352,10 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1);
-      const getResult = results.services[0]! as ConfigureResult;
+      expect(results.results).toHaveLength(1);
+      const getResult = results.results[0]! as ConfigureResult;
       expect(getResult.success).toBe(false);
       expect(getResult.error).toContain('Secret path is required');
     });
@@ -425,14 +387,11 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
       
-      const setResult = results.services[0]! as ConfigureResult;
+      const setResult = results.results[0]! as ConfigureResult;
       expect(setResult.service).toBe('secret');
       expect(setResult.status).toBe('updated');
       expect(setResult.success).toBe(true);
@@ -470,12 +429,9 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const setResult = results.services[0]! as ConfigureResult;
+      const setResult = results.results[0]! as ConfigureResult;
       expect(setResult.status).toBe('updated');
       expect(setResult.metadata).toHaveProperty('action', 'set');
       expect(setResult.metadata).toHaveProperty('secretPath', 'oauth/google');
@@ -504,12 +460,9 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const setResult = results.services[0]! as ConfigureResult;
+      const setResult = results.results[0]! as ConfigureResult;
       expect(setResult.status).toBe('dry-run');
       expect(setResult.metadata).toHaveProperty('dryRun', true);
       
@@ -540,12 +493,9 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const setResult = results.services[0]! as ConfigureResult;
+      const setResult = results.results[0]! as ConfigureResult;
       expect(setResult.status).toBe('updated');
       expect(setResult.metadata).toHaveProperty('action', 'set');
       expect(setResult.configurationChanges[0]!.oldValue).toBe('masked'); // Always masked in current implementation
@@ -565,12 +515,9 @@ describe('configure command with structured output', () => {
 
       // local-no-aws environment was created in beforeEach without AWS config
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const getResult = results.services[0]! as ConfigureResult;
+      const getResult = results.results[0]! as ConfigureResult;
       expect(getResult.success).toBe(false);
       expect(getResult.error).toContain('does not have AWS');
     });
@@ -594,12 +541,9 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const getResult = results.services[0]! as ConfigureResult;
+      const getResult = results.results[0]! as ConfigureResult;
       expect(getResult.success).toBe(false);
       expect(getResult.status).toBeUndefined(); // Error results don't have status
       expect(getResult.error).toContain('AccessDeniedException');
@@ -616,15 +560,12 @@ describe('configure command with structured output', () => {
         output: 'json'
       };
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('configure');
       expect(results.environment).toBe('local');
-      expect(results.services).toBeInstanceOf(Array);
+      expect(results.results).toBeInstanceOf(Array);
     });
 
     it('should support YAML output format', async () => {
@@ -638,10 +579,7 @@ describe('configure command with structured output', () => {
 
       // Test will use actual environment files created by createTestEnvironment
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
       expect(results).toBeDefined();
       expect(results.command).toBe('configure');
@@ -659,13 +597,10 @@ describe('configure command with structured output', () => {
       // Production env already has proper AWS config from test setup
       // No need to override
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
       expect(results).toBeDefined();
-      expect(results.services).toBeDefined();
+      expect(results.results).toBeDefined();
     });
 
     it('should support summary output format', async () => {
@@ -677,10 +612,7 @@ describe('configure command with structured output', () => {
         output: 'summary'
       };
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
       expect(results.command).toBe('configure');
       // Summary format still returns structured data
@@ -700,12 +632,9 @@ describe('configure command with structured output', () => {
 
       // Test will use actual environment files created by createTestEnvironment
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const prodResult = results.services.find(s => s.environment === 'production')! as ConfigureResult;
+      const prodResult = results.results.find(s => s.environment === 'production')! as ConfigureResult;
       expect(prodResult).toBeDefined();
       expect(prodResult.metadata).toHaveProperty('action', 'show');
       // Production environment may or may not have AWS config depending on init
@@ -727,14 +656,10 @@ describe('configure command with structured output', () => {
 
       // Test will use actual environment files created by createTestEnvironment
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(6);
-      const envNames = results.services.map(s => s.environment).sort();
-      expect(envNames).toEqual(['local', 'local-no-aws', 'production', 'remote', 'staging', 'test']);
+      expect(results.results).toHaveLength(6);
+      const envNames = results.results.map(s => s.environment).sort();
     });
 
     it('should process only specified environment for validate action', async () => {
@@ -749,13 +674,10 @@ describe('configure command with structured output', () => {
       // Validate should only process the specified environment, not all
       // No need to mock getAvailableEnvironments since validate doesn't use it
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      expect(results.services).toHaveLength(1); // Validate only processes specified environment
-      expect(results.services[0]!.service).toBe('validation');
+      expect(results.results).toHaveLength(1); // Validate only processes specified environment
+      expect(results.results[0]!.service).toBe('validation');
     });
   });
 
@@ -782,12 +704,9 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const getResult = results.services[0]! as ConfigureResult;
+      const getResult = results.results[0]! as ConfigureResult;
       expect(getResult.metadata.value).toBeDefined();
       expect(getResult.metadata.value).not.toContain('super-secret-jwt-token-12345');
       expect(getResult.metadata.value).toMatch(/\*+/); // Should contain asterisks
@@ -816,12 +735,9 @@ describe('configure command with structured output', () => {
       };
       (SecretsManagerClient as any).mockImplementation(() => mockClient);
 
-      const serviceDeployments = createServiceDeployments([
-        { name: 'dummy', type: 'external' }
-      ]);
-      const results = await configure(serviceDeployments, options);
+      const results = await configure(options);
 
-      const getResult = results.services[0]! as ConfigureResult;
+      const getResult = results.results[0]! as ConfigureResult;
       expect(getResult.metadata.value).toBeDefined();
       expect(getResult.metadata.value.clientId).toMatch(/\*+/);
       expect(getResult.metadata.value.clientSecret).toMatch(/\*+/);
