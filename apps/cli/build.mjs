@@ -220,3 +220,13 @@ if (existsSync(mcpServerSrc)) {
   }
 }
 
+// Ensure CLI entry point has execute permissions
+import { chmod } from 'node:fs/promises'
+try {
+  await chmod('dist/cli.mjs', 0o755)
+  console.log('✅ Set execute permissions on CLI entry point')
+} catch (error) {
+  console.error('❌ Failed to set execute permissions:', error.message)
+  process.exit(1)
+}
+

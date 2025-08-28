@@ -17,7 +17,7 @@ export interface ServicePlatformInfo {
 }
 
 export interface ServiceConfig {
-  deployment?: {
+  platform?: {
     type: Platform;
   };
   // Container/Process fields
@@ -135,7 +135,7 @@ export function getNodeEnvForEnvironment(environment: string): 'development' | '
   // Default based on deployment type if not specified
   if (!nodeEnv) {
     // Default to production for AWS, development for local/container
-    const platform = config.deployment?.default || 'container';
+    const platform = config.platform?.default || 'container';
     return platform === 'aws' ? 'production' : 'development';
   }
   
@@ -342,7 +342,7 @@ export class ConfigurationError extends Error {
 }
 
 /**
- * Get deployment type for a specific service in an environment
+ * Get platform type for a specific service in an environment
  */
 export function getServicePlatform(
   serviceName: string, 
@@ -355,14 +355,14 @@ export function getServicePlatform(
     throw new Error(`Service '${serviceName}' not found in environment '${environment}'`);
   }
   
-  // Service-specific deployment type takes precedence
-  if (serviceConfig.deployment?.type) {
-    return serviceConfig.deployment.type;
+  // Service-specific platform type takes precedence
+  if (serviceConfig.platform?.type) {
+    return serviceConfig.platform.type;
   }
   
   // Fall back to environment default
-  if (config.deployment?.default) {
-    return config.deployment.default;
+  if (config.platform?.default) {
+    return config.platform.default;
   }
   
   // Ultimate fallback
@@ -370,14 +370,14 @@ export function getServicePlatform(
 }
 
 /**
- * Get deployment info for all requested services
+ * Get platform info for all requested services
  */
 export function resolveServiceDeployments(
   serviceNames: string[],
   environment: string
 ): ServicePlatformInfo[] {
   const config = loadEnvironmentConfig(environment);
-  const deploymentInfos: ServicePlatformInfo[] = [];
+  const platformInfos: ServicePlatformInfo[] = [];
   
   for (const serviceName of serviceNames) {
     const serviceConfig = config.services?.[serviceName];
@@ -398,27 +398,27 @@ export function resolveServiceDeployments(
       console.warn(`   To fix: Add '${serviceName}' service configuration to ${configPath}`);
       console.warn(`   Example configuration:`);
       console.warn(`   "${serviceName}": {`);
-      console.warn(`     "deployment": { "type": "container" },`);
+      console.warn(`     "platform": { "type": "container" },`);
       console.warn(`     "port": 3000`);
       console.warn(`   }`);
       console.warn('');
       continue;
     }
     
-    const platform = serviceConfig.deployment?.type || config.deployment?.default || 'process';
+    const platform = serviceConfig.platform?.type || config.platform?.default || 'process';
     
-    deploymentInfos.push({
+    platformInfos.push({
       name: serviceName,
       platform,
       config: serviceConfig
     });
   }
   
-  return deploymentInfos;
+  return platformInfos;
 }
 
 /**
- * Get all services of a specific deployment type in an environment
+ * Get all services of a specific platform type in an environment
  */
 export function getServicesByPlatform(
   platform: Platform,
@@ -428,7 +428,7 @@ export function getServicesByPlatform(
   const matchingServices: ServicePlatformInfo[] = [];
   
   for (const [serviceName, serviceConfig] of Object.entries(config.services || {})) {
-    const servicePlatform = serviceConfig.deployment?.type || config.deployment?.default || 'process';
+    const servicePlatform = serviceConfig.platform?.type || config.platform?.default || 'process';
     
     if (servicePlatform === platform) {
       matchingServices.push({
@@ -443,7 +443,7 @@ export function getServicesByPlatform(
 }
 
 /**
- * Check if a service supports a specific capability based on its deployment type
+ * Check if a service supports a specific capability based on its platform type
  */
 export function serviceSupportsCapability(
   platform: Platform,
@@ -459,7 +459,7 @@ export function serviceSupportsCapability(
       return platform === 'aws' || platform === 'container';
     
     case 'backup':
-      // Database backups are universal, filesystem backups depend on deployment type
+      // Database backups are universal, filesystem backups depend on platform type
       return true;
     
     case 'start':
@@ -467,7 +467,7 @@ export function serviceSupportsCapability(
     case 'restart':
     case 'test':
     case 'watch':
-      // All deployment types support these capabilities
+      // All platform types support these capabilities
       return true;
     
     default:
@@ -476,7 +476,7 @@ export function serviceSupportsCapability(
 }
 
 /**
- * Filter services by capability based on their deployment types
+ * Filter services by capability based on their platform types
  */
 export function getServicesWithCapability(
   serviceNames: string[],
