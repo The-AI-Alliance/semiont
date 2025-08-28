@@ -68,7 +68,8 @@ describe('Provision Command', () => {
         expect(true).toBe(true);
         return;
       }
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'aws', config: { instanceClass: 'db.t3.micro', engine: 'postgres', engineVersion: '15' } }
@@ -124,7 +125,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle dry run mode', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'container', config: { image: 'nginx:alpine' } }
@@ -157,7 +159,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle destroy mode', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'aws' }
@@ -198,7 +201,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle seed mode for databases', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'postgres:15', password: 'localpass', name: 'testdb' } }
@@ -233,7 +237,8 @@ describe('Provision Command', () => {
 
   describe('Multiple Services', () => {
     it('should provision multiple services in order', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'aws' },
@@ -271,7 +276,8 @@ describe('Provision Command', () => {
 
   describe('Deployment Types', () => {
     it('should handle AWS deployment type', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'aws', config: { taskCount: 2 } },
@@ -300,7 +306,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle container deployment type', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container', config: { image: 'node:18', port: 3001 } }
@@ -328,7 +335,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle process deployment type', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'process', config: { port: 3000 } }
@@ -357,7 +365,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle external deployment type', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432 } },
@@ -388,7 +397,8 @@ describe('Provision Command', () => {
 
   describe('Stack Modes', () => {
     it('should provision only infra stack when specified', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'aws' },
@@ -432,7 +442,8 @@ describe('Provision Command', () => {
     });
 
     it('should provision only app stack when specified', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' },
@@ -460,7 +471,8 @@ describe('Provision Command', () => {
 
   describe('Resource Tracking', () => {
     it('should track created resources', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' }
@@ -487,7 +499,8 @@ describe('Provision Command', () => {
     });
 
     it('should track no resources in dry run mode', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -515,7 +528,8 @@ describe('Provision Command', () => {
 
   describe('Error Handling', () => {
     it('should handle provisioning failures gracefully', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'invalid-service', type: 'aws' }
@@ -548,7 +562,8 @@ describe('Provision Command', () => {
     });
 
     it('should not destroy in non-force mode', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'aws' }
@@ -588,7 +603,8 @@ describe('Provision Command', () => {
     
     formats.forEach(format => {
       it(`should support ${format} output format`, async () => {
-        const { provision } = await import('../commands/provision.js');
+        const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
         
         const serviceDeployments = createServiceDeployments([
           { name: 'backend', type: 'container' }
@@ -625,7 +641,8 @@ describe('Provision Command', () => {
 
   describe('Service-specific Provisioning', () => {
     it('should provision database with proper configuration', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'postgres:15', password: 'testpass', name: 'stagingdb' } }
@@ -655,7 +672,8 @@ describe('Provision Command', () => {
     });
 
     it('should provision filesystem volumes', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'filesystem', type: 'container', config: { mount: '/data' } }
@@ -721,7 +739,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle MCP service provisioning with OAuth flow', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
@@ -760,7 +779,8 @@ describe('Provision Command', () => {
     });
 
     it('should handle MCP service destruction', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
@@ -797,7 +817,8 @@ describe('Provision Command', () => {
     });
 
     it('should return proper structured output for MCP provisioning', async () => {
-      const { provision } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../commands/provision.js');
+      const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }

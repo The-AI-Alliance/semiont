@@ -59,7 +59,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' },
@@ -107,7 +108,8 @@ describe('Stop Command', () => {
 
     it('should handle dry run mode correctly', async () => {
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'process', config: { port: 3000 } }
@@ -137,7 +139,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' }
@@ -163,7 +166,8 @@ describe('Stop Command', () => {
 
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'aws' }
@@ -191,7 +195,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'postgres:14' } }
@@ -216,7 +221,8 @@ describe('Stop Command', () => {
 
     it('should handle process deployment type', async () => {
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'process', config: { port: 3001 } }
@@ -245,7 +251,8 @@ describe('Stop Command', () => {
 
     it('should handle external deployment type', async () => {
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432, name: 'prod_db' } }
@@ -280,7 +287,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -311,7 +319,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       // Note: Services are passed in normal order, stop.ts will reverse them
       const serviceDeployments = createServiceDeployments([
@@ -344,7 +353,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -371,7 +381,8 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(false);
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'container' }
@@ -404,7 +415,8 @@ describe('Stop Command', () => {
         .mockResolvedValueOnce(true); // Third service succeeds
 
 
-      const { stop } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../commands/stop.js');
+      const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' },

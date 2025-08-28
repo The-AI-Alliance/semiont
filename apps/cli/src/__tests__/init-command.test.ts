@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
-import initCommand from '../commands/init';
+import { initCommand } from '../commands/init';
 const init = initCommand.handler;
 
 describe('init command', () => {

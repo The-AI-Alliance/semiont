@@ -77,7 +77,8 @@ describe('Start Command', () => {
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful start', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' },
@@ -125,7 +126,8 @@ describe('Start Command', () => {
 
     it('should handle dry run mode correctly', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'process' }
@@ -152,7 +154,8 @@ describe('Start Command', () => {
 
     it('should return error results for failed starts', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'invalid-image' } }
@@ -176,7 +179,8 @@ describe('Start Command', () => {
 
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'aws' }
@@ -201,7 +205,8 @@ describe('Start Command', () => {
 
     it('should handle container deployment type', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'postgres:14' } }
@@ -226,7 +231,8 @@ describe('Start Command', () => {
 
     it('should handle process deployment type', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'process', config: { port: 3001, command: 'node server.js' } }
@@ -255,7 +261,8 @@ describe('Start Command', () => {
 
     it('should handle external deployment type', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432, name: 'prod_db' } }
@@ -286,7 +293,8 @@ describe('Start Command', () => {
   describe('Output Format Support', () => {
     it('should support all output formats', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -314,7 +322,8 @@ describe('Start Command', () => {
   describe('Service Selection', () => {
     it('should start all services when service is "all"', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' },
@@ -338,7 +347,8 @@ describe('Start Command', () => {
 
     it('should start specific service when named', async () => {
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -387,7 +397,8 @@ describe('Start Command', () => {
     });
 
     it('should start MCP server with token refresh', async () => {
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
@@ -438,7 +449,8 @@ describe('Start Command', () => {
         };
       });
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585 } }
@@ -471,7 +483,8 @@ describe('Start Command', () => {
         statusText: 'Unauthorized'
       });
 
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585 } }
@@ -497,7 +510,8 @@ describe('Start Command', () => {
     });
 
     it('should support dry-run mode for MCP', async () => {
-      const { start } = await import('../commands/start.js');
+      const { startCommand } = await import('../commands/start.js');
+      const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'process', config: { port: 8585 } }

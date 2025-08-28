@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { test, TestOptions } from '../commands/test.js';
-import { TestResult } from '../commands/test.js';
+import { testCommand, TestOptions, TestResult } from '../commands/test.js';
+const test = testCommand.handler;
 import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import * as containerRuntime from '../platforms/container-runtime.js';
 import { spawn } from 'child_process';

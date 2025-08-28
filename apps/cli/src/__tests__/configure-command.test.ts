@@ -32,9 +32,8 @@ vi.mock('readline');
 // Only mock the parts that need overriding for specific tests
 
 // Now import after mocks are set up
-import configureCommand, { ConfigureOptions } from '../commands/configure.js';
+import { configureCommand, ConfigureOptions, ConfigureResult } from '../commands/configure.js';
 const configure = configureCommand.handler;
-import { ConfigureResult } from '../commands/configure.js';
 import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 

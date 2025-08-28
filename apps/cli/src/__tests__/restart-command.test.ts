@@ -60,7 +60,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container', config: { image: 'backend:latest', port: 3001 } }
@@ -112,7 +113,8 @@ describe('Restart Command', () => {
     });
 
     it('should handle dry run mode correctly', async () => {
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'process', config: { port: 3000 } }
@@ -145,7 +147,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'postgres:15' } }
@@ -178,7 +181,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'container', config: { image: 'nginx:alpine' } }
@@ -208,7 +212,8 @@ describe('Restart Command', () => {
 
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'aws' }
@@ -235,7 +240,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container', config: { image: 'postgres:15', name: 'stagingdb' } }
@@ -264,7 +270,8 @@ describe('Restart Command', () => {
     });
 
     it('should handle process deployment type', async () => {
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'process', config: { port: 3001, command: 'node server.js' } }
@@ -298,7 +305,8 @@ describe('Restart Command', () => {
     });
 
     it('should handle external deployment type', async () => {
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432 } }
@@ -337,7 +345,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' },
@@ -368,7 +377,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -397,7 +407,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }
@@ -429,7 +440,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(false); // Start fails
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'container' }
@@ -463,7 +475,8 @@ describe('Restart Command', () => {
         .mockResolvedValueOnce(true);  // Third stop succeeds
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'container' },
@@ -496,7 +509,8 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restart } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../commands/restart.js');
+      const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'container' }

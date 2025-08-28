@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { exec } from '../commands/exec.js';
-import { ExecResult } from '../commands/exec.js';
+import { execCommand, ExecResult } from '../commands/exec.js';
+const exec = execCommand.handler;
 import * as containerRuntime from '../platforms/container-runtime.js';
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { spawn } from 'child_process';

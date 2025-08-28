@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { backup } from '../commands/backup.js';
-import { BackupResult } from '../commands/backup.js';
+import { backupCommand, BackupResult } from '../commands/backup.js';
+const backup = backupCommand.handler;
 import * as containerRuntime from '../platforms/container-runtime.js';
 import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import fs from 'fs/promises';
