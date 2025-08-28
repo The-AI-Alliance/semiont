@@ -13,7 +13,7 @@ import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/platform
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
 import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo, type Platform } from '../lib/platform-resolver.js';
+import { type Platform } from '../lib/platform-resolver.js';
 import type { PlatformResources } from '../lib/platform-resources.js';
 import type { ServiceName } from '../services/service-interface.js';
 import { 
@@ -24,7 +24,7 @@ import {
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
 import { PlatformFactory } from '../platforms/index.js';
-import type { SecretOptions, SecretResult } from '../platforms/platform-strategy.js';
+import type { SecretOptions } from '../platforms/platform-strategy.js';
 
 // =====================================================================
 // RESULT TYPE DEFINITIONS
@@ -200,6 +200,7 @@ async function setPlatformSecret(environment: string, secretPath: string, secret
 }
 
 // Legacy AWS-specific implementation (kept for backwards compatibility)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getCurrentSecret(envConfig: EnvironmentConfig, secretName: string): Promise<any> {
   if (!hasAWSConfig(envConfig)) {
     throw new Error(`Environment configuration does not have AWS settings`);
@@ -226,6 +227,7 @@ async function getCurrentSecret(envConfig: EnvironmentConfig, secretName: string
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function updateSecret(envConfig: EnvironmentConfig, secretName: string, secretValue: any): Promise<void> {
   if (!hasAWSConfig(envConfig)) {
     throw new Error(`Environment configuration does not have AWS settings`);
@@ -425,7 +427,6 @@ async function configure(
             metadata: {
               action: 'get',
               secretPath: options.secretPath,
-              secretName,
               value: maskSecretObject(value),
               exists: value !== null,
             },

@@ -129,7 +129,7 @@ export class CLITestEnvironment {
     try {
       // Import init command dynamically
       const initModule = await import('../commands/init.js');
-      const init = initModule.initCommand?.handler;
+      const init = initModule.init;
       
       if (!init) {
         console.warn('Init command not found, skipping initialization');
@@ -151,7 +151,7 @@ export class CLITestEnvironment {
         verbose: false
       };
 
-      await init([], options);
+      await init(options);
 
       // Mark as initialized
       project.initialized = true;

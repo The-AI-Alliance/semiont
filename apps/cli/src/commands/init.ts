@@ -13,7 +13,6 @@ import { colors } from '../lib/cli-colors.js';
 import { CommandResults } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
-import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -233,6 +232,9 @@ async function init(
 // =====================================================================
 // COMMAND DEFINITION
 // =====================================================================
+
+// Export the handler function directly for tests
+export { init };
 
 export const initCommand = new CommandBuilder()
   .name('init')

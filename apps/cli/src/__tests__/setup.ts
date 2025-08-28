@@ -9,8 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
-import { initCommand } from '../commands/init.js';
-const init = initCommand.handler;
+import { init } from '../commands/init.js';
 
 /**
  * Creates a temporary test directory with initialized Semiont project
@@ -39,7 +38,7 @@ export async function createTestEnvironment(
     
     // Initialize Semiont project using the actual init command
     try {
-      const result = await init([], {
+      const result = await init({
         name: projectName,
         directory: tmpDir,
         force: false,
