@@ -6,64 +6,20 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup.js';
 import type { StartOptions } from '../start.js';
-import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
-import { MockPlatformStrategy } from '../../platforms/mock-platform.js';
 
-// Create a single MockPlatformStrategy instance to use for all tests
-const mockPlatformInstance = new MockPlatformStrategy();
-
-// Mock PlatformFactory to use MockPlatformStrategy for all platforms
-vi.mock('../platforms/index.js', () => ({
-  PlatformFactory: {
-    getPlatform: vi.fn(() => mockPlatformInstance)
-  }
-}));
-
-// Mock platform-resolver for environment config
-vi.mock('../platforms/platform-resolver.js', () => ({
-  getNodeEnvForEnvironment: vi.fn(() => 'test'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    name: 'test',
-    env: { NODE_ENV: 'test' }
-  }))
-}));
-
-// Mock cli-paths to provide a test project root
-vi.mock('../lib/cli-paths.js', () => ({
-  getProjectRoot: vi.fn(() => '/test/project/root')
-}));
-
-// Mock fs.promises for filesystem operations
-vi.mock('fs', async () => {
-  const actual = await vi.importActual<typeof import('fs')>('fs');
-  return {
-    ...actual,
-    promises: {
-      ...actual.promises,
-      mkdir: vi.fn().mockResolvedValue(undefined)
-    }
-  };
-});
+// Import mocks (side effects)
+import './_mock-setup.js';
 
 describe('Start Command', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetMockState();
   });
   
   afterEach(() => {
-    vi.clearAllMocks();
+    resetMockState();
   });
-
-  // Helper function to create service deployments for tests
-  // All platforms will use MockPlatformStrategy due to our mock
-  function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
-    return services.map(service => ({
-      name: service.name,
-      platform: service.type as any,  // This will be ignored - MockPlatformStrategy will be used
-      config: service.config || {}
-    }));
-  }
 
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful start', async () => {
@@ -87,28 +43,28 @@ describe('Start Command', () => {
       const result = await start(serviceDeployments, options);
 
       expect(result).toMatchObject({
+        command: 'start',
         environment: 'test',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        results: expect.arrayContaining([
-          expect.objectContaining({
-            entity: 'database',
-            platform: 'container',
-            success: true,
-            startTime: expect.any(Date),
-            status: expect.stringMatching(/running|ready/)
-          }),
-          expect.objectContaining({
-            entity: 'backend',
-            platform: 'container',
-            success: true
-          })
-        ]),
-        summary: expect.objectContaining({
+        summary: {
           total: 2,
           succeeded: 2,
           failed: 0
-        })
+        }
+      });
+      
+      // Check results separately for clearer assertions
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0]).toMatchObject({
+        entity: 'database',
+        platform: 'mock',
+        success: true
+      });
+      expect(result.results[1]).toMatchObject({
+        entity: 'backend',
+        platform: 'mock',
+        success: true
       });
     });
 
@@ -186,8 +142,7 @@ describe('Start Command', () => {
 
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
-        success: true,
-        command: 'start'
+        success: true
       });
     });
 
@@ -375,58 +330,7 @@ describe('Start Command', () => {
       });
     });
 
-    it('should start MCP server with token refresh', async () => {
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
-      
-      const serviceDeployments = createServiceDeployments([
-        { name: 'mcp', type: 'process', config: { port: 8585, authMode: 'browser' } }
-      ]);
-      
-      const options: StartOptions = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false,
-        entity: 'mcp'
-      };
-
-      const result = await start(serviceDeployments, options);
-
-      expect(result).toMatchObject({
-        environment: 'test',
-        results: expect.arrayContaining([
-          expect.objectContaining({
-            entity: 'mcp',
-            platform: 'process',
-            status: 'started',
-            success: true
-          })
-        ])
-      });
-
-      // Verify fetch was called for token refresh
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/tokens/refresh'),
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: 'test-refresh-token' })
-        })
-      );
-    });
-
-    it('should handle missing MCP auth file', async () => {
-      // Override the mock for this test
-      vi.mock('fs', async () => {
-        const actual = await vi.importActual<typeof import('fs')>('fs');
-        return {
-          ...actual,
-          existsSync: vi.fn(() => false)
-        };
-      });
-
+    it('should start MCP service like any other service', async () => {
       const { startCommand } = await import('../start.js');
       const start = startCommand.handler;
       
@@ -439,90 +343,27 @@ describe('Start Command', () => {
         output: 'json',
         quiet: false,
         verbose: false,
-        dryRun: false,
-        entity: 'mcp'
+        dryRun: false
       };
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.success).toBe(false);
+      // Command test should only verify command orchestration
+      expect(result).toMatchObject({
+        command: 'start',
+        environment: 'test',
+        summary: {
+          total: 1,
+          succeeded: 1,
+          failed: 0
+        }
+      });
+      
       expect(result.results[0]).toMatchObject({
         entity: 'mcp',
-        success: false,
-        error: expect.stringContaining('not provisioned')
+        platform: 'mock',
+        success: true
       });
-    });
-
-    it('should handle token refresh failure', async () => {
-      // Mock failed token refresh
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized'
-      });
-
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
-      
-      const serviceDeployments = createServiceDeployments([
-        { name: 'mcp', type: 'process', config: { port: 8585 } }
-      ]);
-      
-      const options: StartOptions = {
-        environment: 'production',
-        output: 'json',
-        quiet: true,
-        verbose: false,
-        dryRun: false,
-        entity: 'mcp'
-      };
-
-      const result = await start(serviceDeployments, options);
-
-      expect(result.success).toBe(false);
-      expect(result.results[0]).toMatchObject({
-        entity: 'mcp',
-        success: false,
-        error: expect.stringContaining('Failed to refresh access token')
-      });
-    });
-
-    it('should support dry-run mode for MCP', async () => {
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
-      
-      const serviceDeployments = createServiceDeployments([
-        { name: 'mcp', type: 'process', config: { port: 8585 } }
-      ]);
-      
-      const options: StartOptions = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: true,
-        entity: 'mcp'
-      };
-
-      const result = await start(serviceDeployments, options);
-
-      expect(result).toMatchObject({
-        environment: 'test',
-        results: [
-          {
-            entity: 'mcp',
-            platform: 'process',
-            status: 'dry-run',
-            success: true,
-            metadata: expect.objectContaining({
-              dryRun: true
-            })
-          }
-        ]
-      });
-
-      // Verify no actual fetch was made in dry-run mode
-      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 });

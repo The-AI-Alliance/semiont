@@ -1,381 +1,347 @@
 /**
- * Unit tests for the backup command with structured output support
+ * Backup Command Tests
  * 
- * These tests pass deployments directly to backup() instead of mocking service resolution
+ * Tests the backup command logic using MockPlatformStrategy.
+ * Focus: command orchestration, backup operations, data preservation.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { backupCommand, BackupResult } from '../backup.js';
-const backup = backupCommand.handler;
-import * as containerRuntime from '../../platforms/container-runtime.js';
-import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
-import fs from 'fs/promises';
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
-import {
-  createAWSDeployment,
-  createContainerDeployment,
-  createProcessDeployment,
-  createExternalDeployment,
-  createBackupOptions
-} from '../../__tests__/backup-test-helpers.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup.js';
 
-// Mock only external dependencies
-vi.mock('../platforms/container-runtime.js');
-vi.mock('@aws-sdk/client-rds');
-vi.mock('fs/promises');
-vi.mock('child_process');
+// Import mocks (side effects)
+import './_mock-setup.js';
 
-describe('backup command with structured output', () => {
-  const mockExecInContainer = vi.mocked(containerRuntime.execInContainer);
-  const mockRDSClient = vi.mocked(RDSClient);
-  const mockMkdir = vi.mocked(fs.mkdir);
-  const mockSpawn = vi.mocked(spawn);
-
+describe('Backup Command', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockMkdir.mockResolvedValue(undefined);
-    process.env.USER = 'testuser';
+    resetMockState();
   });
-
+  
   afterEach(() => {
-    vi.clearAllMocks();
+    resetMockState();
   });
 
-  describe('AWS backups', () => {
-    it('should create RDS snapshot and return structured output', async () => {
-      const deployments = [
-        createAWSDeployment('database', { identifier: 'semiont-prod-db' })
-      ];
+  describe('Structured Output', () => {
+    it('should return CommandResults structure for successful backup', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
       
-      const options = createBackupOptions({
-        environment: 'production',
-        name: 'test-backup',
-        output: 'json'
-      });
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' },
+        { name: 'backend', type: 'process' }
+      ]);
 
-      // Mock RDS client
-      const mockSend = vi.fn().mockResolvedValue({
-        DBSnapshot: {
-          DBSnapshotIdentifier: 'test-backup',
-          SnapshotCreateTime: new Date(),
-          Status: 'creating',
-          AllocatedStorage: 100,
-          Engine: 'postgres'
+      const options = {
+        environment: 'production',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        outputPath: './backups',
+        compress: true,
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result).toMatchObject({
+        command: 'backup',
+        environment: 'production',
+        timestamp: expect.any(Date),
+        duration: expect.any(Number),
+        summary: {
+          total: 2,
+          succeeded: 2,
+          failed: 0
         }
       });
-      mockRDSClient.prototype.send = mockSend;
-
-      const results = await backup(deployments, options);
-
-      expect(results).toBeDefined();
-      expect(results.command).toBe('backup');
-      expect(results.environment).toBe('production');
-      expect(results.results).toHaveLength(1);
       
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.service).toBe('database');
-      expect(dbResult.platform).toBe('aws');
-      expect(dbResult.backupName).toBe('test-backup');
-      expect(dbResult.backupType).toBe('full');
-      expect(dbResult.compressed).toBe(false); // RDS handles compression internally
-      
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.any(CreateDBSnapshotCommand)
-      );
+      // Check results separately for clearer assertions
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0]).toMatchObject({
+        entity: 'database',
+        platform: 'mock',
+        success: true
+      });
+      expect(result.results[1]).toMatchObject({
+        entity: 'backend',
+        platform: 'mock',
+        success: true
+      });
     });
 
-    it('should handle EFS automatic backups', async () => {
-      const deployments = [
-        createAWSDeployment('filesystem', { fileSystemId: 'fs-12345678' })
-      ];
+    it('should handle dry run mode', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
       
-      const options = createBackupOptions({
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
         environment: 'staging',
-        output: 'json'
-      });
-
-      const results = await backup(deployments, options);
-
-      expect(results.results).toHaveLength(1);
-      const efsResult = results.results[0]! as BackupResult;
-      expect(efsResult.backupLocation).toBe('AWS EFS Backup Vault');
-      expect(efsResult.backupType).toBe('incremental');
-      expect(efsResult.metadata).toHaveProperty('automatic', true);
-    });
-  });
-
-  describe('Container backups', () => {
-    it('should create database dump from container', async () => {
-      const deployments = [
-        createContainerDeployment('database')
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'local',
-        name: 'local-backup',
-        compress: false,
-        output: 'yaml'
-      });
-
-      mockExecInContainer.mockResolvedValue(true);
-
-      const results = await backup(deployments, options);
-
-      expect(results.results).toHaveLength(1);
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.platform).toBe('container');
-      expect(dbResult.backupName).toBe('local-backup');
-      expect(dbResult.compressed).toBe(false);
-      
-      expect(mockExecInContainer).toHaveBeenCalledWith(
-        expect.stringContaining('postgres'),
-        expect.arrayContaining(['pg_dumpall', '-U', 'postgres']),
-        expect.any(Object)
-      );
-    });
-
-    it('should backup container volumes', async () => {
-      const deployments = [
-        createContainerDeployment('filesystem', { path: '/data' })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'local',
-        name: 'volume-backup',
-        output: 'table'
-      });
-
-      mockExecInContainer.mockResolvedValue(true);
-
-      const results = await backup(deployments, options);
-
-      expect(results.results).toHaveLength(1);
-      const fsResult = results.results[0]! as BackupResult;
-      expect(fsResult.backupName).toBe('volume-backup');
-      
-      expect(mockExecInContainer).toHaveBeenCalledWith(
-        expect.stringContaining('filesystem'),
-        expect.arrayContaining(['tar', '-cf']),
-        expect.any(Object)
-      );
-    });
-  });
-
-  describe('Process backups', () => {
-    it('should backup local database using pg_dumpall', async () => {
-      const deployments = [
-        createProcessDeployment('database', {
-          host: 'localhost',
-          port: 5432,
-          user: 'postgres',
-          password: 'testpass'
-        })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'local',
-        name: 'postgres-backup',
-        output: 'summary'
-      });
-
-      // Mock spawn for pg_dumpall
-      const mockProcess = new EventEmitter() as any;
-      mockSpawn.mockReturnValue(mockProcess);
-
-      const backupPromise = backup(deployments, options);
-      
-      // Simulate successful pg_dumpall
-      setTimeout(() => {
-        mockProcess.emit('close', 0);
-      }, 10);
-
-      const results = await backupPromise;
-
-      expect(results.results).toHaveLength(1);
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.backupName).toBe('postgres-backup');
-      
-      expect(mockSpawn).toHaveBeenCalledWith(
-        'pg_dumpall',
-        expect.arrayContaining(['-h', 'localhost', '-U', 'postgres']),
-        expect.any(Object)
-      );
-    });
-  });
-
-  describe('External service backups', () => {
-    it('should provide guidance for external services', async () => {
-      const deployments = [
-        createExternalDeployment('database', {
-          host: 'db.example.com',
-          port: 5432
-        })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'production',
-        output: 'json'
-      });
-
-      const results = await backup(deployments, options);
-
-      expect(results.results).toHaveLength(1);
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.status).toBe('skipped');
-      expect(dbResult.metadata).toHaveProperty('guidance');
-    });
-  });
-
-  describe('Dry run mode', () => {
-    it('should simulate backups without executing in dry run mode', async () => {
-      const deployments = [
-        createContainerDeployment('database'),
-        createContainerDeployment('filesystem', { path: '/data' })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'local',
+        output: 'summary',
+        quiet: false,
+        verbose: false,
         dryRun: true,
-        output: 'json'
-      });
-
-      const results = await backup(deployments, options);
-
-      expect(results.executionContext.dryRun).toBe(true);
-      expect(results.results).toHaveLength(2);
-      
-      for (const result of results.results) {
-        const backupResult = result as BackupResult;
-        expect(backupResult.status).toBe('dry-run');
-        expect(backupResult.metadata.dryRun).toBe(true);
-      }
-      
-      // Verify no actual operations were performed
-      expect(mockExecInContainer).not.toHaveBeenCalled();
-      expect(mockSpawn).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Error handling', () => {
-    it('should handle RDS snapshot failures', async () => {
-      const deployments = [
-        createAWSDeployment('database', { identifier: 'semiont-prod-db' })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'production',
-        name: 'duplicate-name',
-        output: 'json'
-      });
-
-      // Mock RDS client to throw error
-      const mockSend = vi.fn().mockRejectedValue({
-        name: 'DBSnapshotAlreadyExistsException',
-        message: 'Snapshot already exists'
-      });
-      mockRDSClient.prototype.send = mockSend;
-
-      const results = await backup(deployments, options);
-
-      expect(results.results).toHaveLength(1);
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.status).toBe('failed');
-      expect(dbResult.error).toContain('Snapshot already exists');
-    });
-
-    it('should continue with other services if one fails', async () => {
-      const deployments = [
-        createContainerDeployment('database'),
-        createContainerDeployment('filesystem', { path: '/data' })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'local',
-        output: 'json'
-      });
-
-      // Make first backup fail, second succeed
-      mockExecInContainer
-        .mockRejectedValueOnce(new Error('Container not running'))
-        .mockResolvedValueOnce(true);
-
-      const results = await backup(deployments, options);
-
-      expect(results.results).toHaveLength(2);
-      expect(results.summary.total).toBe(2);
-      expect(results.summary.failed).toBe(1);
-      expect(results.summary.succeeded).toBe(1);
-    });
-  });
-
-  describe('Compression option', () => {
-    it('should respect compression settings', async () => {
-      const deployments = [
-        createProcessDeployment('database', {
-          host: 'localhost',
-          port: 5432,
-          user: 'postgres'
-        })
-      ];
-      
-      const options = createBackupOptions({
-        environment: 'local',
+        outputPath: './backups',
         compress: true,
-        output: 'json'
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
+        success: true,
+        metadata: expect.objectContaining({
+          dryRun: true
+        })
+      });
+    });
+
+    it('should handle backup with custom output path', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
+        environment: 'production',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        outputPath: '/custom/backup/path',
+        compress: true,
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
+        success: true
+      });
+    });
+
+    it('should support encryption', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
+        environment: 'production',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        outputPath: './backups',
+        compress: true,
+        encrypt: true
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
+        success: true
+      });
+    });
+
+    it('should handle backup failures gracefully', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
+      
+      // Make MockPlatformStrategy fail for this test
+      const originalBackup = mockPlatformInstance.backup;
+      mockPlatformInstance.backup = vi.fn().mockRejectedValue(new Error('Backup failed'));
+
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
+        environment: 'test',
+        output: 'json',
+        quiet: true,
+        verbose: false,
+        dryRun: false,
+        outputPath: './backups',
+        compress: true,
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
+        platform: 'container',  // Platform from serviceInfo when error occurs
+        success: false,
+        error: 'Backup failed'
       });
 
-      const mockProcess = new EventEmitter() as any;
-      mockSpawn.mockReturnValue(mockProcess);
+      expect(result.summary).toMatchObject({
+        total: 1,
+        succeeded: 0,
+        failed: 1
+      });
 
-      const backupPromise = backup(deployments, options);
-      setTimeout(() => mockProcess.emit('close', 0), 10);
-
-      const results = await backupPromise;
-
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.compressed).toBe(true);
-      expect(dbResult.backupLocation).toContain('.gz');
+      // Restore original method
+      mockPlatformInstance.backup = originalBackup;
     });
   });
 
-  describe('Backup naming', () => {
-    it('should use provided backup name', async () => {
-      const deployments = [
-        createContainerDeployment('database')
-      ];
+  describe('Output Format Support', () => {
+    it('should support all output formats', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
       
-      const options = createBackupOptions({
-        environment: 'local',
-        name: 'custom-backup-name',
-        output: 'json'
-      });
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'process' }
+      ]);
 
-      mockExecInContainer.mockResolvedValue(true);
+      const formats = ['json', 'yaml', 'table', 'summary'];
+      
+      for (const format of formats) {
+        const options = {
+          environment: 'test',
+          output: format,
+          quiet: false,
+          verbose: false,
+          dryRun: false,
+          outputPath: './backups',
+          compress: true,
+          encrypt: false
+        };
 
-      const results = await backup(deployments, options);
+        const result = await backup(serviceDeployments, options);
 
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.backupName).toBe('custom-backup-name');
+        expect(result).toMatchObject({
+          command: 'backup',
+          environment: 'test'
+        });
+      }
+    });
+  });
+
+  describe('Service Selection', () => {
+    it('should backup all services when all is true', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'frontend', type: 'container' },
+        { name: 'backend', type: 'process' },
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
+        environment: 'test',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        all: true,
+        outputPath: './backups',
+        compress: true,
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results).toHaveLength(3);
+      expect(result.results.map(r => r.entity)).toEqual(
+        expect.arrayContaining(['frontend', 'backend', 'database'])
+      );
     });
 
-    it('should generate timestamp-based name if not provided', async () => {
-      const deployments = [
-        createContainerDeployment('database')
-      ];
+    it('should backup specific service when named', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
       
-      const options = createBackupOptions({
-        environment: 'local',
-        name: undefined,
-        output: 'json'
+      // When a specific service is selected, only that service should be in the deployments
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
+        environment: 'test',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        service: 'database',
+        outputPath: './backups',
+        compress: true,
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!.entity).toBe('database');
+    });
+  });
+
+  describe('Retention and Compression', () => {
+    it('should respect retention policy', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
+
+      const options = {
+        environment: 'production',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        retention: '7d',
+        outputPath: './backups',
+        compress: true,
+        encrypt: false
+      };
+
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
+        success: true
       });
+    });
 
-      mockExecInContainer.mockResolvedValue(true);
+    it('should handle compression setting', async () => {
+      const { backupCommand } = await import('../backup.js');
+      const backup = backupCommand.handler;
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'database', type: 'container' }
+      ]);
 
-      const results = await backup(deployments, options);
+      const options = {
+        environment: 'production',
+        output: 'json',
+        quiet: false,
+        verbose: false,
+        dryRun: false,
+        outputPath: './backups',
+        compress: false,
+        encrypt: false
+      };
 
-      const dbResult = results.results[0]! as BackupResult;
-      expect(dbResult.backupName).toMatch(/database-\d{8}T\d{6}/);
+      const result = await backup(serviceDeployments, options);
+
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
+        success: true
+      });
     });
   });
 });

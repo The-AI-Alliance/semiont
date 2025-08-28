@@ -119,7 +119,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   async stop(context: ServiceContext): Promise<StopResult> {
     const state = this.mockState.get(context.name);
     
-    if (state) {
+    // Only modify state if not in dry run
+    if (!context.dryRun && state) {
       state.running = false;
       this.mockState.delete(context.name);
     }
@@ -131,7 +132,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       stopTime: new Date(),
       metadata: {
         mockImplementation: true,
-        wasRunning: !!state
+        wasRunning: !!state,
+        dryRun: context.dryRun || false,
+        force: context.force || false
       }
     };
   }
@@ -326,12 +329,17 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       backupId,
       backup: {
         size: totalSize,
-        location: `mock://backups/${backupId}`,
+        location: context.destination || `mock://backups/${backupId}`,
         format: requirements.storage?.length ? 'tar' : 'json'
       },
       metadata: {
         mockImplementation: true,
-        storageRequirements: requirements.storage
+        storageRequirements: requirements.storage,
+        dryRun: context.dryRun || false,
+        compress: context.compress !== false,
+        encrypt: context.encrypt || false,
+        retention: context.retention,
+        outputPath: context.outputPath
       }
     };
   }
