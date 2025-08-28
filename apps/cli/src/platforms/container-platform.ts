@@ -1444,4 +1444,186 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     return failures;
   }
+  
+  /**
+   * Manage secrets using Docker/Podman secrets
+   */
+  override async manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: import('./platform-strategy.js').SecretOptions
+  ): Promise<import('./platform-strategy.js').SecretResult> {
+    const secretName = this.formatSecretName(secretPath, options?.environment);
+    
+    try {
+      switch (action) {
+        case 'get': {
+          // Docker/Podman secrets are write-only, can't read their values directly
+          // We can only check if they exist
+          try {
+            execSync(`${this.runtime} secret inspect ${secretName}`, { stdio: 'ignore' });
+            return {
+              success: true,
+              action,
+              secretPath,
+              value: '[SECRET EXISTS BUT CANNOT BE READ]',
+              platform: 'container',
+              storage: `${this.runtime}-secret`,
+              metadata: {
+                note: 'Container secrets are write-only for security'
+              }
+            };
+          } catch {
+            return {
+              success: false,
+              action,
+              secretPath,
+              platform: 'container',
+              storage: `${this.runtime}-secret`,
+              error: `Secret not found: ${secretPath}`
+            };
+          }
+        }
+        
+        case 'set': {
+          const secretValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+          
+          // First, try to remove existing secret if it exists
+          try {
+            execSync(`${this.runtime} secret rm ${secretName}`, { stdio: 'ignore' });
+          } catch {
+            // Secret doesn't exist, that's fine
+          }
+          
+          // Create new secret
+          try {
+            execSync(`echo '${secretValue}' | ${this.runtime} secret create ${secretName} -`, {
+              encoding: 'utf-8'
+            });
+            
+            return {
+              success: true,
+              action,
+              secretPath,
+              platform: 'container',
+              storage: `${this.runtime}-secret`,
+              metadata: {
+                secretName
+              }
+            };
+          } catch (error) {
+            return {
+              success: false,
+              action,
+              secretPath,
+              platform: 'container',
+              storage: `${this.runtime}-secret`,
+              error: `Failed to create secret: ${(error as Error).message}`
+            };
+          }
+        }
+        
+        case 'list': {
+          try {
+            const output = execSync(
+              `${this.runtime} secret ls --format '{{.Name}}'`,
+              { encoding: 'utf-8' }
+            );
+            
+            const allSecrets = output.trim().split('\n').filter(s => s);
+            const prefix = this.formatSecretName(secretPath, options?.environment);
+            
+            const matchingSecrets = allSecrets
+              .filter(name => name.startsWith(prefix))
+              .map(name => this.extractSecretPath(name));
+            
+            return {
+              success: true,
+              action,
+              secretPath,
+              values: matchingSecrets,
+              platform: 'container',
+              storage: `${this.runtime}-secret`,
+              metadata: {
+                totalFound: matchingSecrets.length
+              }
+            };
+          } catch (error) {
+            return {
+              success: false,
+              action,
+              secretPath,
+              platform: 'container',
+              storage: `${this.runtime}-secret`,
+              error: `Failed to list secrets: ${(error as Error).message}`
+            };
+          }
+        }
+        
+        case 'delete': {
+          try {
+            execSync(`${this.runtime} secret rm ${secretName}`, { stdio: 'ignore' });
+            return {
+              success: true,
+              action,
+              secretPath,
+              platform: 'container',
+              storage: `${this.runtime}-secret`
+            };
+          } catch {
+            // Already deleted or doesn't exist
+            return {
+              success: true,
+              action,
+              secretPath,
+              platform: 'container',
+              storage: `${this.runtime}-secret`
+            };
+          }
+        }
+        
+        default:
+          return {
+            success: false,
+            action,
+            secretPath,
+            platform: 'container',
+            error: `Unknown action: ${action}`
+          };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        action,
+        secretPath,
+        platform: 'container',
+        storage: `${this.runtime}-secret`,
+        error: (error as Error).message
+      };
+    }
+  }
+  
+  /**
+   * Format secret name for container runtime
+   */
+  private formatSecretName(secretPath: string, environment?: string): string {
+    // Container secret names: semiont_env_path
+    const env = environment || 'default';
+    const formattedPath = secretPath.replace(/[\/\-\.]/g, '_');
+    return `semiont_${env}_${formattedPath}`;
+  }
+  
+  /**
+   * Extract secret path from container secret name
+   */
+  private extractSecretPath(secretName: string): string {
+    // Extract path from names like: semiont_production_oauth_google
+    const parts = secretName.split('_');
+    if (parts.length >= 3 && parts[0] === 'semiont') {
+      // Skip 'semiont' and environment, join rest with /
+      return parts.slice(2).join('/');
+    }
+    return secretName;
+  }
 }

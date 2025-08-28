@@ -703,4 +703,73 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     
     return guidance;
   }
+  
+  /**
+   * Manage secrets for external services
+   * This is a basic implementation - real external services would have their own secret management
+   */
+  override async manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: import('./platform-strategy.js').SecretOptions
+  ): Promise<import('./platform-strategy.js').SecretResult> {
+    // External platforms typically manage their own secrets
+    // This implementation returns appropriate responses without actual storage
+    
+    switch (action) {
+      case 'get':
+        return {
+          success: false,
+          action,
+          secretPath,
+          platform: 'external',
+          storage: 'external-provider',
+          error: 'External services manage their own secrets. Check provider documentation.'
+        };
+        
+      case 'set':
+        return {
+          success: true,
+          action,
+          secretPath,
+          platform: 'external',
+          storage: 'external-provider',
+          metadata: {
+            note: 'Secret should be configured directly in the external service provider'
+          }
+        };
+        
+      case 'list':
+        return {
+          success: true,
+          action,
+          secretPath,
+          values: [],
+          platform: 'external',
+          storage: 'external-provider',
+          metadata: {
+            note: 'External secrets are managed by the service provider'
+          }
+        };
+        
+      case 'delete':
+        return {
+          success: true,
+          action,
+          secretPath,
+          platform: 'external',
+          storage: 'external-provider'
+        };
+        
+      default:
+        return {
+          success: false,
+          action,
+          secretPath,
+          platform: 'external',
+          error: `Unknown action: ${action}`
+        };
+    }
+  }
 }

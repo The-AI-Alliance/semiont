@@ -1921,4 +1921,226 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       skipped: 0
     };
   }
+  
+  /**
+   * Manage secrets using AWS Secrets Manager
+   */
+  override async manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: import('./platform-strategy.js').SecretOptions
+  ): Promise<import('./platform-strategy.js').SecretResult> {
+    const { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand, DeleteSecretCommand, ListSecretsCommand } = await import('@aws-sdk/client-secrets-manager');
+    const secretsClient = new SecretsManagerClient({ region: this.region });
+    
+    // Format secret name for AWS
+    const secretName = this.formatSecretName(secretPath, options?.environment);
+    
+    try {
+      switch (action) {
+        case 'get': {
+          try {
+            const response = await secretsClient.send(
+              new GetSecretValueCommand({
+                SecretId: secretName
+              })
+            );
+            
+            // Try to parse as JSON if requested
+            let secretValue = response.SecretString || '';
+            if (options?.format === 'json' && secretValue) {
+              try {
+                secretValue = JSON.parse(secretValue);
+              } catch {
+                // Keep as string if not valid JSON
+              }
+            }
+            
+            return {
+              success: true,
+              action,
+              secretPath,
+              value: secretValue,
+              platform: 'aws',
+              storage: 'aws-secrets-manager',
+              metadata: {
+                arn: response.ARN,
+                versionId: response.VersionId
+              }
+            };
+          } catch (error: any) {
+            if (error.name === 'ResourceNotFoundException') {
+              return {
+                success: false,
+                action,
+                secretPath,
+                platform: 'aws',
+                storage: 'aws-secrets-manager',
+                error: `Secret not found: ${secretPath}`
+              };
+            }
+            throw error;
+          }
+        }
+        
+        case 'set': {
+          const secretString = typeof value === 'object' ? JSON.stringify(value) : String(value);
+          
+          // First try to update existing secret
+          try {
+            const response = await secretsClient.send(
+              new UpdateSecretCommand({
+                SecretId: secretName,
+                SecretString: secretString
+              })
+            );
+            
+            return {
+              success: true,
+              action,
+              secretPath,
+              platform: 'aws',
+              storage: 'aws-secrets-manager',
+              metadata: {
+                arn: response.ARN,
+                versionId: response.VersionId
+              }
+            };
+          } catch (error: any) {
+            // If secret doesn't exist, create it
+            if (error.name === 'ResourceNotFoundException') {
+              const response = await secretsClient.send(
+                new CreateSecretCommand({
+                  Name: secretName,
+                  SecretString: secretString,
+                  Description: `Created by semiont configure command`
+                })
+              );
+              
+              return {
+                success: true,
+                action,
+                secretPath,
+                platform: 'aws',
+                storage: 'aws-secrets-manager',
+                metadata: {
+                  arn: response.ARN,
+                  versionId: response.VersionId,
+                  created: true
+                }
+              };
+            }
+            throw error;
+          }
+        }
+        
+        case 'list': {
+          const response = await secretsClient.send(
+            new ListSecretsCommand({
+              MaxResults: 100,
+              Filters: secretPath ? [
+                {
+                  Key: 'name',
+                  Values: [secretPath]
+                }
+              ] : undefined
+            })
+          );
+          
+          const secretNames = (response.SecretList || [])
+            .map(secret => this.extractSecretPath(secret.Name || ''))
+            .filter(name => name !== null);
+          
+          return {
+            success: true,
+            action,
+            secretPath,
+            values: secretNames as string[],
+            platform: 'aws',
+            storage: 'aws-secrets-manager',
+            metadata: {
+              totalFound: secretNames.length
+            }
+          };
+        }
+        
+        case 'delete': {
+          try {
+            await secretsClient.send(
+              new DeleteSecretCommand({
+                SecretId: secretName,
+                ForceDeleteWithoutRecovery: true
+              })
+            );
+            
+            return {
+              success: true,
+              action,
+              secretPath,
+              platform: 'aws',
+              storage: 'aws-secrets-manager'
+            };
+          } catch (error: any) {
+            if (error.name === 'ResourceNotFoundException') {
+              // Already deleted
+              return {
+                success: true,
+                action,
+                secretPath,
+                platform: 'aws',
+                storage: 'aws-secrets-manager'
+              };
+            }
+            throw error;
+          }
+        }
+        
+        default:
+          return {
+            success: false,
+            action,
+            secretPath,
+            platform: 'aws',
+            error: `Unknown action: ${action}`
+          };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        action,
+        secretPath,
+        platform: 'aws',
+        storage: 'aws-secrets-manager',
+        error: (error as Error).message
+      };
+    }
+  }
+  
+  /**
+   * Format secret name for AWS Secrets Manager
+   */
+  private formatSecretName(secretPath: string, environment?: string): string {
+    // If the path already looks like a full AWS secret name, use it
+    if (secretPath.includes('semiont-') && secretPath.includes('-secret')) {
+      return secretPath;
+    }
+    
+    // Otherwise format it: semiont-{environment}-{path}-secret
+    const env = environment || 'default';
+    const formattedPath = secretPath.replace(/[\/\-\.]/g, '-');
+    return `semiont-${env}-${formattedPath}-secret`;
+  }
+  
+  /**
+   * Extract secret path from AWS secret name
+   */
+  private extractSecretPath(secretName: string): string | null {
+    // Extract path from names like: semiont-production-oauth-google-secret
+    const match = secretName.match(/^semiont-[^-]+-(.+)-secret$/);
+    if (match) {
+      return match[1].replace(/-/g, '/');
+    }
+    return null;
+  }
 }

@@ -409,4 +409,92 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   getMockState(serviceName: string): any {
     return this.mockState.get(serviceName);
   }
+  
+  /**
+   * Manage secrets in memory for testing
+   */
+  override async manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: import('./platform-strategy.js').SecretOptions
+  ): Promise<import('./platform-strategy.js').SecretResult> {
+    // Store secrets in the mock state under a special namespace
+    const secretKey = `secret:${options?.environment || 'test'}:${secretPath}`;
+    
+    switch (action) {
+      case 'get': {
+        const storedValue = this.mockState.get(secretKey);
+        if (storedValue === undefined) {
+          return {
+            success: false,
+            action,
+            secretPath,
+            platform: 'mock',
+            storage: 'memory',
+            error: `Secret not found: ${secretPath}`
+          };
+        }
+        
+        return {
+          success: true,
+          action,
+          secretPath,
+          value: storedValue,
+          platform: 'mock',
+          storage: 'memory'
+        };
+      }
+      
+      case 'set': {
+        this.mockState.set(secretKey, value);
+        return {
+          success: true,
+          action,
+          secretPath,
+          platform: 'mock',
+          storage: 'memory',
+          metadata: {
+            stored: true
+          }
+        };
+      }
+      
+      case 'list': {
+        const prefix = `secret:${options?.environment || 'test'}:${secretPath}`;
+        const matchingKeys = Array.from(this.mockState.keys())
+          .filter(key => key.startsWith(prefix))
+          .map(key => key.replace(/^secret:[^:]+:/, ''));
+        
+        return {
+          success: true,
+          action,
+          secretPath,
+          values: matchingKeys,
+          platform: 'mock',
+          storage: 'memory'
+        };
+      }
+      
+      case 'delete': {
+        this.mockState.delete(secretKey);
+        return {
+          success: true,
+          action,
+          secretPath,
+          platform: 'mock',
+          storage: 'memory'
+        };
+      }
+      
+      default:
+        return {
+          success: false,
+          action,
+          secretPath,
+          platform: 'mock',
+          error: `Unknown action: ${action}`
+        };
+    }
+  }
 }

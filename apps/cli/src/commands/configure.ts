@@ -23,6 +23,8 @@ import {
 } from '../lib/command-results.js';
 import { CommandBuilder } from '../lib/command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+import { PlatformFactory } from '../platforms/index.js';
+import type { SecretOptions, SecretResult } from '../platforms/platform-strategy.js';
 
 // =====================================================================
 // RESULT TYPE DEFINITIONS
@@ -121,6 +123,30 @@ function maskSecretObject(obj: any): any {
   return obj;
 }
 
+/**
+ * Determine which platform to use for secret management based on environment
+ */
+function determinePlatformForSecrets(environment: string): Platform {
+  const envConfig = loadEnvironmentConfig(environment) as EnvironmentConfig;
+  
+  // Priority order:
+  // 1. AWS if configured
+  // 2. Container if docker/podman detected
+  // 3. Process (local .env files) as fallback
+  
+  if (hasAWSConfig(envConfig)) {
+    return 'aws' as Platform;
+  }
+  
+  // Check for container runtime
+  const fs = require('fs');
+  if (fs.existsSync('/var/run/docker.sock') || fs.existsSync('/run/podman/podman.sock')) {
+    return 'container' as Platform;
+  }
+  
+  return 'process' as Platform;
+}
+
 async function getSecretFullName(environment: string, secretPath: string): Promise<string> {
   // Convert path format to actual secret name
   // oauth/google -> semiont-production-oauth-google-secret (or similar based on stack config)
@@ -130,6 +156,50 @@ async function getSecretFullName(environment: string, secretPath: string): Promi
   return `${stackName}-${secretPath.replace('/', '-')}-secret`;
 }
 
+/**
+ * Platform-aware secret retrieval
+ */
+async function getPlatformSecret(environment: string, secretPath: string): Promise<any> {
+  const platform = determinePlatformForSecrets(environment);
+  const platformStrategy = PlatformFactory.getPlatform(platform);
+  
+  const options: SecretOptions = {
+    environment,
+    format: 'json'
+  };
+  
+  const result = await platformStrategy.manageSecret('get', secretPath, undefined, options);
+  
+  if (!result.success) {
+    if (result.error?.includes('not found')) {
+      return null;
+    }
+    throw new Error(result.error || 'Failed to get secret');
+  }
+  
+  return result.value;
+}
+
+/**
+ * Platform-aware secret update
+ */
+async function setPlatformSecret(environment: string, secretPath: string, secretValue: any): Promise<void> {
+  const platform = determinePlatformForSecrets(environment);
+  const platformStrategy = PlatformFactory.getPlatform(platform);
+  
+  const options: SecretOptions = {
+    environment,
+    format: typeof secretValue === 'object' ? 'json' : 'string'
+  };
+  
+  const result = await platformStrategy.manageSecret('set', secretPath, secretValue, options);
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to update secret');
+  }
+}
+
+// Legacy AWS-specific implementation (kept for backwards compatibility)
 async function getCurrentSecret(envConfig: EnvironmentConfig, secretName: string): Promise<any> {
   if (!hasAWSConfig(envConfig)) {
     throw new Error(`Environment configuration does not have AWS settings`);
@@ -340,8 +410,8 @@ async function configure(
             throw new Error('Secret path is required for get action');
           }
           
-          const secretName = await getSecretFullName(options.environment!, options.secretPath!);
-          const value = await getCurrentSecret(envConfig!, secretName);
+          // Use platform-aware secret management
+          const value = await getPlatformSecret(options.environment!, options.secretPath!);
           
           const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
           const result: ConfigureResult = {
@@ -424,7 +494,8 @@ async function configure(
               console.log(`${colors.cyan}[DRY RUN] Would update secret: ${options.secretPath}${colors.reset}`);
             }
           } else {
-            await updateSecret(envConfig!, secretName, newValue);
+            // Use platform-aware secret management
+            await setPlatformSecret(options.environment!, options.secretPath!, newValue);
             
             const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
             const result: ConfigureResult = {

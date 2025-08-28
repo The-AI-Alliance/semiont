@@ -1410,4 +1410,220 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       return undefined;
     }
   }
+  
+  /**
+   * Manage secrets using .env files
+   */
+  async manageSecret(
+    action: 'get' | 'set' | 'list' | 'delete',
+    secretPath: string,
+    value?: any,
+    options?: import('./platform-strategy.js').SecretOptions
+  ): Promise<import('./platform-strategy.js').SecretResult> {
+    const envFile = path.join(
+      process.cwd(),
+      `.env${options?.environment ? `.${options.environment}` : ''}`
+    );
+    
+    try {
+      switch (action) {
+        case 'get': {
+          if (!fs.existsSync(envFile)) {
+            return {
+              success: false,
+              action,
+              secretPath,
+              platform: 'process',
+              storage: 'env-file',
+              error: `Environment file not found: ${envFile}`
+            };
+          }
+          
+          const content = fs.readFileSync(envFile, 'utf-8');
+          const envVars = this.parseEnvFile(content);
+          const envKey = this.secretPathToEnvKey(secretPath);
+          
+          if (!(envKey in envVars)) {
+            return {
+              success: false,
+              action,
+              secretPath,
+              platform: 'process',
+              storage: 'env-file',
+              error: `Secret not found: ${secretPath}`
+            };
+          }
+          
+          return {
+            success: true,
+            action,
+            secretPath,
+            value: envVars[envKey],
+            platform: 'process',
+            storage: 'env-file'
+          };
+        }
+        
+        case 'set': {
+          const envKey = this.secretPathToEnvKey(secretPath);
+          const envValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+          
+          let content = '';
+          let envVars: Record<string, string> = {};
+          
+          if (fs.existsSync(envFile)) {
+            content = fs.readFileSync(envFile, 'utf-8');
+            envVars = this.parseEnvFile(content);
+          }
+          
+          // Update or add the variable
+          envVars[envKey] = envValue;
+          
+          // Rebuild the file content
+          const newContent = Object.entries(envVars)
+            .map(([key, val]) => `${key}=${val}`)
+            .join('\n') + '\n';
+          
+          fs.writeFileSync(envFile, newContent, 'utf-8');
+          
+          return {
+            success: true,
+            action,
+            secretPath,
+            platform: 'process',
+            storage: 'env-file',
+            metadata: {
+              file: envFile,
+              key: envKey
+            }
+          };
+        }
+        
+        case 'list': {
+          if (!fs.existsSync(envFile)) {
+            return {
+              success: true,
+              action,
+              secretPath,
+              values: [],
+              platform: 'process',
+              storage: 'env-file'
+            };
+          }
+          
+          const content = fs.readFileSync(envFile, 'utf-8');
+          const envVars = this.parseEnvFile(content);
+          const prefix = this.secretPathToEnvKey(secretPath);
+          
+          const matchingKeys = Object.keys(envVars)
+            .filter(key => key.startsWith(prefix))
+            .map(key => this.envKeyToSecretPath(key));
+          
+          return {
+            success: true,
+            action,
+            secretPath,
+            values: matchingKeys,
+            platform: 'process',
+            storage: 'env-file'
+          };
+        }
+        
+        case 'delete': {
+          if (!fs.existsSync(envFile)) {
+            return {
+              success: true,
+              action,
+              secretPath,
+              platform: 'process',
+              storage: 'env-file'
+            };
+          }
+          
+          const content = fs.readFileSync(envFile, 'utf-8');
+          const envVars = this.parseEnvFile(content);
+          const envKey = this.secretPathToEnvKey(secretPath);
+          
+          if (envKey in envVars) {
+            delete envVars[envKey];
+            
+            const newContent = Object.entries(envVars)
+              .map(([key, val]) => `${key}=${val}`)
+              .join('\n') + '\n';
+            
+            fs.writeFileSync(envFile, newContent, 'utf-8');
+          }
+          
+          return {
+            success: true,
+            action,
+            secretPath,
+            platform: 'process',
+            storage: 'env-file'
+          };
+        }
+        
+        default:
+          return {
+            success: false,
+            action,
+            secretPath,
+            platform: 'process',
+            error: `Unknown action: ${action}`
+          };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        action,
+        secretPath,
+        platform: 'process',
+        storage: 'env-file',
+        error: (error as Error).message
+      };
+    }
+  }
+  
+  /**
+   * Parse .env file content into key-value pairs
+   */
+  private parseEnvFile(content: string): Record<string, string> {
+    const envVars: Record<string, string> = {};
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      
+      const equalIndex = trimmed.indexOf('=');
+      if (equalIndex === -1) continue;
+      
+      const key = trimmed.substring(0, equalIndex).trim();
+      const value = trimmed.substring(equalIndex + 1).trim();
+      
+      // Remove quotes if present
+      envVars[key] = value.replace(/^["']|["']$/g, '');
+    }
+    
+    return envVars;
+  }
+  
+  /**
+   * Convert secret path to environment variable key
+   * e.g., "oauth/google/client_id" -> "OAUTH_GOOGLE_CLIENT_ID"
+   */
+  private secretPathToEnvKey(secretPath: string): string {
+    return secretPath
+      .toUpperCase()
+      .replace(/[\/\-\.]/g, '_')
+      .replace(/[^A-Z0-9_]/g, '');
+  }
+  
+  /**
+   * Convert environment variable key back to secret path
+   * e.g., "OAUTH_GOOGLE_CLIENT_ID" -> "oauth/google/client_id"
+   */
+  private envKeyToSecretPath(envKey: string): string {
+    return envKey.toLowerCase().replace(/_/g, '/');
+  }
 }
