@@ -39,7 +39,20 @@ import { BasePlatformStrategy } from './platform-strategy.js';
 import { Service } from '../services/service-interface.js';
 import { printInfo } from '../lib/cli-logger.js';
 
+// AWS SDK v3 clients
+import { ECSClient, DescribeServicesCommand, DescribeClustersCommand, ListServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
+import { RDSClient, DescribeDBInstancesCommand, StartDBInstanceCommand, StopDBInstanceCommand } from '@aws-sdk/client-rds';
+import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
+import { CloudFormationClient, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
+import { ElasticLoadBalancingV2Client, DescribeTargetHealthCommand, DescribeTargetGroupsCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
+
 export class AWSPlatformStrategy extends BasePlatformStrategy {
+  private ecsClient?: ECSClient;
+  private rdsClient?: RDSClient;
+  private efsClient?: EFSClient;
+  private cfnClient?: CloudFormationClient;
+  private elbClient?: ElasticLoadBalancingV2Client;
+  
   constructor() {
     super();
   }
@@ -66,6 +79,27 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
+  /**
+   * Get AWS SDK clients configured for the right region
+   */
+  private getAWSClients(region: string) {
+    if (!this.ecsClient || this.ecsClient.config.region !== region) {
+      this.ecsClient = new ECSClient({ region });
+      this.rdsClient = new RDSClient({ region });
+      this.efsClient = new EFSClient({ region });
+      this.cfnClient = new CloudFormationClient({ region });
+      this.elbClient = new ElasticLoadBalancingV2Client({ region });
+    }
+    
+    return {
+      ecs: this.ecsClient!,
+      rds: this.rdsClient!,
+      efs: this.efsClient!,
+      cfn: this.cfnClient!,
+      elb: this.elbClient!
+    };
+  }
+  
   getPlatformName(): string {
     return 'aws';
   }
@@ -79,12 +113,15 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     resourceType: string
   ): Promise<any[]> {
     try {
-      const resources = execSync(
-        `aws cloudformation list-stack-resources --stack-name ${stackName} --region ${region} --query "StackResourceSummaries[?ResourceType=='${resourceType}']" --output json`,
-        { encoding: 'utf-8' }
-      );
-      return JSON.parse(resources);
-    } catch {
+      const { cfn } = this.getAWSClients(region);
+      const response = await cfn.send(new ListStackResourcesCommand({
+        StackName: stackName
+      }));
+      
+      return (response.StackResourceSummaries || [])
+        .filter(r => r.ResourceType === resourceType);
+    } catch (error) {
+      // Silently fail - stack might not exist
       return [];
     }
   }
@@ -611,38 +648,56 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const serviceName = ecsResources.serviceName || resourceName;
         
         try {
-          const runningCount = execSync(
-            `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --query 'services[0].runningCount' --output text --region ${region}`,
-            { encoding: 'utf-8' }
-          ).trim();
+          const { ecs } = this.getAWSClients(region);
+          const response = await ecs.send(new DescribeServicesCommand({
+            cluster: clusterName,
+            services: [serviceName]
+          }));
           
-          const desiredCount = execSync(
-            `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --query 'services[0].desiredCount' --output text --region ${region}`,
-            { encoding: 'utf-8' }
-          ).trim();
-          
-          status = parseInt(runningCount) > 0 ? 'running' : 'stopped';
-          
-          // Check health via ALB target health
-          if (requirements.network?.healthCheckPath) {
-            const targetHealth = await this.checkALBTargetHealth(serviceName, region);
-            health = {
-              healthy: targetHealth === 'healthy',
-              details: {
-                runningCount: parseInt(runningCount),
-                desiredCount: parseInt(desiredCount),
-                targetHealth
+          const ecsService = response.services?.[0];
+          if (ecsService) {
+            const runningCount = ecsService.runningCount || 0;
+            const desiredCount = ecsService.desiredCount || 0;
+            
+            status = runningCount > 0 ? 'running' : 'stopped';
+            
+            // Check health via ALB target health (if configured)
+            if (requirements.network?.healthCheckPath && ecsService.loadBalancers?.length) {
+              const targetGroupArn = ecsService.loadBalancers[0].targetGroupArn;
+              if (targetGroupArn) {
+                const targetHealth = await this.checkALBTargetHealthByArn(targetGroupArn, region);
+                health = {
+                  healthy: targetHealth === 'healthy',
+                  details: {
+                    runningCount,
+                    desiredCount,
+                    targetHealth
+                  }
+                };
               }
-            };
+            } else {
+              health = {
+                healthy: runningCount === desiredCount && runningCount > 0,
+                details: {
+                  runningCount,
+                  desiredCount
+                }
+              };
+            }
+            
+            awsResources = createPlatformResources('aws', {
+              clusterId: clusterName,
+              serviceArn: ecsService.serviceArn || `arn:aws:ecs:${region}:${accountId}:service/${clusterName}/${serviceName}`,
+              region: region
+            });
+          } else {
+            status = 'stopped';
           }
-          
-          awsResources = createPlatformResources('aws', {
-            clusterId: clusterName,
-            serviceArn: `arn:aws:ecs:${region}:${accountId}:service/${clusterName}/${serviceName}`,
-            region: region
-          });
-        } catch {
+        } catch (error) {
           status = 'stopped';
+          if (service.verbose) {
+            console.log(`[DEBUG] ECS check failed: ${error}`);
+          }
         }
         break;
         
@@ -685,34 +740,43 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const instanceId = rdsResources.dbInstanceId || `${resourceName}-db`;
         
         try {
-          const dbStatus = execSync(
-            `aws rds describe-db-instances --db-instance-identifier ${instanceId} --query 'DBInstances[0].DBInstanceStatus' --output text --region ${region}`,
-            { encoding: 'utf-8' }
-          ).trim();
+          const { rds } = this.getAWSClients(region);
+          const response = await rds.send(new DescribeDBInstancesCommand({
+            DBInstanceIdentifier: instanceId
+          }));
           
-          status = dbStatus === 'available' ? 'running' :
-                   dbStatus === 'stopped' ? 'stopped' :
-                   (dbStatus === 'starting' || dbStatus === 'stopping') ? 'unknown' : 'unknown';
-          
-          // Check database connectivity
-          if (status === 'running') {
-            const endpoint = await this.getRDSEndpoint(instanceId, region);
-            health = {
-              healthy: true,
-              details: {
-                status: dbStatus,
-                endpoint,
-                engine: 'postgres'
-              }
-            };
+          const dbInstance = response.DBInstances?.[0];
+          if (dbInstance) {
+            const dbStatus = dbInstance.DBInstanceStatus;
+            
+            status = dbStatus === 'available' ? 'running' :
+                     dbStatus === 'stopped' ? 'stopped' :
+                     (dbStatus === 'starting' || dbStatus === 'stopping') ? 'unknown' : 'unknown';
+            
+            // Check database connectivity
+            if (status === 'running' && dbInstance.Endpoint) {
+              health = {
+                healthy: true,
+                details: {
+                  status: dbStatus,
+                  endpoint: `${dbInstance.Endpoint.Address}:${dbInstance.Endpoint.Port}`,
+                  engine: dbInstance.Engine || 'postgres'
+                }
+              };
+            }
+            
+            awsResources = createPlatformResources('aws', {
+              instanceId: dbInstance.DBInstanceIdentifier,
+              region: region
+            });
+          } else {
+            status = 'stopped';
           }
-          
-          awsResources = createPlatformResources('aws', {
-            instanceId,
-            region: region
-          });
-        } catch {
+        } catch (error) {
           status = 'stopped';
+          if (service.verbose) {
+            console.log(`[DEBUG] RDS check failed: ${error}`);
+          }
         }
         break;
         
@@ -1971,11 +2035,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private async getEFSStatus(fileSystemId: string, region: string): Promise<string> {
     try {
-      const status = execSync(
-        `aws efs describe-file-systems --file-system-id ${fileSystemId} --query 'FileSystems[0].LifeCycleState' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return status;
+      const { efs } = this.getAWSClients(region);
+      const response = await efs.send(new DescribeFileSystemsCommand({
+        FileSystemId: fileSystemId
+      }));
+      
+      const fileSystem = response.FileSystems?.[0];
+      return fileSystem?.LifeCycleState || 'unknown';
     } catch {
       return 'unknown';
     }
@@ -1989,6 +2055,34 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       ).trim();
       return health;
     } catch {
+      return 'unknown';
+    }
+  }
+  
+  /**
+   * Check ALB target health using target group ARN directly (avoids name length issues)
+   */
+  private async checkALBTargetHealthByArn(targetGroupArn: string, region: string): Promise<string> {
+    try {
+      const { elb } = this.getAWSClients(region);
+      const response = await elb.send(new DescribeTargetHealthCommand({
+        TargetGroupArn: targetGroupArn
+      }));
+      
+      // Check if any targets are healthy
+      const healthStates = response.TargetHealthDescriptions?.map(t => t.TargetHealth?.State) || [];
+      
+      if (healthStates.includes('healthy')) {
+        return 'healthy';
+      } else if (healthStates.includes('unhealthy')) {
+        return 'unhealthy';
+      } else if (healthStates.includes('draining')) {
+        return 'draining';
+      } else {
+        return 'unknown';
+      }
+    } catch (error) {
+      // Silently fail - target group might not exist
       return 'unknown';
     }
   }
