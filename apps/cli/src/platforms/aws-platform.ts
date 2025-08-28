@@ -90,6 +90,100 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
+   * Get all CloudFormation resources and cache them in StateManager
+   */
+  private async discoverAndCacheResources(service: Service): Promise<{
+    clusterName?: string;
+    serviceName?: string;
+    dbInstanceId?: string;
+    fileSystemId?: string;
+  }> {
+    const { region, dataStack, appStack } = this.getAWSConfig(service);
+    const { StateManager } = await import('../services/state-manager.js');
+    
+    // Check if we have cached resources in state
+    const existingState = await StateManager.load(
+      service.projectRoot,
+      service.environment,
+      service.name
+    );
+    
+    // Check if we have recent CloudFormation resource discovery
+    if (existingState?.metadata?.cfnResources && 
+        existingState?.metadata?.cfnDiscoveredAt &&
+        Date.now() - existingState.metadata.cfnDiscoveredAt < 3600000) { // 1 hour cache
+      return existingState.metadata.cfnResources;
+    }
+    
+    // Discover all resources from CloudFormation
+    const resources: any = {};
+    
+    if (appStack) {
+      // Get ECS Cluster
+      const clusters = await this.getStackResources(appStack, region, 'AWS::ECS::Cluster');
+      const clusterName = clusters[0]?.PhysicalResourceId;
+      
+      // Get ECS Services
+      const services = await this.getStackResources(appStack, region, 'AWS::ECS::Service');
+      for (const svc of services) {
+        const logicalId = svc.LogicalResourceId.toLowerCase();
+        if (logicalId.includes('backend')) {
+          resources.backend = resources.backend || {};
+          resources.backend.clusterName = clusterName;
+          resources.backend.serviceName = svc.PhysicalResourceId?.split('/').pop();
+        } else if (logicalId.includes('frontend')) {
+          resources.frontend = resources.frontend || {};
+          resources.frontend.clusterName = clusterName;
+          resources.frontend.serviceName = svc.PhysicalResourceId?.split('/').pop();
+        }
+      }
+    }
+    
+    if (dataStack) {
+      // Get RDS Instance
+      const databases = await this.getStackResources(dataStack, region, 'AWS::RDS::DBInstance');
+      if (databases[0]) {
+        resources.database = { dbInstanceId: databases[0].PhysicalResourceId };
+      }
+      
+      // Get EFS FileSystem
+      const filesystems = await this.getStackResources(dataStack, region, 'AWS::EFS::FileSystem');
+      if (filesystems[0]) {
+        resources.filesystem = { fileSystemId: filesystems[0].PhysicalResourceId };
+      }
+    }
+    
+    // Get resources for this specific service
+    const serviceResources = resources[service.name] || {};
+    
+    // Save discovered resources in state metadata
+    if (Object.keys(serviceResources).length > 0) {
+      const currentState = existingState || {
+        entity: service.name,
+        platform: 'aws' as Platform,
+        environment: service.environment,
+        startTime: new Date().toISOString()
+      };
+      
+      await StateManager.save(
+        service.projectRoot,
+        service.environment,
+        service.name,
+        {
+          ...currentState,
+          metadata: {
+            ...currentState.metadata,
+            cfnResources: serviceResources,
+            cfnDiscoveredAt: Date.now()
+          }
+        }
+      );
+    }
+    
+    return serviceResources;
+  }
+  
+  /**
    * Get the actual ECS cluster name from CloudFormation
    */
   private async getActualClusterName(service: Service): Promise<string | undefined> {
@@ -498,12 +592,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        // Try to get actual cluster and service names from CloudFormation
-        const actualClusterName = await this.getActualClusterName(service);
-        const clusterName = actualClusterName || `semiont-${service.environment}`;
-        const actualServiceName = actualClusterName ? 
-          await this.getActualServiceName(service, actualClusterName) : undefined;
-        const serviceName = actualServiceName || resourceName;
+        // Get resource IDs from CloudFormation (with caching)
+        const ecsResources = await this.discoverAndCacheResources(service);
+        const clusterName = ecsResources.clusterName || `semiont-${service.environment}`;
+        const serviceName = ecsResources.serviceName || resourceName;
         
         try {
           const runningCount = execSync(
@@ -575,9 +667,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         break;
         
       case 'rds':
-        // Try to get actual RDS instance name
-        const actualInstanceId = await this.getActualRDSInstanceName(service);
-        const instanceId = actualInstanceId || `${resourceName}-db`;
+        // Get resource IDs from CloudFormation (with caching)
+        const rdsResources = await this.discoverAndCacheResources(service);
+        const instanceId = rdsResources.dbInstanceId || `${resourceName}-db`;
         
         try {
           const dbStatus = execSync(
@@ -644,9 +736,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         break;
         
       case 'efs':
-        // Try to get actual EFS filesystem ID
-        const actualFileSystemId = await this.getActualEFSId(service);
-        const fileSystemId = actualFileSystemId || 
+        // Get resource IDs from CloudFormation (with caching)
+        const efsResources = await this.discoverAndCacheResources(service);
+        const fileSystemId = efsResources.fileSystemId || 
           await this.getEFSId(resourceName, region);
         
         if (fileSystemId) {
