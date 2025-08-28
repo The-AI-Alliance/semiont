@@ -340,7 +340,7 @@ export async function watch(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const watchNewCommand = new CommandBuilder()
+export const watchCommand = new CommandBuilder()
   .name('watch-new')
   .description('Monitor services using new architecture')
   .schema(WatchOptionsSchema)

@@ -335,7 +335,7 @@ async function execHandler(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const execNewCommand = new CommandBuilder()
+export const execCommand = new CommandBuilder()
   .name('exec-new')
   .description('Execute commands within running services')
   .schema(ExecCommandOptionsSchema)

@@ -253,7 +253,7 @@ function sortServicesByDependencies(services: ServicePlatformInfo[]): ServicePla
 // COMMAND DEFINITION
 // =====================================================================
 
-export const provisionNewCommand = new CommandBuilder()
+export const provisionCommand = new CommandBuilder()
   .name('provision-new')
   .description('Provision infrastructure and resources for services')
   .schema(ProvisionOptionsSchema)

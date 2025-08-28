@@ -226,7 +226,7 @@ async function updateHandler(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const updateNewCommand = new CommandBuilder()
+export const updateCommand = new CommandBuilder()
   .name('update-new')
   .description('Update services to latest version using new service architecture')
   .schema(UpdateOptionsSchema)

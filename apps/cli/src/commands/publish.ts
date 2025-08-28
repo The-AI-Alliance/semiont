@@ -294,7 +294,7 @@ function sortServicesByPublishOrder(services: ServicePlatformInfo[]): ServicePla
 // COMMAND DEFINITION
 // =====================================================================
 
-export const publishNewCommand = new CommandBuilder()
+export const publishCommand = new CommandBuilder()
   .name('publish-new')
   .description('Publish and deploy service artifacts')
   .schema(PublishOptionsSchema)

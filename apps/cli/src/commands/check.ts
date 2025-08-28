@@ -237,7 +237,7 @@ async function checkHandler(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const checkNewCommand = new CommandBuilder()
+export const checkCommand = new CommandBuilder()
   .name('check-new')
   .description('Check service status using new service architecture')
   .schema(CheckOptionsSchema)
