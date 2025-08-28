@@ -112,6 +112,7 @@ async function checkHandler(
     environment: parsedEnv,
     verbose: options.verbose,
     quiet: options.quiet,
+    forceDiscovery: options.forceDiscovery,
   };
   
   for (const serviceInfo of services) {

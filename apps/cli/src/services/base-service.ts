@@ -62,6 +62,7 @@ export abstract class BaseService implements Service {
   get verbose() { return this.systemConfig.verbose || false; }
   get quiet() { return this.systemConfig.quiet || false; }
   get dryRun() { return this.systemConfig.dryRun || false; }
+  get forceDiscovery() { return this.systemConfig.forceDiscovery || false; }
   
   /**
    * Get the port for this service

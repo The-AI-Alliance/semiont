@@ -17,6 +17,7 @@ export interface Config {
   verbose: boolean;
   quiet: boolean;
   dryRun?: boolean;
+  forceDiscovery?: boolean;
 }
 
 /**

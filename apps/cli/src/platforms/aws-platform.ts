@@ -101,19 +101,32 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const { region, dataStack, appStack } = this.getAWSConfig(service);
     const { StateManager } = await import('../services/state-manager.js');
     
-    // Check if we have cached resources in state
+    // Check if we have cached resources in state (unless forceDiscovery is set)
+    if (!service.forceDiscovery) {
+      const existingState = await StateManager.load(
+        service.projectRoot,
+        service.environment,
+        service.name
+      );
+      
+      // Check if we have recent CloudFormation resource discovery
+      if (existingState?.metadata?.cfnResources && 
+          existingState?.metadata?.cfnDiscoveredAt &&
+          Date.now() - existingState.metadata.cfnDiscoveredAt < 3600000) { // 1 hour cache
+        if (service.verbose) {
+          console.log(`[DEBUG] Using cached CloudFormation resources for ${service.name}`);
+        }
+        return existingState.metadata.cfnResources;
+      }
+    } else if (service.verbose) {
+      console.log(`[DEBUG] Forcing CloudFormation discovery for ${service.name} (--force-discovery flag set)`);
+    }
+    
     const existingState = await StateManager.load(
       service.projectRoot,
       service.environment,
       service.name
     );
-    
-    // Check if we have recent CloudFormation resource discovery
-    if (existingState?.metadata?.cfnResources && 
-        existingState?.metadata?.cfnDiscoveredAt &&
-        Date.now() - existingState.metadata.cfnDiscoveredAt < 3600000) { // 1 hour cache
-      return existingState.metadata.cfnResources;
-    }
     
     // Discover all resources from CloudFormation
     const resources: any = {};

@@ -35,6 +35,7 @@ export interface Service {
   readonly verbose: boolean;
   readonly quiet: boolean;
   readonly dryRun?: boolean;
+  readonly forceDiscovery?: boolean;
   
   // Service-specific methods that platforms can call
   getPort(): number;

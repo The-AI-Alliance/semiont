@@ -99,7 +99,7 @@ function normalizeArgs(
     // Convert --kebab-case to camelCase
     const normalizedKey = kebabToCamel(key.replace(/^--/, ''));
     
-    // Handle special cases
+    // Handle special cases for 'no-' prefix arguments
     if (key === '--no-compress' && spec.args['--no-compress']) {
       // Invert boolean for 'no-' prefix arguments
       normalized.compress = !value;

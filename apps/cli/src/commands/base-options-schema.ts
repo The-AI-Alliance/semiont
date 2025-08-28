@@ -20,6 +20,7 @@ export const BaseOptionsSchema = z.object({
   dryRun: z.boolean().optional().default(false),
   quiet: z.boolean().optional().default(false),
   output: z.enum(['summary', 'table', 'json', 'yaml']).optional().default('summary'),
+  forceDiscovery: z.boolean().optional().default(false),
 });
 
 /**
@@ -70,6 +71,11 @@ export const BASE_ARGS: Record<string, ArgDefinition> = {
     description: 'Output format',
     choices: ['summary', 'table', 'json', 'yaml'],
     default: 'summary',
+  },
+  '--force-discovery': { 
+    type: 'boolean', 
+    description: 'Force rediscovery of cloud resources (rebuilds cache)',
+    default: false,
   },
 };
 
