@@ -1,8 +1,31 @@
 /**
  * Mock Platform Strategy
  * 
- * Provides mock implementations for testing without actual resource allocation.
- * Useful for unit tests and dry-run scenarios.
+ * Provides a simulated platform for testing and development without provisioning
+ * real infrastructure. This platform validates service requirements and simulates
+ * operations without side effects, making it ideal for CI/CD pipelines and testing.
+ * 
+ * Capabilities:
+ * - Simulates all platform operations without real resource allocation
+ * - Validates service requirements and configurations
+ * - Provides deterministic responses for testing
+ * - Maintains in-memory state for simulated services
+ * - Supports dry-run mode for production commands
+ * - Generates realistic mock responses for debugging
+ * 
+ * Requirements Handling:
+ * - Compute: Validates memory/CPU requirements are reasonable
+ * - Network: Simulates port allocation and checks for conflicts
+ * - Storage: Tracks simulated storage allocation
+ * - Dependencies: Verifies dependency graph is valid
+ * - Security: Validates security configurations without real credentials
+ * 
+ * Use Cases:
+ * - Unit and integration testing
+ * - CI/CD pipeline validation
+ * - Dry-run operations before production deployment
+ * - Development without infrastructure costs
+ * - Documentation and demo scenarios
  */
 
 import { StartResult } from "../commands/start.js";

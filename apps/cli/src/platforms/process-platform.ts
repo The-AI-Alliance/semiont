@@ -1,8 +1,21 @@
 /**
- * Process Platform Strategy - Refactored with Requirements Pattern
+ * Process Platform Strategy
  * 
- * Manages services running as local OS processes using their declared requirements.
- * No service-specific knowledge - uses requirements to determine behavior.
+ * Runs services as native OS processes on the local machine. This platform is ideal for
+ * development environments and simple deployments where containerization isn't needed.
+ * 
+ * Capabilities:
+ * - Spawns services as child processes with environment variables
+ * - Manages process lifecycle (start, stop, restart)
+ * - Tracks running processes via PID files in the state directory
+ * - Supports port allocation and basic health checks
+ * - Provides process-level isolation through OS mechanisms
+ * 
+ * Requirements Handling:
+ * - Compute: Uses OS-level resource limits where available
+ * - Network: Binds to specified ports, checks for conflicts
+ * - Storage: Uses local filesystem paths
+ * - Dependencies: Verifies dependent processes are running via PID checks
  */
 
 import { spawn, execSync } from 'child_process';

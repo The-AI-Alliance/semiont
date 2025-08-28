@@ -1,8 +1,23 @@
 /**
- * Container Platform Strategy - Refactored with Requirements Pattern
+ * Container Platform Strategy
  * 
- * Manages services running in containers using their declared requirements.
- * No service-specific knowledge - uses requirements to determine container configuration.
+ * Runs services in isolated containers using Docker or Podman. This platform provides
+ * consistent environments across development, testing, and production deployments.
+ * 
+ * Capabilities:
+ * - Auto-detects and uses available container runtime (Docker or Podman)
+ * - Creates containers with resource limits based on service requirements
+ * - Manages container lifecycle (start, stop, restart, update)
+ * - Supports volume mounts for persistent storage
+ * - Provides network isolation and port mapping
+ * - Enables exec into running containers for debugging
+ * 
+ * Requirements Handling:
+ * - Compute: Sets memory limits and CPU shares on containers
+ * - Network: Maps container ports to host ports, creates networks
+ * - Storage: Mounts volumes for persistent and ephemeral storage
+ * - Dependencies: Ensures dependent containers are running and networked
+ * - Build: Can build images from Dockerfile when specified
  */
 
 import { execSync } from 'child_process';

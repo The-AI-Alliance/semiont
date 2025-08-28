@@ -1,8 +1,24 @@
 /**
- * AWS Platform Strategy - Refactored with Requirements Pattern
+ * AWS Platform Strategy
  * 
- * Manages services on AWS using their declared requirements.
- * Automatically selects appropriate AWS services based on requirements.
+ * Deploys and manages services on AWS cloud infrastructure. This platform leverages
+ * AWS services like ECS, Fargate, Lambda, and RDS to provide scalable, production-ready
+ * deployments with enterprise features.
+ * 
+ * Capabilities:
+ * - Deploys containers to ECS with Fargate for serverless container management
+ * - Provisions infrastructure using AWS CDK for infrastructure-as-code
+ * - Manages service discovery through AWS Cloud Map
+ * - Provides auto-scaling based on CPU/memory metrics
+ * - Integrates with AWS services (RDS, S3, CloudWatch, etc.)
+ * - Supports blue-green deployments for zero-downtime updates
+ * 
+ * Requirements Handling:
+ * - Compute: Selects appropriate Fargate task sizes or Lambda memory
+ * - Network: Configures ALB/NLB load balancers, security groups, and VPCs
+ * - Storage: Provisions EBS volumes, S3 buckets, or RDS databases
+ * - Dependencies: Uses service discovery and security groups for inter-service communication
+ * - Security: Manages IAM roles, secrets in Secrets Manager, and KMS encryption
  */
 
 import { execSync } from 'child_process';

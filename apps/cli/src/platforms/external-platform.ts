@@ -1,8 +1,29 @@
 /**
- * External Platform Strategy - Refactored with Requirements Pattern
+ * External Platform Strategy
  * 
- * Manages references to services running on external infrastructure.
- * Uses requirements to validate configuration and provide appropriate guidance.
+ * Manages references to services that run on external infrastructure outside of
+ * Semiont's control. This platform acts as a registry and health checker for
+ * third-party services, SaaS offerings, and legacy systems.
+ * 
+ * Capabilities:
+ * - Registers external service endpoints and credentials
+ * - Performs health checks on external APIs and services
+ * - Validates connectivity and authentication
+ * - Provides a unified interface to external services
+ * - Tracks external service metadata and configuration
+ * 
+ * Requirements Handling:
+ * - Compute: Documents expected capacity but doesn't provision
+ * - Network: Validates endpoints are reachable and ports are open
+ * - Storage: Records external storage locations (S3, databases, etc.)
+ * - Dependencies: Checks that required external services are accessible
+ * - Security: Manages API keys, tokens, and connection strings securely
+ * 
+ * Use Cases:
+ * - Third-party APIs (payment gateways, email services)
+ * - Managed databases (RDS, MongoDB Atlas, etc.)
+ * - SaaS services (Auth0, Stripe, SendGrid)
+ * - Legacy systems that can't be migrated
  */
 
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';

@@ -13,7 +13,10 @@ The Semiont CLI provides a consistent interface for:
 
 ## Quick Links
 
-- [**Adding New Commands Guide**](./ADDING_COMMANDS.md) - Step-by-step guide for adding new CLI commands
+- [**Architecture Overview**](./docs/ARCHITECTURE.md) - Understanding the CLI architecture and design patterns
+- [**Adding New Commands**](./docs/ADDING_COMMANDS.md) - Step-by-step guide for adding new CLI commands
+- [**Adding New Platforms**](./docs/ADDING_PLATFORMS.md) - Guide for implementing new platform strategies
+- [**Adding New Services**](./docs/ADDING_SERVICES.md) - Guide for adding new service types
 - [Service-Command Matrix](#service-command-matrix) - How commands work with different deployment types
 - [Contributing](#contributing) - Development guidelines and best practices
 
@@ -76,30 +79,44 @@ No special treatment of environment names:
 
 ## Architecture
 
+The CLI follows a layered architecture separating commands, services, platforms, and utilities. See [Architecture Overview](./docs/ARCHITECTURE.md) for detailed information.
+
 ### Directory Structure
 
 ```
-packages/cli/
-├── cli.ts.                   # CLI entry point
-├── commands/                 # Command implementations (deployment-type aware)
-│   ├── start.ts             # Start services based on deployment type
-│   ├── stop.ts              # Stop services based on deployment type
-│   ├── restart.ts           # Restart services based on deployment type
-│   ├── provision.ts         # Provision infrastructure based on deployment type
-│   ├── configure.ts         # Configure services based on deployment type
-│   ├── publish.ts           # Build and push images (container/aws services)
-│   ├── update.ts            # Update running services with latest code/images
-│   ├── check.ts             # Health checks based on deployment type
-│   ├── watch.ts             # Monitor logs/metrics based on deployment type
-│   ├── test.ts              # Run tests based on deployment type
-│   ├── exec.ts              # Execute commands based on deployment type
-│   └── backup.ts            # Create backups based on deployment type
-└── lib/                      # Shared utilities
-    ├── cli-colors.ts         # Color definitions
-    ├── cli-paths.ts          # Path resolution
-    ├── services.ts           # Service selection and validation
-    ├── deployment-resolver.ts # Deployment type resolution (core)
-    └── container-runtime.ts  # Container operations (Docker/Podman)
+src/
+├── cli.ts                    # CLI entry point
+├── commands/                 # Command implementations
+│   ├── start.ts             # Start services
+│   ├── stop.ts              # Stop services
+│   ├── check.ts             # Health checks
+│   ├── backup.ts            # Backup operations
+│   └── ...                  # Other commands
+├── services/                 # Service definitions
+│   ├── service-interface.ts # Service contracts
+│   ├── base-service.ts      # Base service class
+│   ├── backend-service.ts   # Backend service
+│   ├── frontend-service.ts  # Frontend service
+│   └── ...                  # Other services
+├── platforms/                # Platform strategies
+│   ├── platform-strategy.ts # Platform interface
+│   ├── process-platform.ts  # Local process platform
+│   ├── container-platform.ts # Docker/Podman platform
+│   ├── aws-platform.ts      # AWS ECS platform
+│   └── ...                  # Other platforms
+├── lib/                      # Shared utilities
+│   ├── cli-colors.ts        # Color definitions
+│   ├── cli-logger.ts        # Logging utilities
+│   ├── validators.ts        # Input validation
+│   └── ...                  # Other utilities
+├── dashboard/                # Dashboard components
+│   ├── dashboard-data.ts    # Data collection
+│   └── dashboard-layouts.tsx # UI layouts
+└── docs/                     # Documentation
+    ├── ARCHITECTURE.md       # Architecture overview
+    ├── ADDING_COMMANDS.md    # Adding commands guide
+    ├── ADDING_PLATFORMS.md   # Adding platforms guide
+    └── ADDING_SERVICES.md    # Adding services guide
 ```
 
 ### Environment Selection
