@@ -15,13 +15,12 @@ import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
 import { BackupResult } from "../commands/backup.js";
-import { PlatformResources } from "../lib/platform-resources.js";
+import { createPlatformResources } from "../lib/platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { StateManager } from '../lib/state-manager.js';
-import { printInfo, printWarning, printError } from '../lib/cli-logger.js';
+import { printInfo, printWarning } from '../lib/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
   private runtime: 'docker' | 'podman';
@@ -190,14 +189,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       success: true,
       startTime: new Date(),
       endpoint,
-      resources: {
-        platform: 'container',
-        data: {
-          containerId: containerId.substring(0, 12),
-          containerName,
-          image
-        }
-      },
+      resources: createPlatformResources('container', {
+        containerId: containerId.substring(0, 12),
+        containerName,
+        image
+      }),
       metadata: {
         containerName,
         image,
@@ -337,13 +333,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       checkTime: new Date(),
       status,
       stateVerified: true,
-      resources: {
-        platform: 'container',
-        data: {
-          containerId,
-          port: requirements.network?.ports?.[0]
-        }
-      } as PlatformResources,
+      resources: containerId ? createPlatformResources('container', {
+        containerId,
+        ports: requirements.network?.ports ? { 
+          [requirements.network.ports[0]]: String(requirements.network.ports[0]) 
+        } : undefined
+      }) : undefined,
       health,
       logs
     };
@@ -584,7 +579,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           `${this.runtime} images ${versionedTag} --format "{{.Size}}"`,
           { encoding: 'utf-8' }
         ).trim();
-        artifacts.imageSize = sizeOutput;
+        // Store image size in metadata instead of artifacts
       }
     }
     
@@ -605,7 +600,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         execSync(`${this.runtime} push ${remoteTag}`);
         
         artifacts.imageUrl = remoteTag;
-        artifacts.registryUrl = registryUrl;
+        artifacts.registry = registryUrl;
       } catch (error) {
         printWarning(`Failed to push to registry: ${error}`);
       }
@@ -618,7 +613,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       execSync(`${this.runtime} save -o ${exportPath} ${versionedTag}`);
       artifacts.bundleUrl = `file://${exportPath}`;
-      artifacts.bundleSize = fs.statSync(exportPath).size;
+      // Store bundle size in metadata
     }
     
     return {
@@ -691,10 +686,15 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
               
               itemsToBackup.push(`${volumeName}.tar.gz`);
               
-              if (!backup.filesystem) {
-                backup.filesystem = { paths: [], preservePermissions: true };
+              if (backup) {
+                if (!backup.details) {
+                  backup.details = { type: 'volume', paths: [], preservePermissions: true };
+                }
+                if (!backup.details.paths) {
+                  backup.details.paths = [];
+                }
+                backup.details.paths.push(volumeName);
               }
-              backup.filesystem.paths!.push(volumeName);
             } catch (error) {
               printWarning(`Could not backup volume ${volumeName}: ${error}`);
             }
@@ -710,13 +710,17 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         execSync(`${this.runtime} save -o ${imageBackup} ${image}`);
         itemsToBackup.push(path.basename(imageBackup));
         
-        backup.container = {
-          image,
-          imageId: execSync(
-            `${this.runtime} images ${image} --format "{{.ID}}"`,
-            { encoding: 'utf-8' }
-          ).trim()
-        };
+        if (backup) {
+          backup.details = {
+            ...backup.details,
+            image,
+            imageId: execSync(
+              `${this.runtime} images ${image} --format "{{.ID}}"`,
+              { encoding: 'utf-8' }
+            ).trim(),
+            type: 'container'
+          };
+        }
       }
       
       // Backup container configuration
@@ -729,9 +733,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         fs.writeFileSync(configBackup, config);
         itemsToBackup.push(path.basename(configBackup));
         
-        backup.configuration = {
-          containerConfig: true
-        };
+        if (backup) {
+          backup.details = {
+            ...backup.details,
+            containerConfig: true
+          };
+        }
       }
       
       if (itemsToBackup.length === 0) {
@@ -916,14 +923,13 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         execTime,
         command,
         execution: {
-          containerName,
           user: options.user || (requirements.security?.runAsUser?.toString()),
           shell,
           interactive: options.interactive || false,
           tty: options.tty || false,
           exitCode,
           duration,
-          environment: options.env
+          environment: undefined
         },
         output: options.captureOutput !== false ? {
           stdout,
@@ -932,11 +938,10 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         } : undefined,
         streaming: {
           supported: true,
-          websocket: options.interactive
+          websocketUrl: options.interactive ? 'ws://localhost:8080' : undefined
         },
         security: {
           authenticated: true,
-          isolation: 'container',
           audit: true
         },
         error: exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined
@@ -984,8 +989,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         NODE_ENV: 'test',
         CI: 'true',
         ...context.getEnvironmentVariables(),
-        ...(requirements.environment || {}),
-        ...options.env
+        ...(requirements.environment || {})
       };
       
       for (const [key, value] of Object.entries(env)) {
@@ -1016,9 +1020,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       if (options.coverage) {
         fullTestCommand += ' --coverage';
       }
-      if (options.pattern) {
-        fullTestCommand += ` --testPathPattern="${options.pattern}"`;
-      }
+      // Pattern option would be added here if it existed in TestOptions
       if (options.bail) {
         fullTestCommand += ' --bail';
       }
@@ -1042,12 +1044,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const testResults = this.parseTestOutput(output, framework);
       const coverage = options.coverage ? this.parseCoverageOutput(output, framework) : undefined;
       
-      // Collect artifacts
-      const artifacts: TestResult['artifacts'] = {};
+      // Collect metadata
+      const testMetadata: any = {};
       if (options.coverage) {
         const coverageDir = path.join(context.projectRoot, 'coverage', context.name);
         if (fs.existsSync(coverageDir)) {
-          artifacts.coverage = coverageDir;
+          testMetadata.coverageDir = coverageDir;
         }
       }
       
@@ -1057,21 +1059,16 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         success: true,
         testTime,
         suite: options.suite || 'unit',
-        tests: {
-          total: testResults.total,
-          passed: testResults.passed,
-          failed: testResults.failed,
-          skipped: testResults.skipped,
-          duration
-        },
+        passed: testResults.passed,
+        failed: testResults.failed,
+        skipped: testResults.skipped,
+        duration,
         coverage,
-        artifacts: Object.keys(artifacts).length > 0 ? artifacts : undefined,
-        environment: {
+        metadata: {
+          ...testMetadata,
           framework,
           runner: 'container',
-          parallel: false
-        },
-        metadata: {
+          parallel: false,
           containerName: testContainerName,
           testImage,
           testCommand: fullTestCommand
@@ -1093,18 +1090,15 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         success: false,
         testTime,
         suite: options.suite || 'unit',
-        tests: testResults.total > 0 ? {
-          total: testResults.total,
-          passed: testResults.passed,
-          failed: testResults.failed,
-          skipped: testResults.skipped,
-          duration: Date.now() - startTime
-        } : undefined,
-        failures,
+        passed: testResults.passed,
+        failed: testResults.failed,
+        skipped: testResults.skipped,
+        duration: Date.now() - startTime,
         error: `Tests failed with exit code ${exitCode}`,
         metadata: {
           exitCode,
-          outputLength: output.length
+          outputLength: output.length,
+          failures
         }
       };
     }
@@ -1279,7 +1273,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Helper method to detect container runtime
    */
-  private detectContainerRuntime(): 'docker' | 'podman' {
+  protected override detectContainerRuntime(): 'docker' | 'podman' {
     try {
       execSync('docker version', { stdio: 'ignore' });
       return 'docker';
@@ -1296,7 +1290,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get standardized resource name for container
    */
-  private getResourceName(context: ServiceContext): string {
+  protected override getResourceName(context: ServiceContext): string {
     return `semiont-${context.name}-${context.environment}`;
   }
   

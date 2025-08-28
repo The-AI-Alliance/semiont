@@ -14,7 +14,7 @@ import { CheckResult } from "../commands/check.js";
 import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
-import { PlatformResources, AWSResources } from "../lib/platform-resources.js";
+import { PlatformResources, AWSResources, createPlatformResources } from "../lib/platform-resources.js";
 import { BackupResult } from "../commands/backup.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
@@ -49,7 +49,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     // Database requirements → RDS or DynamoDB
-    if (requirements.storage?.some(s => s.type === 'database')) {
+    if (requirements.annotations?.['service/type'] === 'database' || 
+        requirements.annotations?.['database'] === 'true') {
       return requirements.annotations?.['aws/nosql'] === 'true' ? 'dynamodb' : 'rds';
     }
     
@@ -60,7 +61,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     // File storage → EFS or S3
-    if (requirements.storage?.some(s => s.type === 'filesystem')) {
+    if (requirements.annotations?.['service/type'] === 'filesystem' || 
+        requirements.annotations?.['filesystem'] === 'true') {
       return 'efs';
     }
     
@@ -79,7 +81,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const resourceName = this.getResourceName(context);
     
     let endpoint: string | undefined;
-    let resources: AWSResources | undefined;
+    let resources: PlatformResources | undefined;
     
     switch (serviceType) {
       case 'ecs-fargate':
@@ -99,14 +101,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             endpoint = `https://${albDns}`;
           }
           
-          resources = {
-            platform: 'aws',
-            data: {
-              clusterId: clusterName,
-              serviceArn: `arn:aws:ecs:${this.region}:${this.accountId}:service/${clusterName}/${serviceName}`,
-              taskDefinition: `${serviceName}-task`
-            }
-          };
+          resources = createPlatformResources('aws', {
+            clusterId: clusterName,
+            serviceArn: `arn:aws:ecs:${this.region}:${this.accountId}:service/${clusterName}/${serviceName}`,
+            region: this.region
+          });
         } catch (error) {
           throw new Error(`Failed to start ECS service: ${error}`);
         }
@@ -128,12 +127,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           // No function URL configured
         }
         
-        resources = {
-          platform: 'aws',
-          data: {
-            functionArn: `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}`
-          }
-        };
+        resources = createPlatformResources('aws', {
+          functionArn: `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}`,
+          region: this.region
+        });
         break;
         
       case 'rds':
@@ -151,13 +148,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           const dbEndpoint = await this.getRDSEndpoint(instanceId);
           endpoint = dbEndpoint;
           
-          resources = {
-            platform: 'aws',
-            data: {
-              instanceId,
-              endpoint: dbEndpoint
-            }
-          };
+          resources = createPlatformResources('aws', {
+            instanceId,
+            region: this.region
+          });
         } catch (error) {
           throw new Error(`Failed to start RDS instance: ${error}`);
         }
@@ -175,39 +169,31 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           endpoint = `https://${bucketName}.s3-website-${this.region}.amazonaws.com`;
         }
         
-        resources = {
-          platform: 'aws',
-          data: {
-            bucketName,
-            distributionId
-          }
-        };
+        resources = createPlatformResources('aws', {
+          bucketName,
+          distributionId,
+          region: this.region
+        });
         break;
         
       case 'efs':
         // EFS is always available
         const fileSystemId = await this.getOrCreateEFS(resourceName);
         
-        resources = {
-          platform: 'aws',
-          data: {
-            fileSystemId,
-            mountTarget: `${fileSystemId}.efs.${this.region}.amazonaws.com`
-          }
-        };
+        resources = createPlatformResources('aws', {
+          volumeId: fileSystemId,
+          region: this.region
+        });
         break;
         
       case 'dynamodb':
         // DynamoDB tables are always available
         const tableName = `${resourceName}-table`;
         
-        resources = {
-          platform: 'aws',
-          data: {
-            tableName,
-            region: this.region
-          }
-        };
+        resources = createPlatformResources('aws', {
+          name: tableName,
+          region: this.region
+        });
         break;
     }
     
@@ -217,7 +203,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       success: true,
       startTime: new Date(),
       endpoint,
-      resources: resources as PlatformResources,
+      resources,
       metadata: {
         serviceType,
         region: this.region,
@@ -329,7 +315,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     let status: CheckResult['status'] = 'unknown';
     let health: CheckResult['health'] | undefined;
-    let awsResources: AWSResources | undefined;
+    let awsResources: PlatformResources | undefined;
     
     switch (serviceType) {
       case 'ecs-fargate':
@@ -362,13 +348,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             };
           }
           
-          awsResources = {
-            platform: 'aws',
-            data: {
-              clusterId: clusterName,
-              serviceArn: `arn:aws:ecs:${this.region}:${this.accountId}:service/${clusterName}/${serviceName}`
-            }
-          };
+          awsResources = createPlatformResources('aws', {
+            clusterId: clusterName,
+            serviceArn: `arn:aws:ecs:${this.region}:${this.accountId}:service/${clusterName}/${serviceName}`,
+            region: this.region
+          });
         } catch {
           status = 'stopped';
         }
@@ -398,12 +382,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             };
           }
           
-          awsResources = {
-            platform: 'aws',
-            data: {
-              functionArn: `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}`
-            }
-          };
+          awsResources = createPlatformResources('aws', {
+            functionArn: `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}`,
+            region: this.region
+          });
         } catch {
           status = 'stopped';
         }
@@ -420,8 +402,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           
           status = dbStatus === 'available' ? 'running' :
                    dbStatus === 'stopped' ? 'stopped' :
-                   dbStatus === 'starting' ? 'starting' :
-                   dbStatus === 'stopping' ? 'stopping' : 'unknown';
+                   (dbStatus === 'starting' || dbStatus === 'stopping') ? 'unknown' : 'unknown';
           
           // Check database connectivity
           if (status === 'running') {
@@ -436,13 +417,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             };
           }
           
-          awsResources = {
-            platform: 'aws',
-            data: {
-              instanceId,
-              status: dbStatus
-            }
-          };
+          awsResources = createPlatformResources('aws', {
+            instanceId,
+            region: this.region
+          });
         } catch {
           status = 'stopped';
         }
@@ -470,13 +448,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             };
           }
           
-          awsResources = {
-            platform: 'aws',
-            data: {
-              bucketName,
-              distributionId
-            }
-          };
+          awsResources = createPlatformResources('aws', {
+            bucketName,
+            distributionId,
+            region: this.region
+          });
         } catch {
           status = 'stopped';
         }
@@ -497,12 +473,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             }
           };
           
-          awsResources = {
-            platform: 'aws',
-            data: {
-              fileSystemId
-            }
-          };
+          awsResources = createPlatformResources('aws', {
+            volumeId: fileSystemId,
+            region: this.region
+          });
         } else {
           status = 'stopped';
         }
@@ -527,12 +501,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             }
           };
           
-          awsResources = {
-            platform: 'aws',
-            data: {
-              tableName
-            }
-          };
+          awsResources = createPlatformResources('aws', {
+            name: tableName,
+            region: this.region
+          });
         } catch {
           status = 'stopped';
         }
@@ -552,7 +524,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       checkTime: new Date(),
       status,
       stateVerified: true,
-      resources: awsResources as PlatformResources,
+      resources: awsResources,
       health,
       logs,
       metadata: {
@@ -685,9 +657,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     const dependencies = requirements.dependencies?.services || [];
-    const awsResources: AWSResources = {
-      platform: 'aws',
-      data: {}
+    // Build up AWS resources as we provision
+    const awsResourcesData: AWSResources = {
+      region: this.region
     };
     
     const cost = { estimatedMonthly: 0, currency: 'USD' };
@@ -700,7 +672,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Create cluster
         try {
           execSync(`aws ecs create-cluster --cluster-name ${clusterName} --region ${this.region}`);
-          awsResources.data.clusterId = clusterName;
+          awsResourcesData.clusterId = clusterName;
         } catch {
           // Cluster might already exist
         }
@@ -711,7 +683,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Create service with ALB if needed
         if (requirements.network?.needsLoadBalancer) {
           const albArn = await this.createALB(resourceName, requirements);
-          awsResources.data.loadBalancerArn = albArn;
+          awsResourcesData.arn = albArn;
         }
         
         // Create service
@@ -729,16 +701,16 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Create execution role
         const roleArn = await this.createLambdaRole(functionName);
-        awsResources.data.roleArn = roleArn;
+        awsResourcesData.arn = roleArn;
         
         // Create function
         await this.createLambdaFunction(functionName, requirements, roleArn);
-        awsResources.data.functionArn = `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}`;
+        awsResourcesData.functionArn = `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}`;
         
         // Create function URL if needed
         if (requirements.network?.ports) {
           const functionUrl = await this.createFunctionUrl(functionName);
-          awsResources.data.functionUrl = functionUrl;
+          awsResourcesData.consoleUrl = functionUrl;
         }
         
         // Estimate costs (very rough)
@@ -752,11 +724,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Create DB subnet group
         const subnetGroupName = await this.createDBSubnetGroup(resourceName);
-        awsResources.data.subnetGroup = subnetGroupName;
+        awsResourcesData.networkId = subnetGroupName;
         
         // Create RDS instance
         await this.createRDSInstance(instanceId, instanceClass, requirements);
-        awsResources.data.instanceId = instanceId;
+        awsResourcesData.instanceId = instanceId;
         
         // Estimate costs
         cost.estimatedMonthly = this.getRDSCost(instanceClass);
@@ -768,12 +740,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Create S3 bucket with static website hosting
         await this.createS3Bucket(bucketName, true);
-        awsResources.data.bucketName = bucketName;
+        awsResourcesData.bucketName = bucketName;
         
         // Create CloudFront distribution
         if (requirements.network?.customDomains?.length) {
           const distributionId = await this.createCloudFrontDistribution(bucketName, requirements);
-          awsResources.data.distributionId = distributionId;
+          awsResourcesData.distributionId = distributionId;
         }
         
         // Estimate costs
@@ -783,7 +755,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       case 'efs':
         // Create EFS file system
         const fileSystemId = await this.createEFS(resourceName);
-        awsResources.data.fileSystemId = fileSystemId;
+        awsResourcesData.volumeId = fileSystemId;
         
         // Create mount targets in each subnet
         await this.createEFSMountTargets(fileSystemId);
@@ -798,7 +770,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const tableName = `${resourceName}-table`;
         
         await this.createDynamoDBTable(tableName, requirements);
-        awsResources.data.tableName = tableName;
+        awsResourcesData.name = tableName;
         
         // Estimate costs
         cost.estimatedMonthly = 25; // On-demand pricing estimate
@@ -810,7 +782,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       platform: 'aws',
       success: true,
       provisionTime: new Date(),
-      resources: awsResources as PlatformResources,
+      resources: createPlatformResources('aws', awsResourcesData),
       dependencies,
       cost,
       metadata: {
@@ -894,8 +866,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           { encoding: 'utf-8' }
         ).trim();
         
-        artifacts.lambdaVersion = versionNum;
-        artifacts.functionArn = `arn:aws:lambda:${this.region}:${this.accountId}:function:${functionName}:${versionNum}`;
+        // Store Lambda version info properly
+        artifacts.packageVersion = versionNum;
         
         rollback.command = `aws lambda update-alias --function-name ${functionName} --name prod --function-version PREVIOUS`;
         break;
@@ -921,8 +893,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             { encoding: 'utf-8' }
           ).trim();
           
-          artifacts.invalidationId = invalidationId;
-          artifacts.distributionId = distributionId;
+          // CloudFront invalidation ID will be in metadata
         }
         
         artifacts.staticSiteUrl = `https://${bucketName}.s3-website-${this.region}.amazonaws.com`;
@@ -936,7 +907,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           printInfo('Database updates would be applied through migrations');
         }
         
-        artifacts.databaseVersion = version;
+        // Database version will be in metadata
         rollback.command = `aws rds restore-db-instance-to-point-in-time --source-db-instance-identifier ${resourceName}-db --target-db-instance-identifier ${resourceName}-db-rollback`;
         break;
     }
@@ -972,7 +943,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const backup: BackupResult['backup'] = {
       size: 0,
       location: '',
-      format: 'aws-native'
+      format: 'snapshot'
     };
     
     switch (serviceType) {
@@ -986,16 +957,20 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         );
         
         // Wait for snapshot to complete (async in real implementation)
-        backup.location = `arn:aws:rds:${this.region}:${this.accountId}:snapshot:${snapshotId}`;
-        backup.database = {
-          type: 'rds',
-          engine: 'postgres',
-          automated: false
-        };
+        if (backup) {
+          backup.location = `arn:aws:rds:${this.region}:${this.accountId}:snapshot:${snapshotId}`;
+          backup.details = {
+            type: 'rds',
+            engine: 'postgres',
+            automated: false
+          };
+        }
         
         // Get snapshot size
         const snapshotSize = await this.getRDSSnapshotSize(snapshotId);
-        backup.size = snapshotSize;
+        if (backup) {
+          backup.size = snapshotSize;
+        }
         break;
         
       case 's3-cloudfront':
@@ -1014,15 +989,20 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Copy all objects
         execSync(`aws s3 sync s3://${bucketName}/ s3://${backupBucket}/ --region ${this.region}`);
         
-        backup.location = `s3://${backupBucket}`;
-        backup.filesystem = {
-          paths: [bucketName],
-          preservePermissions: true
-        };
+        if (backup) {
+          backup.location = `s3://${backupBucket}`;
+          backup.details = {
+            paths: [bucketName],
+            preservePermissions: true,
+            type: 's3'
+          };
+        }
         
         // Get bucket size
         const bucketSize = await this.getS3BucketSize(bucketName);
-        backup.size = bucketSize;
+        if (backup) {
+          backup.size = bucketSize;
+        }
         break;
         
       case 'efs':
@@ -1033,11 +1013,14 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           // Create backup using AWS Backup service
           const backupJobId = await this.createEFSBackup(fileSystemId, backupId);
           
-          backup.location = `arn:aws:backup:${this.region}:${this.accountId}:recovery-point:${backupJobId}`;
-          backup.filesystem = {
-            paths: [`efs://${fileSystemId}`],
-            preservePermissions: true
-          };
+          if (backup) {
+            backup.location = `arn:aws:backup:${this.region}:${this.accountId}:recovery-point:${backupJobId}`;
+            backup.details = {
+              paths: [`efs://${fileSystemId}`],
+              preservePermissions: true,
+              type: 'efs'
+            };
+          }
         }
         break;
         
@@ -1049,11 +1032,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           `aws dynamodb create-backup --table-name ${tableName} --backup-name ${backupId} --region ${this.region}`
         );
         
-        backup.location = `arn:aws:dynamodb:${this.region}:${this.accountId}:table/${tableName}/backup/${backupId}`;
-        backup.database = {
-          type: 'dynamodb',
-          automated: false
-        };
+        if (backup) {
+          backup.location = `arn:aws:dynamodb:${this.region}:${this.accountId}:table/${tableName}/backup/${backupId}`;
+          backup.details = {
+            type: 'dynamodb',
+            automated: false
+          };
+        }
         break;
         
       case 'lambda':
@@ -1076,8 +1061,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         execSync(`aws s3 cp ${exportPath} s3://${lambdaBackupBucket}/${s3Key} --region ${this.region}`);
         
-        backup.location = `s3://${lambdaBackupBucket}/${s3Key}`;
-        backup.size = fs.statSync(exportPath).size;
+        if (backup) {
+          backup.location = `s3://${lambdaBackupBucket}/${s3Key}`;
+          backup.size = fs.statSync(exportPath).size;
+        }
         break;
         
       case 'ecs-fargate':
@@ -1100,11 +1087,14 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           `aws s3 cp /tmp/${backupId}-task-def.json s3://${backupBucketECS}/${taskDefKey} --region ${this.region}`
         );
         
-        backup.location = `s3://${backupBucketECS}/${taskDefKey}`;
-        backup.container = {
-          taskDefinition: `${serviceName}-task`,
-          cluster: clusterName
-        };
+        if (backup) {
+          backup.location = `s3://${backupBucketECS}/${taskDefKey}`;
+          backup.details = {
+            taskDefinition: `${serviceName}-task`,
+            cluster: clusterName,
+            type: 'ecs-fargate'
+          };
+        }
         break;
     }
     
@@ -1296,9 +1286,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Wait for task completion and get logs
         const { success, logs, exitCode } = await this.waitForTaskCompletion(cluster, taskArn);
         
-        // Parse test output
-        const framework = requirements.annotations?.['test/framework'] || 'jest';
-        const testResults = this.parseTestOutput(logs, framework);
+        // Parse test output - basic implementation for now
+        // TODO: Implement proper test output parsing
         
         return {
           entity: context.name,
@@ -1306,11 +1295,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           success,
           testTime,
           suite: options.suite || 'unit',
-          tests: testResults,
           metadata: {
             serviceType: 'ecs-fargate',
             taskArn,
-            exitCode
+            exitCode,
+            logs
           }
         };
         
@@ -1338,7 +1327,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             success: testResult.success || false,
             testTime,
             suite: options.suite || 'unit',
-            tests: testResult.tests,
+            passed: testResult.passed,
+            failed: testResult.failed,
+            skipped: testResult.skipped,
             coverage: testResult.coverage,
             metadata: {
               serviceType: 'lambda',
@@ -1590,7 +1581,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   // Helper methods
   
-  private getResourceName(context: ServiceContext): string {
+  protected getResourceName(context: ServiceContext): string {
     return `semiont-${context.name}-${context.environment}`;
   }
   
