@@ -165,6 +165,11 @@ export interface PlatformStrategy {
     value?: any,
     options?: SecretOptions
   ): Promise<SecretResult>;
+  
+  /**
+   * Quick check if a service is running without full context
+   */
+  quickCheckRunning?(state: import('../lib/state-manager.js').ServiceState): Promise<boolean>;
 }
 
 /**
@@ -200,6 +205,14 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
       platform: this.getPlatformName(),
       error: `Secret management not implemented for ${this.getPlatformName()} platform`
     };
+  }
+  
+  /**
+   * Quick check if a service is running without full context
+   * Default implementation returns false
+   */
+  async quickCheckRunning(_state: import('../lib/state-manager.js').ServiceState): Promise<boolean> {
+    return false;
   }
   
   /**

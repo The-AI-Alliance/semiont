@@ -1619,4 +1619,31 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     return secretName;
   }
+  
+  /**
+   * Quick check if a container is running using saved state
+   * This is faster than doing a full check() call
+   */
+  override async quickCheckRunning(state: import('../lib/state-manager.js').ServiceState): Promise<boolean> {
+    if (!state.resources || state.resources.platform !== 'container') {
+      return false;
+    }
+    
+    const containerId = state.resources.data.containerId;
+    if (!containerId) {
+      return false;
+    }
+    
+    try {
+      const status = execSync(
+        `${this.runtime} inspect ${containerId} --format '{{.State.Status}}'`,
+        { encoding: 'utf-8', stdio: 'pipe' }
+      ).trim();
+      
+      return status === 'running';
+    } catch {
+      // Container doesn't exist or error checking
+      return false;
+    }
+  }
 }

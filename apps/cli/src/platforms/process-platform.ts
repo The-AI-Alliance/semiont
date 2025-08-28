@@ -47,8 +47,31 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         context.environment,
         dep
       );
+      
       if (!depState) {
-        printWarning(`Dependency '${dep}' is not running`);
+        printWarning(`Dependency '${dep}' has never been started`);
+      } else {
+        // Verify the dependency is actually running
+        let isRunning = false;
+        
+        // Use the appropriate platform strategy to check if running
+        const { PlatformFactory } = await import('./index.js');
+        const platform = PlatformFactory.getPlatform(depState.platform);
+        
+        if (platform.quickCheckRunning) {
+          isRunning = await platform.quickCheckRunning(depState);
+        } else {
+          // For platforms without quickCheckRunning (AWS, external, mock),
+          // assume they're running if state exists
+          isRunning = true;
+        }
+        
+        if (!isRunning) {
+          printWarning(`Dependency '${dep}' is not running`);
+          
+          // Note: Auto-starting dependencies could be added here in the future
+          // This would require creating a minimal service context and calling start()
+        }
       }
     }
     
@@ -1622,5 +1645,36 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
    */
   private envKeyToSecretPath(envKey: string): string {
     return envKey.toLowerCase().replace(/_/g, '/');
+  }
+  
+  /**
+   * Check if a process is running by PID
+   */
+  private isProcessRunning(pid: number): boolean {
+    try {
+      // On Unix-like systems, kill -0 checks if process exists without killing it
+      process.kill(pid, 0);
+      return true;
+    } catch (error: any) {
+      // ESRCH means "No such process"
+      return error.code !== 'ESRCH';
+    }
+  }
+  
+  /**
+   * Quick check if a service is running using saved state
+   * This is faster than doing a full check() call
+   */
+  override async quickCheckRunning(state: import('../lib/state-manager.js').ServiceState): Promise<boolean> {
+    if (!state.resources || state.resources.platform !== 'process') {
+      return false;
+    }
+    
+    const pid = state.resources.data.pid;
+    if (!pid) {
+      return false;
+    }
+    
+    return this.isProcessRunning(pid);
   }
 }
