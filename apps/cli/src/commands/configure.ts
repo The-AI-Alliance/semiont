@@ -377,33 +377,57 @@ async function configure(
             throw new Error('Secret path is required for get action');
           }
           
-          // Use platform-aware secret management
-          const value = await getPlatformSecret(options.environment!, options.secretPath!);
-          
-          const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
-          const result: ConfigureResult = {
-            ...baseResult,
-            entity: baseResult.service,
-            configurationChanges: [],
-            restartRequired: false,
-            resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
-            status: value ? 'retrieved' : 'not-found',
-            success: value !== null, // Set success based on whether secret was found
-            metadata: {
-              action: 'get',
-              secretPath: options.secretPath,
-              value: maskSecretObject(value),
-              exists: value !== null,
-            },
-          };
-          configureResults.push(result);
-          
-          if (!isStructuredOutput && options.output === 'summary') {
-            if (value) {
-              console.log(`\n${colors.bright}Secret: ${options.secretPath}${colors.reset}`);
-              console.log(`Value: ${maskSecretObject(value)}`);
-            } else {
-              console.log(`${colors.yellow}Secret not found: ${options.secretPath}${colors.reset}`);
+          try {
+            // Use platform-aware secret management
+            const value = await getPlatformSecret(options.environment!, options.secretPath!);
+            
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
+            const result: ConfigureResult = {
+              ...baseResult,
+              entity: baseResult.service,
+              configurationChanges: [],
+              restartRequired: false,
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
+              status: value ? 'retrieved' : 'not-found',
+              success: value !== null, // Set success based on whether secret was found
+              metadata: {
+                action: 'get',
+                secretPath: options.secretPath,
+                value: maskSecretObject(value),
+                exists: value !== null,
+              },
+            };
+            configureResults.push(result);
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              if (value) {
+                console.log(`\n${colors.bright}Secret: ${options.secretPath}${colors.reset}`);
+                console.log(`Value: ${maskSecretObject(value)}`);
+              } else {
+                console.log(`${colors.yellow}Secret not found: ${options.secretPath}${colors.reset}`);
+              }
+            }
+          } catch (error: any) {
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
+            const result: ConfigureResult = {
+              ...baseResult,
+              entity: baseResult.service,
+              configurationChanges: [],
+              restartRequired: false,
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
+              status: 'error',
+              success: false,
+              error: error.message || 'Failed to get secret',
+              metadata: {
+                action: 'get',
+                secretPath: options.secretPath,
+                errorDetails: error.stack,
+              },
+            };
+            configureResults.push(result);
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              console.log(`${colors.red}Error getting secret: ${error.message}${colors.reset}`);
             }
           }
           break;
@@ -414,7 +438,6 @@ async function configure(
             throw new Error('Secret path is required for set action');
           }
           
-          const secretName = await getSecretFullName(options.environment!, options.secretPath!);
           let newValue: any = options.value;
           
           // If no value provided, prompt for it
@@ -434,6 +457,8 @@ async function configure(
           }
           
           if (options.dryRun) {
+            // In dry-run mode, use a placeholder secret name
+            const secretName = `${options.environment}-${options.secretPath!.replace('/', '-')}-secret`;
             const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
             const result: ConfigureResult = {
               ...baseResult,
