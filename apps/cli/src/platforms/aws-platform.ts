@@ -47,7 +47,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get AWS configuration from service's environment
    */
-  private getAWSConfig(service: Service): { region: string; accountId: string } {
+  private getAWSConfig(service: Service): { 
+    region: string; 
+    accountId: string;
+    dataStack?: string;
+    appStack?: string;
+  } {
     // Load the environment configuration to get AWS settings
     const { loadEnvironmentConfig } = require('../platforms/platform-resolver.js');
     const envConfig = loadEnvironmentConfig(service.environment);
@@ -55,12 +60,134 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     // Get AWS config from environment file, fallback to env vars
     return {
       region: envConfig.aws?.region || process.env.AWS_REGION || 'us-east-1',
-      accountId: envConfig.aws?.accountId || process.env.AWS_ACCOUNT_ID || ''
+      accountId: envConfig.aws?.accountId || process.env.AWS_ACCOUNT_ID || '',
+      dataStack: envConfig.aws?.stacks?.data,
+      appStack: envConfig.aws?.stacks?.app
     };
   }
   
   getPlatformName(): string {
     return 'aws';
+  }
+  
+  /**
+   * Get actual resource names from CloudFormation stacks
+   */
+  private async getStackResources(
+    stackName: string, 
+    region: string,
+    resourceType: string
+  ): Promise<any[]> {
+    try {
+      const resources = execSync(
+        `aws cloudformation list-stack-resources --stack-name ${stackName} --region ${region} --query "StackResourceSummaries[?ResourceType=='${resourceType}']" --output json`,
+        { encoding: 'utf-8' }
+      );
+      return JSON.parse(resources);
+    } catch {
+      return [];
+    }
+  }
+  
+  /**
+   * Get the actual ECS cluster name from CloudFormation
+   */
+  private async getActualClusterName(service: Service): Promise<string | undefined> {
+    const { region, appStack } = this.getAWSConfig(service);
+    if (!appStack) return undefined;
+    
+    const resources = await this.getStackResources(appStack, region, 'AWS::ECS::Cluster');
+    if (resources.length > 0) {
+      return resources[0].PhysicalResourceId;
+    }
+    return undefined;
+  }
+  
+  /**
+   * Get the actual ECS service name from CloudFormation
+   */
+  private async getActualServiceName(
+    service: Service, 
+    clusterName: string
+  ): Promise<string | undefined> {
+    const { region, appStack } = this.getAWSConfig(service);
+    if (!appStack) return undefined;
+    
+    // List all services in the cluster and find the one matching our service name
+    try {
+      const services = execSync(
+        `aws ecs list-services --cluster ${clusterName} --region ${region} --output json`,
+        { encoding: 'utf-8' }
+      );
+      const serviceArns = JSON.parse(services).serviceArns || [];
+      
+      // Find service that contains the service name (backend, frontend, etc)
+      for (const arn of serviceArns) {
+        if (arn.toLowerCase().includes(service.name.toLowerCase())) {
+          // Extract service name from ARN
+          const parts = arn.split('/');
+          return parts[parts.length - 1];
+        }
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+  
+  /**
+   * Get the actual RDS instance name from CloudFormation
+   */
+  private async getActualRDSInstanceName(service: Service): Promise<string | undefined> {
+    const { region, dataStack } = this.getAWSConfig(service);
+    if (!dataStack) return undefined;
+    
+    try {
+      // List all RDS instances and find one that matches the stack
+      const instances = execSync(
+        `aws rds describe-db-instances --region ${region} --query 'DBInstances[*].DBInstanceIdentifier' --output json`,
+        { encoding: 'utf-8' }
+      );
+      const instanceIds = JSON.parse(instances) || [];
+      
+      // Find instance that contains the stack name
+      for (const id of instanceIds) {
+        if (id.toLowerCase().includes(dataStack.toLowerCase()) || 
+            id.toLowerCase().includes('database')) {
+          return id;
+        }
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+  
+  /**
+   * Get the actual EFS filesystem ID
+   */
+  private async getActualEFSId(service: Service): Promise<string | undefined> {
+    const { region, dataStack } = this.getAWSConfig(service);
+    if (!dataStack) return undefined;
+    
+    try {
+      // Find EFS filesystem by stack name
+      const filesystems = execSync(
+        `aws efs describe-file-systems --region ${region} --query 'FileSystems[*].[FileSystemId,Name]' --output json`,
+        { encoding: 'utf-8' }
+      );
+      const fsList = JSON.parse(filesystems) || [];
+      
+      // Find filesystem that contains the stack name
+      for (const [fsId, name] of fsList) {
+        if (name && (name.includes(dataStack) || name.toLowerCase().includes('semiont'))) {
+          return fsId;
+        }
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
   }
   
   /**
@@ -371,8 +498,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        const clusterName = `semiont-${service.environment}`;
-        const serviceName = resourceName;
+        // Try to get actual cluster and service names from CloudFormation
+        const actualClusterName = await this.getActualClusterName(service);
+        const clusterName = actualClusterName || `semiont-${service.environment}`;
+        const actualServiceName = actualClusterName ? 
+          await this.getActualServiceName(service, actualClusterName) : undefined;
+        const serviceName = actualServiceName || resourceName;
         
         try {
           const runningCount = execSync(
@@ -444,7 +575,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         break;
         
       case 'rds':
-        const instanceId = `${resourceName}-db`;
+        // Try to get actual RDS instance name
+        const actualInstanceId = await this.getActualRDSInstanceName(service);
+        const instanceId = actualInstanceId || `${resourceName}-db`;
         
         try {
           const dbStatus = execSync(
@@ -511,7 +644,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         break;
         
       case 'efs':
-        const fileSystemId = await this.getEFSId(resourceName, region);
+        // Try to get actual EFS filesystem ID
+        const actualFileSystemId = await this.getActualEFSId(service);
+        const fileSystemId = actualFileSystemId || 
+          await this.getEFSId(resourceName, region);
         
         if (fileSystemId) {
           status = 'running';
