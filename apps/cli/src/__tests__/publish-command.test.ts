@@ -124,7 +124,7 @@ describe('Publish Command', () => {
         environment: 'staging',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             command: 'publish',
             platform: 'container',
@@ -170,7 +170,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'dry-run',
         metadata: expect.objectContaining({
           dryRun: true
@@ -199,7 +199,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         imageTag: 'v2.0.0',
         repository: 'local',
         metadata: expect.objectContaining({
@@ -248,7 +248,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'aws',
         imageTag: 'v1.0.0',
         resourceId: {
@@ -277,9 +277,9 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(2);
+      expect(result.results).toHaveLength(2);
       
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         expect(service).toMatchObject({
           platform: 'container',
           imageTag: 'staging-latest',
@@ -311,7 +311,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
         imageTag: 'dev',
         repository: 'local',
@@ -340,7 +340,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'process',
         status: 'skipped',
         metadata: expect.objectContaining({
@@ -368,7 +368,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'external',
         status: 'skipped',
         metadata: expect.objectContaining({
@@ -401,8 +401,8 @@ describe('Publish Command', () => {
       const result = await publish(serviceDeployments, options);
 
       // The build and tag should succeed because the mocks return true
-      expect(result.services[0]!.success).toBe(true);
-      expect(result.services[0]!.status).toBe('published');
+      expect(result.results[0]!.success).toBe(true);
+      expect(result.results[0]!.status).toBe('published');
     });
   });
 
@@ -427,8 +427,8 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(2);
-      expect(result.services.map(s => s.service)).toEqual(['frontend', 'backend']);
+      expect(result.results).toHaveLength(2);
+      expect(result.results.map(s => s.entity)).toEqual(['frontend', 'backend']);
     });
 
     it('should publish specific service when named', async () => {
@@ -450,8 +450,8 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!.service).toBe('backend');
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!.entity).toBe('backend');
     });
   });
 
@@ -485,7 +485,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         success: false,
         status: 'failed',
         error: expect.any(String)
@@ -517,7 +517,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         success: false,
         status: 'failed',
         error: expect.stringContaining('Build failed')
@@ -545,7 +545,7 @@ describe('Publish Command', () => {
       ]);
       const result = await publish(serviceDeployments, options);
 
-      expect((result.services[0] as any).imageTag).toBe('custom-tag-v1.2.3');
+      expect((result.results[0] as any).imageTag).toBe('custom-tag-v1.2.3');
     });
 
     it('should use default tag when not provided', async () => {
@@ -569,8 +569,8 @@ describe('Publish Command', () => {
 
       // When no tag is provided, publish generates one based on git commit
       // It should be a string, but not necessarily 'latest'
-      expect((result.services[0] as any).imageTag).toBeDefined();
-      expect(typeof (result.services[0] as any).imageTag).toBe('string');
+      expect((result.results[0] as any).imageTag).toBeDefined();
+      expect(typeof (result.results[0] as any).imageTag).toBe('string');
     });
   });
 });

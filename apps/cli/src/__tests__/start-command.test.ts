@@ -100,10 +100,10 @@ describe('Start Command', () => {
         environment: 'test',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             command: 'start',
-            service: 'database',
+            entity: 'database',
             platform: 'container',
             success: true,
             startTime: expect.any(Date),
@@ -111,7 +111,7 @@ describe('Start Command', () => {
           }),
           expect.objectContaining({
             command: 'start',
-            service: 'backend',
+            entity: 'backend',
             platform: 'container',
             success: true
           })
@@ -143,7 +143,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -173,7 +173,7 @@ describe('Start Command', () => {
 
       // Even if container fails to start, we should get a result
       expect(result.command).toBe('start');
-      expect(result.services).toHaveLength(1);
+      expect(result.results).toHaveLength(1);
     });
   });
 
@@ -196,9 +196,9 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'aws',
-        service: 'backend',
+        entity: 'backend',
         status: 'not-implemented'
       });
     });
@@ -222,9 +222,9 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
-        service: 'database',
+        entity: 'database',
         command: 'start'
       });
     });
@@ -248,9 +248,9 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'process',
-        service: 'backend',
+        entity: 'backend',
         resourceId: expect.objectContaining({
           process: expect.objectContaining({
             pid: expect.any(Number)
@@ -278,9 +278,9 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'external',
-        service: 'database',
+        entity: 'database',
         status: 'external',
         metadata: expect.objectContaining({
           host: 'db.example.com',
@@ -341,7 +341,7 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(3);
+      expect(result.results).toHaveLength(3);
       expect(result.summary.total).toBe(3);
     });
 
@@ -364,8 +364,8 @@ describe('Start Command', () => {
 
       const result = await start(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!.service).toBe('backend');
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!.entity).toBe('backend');
     });
   });
 
@@ -410,7 +410,7 @@ describe('Start Command', () => {
         quiet: false,
         verbose: false,
         dryRun: false,
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await start(serviceDeployments, options);
@@ -418,9 +418,9 @@ describe('Start Command', () => {
       expect(result).toMatchObject({
         command: 'start',
         environment: 'test',
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
-            service: 'mcp',
+            entity: 'mcp',
             platform: 'process',
             status: 'started',
             success: true
@@ -462,14 +462,14 @@ describe('Start Command', () => {
         quiet: false,
         verbose: false,
         dryRun: false,
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await start(serviceDeployments, options);
 
       expect(result.success).toBe(false);
-      expect(result.services[0]).toMatchObject({
-        service: 'mcp',
+      expect(result.results[0]).toMatchObject({
+        entity: 'mcp',
         success: false,
         error: expect.stringContaining('not provisioned')
       });
@@ -496,14 +496,14 @@ describe('Start Command', () => {
         quiet: true,
         verbose: false,
         dryRun: false,
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await start(serviceDeployments, options);
 
       expect(result.success).toBe(false);
-      expect(result.services[0]).toMatchObject({
-        service: 'mcp',
+      expect(result.results[0]).toMatchObject({
+        entity: 'mcp',
         success: false,
         error: expect.stringContaining('Failed to refresh access token')
       });
@@ -523,7 +523,7 @@ describe('Start Command', () => {
         quiet: false,
         verbose: false,
         dryRun: true,
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await start(serviceDeployments, options);
@@ -533,7 +533,7 @@ describe('Start Command', () => {
         environment: 'test',
         services: [
           {
-            service: 'mcp',
+            entity: 'mcp',
             platform: 'process',
             status: 'dry-run',
             success: true,

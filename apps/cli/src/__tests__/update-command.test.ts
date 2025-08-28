@@ -87,7 +87,7 @@ describe('Update Command', () => {
         environment: 'staging',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             command: 'update',
             platform: 'container',
@@ -138,7 +138,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -174,7 +174,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       // With force=true, should continue despite failures
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'force-continued',
         success: false,  // Still a failure, just continued anyway
         rollbackAvailable: false,
@@ -212,7 +212,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       // The update command might only return services it actually updated
-      expect(result.services.length).toBeGreaterThan(0);
+      expect(result.results.length).toBeGreaterThan(0);
       // Just verify the mock was called at least once
       expect(mockSend).toHaveBeenCalled();
     });
@@ -238,7 +238,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'aws',
         status: 'not-applicable',
         success: true,
@@ -279,7 +279,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'aws',
         status: 'no-action-needed',
         success: true,
@@ -325,7 +325,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
         status: 'updated',
         success: true,
@@ -391,7 +391,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
         status: 'updated',
         success: true
@@ -433,7 +433,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
         status: 'updated',
         success: true,
@@ -469,7 +469,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'process',
         status: 'updated',
         success: true,
@@ -518,7 +518,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'process',
         status: 'not-applicable',
         success: true,
@@ -553,7 +553,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'external',
         status: 'external',
         success: true,
@@ -595,7 +595,7 @@ describe('Update Command', () => {
       ]);
       const result = await update(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'external',
         status: 'external',
         success: true,
@@ -640,8 +640,8 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       // Should handle errors gracefully
-      expect(result.services[0]!.success).toBe(false);
-      expect(result.services[0]!.status).toMatch(/failed|error/);
+      expect(result.results[0]!.success).toBe(false);
+      expect(result.results[0]!.status).toMatch(/failed|error/);
 
       expect(result.summary.failed).toBe(1);
     });
@@ -670,8 +670,8 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       // Should have stopped after first failure
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!.success).toBe(false);
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!.success).toBe(false);
       expect(result.summary.failed).toBe(1);
       expect(result.summary.total).toBe(1);
     });
@@ -700,7 +700,7 @@ describe('Update Command', () => {
       const result = await update(serviceDeployments, options);
 
       // Should have processed both services despite failures
-      expect(result.services).toHaveLength(2);
+      expect(result.results).toHaveLength(2);
       expect(result.summary.total).toBe(2);
       expect(result.summary.failed).toBe(2);
     });

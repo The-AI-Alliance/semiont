@@ -79,10 +79,10 @@ describe('test command with structured output', () => {
       expect(results).toBeDefined();
       expect(results.command).toBe('test');
       expect(results.environment).toBe('local');
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
       
       // Verify frontend test result
-      const frontendResult = results.services.find(s => s.service === 'frontend')! as TestResult;
+      const frontendResult = results.results.find(s => s.entity === 'frontend')! as TestResult;
       expect(frontendResult).toBeDefined();
       expect(frontendResult.testSuite).toBe('health');
       expect(frontendResult.platform).toBe('container');
@@ -91,7 +91,7 @@ describe('test command with structured output', () => {
       expect(frontendResult.testsFailed).toBe(0);
       
       // Verify backend test result
-      const backendResult = results.services.find(s => s.service === 'backend')! as TestResult;
+      const backendResult = results.results.find(s => s.entity === 'backend')! as TestResult;
       expect(backendResult).toBeDefined();
       expect(backendResult.testSuite).toBe('health');
       expect(backendResult.success).toBe(true);
@@ -119,8 +119,8 @@ describe('test command with structured output', () => {
 
       const results = await test(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const frontendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const frontendResult = results.results[0]! as TestResult;
       
       // The implementation returns success:true even when health checks fail
       // This is correct - the test command executed successfully, it just found failures
@@ -164,8 +164,8 @@ describe('test command with structured output', () => {
 
       const results = await resultPromise;
 
-      expect(results.services).toHaveLength(1);
-      const backendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const backendResult = results.results[0]! as TestResult;
       expect(backendResult.testSuite).toBe('integration');
       expect(backendResult.success).toBe(true);
       expect(backendResult.testsPassed).toBeGreaterThan(0);
@@ -207,8 +207,8 @@ describe('test command with structured output', () => {
 
       const results = await resultPromise;
 
-      expect(results.services).toHaveLength(1);
-      const frontendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const frontendResult = results.results[0]! as TestResult;
       expect(frontendResult.testSuite).toBe('e2e');
       expect(frontendResult.success).toBe(true);
       
@@ -247,8 +247,8 @@ describe('test command with structured output', () => {
 
       const results = await test(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const backendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const backendResult = results.results[0]! as TestResult;
       expect(backendResult.testSuite).toBe('security');
       expect(backendResult.success).toBe(true);
     });
@@ -275,13 +275,13 @@ describe('test command with structured output', () => {
 
       const results = await test(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
       
-      const frontendResult = results.services.find(s => s.service === 'frontend')! as TestResult;
+      const frontendResult = results.results.find(s => s.entity === 'frontend')! as TestResult;
       expect(frontendResult.platform).toBe('aws');
       expect(frontendResult.resourceId).toHaveProperty('aws');
       
-      const dbResult = results.services.find(s => s.service === 'database')! as TestResult;
+      const dbResult = results.results.find(s => s.entity === 'database')! as TestResult;
       expect(dbResult.platform).toBe('aws');
     });
   });
@@ -307,9 +307,9 @@ describe('test command with structured output', () => {
       const results = await test(serviceDeployments, options);
 
       expect(results.executionContext.dryRun).toBe(true);
-      expect(results.services).toHaveLength(3); // all suite runs 3 test suites
+      expect(results.results).toHaveLength(3); // all suite runs 3 test suites
       
-      results.services.forEach(service => {
+      results.results.forEach(service => {
         const testResult = service as TestResult;
         expect(testResult.status).toBe('dry-run');
         expect(testResult.metadata).toHaveProperty('dryRun', true);
@@ -359,8 +359,8 @@ describe('test command with structured output', () => {
 
       const results = await resultPromise;
 
-      expect(results.services).toHaveLength(2);
-      results.services.forEach((service) => {
+      expect(results.results).toHaveLength(2);
+      results.results.forEach((service) => {
         const testResult = service as TestResult;
         expect(testResult.success).toBe(true);
       });
@@ -387,8 +387,8 @@ describe('test command with structured output', () => {
 
       const results = await test(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const dbResult = results.results[0]! as TestResult;
       expect(dbResult.platform).toBe('external');
       expect(dbResult.testSuite).toBe('connectivity');
     });
@@ -434,8 +434,8 @@ describe('test command with structured output', () => {
 
       const results = await resultPromise;
 
-      expect(results.services).toHaveLength(1);
-      const backendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const backendResult = results.results[0]! as TestResult;
       expect(backendResult.platform).toBe('process');
       expect(backendResult.success).toBe(true);
     });
@@ -474,8 +474,8 @@ describe('test command with structured output', () => {
 
       const results = await resultPromise;
 
-      expect(results.services).toHaveLength(1);
-      const backendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const backendResult = results.results[0]! as TestResult;
       expect(backendResult.success).toBe(true);
     });
   });
@@ -517,8 +517,8 @@ describe('test command with structured output', () => {
 
       const results = await resultPromise;
 
-      expect(results.services).toHaveLength(1);
-      const backendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const backendResult = results.results[0]! as TestResult;
       // Test command reports success even when tests fail (exit code 1)
       // The command executed successfully, it just found test failures
       expect(backendResult.success).toBe(true);
@@ -555,8 +555,8 @@ describe('test command with structured output', () => {
 
       const results = await test(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const backendResult = results.services[0]! as TestResult;
+      expect(results.results).toHaveLength(1);
+      const backendResult = results.results[0]! as TestResult;
       expect(backendResult.success).toBe(false);
       expect(backendResult.error).toContain('timeout');
     });
@@ -585,7 +585,7 @@ describe('test command with structured output', () => {
       expect(results).toBeDefined();
       expect(results.command).toBe('test');
       expect(results.environment).toBe('local');
-      expect(results.services).toBeInstanceOf(Array);
+      expect(results.results).toBeInstanceOf(Array);
     });
 
     it('should support YAML output format', async () => {
@@ -608,7 +608,7 @@ describe('test command with structured output', () => {
 
       expect(results).toBeDefined();
       expect(results.command).toBe('test');
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
     });
 
     it('should support table output format', async () => {
@@ -631,7 +631,7 @@ describe('test command with structured output', () => {
       const results = await test(serviceDeployments, options);
 
       expect(results).toBeDefined();
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
     });
 
     it('should support summary output format', async () => {

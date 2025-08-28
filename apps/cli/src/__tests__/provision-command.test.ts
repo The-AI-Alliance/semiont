@@ -95,10 +95,10 @@ describe('Provision Command', () => {
         environment: 'staging',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             command: 'provision',
-            service: 'database',
+            entity: 'database',
             platform: 'aws',
             success: true,
             timestamp: expect.any(Date),
@@ -147,7 +147,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -182,20 +182,20 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       // For AWS destroy mode, we should have at least one service result
-      expect(result.services.length).toBeGreaterThan(0);
+      expect(result.results.length).toBeGreaterThan(0);
       
       // Check for either the expected stack-based names or service-based names
-      const hasStackServices = result.services.some(s => 
+      const hasStackServices = result.results.some(s => 
         s.service === 'infrastructure' || s.service === 'application'
       );
-      const hasServiceNames = result.services.some(s => 
+      const hasServiceNames = result.results.some(s => 
         s.service === 'backend' || s.service === 'frontend'
       );
       
       expect(hasStackServices || hasServiceNames).toBe(true);
       
       // All services should reflect destroy operation
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         expect(service.status).toMatch(/(failed|destroyed|not-implemented|success)/);
       });
     });
@@ -224,9 +224,9 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       // The result contains a services array, not a single service
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!).toMatchObject({
-        service: 'database',
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
         success: true,
         metadata: expect.objectContaining({
           seed: true
@@ -261,13 +261,13 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       // Debug: Log actual services to understand what's returned
-      console.log('DEBUG Multiple Services:', result.services.map(s => ({ name: s.service, status: s.status })));
+      console.log('DEBUG Multiple Services:', result.results.map(s => ({ name: s.service, status: s.status })));
 
       // AWS deployments should create services
-      expect(result.services.length).toBeGreaterThan(0);
+      expect(result.results.length).toBeGreaterThan(0);
       
       // Verify service structure
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         expect(service).toHaveProperty('service');
         expect(service).toHaveProperty('status');
       });
@@ -299,8 +299,8 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services.length).toBeGreaterThanOrEqual(1);
-      result.services.forEach(service => {
+      expect(result.results.length).toBeGreaterThanOrEqual(1);
+      result.results.forEach(service => {
         expect(service.platform).toBe('aws');
       });
     });
@@ -328,8 +328,8 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
-        service: 'backend',
+      expect(result.results[0]!).toMatchObject({
+        entity: 'backend',
         platform: 'container'
       });
     });
@@ -357,8 +357,8 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
-        service: 'frontend',
+      expect(result.results[0]!).toMatchObject({
+        entity: 'frontend',
         platform: 'process',
         success: true
       });
@@ -388,7 +388,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         expect(service.platform).toBe('external');
         expect(service.status).toBe('configured');
       });
@@ -421,13 +421,13 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       // Debug: Log actual metadata to understand what's returned
-      console.log('DEBUG Stack Modes metadata:', result.services.map(s => ({ 
+      console.log('DEBUG Stack Modes metadata:', result.results.map(s => ({ 
         service: s.service, 
         metadata: s.metadata,
         error: s.error 
       })));
 
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         // AWS operations may fail in test environment, so check for either pending or error
         if (service.error) {
           expect(service.metadata).toMatchObject({
@@ -465,7 +465,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services.length).toBeGreaterThanOrEqual(1);
+      expect(result.results.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -493,7 +493,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      const provisionResult = result.services[0]! as any;
+      const provisionResult = result.results[0]! as any;
       expect(provisionResult.resources).toBeDefined();
       expect(provisionResult.resources).toBeInstanceOf(Array);
     });
@@ -521,7 +521,7 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      const provisionResult = result.services[0]! as any;
+      const provisionResult = result.results[0]! as any;
       expect(provisionResult.resources).toEqual([]);
     });
   });
@@ -551,10 +551,10 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       // Should have services for the deployment
-      expect(result.services.length).toBeGreaterThan(0);
+      expect(result.results.length).toBeGreaterThan(0);
       
       // Services may fail due to invalid configuration
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         expect(service).toHaveProperty('service');
         expect(service.success).toBe(false);
         expect(service.status).toMatch(/(failed|error)/);
@@ -586,10 +586,10 @@ describe('Provision Command', () => {
       const result = await provision(serviceDeployments, options);
 
       // Should have services for the deployment
-      expect(result.services.length).toBeGreaterThan(0);
+      expect(result.results.length).toBeGreaterThan(0);
       
       // Verify service structure for non-force destroy
-      result.services.forEach(service => {
+      result.results.forEach(service => {
         expect(service).toHaveProperty('service');
         expect(service).toHaveProperty('status');
         // Should not proceed to destroy when force is false
@@ -663,9 +663,9 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!).toMatchObject({
-        service: 'database',
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!).toMatchObject({
+        entity: 'database',
         platform: 'container',
         success: true
       });
@@ -694,9 +694,9 @@ describe('Provision Command', () => {
 
       const result = await provision(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!).toMatchObject({
-        service: 'filesystem',
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!).toMatchObject({
+        entity: 'filesystem',
         platform: 'container',
         success: true
       });
@@ -757,7 +757,7 @@ describe('Provision Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       // Since OAuth flow requires actual browser interaction, we test dry-run mode
@@ -767,9 +767,9 @@ describe('Provision Command', () => {
       expect(result).toMatchObject({
         command: 'provision',
         environment: 'test',
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
-            service: 'mcp',
+            entity: 'mcp',
             platform: 'process',
             success: true,
             status: 'dry-run'
@@ -797,7 +797,7 @@ describe('Provision Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await provision(serviceDeployments, options);
@@ -805,9 +805,9 @@ describe('Provision Command', () => {
       expect(result).toMatchObject({
         command: 'provision',
         environment: 'test',
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
-            service: 'mcp',
+            entity: 'mcp',
             platform: 'process',
             success: true,
             status: 'destroyed'
@@ -835,7 +835,7 @@ describe('Provision Command', () => {
         verbose: false,
         dryRun: true, // Use dry-run to avoid actual OAuth flow
         output: 'yaml',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await provision(serviceDeployments, options);
@@ -848,7 +848,7 @@ describe('Provision Command', () => {
         services: [
           {
             command: 'provision',
-            service: 'mcp',
+            entity: 'mcp',
             platform: 'process',
             environment: 'production',
             success: true,

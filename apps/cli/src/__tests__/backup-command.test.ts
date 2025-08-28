@@ -71,9 +71,9 @@ describe('backup command with structured output', () => {
       expect(results).toBeDefined();
       expect(results.command).toBe('backup');
       expect(results.environment).toBe('production');
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
       
-      const dbResult = results.services[0]! as BackupResult;
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.service).toBe('database');
       expect(dbResult.platform).toBe('aws');
       expect(dbResult.backupName).toBe('test-backup');
@@ -97,8 +97,8 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const efsResult = results.services[0]! as BackupResult;
+      expect(results.results).toHaveLength(1);
+      const efsResult = results.results[0]! as BackupResult;
       expect(efsResult.backupLocation).toBe('AWS EFS Backup Vault');
       expect(efsResult.backupType).toBe('incremental');
       expect(efsResult.metadata).toHaveProperty('automatic', true);
@@ -122,8 +122,8 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0]! as BackupResult;
+      expect(results.results).toHaveLength(1);
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.platform).toBe('container');
       expect(dbResult.backupName).toBe('local-backup');
       expect(dbResult.compressed).toBe(false);
@@ -150,8 +150,8 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const fsResult = results.services[0]! as BackupResult;
+      expect(results.results).toHaveLength(1);
+      const fsResult = results.results[0]! as BackupResult;
       expect(fsResult.backupName).toBe('volume-backup');
       
       expect(mockExecInContainer).toHaveBeenCalledWith(
@@ -192,8 +192,8 @@ describe('backup command with structured output', () => {
 
       const results = await backupPromise;
 
-      expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0]! as BackupResult;
+      expect(results.results).toHaveLength(1);
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.backupName).toBe('postgres-backup');
       
       expect(mockSpawn).toHaveBeenCalledWith(
@@ -220,8 +220,8 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0]! as BackupResult;
+      expect(results.results).toHaveLength(1);
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.status).toBe('skipped');
       expect(dbResult.metadata).toHaveProperty('guidance');
     });
@@ -243,9 +243,9 @@ describe('backup command with structured output', () => {
       const results = await backup(deployments, options);
 
       expect(results.executionContext.dryRun).toBe(true);
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
       
-      for (const result of results.services) {
+      for (const result of results.results) {
         const backupResult = result as BackupResult;
         expect(backupResult.status).toBe('dry-run');
         expect(backupResult.metadata.dryRun).toBe(true);
@@ -278,8 +278,8 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const dbResult = results.services[0]! as BackupResult;
+      expect(results.results).toHaveLength(1);
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.status).toBe('failed');
       expect(dbResult.error).toContain('Snapshot already exists');
     });
@@ -302,7 +302,7 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
       expect(results.summary.total).toBe(2);
       expect(results.summary.failed).toBe(1);
       expect(results.summary.succeeded).toBe(1);
@@ -333,7 +333,7 @@ describe('backup command with structured output', () => {
 
       const results = await backupPromise;
 
-      const dbResult = results.services[0]! as BackupResult;
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.compressed).toBe(true);
       expect(dbResult.backupLocation).toContain('.gz');
     });
@@ -355,7 +355,7 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      const dbResult = results.services[0]! as BackupResult;
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.backupName).toBe('custom-backup-name');
     });
 
@@ -374,7 +374,7 @@ describe('backup command with structured output', () => {
 
       const results = await backup(deployments, options);
 
-      const dbResult = results.services[0]! as BackupResult;
+      const dbResult = results.results[0]! as BackupResult;
       expect(dbResult.backupName).toMatch(/database-\d{8}T\d{6}/);
     });
   });

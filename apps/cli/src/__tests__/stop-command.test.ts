@@ -82,10 +82,10 @@ describe('Stop Command', () => {
         environment: 'test',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             command: 'stop',
-            service: 'backend',
+            entity: 'backend',
             platform: 'container',
             success: true,
             stopTime: expect.any(Date),
@@ -93,7 +93,7 @@ describe('Stop Command', () => {
           }),
           expect.objectContaining({
             command: 'stop',
-            service: 'database',
+            entity: 'database',
             platform: 'container',
             success: true
           })
@@ -125,7 +125,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -156,9 +156,9 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         command: 'stop',
-        service: 'database',
+        entity: 'database',
         forcedTermination: true
       });
     });
@@ -183,9 +183,9 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'aws',
-        service: 'backend',
+        entity: 'backend',
         status: 'not-implemented'
       });
     });
@@ -212,9 +212,9 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
-        service: 'database',
+        entity: 'database',
         command: 'stop'
       });
     });
@@ -238,9 +238,9 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'process',
-        service: 'backend',
+        entity: 'backend',
         resourceId: expect.objectContaining({
           process: expect.objectContaining({
             port: 3001
@@ -268,9 +268,9 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'external',
-        service: 'database',
+        entity: 'database',
         status: 'external',
         metadata: expect.objectContaining({
           host: 'db.example.com',
@@ -339,13 +339,13 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(3);
+      expect(result.results).toHaveLength(3);
       expect(result.summary.total).toBe(3);
       
       // Services should be stopped in reverse order: frontend, backend, database
-      expect(result.services[0]!.service).toBe('frontend');
-      expect(result.services[1]!.service).toBe('backend');
-      expect(result.services[2]!.service).toBe('database');
+      expect(result.results[0]!.entity).toBe('frontend');
+      expect(result.results[1]!.entity).toBe('backend');
+      expect(result.results[2]!.entity).toBe('database');
     });
 
     it('should stop specific service when named', async () => {
@@ -370,8 +370,8 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!.service).toBe('backend');
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!.entity).toBe('backend');
     });
   });
 
@@ -398,7 +398,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         success: false,
         status: 'failed'
       });
@@ -434,7 +434,7 @@ describe('Stop Command', () => {
 
       const result = await stop(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(3);
+      expect(result.results).toHaveLength(3);
       expect(result.summary.total).toBe(3);
       expect(result.summary.succeeded).toBe(2);
       expect(result.summary.failed).toBe(1);

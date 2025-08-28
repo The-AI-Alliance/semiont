@@ -122,10 +122,10 @@ describe('Check Command', () => {
         environment: 'test',
         timestamp: expect.any(Date),
         duration: expect.any(Number),
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             command: 'check',
-            service: 'frontend',
+            entity: 'frontend',
             platform: 'container',
             success: true,
             lastCheck: expect.any(Date),
@@ -171,7 +171,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         status: 'dry-run',
         success: true,
         metadata: expect.objectContaining({
@@ -201,8 +201,8 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       // Should have checked services
-      expect(result.services.length).toBeGreaterThan(0);
-      result.services.forEach((service: any) => {
+      expect(result.results.length).toBeGreaterThan(0);
+      result.results.forEach((service: any) => {
         expect(service.checks).toBeDefined();
       });
     });
@@ -228,7 +228,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'aws',
         status: expect.any(String),
         resourceId: expect.objectContaining({
@@ -259,7 +259,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'container',
         resourceId: expect.objectContaining({
           container: expect.objectContaining({
@@ -288,7 +288,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'process',
         resourceId: expect.objectContaining({
           process: expect.any(Object)
@@ -315,7 +315,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'external',
         checks: expect.arrayContaining([
           expect.objectContaining({
@@ -345,7 +345,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]!).toMatchObject({
+      expect(result.results[0]!).toMatchObject({
         platform: 'mock',
         healthStatus: 'healthy',
         checks: expect.arrayContaining([
@@ -381,7 +381,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0]! as any;
+      const service = result.results[0]! as any;
       expect(service.checks).toBeDefined();
       expect(service.checks.some((c: any) => c.name === 'container-running')).toBe(true);
     });
@@ -405,7 +405,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0]! as any; // CheckResult type
+      const service = result.results[0]! as any; // CheckResult type
       
       expect(service).toBeDefined();
       expect(service.checks).toBeDefined();
@@ -431,7 +431,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0]! as any;
+      const service = result.results[0]! as any;
       expect(service.checks).toBeDefined();
       const fsCheck = service.checks.find((c: any) => c.name === 'filesystem-access');
       expect(fsCheck).toBeDefined();
@@ -457,7 +457,7 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      const service = result.services[0]! as any;
+      const service = result.results[0]! as any;
       expect(service.checks).toBeDefined();
       expect(service.healthStatus).toBeDefined();
     });
@@ -492,8 +492,8 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(3);
-      const serviceNames = result.services.map((s: any) => s.service).sort();
+      expect(result.results).toHaveLength(3);
+      const serviceNames = result.results.map((s: any) => s.service).sort();
       expect(serviceNames).toEqual(['backend', 'database', 'frontend']);
     });
 
@@ -519,8 +519,8 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services).toHaveLength(1);
-      expect(result.services[0]!.service).toBe('backend');
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]!.entity).toBe('backend');
     });
   });
 
@@ -587,8 +587,8 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect((result.services[0] as any).healthStatus).toBe('unhealthy');
-      expect((result.services[0] as any).checks).toContainEqual(
+      expect((result.results[0] as any).healthStatus).toBe('unhealthy');
+      expect((result.results[0] as any).checks).toContainEqual(
         expect.objectContaining({
           name: 'container-running',
           status: 'fail'
@@ -614,8 +614,8 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options);
 
-      expect((result.services[0] as any).healthStatus).toBe('unhealthy');
-      expect((result.services[0] as any).checks).toContainEqual(
+      expect((result.results[0] as any).healthStatus).toBe('unhealthy');
+      expect((result.results[0] as any).checks).toContainEqual(
         expect.objectContaining({
           name: 'filesystem-access',
           status: 'fail'
@@ -661,7 +661,7 @@ describe('Check Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await check(serviceDeployments, options);
@@ -669,9 +669,9 @@ describe('Check Command', () => {
       expect(result).toMatchObject({
         command: 'check',
         environment: 'test',
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
-            service: 'mcp',
+            entity: 'mcp',
             platform: 'process',
             success: true,
             healthStatus: 'healthy',
@@ -719,13 +719,13 @@ describe('Check Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'mcp',
+      expect(result.results[0]).toMatchObject({
+        entity: 'mcp',
         checks: expect.arrayContaining([
           expect.objectContaining({
             name: 'mcp-token-age',
@@ -759,13 +759,13 @@ describe('Check Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'mcp',
+      expect(result.results[0]).toMatchObject({
+        entity: 'mcp',
         healthStatus: 'unhealthy',
         checks: expect.arrayContaining([
           expect.objectContaining({
@@ -800,13 +800,13 @@ describe('Check Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'mcp',
+      expect(result.results[0]).toMatchObject({
+        entity: 'mcp',
         checks: expect.arrayContaining([
           expect.objectContaining({
             name: 'mcp-server-running',
@@ -846,13 +846,13 @@ describe('Check Command', () => {
         verbose: false,
         dryRun: false,
         output: 'json',
-        service: 'mcp'
+        entity: 'mcp'
       };
 
       const result = await check(serviceDeployments, options);
 
-      expect(result.services[0]).toMatchObject({
-        service: 'mcp',
+      expect(result.results[0]).toMatchObject({
+        entity: 'mcp',
         healthStatus: 'unhealthy',
         checks: expect.arrayContaining([
           expect.objectContaining({

@@ -57,9 +57,9 @@ describe('watch command with structured output', () => {
       expect(results).toBeDefined();
       expect(results.command).toBe('watch');
       expect(results.environment).toBe('production');
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
       
-      results.services.forEach(service => {
+      results.results.forEach(service => {
         const watchResult = service as WatchResult;
         expect(watchResult.status).toBe('session-ended');
         expect(watchResult.metadata).toHaveProperty('mode', 'all');
@@ -86,8 +86,8 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const watchResult = results.services[0]! as WatchResult;
+      expect(results.results).toHaveLength(1);
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.service).toBe('backend');
       expect(watchResult.watchType).toBe('logs');
       expect(watchResult.metadata.mode).toBe('logs');
@@ -111,7 +111,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      results.services.forEach(service => {
+      results.results.forEach(service => {
         const watchResult = service as WatchResult;
         expect(watchResult.watchType).toBe('metrics');
         expect(watchResult.metadata.mode).toBe('metrics');
@@ -137,8 +137,8 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      const watchResult = results.services[0]! as WatchResult;
+      expect(results.results).toHaveLength(1);
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.metadata.interactive).toBe(true);
       expect(watchResult.metadata.exitReason).toBe('user-quit');
     });
@@ -160,7 +160,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       // In test mode, dashboard always succeeds
       expect(watchResult.metadata.exitReason).toBe('user-quit');
     });
@@ -185,9 +185,9 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       expect(results.executionContext.dryRun).toBe(true);
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
       
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.status).toBe('session-ended');
       expect(watchResult.metadata.exitReason).toBe('dry-run');
       expect(watchResult.metadata.sessionDuration).toBe(0);
@@ -212,8 +212,8 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(1);
-      expect(results.services[0]!.service).toBe('frontend');
+      expect(results.results).toHaveLength(1);
+      expect(results.results[0]!.entity).toBe('frontend');
     });
 
     it('should handle all services', async () => {
@@ -235,7 +235,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      expect(results.services).toHaveLength(3);
+      expect(results.results).toHaveLength(3);
       expect(results.summary.total).toBe(3);
     });
   });
@@ -258,7 +258,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.watchType).toBe('events'); // 'services' maps to 'events' type
       expect(watchResult.metadata.mode).toBe('services');
     });
@@ -282,7 +282,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.metadata.refreshInterval).toBe(60);
     });
   });
@@ -302,7 +302,7 @@ describe('watch command with structured output', () => {
       };
 
       const results = await watch(serviceDeployments, options);
-      expect(results.services).toHaveLength(0);
+      expect(results.results).toHaveLength(0);
       expect(results.summary.total).toBe(0);
     });
   });
@@ -328,7 +328,7 @@ describe('watch command with structured output', () => {
       expect(results).toBeDefined();
       expect(results.command).toBe('watch');
       expect(results.environment).toBe('local');
-      expect(results.services).toBeInstanceOf(Array);
+      expect(results.results).toBeInstanceOf(Array);
     });
 
     it('should support summary output format', async () => {
@@ -373,7 +373,7 @@ describe('watch command with structured output', () => {
 
       expect(results).toBeDefined();
       expect(results.command).toBe('watch');
-      expect(results.services).toHaveLength(1);
+      expect(results.results).toHaveLength(1);
     });
 
     it('should support table output format', async () => {
@@ -395,7 +395,7 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       expect(results).toBeDefined();
-      expect(results.services).toHaveLength(2);
+      expect(results.results).toHaveLength(2);
     });
   });
 
@@ -417,7 +417,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.platform).toBe('aws');
     });
 
@@ -438,7 +438,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.platform).toBe('container');
     });
 
@@ -459,7 +459,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.platform).toBe('process');
     });
 
@@ -480,7 +480,7 @@ describe('watch command with structured output', () => {
 
       const results = await watch(serviceDeployments, options);
 
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.platform).toBe('external');
     });
   });
@@ -504,7 +504,7 @@ describe('watch command with structured output', () => {
       const results = await watch(serviceDeployments, options);
 
       expect(results.duration).toBeGreaterThan(0);
-      const watchResult = results.services[0]! as WatchResult;
+      const watchResult = results.results[0]! as WatchResult;
       expect(watchResult.metadata.sessionDuration).toBeGreaterThan(0);
     });
 
@@ -527,7 +527,7 @@ describe('watch command with structured output', () => {
 
       expect(results.summary.succeeded).toBe(1);
       expect(results.summary.failed).toBe(0);
-      expect(results.services[0]!.success).toBe(true);
+      expect(results.results[0]!.success).toBe(true);
     });
   });
 });
