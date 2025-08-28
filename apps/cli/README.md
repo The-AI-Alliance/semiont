@@ -123,14 +123,13 @@ The CLI determines the environment using the following precedence:
 
 1. **Command-line flag** (`-e` or `--environment`) - highest priority
 2. **Environment variable** (`SEMIONT_ENV`) - fallback
-3. **Default** (`local`) - if neither is specified
 
 Example:
 ```bash
-# Set default environment via SEMIONT_ENV
+# Set environment via SEMIONT_ENV
 export SEMIONT_ENV=staging
 
-# Commands will use staging by default
+# Commands will use staging
 semiont start                    # Uses staging
 semiont check --service backend  # Uses staging
 

@@ -20,7 +20,10 @@ vi.mock('../../platforms/platform-resolver.js', () => ({
   loadEnvironmentConfig: vi.fn(() => ({
     name: 'test',
     env: { NODE_ENV: 'test' }
-  }))
+  })),
+  getAvailableEnvironments: vi.fn(() => ['dev', 'staging', 'production', 'test']),
+  isValidEnvironment: vi.fn((env) => ['dev', 'staging', 'production', 'test'].includes(env)),
+  resolveServiceDeployments: vi.fn((services, env) => services)
 }));
 
 // Mock cli-paths to provide a test project root

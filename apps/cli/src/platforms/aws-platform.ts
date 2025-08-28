@@ -2122,9 +2122,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     // Otherwise format it: semiont-{environment}-{path}-secret
-    const env = environment || 'default';
+    if (!environment) {
+      throw new Error('Environment is required for secret management');
+    }
     const formattedPath = secretPath.replace(/[\/\-\.]/g, '-');
-    return `semiont-${env}-${formattedPath}-secret`;
+    return `semiont-${environment}-${formattedPath}-secret`;
   }
   
   /**

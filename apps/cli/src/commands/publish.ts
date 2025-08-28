@@ -287,7 +287,7 @@ async function publishHandler(
   // Return results directly - no conversion needed!
   return {
     command: 'publish',
-    environment: options.environment || 'default',
+    environment: options.environment!,  // Guaranteed by requiresEnvironment
     timestamp: new Date(),
     duration: Date.now() - startTime,
     results: serviceResults,  // Rich types preserved!

@@ -175,7 +175,7 @@ export async function resolveServiceSelector(
     }
   } else {
     const availableServices = await getAvailableServices(environment);
-    const configPath = path.join(findProjectRoot(), 'environments', `${environment || 'default'}.json`);
+    const configPath = path.join(findProjectRoot(), 'environments', `${environment}.json`);
     
     const errorMessage = [
       `❌ Unknown service '${selector}' in environment '${environment}'`,

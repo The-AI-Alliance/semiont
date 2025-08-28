@@ -92,7 +92,7 @@ export async function myCommand(
   serviceDeployments: ServicePlatformInfo[],
   options: MyCommandOptions
 ): Promise<CommandResults<MyCommandResult>> {
-  const { environment = 'dev', verbose, quiet, dryRun, force } = options;
+  const { environment, verbose, quiet, dryRun, force } = options;
   
   const config: Config = {
     projectRoot: process.env.SEMIONT_ROOT || process.cwd(),

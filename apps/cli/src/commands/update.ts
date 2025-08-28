@@ -230,7 +230,7 @@ async function updateHandler(
   const startTime = Date.now();
   return {
     command: 'update',
-    environment: options.environment || 'default',
+    environment: options.environment!,  // Guaranteed by requiresEnvironment
     timestamp: new Date(),
     duration: Date.now() - startTime,
     results: serviceResults,  // Rich types preserved!

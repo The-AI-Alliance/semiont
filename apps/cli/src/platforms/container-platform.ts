@@ -1618,9 +1618,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
    */
   private formatSecretName(secretPath: string, environment?: string): string {
     // Container secret names: semiont_env_path
-    const env = environment || 'default';
+    if (!environment) {
+      throw new Error('Environment is required for secret management');
+    }
     const formattedPath = secretPath.replace(/[\/\-\.]/g, '_');
-    return `semiont_${env}_${formattedPath}`;
+    return `semiont_${environment}_${formattedPath}`;
   }
   
   /**

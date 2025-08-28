@@ -316,7 +316,7 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('');
   
   lines.push('ENVIRONMENT VARIABLES:');
-  lines.push('  SEMIONT_ENV                 Default environment (overrides --environment flag)');
+  lines.push('  SEMIONT_ENV                 Environment to use when --environment flag is not provided');
   lines.push('  SEMIONT_ROOT                Project root directory (parent of config/)');
   lines.push('  AWS_PROFILE                 AWS profile to use for AWS operations');
   lines.push('  AWS_REGION                  AWS region (overrides config file)');
@@ -365,7 +365,7 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('  # Build and publish frontend with custom repo path');
   lines.push('  semiont publish -e production --service frontend --semiont-repo ~/repos/semiont');
   lines.push('');
-  lines.push('  # Watch services using default environment from SEMIONT_ENV');
+  lines.push('  # Watch services using environment from SEMIONT_ENV');
   lines.push('  export SEMIONT_ENV=staging');
   lines.push('  semiont watch');
   lines.push('');
