@@ -39,8 +39,8 @@ describe('Check Command', () => {
       });
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' },
-        { name: 'database', type: 'container' }
+        { name: 'backend', type: 'mock' },
+        { name: 'database', type: 'mock' }
       ]);
 
       const options: CheckOptions = {
@@ -90,7 +90,7 @@ describe('Check Command', () => {
       mockPlatformInstance.check = vi.fn().mockRejectedValue(new Error('Health check failed'));
 
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: CheckOptions = {
@@ -106,7 +106,7 @@ describe('Check Command', () => {
 
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
-        platform: 'process',  // Platform from serviceInfo when error occurs
+        platform: 'mock',  // Now using mock platform consistently
         success: false,
         error: 'Health check failed'
       });
@@ -139,7 +139,7 @@ describe('Check Command', () => {
       }, 100);
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: CheckOptions = {
@@ -164,7 +164,7 @@ describe('Check Command', () => {
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const formats: Array<CheckOptions['output']> = ['json', 'yaml', 'table', 'summary'];
@@ -212,9 +212,9 @@ describe('Check Command', () => {
       });
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'container' },
-        { name: 'backend', type: 'process' },
-        { name: 'database', type: 'container' }
+        { name: 'frontend', type: 'mock' },
+        { name: 'backend', type: 'mock' },
+        { name: 'database', type: 'mock' }
       ]);
 
       const options: CheckOptions = {
@@ -247,7 +247,7 @@ describe('Check Command', () => {
       
       // When a specific service is selected, only that service should be in the deployments
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: CheckOptions = {
@@ -288,9 +288,9 @@ describe('Check Command', () => {
       // Database has no state (never started)
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'container' },
-        { name: 'backend', type: 'process' },
-        { name: 'database', type: 'container' }
+        { name: 'frontend', type: 'mock' },
+        { name: 'backend', type: 'mock' },
+        { name: 'database', type: 'mock' }
       ]);
 
       const options: CheckOptions = {

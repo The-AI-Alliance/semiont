@@ -26,8 +26,8 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' },
-        { name: 'backend', type: 'process' }
+        { name: 'database' },  // Uses 'mock' platform by default
+        { name: 'backend' }     // Uses 'mock' platform by default
       ]);
 
       const options = {
@@ -74,7 +74,7 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {
@@ -104,7 +104,7 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {
@@ -131,7 +131,7 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {
@@ -162,7 +162,7 @@ describe('Backup Command', () => {
       mockPlatformInstance.backup = vi.fn().mockRejectedValue(new Error('Backup failed'));
 
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {
@@ -180,7 +180,7 @@ describe('Backup Command', () => {
 
       expect(result.results[0]!).toMatchObject({
         entity: 'database',
-        platform: 'container',  // Platform from serviceInfo when error occurs
+        platform: 'mock',  // Now using mock platform consistently
         success: false,
         error: 'Backup failed'
       });
@@ -202,7 +202,7 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend' }  // Uses 'mock' platform
       ]);
 
       const formats = ['json', 'yaml', 'table', 'summary'];
@@ -235,9 +235,9 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'container' },
-        { name: 'backend', type: 'process' },
-        { name: 'database', type: 'container' }
+        { name: 'frontend' },  // Uses 'mock' platform
+        { name: 'backend' },   // Uses 'mock' platform
+        { name: 'database' }   // Uses 'mock' platform
       ]);
 
       const options = {
@@ -266,7 +266,7 @@ describe('Backup Command', () => {
       
       // When a specific service is selected, only that service should be in the deployments
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {
@@ -294,7 +294,7 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {
@@ -322,7 +322,7 @@ describe('Backup Command', () => {
       const backup = backupCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' }
+        { name: 'database' }  // Uses 'mock' platform
       ]);
 
       const options = {

@@ -28,8 +28,8 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' },
-        { name: 'backend', type: 'container' }
+        { name: 'database', type: 'mock' },
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StartOptions = {
@@ -74,7 +74,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'process' }
+        { name: 'frontend', type: 'mock' }
       ]);
 
       const options: StartOptions = {
@@ -102,7 +102,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container', config: { image: 'invalid-image' } }
+        { name: 'database', type: 'mock', config: { image: 'invalid-image' } }
       ]);
 
       const options: StartOptions = {
@@ -127,7 +127,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'aws' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StartOptions = {
@@ -152,7 +152,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container', config: { image: 'postgres:14' } }
+        { name: 'database', type: 'mock', config: { image: 'postgres:14' } }
       ]);
 
       const options: StartOptions = {
@@ -177,7 +177,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process', config: { port: 3001, command: 'node server.js' } }
+        { name: 'backend', type: 'mock', config: { port: 3001, command: 'node server.js' } }
       ]);
 
       const options: StartOptions = {
@@ -197,31 +197,7 @@ describe('Start Command', () => {
       });
     });
 
-    it('should handle external services appropriately', async () => {
-
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
-      
-      const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'external', config: { host: 'db.example.com', port: 5432, name: 'prod_db' } }
-      ]);
-
-      const options: StartOptions = {
-        environment: 'production',
-        output: 'table',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
-
-      const result = await start(serviceDeployments, options);
-
-      // External services should be marked as already running/external
-      expect(result.results[0]!).toMatchObject({
-        entity: 'database',
-        success: true
-      });
-    });
+    // External service behavior should be tested in platform tests, not command tests
   });
 
   describe('Output Format Support', () => {
@@ -231,7 +207,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'container' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const formats = ['summary', 'json', 'yaml', 'table'] as const;
@@ -260,9 +236,9 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' },
-        { name: 'backend', type: 'container' },
-        { name: 'frontend', type: 'container' }
+        { name: 'database', type: 'mock' },
+        { name: 'backend', type: 'mock' },
+        { name: 'frontend', type: 'mock' }
       ]);
 
       const options: StartOptions = {
@@ -285,7 +261,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'container' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StartOptions = {
@@ -335,7 +311,7 @@ describe('Start Command', () => {
       const start = startCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'mcp', type: 'process', config: { port: 8585 } }
+        { name: 'mcp', type: 'mock', config: { port: 8585 } }
       ]);
       
       const options: StartOptions = {

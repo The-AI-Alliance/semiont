@@ -4,32 +4,15 @@
 
 import { vi } from 'vitest';
 import { MockPlatformStrategy } from '../../platforms/mock-platform.js';
+import { PlatformFactory } from '../../platforms/index.js';
 
-// Ensure we have a single global instance
-if (!(globalThis as any).__mockPlatformInstance) {
-  (globalThis as any).__mockPlatformInstance = new MockPlatformStrategy();
-}
+// Get the singleton MockPlatformStrategy instance from PlatformFactory
+// This ensures we're using the same instance that the commands will use
+export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockPlatformStrategy;
 
-// Export the shared instance
-export const mockPlatformInstance = (globalThis as any).__mockPlatformInstance as MockPlatformStrategy;
-
-// Mock PlatformFactory to use MockPlatformStrategy for all platforms
-vi.mock('../../platforms/index.js', () => {
-  // Make sure we have the instance available at module resolution time
-  if (!(globalThis as any).__mockPlatformInstance) {
-    const { MockPlatformStrategy } = require('../../platforms/mock-platform.js');
-    (globalThis as any).__mockPlatformInstance = new MockPlatformStrategy();
-  }
-  
-  return {
-    PlatformFactory: {
-      getPlatform: vi.fn(() => {
-        // Return the global instance
-        return (globalThis as any).__mockPlatformInstance;
-      })
-    }
-  };
-});
+// No need to mock PlatformFactory - it already supports 'mock' platform
+// Just ensure we have a shared instance for test state management
+// Note: PlatformFactory.getPlatform('mock') will return the singleton MockPlatformStrategy
 
 // Mock platform-resolver for environment config
 vi.mock('../../platforms/platform-resolver.js', () => ({
@@ -65,10 +48,11 @@ vi.mock('fs', async () => {
 });
 
 // Helper function to create service deployments for tests
-export function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>) {
+// By default, all services use 'mock' platform for unit testing
+export function createServiceDeployments(services: Array<{name: string, type?: string, config?: any}>) {
   return services.map(service => ({
     name: service.name,
-    platform: service.type as any,
+    platform: (service.type || 'mock') as any,  // Default to 'mock' platform
     config: service.config || {}
   }));
 }

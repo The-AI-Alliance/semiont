@@ -27,8 +27,8 @@ describe('Stop Command', () => {
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'database', type: 'container' },
-        { name: 'backend', type: 'process' }
+        { name: 'database', type: 'mock' },
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StopOptions = {
@@ -72,7 +72,7 @@ describe('Stop Command', () => {
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StopOptions = {
@@ -102,7 +102,7 @@ describe('Stop Command', () => {
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'container' }
+        { name: 'frontend', type: 'mock' }
       ]);
 
       const options: StopOptions = {
@@ -130,9 +130,9 @@ describe('Stop Command', () => {
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'container' },
-        { name: 'backend', type: 'process' },
-        { name: 'database', type: 'container' }
+        { name: 'frontend', type: 'mock' },
+        { name: 'backend', type: 'mock' },
+        { name: 'database', type: 'mock' }
       ]);
 
       const options: StopOptions = {
@@ -163,7 +163,7 @@ describe('Stop Command', () => {
       mockPlatformInstance.stop = vi.fn().mockRejectedValue(new Error('Stop failed'));
 
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StopOptions = {
@@ -179,7 +179,7 @@ describe('Stop Command', () => {
 
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
-        platform: 'process',  // Platform from serviceInfo when error occurs
+        platform: 'mock',  // Now using mock platform consistently
         success: false,
         error: 'Stop failed'
       });
@@ -201,7 +201,7 @@ describe('Stop Command', () => {
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const formats: Array<StopOptions['output']> = ['json', 'yaml', 'table', 'summary'];
@@ -232,9 +232,9 @@ describe('Stop Command', () => {
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'container' },
-        { name: 'backend', type: 'process' },
-        { name: 'database', type: 'container' }
+        { name: 'frontend', type: 'mock' },
+        { name: 'backend', type: 'mock' },
+        { name: 'database', type: 'mock' }
       ]);
 
       const options: StopOptions = {
@@ -262,7 +262,7 @@ describe('Stop Command', () => {
       
       // When a specific service is selected, only that service should be in the deployments
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'process' }
+        { name: 'backend', type: 'mock' }
       ]);
 
       const options: StopOptions = {
