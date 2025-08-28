@@ -1,5 +1,29 @@
 /**
- * Check Command - New Service-based implementation
+ * Check Command
+ * 
+ * Performs health checks and status verification for running services.
+ * This command provides detailed diagnostics about service health, resource
+ * usage, and connectivity across all platforms.
+ * 
+ * Workflow:
+ * 1. Loads service state to identify what should be running
+ * 2. Performs platform-specific health checks
+ * 3. Validates service dependencies are accessible
+ * 4. Checks resource usage against limits
+ * 5. Reports detailed status and any issues found
+ * 
+ * Options:
+ * - --all: Check all services in the environment
+ * - --deep: Perform thorough health checks including dependencies
+ * - --wait: Keep checking until services are healthy or timeout
+ * - --json: Output results in JSON format for automation
+ * 
+ * Platform Behavior:
+ * - Process: Checks if process is alive, validates PID, monitors resources
+ * - Container: Inspects container status, checks logs for errors
+ * - AWS: Queries ECS/Lambda status, CloudWatch metrics
+ * - External: Pings endpoints, validates API connectivity
+ * - Mock: Returns simulated health status for testing
  */
 
 import { z } from 'zod';

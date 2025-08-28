@@ -1,5 +1,29 @@
 /**
- * Stop Command - New Service-based implementation
+ * Stop Command
+ * 
+ * Gracefully stops running services and cleans up their resources.
+ * This command handles service shutdown, resource deallocation, and state cleanup
+ * across different deployment platforms.
+ * 
+ * Workflow:
+ * 1. Loads service state to identify running instances
+ * 2. Sends shutdown signals to services
+ * 3. Waits for graceful termination (configurable timeout)
+ * 4. Forces termination if needed
+ * 5. Cleans up resources and removes state files
+ * 
+ * Options:
+ * - --all: Stop all running services
+ * - --force: Force immediate termination without graceful shutdown
+ * - --timeout: Maximum time to wait for graceful shutdown (seconds)
+ * - --keep-state: Preserve state files after stopping
+ * 
+ * Platform Behavior:
+ * - Process: Sends SIGTERM, then SIGKILL after timeout
+ * - Container: Stops containers, optionally removes them
+ * - AWS: Stops ECS tasks or Lambda functions
+ * - External: Marks services as stopped in registry
+ * - Mock: Simulates shutdown for testing
  */
 
 import { z } from 'zod';

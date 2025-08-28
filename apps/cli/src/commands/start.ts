@@ -1,5 +1,29 @@
 /**
- * Start Command - New Service-based implementation
+ * Start Command
+ * 
+ * Starts one or more services using their configured platform strategies.
+ * This command handles service initialization, dependency checking, and resource
+ * provisioning across different deployment platforms.
+ * 
+ * Workflow:
+ * 1. Resolves service configurations from environment files
+ * 2. Checks and starts service dependencies first
+ * 3. Creates service instances via ServiceFactory
+ * 4. Delegates to platform strategies for actual startup
+ * 5. Saves service state for tracking and management
+ * 
+ * Options:
+ * - --all: Start all services defined in the environment
+ * - --force: Continue starting services even if dependencies fail
+ * - --build: Build containers/artifacts before starting (platform-specific)
+ * - --wait: Wait for services to become healthy before returning
+ * 
+ * Platform Behavior:
+ * - Process: Spawns local OS processes
+ * - Container: Creates and starts Docker/Podman containers
+ * - AWS: Deploys to ECS/Fargate or Lambda
+ * - External: Validates external service connectivity
+ * - Mock: Simulates startup for testing
  */
 
 import { z } from 'zod';

@@ -1,8 +1,31 @@
 /**
- * Watch Command - Minimal updates for new architecture
+ * Watch Command
  * 
- * This is a minimally updated version that uses the new service implementations
- * for checking status while keeping the dashboard functionality separate.
+ * Monitors services in real-time, providing live updates on status, logs, and metrics.
+ * This command offers both a terminal dashboard view and web-based monitoring interface
+ * for comprehensive service observation.
+ * 
+ * Workflow:
+ * 1. Establishes monitoring connections to services
+ * 2. Starts real-time data collection (logs, metrics, events)
+ * 3. Renders dashboard with live updates
+ * 4. Handles user interactions (filtering, drilling down)
+ * 5. Optionally starts web dashboard server
+ * 
+ * Options:
+ * - --all: Watch all services
+ * - --logs: Include log streaming
+ * - --metrics: Show performance metrics
+ * - --interval: Update interval in seconds
+ * - --web: Start web dashboard on specified port
+ * - --filter: Filter logs by pattern
+ * 
+ * Dashboard Features:
+ * - Service status indicators (running, stopped, error)
+ * - Real-time log streaming with filtering
+ * - Resource usage graphs (CPU, memory, network)
+ * - Health check status and history
+ * - Interactive controls for service management
  */
 
 import { z } from 'zod';

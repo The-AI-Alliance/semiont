@@ -1,5 +1,31 @@
 /**
- * Update Command - New Service-based implementation
+ * Update Command
+ * 
+ * Updates running services with new code, configuration, or dependencies.
+ * This command handles rolling updates, blue-green deployments, and zero-downtime
+ * updates across different platforms.
+ * 
+ * Workflow:
+ * 1. Pulls latest code or configuration changes
+ * 2. Builds new artifacts if needed
+ * 3. Validates new version before deployment
+ * 4. Executes platform-specific update strategy
+ * 5. Verifies service health after update
+ * 6. Optionally rolls back on failure
+ * 
+ * Options:
+ * - --all: Update all services
+ * - --strategy: Update strategy (rolling, blue-green, recreate)
+ * - --rollback: Automatically rollback on failure
+ * - --wait: Wait for update to complete and verify health
+ * - --force: Force update even if no changes detected
+ * 
+ * Platform Behavior:
+ * - Process: Stops old process, starts new one with updated code
+ * - Container: Pulls new image, recreates container with rolling update
+ * - AWS: Updates ECS service, triggers CodeDeploy, updates Lambda
+ * - External: Notifies about configuration changes
+ * - Mock: Simulates update process for testing
  */
 
 import { z } from 'zod';

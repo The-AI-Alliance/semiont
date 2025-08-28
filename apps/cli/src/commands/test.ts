@@ -1,7 +1,31 @@
 /**
- * Test Command - Simplified to delegate to platforms
+ * Test Command
  * 
- * Commands delegate to platforms, which handle all test logic
+ * Runs test suites for services including unit, integration, and end-to-end tests.
+ * This command manages test execution, coverage reporting, and result aggregation
+ * across different service types and platforms.
+ * 
+ * Workflow:
+ * 1. Identifies test suites based on service configuration
+ * 2. Sets up test environment and dependencies
+ * 3. Executes tests in appropriate context
+ * 4. Collects test results and coverage data
+ * 5. Generates reports and returns status
+ * 
+ * Options:
+ * - --all: Run tests for all services
+ * - --suite: Specific test suite to run (unit, integration, e2e)
+ * - --coverage: Generate coverage reports
+ * - --watch: Run tests in watch mode for development
+ * - --bail: Stop on first test failure
+ * - --parallel: Run test suites in parallel
+ * 
+ * Platform Behavior:
+ * - Process: Runs test commands in service directory
+ * - Container: Executes tests inside service container
+ * - AWS: Triggers CodeBuild test jobs or Lambda test functions
+ * - External: Runs API contract tests against endpoints
+ * - Mock: Returns simulated test results
  */
 
 import { CommandBuilder } from '../commands/command-definition.js';

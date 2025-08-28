@@ -1,8 +1,31 @@
 /**
- * Restore Command - New Implementation
+ * Restore Command
  * 
- * Restores service data from backups, demonstrating the data operation
- * pattern's bidirectionality. The restore operation is the inverse of
+ * Restores service data and configurations from previously created backups.
+ * This command handles data recovery, state restoration, and service
+ * reconstruction after failures or migrations.
+ * 
+ * Workflow:
+ * 1. Lists available backups for the service
+ * 2. Validates backup integrity and compatibility
+ * 3. Stops service if running (optional)
+ * 4. Executes platform-specific restore procedures
+ * 5. Restarts service with restored data
+ * 6. Verifies data integrity post-restore
+ * 
+ * Options:
+ * - --from: Specific backup ID or timestamp to restore
+ * - --latest: Use the most recent backup (default)
+ * - --force: Overwrite existing data without confirmation
+ * - --verify: Run verification checks after restore
+ * - --dry-run: Show what would be restored without doing it
+ * 
+ * Platform Behavior:
+ * - Process: Restores files to working directories
+ * - Container: Imports volumes, recreates containers
+ * - AWS: Restores from RDS snapshots, S3 objects
+ * - External: Imports data via APIs where available
+ * - Mock: Simulates restoration for testing
  * backup, completing the data preservation lifecycle.
  */
 

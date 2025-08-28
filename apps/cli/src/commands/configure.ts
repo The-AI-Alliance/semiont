@@ -1,8 +1,32 @@
 /**
- * Configure Command - Unified configuration management (v2)
+ * Configure Command
  * 
- * Manages both public configuration (domains, settings) and private secrets (OAuth, JWT)
- * Migrated to use the new command definition structure.
+ * Manages service configuration including settings, secrets, and environment variables.
+ * This command provides a unified interface for configuration management across all
+ * platforms with proper secret handling.
+ * 
+ * Workflow:
+ * 1. Loads existing configuration for service/environment
+ * 2. Validates configuration schema
+ * 3. Manages secrets securely (encryption, vaults)
+ * 4. Updates configuration files or remote stores
+ * 5. Optionally triggers service restart to apply changes
+ * 
+ * Options:
+ * - --service: Specific service to configure
+ * - --all: Configure all services
+ * - --set: Set configuration values (key=value)
+ * - --unset: Remove configuration keys
+ * - --list: Show current configuration
+ * - --secrets: Manage secret values securely
+ * - --validate: Validate configuration without applying
+ * 
+ * Configuration Types:
+ * - Environment variables: Runtime environment settings
+ * - Application config: Service-specific settings
+ * - Secrets: Sensitive data (API keys, passwords)
+ * - Feature flags: Runtime feature toggles
+ * - Platform config: Platform-specific settings
  */
 
 import { z } from 'zod';

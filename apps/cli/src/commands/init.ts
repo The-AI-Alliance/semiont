@@ -1,8 +1,32 @@
 /**
- * Init Command - Initialize a new Semiont project (v2)
+ * Init Command
  * 
- * Creates semiont.json and starter environment configurations
- * This is the migrated version using the new command definition structure.
+ * Initializes a new Semiont project by creating configuration files and directory structure.
+ * This command sets up the foundation for managing services across different environments
+ * and platforms.
+ * 
+ * Workflow:
+ * 1. Detects existing project structure
+ * 2. Prompts for project configuration (interactive mode)
+ * 3. Creates semiont.json project manifest
+ * 4. Generates environment configuration files
+ * 5. Creates directory structure for services
+ * 6. Optionally initializes git repository
+ * 
+ * Options:
+ * - --name: Project name
+ * - --template: Use a specific project template
+ * - --environments: Comma-separated list of environments to create
+ * - --platform: Default platform for services
+ * - --interactive: Run in interactive mode with prompts
+ * - --force: Overwrite existing configuration
+ * 
+ * Created Structure:
+ * - semiont.json: Main project configuration
+ * - environments/: Environment-specific configurations
+ * - services/: Service definitions and code
+ * - state/: Runtime state storage (gitignored)
+ * - backups/: Backup storage location (gitignored)
  */
 
 import { z } from 'zod';

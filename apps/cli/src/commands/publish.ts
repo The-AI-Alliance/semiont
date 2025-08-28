@@ -1,5 +1,30 @@
 /**
- * Publish Command - Service-based implementation
+ * Publish Command
+ * 
+ * Publishes service artifacts to registries or deployment targets.
+ * This command handles building, packaging, and pushing service code
+ * and configurations to production environments.
+ * 
+ * Workflow:
+ * 1. Builds service artifacts (containers, packages, bundles)
+ * 2. Runs pre-publish validation and tests
+ * 3. Tags artifacts with version information
+ * 4. Pushes to platform-specific registries
+ * 5. Updates deployment manifests and configurations
+ * 
+ * Options:
+ * - --all: Publish all services
+ * - --tag: Version tag for the publication
+ * - --registry: Target registry for artifacts
+ * - --skip-tests: Skip test execution before publishing
+ * - --force: Overwrite existing artifacts
+ * 
+ * Platform Behavior:
+ * - Process: Creates deployment packages, updates scripts
+ * - Container: Builds and pushes Docker images to registry
+ * - AWS: Pushes to ECR, updates Lambda functions, CloudFormation
+ * - External: Updates external service configurations
+ * - Mock: Simulates publication process for testing
  */
 
 import { z } from 'zod';

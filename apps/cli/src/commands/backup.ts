@@ -1,5 +1,30 @@
 /**
- * Backup Command - Service-based implementation
+ * Backup Command
+ * 
+ * Creates backups of service data and configurations across platforms.
+ * This command handles data snapshots, state preservation, and disaster
+ * recovery preparation for all service types.
+ * 
+ * Workflow:
+ * 1. Identifies data locations based on service requirements
+ * 2. Creates timestamped backup directory
+ * 3. Executes platform-specific backup procedures
+ * 4. Compresses and stores backup artifacts
+ * 5. Updates backup metadata and rotation policies
+ * 
+ * Options:
+ * - --all: Backup all services
+ * - --compress: Compress backup files (default: true)
+ * - --destination: Custom backup location
+ * - --incremental: Only backup changes since last backup
+ * - --retention: Number of backups to keep
+ * 
+ * Platform Behavior:
+ * - Process: Copies working directories and state files
+ * - Container: Creates volume snapshots, exports containers
+ * - AWS: Triggers RDS snapshots, S3 backups, EBS snapshots
+ * - External: Exports data via APIs where available
+ * - Mock: Simulates backup creation for testing
  */
 
 import { z } from 'zod';

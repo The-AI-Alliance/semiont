@@ -1,5 +1,29 @@
 /**
- * Provision Command - Service-based implementation
+ * Provision Command
+ * 
+ * Provisions infrastructure resources required by services before they can start.
+ * This command handles pre-deployment setup, resource allocation, and environment
+ * preparation across different platforms.
+ * 
+ * Workflow:
+ * 1. Analyzes service requirements (compute, network, storage)
+ * 2. Checks for existing resources to avoid duplication
+ * 3. Provisions platform-specific infrastructure
+ * 4. Configures networking, security, and access controls
+ * 5. Validates provisioned resources are ready
+ * 
+ * Options:
+ * - --all: Provision resources for all services
+ * - --plan: Show what would be provisioned without doing it
+ * - --parallel: Provision multiple services simultaneously
+ * - --wait: Wait for resources to be fully ready
+ * 
+ * Platform Behavior:
+ * - Process: Creates directories, checks ports, sets permissions
+ * - Container: Pulls images, creates networks, prepares volumes
+ * - AWS: Creates ECS clusters, VPCs, load balancers, databases
+ * - External: Validates external service availability
+ * - Mock: Simulates resource provisioning for testing
  */
 
 import { z } from 'zod';

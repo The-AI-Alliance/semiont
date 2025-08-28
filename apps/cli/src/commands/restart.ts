@@ -1,5 +1,29 @@
 /**
- * Restart Command - Simplified to delegate to platforms
+ * Restart Command
+ * 
+ * Restarts services by performing a stop followed by a start operation.
+ * This command ensures minimal downtime and proper resource cleanup during
+ * the restart process.
+ * 
+ * Workflow:
+ * 1. Stops the service gracefully
+ * 2. Waits for complete shutdown
+ * 3. Cleans up any lingering resources
+ * 4. Starts the service with fresh configuration
+ * 5. Verifies service is running correctly
+ * 
+ * Options:
+ * - --all: Restart all services
+ * - --rolling: Perform rolling restart to minimize downtime
+ * - --force: Force restart even if stop fails
+ * - --build: Rebuild before restarting (container/AWS platforms)
+ * 
+ * Platform Behavior:
+ * - Process: Stops process, clears state, starts new process
+ * - Container: Recreates container with latest configuration
+ * - AWS: Performs ECS service update or Lambda redeploy
+ * - External: Refreshes connection and validates availability
+ * - Mock: Simulates restart sequence for testing
  */
 
 import { z } from 'zod';

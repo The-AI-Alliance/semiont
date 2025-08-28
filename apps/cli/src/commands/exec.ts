@@ -1,5 +1,30 @@
 /**
- * Exec Command - Service-based implementation
+ * Exec Command
+ * 
+ * Executes commands or scripts within the context of running services.
+ * This command provides interactive access and script execution capabilities
+ * for debugging, maintenance, and operational tasks.
+ * 
+ * Workflow:
+ * 1. Verifies service is running
+ * 2. Establishes connection to service context
+ * 3. Executes command with service environment
+ * 4. Streams output back to user
+ * 5. Returns command exit status
+ * 
+ * Options:
+ * - --interactive: Open interactive shell session
+ * - --script: Execute a script file
+ * - --env: Additional environment variables
+ * - --workdir: Working directory for command execution
+ * - --user: User context for execution (platform-specific)
+ * 
+ * Platform Behavior:
+ * - Process: Executes in process working directory with same environment
+ * - Container: Uses docker/podman exec to run inside container
+ * - AWS: Uses ECS exec or Systems Manager for remote execution
+ * - External: Not supported (external services are not controllable)
+ * - Mock: Simulates command execution for testing
  */
 
 import { z } from 'zod';
