@@ -90,7 +90,13 @@ await Promise.all(scriptFiles.map(async (name) => {
         // simple-git uses dynamic requires that don't work with bundling
         'simple-git',
         // esbuild is needed at runtime for compiling CDK stacks
-        'esbuild'
+        'esbuild',
+        // Vitest and testing dependencies
+        'vitest',
+        '@vitest/browser',
+        'lightningcss',
+        'fsevents',
+        'vite'
       ],
       define: {
         // Disable ink devtools in production bundles
@@ -166,7 +172,13 @@ await Promise.all(commandFiles.map(async (name) => {
         // simple-git uses dynamic requires that don't work with bundling
         'simple-git',
         // esbuild is needed at runtime for compiling CDK stacks
-        'esbuild'
+        'esbuild',
+        // Vitest and testing dependencies
+        'vitest',
+        '@vitest/browser',
+        'lightningcss',
+        'fsevents',
+        'vite'
       ],
       define: {
         'process.env.NODE_ENV': '"production"'
