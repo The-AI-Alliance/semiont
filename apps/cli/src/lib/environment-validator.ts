@@ -2,7 +2,9 @@
  * Environment validation utilities
  */
 
-export type Environment = 'dev' | 'staging' | 'prod' | 'ci' | 'local';
+import { getAvailableEnvironments } from '../platforms/platform-resolver.js';
+
+export type Environment = string; // Allow any environment name discovered from filesystem
 
 const VALID_ENVIRONMENTS = ['dev', 'staging', 'prod', 'ci', 'local'] as const;
 
@@ -10,7 +12,9 @@ const VALID_ENVIRONMENTS = ['dev', 'staging', 'prod', 'ci', 'local'] as const;
  * Type guard to check if a string is a valid Environment
  */
 export function isValidEnvironment(value: string | undefined): value is Environment {
-  return value === 'dev' || value === 'staging' || value === 'prod' || value === 'ci' || value === 'local';
+  if (!value) return false;
+  // Use dynamic check from filesystem to support custom environments like 'production'
+  return getAvailableEnvironments().includes(value);
 }
 
 /**

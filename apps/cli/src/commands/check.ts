@@ -102,9 +102,14 @@ async function checkHandler(
   const commandStartTime = Date.now();
   
   // Create config for services
+  const parsedEnv = parseEnvironment(options.environment);
+  if (options.verbose) {
+    console.log(`[DEBUG] options.environment: ${options.environment}`);
+    console.log(`[DEBUG] parseEnvironment result: ${parsedEnv}`);
+  }
   const config: Config = {
     projectRoot: PROJECT_ROOT,
-    environment: parseEnvironment(options.environment),
+    environment: parsedEnv,
     verbose: options.verbose,
     quiet: options.quiet,
   };
