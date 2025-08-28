@@ -5,7 +5,7 @@
  * commands operate on multiple services or need to track overall execution.
  */
 
-import type { Platform } from '../lib/platform-resolver.js';
+import type { Platform } from '../platforms/platform-resolver.js';
 
 // Base result interface that all command results extend (for testing/mocking)
 export interface BaseCommandResult {

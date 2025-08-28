@@ -6,7 +6,7 @@
  */
 
 import type { Environment } from './environment-validator.js';
-import type { Platform } from './platform-resolver.js';
+import type { Platform } from '../platforms/platform-resolver.js';
 
 /**
  * Global CLI configuration passed to all commands and services

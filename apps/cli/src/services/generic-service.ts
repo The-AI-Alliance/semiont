@@ -6,7 +6,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { ServiceRequirements, StorageRequirement } from '../lib/service-requirements.js';
+import { ServiceRequirements, StorageRequirement } from '../services/service-requirements.js';
 import { ServiceName } from './service-interface.js';
 
 export class GenericService extends BaseService {

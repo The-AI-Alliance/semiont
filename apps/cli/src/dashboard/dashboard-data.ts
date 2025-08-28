@@ -8,11 +8,11 @@ import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
 import { CheckResult } from '../commands/check.js';
 import { ServiceConfig } from '../lib/cli-config.js';
-import { type ServicePlatformInfo, Platform } from './platform-resolver.js';
+import { type ServicePlatformInfo, Platform } from '../platforms/platform-resolver.js';
 import { Config } from '../lib/cli-config.js';
-import { isPlatformResources } from './platform-resources.js';
+import { isPlatformResources } from '../platforms/platform-resources.js';
 
-import type { ServiceStatus, LogEntry, MetricData } from './dashboard-components.js';
+import type { ServiceStatus, LogEntry, MetricData } from '../dashboard/dashboard-components.js';
 
 export interface DashboardData {
   services: ServiceStatus[];
@@ -206,4 +206,4 @@ export class DashboardDataSource {
 }
 
 // Re-export types for convenience
-export type { ServiceStatus, LogEntry, MetricData } from './dashboard-components.js';
+export type { ServiceStatus, LogEntry, MetricData } from '../dashboard/dashboard-components.js';

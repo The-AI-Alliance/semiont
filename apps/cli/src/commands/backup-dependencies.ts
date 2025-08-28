@@ -3,12 +3,12 @@
  * This allows for easy testing without mocking
  */
 
-import { ServicePlatformInfo } from './platform-resolver.js';
+import { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import { RDSClient } from '@aws-sdk/client-rds';
 import * as fs from 'fs/promises';
-import { validateServiceSelector, resolveServiceSelector } from './services.js';
-import { resolveServiceDeployments } from './platform-resolver.js';
-import { execInContainer } from './container-runtime.js';
+import { validateServiceSelector, resolveServiceSelector } from '../services/services.js';
+import { resolveServiceDeployments } from '../platforms/platform-resolver.js';
+import { execInContainer } from '../platforms/container-runtime.js';
 
 export interface ServiceResolver {
   validate(selector: string, capability: string, env?: string): Promise<void>;

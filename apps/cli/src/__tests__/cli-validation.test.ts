@@ -48,7 +48,7 @@ describe('CLI Environment Validation Logic', () => {
       // Remove environments directory entirely
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../lib/platform-resolver.js');
+      const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
       const environments = getAvailableEnvironments();
       
       expect(environments).toEqual([]);
@@ -71,7 +71,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments, isValidEnvironment } = await import('../lib/platform-resolver.js');
+      const { getAvailableEnvironments, isValidEnvironment } = await import('../platforms/platform-resolver.js');
       
       const environments = getAvailableEnvironments();
       const isValid = isValidEnvironment('nonexistent');
@@ -101,7 +101,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments } = await import('../lib/platform-resolver.js');
+      const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
       const environments = getAvailableEnvironments();
       
       // This simulates the help text generation
@@ -113,7 +113,7 @@ describe('CLI Environment Validation Logic', () => {
     it('should show "none found" when no environments exist', async () => {
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../lib/platform-resolver.js');
+      const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
       const environments = getAvailableEnvironments();
       
       const helpText = `Environment (${environments.join(', ') || 'none found'})`;
@@ -154,7 +154,7 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(customConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../lib/platform-resolver.js');
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('../platforms/platform-resolver.js');
       
       expect(isValidEnvironment('demo')).toBe(true);
       
@@ -205,7 +205,7 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(validConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../lib/platform-resolver.js');
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('../platforms/platform-resolver.js');
       
       expect(isValidEnvironment('test')).toBe(true);
       

@@ -5,18 +5,18 @@
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../lib/platform-resolver.js';
-import { CommandResults } from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import { CommandResults } from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from '../services/service-interface.js';
 import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
-import type { Platform } from '../lib/platform-resolver.js';
-import type { PlatformResources } from '../lib/platform-resources.js';
+import type { Platform } from '../platforms/platform-resolver.js';
+import type { PlatformResources } from '../platforms/platform-resources.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 

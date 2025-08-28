@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { type ArgDefinition } from './command-definition.js';
+import { type ArgDefinition } from '../commands/command-definition.js';
 
 /**
  * Base Zod schema for options common to all commands

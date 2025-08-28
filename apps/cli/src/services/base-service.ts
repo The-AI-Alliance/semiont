@@ -7,7 +7,7 @@
 
 import { Service, ServiceName } from './service-interface.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
-import { Platform } from '../lib/platform-resolver.js';
+import { Platform } from '../platforms/platform-resolver.js';
 import { 
   ServiceRequirements,
   StorageRequirement,
@@ -15,7 +15,7 @@ import {
   ResourceRequirement,
   BuildRequirement,
   SecurityRequirement
-} from '../lib/service-requirements.js';
+} from '../services/service-requirements.js';
 
 export abstract class BaseService implements Service {
   protected readonly systemConfig: Config;

@@ -11,13 +11,13 @@ import {
   formatResults, 
   formatResultsQuiet, 
   formatResultsVerbose 
-} from '../lib/output-formatter.js';
+} from '../commands/output-formatter.js';
 import { 
   createBaseResult, 
   createErrorResult,
   type CommandResults,
   type StartResult 
-} from '../lib/command-results.js';
+} from '../commands/command-results.js';
 
 describe('Output Formatter', () => {
   const startTime = Date.now();

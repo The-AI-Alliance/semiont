@@ -8,7 +8,7 @@ import { CheckResult } from '../commands/check.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../services/service-requirements.js';
 
 export class DatabaseService extends BaseService {
   

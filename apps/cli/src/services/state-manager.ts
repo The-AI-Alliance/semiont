@@ -8,8 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ServiceName } from '../services/service-interface.js';
-import { Platform } from '../lib/platform-resolver.js';
-import { PlatformResources } from '../lib/platform-resources.js';
+import { Platform } from '../platforms/platform-resolver.js';
+import { PlatformResources } from '../platforms/platform-resources.js';
 
 export interface ServiceState {
   entity: ServiceName;

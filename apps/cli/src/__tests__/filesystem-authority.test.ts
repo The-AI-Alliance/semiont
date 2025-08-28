@@ -114,7 +114,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     // Import the CLI validation functions
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../lib/platform-resolver.js');
+      await import('../platforms/platform-resolver.js');
     
     // Test 1: Environment discovery should find 'foo'
     const availableEnvironments = getAvailableEnvironments();
@@ -175,7 +175,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../lib/platform-resolver.js');
+      await import('../platforms/platform-resolver.js');
     
     const available = getAvailableEnvironments();
     
@@ -223,7 +223,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../lib/platform-resolver.js');
+      await import('../platforms/platform-resolver.js');
     
     const available = getAvailableEnvironments();
     
@@ -242,7 +242,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(fs.readdirSync(configDir)).toEqual([]);
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../lib/platform-resolver.js');
+      await import('../platforms/platform-resolver.js');
     
     // Nothing should be valid initially
     expect(getAvailableEnvironments()).toEqual([]);

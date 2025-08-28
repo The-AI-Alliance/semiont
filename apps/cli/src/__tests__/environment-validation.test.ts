@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../lib/platform-resolver.js';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../platforms/platform-resolver.js';
 
 describe('Dynamic Environment Validation', () => {
   let testDir: string;

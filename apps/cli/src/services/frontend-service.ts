@@ -5,10 +5,10 @@
 
 import { BaseService } from './base-service.js';
 import { CheckResult } from '../commands/check.js';
-import { getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
+import { getNodeEnvForEnvironment } from '../platforms/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import { ServiceRequirements, RequirementPresets } from '../lib/service-requirements.js';
+import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
 
 export class FrontendService extends BaseService {
   

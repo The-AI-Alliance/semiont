@@ -14,7 +14,7 @@ import {
   ServiceStatus,
   LogEntry,
   MetricData
-} from './dashboard-components.js';
+} from '../dashboard/dashboard-components.js';
 
 // Dashboard data interfaces
 export interface DashboardData {

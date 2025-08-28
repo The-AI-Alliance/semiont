@@ -6,10 +6,10 @@
 import { BaseService } from './base-service.js';
 import { CheckResult } from '../commands/check.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../lib/platform-resolver.js';
+import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../platforms/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../lib/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../services/service-requirements.js';
 
 export class BackendService extends BaseService {
   

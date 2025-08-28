@@ -7,10 +7,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PublishOptions } from '../commands/publish.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 // Mock platform-resolver to avoid filesystem access
-vi.mock('../lib/platform-resolver.js');
+vi.mock('../platforms/platform-resolver.js');
 
 let testDir: string;
 let originalCwd: string;
@@ -41,7 +41,7 @@ vi.mock('child_process', () => ({
 }));
 
 // Mock container runtime functions
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   buildImage: vi.fn(() => Promise.resolve(true)),
   tagImage: vi.fn(() => Promise.resolve(true)),
   pushImage: vi.fn(() => Promise.resolve(true)),
@@ -484,7 +484,7 @@ describe('Publish Command', () => {
     });
 
     it('should handle Docker build failures', async () => {
-      const { buildImage } = await import('../lib/container-runtime.js');
+      const { buildImage } = await import('../platforms/container-runtime.js');
       (buildImage as any).mockRejectedValueOnce(new Error('Build failed'));
 
       const { publish } = await import('../commands/publish.js');

@@ -7,10 +7,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { StopOptions } from '../commands/stop.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 // Mock the container runtime to avoid actual Docker calls
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   stopContainer: vi.fn().mockResolvedValue(true)
 }));
 
@@ -55,7 +55,7 @@ describe('Stop Command', () => {
 
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful stop', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
 
 
@@ -133,7 +133,7 @@ describe('Stop Command', () => {
     });
 
     it('should handle force stop mode', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
 
 
@@ -187,7 +187,7 @@ describe('Stop Command', () => {
     });
 
     it('should handle container deployment type', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
 
 
@@ -276,7 +276,7 @@ describe('Stop Command', () => {
 
   describe('Output Format Support', () => {
     it('should support all output formats', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
 
 
@@ -307,7 +307,7 @@ describe('Stop Command', () => {
 
   describe('Service Selection', () => {
     it('should stop all services in reverse order when service is "all"', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
 
 
@@ -340,7 +340,7 @@ describe('Stop Command', () => {
     });
 
     it('should stop specific service when named', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
 
 
@@ -367,7 +367,7 @@ describe('Stop Command', () => {
 
   describe('Error Handling', () => {
     it('should handle failed stop operations', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
 
 
@@ -397,7 +397,7 @@ describe('Stop Command', () => {
     });
 
     it('should continue on error when force is true', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any)
         .mockResolvedValueOnce(true)  // First service succeeds
         .mockResolvedValueOnce(false) // Second service fails

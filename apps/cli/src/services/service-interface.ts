@@ -5,7 +5,7 @@
  * They do NOT implement commands - platforms handle all command operations.
  */
 
-import type { Platform } from '../lib/platform-resolver.js';
+import type { Platform } from '../platforms/platform-resolver.js';
 import type { ServiceContext } from '../platforms/platform-strategy.js';
 
 /**

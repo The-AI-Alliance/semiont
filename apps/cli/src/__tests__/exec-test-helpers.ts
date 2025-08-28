@@ -1,4 +1,4 @@
-import { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 /**
  * Helper functions for exec tests

@@ -7,7 +7,7 @@
  */
 
 import { spawn } from 'child_process';
-import { colors } from './cli-colors.js';
+import { colors } from '../lib/cli-colors.js';
 
 export type ContainerRuntime = 'docker' | 'podman';
 

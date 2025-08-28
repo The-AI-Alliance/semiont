@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ServicePlatformInfo } from '../lib/platform-resolver';
+import { ServicePlatformInfo } from '../platforms/platform-resolver';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';

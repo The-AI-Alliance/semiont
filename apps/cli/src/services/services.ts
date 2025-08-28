@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { findProjectRoot } from './platform-resolver.js';
+import { findProjectRoot } from '../platforms/platform-resolver.js';
 
 // Built-in services that are always available
 export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;

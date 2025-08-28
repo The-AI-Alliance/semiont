@@ -15,12 +15,12 @@ import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
 import { BackupResult } from "../commands/backup.js";
-import { PlatformResources } from "../lib/platform-resources.js";
+import { PlatformResources } from "./platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { StateManager } from '../lib/state-manager.js';
+import { StateManager } from '../services/state-manager.js';
 import { printInfo, printWarning } from '../lib/cli-logger.js';
 import { isPortInUse } from '../lib/network-utils.js';
 
@@ -1665,7 +1665,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
    * Quick check if a service is running using saved state
    * This is faster than doing a full check() call
    */
-  override async quickCheckRunning(state: import('../lib/state-manager.js').ServiceState): Promise<boolean> {
+  override async quickCheckRunning(state: import('../services/state-manager.js').ServiceState): Promise<boolean> {
     if (!state.resources || state.resources.platform !== 'process') {
       return false;
     }

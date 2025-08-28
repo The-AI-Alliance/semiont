@@ -7,10 +7,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { RestartOptions } from '../commands/restart.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 // Mock the container runtime
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   runContainer: vi.fn().mockResolvedValue(true),
   stopContainer: vi.fn().mockResolvedValue(true)
 }));
@@ -56,7 +56,7 @@ describe('Restart Command', () => {
 
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful restart', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -140,7 +140,7 @@ describe('Restart Command', () => {
     });
 
     it('should handle force mode for stubborn services', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       // Stop fails, but force allows continuation
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
@@ -174,7 +174,7 @@ describe('Restart Command', () => {
     });
 
     it('should respect grace period between stop and start', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -231,7 +231,7 @@ describe('Restart Command', () => {
     });
 
     it('should handle container deployment type', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -333,7 +333,7 @@ describe('Restart Command', () => {
 
   describe('Service Selection', () => {
     it('should restart all services when service is "all"', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -364,7 +364,7 @@ describe('Restart Command', () => {
     });
 
     it('should restart specific service when named', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -393,7 +393,7 @@ describe('Restart Command', () => {
 
   describe('Error Handling', () => {
     it('should handle failed stop operations', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
 
@@ -425,7 +425,7 @@ describe('Restart Command', () => {
     });
 
     it('should handle failed start operations', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(false); // Start fails
 
@@ -456,7 +456,7 @@ describe('Restart Command', () => {
     });
 
     it('should continue with force mode even on failures', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any)
         .mockResolvedValueOnce(false)  // First stop fails
         .mockResolvedValueOnce(true)   // Second stop succeeds
@@ -492,7 +492,7 @@ describe('Restart Command', () => {
 
   describe('Output Format Support', () => {
     it('should support all output formats', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 

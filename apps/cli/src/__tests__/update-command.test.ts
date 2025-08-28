@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi, test } from 'vitest';
 import type { UpdateOptions } from '../commands/update.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -18,7 +18,7 @@ vi.mock('@aws-sdk/client-ecs', () => ({
 }));
 
 // Mock container runtime
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   runContainer: vi.fn().mockResolvedValue(true),
   stopContainer: vi.fn().mockResolvedValue(true)
 }));
@@ -58,7 +58,7 @@ describe('Update Command', () => {
 
   describe('Structured Output', () => {
     test('should return CommandResults structure for successful update', { timeout: 10000 }, async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -148,7 +148,7 @@ describe('Update Command', () => {
     });
 
     it('should handle force mode on container failures', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(false);
       const { update } = await import('../commands/update.js');
@@ -296,7 +296,7 @@ describe('Update Command', () => {
 
   describe('Container Service Updates', () => {
     test('should update container services with restart', { timeout: 10000 }, async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
       const { update } = await import('../commands/update.js');
@@ -357,7 +357,7 @@ describe('Update Command', () => {
     });
 
     it('should handle database container updates', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
       const { update } = await import('../commands/update.js');
@@ -402,7 +402,7 @@ describe('Update Command', () => {
     });
 
     it('should handle filesystem volumes appropriately', async () => {
-      const { stopContainer, runContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
@@ -633,7 +633,7 @@ describe('Update Command', () => {
     });
 
     it('should stop on first error unless --force is used', async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
       const { update } = await import('../commands/update.js');
       
@@ -662,7 +662,7 @@ describe('Update Command', () => {
     });
 
     test('should continue on errors when --force is used', { timeout: 10000 }, async () => {
-      const { stopContainer } = await import('../lib/container-runtime.js');
+      const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
       const { update } = await import('../commands/update.js');
       

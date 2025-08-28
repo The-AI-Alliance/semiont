@@ -7,8 +7,8 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import { DashboardDataSource } from './dashboard-data.js';
-import type { DashboardData as _DashboardData } from './dashboard-layouts.js';
+import { DashboardDataSource } from '../dashboard/dashboard-data.js';
+import type { DashboardData as _DashboardData } from '../dashboard/dashboard-layouts.js';
 
 export class WebDashboardServer {
   private app: express.Application;

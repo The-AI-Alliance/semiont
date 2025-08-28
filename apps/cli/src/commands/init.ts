@@ -10,9 +10,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { colors } from '../lib/cli-colors.js';
-import { CommandResults } from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+import { CommandResults } from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS

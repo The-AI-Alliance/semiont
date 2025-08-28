@@ -7,7 +7,7 @@
 
 import { Service, ServiceName } from './service-interface.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
-import { Platform } from '../lib/platform-resolver.js';
+import { Platform } from '../platforms/platform-resolver.js';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';

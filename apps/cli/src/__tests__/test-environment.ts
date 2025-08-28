@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { vi } from 'vitest';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import type { BaseCommandOptions } from '../commands/base-command-options.js';
 
 interface TestProject {
   directory: string;

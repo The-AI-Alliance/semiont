@@ -6,7 +6,7 @@
  * get persisted in state for later reference.
  */
 
-import type { Platform } from './platform-resolver.js';
+import type { Platform } from '../platforms/platform-resolver.js';
 
 /**
  * Process platform resources - for services running as OS processes

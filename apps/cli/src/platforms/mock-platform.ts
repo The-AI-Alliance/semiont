@@ -12,7 +12,7 @@ import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
 import { BackupResult } from "../commands/backup.js";
-import { PlatformResources } from "../lib/platform-resources.js";
+import { PlatformResources } from "./platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";

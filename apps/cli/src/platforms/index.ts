@@ -18,7 +18,7 @@ import { ContainerPlatformStrategy } from './container-platform.js';
 import { AWSPlatformStrategy } from './aws-platform.js';
 import { ExternalPlatformStrategy } from './external-platform.js';
 import { MockPlatformStrategy } from './mock-platform.js';
-import { Platform } from '../lib/platform-resolver.js';
+import { Platform } from '../platforms/platform-resolver.js';
 
 /**
  * Factory for creating platform strategy instances

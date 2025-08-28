@@ -5,13 +5,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { test, TestOptions } from '../commands/test.js';
 import { TestResult } from '../commands/test.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
-import * as containerRuntime from '../lib/container-runtime.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import * as containerRuntime from '../platforms/container-runtime.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
 // Mock dependencies
-vi.mock('../lib/container-runtime.js');
+vi.mock('../platforms/container-runtime.js');
 vi.mock('child_process');
 vi.mock('fs/promises');
 

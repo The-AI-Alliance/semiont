@@ -4,12 +4,12 @@
 
 import { z } from 'zod';
 import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { ServicePlatformInfo, Platform } from '../lib/platform-resolver.js';
-import { PlatformResources } from '../lib/platform-resources.js';
+import { ServicePlatformInfo, Platform } from '../platforms/platform-resolver.js';
+import { PlatformResources } from '../platforms/platform-resources.js';
 import { ServiceName } from '../services/service-interface.js';
-import { CommandResults } from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
+import { CommandResults } from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema } from '../commands/base-options-schema.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { PlatformFactory } from '../platforms/index.js';
 import { Config } from '../lib/cli-config.js';

@@ -12,7 +12,7 @@ let originalCwd: string;
 
 // Only mock the things we need to mock (AWS SDK, readline, etc)
 // Don't mock platform-resolver since we want it to read real config files
-vi.mock('../lib/stack-config.js', () => ({
+vi.mock('../platforms/stack-config.js', () => ({
   SemiontStackConfig: vi.fn(() => ({
     getConfig: vi.fn().mockResolvedValue({
       infraStack: { name: 'semiont-test' }
@@ -35,7 +35,7 @@ vi.mock('readline');
 import configureCommand, { ConfigureOptions } from '../commands/configure.js';
 const configure = configureCommand.handler;
 import { ConfigureResult } from '../commands/configure.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 
 // Helper function to create dummy service deployments for tests

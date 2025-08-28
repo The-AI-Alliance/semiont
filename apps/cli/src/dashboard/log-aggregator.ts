@@ -2,7 +2,7 @@
  * Log Aggregator - Fetches and aggregates logs from various sources
  */
 
-import { type ServicePlatformInfo } from './platform-resolver.js';
+import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 export interface LogEntry {
   timestamp: Date;

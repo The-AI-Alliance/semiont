@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { exec } from '../commands/exec.js';
 import { ExecResult } from '../commands/exec.js';
-import * as containerRuntime from '../lib/container-runtime.js';
+import * as containerRuntime from '../platforms/container-runtime.js';
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
@@ -20,11 +20,11 @@ import {
 } from './exec-test-helpers.js';
 
 // Mock only external dependencies
-vi.mock('../lib/container-runtime.js');
+vi.mock('../platforms/container-runtime.js');
 vi.mock('@aws-sdk/client-ecs');
 vi.mock('child_process');
-vi.mock('../lib/platform-resolver.js', async () => {
-  const actual = await vi.importActual('../lib/platform-resolver.js');
+vi.mock('../platforms/platform-resolver.js', async () => {
+  const actual = await vi.importActual('../platforms/platform-resolver.js');
   return {
     ...actual,
     loadEnvironmentConfig: vi.fn(() => ({

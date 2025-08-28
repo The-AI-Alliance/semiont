@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ProvisionOptions } from '../commands/provision.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import { useSemiontProject } from './test-setup.js';
 
 // Helper function to create service deployments for tests
@@ -39,7 +39,7 @@ vi.mock('child_process', async (importOriginal) => {
 });
 
 // Mock container runtime
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   runContainer: vi.fn().mockResolvedValue(true),
   stopContainer: vi.fn().mockResolvedValue(true),
   createVolume: vi.fn().mockResolvedValue(true),

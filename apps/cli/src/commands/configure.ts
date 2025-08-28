@@ -7,21 +7,21 @@
 
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
-import { SemiontStackConfig } from '../lib/stack-config.js';
-import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/platform-resolver.js';
-import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
+import { SemiontStackConfig } from '../platforms/stack-config.js';
+import { loadEnvironmentConfig, getAvailableEnvironments } from '../platforms/platform-resolver.js';
+import { type EnvironmentConfig, hasAWSConfig } from '../platforms/environment-config.js';
 import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type Platform } from '../lib/platform-resolver.js';
-import type { PlatformResources } from '../lib/platform-resources.js';
+import { type Platform } from '../platforms/platform-resolver.js';
+import type { PlatformResources } from '../platforms/platform-resources.js';
 import type { ServiceName } from '../services/service-interface.js';
 import { 
   CommandResults, 
   createBaseResult,
   createErrorResult 
-} from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+} from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
 import { PlatformFactory } from '../platforms/index.js';
 import type { SecretOptions } from '../platforms/platform-strategy.js';
 

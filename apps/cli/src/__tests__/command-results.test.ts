@@ -10,7 +10,7 @@ import {
   createBaseResult,
   createErrorResult,
   type CommandResults 
-} from '../lib/command-results.js';
+} from '../commands/command-results.js';
 import { type StartResult } from '../commands/start.js';
 import { type CheckResult } from '../commands/check.js';
 import { type UpdateResult } from '../commands/update.js';

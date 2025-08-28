@@ -11,7 +11,7 @@ import {
   CloudFormationClient, 
   DescribeStacksCommand 
 } from '@aws-sdk/client-cloudformation';
-import { LogFetcher, LogEntry, LogFetchOptions } from '../log-aggregator.js';
+import { LogFetcher, LogEntry, LogFetchOptions } from '../../dashboard/log-aggregator.js';
 import { type ServicePlatformInfo } from '../platform-resolver.js';
 
 export class CloudWatchLogFetcher extends LogFetcher {

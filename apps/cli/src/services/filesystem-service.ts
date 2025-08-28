@@ -4,7 +4,7 @@
  */
 
 import { BaseService } from './base-service.js';
-import { ServiceRequirements, RequirementPresets } from '../lib/service-requirements.js';
+import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
 import { CheckResult } from '../commands/check.js';
 import * as path from 'path';
 

@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { backup } from '../commands/backup.js';
 import { BackupResult } from '../commands/backup.js';
-import * as containerRuntime from '../lib/container-runtime.js';
+import * as containerRuntime from '../platforms/container-runtime.js';
 import { RDSClient, CreateDBSnapshotCommand } from '@aws-sdk/client-rds';
 import fs from 'fs/promises';
 import { spawn } from 'child_process';
@@ -21,7 +21,7 @@ import {
 } from './backup-test-helpers.js';
 
 // Mock only external dependencies
-vi.mock('../lib/container-runtime.js');
+vi.mock('../platforms/container-runtime.js');
 vi.mock('@aws-sdk/client-rds');
 vi.mock('fs/promises');
 vi.mock('child_process');

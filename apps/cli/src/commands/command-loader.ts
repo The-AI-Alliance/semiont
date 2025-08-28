@@ -5,22 +5,22 @@
  * commands based on the unified command definition structure.
  */
 
-import type { CommandDefinition } from './command-definition.js';
-import type { ServicePlatformInfo } from './platform-resolver.js';
-import { createArgParser, generateHelp } from './arg-parser.js';
+import type { CommandDefinition } from '../commands/command-definition.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import { createArgParser, generateHelp } from '../commands/arg-parser.js';
 import { 
   getAvailableEnvironments, 
   isValidEnvironment,
   resolveServiceDeployments 
-} from './platform-resolver.js';
+} from '../platforms/platform-resolver.js';
 import { 
   validateServiceSelector, 
   resolveServiceSelector,
   type ServiceCapability 
-} from './services.js';
-import { formatResults } from './output-formatter.js';
-import { printError } from './cli-logger.js';
-import { getPreamble, getPreambleSeparator } from './cli-colors.js';
+} from '../services/services.js';
+import { formatResults } from '../commands/output-formatter.js';
+import { printError } from '../lib/cli-logger.js';
+import { getPreamble, getPreambleSeparator } from '../lib/cli-colors.js';
 
 /**
  * Registry of loaded command definitions

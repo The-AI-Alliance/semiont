@@ -7,10 +7,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { StartOptions } from '../commands/start.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 // Mock the container runtime to avoid actual Docker calls
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   runContainer: vi.fn().mockResolvedValue(true),
   stopContainer: vi.fn().mockResolvedValue(true)
 }));
@@ -39,8 +39,8 @@ vi.mock('fs', async () => {
 });
 
 // Mock platform-resolver to avoid environment config loading issues
-vi.mock('../lib/platform-resolver.js', async () => {
-  const actual = await vi.importActual('../lib/platform-resolver.js');
+vi.mock('../platforms/platform-resolver.js', async () => {
+  const actual = await vi.importActual('../platforms/platform-resolver.js');
   return {
     ...actual,
     getNodeEnvForEnvironment: vi.fn(() => 'test'),

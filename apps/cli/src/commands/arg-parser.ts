@@ -7,7 +7,7 @@
 
 import arg from 'arg';
 import { z } from 'zod';
-import type { CommandDefinition, ArgSpec } from './command-definition.js';
+import type { CommandDefinition, ArgSpec } from '../commands/command-definition.js';
 
 /**
  * Type mapping from our declarative types to arg library types

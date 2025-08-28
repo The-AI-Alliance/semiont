@@ -10,17 +10,17 @@ import { colors } from '../lib/cli-colors.js';
 import React from 'react';
 import { render } from 'ink';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo, type Platform } from '../lib/platform-resolver.js';
-import type { PlatformResources } from '../lib/platform-resources.js';
+import { type ServicePlatformInfo, type Platform } from '../platforms/platform-resolver.js';
+import type { PlatformResources } from '../platforms/platform-resources.js';
 import type { ServiceName } from '../services/service-interface.js';
 import { 
   CommandResults, 
   createBaseResult,
-} from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../lib/base-options-schema.js';
+} from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
 import { Config } from '../lib/cli-config.js';
-import { DashboardDataSource } from '../lib/dashboard-data.js';
+import { DashboardDataSource } from '../dashboard/dashboard-data.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 // =====================================================================
@@ -174,7 +174,7 @@ async function launchDashboard(
         });
       } else {
         // Web dashboard mode
-        const { WebDashboardServer } = await import('../lib/web-dashboard-server.js');
+        const { WebDashboardServer } = await import('../dashboard/web-dashboard-server.js');
         
         // Create a custom server that uses the new service architecture
         class EnhancedWebDashboardServer extends WebDashboardServer {

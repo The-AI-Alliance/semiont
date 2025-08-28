@@ -7,11 +7,11 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { CheckOptions } from '../commands/check.js';
-import type { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
 
 // Mock platform-resolver to avoid filesystem access
-vi.mock('../lib/platform-resolver.js');
+vi.mock('../platforms/platform-resolver.js');
 
 let testDir: string;
 let originalCwd: string;
@@ -42,7 +42,7 @@ vi.mock('child_process', () => ({
 }));
 
 // Mock container runtime
-vi.mock('../lib/container-runtime.js', () => ({
+vi.mock('../platforms/container-runtime.js', () => ({
   listContainers: vi.fn().mockResolvedValue(['semiont-frontend-test', 'semiont-backend-test'])
 }));
 
@@ -234,7 +234,7 @@ describe('Check Command', () => {
     });
 
     it('should handle container deployment type', async () => {
-      const { listContainers } = await import('../lib/container-runtime.js');
+      const { listContainers } = await import('../platforms/container-runtime.js');
       (listContainers as any).mockResolvedValue(['semiont-postgres-staging']);
 
 
@@ -352,7 +352,7 @@ describe('Check Command', () => {
 
   describe('Health Check Features', () => {
     it('should check container health status', async () => {
-      const { listContainers } = await import('../lib/container-runtime.js');
+      const { listContainers } = await import('../platforms/container-runtime.js');
       (listContainers as any).mockResolvedValue(['semiont-backend-test']);
 
 
@@ -453,7 +453,7 @@ describe('Check Command', () => {
 
   describe('Service Selection', () => {
     it('should check all services when not specified', async () => {
-      const { listContainers } = await import('../lib/container-runtime.js');
+      const { listContainers } = await import('../platforms/container-runtime.js');
       (listContainers as any).mockResolvedValue([
         'semiont-postgres-test',
         'semiont-backend-test',
@@ -485,7 +485,7 @@ describe('Check Command', () => {
     });
 
     it('should check specific service when provided', async () => {
-      const { listContainers } = await import('../lib/container-runtime.js');
+      const { listContainers } = await import('../platforms/container-runtime.js');
       (listContainers as any).mockResolvedValue(['semiont-backend-test']);
 
 
@@ -512,7 +512,7 @@ describe('Check Command', () => {
 
   describe('Output Format Support', () => {
     it('should support all output formats', async () => {
-      const { listContainers } = await import('../lib/container-runtime.js');
+      const { listContainers } = await import('../platforms/container-runtime.js');
       (listContainers as any).mockResolvedValue(['semiont-backend-test']);
 
 
@@ -551,7 +551,7 @@ describe('Check Command', () => {
 
   describe('Error Handling', () => {
     it('should handle container not running', async () => {
-      const { listContainers } = await import('../lib/container-runtime.js');
+      const { listContainers } = await import('../platforms/container-runtime.js');
       (listContainers as any).mockResolvedValue([]); // No containers running
 
 

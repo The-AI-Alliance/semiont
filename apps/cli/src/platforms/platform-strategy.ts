@@ -51,7 +51,7 @@ import {
   ResourceRequirement, 
   BuildRequirement,
   SecurityRequirement 
-} from '../lib/service-requirements.js';
+} from '../services/service-requirements.js';
 
 /**
  * Service context provided to platform strategies
@@ -169,7 +169,7 @@ export interface PlatformStrategy {
   /**
    * Quick check if a service is running without full context
    */
-  quickCheckRunning?(state: import('../lib/state-manager.js').ServiceState): Promise<boolean>;
+  quickCheckRunning?(state: import('../services/state-manager.js').ServiceState): Promise<boolean>;
 }
 
 /**
@@ -211,7 +211,7 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
    * Quick check if a service is running without full context
    * Default implementation returns false
    */
-  async quickCheckRunning(_state: import('../lib/state-manager.js').ServiceState): Promise<boolean> {
+  async quickCheckRunning(_state: import('../services/state-manager.js').ServiceState): Promise<boolean> {
     return false;
   }
   

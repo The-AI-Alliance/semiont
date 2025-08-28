@@ -14,7 +14,7 @@ import { CheckResult } from "../commands/check.js";
 import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
-import { PlatformResources, AWSResources, createPlatformResources } from "../lib/platform-resources.js";
+import { PlatformResources, AWSResources, createPlatformResources } from "./platform-resources.js";
 import { BackupResult } from "../commands/backup.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";

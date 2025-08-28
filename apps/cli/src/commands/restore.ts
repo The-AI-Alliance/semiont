@@ -6,16 +6,16 @@
  * backup, completing the data preservation lifecycle.
  */
 
-import { CommandBuilder } from '../lib/command-definition.js';
+import { CommandBuilder } from '../commands/command-definition.js';
 import { ServiceName } from '../services/service-interface.js';
-import { PlatformResources } from '../lib/platform-resources.js';
+import { PlatformResources } from '../platforms/platform-resources.js';
 import { Config, ServiceConfig } from '../lib/cli-config.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { Platform } from '../lib/platform-resolver.js';
+import { Platform } from '../platforms/platform-resolver.js';
 import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
 import { z } from 'zod';
-import { BaseOptionsSchema } from '../lib/base-options-schema.js';
-import { ServicePlatformInfo } from '../lib/platform-resolver.js';
+import { BaseOptionsSchema } from '../commands/base-options-schema.js';
+import { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 // =====================================================================
 // RESULT TYPE DEFINITIONS
@@ -90,7 +90,7 @@ export interface RestoreOptions {
   targetPath?: string; // Custom restore path
   dryRun?: boolean; // Simulate restore without changes
 }
-import { CommandResults } from '../lib/command-results.js';
+import { CommandResults } from '../commands/command-results.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 
 // Schema for restore options  
