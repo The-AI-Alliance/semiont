@@ -20,7 +20,7 @@ import type { RestoreResult, RestoreOptions } from '../commands/restore.js';
 /**
  * Available service types in the system
  */
-export type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp' | 'agent';
+export type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp';
 
 /**
  * Core service interface that all services implement

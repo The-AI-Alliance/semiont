@@ -240,7 +240,7 @@ async function provisionHandler(
  * Database first, then backend, then frontend, etc.
  */
 function sortServicesByDependencies(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  const dependencyOrder = ['filesystem', 'database', 'backend', 'frontend', 'mcp', 'agent'];
+  const dependencyOrder = ['filesystem', 'database', 'backend', 'frontend', 'mcp'];
   
   return services.sort((a, b) => {
     const aIndex = dependencyOrder.indexOf(a.name);

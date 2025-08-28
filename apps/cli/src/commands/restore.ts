@@ -155,7 +155,6 @@ async function restoreHandler(
   // Critical services restored last to minimize downtime
   const restoreOrder: ServiceName[] = [
     'frontend',    // Restore UI first (least critical)
-    'agent',       // Then agents
     'mcp',         // Then MCP services
     'backend',     // Then backend
     'filesystem',  // Then filesystem

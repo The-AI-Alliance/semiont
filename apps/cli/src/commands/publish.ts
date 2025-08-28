@@ -281,7 +281,7 @@ async function publishHandler(
  * Generally: backend first (others depend on it), then frontend, then utilities
  */
 function sortServicesByPublishOrder(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  const publishOrder = ['database', 'backend', 'mcp', 'frontend', 'filesystem', 'agent'];
+  const publishOrder = ['database', 'backend', 'mcp', 'frontend', 'filesystem'];
   
   return services.sort((a, b) => {
     const aIndex = publishOrder.indexOf(a.name);

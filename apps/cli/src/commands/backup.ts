@@ -342,7 +342,7 @@ async function backupHandler(
  * Generally: data services first (database, filesystem), then applications
  */
 function sortServicesByBackupPriority(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  const backupOrder = ['database', 'filesystem', 'backend', 'mcp', 'frontend', 'agent'];
+  const backupOrder = ['database', 'filesystem', 'backend', 'mcp', 'frontend'];
   
   return services.sort((a, b) => {
     const aIndex = backupOrder.indexOf(a.name);

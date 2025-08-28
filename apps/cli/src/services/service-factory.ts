@@ -13,7 +13,6 @@ import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';
 import { FilesystemService } from './filesystem-service.js';
 import { MCPService } from './mcp-service.js';
-import { AgentService } from './agent-service.js';
 import { GenericService } from './generic-service.js';
 
 export class ServiceFactory {
@@ -41,9 +40,6 @@ export class ServiceFactory {
         
       case 'mcp':
         return new MCPService(name, platform, config, serviceConfig);
-        
-      case 'agent':
-        return new AgentService(name, platform, config, serviceConfig);
         
       default:
         // Use GenericService for unknown service types
