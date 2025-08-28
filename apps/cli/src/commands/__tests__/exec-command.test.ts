@@ -5,9 +5,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execCommand, ExecResult } from '../commands/exec.js';
+import { execCommand, ExecResult } from '../exec.js';
 const exec = execCommand.handler;
-import * as containerRuntime from '../platforms/container-runtime.js';
+import * as containerRuntime from '../../platforms/container-runtime.js';
 import { ECSClient, ListTasksCommand } from '@aws-sdk/client-ecs';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
@@ -17,7 +17,7 @@ import {
   createProcessDeployment,
   createExternalDeployment,
   createExecOptions
-} from './exec-test-helpers.js';
+} from '../../__tests__/exec-test-helpers.js';
 
 // Mock only external dependencies
 vi.mock('../platforms/container-runtime.js');

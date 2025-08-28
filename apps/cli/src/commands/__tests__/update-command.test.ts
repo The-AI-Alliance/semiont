@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, test } from 'vitest';
-import type { UpdateOptions } from '../commands/update.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import type { UpdateOptions } from '../update.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -62,7 +62,7 @@ describe('Update Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -118,7 +118,7 @@ describe('Update Command', () => {
     });
 
     it('should handle dry run mode correctly', async () => {
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -153,7 +153,7 @@ describe('Update Command', () => {
       const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(false);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -191,7 +191,7 @@ describe('Update Command', () => {
       const mockSend = vi.fn().mockResolvedValue({});
       const mockECSClient = { send: mockSend };
       (ECSClient as any).mockImplementation(() => mockECSClient);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -219,7 +219,7 @@ describe('Update Command', () => {
 
     it('should handle RDS services appropriately', async () => {
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -260,7 +260,7 @@ describe('Update Command', () => {
 
     it('should handle EFS services appropriately', async () => {
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -305,7 +305,7 @@ describe('Update Command', () => {
       const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -367,7 +367,7 @@ describe('Update Command', () => {
       const { stopContainer, runContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -414,7 +414,7 @@ describe('Update Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -450,7 +450,7 @@ describe('Update Command', () => {
   describe('Process Service Updates', () => {
     test('should update process services with restart', { timeout: 20000 }, async () => {
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -499,7 +499,7 @@ describe('Update Command', () => {
 
     it('should handle database process appropriately', async () => {
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -534,7 +534,7 @@ describe('Update Command', () => {
   describe('External Service Updates', () => {
     it('should handle external database services', async () => {
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -576,7 +576,7 @@ describe('Update Command', () => {
 
     it('should handle external filesystem services', async () => {
 
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -619,7 +619,7 @@ describe('Update Command', () => {
         send: vi.fn().mockRejectedValue(new Error('AWS credentials not configured'))
       };
       (ECSClient as any).mockImplementation(() => mockECSClient);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -649,7 +649,7 @@ describe('Update Command', () => {
     it('should stop on first error unless --force is used', async () => {
       const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {
@@ -679,7 +679,7 @@ describe('Update Command', () => {
     test('should continue on errors when --force is used', { timeout: 10000 }, async () => {
       const { stopContainer } = await import('../platforms/container-runtime.js');
       (stopContainer as any).mockResolvedValue(false);
-      const { updateCommand } = await import('../commands/update.js');
+      const { updateCommand } = await import('../update.js');
       const update = updateCommand.handler;
       
       const options: UpdateOptions = {

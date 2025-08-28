@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { RestartOptions } from '../commands/restart.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import type { RestartOptions } from '../restart.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
 
 // Mock the container runtime
 vi.mock('../platforms/container-runtime.js', () => ({
@@ -60,7 +60,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -113,7 +113,7 @@ describe('Restart Command', () => {
     });
 
     it('should handle dry run mode correctly', async () => {
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -147,7 +147,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -181,7 +181,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -212,7 +212,7 @@ describe('Restart Command', () => {
 
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -240,7 +240,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -270,7 +270,7 @@ describe('Restart Command', () => {
     });
 
     it('should handle process deployment type', async () => {
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -305,7 +305,7 @@ describe('Restart Command', () => {
     });
 
     it('should handle external deployment type', async () => {
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -345,7 +345,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -377,7 +377,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -407,7 +407,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(false);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -440,7 +440,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(false); // Start fails
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -475,7 +475,7 @@ describe('Restart Command', () => {
         .mockResolvedValueOnce(true);  // Third stop succeeds
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -509,7 +509,7 @@ describe('Restart Command', () => {
       (stopContainer as any).mockResolvedValue(true);
       (runContainer as any).mockResolvedValue(true);
 
-      const { restartCommand } = await import('../commands/restart.js');
+      const { restartCommand } = await import('../restart.js');
       const restart = restartCommand.handler;
       
       const serviceDeployments = createServiceDeployments([

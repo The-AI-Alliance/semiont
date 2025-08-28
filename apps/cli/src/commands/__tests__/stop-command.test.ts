@@ -6,16 +6,29 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { StopOptions } from '../commands/stop.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import type { StopOptions } from '../stop.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
 
 // Mock the container runtime to avoid actual Docker calls
 vi.mock('../platforms/container-runtime.js', () => ({
-  stopContainer: vi.fn().mockResolvedValue(true)
+  stopContainer: vi.fn().mockResolvedValue(true),
+  runContainer: vi.fn().mockResolvedValue(true),
+  listContainers: vi.fn().mockResolvedValue([]),
+  execInContainer: vi.fn().mockResolvedValue(true),
+  detectContainerRuntime: vi.fn().mockResolvedValue('docker')
 }));
 
 // Mock child_process to avoid spawning real processes
 vi.mock('child_process', () => ({
+  execSync: vi.fn((command) => {
+    if (command.includes('docker version')) {
+      return 'Docker version 20.10.0';
+    }
+    if (command.includes('podman version')) {
+      throw new Error('podman not found');
+    }
+    return '';
+  }),
   spawn: vi.fn(() => ({
     pid: 12345,
     unref: vi.fn(),
@@ -59,7 +72,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -108,7 +121,7 @@ describe('Stop Command', () => {
 
     it('should handle dry run mode correctly', async () => {
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -139,7 +152,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -166,7 +179,7 @@ describe('Stop Command', () => {
 
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -195,7 +208,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -221,7 +234,7 @@ describe('Stop Command', () => {
 
     it('should handle process deployment type', async () => {
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -251,7 +264,7 @@ describe('Stop Command', () => {
 
     it('should handle external deployment type', async () => {
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -287,7 +300,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -319,7 +332,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       // Note: Services are passed in normal order, stop.ts will reverse them
@@ -353,7 +366,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(true);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -381,7 +394,7 @@ describe('Stop Command', () => {
       (stopContainer as any).mockResolvedValue(false);
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -415,7 +428,7 @@ describe('Stop Command', () => {
         .mockResolvedValueOnce(true); // Third service succeeds
 
 
-      const { stopCommand } = await import('../commands/stop.js');
+      const { stopCommand } = await import('../stop.js');
       const stop = stopCommand.handler;
       
       const serviceDeployments = createServiceDeployments([

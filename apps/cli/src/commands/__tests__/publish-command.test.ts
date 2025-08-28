@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { PublishOptions } from '../commands/publish.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import type { PublishOptions } from '../publish.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
 
 // Mock platform-resolver to avoid filesystem access
 vi.mock('../platforms/platform-resolver.js');
@@ -101,7 +101,7 @@ describe('Publish Command', () => {
       };
       (ECRClient as any).mockImplementation(() => mockECRClient);
 
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -152,7 +152,7 @@ describe('Publish Command', () => {
     });
 
     it('should handle dry run mode correctly', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -181,7 +181,7 @@ describe('Publish Command', () => {
     });
 
     it('should handle skip build mode', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -230,7 +230,7 @@ describe('Publish Command', () => {
       };
       (ECRClient as any).mockImplementation(() => mockECRClient);
 
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -258,7 +258,7 @@ describe('Publish Command', () => {
     });
 
     it('should handle container registry publishing', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -292,7 +292,7 @@ describe('Publish Command', () => {
     });
 
     it('should handle local Docker registry', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -322,7 +322,7 @@ describe('Publish Command', () => {
     });
 
     it('should skip process deployment type', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -350,7 +350,7 @@ describe('Publish Command', () => {
     });
 
     it('should skip external deployment type', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -382,7 +382,7 @@ describe('Publish Command', () => {
     it('should build and push images when skipBuild is false', async () => {
       // The mocks are already set up in the vi.mock at the top of the file
       // We just need to verify the result
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -408,7 +408,7 @@ describe('Publish Command', () => {
 
   describe('Service Selection', () => {
     it('should publish all services when service is "all"', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -432,7 +432,7 @@ describe('Publish Command', () => {
     });
 
     it('should publish specific service when named', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -467,7 +467,7 @@ describe('Publish Command', () => {
         DescribeRepositoriesCommand: vi.fn()
       }));
 
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -499,7 +499,7 @@ describe('Publish Command', () => {
       const { buildImage } = await import('../platforms/container-runtime.js');
       (buildImage as any).mockRejectedValueOnce(new Error('Build failed'));
 
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -527,7 +527,7 @@ describe('Publish Command', () => {
 
   describe('Tag Management', () => {
     it('should use custom tag when provided', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {
@@ -549,7 +549,7 @@ describe('Publish Command', () => {
     });
 
     it('should use default tag when not provided', async () => {
-      const { publishCommand } = await import('../commands/publish.js');
+      const { publishCommand } = await import('../publish.js');
       const publish = publishCommand.handler;
       
       const options: PublishOptions = {

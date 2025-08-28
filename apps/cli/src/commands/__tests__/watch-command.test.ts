@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { watch, WatchOptions } from '../commands/watch.js';
-import { WatchResult } from '../commands/watch.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import { watch, WatchOptions } from '../watch.js';
+import { WatchResult } from '../watch.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
 
 // Mock dependencies
 vi.mock('ink', () => ({

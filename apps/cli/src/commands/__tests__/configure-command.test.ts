@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createTestEnvironment, cleanupTestEnvironment, writeTestConfigs } from './setup.js';
+import { createTestEnvironment, cleanupTestEnvironment, writeTestConfigs } from '../../__tests__/setup.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -32,7 +32,7 @@ vi.mock('readline');
 // Only mock the parts that need overriding for specific tests
 
 // Now import after mocks are set up
-import { configureCommand, ConfigureOptions, ConfigureResult } from '../commands/configure.js';
+import { configureCommand, ConfigureOptions, ConfigureResult } from '../configure.js';
 const configure = configureCommand.handler;
 import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
 

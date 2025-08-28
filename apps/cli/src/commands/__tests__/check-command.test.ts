@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { CheckOptions } from '../commands/check.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { createTestEnvironment, cleanupTestEnvironment } from './setup.js';
+import type { CheckOptions } from '../check.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
+import { createTestEnvironment, cleanupTestEnvironment } from '../../__tests__/setup.js';
 
 // Mock platform-resolver to avoid filesystem access
 vi.mock('../platforms/platform-resolver.js');
@@ -18,6 +18,15 @@ let originalCwd: string;
 
 // Mock child_process for process checks
 vi.mock('child_process', () => ({
+  execSync: vi.fn((command) => {
+    if (command.includes('docker version')) {
+      return 'Docker version 20.10.0';
+    }
+    if (command.includes('podman version')) {
+      throw new Error('podman not found');
+    }
+    return '';
+  }),
   spawn: vi.fn(() => ({
     pid: 12345,
     stdout: { 
@@ -100,7 +109,7 @@ describe('Check Command', () => {
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful checks', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -154,7 +163,7 @@ describe('Check Command', () => {
 
     it('should handle dry run mode correctly', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -182,7 +191,7 @@ describe('Check Command', () => {
 
     it('should filter by section when specified', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -211,7 +220,7 @@ describe('Check Command', () => {
   describe('Deployment Type Support', () => {
     it('should handle AWS deployment type', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -242,7 +251,7 @@ describe('Check Command', () => {
       (listContainers as any).mockResolvedValue(['semiont-postgres-staging']);
 
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -271,7 +280,7 @@ describe('Check Command', () => {
 
     it('should handle process deployment type', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -298,7 +307,7 @@ describe('Check Command', () => {
 
     it('should handle external deployment type', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -328,7 +337,7 @@ describe('Check Command', () => {
 
     it('should handle mock deployment type', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -364,7 +373,7 @@ describe('Check Command', () => {
       (listContainers as any).mockResolvedValue(['semiont-backend-test']);
 
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -388,7 +397,7 @@ describe('Check Command', () => {
 
     it('should check process port availability', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -414,7 +423,7 @@ describe('Check Command', () => {
     });
 
     it('should check filesystem accessibility', async () => {
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -440,7 +449,7 @@ describe('Check Command', () => {
 
     it('should check external service connectivity', async () => {
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -473,7 +482,7 @@ describe('Check Command', () => {
       ]);
 
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -502,7 +511,7 @@ describe('Check Command', () => {
       (listContainers as any).mockResolvedValue(['semiont-backend-test']);
 
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -530,7 +539,7 @@ describe('Check Command', () => {
       (listContainers as any).mockResolvedValue(['semiont-backend-test']);
 
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -570,7 +579,7 @@ describe('Check Command', () => {
       (listContainers as any).mockResolvedValue([]); // No containers running
 
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -597,7 +606,7 @@ describe('Check Command', () => {
     });
 
     it('should handle filesystem not accessible', async () => {
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -648,7 +657,7 @@ describe('Check Command', () => {
     });
 
     it('should check MCP provisioned status', async () => {
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -706,7 +715,7 @@ describe('Check Command', () => {
         };
       });
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -746,7 +755,7 @@ describe('Check Command', () => {
         };
       });
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -787,7 +796,7 @@ describe('Check Command', () => {
         };
       });
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -833,7 +842,7 @@ describe('Check Command', () => {
         };
       });
 
-      const { checkCommand } = await import('../commands/check.js');
+      const { checkCommand } = await import('../check.js');
       const check = checkCommand.handler;
       
       const serviceDeployments = createServiceDeployments([

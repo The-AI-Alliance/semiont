@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { ProvisionOptions } from '../commands/provision.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { useSemiontProject } from './test-setup.js';
+import type { ProvisionOptions } from '../provision.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
+import { useSemiontProject } from '../../__tests__/test-setup.js';
 
 // Helper function to create service deployments for tests
 function createServiceDeployments(services: Array<{name: string, type: string, config?: any}>): ServicePlatformInfo[] {
@@ -68,7 +68,7 @@ describe('Provision Command', () => {
         expect(true).toBe(true);
         return;
       }
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -125,7 +125,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle dry run mode', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -159,7 +159,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle destroy mode', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -201,7 +201,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle seed mode for databases', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -237,7 +237,7 @@ describe('Provision Command', () => {
 
   describe('Multiple Services', () => {
     it('should provision multiple services in order', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -276,7 +276,7 @@ describe('Provision Command', () => {
 
   describe('Deployment Types', () => {
     it('should handle AWS deployment type', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -306,7 +306,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle container deployment type', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -335,7 +335,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle process deployment type', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -365,7 +365,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle external deployment type', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -397,7 +397,7 @@ describe('Provision Command', () => {
 
   describe('Stack Modes', () => {
     it('should provision only infra stack when specified', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -442,7 +442,7 @@ describe('Provision Command', () => {
     });
 
     it('should provision only app stack when specified', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -471,7 +471,7 @@ describe('Provision Command', () => {
 
   describe('Resource Tracking', () => {
     it('should track created resources', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -499,7 +499,7 @@ describe('Provision Command', () => {
     });
 
     it('should track no resources in dry run mode', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -528,7 +528,7 @@ describe('Provision Command', () => {
 
   describe('Error Handling', () => {
     it('should handle provisioning failures gracefully', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -562,7 +562,7 @@ describe('Provision Command', () => {
     });
 
     it('should not destroy in non-force mode', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -603,7 +603,7 @@ describe('Provision Command', () => {
     
     formats.forEach(format => {
       it(`should support ${format} output format`, async () => {
-        const { provisionCommand } = await import('../commands/provision.js');
+        const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
         
         const serviceDeployments = createServiceDeployments([
@@ -641,7 +641,7 @@ describe('Provision Command', () => {
 
   describe('Service-specific Provisioning', () => {
     it('should provision database with proper configuration', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -672,7 +672,7 @@ describe('Provision Command', () => {
     });
 
     it('should provision filesystem volumes', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -739,7 +739,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle MCP service provisioning with OAuth flow', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -779,7 +779,7 @@ describe('Provision Command', () => {
     });
 
     it('should handle MCP service destruction', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([
@@ -817,7 +817,7 @@ describe('Provision Command', () => {
     });
 
     it('should return proper structured output for MCP provisioning', async () => {
-      const { provisionCommand } = await import('../commands/provision.js');
+      const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
       
       const serviceDeployments = createServiceDeployments([

@@ -81,15 +81,17 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       replicas: requirements.resources?.replicas || 1
     };
     
-    // Store mock state with requirements info
-    this.mockState.set(context.name, {
-      id: mockId,
-      running: true,
-      startTime: new Date(),
-      requirements,
-      allocatedResources,
-      endpoint
-    });
+    // Store mock state with requirements info (unless dry run)
+    if (!context.dryRun) {
+      this.mockState.set(context.name, {
+        id: mockId,
+        running: true,
+        startTime: new Date(),
+        requirements,
+        allocatedResources,
+        endpoint
+      });
+    }
     
     return {
       entity: context.name,
@@ -108,7 +110,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       metadata: {
         mockImplementation: true,
         allocatedResources,
-        requirementsMet: true
+        requirementsMet: true,
+        dryRun: context.dryRun || false
       }
     };
   }

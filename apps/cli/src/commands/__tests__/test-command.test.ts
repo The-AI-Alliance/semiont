@@ -3,10 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { testCommand, TestOptions, TestResult } from '../commands/test.js';
+import { testCommand, TestOptions, TestResult } from '../test.js';
 const test = testCommand.handler;
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import * as containerRuntime from '../platforms/container-runtime.js';
+import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
+import * as containerRuntime from '../../platforms/container-runtime.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
