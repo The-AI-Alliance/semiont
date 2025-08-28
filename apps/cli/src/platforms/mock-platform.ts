@@ -352,19 +352,10 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       success: true,
       testTime: new Date(),
       suite: options?.suite || 'unit',
-      tests: {
-        passed: 10,
-        failed: 0,
-        skipped: 2,
-        total: 12
-      },
-      coverage: {
-        enabled: true,
-        lines: 85,
-        branches: 75,
-        functions: 90,
-        statements: 88
-      },
+      passed: 10,
+      failed: 0,
+      skipped: 2,
+      coverage: 85, // Line coverage percentage
       metadata: {
         mockImplementation: true,
         testSuite: options.suite

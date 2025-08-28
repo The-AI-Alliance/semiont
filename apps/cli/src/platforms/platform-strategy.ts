@@ -190,8 +190,8 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   async manageSecret(
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
-    value?: any,
-    options?: SecretOptions
+    _value?: any,
+    _options?: SecretOptions
   ): Promise<SecretResult> {
     return {
       success: false,

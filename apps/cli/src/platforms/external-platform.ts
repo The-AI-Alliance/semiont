@@ -284,12 +284,9 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
           success: response.ok,
           testTime,
           suite: 'smoke',
-          tests: {
-            total: 1,
-            passed: response.ok ? 1 : 0,
-            failed: response.ok ? 0 : 1,
-            duration: Date.now() - startTime
-          },
+          passed: response.ok ? 1 : 0,
+          failed: response.ok ? 0 : 1,
+          duration: Date.now() - startTime,
           metadata: {
             message: 'External service smoke test via health endpoint',
             endpoint: healthUrl,
@@ -711,8 +708,8 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   override async manageSecret(
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
-    value?: any,
-    options?: import('./platform-strategy.js').SecretOptions
+    _value?: any,
+    _options?: import('./platform-strategy.js').SecretOptions
   ): Promise<import('./platform-strategy.js').SecretResult> {
     // External platforms typically manage their own secrets
     // This implementation returns appropriate responses without actual storage

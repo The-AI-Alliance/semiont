@@ -7,7 +7,6 @@
 
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
-import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { SemiontStackConfig } from '../lib/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/platform-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
@@ -199,66 +198,8 @@ async function setPlatformSecret(environment: string, secretPath: string, secret
   }
 }
 
-// Legacy AWS-specific implementation (kept for backwards compatibility)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getCurrentSecret(envConfig: EnvironmentConfig, secretName: string): Promise<any> {
-  if (!hasAWSConfig(envConfig)) {
-    throw new Error(`Environment configuration does not have AWS settings`);
-  }
-  
-  const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
-  try {
-    const response = await secretsClient.send(
-      new GetSecretValueCommand({
-        SecretId: secretName,
-      })
-    );
-    // Try to parse as JSON, but if it fails, return as string
-    try {
-      return JSON.parse(response.SecretString || '{}');
-    } catch {
-      return response.SecretString || null;
-    }
-  } catch (error: any) {
-    if (error.name === 'ResourceNotFoundException') {
-      return null;
-    }
-    throw error;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function updateSecret(envConfig: EnvironmentConfig, secretName: string, secretValue: any): Promise<void> {
-  if (!hasAWSConfig(envConfig)) {
-    throw new Error(`Environment configuration does not have AWS settings`);
-  }
-  
-  const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
-  const secretString = typeof secretValue === 'string' ? secretValue : JSON.stringify(secretValue);
-  
-  // First, try to update the existing secret
-  try {
-    await secretsClient.send(
-      new UpdateSecretCommand({
-        SecretId: secretName,
-        SecretString: secretString,
-      })
-    );
-  } catch (error: any) {
-    // If the secret doesn't exist, create it
-    if (error.name === 'ResourceNotFoundException') {
-      await secretsClient.send(
-        new CreateSecretCommand({
-          Name: secretName,
-          SecretString: secretString,
-          Description: `Created by semiont configure command`,
-        })
-      );
-    } else {
-      throw error;
-    }
-  }
-}
+// Platform-aware secret management has replaced the legacy AWS-specific implementation.
+// Secrets are now managed through the platform strategy's manageSecret method.
 
 // =====================================================================
 // COMMAND IMPLEMENTATION

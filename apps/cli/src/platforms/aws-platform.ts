@@ -20,7 +20,7 @@ import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { printInfo, printWarning } from '../lib/cli-logger.js';
+import { printInfo } from '../lib/cli-logger.js';
 
 export class AWSPlatformStrategy extends BasePlatformStrategy {
   private region: string;
@@ -888,7 +888,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Invalidate CloudFront
         const distributionId = await this.getCloudFrontDistribution(bucketName);
         if (distributionId) {
-          const invalidationId = execSync(
+          execSync(  // Returns invalidation ID
             `aws cloudfront create-invalidation --distribution-id ${distributionId} --paths "/*" --query Invalidation.Id --output text --region ${this.region}`,
             { encoding: 'utf-8' }
           ).trim();
@@ -1211,7 +1211,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         });
         
         try {
-          const result = execSync(
+          execSync(
             `aws lambda invoke --function-name ${functionName} --payload '${payload}' --query 'Payload' --output text --region ${this.region} /tmp/lambda-output.txt`,
             { encoding: 'utf-8' }
           );
@@ -1313,7 +1313,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         };
         
         try {
-          const result = execSync(
+          execSync(
             `aws lambda invoke --function-name ${functionName} --payload '${JSON.stringify(testEvent)}' --query 'Payload' --output text --region ${this.region} /tmp/test-output.txt`,
             { encoding: 'utf-8' }
           );
@@ -1374,12 +1374,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             success: runResult.Status.State === 'PASSED',
             testTime,
             suite: 'synthetic',
-            tests: {
-              total: 1,
-              passed: runResult.Status.State === 'PASSED' ? 1 : 0,
-              failed: runResult.Status.State === 'PASSED' ? 0 : 1,
-              skipped: 0
-            },
+            passed: runResult.Status.State === 'PASSED' ? 1 : 0,
+            failed: runResult.Status.State === 'PASSED' ? 0 : 1,
+            skipped: 0,
             metadata: {
               serviceType: 's3-cloudfront',
               canaryName,
@@ -1581,7 +1578,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   // Helper methods
   
-  protected getResourceName(context: ServiceContext): string {
+  protected override getResourceName(context: ServiceContext): string {
     return `semiont-${context.name}-${context.environment}`;
   }
   
@@ -1781,12 +1778,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   // Stub implementations for complex AWS operations
   // These would be fully implemented in production
   
-  private async createTaskDefinition(resourceName: string, requirements: any): Promise<void> {
+  private async createTaskDefinition(_resourceName: string, _requirements: any): Promise<void> {
     // Implementation would create ECS task definition from requirements
-    if (!requirements) return;
+    // Would create ECS task definition
   }
   
-  private async createALB(resourceName: string, requirements: any): Promise<string> {
+  private async createALB(resourceName: string, _requirements: any): Promise<string> {
     // Implementation would create Application Load Balancer
     return `arn:aws:elasticloadbalancing:${this.region}:${this.accountId}:loadbalancer/app/${resourceName}-alb/abc123`;
   }
@@ -1821,12 +1818,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     if (!instanceId || !instanceClass || !requirements) return;
   }
   
-  private async createS3Bucket(bucketName: string, staticHosting: boolean): Promise<void> {
+  private async createS3Bucket(_bucketName: string, _staticHosting: boolean): Promise<void> {
     // Implementation would create S3 bucket with optional static hosting
-    if (!bucketName) return;
   }
   
-  private async createCloudFrontDistribution(bucketName: string, requirements: any): Promise<string> {
+  private async createCloudFrontDistribution(_bucketName: string, _requirements: any): Promise<string> {
     // Implementation would create CloudFront distribution
     return `ABCDEF123456`;
   }
@@ -1851,19 +1847,19 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     if (!resourceName || !imageUri) return;
   }
   
-  private async getRDSSnapshotSize(snapshotId: string): Promise<number> {
+  private async getRDSSnapshotSize(_snapshotId: string): Promise<number> {
     // Implementation would get RDS snapshot size
     return 10 * 1024 * 1024 * 1024; // 10GB default
   }
   
-  private async getS3BucketSize(bucketName: string): Promise<number> {
+  private async getS3BucketSize(_bucketName: string): Promise<number> {
     // Implementation would calculate S3 bucket size
     return 1 * 1024 * 1024 * 1024; // 1GB default
   }
   
-  private async createEFSBackup(fileSystemId: string, backupId: string): Promise<string> {
+  private async createEFSBackup(_fileSystemId: string, _backupId: string): Promise<string> {
     // Implementation would create EFS backup via AWS Backup
-    return `backup-${backupId}`;
+    return `backup-job-id`;
   }
   
   private async getRunningTask(cluster: string, service: string): Promise<string | undefined> {
@@ -1879,17 +1875,16 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  private async createTestTaskDefinition(taskDef: string, image: string, command: string): Promise<void> {
+  private async createTestTaskDefinition(_taskDef: string, _image: string, _command: string): Promise<void> {
     // Implementation would create test task definition
-    if (!taskDef || !image || !command) return;
   }
   
-  private async runECSTask(cluster: string, taskDef: string): Promise<string> {
+  private async runECSTask(_cluster: string, _taskDef: string): Promise<string> {
     // Implementation would run ECS task and return ARN
-    return `arn:aws:ecs:${this.region}:${this.accountId}:task/${cluster}/${Date.now()}`;
+    return `arn:aws:ecs:${this.region}:${this.accountId}:task/cluster/${Date.now()}`;
   }
   
-  private async waitForTaskCompletion(cluster: string, taskArn: string): Promise<any> {
+  private async waitForTaskCompletion(_cluster: string, _taskArn: string): Promise<any> {
     // Implementation would wait for task and return results
     return {
       success: true,
@@ -1903,15 +1898,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     if (!instanceId) return;
   }
   
-  private parseTestOutput(output: string, framework: string): any {
-    // Simple test output parsing
-    return {
-      total: 10,
-      passed: 8,
-      failed: 2,
-      skipped: 0
-    };
-  }
+  // parseTestOutput method removed as it was not being used
   
   /**
    * Manage secrets using AWS Secrets Manager

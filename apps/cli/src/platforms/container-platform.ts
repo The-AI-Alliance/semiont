@@ -574,12 +574,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         artifacts.imageTag = versionedTag;
         artifacts.imageUrl = versionedTag; // Local image
         
-        // Get image size
-        const sizeOutput = execSync(
+        // Get image size (could be stored in metadata if needed)
+        execSync(
           `${this.runtime} images ${versionedTag} --format "{{.Size}}"`,
           { encoding: 'utf-8' }
         ).trim();
-        // Store image size in metadata instead of artifacts
       }
     }
     
