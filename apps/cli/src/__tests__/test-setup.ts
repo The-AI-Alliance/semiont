@@ -1,15 +1,16 @@
 /**
  * Test Environment Setup Utilities
  * 
- * Creates real Semiont project environments for testing using semiont init
- * instead of mocking the configuration system.
+ * Creates real Semiont project environments for testing using the init command
+ * handler directly, simulating what happens when a user runs 'semiont init'.
  */
 
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { beforeAll, afterAll } from 'vitest';
-import { execSync } from 'child_process';
+import { initCommand } from '../commands/init.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 export interface TestEnvironment {
   projectDir: string;
@@ -29,12 +30,21 @@ export async function setupTestProject(environments: string[] = ['local', 'stagi
     // Change to test directory
     process.chdir(projectDir);
     
-    // Initialize Semiont project with test environments
-    const envList = environments.join(',');
-    execSync(`semiont init --name "semiont-test" --environments "${envList}"`, {
-      stdio: 'pipe', // Suppress output during tests
-      cwd: projectDir
-    });
+    // Call the init command handler directly, simulating what the CLI would do
+    const init = initCommand.handler;
+    const serviceDeployments: ServicePlatformInfo[] = []; // init doesn't use services
+    const options = {
+      environment: 'none',
+      name: 'semiont-test',
+      environments: environments,
+      force: false,
+      quiet: true,
+      verbose: false,
+      dryRun: false,
+      output: 'summary' as const
+    };
+    
+    await init(serviceDeployments, options);
     
     // Return to original directory
     process.chdir(originalCwd);

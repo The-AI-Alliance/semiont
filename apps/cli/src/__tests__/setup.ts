@@ -9,7 +9,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
-import { init } from '../commands/init.js';
+import { initCommand } from '../commands/init.js';
+import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+
+const init = initCommand.handler;
 
 /**
  * Creates a temporary test directory with initialized Semiont project
@@ -38,17 +41,20 @@ export async function createTestEnvironment(
     
     // Initialize Semiont project using the actual init command
     try {
-      const result = await init({
+      // init expects (ServicePlatformInfo[], options)
+      const serviceDeployments: ServicePlatformInfo[] = []; // init doesn't use services
+      const options = {
         name: projectName,
         directory: tmpDir,
         force: false,
         environments: ['local', 'test', 'staging', 'production', 'remote'],
-        environment: 'local',  // Required by BaseCommandOptions
-        output: 'summary',
+        environment: 'none',  // init doesn't need an environment
+        output: 'summary' as const,
         quiet: true,  // Suppress output during test setup
         verbose: false,
         dryRun: false
-      });
+      };
+      const result = await init(serviceDeployments, options);
       
       // Check if init failed
       if (result && result.summary && result.summary.failed > 0) {
