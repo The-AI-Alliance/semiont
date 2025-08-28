@@ -26,7 +26,7 @@ describe('init command', () => {
     // Set the templates directory for tests to use the built templates
     const testFilePath = fileURLToPath(import.meta.url);
     const testFileDir = path.dirname(testFilePath);
-    process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', 'dist', 'templates');
+    process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', '..', 'dist', 'templates');
   });
 
   afterEach(() => {

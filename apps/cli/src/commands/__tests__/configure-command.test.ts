@@ -24,7 +24,10 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
     send: vi.fn()
   })),
   GetSecretValueCommand: vi.fn(),
-  UpdateSecretCommand: vi.fn()
+  UpdateSecretCommand: vi.fn(),
+  CreateSecretCommand: vi.fn(),
+  ListSecretsCommand: vi.fn(),
+  DeleteSecretCommand: vi.fn()
 }));
 vi.mock('readline');
 
@@ -34,7 +37,7 @@ vi.mock('readline');
 // Now import after mocks are set up
 import { configureCommand, ConfigureOptions, ConfigureResult } from '../configure.js';
 const configure = configureCommand.handler;
-import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand } from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand, ListSecretsCommand, DeleteSecretCommand } from '@aws-sdk/client-secrets-manager';
 
 describe('configure command with structured output', () => {
   
