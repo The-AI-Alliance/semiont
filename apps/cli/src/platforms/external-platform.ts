@@ -26,7 +26,8 @@
  * - Legacy systems that can't be migrated
  */
 
-import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
+import { BasePlatformStrategy } from './platform-strategy.js';
+import { Service } from '../services/service-interface.js';
 import { StartResult } from '../commands/start.js';
 import { StopResult } from '../commands/stop.js';
 import { CheckResult } from '../commands/check.js';
@@ -44,40 +45,40 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     return 'external';
   }
   
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.getRequirements();
+  async start(service: Service): Promise<StartResult> {
+    const requirements = service.getRequirements();
     
-    if (!context.quiet) {
-      printInfo(`Verifying external ${context.name} service configuration...`);
+    if (!service.quiet) {
+      printInfo(`Verifying external ${service.name} service configuration...`);
     }
     
     // Build endpoint from configuration and network requirements
-    const endpoint = this.buildEndpoint(context.config, requirements);
+    const endpoint = this.buildEndpoint(service.config, requirements);
     
     // Validate required configuration based on requirements
-    this.validateConfiguration(context.config, requirements);
+    this.validateConfiguration(service.config, requirements);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       startTime: new Date(),
       endpoint,
       metadata: {
         message: `External service configured${endpoint ? ` at ${endpoint}` : ''}`,
-        provider: context.config.provider,
-        region: context.config.region
+        provider: service.config.provider,
+        region: service.config.region
       }
     };
   }
   
-  async stop(context: ServiceContext): Promise<StopResult> {
-    if (!context.quiet) {
-      printWarning(`Cannot stop external ${context.name} service - managed externally`);
+  async stop(service: Service): Promise<StopResult> {
+    if (!service.quiet) {
+      printWarning(`Cannot stop external ${service.name} service - managed externally`);
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       stopTime: new Date(),
@@ -87,9 +88,9 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const requirements = context.getRequirements();
-    const endpoint = this.buildEndpoint(context.config, requirements);
+  async check(service: Service): Promise<CheckResult> {
+    const requirements = service.getRequirements();
+    const endpoint = this.buildEndpoint(service.config, requirements);
     
     let status: CheckResult['status'] = 'unknown';
     let health: CheckResult['health'] | undefined;
@@ -123,7 +124,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       checkTime: new Date(),
@@ -132,40 +133,40 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
       health,
       metadata: {
         endpoint,
-        provider: context.config.provider,
+        provider: service.config.provider,
         message: 'External service status cannot be reliably determined'
       }
     };
   }
   
-  async update(context: ServiceContext): Promise<UpdateResult> {
-    if (!context.quiet) {
-      printWarning(`Cannot update external ${context.name} service - managed externally`);
+  async update(service: Service): Promise<UpdateResult> {
+    if (!service.quiet) {
+      printWarning(`Cannot update external ${service.name} service - managed externally`);
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       updateTime: new Date(),
       strategy: 'none',
       metadata: {
         message: 'External service must be updated through its own management interface',
-        provider: context.config.provider
+        provider: service.config.provider
       }
     };
   }
   
-  async provision(context: ServiceContext): Promise<ProvisionResult> {
-    const requirements = context.getRequirements();
+  async provision(service: Service): Promise<ProvisionResult> {
+    const requirements = service.getRequirements();
     
-    if (!context.quiet) {
-      printWarning(`Cannot provision external ${context.name} service - managed externally`);
+    if (!service.quiet) {
+      printWarning(`Cannot provision external ${service.name} service - managed externally`);
       printInfo('Validating configuration instead...');
     }
     
     // Validate we have necessary configuration for requirements
-    this.validateConfiguration(context.config, requirements);
+    this.validateConfiguration(service.config, requirements);
     
     const dependencies = requirements.dependencies?.services || [];
     
@@ -190,29 +191,29 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       provisionTime: new Date(),
       dependencies,
       metadata: {
-        provider: context.config.provider,
+        provider: service.config.provider,
         externalDependencies: externalDepsStatus,
         message: 'External service configuration validated. Actual provisioning must be done externally.'
       }
     };
   }
   
-  async publish(context: ServiceContext): Promise<PublishResult> {
-    if (!context.quiet) {
-      printWarning(`Cannot publish to external ${context.name} service - managed externally`);
+  async publish(service: Service): Promise<PublishResult> {
+    if (!service.quiet) {
+      printWarning(`Cannot publish to external ${service.name} service - managed externally`);
     }
     
-    const requirements = context.getRequirements();
+    const requirements = service.getRequirements();
     const recommendations = this.getPublishRecommendations(requirements);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       publishTime: new Date(),
@@ -226,19 +227,19 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async backup(context: ServiceContext): Promise<BackupResult> {
-    const requirements = context.getRequirements();
-    const backupId = `${context.name}-${context.environment}-${Date.now()}`;
+  async backup(service: Service): Promise<BackupResult> {
+    const requirements = service.getRequirements();
+    const backupId = `${service.name}-${service.environment}-${Date.now()}`;
     
-    if (!context.quiet) {
-      printWarning(`Cannot backup external ${context.name} service - managed externally`);
+    if (!service.quiet) {
+      printWarning(`Cannot backup external ${service.name} service - managed externally`);
       printInfo('External services must be backed up through their own backup systems');
     }
     
     const recommendations = this.getBackupRecommendations(requirements);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: true,
       backupTime: new Date(),
@@ -249,23 +250,23 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
       metadata: {
         message: 'External services cannot be backed up through Semiont',
         recommendations,
-        provider: context.config.provider
+        provider: service.config.provider
       }
     };
   }
   
-  async exec(context: ServiceContext, command: string, _options: ExecOptions = {}): Promise<ExecResult> {
-    const requirements = context.getRequirements();
+  async exec(service: Service, command: string, _options: ExecOptions = {}): Promise<ExecResult> {
+    const requirements = service.getRequirements();
     const execTime = new Date();
     
-    if (!context.quiet) {
-      printWarning(`Cannot execute commands on external ${context.name} service - managed externally`);
+    if (!service.quiet) {
+      printWarning(`Cannot execute commands on external ${service.name} service - managed externally`);
     }
     
-    const recommendations = this.getExecRecommendations(context.config, requirements);
+    const recommendations = this.getExecRecommendations(service.config, requirements);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: false,
       execTime,
@@ -273,19 +274,19 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
       error: 'External services cannot execute commands through Semiont',
       metadata: {
         message: 'Command execution not available for external services',
-        provider: context.config.provider,
+        provider: service.config.provider,
         recommendations
       }
     };
   }
   
-  async test(context: ServiceContext, options: TestOptions = {}): Promise<TestResult> {
-    const requirements = context.getRequirements();
-    const endpoint = this.buildEndpoint(context.config, requirements);
+  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
+    const requirements = service.getRequirements();
+    const endpoint = this.buildEndpoint(service.config, requirements);
     const testTime = new Date();
     
-    if (!context.quiet) {
-      printWarning(`Cannot run tests inside external ${context.name} service`);
+    if (!service.quiet) {
+      printWarning(`Cannot run tests inside external ${service.name} service`);
       printInfo('Running smoke tests against external endpoints instead');
     }
     
@@ -300,7 +301,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         });
         
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'external',
           success: response.ok,
           testTime,
@@ -316,7 +317,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         };
       } catch (error) {
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'external',
           success: false,
           testTime,
@@ -337,7 +338,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     const recommendations = this.getTestRecommendations(requirements);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: false,
       testTime,
@@ -345,24 +346,24 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
       error: 'Cannot run tests on external services',
       metadata: {
         recommendations,
-        provider: context.config.provider
+        provider: service.config.provider
       }
     };
   }
   
-  async restore(context: ServiceContext, backupId: string, _options: RestoreOptions = {}): Promise<RestoreResult> {
-    const requirements = context.getRequirements();
+  async restore(service: Service, backupId: string, _options: RestoreOptions = {}): Promise<RestoreResult> {
+    const requirements = service.getRequirements();
     const restoreTime = new Date();
     
-    if (!context.quiet) {
-      printWarning(`Cannot directly restore external ${context.name} service`);
+    if (!service.quiet) {
+      printWarning(`Cannot directly restore external ${service.name} service`);
       printInfo('Providing guidance for manual restore process');
     }
     
-    const guidance = this.getRestoreGuidance(context.config, requirements, backupId);
+    const guidance = this.getRestoreGuidance(service.config, requirements, backupId);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'external',
       success: false,
       restoreTime,
@@ -370,7 +371,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
       error: 'External services must be restored through their own management interfaces',
       warnings: guidance.warnings,
       metadata: {
-        provider: context.config.provider,
+        provider: service.config.provider,
         instructions: guidance.instructions,
         requirements: guidance.requirements,
         estimatedTime: guidance.estimatedTime,
@@ -379,7 +380,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async collectLogs(_context: ServiceContext): Promise<CheckResult['logs']> {
+  async collectLogs(_service: Service): Promise<CheckResult['logs']> {
     // Can't collect logs from external services
     return undefined;
   }

@@ -35,7 +35,8 @@ import { BackupResult } from "../commands/backup.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
+import { BasePlatformStrategy } from './platform-strategy.js';
+import { Service } from '../services/service-interface.js';
 import { printInfo } from '../lib/cli-logger.js';
 
 export class AWSPlatformStrategy extends BasePlatformStrategy {
@@ -55,8 +56,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   /**
    * Determine the best AWS service type based on requirements
    */
-  private determineAWSServiceType(context: ServiceContext): string {
-    const requirements = context.getRequirements();
+  private determineAWSServiceType(service: Service): string {
+    const requirements = service.getRequirements();
     
     // Static content with CDN needs → S3 + CloudFront
     if (requirements.annotations?.['aws/service'] === 's3-cloudfront' ||
@@ -91,10 +92,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     return 'lambda';
   }
   
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async start(service: Service): Promise<StartResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     
     let endpoint: string | undefined;
     let resources: PlatformResources | undefined;
@@ -102,7 +103,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     switch (serviceType) {
       case 'ecs-fargate':
         // Start or update ECS service
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         const serviceName = resourceName;
         const desiredCount = requirements.resources?.replicas || 1;
         
@@ -156,7 +157,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         try {
           execSync(`aws rds start-db-instance --db-instance-identifier ${instanceId} --region ${this.region}`);
           
-          if (!context.quiet) {
+          if (!service.quiet) {
             printInfo('RDS instance starting... this may take several minutes');
           }
           
@@ -214,7 +215,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'aws',
       success: true,
       startTime: new Date(),
@@ -228,14 +229,14 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async stop(context: ServiceContext): Promise<StopResult> {
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async stop(service: Service): Promise<StopResult> {
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     
     switch (serviceType) {
       case 'ecs-fargate':
         // Stop ECS service by setting desired count to 0
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         const serviceName = resourceName;
         
         try {
@@ -244,7 +245,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           );
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             stopTime: new Date(),
@@ -257,7 +258,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             stopTime: new Date(),
@@ -273,7 +274,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           execSync(`aws rds stop-db-instance --db-instance-identifier ${instanceId} --region ${this.region}`);
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             stopTime: new Date(),
@@ -285,7 +286,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             stopTime: new Date(),
@@ -301,7 +302,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       case 'dynamodb':
         // These services don't stop
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'aws',
           success: true,
           stopTime: new Date(),
@@ -313,7 +314,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       default:
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'aws',
           success: true,
           stopTime: new Date(),
@@ -324,10 +325,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async check(service: Service): Promise<CheckResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     
     let status: CheckResult['status'] = 'unknown';
     let health: CheckResult['health'] | undefined;
@@ -335,7 +336,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         const serviceName = resourceName;
         
         try {
@@ -530,11 +531,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     // Collect logs if service is running
     let logs: CheckResult['logs'] | undefined;
     if (status === 'running') {
-      logs = await this.collectLogs(context);
+      logs = await this.collectLogs(service);
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'aws',
       success: true,
       checkTime: new Date(),
@@ -550,10 +551,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async update(context: ServiceContext): Promise<UpdateResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async update(service: Service): Promise<UpdateResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     
     let previousVersion: string | undefined;
     let newVersion: string | undefined;
@@ -562,7 +563,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     switch (serviceType) {
       case 'ecs-fargate':
         // Force new deployment
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         const serviceName = resourceName;
         
         // Get current task definition revision
@@ -605,7 +606,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       case 's3-cloudfront':
         // Sync new content and invalidate cache
         const bucketName = `${resourceName}-static`;
-        const sourcePath = requirements.build?.buildContext || path.join(context.projectRoot, 'dist');
+        const sourcePath = requirements.build?.buildContext || path.join(service.projectRoot, 'dist');
         
         // Sync to S3
         execSync(`aws s3 sync ${sourcePath} s3://${bucketName}/ --delete --region ${this.region}`);
@@ -648,7 +649,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'aws',
       success: true,
       updateTime: new Date(),
@@ -663,13 +664,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async provision(context: ServiceContext): Promise<ProvisionResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async provision(service: Service): Promise<ProvisionResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     
-    if (!context.quiet) {
-      printInfo(`Provisioning ${context.name} on AWS as ${serviceType}...`);
+    if (!service.quiet) {
+      printInfo(`Provisioning ${service.name} on AWS as ${serviceType}...`);
     }
     
     const dependencies = requirements.dependencies?.services || [];
@@ -683,7 +684,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     switch (serviceType) {
       case 'ecs-fargate':
         // Create ECS cluster and service
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         
         // Create cluster
         try {
@@ -794,7 +795,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'aws',
       success: true,
       provisionTime: new Date(),
@@ -809,14 +810,14 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async publish(context: ServiceContext): Promise<PublishResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async publish(service: Service): Promise<PublishResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     const version = new Date().toISOString().replace(/[:.]/g, '-');
     
-    if (!context.quiet) {
-      printInfo(`Publishing ${context.name} to AWS ${serviceType}...`);
+    if (!service.quiet) {
+      printInfo(`Publishing ${service.name} to AWS ${serviceType}...`);
     }
     
     const artifacts: PublishResult['artifacts'] = {};
@@ -837,7 +838,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Build and push image
         if (requirements.build?.dockerfile) {
-          const buildContext = requirements.build.buildContext || context.projectRoot;
+          const buildContext = requirements.build.buildContext || service.projectRoot;
           
           // Login to ECR
           execSync(
@@ -857,13 +858,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Update task definition with new image
         await this.updateTaskDefinition(resourceName, imageUri);
         
-        rollback.command = `aws ecs update-service --cluster semiont-${context.environment} --service ${resourceName} --task-definition ${resourceName}-task:PREVIOUS`;
+        rollback.command = `aws ecs update-service --cluster semiont-${service.environment} --service ${resourceName} --task-definition ${resourceName}-task:PREVIOUS`;
         break;
         
       case 'lambda':
         // Package and deploy Lambda function
         const functionName = `${resourceName}-function`;
-        const packagePath = path.join(context.projectRoot, 'dist', `${functionName}.zip`);
+        const packagePath = path.join(service.projectRoot, 'dist', `${functionName}.zip`);
         
         // Create deployment package
         if (requirements.build?.buildContext) {
@@ -891,11 +892,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       case 's3-cloudfront':
         // Deploy static site to S3
         const bucketName = `${resourceName}-static`;
-        const sourcePath = requirements.build?.buildContext || path.join(context.projectRoot, 'dist');
+        const sourcePath = requirements.build?.buildContext || path.join(service.projectRoot, 'dist');
         
         // Build if needed
         if (requirements.build?.buildArgs?.BUILD_COMMAND) {
-          execSync(requirements.build.buildArgs.BUILD_COMMAND, { cwd: context.projectRoot });
+          execSync(requirements.build.buildArgs.BUILD_COMMAND, { cwd: service.projectRoot });
         }
         
         // Sync to S3
@@ -919,7 +920,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       case 'rds':
         // Apply database migrations
-        if (!context.quiet) {
+        if (!service.quiet) {
           printInfo('Database updates would be applied through migrations');
         }
         
@@ -929,7 +930,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'aws',
       success: true,
       publishTime: new Date(),
@@ -946,14 +947,14 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async backup(context: ServiceContext): Promise<BackupResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async backup(service: Service): Promise<BackupResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     const backupId = `${resourceName}-${Date.now()}`;
     
-    if (!context.quiet) {
-      printInfo(`Creating AWS backup for ${context.name} (${serviceType})...`);
+    if (!service.quiet) {
+      printInfo(`Creating AWS backup for ${service.name} (${serviceType})...`);
     }
     
     const backup: BackupResult['backup'] = {
@@ -1085,7 +1086,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       case 'ecs-fargate':
         // Backup ECS task definition and ECR image
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         const serviceName = resourceName;
         
         // Export task definition
@@ -1123,7 +1124,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     expiresAt.setDate(expiresAt.getDate() + retentionDays);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'aws',
       success: true,
       backupTime: new Date(),
@@ -1136,7 +1137,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       },
       restore: {
         supported: true,
-        command: `semiont restore --service ${context.name} --backup-id ${backupId}`,
+        command: `semiont restore --service ${service.name} --backup-id ${backupId}`,
         requirements: ['AWS credentials', 'Same region']
       },
       metadata: {
@@ -1147,15 +1148,15 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async exec(context: ServiceContext, command: string, options: ExecOptions = {}): Promise<ExecResult> {
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     const execTime = new Date();
     
     switch (serviceType) {
       case 'ecs-fargate':
         // Use ECS Exec
-        const clusterName = `semiont-${context.environment}`;
+        const clusterName = `semiont-${service.environment}`;
         const serviceName = resourceName;
         
         // Get running task
@@ -1163,7 +1164,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         if (!taskArn) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             execTime,
@@ -1190,7 +1191,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           });
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             execTime,
@@ -1208,7 +1209,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error: any) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             execTime,
@@ -1235,7 +1236,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           const output = fs.readFileSync('/tmp/lambda-output.txt', 'utf-8');
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             execTime,
@@ -1252,7 +1253,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error: any) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             execTime,
@@ -1263,7 +1264,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       default:
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'aws',
           success: false,
           execTime,
@@ -1273,14 +1274,14 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async test(context: ServiceContext, options: TestOptions = {}): Promise<TestResult> {
-    const requirements = context.getRequirements();
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
+    const requirements = service.getRequirements();
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     const testTime = new Date();
     
-    if (!context.quiet) {
-      printInfo(`Running tests for ${context.name} on AWS ${serviceType}...`);
+    if (!service.quiet) {
+      printInfo(`Running tests for ${service.name} on AWS ${serviceType}...`);
     }
     
     // Use test annotations or defaults
@@ -1291,10 +1292,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       case 'ecs-fargate':
         // Run tests as ECS task
         const taskDefinition = `${resourceName}-test-task`;
-        const cluster = `semiont-${context.environment}`;
+        const cluster = `semiont-${service.environment}`;
         
         // Create test task definition if needed
-        await this.createTestTaskDefinition(taskDefinition, testImage || context.getImage(), testCommand);
+        await this.createTestTaskDefinition(taskDefinition, testImage || service.getImage(), testCommand);
         
         // Run task
         const taskArn = await this.runECSTask(cluster, taskDefinition);
@@ -1306,7 +1307,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // TODO: Implement proper test output parsing
         
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'aws',
           success,
           testTime,
@@ -1338,7 +1339,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           const testResult = JSON.parse(output);
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: testResult.success || false,
             testTime,
@@ -1354,7 +1355,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             testTime,
@@ -1385,7 +1386,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           const runResult = JSON.parse(runs);
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: runResult.Status.State === 'PASSED',
             testTime,
@@ -1401,7 +1402,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             testTime,
@@ -1412,7 +1413,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       default:
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'aws',
           success: false,
           testTime,
@@ -1422,13 +1423,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async restore(context: ServiceContext, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async restore(service: Service, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     const restoreTime = new Date();
     
-    if (!context.quiet) {
-      printInfo(`Restoring ${context.name} from backup ${backupId} on AWS...`);
+    if (!service.quiet) {
+      printInfo(`Restoring ${service.name} from backup ${backupId} on AWS...`);
     }
     
     switch (serviceType) {
@@ -1458,7 +1459,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           }
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             restoreTime,
@@ -1475,7 +1476,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             restoreTime,
@@ -1505,7 +1506,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           }
           
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: true,
             restoreTime,
@@ -1523,7 +1524,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         } catch (error) {
           return {
-            entity: context.name,
+            entity: service.name,
             platform: 'aws',
             success: false,
             restoreTime,
@@ -1534,7 +1535,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
       default:
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'aws',
           success: false,
           restoreTime,
@@ -1544,9 +1545,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
-    const serviceType = this.determineAWSServiceType(context);
-    const resourceName = this.getResourceName(context);
+  async collectLogs(service: Service): Promise<CheckResult['logs']> {
+    const serviceType = this.determineAWSServiceType(service);
+    const resourceName = this.getResourceName(service);
     
     switch (serviceType) {
       case 'ecs-fargate':
@@ -1594,8 +1595,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   // Helper methods
   
-  protected override getResourceName(context: ServiceContext): string {
-    return `semiont-${context.name}-${context.environment}`;
+  protected override getResourceName(service: Service): string {
+    return `semiont-${service.name}-${service.environment}`;
   }
   
   private async getALBEndpoint(serviceName: string): Promise<string> {

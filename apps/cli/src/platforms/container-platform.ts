@@ -34,7 +34,8 @@ import { createPlatformResources } from "./platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
+import { BasePlatformStrategy } from './platform-strategy.js';
+import { Service } from '../services/service-interface.js';
 import { printInfo, printWarning } from '../lib/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
@@ -49,10 +50,10 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     return 'container';
   }
   
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.getRequirements();
-    const containerName = this.getResourceName(context);
-    const image = context.getImage();
+  async start(service: Service): Promise<StartResult> {
+    const requirements = service.getRequirements();
+    const containerName = this.getResourceName(service);
+    const image = service.getImage();
     
     // Remove existing container if it exists
     try {
@@ -66,7 +67,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       'run',
       '-d',
       '--name', containerName,
-      '--network', `semiont-${context.environment}`
+      '--network', `semiont-${service.environment}`
     ];
     
     // Add port mappings from network requirements
@@ -78,7 +79,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     // Add environment variables
     const envVars = {
-      ...context.getEnvironmentVariables(),
+      ...service.getEnvironmentVariables(),
       ...(requirements.environment || {})
     };
     
@@ -101,7 +102,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
           }
         } else if (storage.type === 'bind') {
           // Bind mount from host
-          const hostPath = path.join(context.projectRoot, 'data', context.name);
+          const hostPath = path.join(service.projectRoot, 'data', service.name);
           fs.mkdirSync(hostPath, { recursive: true });
           runArgs.push('-v', `${hostPath}:${storage.mountPath}`);
         }
@@ -174,7 +175,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     runArgs.push(image);
     
     // Add command if specified
-    const command = context.getCommand();
+    const command = service.getCommand();
     if (command && command !== 'npm start') {
       runArgs.push(...command.split(' '));
     }
@@ -182,7 +183,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     // Run container
     const runCommand = `${this.runtime} ${runArgs.join(' ')}`;
     
-    if (!context.quiet) {
+    if (!service.quiet) {
       printInfo(`Running container: ${containerName}`);
     }
     
@@ -199,7 +200,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'container',
       success: true,
       startTime: new Date(),
@@ -219,8 +220,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async stop(context: ServiceContext): Promise<StopResult> {
-    const containerName = this.getResourceName(context);
+  async stop(service: Service): Promise<StopResult> {
+    const containerName = this.getResourceName(service);
     
     try {
       // Check if container exists
@@ -233,7 +234,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       execSync(`${this.runtime} rm ${containerName}`);
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         stopTime: new Date(),
@@ -245,7 +246,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       };
     } catch {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         stopTime: new Date(),
@@ -256,9 +257,9 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const requirements = context.getRequirements();
-    const containerName = this.getResourceName(context);
+  async check(service: Service): Promise<CheckResult> {
+    const requirements = service.getRequirements();
+    const containerName = this.getResourceName(service);
     let status: CheckResult['status'] = 'stopped';
     let containerId: string | undefined;
     
@@ -306,7 +307,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     // Collect logs if running
     let logs: CheckResult['logs'] | undefined;
     if (status === 'running' || status === 'unhealthy') {
-      logs = await this.collectLogs(context);
+      logs = await this.collectLogs(service);
     }
     
     // Get health details
@@ -342,7 +343,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'container',
       success: true,
       checkTime: new Date(),
@@ -359,9 +360,9 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async update(context: ServiceContext): Promise<UpdateResult> {
-    const requirements = context.getRequirements();
-    const containerName = this.getResourceName(context);
+  async update(service: Service): Promise<UpdateResult> {
+    const requirements = service.getRequirements();
+    const containerName = this.getResourceName(service);
     const oldContainerId = await this.getContainerId(containerName);
     
     // For containers with replicas > 1, use rolling update
@@ -373,20 +374,20 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const newContainerName = `${containerName}-new`;
       
       // Start new container
-      const newContext = { ...context, name: `${context.name}-new` };
+      const newContext = { ...context, name: `${service.name}-new` };
       const startResult = await this.start(newContext as ServiceContext);
       
       // Wait for health check
       await this.waitForContainer(newContainerName, requirements);
       
       // Stop old container
-      await this.stop(context);
+      await this.stop(service);
       
       // Rename new container
       execSync(`${this.runtime} rename ${newContainerName} ${containerName}`);
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         updateTime: new Date(),
@@ -401,11 +402,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       };
     } else {
       // Recreate strategy
-      await this.stop(context);
-      const startResult = await this.start(context);
+      await this.stop(service);
+      const startResult = await this.start(service);
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         updateTime: new Date(),
@@ -420,11 +421,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async provision(context: ServiceContext): Promise<ProvisionResult> {
-    const requirements = context.getRequirements();
+  async provision(service: Service): Promise<ProvisionResult> {
+    const requirements = service.getRequirements();
     
-    if (!context.quiet) {
-      printInfo(`Provisioning ${context.name} for container deployment...`);
+    if (!service.quiet) {
+      printInfo(`Provisioning ${service.name} for container deployment...`);
     }
     
     // Ensure container runtime is available
@@ -438,7 +439,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     };
     
     // Create network if it doesn't exist
-    const networkName = `semiont-${context.environment}`;
+    const networkName = `semiont-${service.environment}`;
     try {
       execSync(`${this.runtime} network create ${networkName}`, { stdio: 'ignore' });
       metadata.network = networkName;
@@ -451,12 +452,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const volumes: string[] = [];
       for (const storage of requirements.storage) {
         if (storage.persistent) {
-          const volumeName = storage.volumeName || `semiont-${context.name}-data-${context.environment}`;
+          const volumeName = storage.volumeName || `semiont-${service.name}-data-${service.environment}`;
           try {
             execSync(`${this.runtime} volume create ${volumeName}`);
             volumes.push(volumeName);
             
-            if (!context.quiet) {
+            if (!service.quiet) {
               printInfo(`Created volume: ${volumeName}`);
             }
           } catch {
@@ -473,11 +474,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     if (requirements.build && !requirements.build.prebuilt) {
       // Build image from Dockerfile
       const dockerfile = requirements.build.dockerfile || 'Dockerfile';
-      const buildContext = requirements.build.buildContext || context.projectRoot;
-      const imageTag = `${context.name}:${context.environment}`;
+      const buildContext = requirements.build.buildContext || service.projectRoot;
+      const imageTag = `${service.name}:${service.environment}`;
       
       if (fs.existsSync(path.join(buildContext, dockerfile))) {
-        if (!context.quiet) {
+        if (!service.quiet) {
           printInfo(`Building image ${imageTag} from ${dockerfile}...`);
         }
         
@@ -502,8 +503,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       }
     } else {
       // Pull pre-built image
-      const image = context.getImage();
-      if (!context.quiet) {
+      const image = service.getImage();
+      if (!service.quiet) {
         printInfo(`Pulling image ${image}...`);
       }
       
@@ -537,7 +538,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'container',
       success: true,
       provisionTime: new Date(),
@@ -546,14 +547,14 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async publish(context: ServiceContext): Promise<PublishResult> {
-    const requirements = context.getRequirements();
-    const imageTag = `${context.name}:${context.environment}`;
+  async publish(service: Service): Promise<PublishResult> {
+    const requirements = service.getRequirements();
+    const imageTag = `${service.name}:${service.environment}`;
     const version = new Date().toISOString().replace(/[:.]/g, '-');
-    const versionedTag = `${context.name}:${version}`;
+    const versionedTag = `${service.name}:${version}`;
     
-    if (!context.quiet) {
-      printInfo(`Publishing ${context.name} for container deployment...`);
+    if (!service.quiet) {
+      printInfo(`Publishing ${service.name} for container deployment...`);
     }
     
     const artifacts: PublishResult['artifacts'] = {};
@@ -562,10 +563,10 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     if (requirements.build && !requirements.build.prebuilt) {
       const dockerfile = requirements.build.dockerfile || 'Dockerfile';
       const buildContext = requirements.build.buildContext || 
-        path.join(context.projectRoot, 'apps', context.name);
+        path.join(service.projectRoot, 'apps', service.name);
       
       if (fs.existsSync(path.join(buildContext, dockerfile))) {
-        if (!context.quiet) {
+        if (!service.quiet) {
           printInfo(`Building container image ${versionedTag}...`);
         }
         
@@ -602,7 +603,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     if (registryUrl && artifacts.imageTag) {
       const remoteTag = `${registryUrl}/${versionedTag}`;
       
-      if (!context.quiet) {
+      if (!service.quiet) {
         printInfo(`Pushing image to ${registryUrl}...`);
       }
       
@@ -622,7 +623,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     
     // Export image to tar if requested
     if (requirements.annotations?.['container/export'] === 'true') {
-      const exportPath = path.join(context.projectRoot, 'dist', `${context.name}-${version}.tar`);
+      const exportPath = path.join(service.projectRoot, 'dist', `${service.name}-${version}.tar`);
       fs.mkdirSync(path.dirname(exportPath), { recursive: true });
       
       execSync(`${this.runtime} save -o ${exportPath} ${versionedTag}`);
@@ -631,7 +632,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'container',
       success: true,
       publishTime: new Date(),
@@ -651,11 +652,11 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async backup(context: ServiceContext): Promise<BackupResult> {
-    const requirements = context.getRequirements();
-    const containerName = this.getResourceName(context);
-    const backupId = `${context.name}-${context.environment}-${Date.now()}`;
-    const backupDir = path.join(context.projectRoot, '.semiont', 'backups', context.environment);
+  async backup(service: Service): Promise<BackupResult> {
+    const requirements = service.getRequirements();
+    const containerName = this.getResourceName(service);
+    const backupId = `${service.name}-${service.environment}-${Date.now()}`;
+    const backupDir = path.join(service.projectRoot, '.semiont', 'backups', service.environment);
     
     fs.mkdirSync(backupDir, { recursive: true });
     
@@ -665,8 +666,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       format: 'tar'
     };
     
-    if (!context.quiet) {
-      printInfo(`Creating backup for ${context.name} (container platform)...`);
+    if (!service.quiet) {
+      printInfo(`Creating backup for ${service.name} (container platform)...`);
     }
     
     try {
@@ -718,7 +719,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       // Backup container image if requested
       if (requirements.annotations?.['backup/image'] === 'true') {
-        const image = context.getImage();
+        const image = service.getImage();
         const imageBackup = path.join(backupDir, `${backupId}-image.tar`);
         
         execSync(`${this.runtime} save -o ${imageBackup} ${image}`);
@@ -756,7 +757,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       }
       
       if (itemsToBackup.length === 0) {
-        throw new Error(`No data to backup for ${context.name}`);
+        throw new Error(`No data to backup for ${service.name}`);
       }
       
       // Create final backup archive
@@ -788,13 +789,13 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + retentionDays);
       
-      if (!context.quiet) {
+      if (!service.quiet) {
         const sizeMB = Math.round(backup.size! / 1024 / 1024 * 100) / 100;
         printInfo(`Backup created: ${path.basename(backup.location!)} (${sizeMB} MB)`);
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         backupTime: new Date(),
@@ -807,7 +808,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         },
         restore: {
           supported: true,
-          command: `semiont restore --service ${context.name} --backup-id ${backupId}`,
+          command: `semiont restore --service ${service.name} --backup-id ${backupId}`,
           requirements: ['Container runtime available', 'Backup file exists']
         },
         metadata: {
@@ -819,7 +820,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: false,
         backupTime: new Date(),
@@ -829,16 +830,16 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async exec(context: ServiceContext, command: string, options: ExecOptions = {}): Promise<ExecResult> {
-    const requirements = context.getRequirements();
-    const containerName = this.getResourceName(context);
+  async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
+    const requirements = service.getRequirements();
+    const containerName = this.getResourceName(service);
     const execTime = new Date();
     const startTime = Date.now();
     
     // Check if container is running
     if (!this.isContainerRunning(containerName)) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: false,
         execTime,
@@ -890,7 +891,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       execArgs.push(shell, '-c', command);
     }
     
-    if (!context.quiet) {
+    if (!service.quiet) {
       printInfo(`Executing in container ${containerName}: ${command}`);
     }
     
@@ -931,7 +932,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const duration = Date.now() - startTime;
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: exitCode === 0,
         execTime,
@@ -963,7 +964,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: false,
         execTime,
@@ -973,20 +974,20 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async test(context: ServiceContext, options: TestOptions = {}): Promise<TestResult> {
-    const requirements = context.getRequirements();
+  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
+    const requirements = service.getRequirements();
     const testTime = new Date();
     const startTime = Date.now();
     
     // Use test container if specified
-    const testImage = requirements.annotations?.['test/image'] || context.getImage();
+    const testImage = requirements.annotations?.['test/image'] || service.getImage();
     const testCommand = requirements.annotations?.['test/command'] || 'npm test';
     
     // Create test container name
-    const testContainerName = `${this.getResourceName(context)}-test-${Date.now()}`;
+    const testContainerName = `${this.getResourceName(service)}-test-${Date.now()}`;
     
-    if (!context.quiet) {
-      printInfo(`Running tests for ${context.name} in container...`);
+    if (!service.quiet) {
+      printInfo(`Running tests for ${service.name} in container...`);
     }
     
     try {
@@ -995,14 +996,14 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
         'run',
         '--rm',
         '--name', testContainerName,
-        '--network', `semiont-${context.environment}`
+        '--network', `semiont-${service.environment}`
       ];
       
       // Add test environment
       const env = {
         NODE_ENV: 'test',
         CI: 'true',
-        ...context.getEnvironmentVariables(),
+        ...service.getEnvironmentVariables(),
         ...(requirements.environment || {})
       };
       
@@ -1012,14 +1013,14 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       // Mount source code if needed
       if (requirements.annotations?.['test/mount-source'] === 'true') {
-        const sourcePath = path.join(context.projectRoot, 'apps', context.name);
+        const sourcePath = path.join(service.projectRoot, 'apps', service.name);
         runArgs.push('-v', `${sourcePath}:/app`);
         runArgs.push('-w', '/app');
       }
       
       // Add coverage volume if requested
       if (options.coverage) {
-        const coverageDir = path.join(context.projectRoot, 'coverage', context.name);
+        const coverageDir = path.join(service.projectRoot, 'coverage', service.name);
         fs.mkdirSync(coverageDir, { recursive: true });
         runArgs.push('-v', `${coverageDir}:/coverage`);
       }
@@ -1061,14 +1062,14 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       // Collect metadata
       const testMetadata: any = {};
       if (options.coverage) {
-        const coverageDir = path.join(context.projectRoot, 'coverage', context.name);
+        const coverageDir = path.join(service.projectRoot, 'coverage', service.name);
         if (fs.existsSync(coverageDir)) {
           testMetadata.coverageDir = coverageDir;
         }
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         testTime,
@@ -1099,7 +1100,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const failures = this.parseFailures(output, framework);
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: false,
         testTime,
@@ -1118,21 +1119,21 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async restore(context: ServiceContext, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
-    const requirements = context.getRequirements();
-    const containerName = this.getResourceName(context);
+  async restore(service: Service, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
+    const requirements = service.getRequirements();
+    const containerName = this.getResourceName(service);
     const restoreTime = new Date();
     const startTime = Date.now();
-    const backupDir = path.join(context.projectRoot, '.semiont', 'backups', context.environment);
+    const backupDir = path.join(service.projectRoot, '.semiont', 'backups', service.environment);
     const backupPath = path.join(backupDir, `${backupId}.tar.gz`);
     
-    if (!context.quiet) {
-      printInfo(`Restoring ${context.name} from backup ${backupId}`);
+    if (!service.quiet) {
+      printInfo(`Restoring ${service.name} from backup ${backupId}`);
     }
     
     if (!fs.existsSync(backupPath)) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: false,
         restoreTime,
@@ -1146,7 +1147,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       let downtimeStart: Date | undefined;
       if (options.stopService !== false) {
         downtimeStart = new Date();
-        await this.stop(context);
+        await this.stop(service);
       }
       
       // Extract backup
@@ -1204,7 +1205,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       if (options.startService !== false) {
         try {
-          await this.start(context);
+          await this.start(service);
           serviceStarted = true;
           downtimeEnd = new Date();
         } catch (startError) {
@@ -1216,14 +1217,14 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       let healthCheckPassed = false;
       if (serviceStarted && requirements.network?.healthCheckPath) {
         await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for startup
-        const checkResult = await this.check(context);
+        const checkResult = await this.check(service);
         healthCheckPassed = checkResult.health?.healthy || false;
       }
       
       const duration = Date.now() - startTime;
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: true,
         restoreTime,
@@ -1255,7 +1256,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'container',
         success: false,
         restoreTime,
@@ -1265,8 +1266,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
-    const containerName = this.getResourceName(context);
+  async collectLogs(service: Service): Promise<CheckResult['logs']> {
+    const containerName = this.getResourceName(service);
     
     try {
       const logs = execSync(
@@ -1304,8 +1305,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get standardized resource name for container
    */
-  protected override getResourceName(context: ServiceContext): string {
-    return `semiont-${context.name}-${context.environment}`;
+  protected override getResourceName(service: Service): string {
+    return `semiont-${service.name}-${service.environment}`;
   }
   
   /**

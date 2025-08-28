@@ -6,7 +6,16 @@
  */
 
 import type { Platform } from '../platforms/platform-resolver.js';
-import type { ServiceContext } from '../platforms/platform-strategy.js';
+import type { ServiceConfig } from '../lib/cli-config.js';
+import type { Environment } from '../lib/environment-validator.js';
+import type { 
+  ServiceRequirements,
+  StorageRequirement,
+  NetworkRequirement,
+  ResourceRequirement,
+  BuildRequirement,
+  SecurityRequirement
+} from './service-requirements.js';
 
 /**
  * Available service types in the system
@@ -15,9 +24,35 @@ export type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | '
 
 /**
  * Core service interface that all services implement
- * Services ARE ServiceContexts - they provide the capabilities platforms need
+ * Contains all service-specific information needed for platform operations
  */
-export interface Service extends ServiceContext {
+export interface Service {
   readonly name: ServiceName;
   readonly platform: Platform;
+  readonly config: ServiceConfig;
+  readonly environment: Environment;
+  readonly projectRoot: string;
+  readonly verbose: boolean;
+  readonly quiet: boolean;
+  readonly dryRun?: boolean;
+  
+  // Service-specific methods that platforms can call
+  getPort(): number;
+  getHealthEndpoint(): string;
+  getCommand(): string;
+  getImage(): string;
+  getEnvironmentVariables(): Record<string, string>;
+  
+  // Requirement methods
+  getRequirements(): ServiceRequirements;
+  
+  // Convenience methods for specific requirements
+  needsPersistentStorage(): boolean;
+  getStorageRequirements(): StorageRequirement[];
+  getNetworkRequirements(): NetworkRequirement | undefined;
+  getDependencyServices(): ServiceName[];
+  getBuildRequirements(): BuildRequirement | undefined;
+  getResourceRequirements(): ResourceRequirement | undefined;
+  getSecurityRequirements(): SecurityRequirement | undefined;
+  getRequiredSecrets(): string[];
 }

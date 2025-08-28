@@ -39,7 +39,8 @@ import { PlatformResources } from "./platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
+import { BasePlatformStrategy } from './platform-strategy.js';
+import { Service } from '../services/service-interface.js';
 
 export class MockPlatformStrategy extends BasePlatformStrategy {
   private mockState: Map<string, any> = new Map();
@@ -48,9 +49,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     return 'mock';
   }
   
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.getRequirements();
-    const mockId = `mock-${context.name}-${Date.now()}`;
+  async start(service: Service): Promise<StartResult> {
+    const requirements = service.getRequirements();
+    const mockId = `mock-${service.name}-${Date.now()}`;
     
     // Build endpoint from network requirements
     let endpoint: string | undefined;
@@ -82,8 +83,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
     
     // Store mock state with requirements info (unless dry run)
-    if (!context.dryRun) {
-      this.mockState.set(context.name, {
+    if (!service.dryRun) {
+      this.mockState.set(service.name, {
         id: mockId,
         running: true,
         startTime: new Date(),
@@ -94,7 +95,7 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       startTime: new Date(),
@@ -111,40 +112,40 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
         mockImplementation: true,
         allocatedResources,
         requirementsMet: true,
-        dryRun: context.dryRun || false
+        dryRun: service.dryRun || false
       }
     };
   }
   
-  async stop(context: ServiceContext): Promise<StopResult> {
-    const state = this.mockState.get(context.name);
+  async stop(service: Service): Promise<StopResult> {
+    const state = this.mockState.get(service.name);
     
     // Only modify state if not in dry run
-    if (!context.dryRun && state) {
+    if (!service.dryRun && state) {
       state.running = false;
-      this.mockState.delete(context.name);
+      this.mockState.delete(service.name);
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       stopTime: new Date(),
       metadata: {
         mockImplementation: true,
         wasRunning: !!state,
-        dryRun: context.dryRun || false,
-        force: context.force || false
+        dryRun: service.dryRun || false,
+        force: service.force || false
       }
     };
   }
   
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const state = this.mockState.get(context.name);
+  async check(service: Service): Promise<CheckResult> {
+    const state = this.mockState.get(service.name);
     const status = state?.running ? 'running' : 'stopped';
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       checkTime: new Date(),
@@ -165,13 +166,13 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async update(context: ServiceContext): Promise<UpdateResult> {
+  async update(service: Service): Promise<UpdateResult> {
     // Mock update: simulate stop and start
-    await this.stop(context);
-    const startResult = await this.start(context);
+    await this.stop(service);
+    const startResult = await this.start(service);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       updateTime: new Date(),
@@ -186,8 +187,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async provision(context: ServiceContext): Promise<ProvisionResult> {
-    const requirements = context.getRequirements();
+  async provision(service: Service): Promise<ProvisionResult> {
+    const requirements = service.getRequirements();
     const mockResources: any = {};
     const dependencies = requirements.dependencies?.services || [];
     
@@ -223,21 +224,21 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     }
     
     // Store mock provisioning state
-    this.mockState.set(`provision-${context.name}`, {
+    this.mockState.set(`provision-${service.name}`, {
       requirements,
       resources: mockResources,
       time: new Date()
     });
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       provisionTime: new Date(),
       resources: {
         platform: 'mock',
         data: {
-          mockId: `mock-provision-${context.name}`,
+          mockId: `mock-provision-${service.name}`,
           metadata: mockResources
         }
       } as PlatformResources,
@@ -249,8 +250,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async publish(context: ServiceContext): Promise<PublishResult> {
-    const requirements = context.getRequirements();
+  async publish(service: Service): Promise<PublishResult> {
+    const requirements = service.getRequirements();
     const version = `mock-${Date.now()}`;
     
     // Simulate build process if needed
@@ -265,23 +266,23 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     const artifacts: PublishResult['artifacts'] = {};
     
     // Mock different artifact types based on requirements
-    if (requirements.build || context.getImage()) {
+    if (requirements.build || service.getImage()) {
       // Container image artifact
       artifacts.imageTag = version;
-      artifacts.imageUrl = `mock://registry/${context.name}:${version}`;
-    } else if (context.name === 'frontend') {
+      artifacts.imageUrl = `mock://registry/${service.name}:${version}`;
+    } else if (service.name === 'frontend') {
       // Static site artifact
-      artifacts.packageName = context.name;
+      artifacts.packageName = service.name;
       artifacts.packageVersion = version;
-      artifacts.staticSiteUrl = `https://mock-cdn.example.com/${context.name}/${version}`;
+      artifacts.staticSiteUrl = `https://mock-cdn.example.com/${service.name}/${version}`;
     } else {
       // Generic package
-      artifacts.packageName = context.name;
+      artifacts.packageName = service.name;
       artifacts.packageVersion = version;
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       publishTime: new Date(),
@@ -297,9 +298,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async backup(context: ServiceContext): Promise<BackupResult> {
-    const requirements = context.getRequirements();
-    const backupId = `backup-${context.name}-${Date.now()}`;
+  async backup(service: Service): Promise<BackupResult> {
+    const requirements = service.getRequirements();
+    const backupId = `backup-${service.name}-${Date.now()}`;
     
     // Calculate backup size based on storage requirements
     let totalSize = 0;
@@ -322,24 +323,24 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       backupTime: new Date(),
       backupId,
       backup: {
         size: totalSize,
-        location: context.destination || `mock://backups/${backupId}`,
+        location: service.destination || `mock://backups/${backupId}`,
         format: requirements.storage?.length ? 'tar' : 'json'
       },
       metadata: {
         mockImplementation: true,
         storageRequirements: requirements.storage,
-        dryRun: context.dryRun || false,
-        compress: context.compress !== false,
-        encrypt: context.encrypt || false,
-        retention: context.retention,
-        outputPath: context.outputPath
+        dryRun: service.dryRun || false,
+        compress: service.compress !== false,
+        encrypt: service.encrypt || false,
+        retention: service.retention,
+        outputPath: service.outputPath
       }
     };
   }
@@ -365,9 +366,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     return parseInt(size) || 0;
   }
   
-  async restore(context: ServiceContext, backupId: string, _options?: RestoreOptions): Promise<RestoreResult> {
+  async restore(service: Service, backupId: string, _options?: RestoreOptions): Promise<RestoreResult> {
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       restoreTime: new Date(),
@@ -379,9 +380,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async test(context: ServiceContext, options: TestOptions): Promise<TestResult> {
+  async test(service: Service, options: TestOptions): Promise<TestResult> {
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       testTime: new Date(),
@@ -397,9 +398,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async exec(context: ServiceContext, command: string, _options?: ExecOptions): Promise<ExecResult> {
+  async exec(service: Service, command: string, _options?: ExecOptions): Promise<ExecResult> {
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'mock',
       success: true,
       execTime: new Date(),
@@ -415,11 +416,11 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
-    const state = this.mockState.get(context.name);
+  async collectLogs(service: Service): Promise<CheckResult['logs']> {
+    const state = this.mockState.get(service.name);
     return {
       recent: state?.running ? [
-        `[MOCK] ${context.name} started at ${state.startTime}`,
+        `[MOCK] ${service.name} started at ${state.startTime}`,
         `[MOCK] Service is running with id: ${state.id}`
       ] : []
     };

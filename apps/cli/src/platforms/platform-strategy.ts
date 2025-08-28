@@ -6,7 +6,7 @@
  * to provide platform-specific behavior for common operations.
  */
 
-import { ServiceName } from '../services/service-interface.js';
+import { Service, ServiceName } from '../services/service-interface.js';
 import { StartResult } from '../commands/start.js';
 import { StopResult } from '../commands/stop.js';
 import { CheckResult } from '../commands/check.js';
@@ -42,50 +42,8 @@ export interface SecretResult {
   error?: string;
   metadata?: Record<string, any>;
 }
-import { ServiceConfig } from '../lib/cli-config.js';
-import { Environment } from '../lib/environment-validator.js';
-import { 
-  ServiceRequirements, 
-  StorageRequirement, 
-  NetworkRequirement, 
-  ResourceRequirement, 
-  BuildRequirement,
-  SecurityRequirement 
-} from '../services/service-requirements.js';
-
-/**
- * Service context provided to platform strategies
- * Contains service-specific information needed for platform operations
- */
-export interface ServiceContext {
-  name: ServiceName;
-  config: ServiceConfig;
-  environment: Environment;
-  projectRoot: string;
-  verbose: boolean;
-  quiet: boolean;
-  dryRun?: boolean;
-  
-  // Service-specific methods that platforms can call
-  getPort(): number;
-  getHealthEndpoint(): string;
-  getCommand(): string;
-  getImage(): string;
-  getEnvironmentVariables(): Record<string, string>;
-  
-  // New requirement methods
-  getRequirements(): ServiceRequirements;
-  
-  // Convenience methods for specific requirements
-  needsPersistentStorage(): boolean;
-  getStorageRequirements(): StorageRequirement[];
-  getNetworkRequirements(): NetworkRequirement | undefined;
-  getDependencyServices(): ServiceName[];
-  getBuildRequirements(): BuildRequirement | undefined;
-  getResourceRequirements(): ResourceRequirement | undefined;
-  getSecurityRequirements(): SecurityRequirement | undefined;
-  getRequiredSecrets(): string[];
-}
+// ServiceContext has been merged into Service interface
+// Services now contain all the context that platforms need
 
 /**
  * Platform strategy interface
@@ -95,57 +53,57 @@ export interface PlatformStrategy {
   /**
    * Start a service on this platform
    */
-  start(context: ServiceContext): Promise<StartResult>;
+  start(service: Service): Promise<StartResult>;
   
   /**
    * Stop a service on this platform
    */
-  stop(context: ServiceContext): Promise<StopResult>;
+  stop(service: Service): Promise<StopResult>;
   
   /**
    * Check the status of a service on this platform
    */
-  check(context: ServiceContext): Promise<CheckResult>;
+  check(service: Service): Promise<CheckResult>;
   
   /**
    * Update a service on this platform
    */
-  update(context: ServiceContext): Promise<UpdateResult>;
+  update(service: Service): Promise<UpdateResult>;
   
   /**
    * Provision infrastructure and resources for a service on this platform
    */
-  provision(context: ServiceContext): Promise<ProvisionResult>;
+  provision(service: Service): Promise<ProvisionResult>;
   
   /**
    * Publish artifacts and deploy service content on this platform
    */
-  publish(context: ServiceContext): Promise<PublishResult>;
+  publish(service: Service): Promise<PublishResult>;
   
   /**
    * Backup service data and state on this platform
    */
-  backup(context: ServiceContext): Promise<BackupResult>;
+  backup(service: Service): Promise<BackupResult>;
   
   /**
    * Execute a command in the service context on this platform
    */
-  exec(context: ServiceContext, command: string, options?: ExecOptions): Promise<ExecResult>;
+  exec(service: Service, command: string, options?: ExecOptions): Promise<ExecResult>;
   
   /**
    * Run tests for a service on this platform
    */
-  test(context: ServiceContext, options?: TestOptions): Promise<TestResult>;
+  test(service: Service, options?: TestOptions): Promise<TestResult>;
   
   /**
    * Restore service data and state from a backup on this platform
    */
-  restore(context: ServiceContext, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
+  restore(service: Service, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
   
   /**
    * Collect logs from a service on this platform
    */
-  collectLogs(context: ServiceContext): Promise<CheckResult['logs']>;
+  collectLogs(service: Service): Promise<CheckResult['logs']>;
   
   /**
    * Get the platform name for logging
@@ -176,17 +134,17 @@ export interface PlatformStrategy {
  * Base platform strategy with common functionality
  */
 export abstract class BasePlatformStrategy implements PlatformStrategy {
-  abstract start(context: ServiceContext): Promise<StartResult>;
-  abstract stop(context: ServiceContext): Promise<StopResult>;
-  abstract check(context: ServiceContext): Promise<CheckResult>;
-  abstract update(context: ServiceContext): Promise<UpdateResult>;
-  abstract provision(context: ServiceContext): Promise<ProvisionResult>;
-  abstract publish(context: ServiceContext): Promise<PublishResult>;
-  abstract backup(context: ServiceContext): Promise<BackupResult>;
-  abstract exec(context: ServiceContext, command: string, options?: ExecOptions): Promise<ExecResult>;
-  abstract test(context: ServiceContext, options?: TestOptions): Promise<TestResult>;
-  abstract restore(context: ServiceContext, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
-  abstract collectLogs(context: ServiceContext): Promise<CheckResult['logs']>;
+  abstract start(service: Service): Promise<StartResult>;
+  abstract stop(service: Service): Promise<StopResult>;
+  abstract check(service: Service): Promise<CheckResult>;
+  abstract update(service: Service): Promise<UpdateResult>;
+  abstract provision(service: Service): Promise<ProvisionResult>;
+  abstract publish(service: Service): Promise<PublishResult>;
+  abstract backup(service: Service): Promise<BackupResult>;
+  abstract exec(service: Service, command: string, options?: ExecOptions): Promise<ExecResult>;
+  abstract test(service: Service, options?: TestOptions): Promise<TestResult>;
+  abstract restore(service: Service, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
+  abstract collectLogs(service: Service): Promise<CheckResult['logs']>;
   abstract getPlatformName(): string;
   
   /**
@@ -218,8 +176,8 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   /**
    * Helper to generate container/instance names
    */
-  protected getResourceName(context: ServiceContext): string {
-    return `semiont-${context.name}-${context.environment}`;
+  protected getResourceName(service: Service): string {
+    return `semiont-${service.name}-${service.environment}`;
   }
   
   /**

@@ -32,7 +32,8 @@ import { PlatformResources } from "./platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
+import { BasePlatformStrategy } from './platform-strategy.js';
+import { Service } from '../services/service-interface.js';
 import { StateManager } from '../services/state-manager.js';
 import { printInfo, printWarning } from '../lib/cli-logger.js';
 import { isPortInUse } from '../lib/network-utils.js';
@@ -42,9 +43,9 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     return 'process';
   }
   
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.getRequirements();
-    const command = context.getCommand();
+  async start(service: Service): Promise<StartResult> {
+    const requirements = service.getRequirements();
+    const command = service.getCommand();
     
     // Check network port availability
     const primaryPort = requirements.network?.ports?.[0];
@@ -56,8 +57,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     const dependencies = requirements.dependencies?.services || [];
     for (const dep of dependencies) {
       const depState = await StateManager.load(
-        context.projectRoot,
-        context.environment,
+        service.projectRoot,
+        service.environment,
         dep
       );
       
@@ -91,9 +92,9 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Build environment from requirements
     const env = {
       ...process.env,
-      ...context.getEnvironmentVariables(),
+      ...service.getEnvironmentVariables(),
       ...(requirements.environment || {}),
-      NODE_ENV: context.environment
+      NODE_ENV: service.environment
     };
     
     // Add port if specified in network requirements
@@ -106,10 +107,10 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     // Spawn the process with requirements-based configuration
     const proc = spawn(cmd, args, {
-      cwd: context.projectRoot,
+      cwd: service.projectRoot,
       env,
       detached: true,
-      stdio: context.verbose ? 'inherit' : 'ignore'
+      stdio: service.verbose ? 'inherit' : 'ignore'
     });
     
     if (!proc.pid) {
@@ -127,7 +128,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'process',
       success: true,
       startTime: new Date(),
@@ -148,12 +149,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async stop(context: ServiceContext): Promise<StopResult> {
+  async stop(service: Service): Promise<StopResult> {
     // Load saved state to get PID
     const savedState = await StateManager.load(
-      context.projectRoot,
-      context.environment,
-      context.name
+      service.projectRoot,
+      service.environment,
+      service.name
     );
     
     const savedPid = savedState?.resources?.platform === 'process' ? 
@@ -161,7 +162,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     if (!savedPid) {
       // Try to find process by port from requirements
-      const requirements = context.getRequirements();
+      const requirements = service.getRequirements();
       const port = requirements.network?.ports?.[0];
       
       if (port) {
@@ -180,7 +181,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: true,
         stopTime: new Date(),
@@ -201,7 +202,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: true,
         stopTime: new Date(),
@@ -212,7 +213,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       };
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: true,
         stopTime: new Date(),
@@ -223,12 +224,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const requirements = context.getRequirements();
+  async check(service: Service): Promise<CheckResult> {
+    const requirements = service.getRequirements();
     const savedState = await StateManager.load(
-      context.projectRoot,
-      context.environment,
-      context.name
+      service.projectRoot,
+      service.environment,
+      service.name
     );
     
     let status: CheckResult['status'] = 'stopped';
@@ -258,7 +259,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Collect logs if running
     let logs: CheckResult['logs'] | undefined;
     if (status === 'running') {
-      logs = await this.collectLogs(context);
+      logs = await this.collectLogs(service);
     }
     
     // Health check based on requirements
@@ -288,7 +289,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'process',
       success: true,
       checkTime: new Date(),
@@ -306,22 +307,22 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async update(context: ServiceContext): Promise<UpdateResult> {
+  async update(service: Service): Promise<UpdateResult> {
     // For process: stop and restart
-    const stopResult = await this.stop(context);
+    const stopResult = await this.stop(service);
     
     // Clear state
     await StateManager.clear(
-      context.projectRoot,
-      context.environment,
-      context.name
+      service.projectRoot,
+      service.environment,
+      service.name
     );
     
     // Start new version
-    const startResult = await this.start(context);
+    const startResult = await this.start(service);
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'process',
       success: true,
       updateTime: new Date(),
@@ -333,19 +334,19 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async provision(context: ServiceContext): Promise<ProvisionResult> {
-    const requirements = context.getRequirements();
+  async provision(service: Service): Promise<ProvisionResult> {
+    const requirements = service.getRequirements();
     
-    if (!context.quiet) {
-      printInfo(`Provisioning ${context.name} for process deployment...`);
+    if (!service.quiet) {
+      printInfo(`Provisioning ${service.name} for process deployment...`);
     }
     
     const dependencies = requirements.dependencies?.services || [];
     const metadata: any = {};
     
     // Create base directories
-    const logsPath = path.join(context.projectRoot, 'logs');
-    const dataPath = path.join(context.projectRoot, 'data');
+    const logsPath = path.join(service.projectRoot, 'logs');
+    const dataPath = path.join(service.projectRoot, 'data');
     
     await fs.promises.mkdir(logsPath, { recursive: true });
     await fs.promises.mkdir(dataPath, { recursive: true });
@@ -358,11 +359,11 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         if (storage.persistent) {
           const storagePath = storage.mountPath?.startsWith('/') 
             ? path.join(dataPath, path.basename(storage.mountPath))
-            : path.join(dataPath, storage.mountPath || context.name);
+            : path.join(dataPath, storage.mountPath || service.name);
           
           await fs.promises.mkdir(storagePath, { recursive: true });
           
-          if (!context.quiet) {
+          if (!service.quiet) {
             printInfo(`Created storage directory: ${storagePath}`);
           }
           
@@ -373,20 +374,20 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     // Install dependencies if build requirements specify it
     if (requirements.build && !requirements.build.prebuilt) {
-      const servicePath = path.join(context.projectRoot, 'apps', context.name);
+      const servicePath = path.join(service.projectRoot, 'apps', service.name);
       const buildContext = requirements.build.buildContext || servicePath;
       
       // Check for package.json (Node.js project)
       if (fs.existsSync(path.join(buildContext, 'package.json'))) {
-        if (!context.quiet) {
-          printInfo(`Installing dependencies for ${context.name}...`);
+        if (!service.quiet) {
+          printInfo(`Installing dependencies for ${service.name}...`);
         }
         execSync('npm install', { cwd: buildContext });
         
         // Build if specified
         if (requirements.build.buildArgs?.BUILD === 'true') {
-          if (!context.quiet) {
-            printInfo(`Building ${context.name}...`);
+          if (!service.quiet) {
+            printInfo(`Building ${service.name}...`);
           }
           execSync('npm run build', { cwd: buildContext });
         }
@@ -394,8 +395,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       // Check for requirements.txt (Python project)
       else if (fs.existsSync(path.join(buildContext, 'requirements.txt'))) {
-        if (!context.quiet) {
-          printInfo(`Installing Python dependencies for ${context.name}...`);
+        if (!service.quiet) {
+          printInfo(`Installing Python dependencies for ${service.name}...`);
         }
         execSync('pip install -r requirements.txt', { cwd: buildContext });
       }
@@ -450,7 +451,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'process',
       success: true,
       provisionTime: new Date(),
@@ -459,11 +460,11 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async publish(context: ServiceContext): Promise<PublishResult> {
-    const requirements = context.getRequirements();
+  async publish(service: Service): Promise<PublishResult> {
+    const requirements = service.getRequirements();
     
-    if (!context.quiet) {
-      printInfo(`Publishing ${context.name} for process deployment...`);
+    if (!service.quiet) {
+      printInfo(`Publishing ${service.name} for process deployment...`);
     }
     
     const artifacts: PublishResult['artifacts'] = {};
@@ -471,7 +472,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     const rollback: PublishResult['rollback'] = { supported: false };
     
     // Get version from package.json if available
-    const servicePath = path.join(context.projectRoot, 'apps', context.name);
+    const servicePath = path.join(service.projectRoot, 'apps', service.name);
     try {
       const packageJsonPath = path.join(servicePath, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
@@ -487,13 +488,13 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Get git info
     try {
       const commitSha = execSync('git rev-parse HEAD', { 
-        cwd: context.projectRoot, 
+        cwd: service.projectRoot, 
         encoding: 'utf-8' 
       }).trim();
       artifacts.commitSha = commitSha.substring(0, 7);
       
       const branch = execSync('git branch --show-current', { 
-        cwd: context.projectRoot, 
+        cwd: service.projectRoot, 
         encoding: 'utf-8' 
       }).trim();
       artifacts.branch = branch;
@@ -507,8 +508,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       // Node.js project
       if (fs.existsSync(path.join(buildContext, 'package.json'))) {
-        if (!context.quiet) {
-          printInfo(`Building ${context.name}...`);
+        if (!service.quiet) {
+          printInfo(`Building ${service.name}...`);
         }
         
         // Install dependencies
@@ -535,8 +536,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       // Python project
       else if (fs.existsSync(path.join(buildContext, 'setup.py'))) {
-        if (!context.quiet) {
-          printInfo(`Building Python package for ${context.name}...`);
+        if (!service.quiet) {
+          printInfo(`Building Python package for ${service.name}...`);
         }
         
         execSync('python setup.py bdist_wheel', { cwd: buildContext });
@@ -554,7 +555,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       // Generic build command from requirements
       else if (requirements.build.buildArgs?.BUILD_COMMAND) {
         const buildCommand = requirements.build.buildArgs.BUILD_COMMAND;
-        if (!context.quiet) {
+        if (!service.quiet) {
           printInfo(`Running build command: ${buildCommand}`);
         }
         execSync(buildCommand, { cwd: buildContext });
@@ -569,13 +570,13 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     // Package for distribution if specified
     if (requirements.annotations?.['publish/package'] === 'true') {
-      const packagePath = path.join(servicePath, `${context.name}-${version.current}.tar.gz`);
+      const packagePath = path.join(servicePath, `${service.name}-${version.current}.tar.gz`);
       execSync(`tar -czf ${packagePath} .`, { cwd: servicePath });
       artifacts.bundleUrl = `file://${packagePath}`;
     }
     
     return {
-      entity: context.name,
+      entity: service.name,
       platform: 'process',
       success: true,
       publishTime: new Date(),
@@ -590,10 +591,10 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async backup(context: ServiceContext): Promise<BackupResult> {
-    const requirements = context.getRequirements();
-    const backupId = `${context.name}-${context.environment}-${Date.now()}`;
-    const backupDir = path.join(context.projectRoot, '.semiont', 'backups', context.environment);
+  async backup(service: Service): Promise<BackupResult> {
+    const requirements = service.getRequirements();
+    const backupId = `${service.name}-${service.environment}-${Date.now()}`;
+    const backupDir = path.join(service.projectRoot, '.semiont', 'backups', service.environment);
     
     // Create backup directory
     fs.mkdirSync(backupDir, { recursive: true });
@@ -612,12 +613,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       requirements: ['Service must be stopped', 'Backup file must exist']
     };
     
-    if (!context.quiet) {
-      printInfo(`Creating backup for ${context.name} (process platform)...`);
+    if (!service.quiet) {
+      printInfo(`Creating backup for ${service.name} (process platform)...`);
     }
     
     try {
-      const servicePath = path.join(context.projectRoot, 'apps', context.name);
+      const servicePath = path.join(service.projectRoot, 'apps', service.name);
       const backupPath = path.join(backupDir, `${backupId}.tar.gz`);
       const itemsToBackup: string[] = [];
       
@@ -626,12 +627,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         for (const storage of requirements.storage) {
           if (storage.persistent && storage.backupEnabled !== false) {
             const storagePath = storage.mountPath?.startsWith('/')
-              ? path.join(context.projectRoot, 'data', path.basename(storage.mountPath))
-              : path.join(context.projectRoot, 'data', storage.mountPath || context.name);
+              ? path.join(service.projectRoot, 'data', path.basename(storage.mountPath))
+              : path.join(service.projectRoot, 'data', storage.mountPath || service.name);
             
             if (fs.existsSync(storagePath)) {
               // Add to items to backup (relative path for tar)
-              const relativePath = path.relative(context.projectRoot, storagePath);
+              const relativePath = path.relative(service.projectRoot, storagePath);
               itemsToBackup.push(relativePath);
               
               if (backup) {
@@ -653,7 +654,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       for (const configFile of configFiles) {
         const configPath = path.join(servicePath, configFile);
         if (fs.existsSync(configPath)) {
-          const relativePath = path.relative(context.projectRoot, configPath);
+          const relativePath = path.relative(service.projectRoot, configPath);
           itemsToBackup.push(relativePath);
           
           if (backup) {
@@ -680,7 +681,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       if (requirements.annotations?.['backup/logs'] === 'true') {
         const logsPath = path.join(servicePath, 'logs');
         if (fs.existsSync(logsPath)) {
-          const relativePath = path.relative(context.projectRoot, logsPath);
+          const relativePath = path.relative(service.projectRoot, logsPath);
           itemsToBackup.push(relativePath);
           
           if (!backup.application) {
@@ -694,7 +695,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       if (requirements.annotations?.['backup/assets'] === 'true') {
         const assetsPath = path.join(servicePath, 'assets');
         if (fs.existsSync(assetsPath)) {
-          const relativePath = path.relative(context.projectRoot, assetsPath);
+          const relativePath = path.relative(service.projectRoot, assetsPath);
           itemsToBackup.push(relativePath);
           
           if (!backup.application) {
@@ -705,18 +706,18 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       if (itemsToBackup.length === 0) {
-        throw new Error(`No data to backup for ${context.name}`);
+        throw new Error(`No data to backup for ${service.name}`);
       }
       
       // Create the backup
       execSync(
-        `tar -czf "${backupPath}" -C "${context.projectRoot}" ${itemsToBackup.join(' ')}`,
-        { cwd: context.projectRoot }
+        `tar -czf "${backupPath}" -C "${service.projectRoot}" ${itemsToBackup.join(' ')}`,
+        { cwd: service.projectRoot }
       );
       
       backup.size = fs.statSync(backupPath).size;
       backup.location = backupPath;
-      restore.command = `tar -xzf "${backupPath}" -C "${context.projectRoot}"`;
+      restore.command = `tar -xzf "${backupPath}" -C "${service.projectRoot}"`;
       
       // Calculate checksum
       const checksum = execSync(`shasum -a 256 "${backup.location}"`, { encoding: 'utf-8' })
@@ -731,12 +732,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + retentionDays);
       
-      if (!context.quiet) {
+      if (!service.quiet) {
         printInfo(`Backup created: ${path.basename(backup.location!)} (${Math.round(backup.size! / 1024 / 1024 * 100) / 100} MB)`);
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: true,
         backupTime: new Date(),
@@ -758,7 +759,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         backupTime: new Date(),
@@ -768,19 +769,19 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async exec(context: ServiceContext, command: string, options: ExecOptions = {}): Promise<ExecResult> {
-    const requirements = context.getRequirements();
+  async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
+    const requirements = service.getRequirements();
     const execTime = new Date();
     const startTime = Date.now();
     
     // Determine working directory
-    const servicePath = path.join(context.projectRoot, 'apps', context.name);
+    const servicePath = path.join(service.projectRoot, 'apps', service.name);
     const workingDirectory = options.workingDirectory || servicePath;
     
     // Check if service directory exists
     if (!fs.existsSync(workingDirectory)) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         execTime,
@@ -792,10 +793,10 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Build environment variables from requirements
     const env = {
       ...process.env,
-      ...context.getEnvironmentVariables(),
+      ...service.getEnvironmentVariables(),
       ...(requirements.environment || {}),
-      NODE_ENV: context.environment,
-      SERVICE_NAME: context.name
+      NODE_ENV: service.environment,
+      SERVICE_NAME: service.name
     };
     
     // Add secrets from requirements if available
@@ -811,15 +812,15 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Determine shell to use
     const shell = options.shell || (process.platform === 'win32' ? 'cmd.exe' : '/bin/bash');
     
-    if (!context.quiet) {
-      printInfo(`Executing in ${context.name} (process): ${command}`);
+    if (!service.quiet) {
+      printInfo(`Executing in ${service.name} (process): ${command}`);
     }
     
     try {
       // Interactive commands not supported in process platform
       if (options.interactive || options.tty) {
         return {
-          entity: context.name,
+          entity: service.name,
           platform: 'process',
           success: false,
           execTime,
@@ -881,7 +882,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: exitCode === 0,
         execTime,
@@ -918,7 +919,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         execTime,
@@ -932,16 +933,16 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async test(context: ServiceContext, options: TestOptions = {}): Promise<TestResult> {
-    const requirements = context.getRequirements();
+  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
+    const requirements = service.getRequirements();
     const testTime = new Date();
     const startTime = Date.now();
-    const servicePath = path.join(context.projectRoot, 'apps', context.name);
+    const servicePath = path.join(service.projectRoot, 'apps', service.name);
     
     // Check if service directory exists
     if (!fs.existsSync(servicePath)) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         testTime,
@@ -953,11 +954,11 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Build environment variables from requirements
     const env = {
       ...process.env,
-      ...context.getEnvironmentVariables(),
+      ...service.getEnvironmentVariables(),
       ...(requirements.environment || {}),
       NODE_ENV: 'test',
       CI: 'true',
-      SERVICE_NAME: context.name
+      SERVICE_NAME: service.name
     };
     
     // Detect test framework and build command
@@ -1016,8 +1017,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       testCommand += framework === 'jest' ? ' --bail' : ' --bail';
     }
     
-    if (!context.quiet) {
-      printInfo(`Running tests for ${context.name} (process): ${testCommand}`);
+    if (!service.quiet) {
+      printInfo(`Running tests for ${service.name} (process): ${testCommand}`);
     }
     
     try {
@@ -1062,7 +1063,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       }
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: exitCode === 0,
         testTime,
@@ -1089,7 +1090,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         testTime,
@@ -1099,21 +1100,21 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async restore(context: ServiceContext, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
-    const requirements = context.getRequirements();
+  async restore(service: Service, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
+    const requirements = service.getRequirements();
     const restoreTime = new Date();
     const startTime = Date.now();
-    const backupDir = path.join(context.projectRoot, '.semiont', 'backups', context.environment);
+    const backupDir = path.join(service.projectRoot, '.semiont', 'backups', service.environment);
     const backupPath = path.join(backupDir, `${backupId}.tar.gz`);
     
-    if (!context.quiet) {
-      printInfo(`Restoring ${context.name} from backup ${backupId}`);
+    if (!service.quiet) {
+      printInfo(`Restoring ${service.name} from backup ${backupId}`);
     }
     
     // Check if backup exists
     if (!fs.existsSync(backupPath)) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         restoreTime,
@@ -1132,7 +1133,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
           
           if (expectedChecksum !== actualChecksum) {
             return {
-              entity: context.name,
+              entity: service.name,
               platform: 'process',
               success: false,
               restoreTime,
@@ -1151,26 +1152,26 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       if (options.stopService !== false) {
         downtimeStart = new Date();
         
-        if (!context.quiet) {
-          printWarning(`Stopping ${context.name} service for restore`);
+        if (!service.quiet) {
+          printWarning(`Stopping ${service.name} service for restore`);
         }
         
-        await this.stop(context);
+        await this.stop(service);
       }
       
       // Create backup of current state before restoring
       const preRestoreBackupId = `pre-restore-${Date.now()}`;
       if (!options.force) {
-        if (!context.quiet) {
+        if (!service.quiet) {
           printInfo('Creating backup of current state before restore');
         }
         
-        await this.backup(context);
+        await this.backup(service);
       }
       
       // Extract backup
-      execSync(`tar -xzf ${backupPath} -C ${context.projectRoot}`, {
-        cwd: context.projectRoot
+      execSync(`tar -xzf ${backupPath} -C ${service.projectRoot}`, {
+        cwd: service.projectRoot
       });
       
       // Start service if requested
@@ -1178,12 +1179,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       let serviceStarted = false;
       
       if (options.startService !== false && downtimeStart) {
-        if (!context.quiet) {
-          printInfo(`Starting ${context.name} service after restore`);
+        if (!service.quiet) {
+          printInfo(`Starting ${service.name} service after restore`);
         }
         
         try {
-          await this.start(context);
+          await this.start(service);
           serviceStarted = true;
           downtimeEnd = new Date();
         } catch (startError) {
@@ -1195,7 +1196,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       let healthCheckPassed = false;
       if (serviceStarted && requirements.network?.healthCheckPath) {
         try {
-          const checkResult = await this.check(context);
+          const checkResult = await this.check(service);
           healthCheckPassed = checkResult.health?.healthy || false;
         } catch {
           // Health check failed
@@ -1216,14 +1217,14 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       const duration = Date.now() - startTime;
       
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: true,
         restoreTime,
         backupId,
         restore: {
           source: backupPath,
-          destination: context.projectRoot,
+          destination: service.projectRoot,
           size: fs.statSync(backupPath).size,
           duration
         },
@@ -1237,7 +1238,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         rollback: {
           supported: true,
           previousBackupId: preRestoreBackupId,
-          command: `semiont restore --service ${context.name} --backup-id ${preRestoreBackupId}`
+          command: `semiont restore --service ${service.name} --backup-id ${preRestoreBackupId}`
         },
         downtime: downtimeStart && downtimeEnd ? {
           start: downtimeStart,
@@ -1254,7 +1255,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
     } catch (error) {
       return {
-        entity: context.name,
+        entity: service.name,
         platform: 'process',
         success: false,
         restoreTime,
@@ -1264,8 +1265,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
-    const requirements = context.getRequirements();
+  async collectLogs(service: Service): Promise<CheckResult['logs']> {
+    const requirements = service.getRequirements();
     
     // Check for log path in annotations
     let logPath: string | undefined;
@@ -1276,9 +1277,9 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Try standard log locations
     const logPaths = [
       ...(logPath ? [logPath] : []),
-      path.join(context.projectRoot, 'logs', `${context.name}.log`),
-      path.join(context.projectRoot, 'apps', context.name, 'logs', 'app.log'),
-      `/var/log/${context.name}.log`
+      path.join(service.projectRoot, 'logs', `${service.name}.log`),
+      path.join(service.projectRoot, 'apps', service.name, 'logs', 'app.log'),
+      `/var/log/${service.name}.log`
     ];
     
     for (const logPath of logPaths) {
@@ -1303,7 +1304,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (requirements.annotations?.['service/type'] === 'systemd') {
       try {
         const logs = execSync(
-          `journalctl -u ${context.name} -n 100 --no-pager`,
+          `journalctl -u ${service.name} -n 100 --no-pager`,
           { encoding: 'utf-8' }
         ).split('\n').filter(line => line.trim());
         
