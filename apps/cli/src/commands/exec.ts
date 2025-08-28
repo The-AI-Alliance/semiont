@@ -365,6 +365,7 @@ export const execCommand = new CommandBuilder()
   .description('Execute commands within running services')
   .schema(ExecCommandOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service to execute command in', required: true },
     '--command': { type: 'string', description: 'The command to execute', required: true },

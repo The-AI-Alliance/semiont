@@ -324,6 +324,7 @@ export const publishCommand = new CommandBuilder()
   .description('Publish and deploy service artifacts')
   .schema(PublishOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
     '--tag': { type: 'string', description: 'Custom version tag' },

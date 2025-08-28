@@ -332,6 +332,7 @@ export const restoreNewCommand = new CommandBuilder()
   .description('Restore services from backups (new implementation)')
   .schema(RestoreOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .args({
     args: {
       '--backup-id': { type: 'string', description: 'ID of the backup to restore from', required: true },

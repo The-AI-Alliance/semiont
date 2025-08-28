@@ -371,5 +371,6 @@ export const backupCommand = new CommandBuilder()
   .description('Create backups of service data and state')
   .schema(BackupOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .handler(backupHandler)
   .build();

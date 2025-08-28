@@ -257,6 +257,7 @@ export const updateCommand = new CommandBuilder()
   .description('Update services to latest version using new service architecture')
   .schema(UpdateOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
   }))

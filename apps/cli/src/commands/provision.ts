@@ -282,6 +282,7 @@ export const provisionCommand = new CommandBuilder()
   .description('Provision infrastructure and resources for services')
   .schema(ProvisionOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
     '--force': { type: 'boolean', description: 'Force re-provisioning' },

@@ -266,6 +266,7 @@ export const checkCommand = new CommandBuilder()
   .description('Check service status using new service architecture')
   .schema(CheckOptionsSchema)
   .requiresServices(true)
+  .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
   }))
