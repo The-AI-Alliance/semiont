@@ -118,7 +118,7 @@ export function createTestConfig(envName: string = 'test'): any {
       region: 'us-east-1',
       accountId: '123456789012'
     };
-    config.deployment.default = 'aws';
+    config.platform.default = 'aws';
   }
   
   return config;

@@ -28,7 +28,7 @@ export interface AWSConfig {
 }
 
 export interface ServiceConfig {
-  deployment?: {
+  platform?: {
     type?: string;
   };
   port?: number;
@@ -38,7 +38,7 @@ export interface ServiceConfig {
 
 export interface EnvironmentConfig {
   _comment?: string;
-  deployment?: {
+  platform?: {
     default?: string;
   };
   env?: Record<string, string>;

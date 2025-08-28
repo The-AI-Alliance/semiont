@@ -229,18 +229,18 @@ describe('init command', () => {
       
       // Check local environment config - uses container as default but services use process
       const localConfig = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
-      expect(localConfig.deployment.default).toBe('container');
+      expect(localConfig.platform.default).toBe('container');
       // But individual services use process for local development
-      expect(localConfig.services.backend.deployment.type).toBe('process');
-      expect(localConfig.services.frontend.deployment.type).toBe('process');
+      expect(localConfig.services.backend.platform.type).toBe('process');
+      expect(localConfig.services.frontend.platform.type).toBe('process');
       
       // Check staging environment config uses AWS
       const stagingConfig = JSON.parse(fs.readFileSync('environments/staging.json', 'utf-8'));
-      expect(stagingConfig.deployment.default).toBe('aws');
+      expect(stagingConfig.platform.default).toBe('aws');
       
       // Check production environment config uses AWS
       const prodConfig = JSON.parse(fs.readFileSync('environments/production.json', 'utf-8'));
-      expect(prodConfig.deployment.default).toBe('aws');
+      expect(prodConfig.platform.default).toBe('aws');
     });
   });
 

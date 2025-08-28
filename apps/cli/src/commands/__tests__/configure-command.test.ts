@@ -57,7 +57,7 @@ describe('configure command with structured output', () => {
     // Create custom configs for specific test cases
     // Add a 'local-no-aws' environment without AWS config for error testing
     const noAwsConfig = {
-      deployment: { default: 'container' },
+      platform: { default: 'container' },
       services: {
         frontend: { port: 3000 },
         backend: { port: 3001 }
@@ -211,10 +211,14 @@ describe('configure command with structured output', () => {
       
       const validateResult = results.results[0] as ConfigureResult;
       expect(validateResult.service).toBe('validation');
+      // Check what issues were found, if any
+      if (validateResult.metadata?.issues?.length) {
+        console.log('Validation issues found:', validateResult.metadata.issues);
+      }
+      expect(validateResult.metadata?.issues).toEqual([]);
       expect(validateResult.status).toBe('validated');
       expect(validateResult.success).toBe(true);
       expect(validateResult.metadata).toHaveProperty('action', 'validate');
-      expect(validateResult.metadata).toHaveProperty('issues');
     });
 
     it('should detect AWS configuration issues', async () => {
@@ -228,7 +232,7 @@ describe('configure command with structured output', () => {
 
       // Create a production environment without AWS config for testing
       const prodNoAwsConfig = {
-        deployment: { default: 'aws' }, // AWS deployment but no AWS config
+        platform: { default: 'aws' }, // AWS platform but no AWS config
         services: {
           frontend: { port: 3000 },
           backend: { port: 3001 }
@@ -245,7 +249,7 @@ describe('configure command with structured output', () => {
       expect(productionResult).toBeDefined();
       expect(productionResult.status).toBe('validation-failed');
       expect(productionResult.success).toBe(false);
-      expect(productionResult.metadata.issues).toContain('AWS deployment requires aws configuration');
+      expect(productionResult.metadata.issues).toContain('AWS platform requires aws configuration');
     });
 
     it('should detect missing services', async () => {
@@ -509,7 +513,7 @@ describe('configure command with structured output', () => {
     it('should handle AWS configuration missing', async () => {
       // Create an environment that has AWS configured but incomplete
       const awsNoConfigEnv = {
-        deployment: { default: 'aws' },
+        platform: { default: 'aws' },
         aws: {
           region: 'us-east-1'
           // Missing accountId and other required fields

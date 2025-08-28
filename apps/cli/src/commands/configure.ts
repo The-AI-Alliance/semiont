@@ -335,11 +335,11 @@ async function configure(
           const issues: string[] = [];
           
           // Check required fields
-          if (!config.deployment?.default) {
-            issues.push('Missing deployment.default');
+          if (!config.platform?.default) {
+            issues.push('Missing platform.default');
           }
-          if (config.deployment?.default === 'aws' && !config.aws) {
-            issues.push('AWS deployment requires aws configuration');
+          if (config.platform?.default === 'aws' && !config.aws) {
+            issues.push('AWS platform requires aws configuration');
           }
           
           const baseResult = createBaseResult('configure', 'validation', 'external', options.environment!, startTime);

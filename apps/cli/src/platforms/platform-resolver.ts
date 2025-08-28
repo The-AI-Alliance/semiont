@@ -95,7 +95,7 @@ export interface AppConfig {
 }
 
 export interface EnvironmentConfig {
-  deployment?: {
+  platform?: {
     default: Platform;
   };
   services: Record<string, ServiceConfig>;  // Dynamic access - the key fix!
