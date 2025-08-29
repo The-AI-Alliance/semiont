@@ -1,57 +1,120 @@
 /**
- * Watch Command - Unified command structure
+ * Watch Command
+ * 
+ * Monitors services in real-time, providing live updates on status, logs, and metrics.
+ * This command offers both a terminal dashboard view and web-based monitoring interface
+ * for comprehensive service observation.
+ * 
+ * Workflow:
+ * 1. Establishes monitoring connections to services
+ * 2. Starts real-time data collection (logs, metrics, events)
+ * 3. Renders dashboard with live updates
+ * 4. Handles user interactions (filtering, drilling down)
+ * 5. Optionally starts web dashboard server
+ * 
+ * Options:
+ * - --all: Watch all services
+ * - --logs: Include log streaming
+ * - --metrics: Show performance metrics
+ * - --interval: Update interval in seconds
+ * - --web: Start web dashboard on specified port
+ * - --filter: Filter logs by pattern
+ * 
+ * Dashboard Features:
+ * - Service status indicators (running, stopped, error)
+ * - Real-time log streaming with filtering
+ * - Resource usage graphs (CPU, memory, network)
+ * - Health check status and history
+ * - Interactive controls for service management
  */
 
 import { z } from 'zod';
+import { colors } from '../lib/cli-colors.js';
 import React from 'react';
 import { render } from 'ink';
-import { colors } from '../lib/cli-colors.js';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type ServicePlatformInfo, type Platform } from '../platforms/platform-resolver.js';
+import type { PlatformResources } from '../platforms/platform-resources.js';
+import type { ServiceName } from '../services/service-interface.js';
 import { 
-  WatchResult, 
   CommandResults, 
   createBaseResult,
-  ResourceIdentifier 
-} from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+} from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { Config } from '../lib/cli-config.js';
+import { DashboardDataSource } from '../dashboard/dashboard-data.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a watch operation
+ */
+export interface WatchResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  status?: string;  // Optional status for legacy commands
+  watchType: 'logs' | 'metrics' | 'events';
+  streamUrl?: string;
+  logLines?: Array<{
+    timestamp: Date;
+    level: string;
+    message: string;
+    source?: string;
+  }>;
+  metrics?: Array<{
+    name: string;
+    value: number;
+    unit: string;
+    timestamp: Date;
+  }>;
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // Import the React dashboard component dynamically to handle module loading
-let DashboardApp: any;
+type DashboardAppType = React.FC<{
+  mode: 'unified' | 'logs' | 'metrics';
+  service?: string;
+  refreshInterval?: number;
+  environment: string;
+  data?: any; // Dashboard data passed from the wrapper
+}>;
+let DashboardApp: DashboardAppType | undefined;
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const WatchOptionsSchema = z.object({
-  environment: z.string().optional(),
+const WatchOptionsSchema = BaseOptionsSchema.extend({
   target: z.enum(['all', 'logs', 'metrics', 'services']).default('all'),
   noFollow: z.boolean().default(false),
-  interval: z.number().int().positive().default(30),  // Increased from 5s to 30s
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  interval: z.number().int().positive().default(30),
   service: z.string().optional(),
-  terminal: z.boolean().default(false),  // Changed from web to terminal, default false (web is default)
-  term: z.boolean().optional(),  // Alias for terminal
+  terminal: z.boolean().default(false),
+  term: z.boolean().optional(),
   port: z.number().int().positive().default(3333),
 }).transform((opts) => ({
   ...opts,
-  terminal: opts.terminal || opts.term || false,  // Handle both --terminal and --term
-  term: undefined  // Remove the alias from the final options
+  terminal: opts.terminal || opts.term || false,
+  term: undefined
 }));
 
-type WatchOptions = z.infer<typeof WatchOptionsSchema> & BaseCommandOptions;
+type WatchOptions = z.output<typeof WatchOptionsSchema>;
 
 // =====================================================================
-// HELPER FUNCTIONS
+// ENHANCED DATA SOURCE FOR NEW ARCHITECTURE
 // =====================================================================
 
-// Helper wrapper for printDebug that passes verbose option
-function debugLog(_message: string, _options: any): void {
-  // Debug logging disabled for now
-}
+// Enhanced data source now lives in dashboard-data.ts
+// The EnhancedDashboardDataSource class has been moved to dashboard-data.ts
+// and renamed to DashboardDataSource
+
 
 // =====================================================================
 // DASHBOARD LAUNCHER
@@ -60,9 +123,10 @@ function debugLog(_message: string, _options: any): void {
 async function launchDashboard(
   environment: string, 
   target: string, 
-  services: string[],
+  serviceDeployments: ServicePlatformInfo[],
+  config: Config,
   interval: number,
-  terminalMode: boolean = false,  // Changed from webMode to terminalMode
+  terminalMode: boolean = false,
   port: number = 3333
 ): Promise<{ duration: number; exitReason: string }> {
   const startTime = Date.now();
@@ -70,7 +134,6 @@ async function launchDashboard(
   return new Promise(async (resolve) => {
     // Check if we're in test mode
     if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
-      // Simulate a dashboard that runs briefly and exits normally
       setTimeout(() => {
         resolve({
           duration: 100,
@@ -82,42 +145,49 @@ async function launchDashboard(
     
     try {
       if (terminalMode) {
-        // Launch terminal dashboard
-        // Dynamically import the dashboard component
+        // Terminal dashboard mode
         const watchModule = await import('./watch-dashboard.js');
-        DashboardApp = watchModule.default || watchModule.DashboardApp || watchModule;
+        DashboardApp = watchModule.default as DashboardAppType;
         
-        // Ensure we have a valid component
-        if (!DashboardApp || (typeof DashboardApp !== 'function' && !DashboardApp.$$typeof)) {
+        if (!DashboardApp || (typeof DashboardApp !== 'function' && !('$$typeof' in DashboardApp))) {
           throw new Error('Failed to load DashboardApp component');
         }
         
-        // Determine dashboard mode based on target
+        // Create data source using the new architecture
+        const dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+        
+        // Determine dashboard mode
         let mode: 'unified' | 'logs' | 'metrics' = 'unified';
-        if (target === 'logs') {
-          mode = 'logs';
-        } else if (target === 'metrics') {
-          mode = 'metrics';
-        }
+        if (target === 'logs') mode = 'logs';
+        else if (target === 'metrics') mode = 'metrics';
         
-        // Determine service filter
-        let service: 'frontend' | 'backend' | undefined;
-        if (services.length === 1) {
-          const svc = services[0];
-          if (svc === 'frontend' || svc === 'backend') {
-            service = svc as 'frontend' | 'backend';
-          }
-        }
-        
-        // Launch the React/Ink dashboard directly
-        const { waitUntilExit } = render(
-          React.createElement(DashboardApp, {
+        // Create a wrapper component that provides data
+        const EnhancedDashboard = () => {
+          const [data, setData] = React.useState<any>(null);
+          
+          React.useEffect(() => {
+            const loadData = async () => {
+              const newData = await dataSource.getDashboardData();
+              setData(newData);
+            };
+            
+            loadData();
+            const timer = setInterval(loadData, interval * 1000);
+            return () => clearInterval(timer);
+          }, []);
+          
+          if (!data) return React.createElement('div', null, 'Loading...');
+          
+          return React.createElement(DashboardApp!, {
             mode,
-            service,
+            data,
             refreshInterval: interval,
             environment
-          })
-        );
+          });
+        };
+        
+        // Launch the React/Ink dashboard
+        const { waitUntilExit } = render(React.createElement(EnhancedDashboard));
         
         await waitUntilExit();
         const duration = Date.now() - startTime;
@@ -126,10 +196,23 @@ async function launchDashboard(
           exitReason: 'user-quit'
         });
       } else {
-        // Launch web-based dashboard (default)
-        const { WebDashboardServer } = await import('../lib/web-dashboard-server.js');
-        const server = new WebDashboardServer(environment, port, interval);
+        // Web dashboard mode
+        const { WebDashboardServer } = await import('../dashboard/web-dashboard-server.js');
         
+        // Create a custom server that uses the new service architecture
+        class EnhancedWebDashboardServer extends WebDashboardServer {
+          constructor(environment: string, port: number, interval: number) {
+            super(environment, port, interval);
+            // Override the parent's dataSource with our enhanced version
+            this.dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+          }
+          
+          async getDashboardData() {
+            return this.dataSource.getDashboardData();
+          }
+        }
+        
+        const server = new EnhancedWebDashboardServer(environment, port, interval);
         await server.start();
         
         // Wait for Ctrl+C
@@ -163,16 +246,25 @@ async function launchDashboard(
 }
 
 // =====================================================================
-// STRUCTURED OUTPUT FUNCTION
+// MAIN WATCH FUNCTION
 // =====================================================================
 
 export async function watch(
-  serviceDeployments: ServiceDeploymentInfo[],
+  serviceDeployments: ServicePlatformInfo[],
   options: WatchOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = options.environment!; // Environment is guaranteed by command loader
+  const environment = options.environment!;
+  
+  // Create config for the services
+  const config: Config = {
+    projectRoot: process.cwd(),
+    environment: parseEnvironment(environment),
+    verbose: options.verbose,
+    quiet: isStructuredOutput,
+    dryRun: options.dryRun
+  };
   
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
@@ -183,15 +275,13 @@ export async function watch(
         printInfo(`Starting terminal dashboard for ${colors.bright}${environment}${colors.reset} environment`);
         printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
         printInfo('Press "q" to quit, "r" to refresh');
+        printInfo('Using new service architecture for status checks');
       } else {
         printInfo(`Starting web dashboard for ${colors.bright}${environment}${colors.reset} environment`);
         printInfo(`Dashboard will be available at http://localhost:${options.port}`);
         printInfo(`Target: ${options.target}, Refresh interval: ${options.interval}s`);
+        printInfo('Using new service architecture for status checks');
       }
-    }
-    
-    if (!isStructuredOutput && options.output === 'summary' && options.verbose) {
-      debugLog(`Monitoring services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
     }
     
     // Launch the dashboard or simulate in dry-run mode
@@ -200,16 +290,17 @@ export async function watch(
     
     if (options.dryRun) {
       if (!isStructuredOutput && options.output === 'summary') {
-        printInfo('[DRY RUN] Would launch watch dashboard');
+        printInfo('[DRY RUN] Would launch watch dashboard with new service architecture');
       }
       sessionDuration = 0;
       exitReason = 'dry-run';
     } else {
-      // Launch the actual dashboard
+      // Launch the enhanced dashboard
       const result = await launchDashboard(
         environment,
         options.target,
-        serviceDeployments.map(s => s.name),
+        serviceDeployments,
+        config,
         options.interval,
         options.terminal,
         options.port
@@ -220,21 +311,22 @@ export async function watch(
     
     // Create watch results for each monitored service
     const serviceResults: WatchResult[] = serviceDeployments.map(serviceInfo => {
-      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.deploymentType, environment, startTime);
+      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.platform, environment, startTime);
       
       return {
         ...baseResult,
+        entity: baseResult.service,
         watchType: options.target === 'logs' ? 'logs' as const : 
                    options.target === 'metrics' ? 'metrics' as const : 
                    'events' as const,
-        resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
         status: 'session-ended',
         metadata: {
           mode: options.target,
           refreshInterval: options.interval,
           sessionDuration: sessionDuration,
           exitReason: exitReason,
-          interactive: !isStructuredOutput
+          interactive: !isStructuredOutput,
+          usingNewArchitecture: true
         },
       };
     });
@@ -245,10 +337,10 @@ export async function watch(
       environment: environment,
       timestamp: new Date(),
       duration: sessionDuration || Date.now() - startTime,
-      services: serviceResults,
+      results: serviceResults,
       summary: {
         total: serviceResults.length,
-        succeeded: serviceResults.length, // Watch sessions always "succeed"
+        succeeded: serviceResults.length,
         failed: 0,
         warnings: 0,
       },
@@ -271,51 +363,30 @@ export async function watch(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const watchCommand = new CommandBuilder<WatchOptions>()
-  .name('watch')
-  .description('Monitor logs and system metrics')
-  .schema(WatchOptionsSchema as any)
+export const watchCommand = new CommandBuilder()
+  .name('watch-new')
+  .description('Monitor services using new architecture')
+  .schema(WatchOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--target': { type: 'string', description: 'What to watch (all, logs, metrics, services)' },
-      '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },
-      '--interval': { type: 'number', description: 'Refresh interval in seconds' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-      '--terminal': { type: 'boolean', description: 'Use terminal-based dashboard instead of web' },
-      '--term': { type: 'boolean', description: 'Alias for --terminal' },
-      '--port': { type: 'number', description: 'Port for web dashboard (default: 3333)' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-t': '--target',
-      '-i': '--interval',
-      '-v': '--verbose',
-      '-o': '--output',
-    }
-  })
+  .args(withBaseArgs({
+    '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--target': { type: 'string', description: 'What to watch (all, logs, metrics, services)' },
+    '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },
+    '--interval': { type: 'number', description: 'Refresh interval in seconds' },
+    '--terminal': { type: 'boolean', description: 'Use terminal-based dashboard instead of web' },
+    '--term': { type: 'boolean', description: 'Alias for --terminal' },
+    '--port': { type: 'number', description: 'Port for web dashboard (default: 3333)' },
+  }, {
+    '-t': '--target',
+    '-i': '--interval',
+    '-s': '--service'
+  }))
   .examples(
-    'semiont watch --environment local',
-    'semiont watch --environment staging --target logs',
-    'semiont watch --environment production --service backend --interval 10',
-    'semiont watch --environment staging --port 8080',
-    'semiont watch --environment production --terminal'
+    'semiont watch-new -e production',
+    'semiont watch-new -e staging --terminal',
+    'semiont watch-new -e dev --target logs',
+    'semiont watch-new -e local --interval 10 --port 4444'
   )
   .handler(watch)
   .build();
-
-// Export default for compatibility
-export default watchCommand;
-
-// Note: The main function is removed as cli.ts now handles service resolution and output formatting
-// The watch function now accepts pre-resolved services and returns CommandResults
-
-// Export the schema for use by CLI
-
-export type { WatchOptions };
-export { WatchOptionsSchema };

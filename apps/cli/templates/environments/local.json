@@ -1,6 +1,6 @@
 {
   "name": "local",
-  "deployment": {
+  "platform": {
     "default": "container"
   },
   "env": {
@@ -8,21 +8,21 @@
   },
   "services": {
     "backend": {
-      "deployment": {
+      "platform": {
         "type": "process"
       },
       "command": "npm run dev",
       "port": 4000
     },
     "frontend": {
-      "deployment": {
+      "platform": {
         "type": "process"
       },
       "command": "npm run dev",
       "port": 3000
     },
     "database": {
-      "deployment": {
+      "platform": {
         "type": "container"
       },
       "image": "postgres:15-alpine",
@@ -35,7 +35,7 @@
       }
     },
     "mcp": {
-      "deployment": {
+      "platform": {
         "type": "process"
       },
       "dependsOn": ["backend"]

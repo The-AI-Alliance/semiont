@@ -1,878 +1,231 @@
 /**
- * Restart Command - Unified command structure
+ * Restart Command
+ * 
+ * Restarts services by performing a stop followed by a start operation.
+ * This command ensures minimal downtime and proper resource cleanup during
+ * the restart process.
+ * 
+ * Workflow:
+ * 1. Stops the service gracefully
+ * 2. Waits for complete shutdown
+ * 3. Cleans up any lingering resources
+ * 4. Starts the service with fresh configuration
+ * 5. Verifies service is running correctly
+ * 
+ * Options:
+ * - --all: Restart all services
+ * - --rolling: Perform rolling restart to minimize downtime
+ * - --force: Force restart even if stop fails
+ * - --build: Rebuild before restarting (container/AWS platforms)
+ * 
+ * Platform Behavior:
+ * - Process: Stops process, clears state, starts new process
+ * - Container: Recreates container with latest configuration
+ * - AWS: Performs ECS service update or Lambda redeploy
+ * - External: Refreshes connection and validates availability
+ * - Mock: Simulates restart sequence for testing
  */
 
 import { z } from 'zod';
-import { colors } from '../lib/cli-colors.js';
-import { printError, printSuccess, printInfo, printWarning, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
-import { stopContainer, runContainer } from '../lib/container-runtime.js';
-import { spawn } from 'child_process';
-import { 
-  RestartResult, 
-  CommandResults, 
-  createBaseResult, 
-  createErrorResult,
-  ResourceIdentifier 
-} from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import type { BaseCommandOptions } from '../lib/base-command-options.js';
+import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
+import { ServicePlatformInfo, Platform } from '../platforms/platform-resolver.js';
+import { PlatformResources } from '../platforms/platform-resources.js';
+import { ServiceName } from '../services/service-interface.js';
+import { CommandResults } from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema } from '../commands/base-options-schema.js';
+import { ServiceFactory } from '../services/service-factory.js';
+import { PlatformFactory } from '../platforms/index.js';
+import { Config } from '../lib/cli-config.js';
+import { parseEnvironment } from '../lib/environment-validator.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+export interface RestartResult {
+  entity: ServiceName | string;
+  platform: Platform;
+  success: boolean;
+  stopTime: Date;
+  startTime: Date;
+  downtime: number; // milliseconds
+  gracefulRestart: boolean;
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const RestartOptionsSchema = z.object({
-  environment: z.string().optional(),
+const RestartOptionsSchema = BaseOptionsSchema.extend({
   force: z.boolean().default(false),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  gracePeriod: z.number().int().positive().default(3), // seconds to wait between stop and start
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
+  gracePeriod: z.number().int().positive().default(3), // seconds
   service: z.string().optional(),
 });
 
-type RestartOptions = z.infer<typeof RestartOptionsSchema> & BaseCommandOptions;
+type RestartOptions = z.infer<typeof RestartOptionsSchema>;
 
 // =====================================================================
-// HELPER FUNCTIONS
+// RESTART IMPLEMENTATION
 // =====================================================================
 
-// Helper wrapper for printDebug that passes verbose option
-function debugLog(_message: string, _options: any): void {
-  // Debug logging disabled for now
-}
-
-
-// =====================================================================
-// DEPLOYMENT-TYPE-AWARE RESTART FUNCTIONS
-// =====================================================================
-
-async function restartServiceImpl(serviceInfo: ServiceDeploymentInfo, options: RestartOptions): Promise<RestartResult> {
-  const startTime = Date.now();
-  const stopTime = new Date();
-  
-  if (options.dryRun) {
-    printInfo(`[DRY RUN] Would restart ${serviceInfo.name} (${serviceInfo.deploymentType})`);
-    
-    return {
-      ...createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime),
-      stopTime,
-      startTime: new Date(Date.now() + options.gracePeriod * 1000),
-      downtime: options.gracePeriod * 1000,
-      gracefulRestart: true,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'dry-run',
-      metadata: { dryRun: true, gracePeriod: options.gracePeriod },
-    };
-  }
-  
-  printInfo(`Restarting ${serviceInfo.name} (${serviceInfo.deploymentType})...`);
-  
-  try {
-    switch (serviceInfo.deploymentType) {
-      case 'aws':
-        return await restartAWSService(serviceInfo, options, startTime);
-      case 'container':
-        return await restartContainerService(serviceInfo, options, startTime);
-      case 'process':
-        return await restartProcessService(serviceInfo, options, startTime);
-      case 'external':
-        return await restartExternalService(serviceInfo, options, startTime);
-      default:
-        throw new Error(`Unknown deployment type '${serviceInfo.deploymentType}' for ${serviceInfo.name}`);
-    }
-  } catch (error) {
-    const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-    const errorResult = createErrorResult(baseResult, error as Error);
-    
-    return {
-      ...errorResult,
-      stopTime,
-      startTime: stopTime,
-      downtime: 0,
-      gracefulRestart: false,
-      resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-      status: 'failed',
-      metadata: { error: (error as Error).message },
-    };
-  }
-}
-
-async function restartAWSService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  const stopTime = new Date();
-  
-  // AWS ECS task restart
-  switch (serviceInfo.name) {
-    case 'frontend':
-    case 'backend':
-      printInfo(`Restarting ECS service for ${serviceInfo.name}`);
-      
-      try {
-        // Import AWS SDK components
-        const { ECSClient, UpdateServiceCommand, DescribeServicesCommand } = await import('@aws-sdk/client-ecs');
-        const { loadEnvironmentConfig } = await import('../lib/deployment-resolver.js');
-        
-        // Load configuration
-        const envConfig = loadEnvironmentConfig(options.environment!);
-        const awsRegion = envConfig.aws?.region || 'us-east-1';
-        const stackName = envConfig.aws?.stacks?.app || 'SemiontAppStack';
-        
-        // Get cluster name from the stack
-        const { getClusterNameFromStack, findEcsService } = await import('./update.js');
-        const clusterName = await getClusterNameFromStack(awsRegion, stackName);
-        
-        if (!clusterName) {
-          throw new Error(`Could not find ECS cluster in stack ${stackName}`);
-        }
-        
-        const ecsClient = new ECSClient({ region: awsRegion });
-        
-        // Find the actual service name in the cluster
-        const actualServiceName = await findEcsService(ecsClient, clusterName, serviceInfo.name);
-        if (!actualServiceName) {
-          throw new Error(`Could not find ECS service for ${serviceInfo.name} in cluster ${clusterName}`);
-        }
-        
-        // Force a new deployment (which effectively restarts the service)
-        await ecsClient.send(new UpdateServiceCommand({
-          cluster: clusterName,
-          service: actualServiceName,
-          forceNewDeployment: true,
-        }));
-        
-        printSuccess(`ECS service ${serviceInfo.name} restart initiated`);
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: new Date(Date.now() + 30000), // ECS rolling update typically takes 30-60 seconds
-          downtime: 0, // Rolling update means zero downtime
-          gracefulRestart: true,
-          resourceId: {
-            aws: {
-              arn: `arn:aws:ecs:${awsRegion}:${envConfig.aws?.accountId}:service/${clusterName}/${actualServiceName}`,
-              id: actualServiceName,
-              name: actualServiceName
-            }
-          },
-          status: 'restarted',
-          metadata: {
-            serviceName: actualServiceName,
-            cluster: clusterName,
-            region: awsRegion,
-            forceNewDeployment: true,
-            gracePeriod: 0 // Zero downtime with rolling update
-          },
-        };
-      } catch (error) {
-        printError(`Failed to restart ECS service: ${(error as Error).message}`);
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: stopTime,
-          downtime: 0,
-          gracefulRestart: false,
-          resourceId: {
-            aws: {
-              arn: `arn:aws:ecs:us-east-1:unknown:service/unknown/${serviceInfo.name}`,
-              id: serviceInfo.name,
-              name: serviceInfo.name
-            }
-          },
-          status: 'failed',
-          metadata: {
-            error: (error as Error).message,
-            implementation: 'ecs-update'
-          },
-        };
-      }
-      
-    case 'database':
-      printInfo(`Restarting RDS instance for ${serviceInfo.name}`);
-      printWarning('RDS instance restart not yet implemented - use AWS Console');
-      
-      return {
-        ...baseResult,
-        stopTime,
-        startTime: new Date(Date.now() + options.gracePeriod * 1000),
-        downtime: options.gracePeriod * 1000,
-        gracefulRestart: true,
-        resourceId: {
-          aws: {
-            arn: `arn:aws:rds:us-east-1:123456789012:db:semiont-${options.environment}-db`,
-            id: `semiont-${options.environment}-db`,
-            name: `semiont-${options.environment}-database`
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          instanceIdentifier: `semiont-${options.environment}-db`,
-          implementation: 'pending',
-          gracePeriod: options.gracePeriod
-        },
-      };
-      
-    case 'filesystem':
-      printInfo(`Remounting EFS volumes for ${serviceInfo.name}`);
-      printWarning('EFS remount not yet implemented');
-      
-      return {
-        ...baseResult,
-        stopTime,
-        startTime: new Date(Date.now() + options.gracePeriod * 1000),
-        downtime: options.gracePeriod * 1000,
-        gracefulRestart: true,
-        resourceId: {
-          aws: {
-            arn: `arn:aws:efs:us-east-1:123456789012:file-system/fs-semiont${options.environment}`,
-            id: `fs-semiont${options.environment}`,
-            name: `semiont-${options.environment}-efs`
-          }
-        },
-        status: 'not-implemented',
-        metadata: {
-          fileSystemId: `fs-semiont${options.environment}`,
-          implementation: 'pending',
-          gracePeriod: options.gracePeriod
-        },
-      };
-      
-    default:
-      throw new Error(`Unsupported AWS service: ${serviceInfo.name}`);
-  }
-}
-
-async function restartContainerService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  const containerName = `semiont-${serviceInfo.name === 'database' ? 'postgres' : serviceInfo.name}-${options.environment}`;
+async function restartServiceImpl(
+  serviceInfo: ServicePlatformInfo,
+  config: Config,
+  options: RestartOptions
+): Promise<RestartResult> {
   const stopTime = new Date();
   
   try {
-    // Stop the container
-    printInfo(`Stopping container: ${containerName}`);
-    const stopSuccess = await stopContainer(containerName, {
-      force: options.force,
-      verbose: options.verbose,
-      timeout: 10
-    });
+    // Get the platform strategy
+    const platform = PlatformFactory.getPlatform(serviceInfo.platform);
     
-    if (!stopSuccess && !options.force) {
-      throw new Error(`Failed to stop container: ${containerName}`);
-    }
+    // Create service instance to act as ServiceContext
+    const service = ServiceFactory.create(
+      serviceInfo.name as ServiceName,
+      serviceInfo.platform,
+      config,
+      { ...serviceInfo.config, platform: serviceInfo.platform }
+    );
     
-    // Track if we're continuing despite stop failure
-    const forcedContinue = !stopSuccess && options.force;
+    // Stop the service
+    printInfo(`Stopping ${serviceInfo.name}...`);
+    const stopResult = await platform.stop(service);
     
-    // Wait for grace period
-    if (options.gracePeriod > 0) {
-      debugLog(`Waiting ${options.gracePeriod} seconds before starting...`, options);
-      await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
-    }
-    
-    // Start the container again
-    printInfo(`Starting container: ${containerName}`);
-    let startSuccess = false;
-    const actualStartTime = new Date();
-    
-    switch (serviceInfo.name) {
-      case 'database':
-        const imageName = serviceInfo.config.image || 'postgres:15-alpine';
-        startSuccess = await runContainer(imageName, containerName, {
-          ports: { '5432': '5432' },
-          environment: {
-            POSTGRES_PASSWORD: serviceInfo.config.password || 'localpassword',
-            POSTGRES_DB: serviceInfo.config.name || 'semiont',
-            POSTGRES_USER: serviceInfo.config.user || 'postgres'
-          },
-          detached: true,
-          verbose: options.verbose
-        });
-        break;
-        
-      case 'frontend':
-      case 'backend':
-        const appImageName = serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`;
-        startSuccess = await runContainer(appImageName, containerName, {
-          ports: serviceInfo.config.port ? { [serviceInfo.config.port.toString()]: serviceInfo.config.port.toString() } : {},
-          detached: true,
-          verbose: options.verbose
-        });
-        break;
-        
-      case 'filesystem':
-        // Volumes don't need restarting
-        printInfo(`Container volumes don't require restart`);
-        startSuccess = true;
-        break;
-    }
-    
-    if (startSuccess) {
-      printSuccess(`Container restarted: ${containerName}`);
-      
+    if (!stopResult.success) {
       return {
-        ...baseResult,
-        stopTime,
-        startTime: actualStartTime,
-        downtime: actualStartTime.getTime() - stopTime.getTime(),
-        gracefulRestart: !forcedContinue,
-        resourceId: {
-          container: {
-            id: containerName,
-            name: containerName
-          }
-        },
-        status: forcedContinue ? 'force-continued' : 'restarted',
-        metadata: {
-          containerName,
-          image: serviceInfo.name === 'database' ? 
-            (serviceInfo.config.image || 'postgres:15-alpine') : 
-            (serviceInfo.config.image || `semiont-${serviceInfo.name}:latest`),
-          gracePeriod: options.gracePeriod,
-          forced: options.force || forcedContinue
-        },
-      };
-    } else {
-      throw new Error(`Failed to restart container: ${containerName}`);
-    }
-  } catch (error) {
-    if (options.force) {
-      printWarning(`Failed to restart ${serviceInfo.name} container: ${error}`);
-      
-      return {
-        ...baseResult,
+        entity: serviceInfo.name,
+        platform: serviceInfo.platform,
+        success: false,
         stopTime,
         startTime: new Date(),
         downtime: 0,
         gracefulRestart: false,
-        resourceId: {
-          container: {
-            id: containerName,
-            name: containerName
-          }
-        },
-        status: 'force-continued',
-        metadata: {
-          containerName,
-          error: (error as Error).message,
-          forced: true
-        },
+        error: `Failed to stop: ${stopResult.error}`
       };
-    } else {
-      throw error;
     }
-  }
-}
-
-async function restartProcessService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  const stopTime = new Date();
-  
-  // Process deployment restart
-  switch (serviceInfo.name) {
-    case 'database':
-      printInfo(`Restarting PostgreSQL service`);
-      
-      // Detect platform and restart PostgreSQL accordingly
-      const platform = process.platform;
-      let restartCommand: string[] = [];
-      
-      if (platform === 'darwin') {
-        // macOS with Homebrew
-        restartCommand = ['brew', 'services', 'restart', 'postgresql'];
-      } else if (platform === 'linux') {
-        // Linux with systemctl
-        restartCommand = ['sudo', 'systemctl', 'restart', 'postgresql'];
-      } else {
-        printWarning(`PostgreSQL restart not supported on platform: ${platform}`);
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: new Date(Date.now() + options.gracePeriod * 1000),
-          downtime: options.gracePeriod * 1000,
-          gracefulRestart: false,
-          resourceId: {
-            process: {
-              path: '/usr/local/var/postgres',
-              port: 5432
-            }
-          },
-          status: 'not-supported',
-          metadata: {
-            platform,
-            reason: 'Platform not supported for PostgreSQL restart'
-          },
-        };
-      }
-      
-      try {
-        // Execute restart command
-        const { spawn } = await import('child_process');
-        const actualStartTime = new Date();
-        
-        await new Promise<void>((resolve, reject) => {
-          const proc = spawn(restartCommand[0]!, restartCommand.slice(1), {
-            stdio: options.verbose ? 'inherit' : 'pipe'
-          });
-          
-          proc.on('close', (code) => {
-            if (code === 0) {
-              resolve();
-            } else {
-              reject(new Error(`PostgreSQL restart failed with code ${code}`));
-            }
-          });
-          
-          proc.on('error', (err) => {
-            reject(err);
-          });
-        });
-        
-        printSuccess('PostgreSQL service restarted successfully');
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: actualStartTime,
-          downtime: actualStartTime.getTime() - stopTime.getTime(),
-          gracefulRestart: true,
-          resourceId: {
-            process: {
-              path: platform === 'darwin' ? '/usr/local/var/postgres' : '/var/lib/postgresql',
-              port: 5432
-            }
-          },
-          status: 'restarted',
-          metadata: {
-            service: 'postgresql',
-            platform,
-            command: restartCommand.join(' '),
-            gracePeriod: options.gracePeriod
-          },
-        };
-      } catch (error) {
-        printError(`Failed to restart PostgreSQL: ${(error as Error).message}`);
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: new Date(),
-          downtime: 0,
-          gracefulRestart: false,
-          resourceId: {
-            process: {
-              path: '/usr/local/var/postgres',
-              port: 5432
-            }
-          },
-          status: 'failed',
-          metadata: {
-            error: (error as Error).message,
-            service: 'postgresql',
-            platform
-          },
-        };
-      }
-      
-    case 'frontend':
-    case 'backend':
-      // Kill and restart process
-      const port = serviceInfo.config.port || (serviceInfo.name === 'frontend' ? 3000 : 3001);
-      
-      // Find and kill existing process
-      printInfo(`Stopping process on port ${port}`);
-      await findAndKillProcess(`:${port}`, serviceInfo.name, options);
-      
-      // Wait for grace period
-      if (options.gracePeriod > 0) {
-        debugLog(`Waiting ${options.gracePeriod} seconds before starting...`, options);
-        await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
-      }
-      
-      // Start new process
-      const actualStartTime = new Date();
-      printInfo(`Starting new process for ${serviceInfo.name}`);
-      const command = serviceInfo.config.command?.split(' ') || ['npm', 'run', 'dev'];
-      const proc = spawn(command[0]!, command.slice(1), {
-        cwd: `apps/${serviceInfo.name}`,
-        stdio: 'pipe',
-        detached: true,
-        env: {
-          ...process.env,
-          PORT: port.toString(),
-        }
-      });
-      
-      proc.unref();
-      printSuccess(`Process restarted on port ${port}`);
-      
+    
+    // Wait for grace period
+    if (options.gracePeriod > 0) {
+      await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
+    }
+    
+    // Start the service
+    const startTime = new Date();
+    printInfo(`Starting ${serviceInfo.name}...`);
+    const startResult = await platform.start(service);
+    
+    if (!startResult.success) {
       return {
-        ...baseResult,
+        entity: serviceInfo.name,
+        platform: serviceInfo.platform,
+        success: false,
         stopTime,
-        startTime: actualStartTime,
-        downtime: actualStartTime.getTime() - stopTime.getTime(),
-        gracefulRestart: !options.force,
-        resourceId: {
-          process: {
-            pid: proc.pid || 0,
-            port: port,
-            path: `apps/${serviceInfo.name}`
-          }
-        },
-        status: 'restarted',
-        metadata: {
-          command: command.join(' '),
-          port,
-          workingDirectory: `apps/${serviceInfo.name}`,
-          gracePeriod: options.gracePeriod
-        },
-      };
-      
-    case 'filesystem':
-      printInfo(`No process to restart for filesystem service`);
-      printSuccess(`Filesystem service ${serviceInfo.name} unchanged`);
-      
-      return {
-        ...baseResult,
-        stopTime,
-        startTime: stopTime, // No restart needed
-        downtime: 0,
+        startTime,
+        downtime: startTime.getTime() - stopTime.getTime(),
         gracefulRestart: true,
-        resourceId: {
-          process: {
-            path: serviceInfo.config.path || '/tmp/filesystem'
-          }
-        },
-        status: 'no-action-needed',
-        metadata: {
-          reason: 'No process to restart for filesystem service'
-        },
+        error: `Failed to start: ${startResult.error}`
       };
-      
-    case 'mcp':
-      // Stop existing MCP server if running
-      const mcpPort = serviceInfo.config.port || 8585;
-      printInfo(`Stopping MCP server on port ${mcpPort}`);
-      await findAndKillProcess(`:${mcpPort}`, 'mcp-server', options);
-      
-      // Wait for grace period
-      if (options.gracePeriod > 0) {
-        debugLog(`Waiting ${options.gracePeriod} seconds before starting...`, options);
-        await new Promise(resolve => setTimeout(resolve, options.gracePeriod * 1000));
-      }
-      
-      // Restart MCP server by delegating to start command
-      const mcpStartTime = new Date();
-      printInfo(`Restarting MCP server for environment ${options.environment}`);
-      
-      // Import start command functionality
-      const { startProcessService } = await import('./start.js');
-      const startOptions = {
-        ...options,
-        service: 'mcp',
-        environment: options.environment,
-      };
-      
-      try {
-        const startResult = await startProcessService(serviceInfo, startOptions, Date.now());
-        
-        if (startResult.status === 'started') {
-          printSuccess(`MCP server restarted successfully`);
-          
-          return {
-            ...baseResult,
-            stopTime,
-            startTime: mcpStartTime,
-            downtime: mcpStartTime.getTime() - stopTime.getTime(),
-            gracefulRestart: true,
-            resourceId: startResult.resourceId || { process: { port: mcpPort } },
-            status: 'restarted',
-            metadata: {
-              port: mcpPort,
-              environment: options.environment,
-              gracePeriod: options.gracePeriod
-            },
-          };
-        } else {
-          throw new Error(`Failed to restart MCP server: ${startResult.status}`);
-        }
-      } catch (error) {
-        printError(`Failed to restart MCP server: ${(error as Error).message}`);
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: mcpStartTime,
-          downtime: mcpStartTime.getTime() - stopTime.getTime(),
-          gracefulRestart: false,
-          resourceId: { process: { port: mcpPort } },
-          status: 'failed',
-          metadata: {
-            error: (error as Error).message,
-            port: mcpPort,
-            environment: options.environment
-          },
-        };
-      }
-      
-    default:
-      throw new Error(`Unsupported process service: ${serviceInfo.name}`);
-  }
-}
-
-async function restartExternalService(serviceInfo: ServiceDeploymentInfo, options: RestartOptions, startTime: number): Promise<RestartResult> {
-  const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-  const stopTime = new Date();
-  
-  // External service - can't actually restart, just verify
-  printInfo(`Cannot restart external ${serviceInfo.name} service`);
-  
-  switch (serviceInfo.name) {
-    case 'database':
-      if (serviceInfo.config.host) {
-        printInfo(`External database: ${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`);
-        printWarning('External database connectivity check not yet implemented');
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: stopTime, // No restart needed
-          downtime: 0,
-          gracefulRestart: true,
-          resourceId: {
-            external: {
-              endpoint: `${serviceInfo.config.host}:${serviceInfo.config.port || 5432}`
-            }
-          },
-          status: 'external',
-          metadata: {
-            host: serviceInfo.config.host,
-            port: serviceInfo.config.port || 5432,
-            reason: 'External services cannot be restarted remotely'
-          },
-        };
-      }
-      break;
-      
-    case 'filesystem':
-      if (serviceInfo.config.path) {
-        printInfo(`External storage: ${serviceInfo.config.path}`);
-        printWarning('External storage validation not yet implemented');
-        
-        return {
-          ...baseResult,
-          stopTime,
-          startTime: stopTime, // No restart needed
-          downtime: 0,
-          gracefulRestart: true,
-          resourceId: {
-            external: {
-              path: serviceInfo.config.path
-            }
-          },
-          status: 'external',
-          metadata: {
-            path: serviceInfo.config.path,
-            reason: 'External storage cannot be restarted remotely'
-          },
-        };
-      }
-      break;
-      
-    default:
-      printInfo(`External ${serviceInfo.name} service`);
-  }
-  
-  printSuccess(`External ${serviceInfo.name} service verified`);
-  
-  return {
-    ...baseResult,
-    stopTime,
-    startTime: stopTime, // No restart needed
-    downtime: 0,
-    gracefulRestart: true,
-    resourceId: {
-      external: {
-        endpoint: 'external-service'
-      }
-    },
-    status: 'external',
-    metadata: {
-      reason: 'External services cannot be restarted remotely'
-    },
-  };
-}
-
-async function findAndKillProcess(pattern: string, name: string, options: RestartOptions): Promise<boolean> {
-  if (options.dryRun) {
-    printInfo(`[DRY RUN] Would stop ${name}`);
-    return true;
-  }
-  
-  try {
-    // Find process using lsof (for port) or pgrep (for name)
-    const isPort = pattern.startsWith(':');
-    const findCmd = spawn(isPort ? 'lsof' : 'pgrep', isPort ? ['-ti', pattern] : ['-f', pattern]);
-    
-    let pids = '';
-    findCmd.stdout?.on('data', (data) => {
-      pids += data.toString();
-    });
-    
-    await new Promise((resolve) => {
-      findCmd.on('exit', () => resolve(void 0));
-    });
-    
-    if (pids.trim()) {
-      const pidList = pids.trim().split('\n');
-      for (const pid of pidList) {
-        if (pid) {
-          try {
-            process.kill(parseInt(pid), options.force ? 'SIGKILL' : 'SIGTERM');
-          } catch (err) {
-            debugLog(`Failed to kill PID ${pid}: ${err}`, options);
-          }
-        }
-      }
-      debugLog(`Stopped ${name} process(es)`, options);
-      return true;
-    } else {
-      debugLog(`${name} not running`, options);
-      return false;
-    }
-  } catch (error) {
-    if (!options.force) {
-      throw error;
-    }
-    return false;
-  }
-}
-
-// =====================================================================
-// STRUCTURED OUTPUT FUNCTION  
-// =====================================================================
-
-export async function restart(
-  serviceDeployments: ServiceDeploymentInfo[],
-  options: RestartOptions
-): Promise<CommandResults> {
-  const startTime = Date.now();
-  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  
-  // Suppress output for structured formats
-  const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
-  
-  try {
-    if (options.output === 'summary') {
-      printInfo(`Restarting services in ${colors.bright}${options.environment}${colors.reset} environment`);
     }
     
-    if (options.output === 'summary' && options.verbose) {
-      debugLog(`Resolved services: ${serviceDeployments.map(s => `${s.name}(${s.deploymentType})`).join(', ')}`, options);
-    }
-    
-    // Restart services and collect results
-    const serviceResults: RestartResult[] = [];
-    
-    for (const serviceInfo of serviceDeployments) {
-      try {
-        const result = await restartServiceImpl(serviceInfo, options);
-        serviceResults.push(result);
-      } catch (error) {
-        // Create error result
-        const baseResult = createBaseResult('restart', serviceInfo.name, serviceInfo.deploymentType, options.environment!, startTime);
-        const errorResult = createErrorResult(baseResult, error as Error);
-        
-        const restartErrorResult: RestartResult = {
-          ...errorResult,
-          stopTime: new Date(),
-          startTime: new Date(),
-          downtime: 0,
-          gracefulRestart: false,
-          resourceId: { [serviceInfo.deploymentType]: {} } as ResourceIdentifier,
-          status: 'failed',
-          metadata: { error: (error as Error).message },
-        };
-        
-        serviceResults.push(restartErrorResult);
-        
-        printError(`Failed to restart ${serviceInfo.name}: ${error}`);
-        
-        if (!options.force) {
-          break; // Stop on first error unless --force
-        }
-      }
-    }
-    
-    // Create aggregated results
-    const commandResults: CommandResults = {
-      command: 'restart',
-      environment: options.environment!,
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      services: serviceResults,
-      summary: {
-        total: serviceResults.length,
-        succeeded: serviceResults.filter(r => r.success).length,
-        failed: serviceResults.filter(r => !r.success).length,
-        warnings: serviceResults.filter(r => r.status.includes('not-implemented')).length,
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
+    return {
+      entity: serviceInfo.name,
+      platform: serviceInfo.platform,
+      success: true,
+      stopTime,
+      startTime,
+      downtime: startTime.getTime() - stopTime.getTime(),
+      gracefulRestart: true,
+      resources: startResult.resources,
+      metadata: {
+        ...stopResult.metadata,
+        ...startResult.metadata
       }
     };
-    
-    return commandResults;
-    
-  } finally {
-    // Restore output suppression state
-    setSuppressOutput(previousSuppressOutput);
+  } catch (error) {
+    return {
+      entity: serviceInfo.name,
+      platform: serviceInfo.platform,
+      success: false,
+      stopTime,
+      startTime: new Date(),
+      downtime: 0,
+      gracefulRestart: false,
+      error: (error as Error).message
+    };
   }
+}
+
+// =====================================================================
+// COMMAND HANDLER
+// =====================================================================
+
+async function restartHandler(
+  services: ServicePlatformInfo[],
+  options: RestartOptions
+): Promise<CommandResults<RestartResult>> {
+  const startTime = Date.now();
+  const results: RestartResult[] = [];
+  
+  // Create config
+  const config: Config = {
+    projectRoot: process.cwd(),
+    environment: parseEnvironment(options.environment!),
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun
+  };
+  
+  if (!options.quiet) {
+    printInfo(`Restarting ${services.length} service(s)`);
+  }
+  
+  // Restart each service
+  for (const serviceInfo of services) {
+    const result = await restartServiceImpl(serviceInfo, config, options);
+    results.push(result);
+    
+    if (result.success) {
+      printSuccess(`✓ ${serviceInfo.name} restarted (downtime: ${result.downtime}ms)`);
+    } else {
+      printError(`✗ ${serviceInfo.name} failed: ${result.error}`);
+    }
+  }
+  
+  const successful = results.filter(r => r.success).length;
+  const failed = results.filter(r => !r.success).length;
+  
+  return {
+    command: 'restart',
+    environment: options.environment!,
+    timestamp: new Date(),
+    duration: Date.now() - startTime,
+    results,
+    summary: {
+      total: services.length,
+      succeeded: successful,
+      failed: failed,
+      warnings: 0
+    },
+    executionContext: {
+      user: process.env.USER || 'unknown',
+      workingDirectory: process.cwd(),
+      dryRun: options.dryRun || false
+    }
+  };
 }
 
 // =====================================================================
 // COMMAND DEFINITION
 // =====================================================================
 
-export const restartCommand = new CommandBuilder<RestartOptions>()
+export const restartCommand = new CommandBuilder<RestartResult>()
   .name('restart')
-  .description('Restart services in an environment')
-  .schema(RestartOptionsSchema as any)
-  .requiresEnvironment(true)
+  .description('Restart services')
+  .schema(RestartOptionsSchema)
   .requiresServices(true)
-  .args({
-    args: {
-      '--environment': { type: 'string', description: 'Environment name' },
-      '--force': { type: 'boolean', description: 'Force restart services' },
-      '--verbose': { type: 'boolean', description: 'Verbose output' },
-      '--dry-run': { type: 'boolean', description: 'Simulate actions without executing' },
-      '--grace-period': { type: 'number', description: 'Seconds to wait between stop and start' },
-      '--output': { type: 'string', description: 'Output format (summary, table, json, yaml)' },
-      '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    },
-    aliases: {
-      '-e': '--environment',
-      '-f': '--force',
-      '-v': '--verbose',
-      '-o': '--output',
-      '-g': '--grace-period',
-    }
-  })
-  .examples(
-    'semiont restart --environment local',
-    'semiont restart --environment staging --grace-period 5',
-    'semiont restart --environment prod --service backend --force'
-  )
-  .handler(restart)
+  .handler(restartHandler)
   .build();
-
-// Export default for compatibility
-export default restartCommand;
-
-// Export the schema for use by CLI
-export type { RestartOptions };
-export { RestartOptionsSchema };

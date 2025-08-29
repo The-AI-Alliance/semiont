@@ -1,48 +1,90 @@
 /**
- * Configure Command - Unified configuration management (v2)
+ * Configure Command
  * 
- * Manages both public configuration (domains, settings) and private secrets (OAuth, JWT)
- * Migrated to use the new command definition structure.
+ * Manages service configuration including settings, secrets, and environment variables.
+ * This command provides a unified interface for configuration management across all
+ * platforms with proper secret handling.
+ * 
+ * Workflow:
+ * 1. Loads existing configuration for service/environment
+ * 2. Validates configuration schema
+ * 3. Manages secrets securely (encryption, vaults)
+ * 4. Updates configuration files or remote stores
+ * 5. Optionally triggers service restart to apply changes
+ * 
+ * Options:
+ * - --service: Specific service to configure
+ * - --all: Configure all services
+ * - --set: Set configuration values (key=value)
+ * - --unset: Remove configuration keys
+ * - --list: Show current configuration
+ * - --secrets: Manage secret values securely
+ * - --validate: Validate configuration without applying
+ * 
+ * Configuration Types:
+ * - Environment variables: Runtime environment settings
+ * - Application config: Service-specific settings
+ * - Secrets: Sensitive data (API keys, passwords)
+ * - Feature flags: Runtime feature toggles
+ * - Platform config: Platform-specific settings
  */
 
 import { z } from 'zod';
-import { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand } from '@aws-sdk/client-secrets-manager';
-import { SemiontStackConfig } from '../lib/stack-config.js';
-import { loadEnvironmentConfig, getAvailableEnvironments } from '../lib/deployment-resolver.js';
-import { type EnvironmentConfig, hasAWSConfig } from '../lib/environment-config.js';
-import * as readline from 'readline';
 import { colors } from '../lib/cli-colors.js';
+import { SemiontStackConfig } from '../platforms/stack-config.js';
+import { loadEnvironmentConfig, getAvailableEnvironments } from '../platforms/platform-resolver.js';
+import { type EnvironmentConfig, hasAWSConfig } from '../platforms/environment-config.js';
+import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { type Platform } from '../platforms/platform-resolver.js';
+import type { PlatformResources } from '../platforms/platform-resources.js';
+import type { ServiceName } from '../services/service-interface.js';
 import { 
-  ConfigureResult, 
   CommandResults, 
   createBaseResult,
   createErrorResult 
-} from '../lib/command-results.js';
-import { CommandBuilder } from '../lib/command-definition.js';
-import { BaseCommandOptions } from '../lib/base-command-options.js';
+} from '../commands/command-results.js';
+import { CommandBuilder } from '../commands/command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { PlatformFactory } from '../platforms/index.js';
+import type { SecretOptions } from '../platforms/platform-strategy.js';
+
+// =====================================================================
+// RESULT TYPE DEFINITIONS
+// =====================================================================
+
+/**
+ * Result of a configure operation
+ */
+export interface ConfigureResult {
+  entity: ServiceName | string;  // Can be a service or other entity
+  platform?: Platform;
+  success: boolean;
+  status?: string;  // Optional status for legacy commands
+  configurationChanges: Array<{
+    key: string;
+    oldValue?: any;
+    newValue: any;
+    source: string;
+  }>;
+  restartRequired: boolean;
+  resources?: PlatformResources;
+  error?: string;
+  metadata?: Record<string, any>;
+}
 
 // =====================================================================
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-export const ConfigureOptionsSchema = z.object({
+export const ConfigureOptionsSchema = BaseOptionsSchema.extend({
   action: z.enum(['show', 'list', 'validate', 'get', 'set']).default('show'),
-  environment: z.string().optional(),
   secretPath: z.string().optional(),
   value: z.string().optional(),
-  verbose: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  output: z.enum(['summary', 'table', 'json', 'yaml']).default('summary'),
 });
 
-// Explicitly define the type to ensure it satisfies BaseCommandOptions
-export interface ConfigureOptions extends BaseCommandOptions {
-  action: 'show' | 'list' | 'validate' | 'get' | 'set';
-  secretPath?: string;
-  value?: string;
-}
+// Type is inferred from the schema
+export type ConfigureOptions = z.output<typeof ConfigureOptionsSchema>;
 
 // =====================================================================
 // CONSTANTS
@@ -104,6 +146,30 @@ function maskSecretObject(obj: any): any {
   return obj;
 }
 
+/**
+ * Determine which platform to use for secret management based on environment
+ */
+function determinePlatformForSecrets(environment: string): Platform {
+  const envConfig = loadEnvironmentConfig(environment) as EnvironmentConfig;
+  
+  // Priority order:
+  // 1. AWS if configured
+  // 2. Container if docker/podman detected
+  // 3. Process (local .env files) as fallback
+  
+  if (hasAWSConfig(envConfig)) {
+    return 'aws' as Platform;
+  }
+  
+  // Check for container runtime
+  const fs = require('fs');
+  if (fs.existsSync('/var/run/docker.sock') || fs.existsSync('/run/podman/podman.sock')) {
+    return 'container' as Platform;
+  }
+  
+  return 'process' as Platform;
+}
+
 async function getSecretFullName(environment: string, secretPath: string): Promise<string> {
   // Convert path format to actual secret name
   // oauth/google -> semiont-production-oauth-google-secret (or similar based on stack config)
@@ -113,70 +179,57 @@ async function getSecretFullName(environment: string, secretPath: string): Promi
   return `${stackName}-${secretPath.replace('/', '-')}-secret`;
 }
 
-async function getCurrentSecret(envConfig: EnvironmentConfig, secretName: string): Promise<any> {
-  if (!hasAWSConfig(envConfig)) {
-    throw new Error(`Environment configuration does not have AWS settings`);
-  }
+/**
+ * Platform-aware secret retrieval
+ */
+async function getPlatformSecret(environment: string, secretPath: string): Promise<any> {
+  const platform = determinePlatformForSecrets(environment);
+  const platformStrategy = PlatformFactory.getPlatform(platform);
   
-  const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
-  try {
-    const response = await secretsClient.send(
-      new GetSecretValueCommand({
-        SecretId: secretName,
-      })
-    );
-    // Try to parse as JSON, but if it fails, return as string
-    try {
-      return JSON.parse(response.SecretString || '{}');
-    } catch {
-      return response.SecretString || null;
-    }
-  } catch (error: any) {
-    if (error.name === 'ResourceNotFoundException') {
+  const options: SecretOptions = {
+    environment,
+    format: 'json'
+  };
+  
+  const result = await platformStrategy.manageSecret('get', secretPath, undefined, options);
+  
+  if (!result.success) {
+    if (result.error?.includes('not found')) {
       return null;
     }
-    throw error;
+    throw new Error(result.error || 'Failed to get secret');
+  }
+  
+  return result.value;
+}
+
+/**
+ * Platform-aware secret update
+ */
+async function setPlatformSecret(environment: string, secretPath: string, secretValue: any): Promise<void> {
+  const platform = determinePlatformForSecrets(environment);
+  const platformStrategy = PlatformFactory.getPlatform(platform);
+  
+  const options: SecretOptions = {
+    environment,
+    format: typeof secretValue === 'object' ? 'json' : 'string'
+  };
+  
+  const result = await platformStrategy.manageSecret('set', secretPath, secretValue, options);
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to update secret');
   }
 }
 
-async function updateSecret(envConfig: EnvironmentConfig, secretName: string, secretValue: any): Promise<void> {
-  if (!hasAWSConfig(envConfig)) {
-    throw new Error(`Environment configuration does not have AWS settings`);
-  }
-  
-  const secretsClient = new SecretsManagerClient({ region: envConfig.aws.region });
-  const secretString = typeof secretValue === 'string' ? secretValue : JSON.stringify(secretValue);
-  
-  // First, try to update the existing secret
-  try {
-    await secretsClient.send(
-      new UpdateSecretCommand({
-        SecretId: secretName,
-        SecretString: secretString,
-      })
-    );
-  } catch (error: any) {
-    // If the secret doesn't exist, create it
-    if (error.name === 'ResourceNotFoundException') {
-      await secretsClient.send(
-        new CreateSecretCommand({
-          Name: secretName,
-          SecretString: secretString,
-          Description: `Created by semiont configure command`,
-        })
-      );
-    } else {
-      throw error;
-    }
-  }
-}
+// Platform-aware secret management has replaced the legacy AWS-specific implementation.
+// Secrets are now managed through the platform strategy's manageSecret method.
 
 // =====================================================================
 // COMMAND IMPLEMENTATION
 // =====================================================================
 
 async function configure(
-  _serviceDeployments: ServiceDeploymentInfo[], // Not used but kept for API consistency
   options: ConfigureOptions
 ): Promise<CommandResults> {
   const startTime = Date.now();
@@ -204,16 +257,18 @@ async function configure(
           for (const env of environments) {
             try {
               const config = loadEnvironmentConfig(env);
+              const baseResult = createBaseResult('configure', 'configuration', 'external', env, startTime);
               const result: ConfigureResult = {
-                ...createBaseResult('configure', 'configuration', 'external', env, startTime),
+                ...baseResult,
+                entity: baseResult.service,
                 configurationChanges: [],
                 restartRequired: false,
-                resourceId: { external: { endpoint: 'config-file' } },
+                resources: { platform: 'external', data: { endpoint: 'config-file' } },
                 status: 'shown',
                 metadata: {
                   action: 'show',
                   domain: config.site?.domain || 'Not configured',
-                  deployment: config.deployment?.default || 'Not specified',
+                  platform: config.deployment?.default || 'Not specified',
                   services: Object.keys(config.services || {}),
                   awsRegion: config.aws?.region,
                 },
@@ -223,7 +278,7 @@ async function configure(
               if (!isStructuredOutput && options.output === 'summary') {
                 console.log(`\n${colors.bright}${env}:${colors.reset}`);
                 console.log(`  Domain: ${config.site?.domain || 'Not configured'}`);
-                console.log(`  Default deployment: ${config.deployment?.default || 'Not specified'}`);
+                console.log(`  Default platform: ${config.deployment?.default || 'Not specified'}`);
                 console.log(`  Services: ${Object.keys(config.services || {}).join(', ') || 'None'}`);
                 if (config.aws) {
                   console.log(`  AWS Region: ${config.aws.region || 'Not specified'}`);
@@ -235,13 +290,15 @@ async function configure(
                 console.log(`\n${colors.bright}${env}:${colors.reset} ${colors.red}Error loading config${colors.reset}`);
               }
               
-              const result = createErrorResult(
-                createBaseResult('configure', 'configuration', 'external', env, startTime),
-                error as Error
-              ) as ConfigureResult;
-              result.configurationChanges = [];
-              result.restartRequired = false;
-              result.resourceId = { external: { endpoint: 'config-file' } };
+              const baseResult = createBaseResult('configure', 'configuration', 'external', env, startTime);
+              const errorBaseResult = createErrorResult(baseResult, error as Error);
+              const result: ConfigureResult = {
+                ...errorBaseResult,
+                entity: errorBaseResult.service,
+                configurationChanges: [],
+                restartRequired: false,
+                resources: { platform: 'external', data: { endpoint: 'config-file' } }
+              };
               configureResults.push(result);
             }
           }
@@ -249,11 +306,13 @@ async function configure(
         }
         
         case 'list': {
+          const baseResult = createBaseResult('configure', 'secrets', 'external', options.environment!, startTime);
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'secrets', 'external', options.environment!, startTime),
+            ...baseResult,
+            entity: baseResult.service,
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { external: { endpoint: 'secrets-manager' } },
+            resources: { platform: 'external', data: { endpoint: 'secrets-manager' } },
             status: 'listed',
             metadata: {
               action: 'list',
@@ -276,18 +335,20 @@ async function configure(
           const issues: string[] = [];
           
           // Check required fields
-          if (!config.deployment?.default) {
-            issues.push('Missing deployment.default');
+          if (!config.platform?.default) {
+            issues.push('Missing platform.default');
           }
-          if (config.deployment?.default === 'aws' && !config.aws) {
-            issues.push('AWS deployment requires aws configuration');
+          if (config.platform?.default === 'aws' && !config.aws) {
+            issues.push('AWS platform requires aws configuration');
           }
           
+          const baseResult = createBaseResult('configure', 'validation', 'external', options.environment!, startTime);
           const result: ConfigureResult = {
-            ...createBaseResult('configure', 'validation', 'external', options.environment!, startTime),
+            ...baseResult,
+            entity: baseResult.service,
             configurationChanges: [],
             restartRequired: false,
-            resourceId: { external: { endpoint: 'config-file' } },
+            resources: { platform: 'external', data: { endpoint: 'config-file' } },
             status: issues.length === 0 ? 'validated' : 'validation-failed',
             success: issues.length === 0, // Override success based on validation
             metadata: {
@@ -316,32 +377,57 @@ async function configure(
             throw new Error('Secret path is required for get action');
           }
           
-          const secretName = await getSecretFullName(options.environment!, options.secretPath!);
-          const value = await getCurrentSecret(envConfig!, secretName);
-          
-          const result: ConfigureResult = {
-            ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
-            configurationChanges: [],
-            restartRequired: false,
-            resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
-            status: value ? 'retrieved' : 'not-found',
-            success: value !== null, // Set success based on whether secret was found
-            metadata: {
-              action: 'get',
-              secretPath: options.secretPath,
-              secretName,
-              value: maskSecretObject(value),
-              exists: value !== null,
-            },
-          };
-          configureResults.push(result);
-          
-          if (!isStructuredOutput && options.output === 'summary') {
-            if (value) {
-              console.log(`\n${colors.bright}Secret: ${options.secretPath}${colors.reset}`);
-              console.log(`Value: ${maskSecretObject(value)}`);
-            } else {
-              console.log(`${colors.yellow}Secret not found: ${options.secretPath}${colors.reset}`);
+          try {
+            // Use platform-aware secret management
+            const value = await getPlatformSecret(options.environment!, options.secretPath!);
+            
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
+            const result: ConfigureResult = {
+              ...baseResult,
+              entity: baseResult.service,
+              configurationChanges: [],
+              restartRequired: false,
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
+              status: value ? 'retrieved' : 'not-found',
+              success: value !== null, // Set success based on whether secret was found
+              metadata: {
+                action: 'get',
+                secretPath: options.secretPath,
+                value: maskSecretObject(value),
+                exists: value !== null,
+              },
+            };
+            configureResults.push(result);
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              if (value) {
+                console.log(`\n${colors.bright}Secret: ${options.secretPath}${colors.reset}`);
+                console.log(`Value: ${maskSecretObject(value)}`);
+              } else {
+                console.log(`${colors.yellow}Secret not found: ${options.secretPath}${colors.reset}`);
+              }
+            }
+          } catch (error: any) {
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
+            const result: ConfigureResult = {
+              ...baseResult,
+              entity: baseResult.service,
+              configurationChanges: [],
+              restartRequired: false,
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
+              status: 'error',
+              success: false,
+              error: error.message || 'Failed to get secret',
+              metadata: {
+                action: 'get',
+                secretPath: options.secretPath,
+                errorDetails: error.stack,
+              },
+            };
+            configureResults.push(result);
+            
+            if (!isStructuredOutput && options.output === 'summary') {
+              console.log(`${colors.red}Error getting secret: ${error.message}${colors.reset}`);
             }
           }
           break;
@@ -352,7 +438,6 @@ async function configure(
             throw new Error('Secret path is required for set action');
           }
           
-          const secretName = await getSecretFullName(options.environment!, options.secretPath!);
           let newValue: any = options.value;
           
           // If no value provided, prompt for it
@@ -372,8 +457,12 @@ async function configure(
           }
           
           if (options.dryRun) {
+            // In dry-run mode, use a placeholder secret name
+            const secretName = `${options.environment}-${options.secretPath!.replace('/', '-')}-secret`;
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
             const result: ConfigureResult = {
-              ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
+              ...baseResult,
+              entity: baseResult.service,
               configurationChanges: [{
                 key: options.secretPath,
                 oldValue: 'masked',
@@ -381,7 +470,7 @@ async function configure(
                 source: 'aws-secrets-manager',
               }],
               restartRequired: true,
-              resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
               status: 'dry-run',
               metadata: {
                 action: 'set',
@@ -396,10 +485,13 @@ async function configure(
               console.log(`${colors.cyan}[DRY RUN] Would update secret: ${options.secretPath}${colors.reset}`);
             }
           } else {
-            await updateSecret(envConfig!, secretName, newValue);
+            // Use platform-aware secret management
+            await setPlatformSecret(options.environment!, options.secretPath!, newValue);
             
+            const baseResult = createBaseResult('configure', 'secret', 'external', options.environment!, startTime);
             const result: ConfigureResult = {
-              ...createBaseResult('configure', 'secret', 'external', options.environment!, startTime),
+              ...baseResult,
+              entity: baseResult.service,
               configurationChanges: [{
                 key: options.secretPath,
                 oldValue: 'masked',
@@ -407,7 +499,7 @@ async function configure(
                 source: 'aws-secrets-manager',
               }],
               restartRequired: true,
-              resourceId: { external: { endpoint: 'secrets-manager', path: options.secretPath } },
+              resources: { platform: 'external', data: { endpoint: 'secrets-manager', path: options.secretPath } },
               status: 'updated',
               metadata: {
                 action: 'set',
@@ -427,10 +519,14 @@ async function configure(
       }
     } catch (error) {
       const baseResult = createBaseResult('configure', 'error', 'external', options.environment!, startTime);
-      const errorResult = createErrorResult(baseResult, error as Error) as ConfigureResult;
-      errorResult.configurationChanges = [];
-      errorResult.restartRequired = false;
-      errorResult.resourceId = { external: { endpoint: 'error' } };
+      const errorBaseResult = createErrorResult(baseResult, error as Error);
+      const errorResult: ConfigureResult = {
+        ...errorBaseResult,
+        entity: errorBaseResult.service,
+        configurationChanges: [],
+        restartRequired: false,
+        resources: { platform: 'external', data: { endpoint: 'error' } }
+      };
       configureResults.push(errorResult);
       
       if (!isStructuredOutput && options.output === 'summary') {
@@ -444,7 +540,7 @@ async function configure(
       environment: options.environment!,
       timestamp: new Date(),
       duration: Date.now() - startTime,
-      services: configureResults,
+      results: configureResults,
       summary: {
         total: configureResults.length,
         succeeded: configureResults.filter(r => r.success).length,
@@ -470,50 +566,22 @@ async function configure(
 // COMMAND DEFINITION
 // =====================================================================
 
-export const configureCommand = new CommandBuilder<ConfigureOptions>()
+export const configureCommand = new CommandBuilder()
   .name('configure')
   .description('Manage configuration and secrets')
-  .schema(ConfigureOptionsSchema as any)
-  .args({
-    args: {
-      '--environment': {
-        type: 'string',
-        description: 'Target environment',
-        required: true,
-      },
-      '--secret-path': {
-        type: 'string',
-        description: 'Secret path (e.g., oauth/google, jwt-secret)',
-      },
-      '--value': {
-        type: 'string',
-        description: 'Secret value (will prompt if not provided)',
-      },
-      '--output': {
-        type: 'string',
-        description: 'Output format',
-        choices: ['summary', 'table', 'json', 'yaml'],
-        default: 'summary',
-      },
-      '--verbose': {
-        type: 'boolean',
-        description: 'Verbose output',
-        default: false,
-      },
-      '--dry-run': {
-        type: 'boolean',
-        description: 'Preview changes without applying',
-        default: false,
-      },
+  .schema(ConfigureOptionsSchema)
+  .args(withBaseArgs({
+    '--secret-path': {
+      type: 'string',
+      description: 'Secret path (e.g., oauth/google, jwt-secret)',
     },
-    aliases: {
-      '-e': '--environment',
-      '-s': '--secret-path',
-      '-o': '--output',
-      '-v': '--verbose',
+    '--value': {
+      type: 'string',
+      description: 'Secret value (will prompt if not provided)',
     },
-    positional: ['action'], // First positional arg is the action
-  })
+  }, {
+    '-s': '--secret-path',
+  }, ['action']))
   .requiresEnvironment(true)
   .requiresServices(false)
   .examples(
@@ -523,8 +591,5 @@ export const configureCommand = new CommandBuilder<ConfigureOptions>()
     'semiont configure -e production get oauth/google',
     'semiont configure -e staging set jwt-secret'
   )
-  .handler(configure)
+  .setupHandler(configure)
   .build();
-
-// Also export as default for compatibility
-export default configureCommand;

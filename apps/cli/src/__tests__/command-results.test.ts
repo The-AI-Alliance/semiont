@@ -7,13 +7,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { 
-  createBaseResult, 
-  createErrorResult, 
-  type CommandResults,
-  type StartResult,
-  type CheckResult,
-  type UpdateResult
-} from '../lib/command-results.js';
+  createBaseResult,
+  createErrorResult,
+  type CommandResults 
+} from '../commands/command-results.js';
+import { type StartResult } from '../commands/start.js';
+import { type CheckResult } from '../commands/check.js';
+import { type UpdateResult } from '../commands/update.js';
 
 describe('Command Result Type System', () => {
   const startTime = Date.now();
@@ -25,7 +25,7 @@ describe('Command Result Type System', () => {
       expect(baseResult).toMatchObject({
         command: 'start',
         service: 'frontend',
-        deploymentType: 'container',
+        platform: 'container',
         environment: 'local',
         success: true,
         timestamp: expect.any(Date),

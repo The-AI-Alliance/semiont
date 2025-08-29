@@ -90,7 +90,13 @@ await Promise.all(scriptFiles.map(async (name) => {
         // simple-git uses dynamic requires that don't work with bundling
         'simple-git',
         // esbuild is needed at runtime for compiling CDK stacks
-        'esbuild'
+        'esbuild',
+        // Vitest and testing dependencies
+        'vitest',
+        '@vitest/browser',
+        'lightningcss',
+        'fsevents',
+        'vite'
       ],
       define: {
         // Disable ink devtools in production bundles
@@ -166,7 +172,13 @@ await Promise.all(commandFiles.map(async (name) => {
         // simple-git uses dynamic requires that don't work with bundling
         'simple-git',
         // esbuild is needed at runtime for compiling CDK stacks
-        'esbuild'
+        'esbuild',
+        // Vitest and testing dependencies
+        'vitest',
+        '@vitest/browser',
+        'lightningcss',
+        'fsevents',
+        'vite'
       ],
       define: {
         'process.env.NODE_ENV': '"production"'
@@ -206,5 +218,15 @@ if (existsSync(mcpServerSrc)) {
     console.error('❌ Failed to copy MCP server:', error.message)
     process.exit(1)
   }
+}
+
+// Ensure CLI entry point has execute permissions
+import { chmod } from 'node:fs/promises'
+try {
+  await chmod('dist/cli.mjs', 0o755)
+  console.log('✅ Set execute permissions on CLI entry point')
+} catch (error) {
+  console.error('❌ Failed to set execute permissions:', error.message)
+  process.exit(1)
 }
 

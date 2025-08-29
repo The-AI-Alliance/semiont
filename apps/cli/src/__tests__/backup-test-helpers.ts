@@ -1,4 +1,4 @@
-import { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
+import { ServicePlatformInfo } from '../platforms/platform-resolver.js';
 
 /**
  * Helper functions for backup tests
@@ -7,10 +7,10 @@ import { ServiceDeploymentInfo } from '../lib/deployment-resolver.js';
 export function createAWSDeployment(
   name: string,
   config: any = {}
-): ServiceDeploymentInfo {
+): ServicePlatformInfo {
   return {
     name,
-    deploymentType: 'aws',
+    platform: 'aws',
     config: {
       aws: {
         region: 'us-east-1',
@@ -24,10 +24,10 @@ export function createAWSDeployment(
 export function createContainerDeployment(
   name: string,
   config: any = {}
-): ServiceDeploymentInfo {
+): ServicePlatformInfo {
   return {
     name,
-    deploymentType: 'container',
+    platform: 'container',
     config: config as any
   };
 }
@@ -35,10 +35,10 @@ export function createContainerDeployment(
 export function createProcessDeployment(
   name: string,
   config: any = {}
-): ServiceDeploymentInfo {
+): ServicePlatformInfo {
   return {
     name,
-    deploymentType: 'process',
+    platform: 'process',
     config: config as any
   };
 }
@@ -46,10 +46,10 @@ export function createProcessDeployment(
 export function createExternalDeployment(
   name: string,
   config: any = {}
-): ServiceDeploymentInfo {
+): ServicePlatformInfo {
   return {
     name,
-    deploymentType: 'external',
+    platform: 'external',
     config: config as any
   };
 }

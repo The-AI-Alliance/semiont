@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { afterAll } from 'vitest';
 
 // Create a temp directory for all tests to use
 export const testRootDir = fs.mkdtempSync(

@@ -9,7 +9,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
-import initCommand from '../commands/init.js';
+import { initCommand } from '../commands/init.js';
+
 const init = initCommand.handler;
 
 /**
@@ -39,17 +40,19 @@ export async function createTestEnvironment(
     
     // Initialize Semiont project using the actual init command
     try {
-      const result = await init([], {
+      // init is a SetupCommandFunction, it only expects options
+      const options = {
         name: projectName,
         directory: tmpDir,
         force: false,
         environments: ['local', 'test', 'staging', 'production', 'remote'],
-        environment: 'local',  // Required by BaseCommandOptions
-        output: 'summary',
+        environment: 'none',  // init doesn't need an environment
+        output: 'summary' as const,
         quiet: true,  // Suppress output during test setup
         verbose: false,
         dryRun: false
-      });
+      };
+      const result = await init(options);
       
       // Check if init failed
       if (result && result.summary && result.summary.failed > 0) {
@@ -77,7 +80,7 @@ export async function createTestEnvironment(
 export function createTestConfig(envName: string = 'test'): any {
   const config: any = {
     _comment: `Test environment: ${envName}`,
-    deployment: {
+    platform: {
       default: 'mock'
     },
     env: {
@@ -93,7 +96,7 @@ export function createTestConfig(envName: string = 'test'): any {
         port: 3001
       },
       database: {
-        deployment: {
+        platform: {
           type: 'mock'
         },
         port: 5432,
@@ -101,7 +104,7 @@ export function createTestConfig(envName: string = 'test'): any {
         password: 'testpass'
       },
       filesystem: {
-        deployment: {
+        platform: {
           type: 'mock'
         },
         path: './test-data'
@@ -115,7 +118,7 @@ export function createTestConfig(envName: string = 'test'): any {
       region: 'us-east-1',
       accountId: '123456789012'
     };
-    config.deployment.default = 'aws';
+    config.platform.default = 'aws';
   }
   
   return config;
@@ -139,7 +142,7 @@ export function createTestSemiontJson(projectName: string = 'test-project'): any
     },
     defaults: {
       region: 'us-east-1',
-      deployment: {
+      platform: {
         type: 'container'
       },
       services: {
@@ -217,13 +220,13 @@ export function createMockService(
       port: 3001
     },
     database: {
-      deployment: { type: 'mock' },
+      platform: { type: 'mock' },
       port: 5432,
       user: 'postgres',
       password: 'testpass'
     },
     filesystem: {
-      deployment: { type: 'mock' },
+      platform: { type: 'mock' },
       path: './test-data'
     }
   };
@@ -258,7 +261,7 @@ export function createInMemoryTestEnvironment(): {
  * This is useful when testing without actual file system operations
  */
 export function mockDeploymentResolver(testDir: string): void {
-  // This would typically involve mocking the deployment-resolver module
+  // This would typically involve mocking the platform-resolver module
   // For now, we ensure test configs exist on disk
   if (!fs.existsSync(path.join(testDir, 'semiont.json'))) {
     writeTestConfigs(testDir);
