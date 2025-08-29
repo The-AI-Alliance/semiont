@@ -15,9 +15,52 @@ import {
  * It handles authentication and makes the API available to AI applications.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
 // Configuration from environment variables
+const SEMIONT_ENV = process.env.SEMIONT_ENV || 'development';
 const SEMIONT_API_URL = process.env.SEMIONT_API_URL || 'http://localhost:4000';
-const SEMIONT_API_TOKEN = process.env.SEMIONT_API_TOKEN || '';
+
+// Token management
+let accessToken: string | null = null;
+let tokenExpiry: Date | null = null;
+
+async function getAccessToken(): Promise<string> {
+  // Check if we have a valid cached token
+  if (accessToken && tokenExpiry && tokenExpiry > new Date()) {
+    return accessToken;
+  }
+  
+  // Read the refresh token from provisioned auth file
+  const authPath = path.join(os.homedir(), '.config', 'semiont', `mcp-auth-${SEMIONT_ENV}.json`);
+  
+  if (!fs.existsSync(authPath)) {
+    throw new Error(`MCP not provisioned for ${SEMIONT_ENV}. Run: semiont provision --service mcp --environment ${SEMIONT_ENV}`);
+  }
+  
+  const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+  
+  // Exchange refresh token for access token
+  const response = await fetch(`${SEMIONT_API_URL}/api/tokens/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: authData.refresh_token })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to refresh token: ${response.statusText}`);
+  }
+  
+  const data = await response.json() as { access_token: string };
+  accessToken = data.access_token;
+  
+  // Set expiry to 55 minutes from now (tokens typically last 1 hour)
+  tokenExpiry = new Date(Date.now() + 55 * 60 * 1000);
+  
+  return accessToken;
+}
 
 // Create the MCP server
 const server = new Server(
@@ -81,11 +124,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         ? `${SEMIONT_API_URL}/api/hello/${encodeURIComponent(name)}`
         : `${SEMIONT_API_URL}/api/hello`;
       
+      // Get fresh access token
+      const token = await getAccessToken();
+      
       // Make the API request with authentication
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${SEMIONT_API_TOKEN}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -93,7 +139,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (!response.ok) {
         // Handle authentication errors specially
         if (response.status === 401) {
-          throw new Error('Authentication failed. Please set SEMIONT_API_TOKEN environment variable with a valid JWT token.');
+          // Clear cached token on auth failure
+          accessToken = null;
+          tokenExpiry = null;
+          throw new Error('Authentication failed. Token may have expired. Please re-provision with: semiont provision --service mcp');
         }
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }

@@ -106,7 +106,36 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Parse command
     const [cmd, ...args] = command.split(' ');
     
-    // Spawn the process with requirements-based configuration
+    // Special handling for MCP service - it needs to run interactively with stdio
+    if (service.name === 'mcp') {
+      const proc = spawn(cmd, args, {
+        cwd: service.projectRoot,
+        env,
+        stdio: 'inherit'  // Connect stdin/stdout for JSON-RPC
+      });
+      
+      if (!proc.pid) {
+        throw new Error('Failed to start MCP process');
+      }
+      
+      // Don't detach or unref - MCP needs to keep running
+      // The process will handle signals and exit appropriately
+      
+      // For MCP, we return immediately but the process keeps running
+      return {
+        entity: service.name,
+        platform: 'process',
+        success: true,
+        startTime: new Date(),
+        metadata: {
+          command,
+          mode: 'stdio',
+          pid: proc.pid
+        }
+      };
+    }
+    
+    // Regular service spawning (detached)
     const proc = spawn(cmd, args, {
       cwd: service.projectRoot,
       env,

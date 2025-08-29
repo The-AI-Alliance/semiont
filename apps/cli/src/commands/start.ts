@@ -89,7 +89,7 @@ async function startServiceImpl(
     serviceInfo.name as ServiceName,
     serviceInfo.platform,
     config,
-    { ...serviceInfo.config, platform: serviceInfo.platform }
+    { ...serviceInfo.config, platform: serviceInfo.platform, environment: config.environment }
   );
   
   // Platform handles the start command with service as context
@@ -108,12 +108,15 @@ export async function start(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   const environment = options.environment!; // Environment is guaranteed by command loader
   
+  // Special handling for MCP - suppress all output to avoid corrupting JSON-RPC
+  const isMCP = serviceDeployments.length === 1 && serviceDeployments[0].name === 'mcp';
+  
   // Create shared config
   const config: Config = {
     projectRoot: PROJECT_ROOT,
     environment: parseEnvironment(environment),
     verbose: options.verbose,
-    quiet: options.quiet || isStructuredOutput,
+    quiet: options.quiet || isStructuredOutput || isMCP, // Force quiet for MCP
     dryRun: options.dryRun
   };
   

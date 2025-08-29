@@ -231,9 +231,18 @@ export async function executeCommand(
       results = await setupHandler(options);
     }
     
-    // Format and output results
-    const formatted = formatResults(results, options.output, options.verbose);
-    console.log(formatted);
+    // Skip output for MCP to avoid corrupting JSON-RPC stream
+    if (!(commandName === 'start' && options.service === 'mcp')) {
+      // Format and output results
+      const formatted = formatResults(results, options.output, options.verbose);
+      console.log(formatted);
+    }
+    
+    // For MCP, don't exit - let the process keep running
+    if (commandName === 'start' && options.service === 'mcp') {
+      // MCP process will handle its own lifecycle
+      return;
+    }
     
     // Exit with appropriate code
     if (results.summary && results.summary.failed > 0) {

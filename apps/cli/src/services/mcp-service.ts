@@ -38,7 +38,6 @@ import { ServiceRequirements, RequirementPresets } from '../services/service-req
 import { CheckResult } from '../commands/check.js';
 import { loadEnvironmentConfig } from '../platforms/platform-resolver.js';
 import * as path from 'path';
-import * as os from 'os';
 import * as fs from 'fs';
 
 export class MCPService extends BaseService {
@@ -78,58 +77,9 @@ export class MCPService extends BaseService {
     
     return {
       ...baseEnv,
-      SEMIONT_API_URL: this.getApiUrl(),
-      SEMIONT_API_TOKEN: this.getApiToken()
+      SEMIONT_ENV: this.config.environment || 'development',
+      SEMIONT_API_URL: this.getApiUrl()
     };
-  }
-  
-  // =====================================================================
-  // Service-specific hooks
-  // =====================================================================
-  
-  protected override async preStart(): Promise<void> {
-    // MCP requires environment to be set
-    if (!this.config.environment) {
-      throw new Error('Environment must be specified for MCP service');
-    }
-    
-    // MCP only works as process deployment
-    if (this.platform !== 'process') {
-      throw new Error(`MCP service only supports process deployment, got: ${this.platform}`);
-    }
-    
-    // Check for provisioned auth
-    const authPath = this.getAuthPath();
-    if (!fs.existsSync(authPath)) {
-      throw new Error(
-        `MCP not provisioned for ${this.config.environment}. ` +
-        `Run: semiont provision --service mcp --environment ${this.config.environment}`
-      );
-    }
-    
-    // Load and refresh token
-    try {
-      const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
-      const apiUrl = this.getApiUrl();
-      
-      // Get fresh access token from backend
-      const response = await fetch(`${apiUrl}/api/tokens/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: authData.refresh_token })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to refresh access token. You may need to re-provision.');
-      }
-      
-      const { access_token } = await response.json() as { access_token: string };
-      
-      // Store the token in environment for the process
-      process.env.SEMIONT_API_TOKEN = access_token;
-    } catch (error) {
-      throw new Error(`Failed to authenticate MCP: ${error}`);
-    }
   }
   
   protected override async checkHealth(): Promise<CheckResult['health']> {
@@ -152,19 +102,19 @@ export class MCPService extends BaseService {
     return `https://${envConfig.site?.domain || 'localhost'}`;
   }
   
-  private getApiToken(): string {
-    return process.env.SEMIONT_API_TOKEN || '';
-  }
-  
-  private getAuthPath(): string {
-    return path.join(os.homedir(), '.config', 'semiont', `mcp-auth-${this.config.environment}.json`);
-  }
-  
   private findMCPServer(): string {
+    // Get the directory where the CLI is installed
+    const cliPath = new URL(import.meta.url).pathname;
+    const cliDir = path.dirname(cliPath);
+    
     const possiblePaths = [
-      path.join(this.config.projectRoot, 'apps/mcp-server/dist/index.js'),
-      path.join(this.config.projectRoot, 'apps/mcp-server/index.js'),
-      path.join(this.config.projectRoot, 'mcp-server/index.js'),
+      // Look for bundled MCP server in CLI dist directory
+      path.join(cliDir, 'mcp-server', 'index.js'),
+      path.join(cliDir, '..', 'mcp-server', 'index.js'),
+      // Development paths (when running from source)
+      path.join(this.config.projectRoot || process.cwd(), 'packages/mcp-server/dist/index.js'),
+      path.join(this.config.projectRoot || process.cwd(), 'apps/mcp-server/dist/index.js'),
+      // Fallback to current directory
       path.join(process.cwd(), 'mcp-server/index.js'),
       'mcp-server'  // Global install
     ];
@@ -176,8 +126,8 @@ export class MCPService extends BaseService {
     }
     
     throw new Error(
-      'MCP server not found. Please ensure mcp-server is built or installed.\n' +
-      'Run: npm run build:mcp'
+      'MCP server not found. Please ensure mcp-server is built and bundled with the CLI.\n' +
+      'Run: npm run build in the CLI directory'
     );
   }
 }

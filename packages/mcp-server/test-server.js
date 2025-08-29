@@ -20,8 +20,8 @@ async function testMCPServer() {
     args: ['dist/index.js'],
     env: {
       ...process.env,
-      SEMIONT_API_URL: process.env.SEMIONT_API_URL || 'http://localhost:4000',
-      SEMIONT_API_TOKEN: process.env.SEMIONT_API_TOKEN || ''
+      SEMIONT_ENV: process.env.SEMIONT_ENV || 'development',
+      SEMIONT_API_URL: process.env.SEMIONT_API_URL || 'http://localhost:4000'
     }
   });
 

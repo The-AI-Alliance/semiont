@@ -58,6 +58,7 @@ semiont/
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont.git
 cd semiont
+npm run build
 npm install           # Install all workspace dependencies
 npm run install:cli   # Install the semiont CLI globally
 ```
