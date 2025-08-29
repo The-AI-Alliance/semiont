@@ -286,16 +286,40 @@ export class BackendService extends BaseService {
       return this.config.databaseUrl;
     }
     
+    // Check if DATABASE_URL is already set in environment
+    if (process.env.DATABASE_URL) {
+      return process.env.DATABASE_URL;
+    }
+    
+    // Try to get database configuration from environment config
+    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
+    const dbConfig = envConfig.services?.database;
+    
+    if (dbConfig && dbConfig.platform?.type === 'external') {
+      // Load secrets for database password
+      const secretsPath = path.join(this.systemConfig.projectRoot, '.secrets.json');
+      let password = dbConfig.password || 'password';
+      
+      try {
+        if (fs.existsSync(secretsPath)) {
+          const secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf-8'));
+          password = secrets.DATABASE_PASSWORD || password;
+        }
+      } catch (e) {
+        // Ignore errors reading secrets
+      }
+      
+      return `postgresql://${dbConfig.user}:${password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.name}`;
+    }
+    
+    // Fallback to platform-specific defaults
     switch (this.platform) {
       case 'process':
         return 'postgresql://postgres:localpassword@localhost:5432/semiont';
       case 'container':
         return 'postgresql://postgres:localpassword@semiont-postgres:5432/semiont';
       case 'aws':
-        return process.env.DATABASE_URL || '';
-      case 'external':
-        const { host, port, name, user, password } = this.config;
-        return `postgresql://${user}:${password}@${host}:${port}/${name}`;
+        return '';  // AWS should have DATABASE_URL set
       default:
         return '';
     }
