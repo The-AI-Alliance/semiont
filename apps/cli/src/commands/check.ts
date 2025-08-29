@@ -179,15 +179,9 @@ async function checkHandler(
             printWarning(`   ⚠️  State mismatch: ${result.stateMismatch.reason}`);
           }
           
-          // Show logs summary if available
-          if (result.logs) {
-            if (result.logs.errors && result.logs.errors > 0) {
-              console.log(`   ❌ Errors: ${result.logs.errors}`);
-            }
-            if (result.logs.warnings && result.logs.warnings > 0) {
-              console.log(`   ⚠️  Warnings: ${result.logs.warnings}`);
-            }
-            if (options.verbose && result.logs.recent) {
+          // Show logs if available (remove confusing error/warning counts)
+          if (result.logs?.recent && result.logs.recent.length > 0) {
+            if (options.verbose) {
               console.log('   Recent logs:');
               result.logs.recent.slice(0, 3).forEach(log => {
                 console.log(`     ${log}`);
