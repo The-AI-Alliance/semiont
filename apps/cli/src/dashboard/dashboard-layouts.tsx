@@ -4,7 +4,7 @@
  * React components that combine dashboard components into full-screen layouts
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useStdout, useApp, useInput } from 'ink';
 import { 
   ServicePanel, 
@@ -321,28 +321,47 @@ export const DashboardApp: React.FC<{
     return new DashboardDataSource(environment);
   });
   const { exit } = useApp();
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Global keyboard shortcuts
   useInput((input, key) => {
     if (input === 'q' || (key.ctrl && input === 'c')) {
+      // Clean up before exit
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       exit();
     } else if (input === 'r') {
       refreshData();
     }
   });
 
-  // Data refreshing - only used in standalone mode
+  // Data refreshing
   const refreshData = async () => {
     if (!dataSource) return;
+    
+    // Create a new abort controller for this refresh
+    abortControllerRef.current = new AbortController();
     
     setData(prev => ({ ...prev, isRefreshing: true }));
     try {
       const newData = await dataSource.getDashboardData();
-      setData(newData);
+      // Only update if not aborted
+      if (!abortControllerRef.current.signal.aborted) {
+        setData(newData);
+      }
     } catch (error) {
-      console.error('Failed to refresh dashboard data:', error);
+      if (!abortControllerRef.current?.signal.aborted) {
+        console.error('Failed to refresh dashboard data:', error);
+      }
     } finally {
-      setData(prev => ({ ...prev, isRefreshing: false }));
+      if (!abortControllerRef.current?.signal.aborted) {
+        setData(prev => ({ ...prev, isRefreshing: false }));
+      }
     }
   };
 
@@ -350,8 +369,15 @@ export const DashboardApp: React.FC<{
   useEffect(() => {
     if (dataSource) {
       refreshData();
-      const interval = setInterval(refreshData, refreshInterval * 1000);
-      return () => clearInterval(interval);
+      intervalRef.current = setInterval(refreshData, refreshInterval * 1000);
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      };
     }
   }, []); // Remove dependencies to run only once
 
