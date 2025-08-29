@@ -113,7 +113,8 @@ async function provisionHandler(
         serviceInfo.platform,
         config,
         {
-          platform: serviceInfo.platform
+          platform: serviceInfo.platform,
+          environment: options.environment
         } // Service config would come from project config
       );
       
