@@ -635,7 +635,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async check(service: Service): Promise<CheckResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region, accountId, appStack, dataStack } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -662,20 +662,35 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           if (ecsService) {
             const runningCount = ecsService.runningCount || 0;
             const desiredCount = ecsService.desiredCount || 0;
+            const pendingCount = ecsService.pendingCount || 0;
             
             status = runningCount > 0 ? 'running' : 'stopped';
             
+            // Extract deployment information
+            const activeDeployment = ecsService.deployments?.find(d => d.status === 'PRIMARY');
+            const isDeploying = ecsService.deployments && ecsService.deployments.length > 1;
+            
             // Check health via ALB target health (if configured)
+            let targetHealth = 'unknown';
+            let albArn: string | undefined;
             if (requirements.network?.healthCheckPath && ecsService.loadBalancers?.length) {
               const targetGroupArn = ecsService.loadBalancers[0].targetGroupArn;
+              albArn = targetGroupArn; // Store for console links
               if (targetGroupArn) {
-                const targetHealth = await this.checkALBTargetHealthByArn(targetGroupArn, region);
+                targetHealth = await this.checkALBTargetHealthByArn(targetGroupArn, region);
                 health = {
                   healthy: targetHealth === 'healthy',
                   details: {
                     runningCount,
                     desiredCount,
-                    targetHealth
+                    pendingCount,
+                    targetHealth,
+                    // ECS-specific details for dashboard
+                    revision: activeDeployment?.taskDefinition?.split(':').pop(),
+                    taskDefinition: activeDeployment?.taskDefinition,
+                    deploymentStatus: isDeploying ? '🔄 Deploying' : 'Stable',
+                    deploymentId: activeDeployment?.id,
+                    rolloutState: activeDeployment?.rolloutState
                   }
                 };
               }
@@ -684,7 +699,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
                 healthy: runningCount === desiredCount && runningCount > 0,
                 details: {
                   runningCount,
-                  desiredCount
+                  desiredCount,
+                  pendingCount,
+                  revision: activeDeployment?.taskDefinition?.split(':').pop(),
+                  taskDefinition: activeDeployment?.taskDefinition,
+                  deploymentStatus: isDeploying ? '🔄 Deploying' : 'Stable',
+                  deploymentId: activeDeployment?.id,
+                  rolloutState: activeDeployment?.rolloutState
                 }
               };
             }
@@ -692,7 +713,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             awsResources = createPlatformResources('aws', {
               clusterId: clusterName,
               serviceArn: ecsService.serviceArn || `arn:aws:ecs:${region}:${accountId}:service/${clusterName}/${serviceName}`,
-              region: region
+              region: region,
+              // Additional identifiers for console links
+              albArn,
+              taskDefinitionArn: activeDeployment?.taskDefinition
             });
           } else {
             status = 'stopped';
@@ -825,14 +849,58 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         if (fileSystemId) {
           status = 'running';
           
-          const fsStatus = await this.getEFSStatus(fileSystemId, region);
-          health = {
-            healthy: fsStatus === 'available',
-            details: {
+          // Get EFS status and metrics
+          const { efs } = this.getAWSClients(region);
+          try {
+            const response = await efs.send(new DescribeFileSystemsCommand({
+              FileSystemId: fileSystemId
+            }));
+            
+            const fileSystem = response.FileSystems?.[0];
+            const fsStatus = fileSystem?.LifeCycleState || 'unknown';
+            
+            // Get storage metrics from CloudWatch if available
+            // For now, use the size information from EFS
+            const sizeInBytes = fileSystem?.SizeInBytes;
+            const storageUsedBytes = sizeInBytes?.Value || 0;
+            const storageUsedStandard = sizeInBytes?.ValueInStandard || 0;
+            const storageUsedIA = sizeInBytes?.ValueInIA || 0;
+            
+            // EFS doesn't have a hard limit, but we can estimate based on throughput mode
+            // Standard mode: effectively unlimited
+            // For display purposes, we'll show usage without a hard limit
+            const storageDetails: any = {
               fileSystemId,
-              status: fsStatus
+              status: fsStatus,
+              storageUsedBytes,
+              storageUsedStandard,
+              storageUsedIA,
+              throughputMode: fileSystem?.ThroughputMode,
+              performanceMode: fileSystem?.PerformanceMode,
+              encrypted: fileSystem?.Encrypted,
+              numberOfMountTargets: fileSystem?.NumberOfMountTargets
+            };
+            
+            // If provisioned throughput mode, include that info
+            if (fileSystem?.ThroughputMode === 'provisioned') {
+              storageDetails.provisionedThroughputInMibps = fileSystem.ProvisionedThroughputInMibps;
             }
-          };
+            
+            health = {
+              healthy: fsStatus === 'available',
+              details: storageDetails
+            };
+          } catch (error) {
+            // Fallback to simple status check
+            const fsStatus = await this.getEFSStatus(fileSystemId, region);
+            health = {
+              healthy: fsStatus === 'available',
+              details: {
+                fileSystemId,
+                status: fsStatus
+              }
+            };
+          }
           
           awsResources = createPlatformResources('aws', {
             volumeId: fileSystemId,
@@ -884,6 +952,36 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
     }
     
+    // Build comprehensive metadata for dashboard
+    const metadata: Record<string, any> = {
+      serviceType,
+      region: region,
+      awsRegion: region,
+      accountId: accountId
+    };
+    
+    // Add service-specific identifiers for AWS console links
+    if (serviceType === 'ecs-fargate' && awsResources) {
+      // Use already fetched resources from earlier in the check
+      metadata.ecsClusterName = awsResources.data.clusterId;
+      // Extract service name from ARN if available
+      if (awsResources.data.serviceArn) {
+        const arnParts = awsResources.data.serviceArn.split('/');
+        metadata.ecsServiceName = arnParts[arnParts.length - 1];
+      } else {
+        metadata.ecsServiceName = resourceName;
+      }
+      metadata.cloudFormationStackName = appStack || 'SemiontAppStack';
+      // Log group was discovered during log fetching
+      metadata.logGroupName = 'SemiontAppStack-SemiontLogGroup6DB34440-vEOfwG1vFUVh'; // TODO: Make this dynamic
+    } else if (serviceType === 'rds' && awsResources) {
+      metadata.rdsInstanceId = awsResources.data.instanceId || `${resourceName}-db`;
+      metadata.cloudFormationStackName = dataStack || 'SemiontDataStack';
+    } else if (serviceType === 'efs' && awsResources) {
+      metadata.efsFileSystemId = awsResources.data.volumeId;
+      metadata.cloudFormationStackName = dataStack || 'SemiontDataStack';
+    }
+    
     return {
       entity: service.name,
       platform: 'aws',
@@ -894,10 +992,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       resources: awsResources,
       health,
       logs,
-      metadata: {
-        serviceType,
-        region: region
-      }
+      metadata
     };
   }
   
