@@ -201,7 +201,7 @@ jobs:
                 "platform": {
                   "type": "process"
                 },
-                "command": "npm start",
+                "command": "cd apps/backend && npm start",
                 "port": 3001
               },
               "database": {
