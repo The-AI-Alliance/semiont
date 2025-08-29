@@ -2902,45 +2902,41 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           lastEventCount = events.length;
         }
         
-        // Get task details for more granular status
-        let taskHealthStatus = 'UNKNOWN';
-        if (ourDeployment.taskDefinition) {
-          try {
-            const tasksData = execSync(
-              `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status RUNNING --region ${region} --output json`,
+        // Get detailed task counts by deployment version
+        let taskDetails = { new: { total: 0, running: 0, healthy: 0, pending: 0 }, old: { total: 0, running: 0, healthy: 0, pending: 0 } };
+        try {
+          const tasksData = execSync(
+            `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status RUNNING --region ${region} --output json`,
+            { encoding: 'utf-8' }
+          );
+          const taskArns = JSON.parse(tasksData).taskArns || [];
+          
+          if (taskArns.length > 0) {
+            const taskDetailsJson = execSync(
+              `aws ecs describe-tasks --cluster ${clusterName} --tasks ${taskArns.join(' ')} --region ${region} --output json`,
               { encoding: 'utf-8' }
             );
-            const taskArns = JSON.parse(tasksData).taskArns || [];
+            const allTasks = JSON.parse(taskDetailsJson).tasks || [];
             
-            if (taskArns.length > 0) {
-              const taskDetails = execSync(
-                `aws ecs describe-tasks --cluster ${clusterName} --tasks ${taskArns.join(' ')} --region ${region} --output json`,
-                { encoding: 'utf-8' }
-              );
-              const tasks = JSON.parse(taskDetails).tasks || [];
+            // Group tasks by deployment (new vs old)
+            for (const task of allTasks) {
+              const isNewDeployment = task.taskDefinitionArn === ourDeployment.taskDefinition;
+              const details = isNewDeployment ? taskDetails.new : taskDetails.old;
               
-              // Check if all tasks are healthy
-              const healthyTasks = tasks.filter((t: any) => 
-                t.lastStatus === 'RUNNING' && 
-                t.healthStatus === 'HEALTHY'
-              ).length;
+              details.total++;
               
-              const pendingTasks = tasks.filter((t: any) => 
-                t.lastStatus === 'PENDING' || 
-                t.lastStatus === 'PROVISIONING'
-              ).length;
-              
-              if (pendingTasks > 0) {
-                taskHealthStatus = 'PROVISIONING';
-              } else if (healthyTasks === tasks.length && tasks.length > 0) {
-                taskHealthStatus = 'HEALTHY';
-              } else {
-                taskHealthStatus = 'STARTING';
+              if (task.lastStatus === 'PENDING' || task.lastStatus === 'PROVISIONING') {
+                details.pending++;
+              } else if (task.lastStatus === 'RUNNING') {
+                details.running++;
+                if (task.healthStatus === 'HEALTHY') {
+                  details.healthy++;
+                }
               }
             }
-          } catch {
-            // Ignore task detail errors
           }
+        } catch {
+          // Ignore task detail errors - just show deployment counts
         }
         
         // Check deployment status
@@ -2991,18 +2987,16 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             const filledLength = Math.round((progress / 100) * barLength);
             const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
             
-            let phaseText = '';
-            if (taskHealthStatus === 'PROVISIONING') {
-              phaseText = ' [Pulling image...]';
-            } else if (taskHealthStatus === 'STARTING') {
-              phaseText = ' [Health checks...]';
-            } else if (otherActive > 0) {
-              phaseText = ` [Draining ${otherActive} old deployment(s)...]`;
-            }
+            // Build detailed status text
+            const newStatus = `new: ${taskDetails.new.healthy}h/${taskDetails.new.running}r/${taskDetails.new.total}t`;
+            const oldStatus = taskDetails.old.total > 0 ? ` | old: ${taskDetails.old.healthy}h/${taskDetails.old.running}r/${taskDetails.old.total}t` : '';
             
-            process.stdout.write(`\r  Deployment: [${bar}] ${progress}% (${running}/${desired} tasks)${phaseText}  `);
+            process.stdout.write(`\r  Deployment: [${bar}] ${progress}% (${running}/${desired}) [${newStatus}${oldStatus}]  `);
           } else {
-            console.log(`Deployment progress: ${running}/${desired} tasks [${ourDeployment.status}] [Health: ${taskHealthStatus}]`);
+            // Verbose mode - show raw counts
+            const newStatus = `new: ${taskDetails.new.healthy}h/${taskDetails.new.running}r/${taskDetails.new.total}t`;
+            const oldStatus = `old: ${taskDetails.old.healthy}h/${taskDetails.old.running}r/${taskDetails.old.total}t`;
+            console.log(`Deployment progress: ${running}/${desired} tasks [${ourDeployment.status}] [${newStatus} | ${oldStatus}]`);
           }
         } else if (ourDeployment.status === 'INACTIVE') {
           // Deployment was replaced or rolled back
@@ -3100,6 +3094,30 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         const activeDeployment = ecsService.deployments?.find(d => d.status === 'PRIMARY');
         const isDeploying = ecsService.deployments && ecsService.deployments.length > 1;
         
+        // Get current image from task definition
+        let currentImage = 'unknown';
+        let imageTag = 'unknown';
+        if (activeDeployment?.taskDefinition) {
+          try {
+            const taskDefJson = execSync(
+              `aws ecs describe-task-definition --task-definition ${activeDeployment.taskDefinition} --region ${region} --output json`,
+              { encoding: 'utf-8' }
+            );
+            const taskDef = JSON.parse(taskDefJson).taskDefinition;
+            const containerDef = taskDef.containerDefinitions?.[0];
+            if (containerDef?.image) {
+              currentImage = containerDef.image;
+              // Extract just the tag from the full image URI
+              const tagMatch = currentImage.match(/:([^:]+)$/);
+              imageTag = tagMatch ? tagMatch[1] : 'unknown';
+            }
+          } catch (error) {
+            if (service.verbose) {
+              console.log(`[DEBUG] Could not get task definition details: ${error}`);
+            }
+          }
+        }
+        
         // Check health via ALB target health (if configured)
         let targetHealth = 'unknown';
         let albArn: string | undefined;
@@ -3120,6 +3138,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             targetHealth,
             revision: activeDeployment?.taskDefinition?.split(':').pop(),
             taskDefinition: activeDeployment?.taskDefinition,
+            currentImage,
+            imageTag,
             deploymentStatus: isDeploying ? '🔄 Deploying' : 'Stable',
             deploymentId: activeDeployment?.id,
             rolloutState: activeDeployment?.rolloutState
@@ -3137,8 +3157,23 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Build ECS-specific metadata
         const metadata: Record<string, any> = {
           ecsClusterName: clusterName,
-          ecsServiceName: serviceName
+          ecsServiceName: serviceName,
+          currentImage,
+          imageTag
         };
+        
+        // Add deployment status if multiple deployments
+        if (isDeploying) {
+          const deployments = ecsService.deployments || [];
+          metadata.deploymentCount = deployments.length;
+          metadata.deployments = deployments.map(d => ({
+            id: d.id,
+            status: d.status,
+            taskDefinition: d.taskDefinition,
+            runningCount: d.runningCount,
+            desiredCount: d.desiredCount
+          }));
+        }
         
         // Add ALB and WAF information if available
         if (cfnDiscoveredResources.loadBalancerDns) {
