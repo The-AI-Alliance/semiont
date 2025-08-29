@@ -16,6 +16,7 @@ export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockP
 
 // Mock platform-resolver for environment config
 vi.mock('../../platforms/platform-resolver.js', () => ({
+  findProjectRoot: vi.fn(() => '/test/project/root'),
   getNodeEnvForEnvironment: vi.fn(() => 'test'),
   loadEnvironmentConfig: vi.fn(() => ({
     name: 'test',
