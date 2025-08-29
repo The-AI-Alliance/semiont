@@ -24,20 +24,20 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { StartResult } from "../commands/start.js";
-import { StopResult } from "../commands/stop.js";
-import { CheckResult } from "../commands/check.js";
-import { UpdateResult } from "../commands/update.js";
-import { ProvisionResult } from "../commands/provision.js";
-import { PublishResult } from "../commands/publish.js";
-import { PlatformResources, AWSResources, createPlatformResources } from "./platform-resources.js";
-import { BackupResult } from "../commands/backup.js";
-import { ExecResult, ExecOptions } from "../commands/exec.js";
-import { TestResult, TestOptions } from "../commands/test.js";
-import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy } from './platform-strategy.js';
-import { Service } from '../services/service-interface.js';
-import { printInfo } from '../lib/cli-logger.js';
+import { StartResult } from "../../commands/start.js";
+import { StopResult } from "../../commands/stop.js";
+import { CheckResult } from "../../commands/check.js";
+import { UpdateResult } from "../../commands/update.js";
+import { ProvisionResult } from "../../commands/provision.js";
+import { PublishResult } from "../../commands/publish.js";
+import { PlatformResources, AWSResources, createPlatformResources } from "../platform-resources.js";
+import { BackupResult } from "../../commands/backup.js";
+import { ExecResult, ExecOptions } from "../../commands/exec.js";
+import { TestResult, TestOptions } from "../../commands/test.js";
+import { RestoreResult, RestoreOptions } from "../../commands/restore.js";
+import { BasePlatformStrategy } from '../platform-strategy.js';
+import { Service } from '../../services/service-interface.js';
+import { printInfo } from '../../lib/cli-logger.js';
 
 // AWS SDK v3 clients
 import { ECSClient, DescribeServicesCommand, DescribeClustersCommand, ListServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
@@ -69,7 +69,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     appStack?: string;
   } {
     // Load the environment configuration to get AWS settings
-    const { loadEnvironmentConfig } = require('../platforms/platform-resolver.js');
+    const { loadEnvironmentConfig } = require('../platform-resolver.js');
     const envConfig = loadEnvironmentConfig(service.environment);
     
     // Get AWS config from environment file, fallback to env vars
@@ -142,7 +142,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     wafWebAclArn?: string;
   }> {
     const { region, dataStack, appStack } = this.getAWSConfig(service);
-    const { StateManager } = await import('../services/state-manager.js');
+    const { StateManager } = await import('../../services/state-manager.js');
     
     // Load existing state for potential update
     const existingState = await StateManager.load(

@@ -8,14 +8,14 @@ export type { PlatformStrategy, ServiceContext } from './platform-strategy.js';
 // Export platform strategies
 export { ProcessPlatformStrategy } from './process-platform.js';
 export { ContainerPlatformStrategy } from './container-platform.js';
-export { AWSPlatformStrategy } from './aws-platform.js';
+export { AWSPlatformStrategy } from './aws/platform.js';
 export { ExternalPlatformStrategy } from './external-platform.js';
 export { MockPlatformStrategy } from './mock-platform.js';
 
 import { PlatformStrategy } from './platform-strategy.js';
 import { ProcessPlatformStrategy } from './process-platform.js';
 import { ContainerPlatformStrategy } from './container-platform.js';
-import { AWSPlatformStrategy } from './aws-platform.js';
+import { AWSPlatformStrategy } from './aws/platform.js';
 import { ExternalPlatformStrategy } from './external-platform.js';
 import { MockPlatformStrategy } from './mock-platform.js';
 import { Platform } from '../platforms/platform-resolver.js';
