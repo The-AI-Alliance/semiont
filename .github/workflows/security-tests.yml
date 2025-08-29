@@ -201,7 +201,7 @@ jobs:
                 "platform": {
                   "type": "process"
                 },
-                "command": "cd apps/backend && npm start",
+                "command": "npm start",
                 "port": 3001
               },
               "database": {
@@ -249,8 +249,7 @@ jobs:
 
       - name: Start backend for API security verification
         run: |
-          cd ../..
-          # Start backend and capture output
+          cd apps/backend
           semiont start -e ci --service backend > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
