@@ -31,7 +31,7 @@
 
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
-import { SemiontStackConfig } from '../platforms/stack-config.js';
+import { SemiontStackConfig } from '../platforms/aws/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../platforms/platform-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../platforms/environment-config.js';
 import * as readline from 'readline';
