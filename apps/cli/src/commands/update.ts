@@ -73,6 +73,12 @@ export interface UpdateResult {
 const UpdateOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
+  force: z.boolean().optional().default(false),
+  wait: z.boolean().optional().default(false),
+  timeout: z.number().optional().default(300), // 5 minutes default
+  skipTests: z.boolean().optional().default(false),
+  skipBuild: z.boolean().optional().default(false),
+  gracePeriod: z.number().optional().default(30),
 });
 
 type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
@@ -99,12 +105,21 @@ async function updateHandler(
   for (const serviceInfo of services) {
     
     try {
-      // Create service instance
+      // Create service instance with update options
       const service = ServiceFactory.create(
         serviceInfo.name as ServiceName,
         serviceInfo.platform,
         config,
-        { ...serviceInfo.config, platform: serviceInfo.platform }
+        { 
+          ...serviceInfo.config, 
+          platform: serviceInfo.platform,
+          force: options.force,
+          wait: options.wait,
+          timeout: options.timeout,
+          skipTests: options.skipTests,
+          skipBuild: options.skipBuild,
+          gracePeriod: options.gracePeriod
+        }
       );
       
       // Get platform and delegate update to it
@@ -169,6 +184,14 @@ async function updateHandler(
       
       if (!options.quiet) {
         printError(`Failed to update ${serviceInfo.name}: ${error}`);
+      }
+      
+      // Stop on first error unless --force is used
+      if (!options.force) {
+        if (!options.quiet) {
+          printError(`Stopping due to error. Use --force to continue despite errors.`);
+        }
+        break;
       }
     }
   }
@@ -260,6 +283,12 @@ export const updateCommand = new CommandBuilder()
   .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--force': { type: 'boolean', description: 'Force update even if no changes detected', default: false },
+    '--wait': { type: 'boolean', description: 'Wait for deployment to complete', default: false },
+    '--timeout': { type: 'number', description: 'Timeout in seconds when using --wait', default: 300 },
+    '--skip-tests': { type: 'boolean', description: 'Skip running tests before update', default: false },
+    '--skip-build': { type: 'boolean', description: 'Skip building (use existing artifacts)', default: false },
+    '--grace-period': { type: 'number', description: 'Grace period in seconds for rolling updates', default: 30 },
   }))
   .handler(updateHandler)
   .build();

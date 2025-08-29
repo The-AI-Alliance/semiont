@@ -886,10 +886,27 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Get current task definition revision
         previousVersion = await this.getCurrentTaskDefinition(clusterName, serviceName, region);
         
-        // Force new deployment using the discovered resources
-        execSync(
-          `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region}`
+        // Always force new deployment for ECS (this was the original behavior)
+        const updateResult = execSync(
+          `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region} --output json`,
+          { encoding: 'utf-8' }
         );
+        
+        // Parse the update result to get deployment ID
+        const updateData = JSON.parse(updateResult);
+        const deployments = updateData.service?.deployments || [];
+        const newDeployment = deployments.find((d: any) => d.status === 'PRIMARY');
+        const deploymentId = newDeployment?.id;
+        
+        // Wait for deployment if requested
+        if (service.config?.wait && deploymentId) {
+          const timeout = service.config.timeout || 300;
+          if (!service.quiet) {
+            printInfo(`Waiting for deployment to complete (timeout: ${timeout}s)...`);
+          }
+          
+          await this.waitForECSDeployment(clusterName, serviceName, deploymentId, region, timeout, service.verbose);
+        }
         
         // Get new task definition revision
         newVersion = await this.getCurrentTaskDefinition(clusterName, serviceName, region);
@@ -2671,6 +2688,116 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         error: (error as Error).message
       };
     }
+  }
+  
+  /**
+   * Wait for ECS deployment to complete
+   */
+  private async waitForECSDeployment(
+    clusterName: string,
+    serviceName: string,
+    deploymentId: string,
+    region: string,
+    timeout: number,
+    verbose: boolean = false
+  ): Promise<void> {
+    const startTime = Date.now();
+    const checkInterval = 5000; // 5 seconds
+    
+    while ((Date.now() - startTime) < (timeout * 1000)) {
+      try {
+        // Get service details
+        const serviceData = execSync(
+          `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
+          { encoding: 'utf-8' }
+        );
+        
+        const service = JSON.parse(serviceData).services?.[0];
+        if (!service) {
+          throw new Error(`Service ${serviceName} not found`);
+        }
+        
+        const deployments = service.deployments || [];
+        const ourDeployment = deployments.find((d: any) => d.id === deploymentId);
+        
+        if (!ourDeployment) {
+          // Deployment no longer exists - likely rolled back
+          throw new Error(`Deployment ${deploymentId} no longer exists - likely failed or was rolled back`);
+        }
+        
+        // Check deployment status
+        if (ourDeployment.status === 'PRIMARY') {
+          const running = ourDeployment.runningCount || 0;
+          const desired = ourDeployment.desiredCount || 0;
+          
+          // Deployment is only REALLY complete when:
+          // 1. Our deployment has all tasks running
+          // 2. There are NO other active deployments (old tasks drained)
+          if (running === desired && desired > 0) {
+            // Check if there are any other non-INACTIVE deployments
+            const otherActiveDeployments = deployments.filter((d: any) => 
+              d.id !== deploymentId && d.status !== 'INACTIVE'
+            );
+            
+            if (otherActiveDeployments.length === 0) {
+              // Only our deployment is active - we're truly done
+              if (verbose) {
+                console.log(`\nDeployment ${deploymentId} fully completed - all traffic switched (${running}/${desired} tasks running)`);
+              }
+              return;
+            } else {
+              // Still draining old tasks
+              if (verbose) {
+                console.log(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain...`);
+              }
+            }
+          }
+          
+          // Show progress
+          if (!verbose) {
+            const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
+            
+            // Check for other active deployments
+            const otherActive = deployments.filter((d: any) => 
+              d.id !== deploymentId && d.status !== 'INACTIVE'
+            ).length;
+            
+            const barLength = 20;
+            const filledLength = Math.round((progress / 100) * barLength);
+            const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
+            
+            const statusText = otherActive > 0 
+              ? ` Draining ${otherActive} old deployment(s)...`
+              : '';
+            
+            process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks)${statusText}  `);
+          } else {
+            console.log(`Deployment progress: ${running}/${desired} tasks running [${ourDeployment.status}]`);
+          }
+        } else if (ourDeployment.status === 'INACTIVE') {
+          // Deployment was replaced or rolled back
+          throw new Error(`Deployment ${deploymentId} failed - status is INACTIVE`);
+        }
+        
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Deployment')) {
+          throw error; // Re-throw deployment-specific errors
+        }
+        // Ignore other errors and keep trying
+        if (verbose) {
+          console.log(`Error checking deployment: ${error}`);
+        }
+      }
+    }
+    
+    // Clear progress line
+    if (!verbose) {
+      process.stdout.write('\n');
+    }
+    
+    throw new Error(`Deployment ${deploymentId} timed out after ${timeout} seconds`);
   }
   
   /**
