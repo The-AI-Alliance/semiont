@@ -38,6 +38,7 @@ import { RestoreResult, RestoreOptions } from "../../commands/restore.js";
 import { BasePlatformStrategy } from '../platform-strategy.js';
 import { Service } from '../../services/service-interface.js';
 import { printInfo } from '../../lib/cli-logger.js';
+import { loadEnvironmentConfig } from '../platform-resolver.js';
 
 // AWS SDK v3 clients
 import { ECSClient, DescribeServicesCommand, DescribeClustersCommand, ListServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
@@ -886,11 +887,43 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Get current task definition revision
         previousVersion = await this.getCurrentTaskDefinition(clusterName, serviceName, region);
         
-        // Always force new deployment for ECS (this was the original behavior)
+        // Force a new deployment with the current task definition
+        // This will cause ECS to pull the image again, getting any updates if the tag is mutable (like 'latest')
+        // For immutable tags (like git hashes), this will just restart the tasks
         const updateResult = execSync(
           `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region} --output json`,
           { encoding: 'utf-8' }
         );
+        
+        if (service.verbose) {
+          // Get current task definition to show what image is being used
+          try {
+            // First get the service to find its current task definition
+            const serviceData = execSync(
+              `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
+              { encoding: 'utf-8' }
+            );
+            
+            const ecsService = JSON.parse(serviceData).services?.[0];
+            if (ecsService?.taskDefinition) {
+              const currentTaskDef = execSync(
+                `aws ecs describe-task-definition --task-definition ${ecsService.taskDefinition} --region ${region} --output json`,
+                { encoding: 'utf-8' }
+              );
+              
+              const taskDef = JSON.parse(currentTaskDef).taskDefinition;
+              const images = taskDef.containerDefinitions?.map((c: any) => c.image).filter(Boolean);
+              if (images?.length > 0) {
+                console.log(`[DEBUG] Forcing new deployment with image(s): ${images.join(', ')}`);
+              }
+            }
+          } catch (error) {
+            // Ignore errors in verbose logging
+            if (service.verbose) {
+              console.log(`[DEBUG] Could not get current task definition: ${error}`);
+            }
+          }
+        }
         
         // Parse the update result to get deployment ID
         const updateData = JSON.parse(updateResult);
@@ -1150,7 +1183,35 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
-    const version = new Date().toISOString().replace(/[:.]/g, '-');
+    
+    // Determine image tag based on configuration
+    let version: string;
+    
+    if (service.config?.tag) {
+      // Explicit tag provided via CLI
+      version = service.config.tag;
+    } else {
+      // Check environment configuration for deployment strategy
+      const envConfig = loadEnvironmentConfig(service.environment);
+      const deploymentStrategy = envConfig.deployment?.imageTagStrategy || 'mutable';
+      
+      if (deploymentStrategy === 'immutable' || deploymentStrategy === 'git-hash') {
+        // Use git commit hash for immutable deployments
+        try {
+          const gitHash = execSync('git rev-parse --short HEAD', { 
+            encoding: 'utf-8',
+            cwd: service.config?.semiontRepo || service.projectRoot 
+          }).trim();
+          version = gitHash;
+        } catch {
+          // Fall back to timestamp if git not available
+          version = new Date().toISOString().replace(/[:.]/g, '-');
+        }
+      } else {
+        // Use 'latest' for mutable deployments (default)
+        version = 'latest';
+      }
+    }
     
     if (!service.quiet) {
       printInfo(`Publishing ${service.name} to AWS ${serviceType}...`);
@@ -1184,20 +1245,27 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             printInfo(`Building ${service.name} locally...`);
           }
           
-          // Get the API URL for the environment
-          const apiUrl = service.environment === 'production' 
-            ? 'https://api.semiont.com'
-            : `https://api-${service.environment}.semiont.com`;
+          // Prepare environment variables for the build
+          const buildEnv: NodeJS.ProcessEnv = { ...process.env };
           
-          // Set environment variables for the build
-          const buildEnv = {
-            ...process.env,
-            NEXT_PUBLIC_API_URL: apiUrl,
-            NODE_ENV: 'production',
-            NEXT_TELEMETRY_DISABLED: '1'
-          };
+          // For frontend, set build-time environment variables
+          if (service.name === 'frontend') {
+            const domain = service.config?.domain || 
+                          (service.environment === 'production' ? 'semiont.com' : `${service.environment}.semiont.com`);
+            const apiUrl = `https://${domain}`;
+            
+            buildEnv.NEXT_PUBLIC_API_URL = apiUrl;
+            buildEnv.NEXT_PUBLIC_APP_NAME = 'Semiont';
+            buildEnv.NEXT_PUBLIC_APP_VERSION = '1.0.0';
+            buildEnv.NODE_ENV = 'production';
+            buildEnv.NEXT_TELEMETRY_DISABLED = '1';
+            
+            if (!service.quiet) {
+              printInfo(`Using API URL for frontend: ${apiUrl}`);
+            }
+          }
           
-          // Build the TypeScript/Next.js app locally
+          // Build the application locally
           try {
             // Build api-types first if it exists
             const apiTypesPath = path.join(buildContext, 'packages', 'api-types');
@@ -1229,9 +1297,15 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           
           // Build Docker image with pre-built artifacts
           const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
+          const platformFlag = '--platform linux/amd64'; // ECS runs on x86_64
           
-          // No need for build args since we're copying pre-built artifacts
-          execSync(`docker build ${noCacheFlag}-t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`);
+          const buildCommand = `docker build ${noCacheFlag}${platformFlag} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`;
+          
+          if (service.verbose) {
+            console.log(`[DEBUG] Docker build command: ${buildCommand}`);
+          }
+          
+          execSync(buildCommand);
           
           // Push to ECR
           execSync(`docker push ${imageUri}`);
@@ -1241,7 +1315,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         
         // Update task definition with new image
-        await this.updateTaskDefinition(resourceName, imageUri);
+        await this.updateTaskDefinition(service, imageUri);
         
         rollback.command = `aws ecs update-service --cluster semiont-${service.environment} --service ${resourceName} --task-definition ${resourceName}-task:PREVIOUS`;
         break;
@@ -2405,9 +2479,86 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     if (!tableName || !requirements) return;
   }
   
-  private async updateTaskDefinition(resourceName: string, imageUri: string): Promise<void> {
-    // Implementation would update task definition with new image
-    if (!resourceName || !imageUri) return;
+  private async updateTaskDefinition(service: Service, imageUri: string): Promise<void> {
+    if (!service || !imageUri) return;
+    
+    const { region } = this.getAWSConfig(service);
+    
+    try {
+      // Get the actual ECS service name from CloudFormation discovery
+      const cfnResources = await this.discoverAndCacheResources(service);
+      const clusterName = cfnResources.clusterName || `semiont-${service.environment}`;
+      const serviceName = cfnResources.serviceName || this.getResourceName(service);
+      
+      if (!serviceName) {
+        console.warn(`   ⚠️  Could not find ECS service name for ${service.name}`);
+        return;
+      }
+      
+      // Get the current service to find its task definition
+      const serviceJson = execSync(
+        `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
+        { encoding: 'utf-8' }
+      );
+      
+      const ecsService = JSON.parse(serviceJson).services?.[0];
+      if (!ecsService) {
+        console.warn(`   ⚠️  ECS service ${serviceName} not found`);
+        return;
+      }
+      
+      const currentTaskDefArn = ecsService.taskDefinition;
+      if (!currentTaskDefArn) {
+        console.warn(`   ⚠️  No task definition found for service ${serviceName}`);
+        return;
+      }
+      
+      // Get current task definition details
+      const currentTaskDefJson = execSync(
+        `aws ecs describe-task-definition --task-definition ${currentTaskDefArn} --region ${region} --output json`,
+        { encoding: 'utf-8' }
+      );
+      
+      const currentTaskDef = JSON.parse(currentTaskDefJson).taskDefinition;
+      
+      // Update container image in the task definition
+      const updatedContainerDefs = currentTaskDef.containerDefinitions?.map((containerDef: any) => {
+        // Update the image to the new one we just published
+        return { ...containerDef, image: imageUri };
+      });
+      
+      // Register new task definition revision with updated image
+      const newTaskDef = {
+        family: currentTaskDef.family,
+        containerDefinitions: updatedContainerDefs,
+        requiresCompatibilities: currentTaskDef.requiresCompatibilities,
+        networkMode: currentTaskDef.networkMode,
+        cpu: currentTaskDef.cpu,
+        memory: currentTaskDef.memory,
+        executionRoleArn: currentTaskDef.executionRoleArn,
+        taskRoleArn: currentTaskDef.taskRoleArn,
+        volumes: currentTaskDef.volumes || [],
+        placementConstraints: currentTaskDef.placementConstraints || []
+      };
+      
+      const registerResult = execSync(
+        `aws ecs register-task-definition --cli-input-json '${JSON.stringify(newTaskDef)}' --region ${region} --output json`,
+        { encoding: 'utf-8' }
+      );
+      
+      const newTaskDefArn = JSON.parse(registerResult).taskDefinition?.taskDefinitionArn;
+      
+      // Update the ECS service to use the new task definition
+      execSync(
+        `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --task-definition ${newTaskDefArn} --region ${region}`,
+        { encoding: 'utf-8' }
+      );
+      
+      console.log(`   📝 Updated task definition to use image: ${imageUri}`);
+    } catch (error) {
+      console.warn(`   ⚠️  Could not update task definition: ${error}`);
+      // Don't fail the publish - the update command can still work with force-new-deployment
+    }
   }
   
   private async getRDSSnapshotSize(_snapshotId: string, _region: string): Promise<number> {
@@ -2691,7 +2842,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Wait for ECS deployment to complete
+   * Wait for ECS deployment to complete with enhanced monitoring
    */
   private async waitForECSDeployment(
     clusterName: string,
@@ -2703,10 +2854,15 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   ): Promise<void> {
     const startTime = Date.now();
     const checkInterval = 5000; // 5 seconds
+    let imagePullDetected = false;
+    let lastEventCount = 0;
     
-    while ((Date.now() - startTime) < (timeout * 1000)) {
+    // Extend timeout if we detect image pulling
+    let effectiveTimeout = timeout;
+    
+    while ((Date.now() - startTime) < (effectiveTimeout * 1000)) {
       try {
-        // Get service details
+        // Get service details with events
         const serviceData = execSync(
           `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
           { encoding: 'utf-8' }
@@ -2718,11 +2874,73 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         
         const deployments = service.deployments || [];
+        const events = service.events || [];
         const ourDeployment = deployments.find((d: any) => d.id === deploymentId);
         
         if (!ourDeployment) {
           // Deployment no longer exists - likely rolled back
           throw new Error(`Deployment ${deploymentId} no longer exists - likely failed or was rolled back`);
+        }
+        
+        // Check for image pull events
+        if (events.length > lastEventCount) {
+          const newEvents = events.slice(0, events.length - lastEventCount);
+          const pullEvents = newEvents.filter((e: any) => 
+            e.message?.includes('pulling image') || 
+            e.message?.includes('pull complete')
+          );
+          
+          if (pullEvents.length > 0 && !imagePullDetected) {
+            imagePullDetected = true;
+            effectiveTimeout = timeout + 300; // Add 5 minutes for image pull
+            if (!verbose) {
+              process.stdout.write('\n');
+            }
+            printInfo('Image pull detected, extending timeout by 5 minutes...');
+          }
+          
+          lastEventCount = events.length;
+        }
+        
+        // Get task details for more granular status
+        let taskHealthStatus = 'UNKNOWN';
+        if (ourDeployment.taskDefinition) {
+          try {
+            const tasksData = execSync(
+              `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status RUNNING --region ${region} --output json`,
+              { encoding: 'utf-8' }
+            );
+            const taskArns = JSON.parse(tasksData).taskArns || [];
+            
+            if (taskArns.length > 0) {
+              const taskDetails = execSync(
+                `aws ecs describe-tasks --cluster ${clusterName} --tasks ${taskArns.join(' ')} --region ${region} --output json`,
+                { encoding: 'utf-8' }
+              );
+              const tasks = JSON.parse(taskDetails).tasks || [];
+              
+              // Check if all tasks are healthy
+              const healthyTasks = tasks.filter((t: any) => 
+                t.lastStatus === 'RUNNING' && 
+                t.healthStatus === 'HEALTHY'
+              ).length;
+              
+              const pendingTasks = tasks.filter((t: any) => 
+                t.lastStatus === 'PENDING' || 
+                t.lastStatus === 'PROVISIONING'
+              ).length;
+              
+              if (pendingTasks > 0) {
+                taskHealthStatus = 'PROVISIONING';
+              } else if (healthyTasks === tasks.length && tasks.length > 0) {
+                taskHealthStatus = 'HEALTHY';
+              } else {
+                taskHealthStatus = 'STARTING';
+              }
+            }
+          } catch {
+            // Ignore task detail errors
+          }
         }
         
         // Check deployment status
@@ -2733,27 +2951,34 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           // Deployment is only REALLY complete when:
           // 1. Our deployment has all tasks running
           // 2. There are NO other active deployments (old tasks drained)
+          // 3. Tasks are healthy (if health checks configured)
           if (running === desired && desired > 0) {
             // Check if there are any other non-INACTIVE deployments
             const otherActiveDeployments = deployments.filter((d: any) => 
               d.id !== deploymentId && d.status !== 'INACTIVE'
             );
             
-            if (otherActiveDeployments.length === 0) {
-              // Only our deployment is active - we're truly done
-              if (verbose) {
-                console.log(`\nDeployment ${deploymentId} fully completed - all traffic switched (${running}/${desired} tasks running)`);
+            if (otherActiveDeployments.length === 0 && taskHealthStatus !== 'STARTING') {
+              // Only our deployment is active and tasks are ready
+              if (!verbose) {
+                process.stdout.write('\n');
               }
+              printSuccess(`Deployment ${deploymentId} fully completed - all traffic switched (${running}/${desired} tasks running and healthy)`);
               return;
             } else {
-              // Still draining old tasks
+              // Still draining old tasks or waiting for health
               if (verbose) {
-                console.log(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain...`);
+                if (otherActiveDeployments.length > 0) {
+                  console.log(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain...`);
+                }
+                if (taskHealthStatus === 'STARTING') {
+                  console.log('Waiting for tasks to pass health checks...');
+                }
               }
             }
           }
           
-          // Show progress
+          // Show progress with phase information
           if (!verbose) {
             const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
             
@@ -2766,13 +2991,18 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             const filledLength = Math.round((progress / 100) * barLength);
             const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
             
-            const statusText = otherActive > 0 
-              ? ` Draining ${otherActive} old deployment(s)...`
-              : '';
+            let phaseText = '';
+            if (taskHealthStatus === 'PROVISIONING') {
+              phaseText = ' [Pulling image...]';
+            } else if (taskHealthStatus === 'STARTING') {
+              phaseText = ' [Health checks...]';
+            } else if (otherActive > 0) {
+              phaseText = ` [Draining ${otherActive} old deployment(s)...]`;
+            }
             
-            process.stdout.write(`\r  Deployment progress: [${bar}] ${progress}% (${running}/${desired} tasks)${statusText}  `);
+            process.stdout.write(`\r  Deployment: [${bar}] ${progress}% (${running}/${desired} tasks)${phaseText}  `);
           } else {
-            console.log(`Deployment progress: ${running}/${desired} tasks running [${ourDeployment.status}]`);
+            console.log(`Deployment progress: ${running}/${desired} tasks [${ourDeployment.status}] [Health: ${taskHealthStatus}]`);
           }
         } else if (ourDeployment.status === 'INACTIVE') {
           // Deployment was replaced or rolled back
@@ -2783,6 +3013,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         await new Promise(resolve => setTimeout(resolve, checkInterval));
       } catch (error) {
         if (error instanceof Error && error.message.includes('Deployment')) {
+          if (!verbose) {
+            process.stdout.write('\n');
+          }
           throw error; // Re-throw deployment-specific errors
         }
         // Ignore other errors and keep trying
@@ -2797,7 +3030,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       process.stdout.write('\n');
     }
     
-    throw new Error(`Deployment ${deploymentId} timed out after ${timeout} seconds`);
+    throw new Error(`Deployment ${deploymentId} timed out after ${effectiveTimeout} seconds`);
   }
   
   /**

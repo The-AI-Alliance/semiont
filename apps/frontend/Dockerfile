@@ -18,22 +18,19 @@ RUN npm ci --workspace=apps/frontend --include-workspace-root
 FROM base AS builder
 WORKDIR /app
 
-# Copy workspace structure for production dependencies only
+# Copy workspace structure for dependencies
 COPY package.json package-lock.json* ./
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/api-types/package.json ./packages/api-types/
 
-# Install all dependencies (Next.js needs some dev deps at runtime)
-RUN npm ci --legacy-peer-deps
+# Install production dependencies only
+RUN npm ci --production --legacy-peer-deps
 
-# Copy pre-built api-types (if it exists)
-COPY packages/api-types/dist* ./packages/api-types/
-
-# Copy pre-built frontend application and required files
+# Copy pre-built artifacts
+COPY packages/api-types/dist ./packages/api-types/dist
 COPY apps/frontend/.next ./apps/frontend/.next
 COPY apps/frontend/public ./apps/frontend/public
 COPY apps/frontend/next.config.js ./apps/frontend/next.config.js
-COPY apps/frontend/package.json ./apps/frontend/package.json
 
 # Set working directory for the app
 WORKDIR /app/apps/frontend

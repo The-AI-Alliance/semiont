@@ -37,12 +37,12 @@ npx prisma db push
 # Start development server (with auto-restart on changes)
 npm run dev
 
-# Build for production (usually not needed - see note below)
+# Build for production (handled automatically by semiont publish)
 npm run build
 npm start
 ```
 
-**Note on Building**: For local development, you don't need to build - use `npm run dev` for auto-restart. For production deployment, `semiont publish` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
+**Note on Building**: For local development, use `npm run dev` for auto-restart. For production deployment, `semiont publish` handles building TypeScript locally before creating Docker images. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
 
 ## 💻 Local Development with Semiont CLI
 
@@ -414,6 +414,62 @@ lsof -i :4000
 # Kill process
 kill -9 <PID>
 ```
+
+## Deployment
+
+### Publishing and Updating
+
+The backend is deployed using the `semiont publish` and `semiont update` commands:
+
+```bash
+# Development/staging deployment (uses 'latest' tag)
+semiont publish --service backend --environment dev --semiont-repo /path/to/semiont
+semiont update --service backend --environment dev --wait
+
+# Production deployment (uses git hash for immutability)
+semiont publish --service backend --environment production --semiont-repo /path/to/semiont
+semiont update --service backend --environment production --wait
+```
+
+**Note**: The `--semiont-repo` parameter points to where the Semiont platform code is located (containing the Dockerfiles and application source). This is typically a separate repository from your project configuration.
+
+### How It Works
+
+1. **Build Process**: `semiont publish` builds TypeScript locally before creating Docker images
+   - Compiles TypeScript to JavaScript
+   - Generates Prisma client
+   - Creates optimized production build
+2. **Image Tagging**: 
+   - Development environments use `latest` tag (mutable)
+   - Production environments use git commit hash (immutable)
+   - Controlled by `deployment.imageTagStrategy` in environment config
+3. **Deployment**: `semiont update` forces ECS to redeploy with the current task definition
+   - For `latest` tags, pulls the newest image
+   - For git hash tags, performs rolling restart
+
+### Environment Configuration
+
+Configure deployment behavior in `/config/environments/[env].json`:
+
+```json
+{
+  "deployment": {
+    "imageTagStrategy": "mutable"    // Use "latest" tag (dev/staging)
+    // or
+    "imageTagStrategy": "immutable"  // Use git hash (production)
+  }
+}
+```
+
+### Database Migrations in Production
+
+Migrations are handled automatically during container startup:
+
+1. The backend's `start.sh` script runs migrations before starting the app
+2. Ensures database schema is always up-to-date
+3. Safe for rolling deployments (migrations are idempotent)
+
+See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 
 ## Technology Stack
 

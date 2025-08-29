@@ -3,6 +3,9 @@
   "platform": {
     "default": "aws"
   },
+  "deployment": {
+    "imageTagStrategy": "immutable"
+  },
   "env": {
     "NODE_ENV": "production"
   },
