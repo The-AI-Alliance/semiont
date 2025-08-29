@@ -43,8 +43,9 @@ export class BackendService extends BaseService {
   // =====================================================================
   
   override getRequirements(): ServiceRequirements {
-    // Start with stateless API preset
+    // Start with stateless API preset but exclude network (we'll override it completely)
     const baseRequirements = RequirementPresets.statelessApi();
+    delete baseRequirements.network; // Remove network from preset to avoid port conflicts
     
     // Add dockerfile path if semiontRepo is provided
     const buildConfig = this.config.semiontRepo ? {

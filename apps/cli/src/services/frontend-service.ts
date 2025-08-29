@@ -45,20 +45,27 @@ export class FrontendService extends BaseService {
     // Frontend typically needs network access and build capabilities
     const base = RequirementPresets.webFrontend();
     
+    // Override network ports to use the configured port
+    const requirements: ServiceRequirements = {
+      ...base,
+      network: {
+        ...base.network,
+        ports: [this.getPort()], // Use configured port instead of preset's [80, 443]
+        healthCheckPort: this.getPort()
+      }
+    };
+    
     // Add dockerfile path if semiontRepo is provided
     if (this.config.semiontRepo) {
-      return {
-        ...base,
-        build: {
-          ...base.build,
-          dockerfile: `${this.config.semiontRepo}/apps/frontend/Dockerfile`,
-          buildContext: this.config.semiontRepo,
-          prebuilt: false
-        }
+      requirements.build = {
+        ...requirements.build,
+        dockerfile: `${this.config.semiontRepo}/apps/frontend/Dockerfile`,
+        buildContext: this.config.semiontRepo,
+        prebuilt: false
       };
     }
     
-    return base;
+    return requirements;
   }
   
   // =====================================================================
