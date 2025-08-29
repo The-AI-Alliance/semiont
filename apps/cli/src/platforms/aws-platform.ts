@@ -212,15 +212,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const serviceResources = resources[service.name] || {};
     
     // Get CloudFormation outputs for ALB and WAF information
-    if (service.verbose) {
-      console.log(`[DEBUG] About to check CloudFormation outputs for ${service.name} (appStack: ${appStack})`);
-    }
     
     try {
       const { cfn } = this.getAWSClients(region);
       
       if (service.verbose) {
-        console.log(`[DEBUG] Got CloudFormation client, checking outputs for ALB and WAF (appStack: ${appStack})`);
       }
       
       // Check app stack for outputs
@@ -232,9 +228,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           
           const outputs = stackResponse.Stacks?.[0]?.Outputs || [];
           
-          if (service.verbose) {
-            console.log(`[DEBUG] Found ${outputs.length} CloudFormation outputs from ${appStack}`);
-          }
           
           // Look for LoadBalancer DNS
           const albOutput = outputs.find(o => 
@@ -248,9 +241,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             // Also add to all services in resources since ALB is shared
             for (const svcName in resources) {
               resources[svcName].loadBalancerDns = albOutput.OutputValue;
-            }
-            if (service.verbose) {
-              console.log(`[DEBUG] Found ALB DNS: ${albOutput.OutputValue}`);
             }
           }
           
@@ -267,15 +257,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             for (const svcName in resources) {
               resources[svcName].wafWebAclArn = wafOutput.OutputValue;
             }
-            if (service.verbose) {
-              console.log(`[DEBUG] Found WAF WebACL ARN: ${wafOutput.OutputValue}`);
-            }
           }
         } catch (error) {
           // Stack might not exist or no permissions
-          if (service.verbose) {
-            console.log(`[DEBUG] Could not get CloudFormation outputs: ${error}`);
-          }
         }
       }
     } catch (error) {
@@ -1038,13 +1022,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     // Collect logs if service is running
     let logs: CheckResult['logs'] | undefined;
     if (status === 'running') {
-      if (service.verbose) {
-        console.log(`[DEBUG] Collecting logs for ${service.name} (${serviceType})...`);
-      }
       logs = await this.collectLogs(service);
-      if (service.verbose) {
-        console.log(`[DEBUG] Logs collected for ${service.name}:`, logs ? `${logs.recent?.length || 0} recent, ${logs.errors || 0} errors, ${logs.warnings || 0} warnings` : 'none');
-      }
     }
     
     // Build comprehensive metadata for dashboard
@@ -2116,9 +2094,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       const recentLogs = await this.fetchRecentLogs(service.name, region, 20, service.verbose);
       
       if (!recentLogs || recentLogs.length === 0) {
-        if (service.verbose) {
-          console.log(`[DEBUG] No logs found for ${service.name}`);
-        }
         return undefined;
       }
       
@@ -2137,9 +2112,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         warnings
       };
     } catch (error) {
-      if (service.verbose) {
-        console.log(`[DEBUG] Failed to collect logs for ${service.name}: ${error}`);
-      }
       return undefined;
     }
   }
@@ -2268,9 +2240,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
    */
   private async fetchRecentLogs(serviceName: string, region: string, limit: number = 20, verbose: boolean = false): Promise<string[]> {
     try {
-      if (verbose) {
-        console.log(`[DEBUG] Fetching logs for ${serviceName} in region ${region}...`);
-      }
       const { logs, cfn } = this.getAWSClients(region);
       
       // First, try to discover the log group from CloudFormation outputs
@@ -2296,9 +2265,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             
             if (logGroupOutput?.OutputValue) {
               discoveredLogGroup = logGroupOutput.OutputValue;
-              if (verbose) {
-                console.log(`[DEBUG]   Found service-specific log group: ${discoveredLogGroup}`);
-              }
               break;
             }
             
@@ -2352,9 +2318,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           }));
           
           if (response.events && response.events.length > 0) {
-            if (verbose) {
-              console.log(`[DEBUG]   Found ${response.events.length} log events in ${logGroupName}`);
-            }
             return response.events
               .filter(e => e.message)
               .map(e => e.message!.trim());
