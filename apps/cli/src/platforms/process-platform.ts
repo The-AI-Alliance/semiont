@@ -103,6 +103,15 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       (env as any).PORT = primaryPort.toString();
     }
     
+    // Debug logging for CI
+    if (service.name === 'backend' && service.environment === 'ci') {
+      console.log(`[DEBUG] Backend CI environment setup:`);
+      console.log(`  - primaryPort: ${primaryPort}`);
+      console.log(`  - PORT env var: ${(env as any).PORT}`);
+      console.log(`  - service.getPort(): ${(service as any).getPort ? (service as any).getPort() : 'method not found'}`);
+      console.log(`  - config.port: ${(service as any).config?.port}`);
+    }
+    
     // Parse command
     const [cmd, ...args] = command.split(' ');
     
