@@ -4,8 +4,8 @@
  * React components that combine dashboard components into full-screen layouts
  */
 
-import React, { useState } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import React, { useState, useEffect, useRef } from 'react';
+import { Box, Text, useStdout, useApp, useInput } from 'ink';
 import { 
   ServicePanel, 
   LogViewer, 
@@ -73,7 +73,6 @@ export const UnifiedDashboard: React.FC<{
             <ServicePanel 
               services={data.services}
               title="Services Status"
-              showDetails={true}
             />
           </Box>
           
@@ -144,7 +143,6 @@ export const LogsOnlyDashboard: React.FC<{
           <ServicePanel 
             services={filteredServices}
             title="Services"
-            showDetails={false}
           />
         </Box>
       </Box>
@@ -199,7 +197,6 @@ export const MetricsOnlyDashboard: React.FC<{
         <ServicePanel 
           services={services}
           title="Services Health"
-          showDetails={true}
         />
       </Box>
 
@@ -264,7 +261,6 @@ export const CompactDashboard: React.FC<{
           <ServicePanel 
             services={data.services}
             title="Services Status"
-            showDetails={true}
           />
         )}
         
@@ -297,5 +293,122 @@ export const CompactDashboard: React.FC<{
   );
 };
 
-// Hook for keyboard input handling
-import { useInput } from 'ink';
+// Dashboard mode types
+export type DashboardMode = 'unified' | 'logs' | 'metrics';
+
+// Main Dashboard App Component - consolidated from watch-dashboard.tsx
+export const DashboardApp: React.FC<{ 
+  mode: DashboardMode; 
+  refreshInterval?: number;
+  environment: string;
+  dataSource?: any;  // Optional dataSource from watch.ts
+}> = ({ mode, refreshInterval = 30, environment, dataSource: propDataSource }) => {
+  const [data, setData] = useState<DashboardData>({
+    services: [],
+    logs: [],
+    metrics: [],
+    lastUpdate: new Date(),
+    isRefreshing: false
+  });
+  
+  // Use provided dataSource or create one for standalone mode
+  const [dataSource] = useState(() => {
+    if (propDataSource) {
+      return propDataSource;
+    }
+    // Dynamic import to avoid circular dependency
+    const { DashboardDataSource } = require('../dashboard/dashboard-data.js');
+    return new DashboardDataSource(environment);
+  });
+  const { exit } = useApp();
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Global keyboard shortcuts
+  useInput((input, key) => {
+    if (input === 'q' || (key.ctrl && input === 'c')) {
+      // Clean up before exit
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      exit();
+    } else if (input === 'r') {
+      refreshData();
+    }
+  });
+
+  // Data refreshing
+  const refreshData = async () => {
+    if (!dataSource) return;
+    
+    // Create a new abort controller for this refresh
+    abortControllerRef.current = new AbortController();
+    
+    setData(prev => ({ ...prev, isRefreshing: true }));
+    try {
+      const newData = await dataSource.getDashboardData();
+      // Only update if not aborted
+      if (!abortControllerRef.current.signal.aborted) {
+        setData(newData);
+      }
+    } catch (error) {
+      if (!abortControllerRef.current?.signal.aborted) {
+        console.error('Failed to refresh dashboard data:', error);
+      }
+    } finally {
+      if (!abortControllerRef.current?.signal.aborted) {
+        setData(prev => ({ ...prev, isRefreshing: false }));
+      }
+    }
+  };
+
+  // Initial load and periodic refresh
+  useEffect(() => {
+    if (dataSource) {
+      refreshData();
+      intervalRef.current = setInterval(refreshData, refreshInterval * 1000);
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      };
+    }
+  }, []); // Remove dependencies to run only once
+
+  // No filtering needed - show all data
+  const filteredLogs = data.logs;
+  const filteredServices = data.services;
+
+  // Render appropriate dashboard layout
+  switch (mode) {
+    case 'unified':
+      return <UnifiedDashboard data={data} refreshInterval={refreshInterval} />;
+      
+    case 'logs':
+      return (
+        <LogsOnlyDashboard 
+          logs={filteredLogs}
+          services={filteredServices}
+          title='All Service Logs'
+        />
+      );
+      
+    case 'metrics':
+      return (
+        <MetricsOnlyDashboard 
+          metrics={data.metrics}
+          services={data.services}
+          title="Performance Metrics"
+        />
+      );
+      
+    default:
+      return <UnifiedDashboard data={data} refreshInterval={refreshInterval} />;
+  }
+};

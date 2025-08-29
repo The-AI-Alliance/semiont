@@ -77,15 +77,6 @@ export interface WatchResult {
   metadata?: Record<string, any>;
 }
 
-// Import the React dashboard component dynamically to handle module loading
-type DashboardAppType = React.FC<{
-  mode: 'unified' | 'logs' | 'metrics';
-  service?: string;
-  refreshInterval?: number;
-  environment: string;
-  data?: any; // Dashboard data passed from the wrapper
-}>;
-let DashboardApp: DashboardAppType | undefined;
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -146,12 +137,7 @@ async function launchDashboard(
     try {
       if (terminalMode) {
         // Terminal dashboard mode
-        const watchModule = await import('./watch-dashboard.js');
-        DashboardApp = watchModule.default as DashboardAppType;
-        
-        if (!DashboardApp || (typeof DashboardApp !== 'function' && !('$$typeof' in DashboardApp))) {
-          throw new Error('Failed to load DashboardApp component');
-        }
+        const { DashboardApp: DashboardComponent } = await import('../dashboard/dashboard-layouts.js');
         
         // Create data source using the new architecture
         const dataSource = new DashboardDataSource(environment, serviceDeployments, config);
@@ -161,33 +147,13 @@ async function launchDashboard(
         if (target === 'logs') mode = 'logs';
         else if (target === 'metrics') mode = 'metrics';
         
-        // Create a wrapper component that provides data
-        const EnhancedDashboard = () => {
-          const [data, setData] = React.useState<any>(null);
-          
-          React.useEffect(() => {
-            const loadData = async () => {
-              const newData = await dataSource.getDashboardData();
-              setData(newData);
-            };
-            
-            loadData();
-            const timer = setInterval(loadData, interval * 1000);
-            return () => clearInterval(timer);
-          }, []);
-          
-          if (!data) return React.createElement('div', null, 'Loading...');
-          
-          return React.createElement(DashboardApp!, {
-            mode,
-            data,
-            refreshInterval: interval,
-            environment
-          });
-        };
-        
-        // Launch the React/Ink dashboard
-        const { waitUntilExit } = render(React.createElement(EnhancedDashboard));
+        // Launch the React/Ink dashboard directly
+        const { waitUntilExit } = render(React.createElement(DashboardComponent, {
+          mode,
+          dataSource,
+          refreshInterval: interval,
+          environment
+        }));
         
         await waitUntilExit();
         const duration = Date.now() - startTime;

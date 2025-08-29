@@ -138,18 +138,21 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     serviceName?: string;
     dbInstanceId?: string;
     fileSystemId?: string;
+    loadBalancerDns?: string;
+    wafWebAclArn?: string;
   }> {
     const { region, dataStack, appStack } = this.getAWSConfig(service);
     const { StateManager } = await import('../services/state-manager.js');
     
+    // Load existing state for potential update
+    const existingState = await StateManager.load(
+      service.projectRoot,
+      service.environment,
+      service.name
+    );
+    
     // Check if we have cached resources in state (unless forceDiscovery is set)
     if (!service.forceDiscovery) {
-      const existingState = await StateManager.load(
-        service.projectRoot,
-        service.environment,
-        service.name
-      );
-      
       // Check if we have recent CloudFormation resource discovery
       if (existingState?.metadata?.cfnResources && 
           existingState?.metadata?.cfnDiscoveredAt &&
@@ -163,14 +166,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       console.log(`[DEBUG] Forcing CloudFormation discovery for ${service.name} (--force-discovery flag set)`);
     }
     
-    const existingState = await StateManager.load(
-      service.projectRoot,
-      service.environment,
-      service.name
-    );
-    
     // Discover all resources from CloudFormation
     const resources: any = {};
+    
+    if (service.verbose) {
+      console.log(`[DEBUG] Starting CloudFormation resource discovery for ${service.name} (appStack: ${appStack}, dataStack: ${dataStack})`);
+    }
     
     if (appStack) {
       // Get ECS Cluster
@@ -209,6 +210,80 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     // Get resources for this specific service
     const serviceResources = resources[service.name] || {};
+    
+    // Get CloudFormation outputs for ALB and WAF information
+    if (service.verbose) {
+      console.log(`[DEBUG] About to check CloudFormation outputs for ${service.name} (appStack: ${appStack})`);
+    }
+    
+    try {
+      const { cfn } = this.getAWSClients(region);
+      
+      if (service.verbose) {
+        console.log(`[DEBUG] Got CloudFormation client, checking outputs for ALB and WAF (appStack: ${appStack})`);
+      }
+      
+      // Check app stack for outputs
+      if (appStack) {
+        try {
+          const stackResponse = await cfn.send(new DescribeStacksCommand({
+            StackName: appStack
+          }));
+          
+          const outputs = stackResponse.Stacks?.[0]?.Outputs || [];
+          
+          if (service.verbose) {
+            console.log(`[DEBUG] Found ${outputs.length} CloudFormation outputs from ${appStack}`);
+          }
+          
+          // Look for LoadBalancer DNS
+          const albOutput = outputs.find(o => 
+            o.OutputKey === 'LoadBalancerDNS' || 
+            o.OutputKey === 'ALBDNSName' ||
+            o.OutputKey?.includes('LoadBalancer')
+          );
+          if (albOutput?.OutputValue) {
+            // Add directly to serviceResources
+            serviceResources.loadBalancerDns = albOutput.OutputValue;
+            // Also add to all services in resources since ALB is shared
+            for (const svcName in resources) {
+              resources[svcName].loadBalancerDns = albOutput.OutputValue;
+            }
+            if (service.verbose) {
+              console.log(`[DEBUG] Found ALB DNS: ${albOutput.OutputValue}`);
+            }
+          }
+          
+          // Look for WAF WebACL ARN
+          const wafOutput = outputs.find(o => 
+            o.OutputKey === 'WAFWebACLArn' || 
+            o.OutputKey === 'WebACLArn' ||
+            o.OutputKey?.includes('WAF')
+          );
+          if (wafOutput?.OutputValue) {
+            // Add directly to serviceResources
+            serviceResources.wafWebAclArn = wafOutput.OutputValue;
+            // Also add to all services in resources since WAF protects the ALB
+            for (const svcName in resources) {
+              resources[svcName].wafWebAclArn = wafOutput.OutputValue;
+            }
+            if (service.verbose) {
+              console.log(`[DEBUG] Found WAF WebACL ARN: ${wafOutput.OutputValue}`);
+            }
+          }
+        } catch (error) {
+          // Stack might not exist or no permissions
+          if (service.verbose) {
+            console.log(`[DEBUG] Could not get CloudFormation outputs: ${error}`);
+          }
+        }
+      }
+    } catch (error) {
+      // CloudFormation discovery failed
+      if (service.verbose) {
+        console.log(`[DEBUG] CloudFormation discovery failed: ${error}`);
+      }
+    }
     
     // Save discovered resources in state metadata
     if (Object.keys(serviceResources).length > 0) {
@@ -635,7 +710,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async check(service: Service): Promise<CheckResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region, accountId, appStack, dataStack } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -643,11 +718,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     let status: CheckResult['status'] = 'unknown';
     let health: CheckResult['health'] | undefined;
     let awsResources: PlatformResources | undefined;
+    let cfnDiscoveredResources: any = {};
     
     switch (serviceType) {
       case 'ecs-fargate':
         // Get resource IDs from CloudFormation (with caching)
         const ecsResources = await this.discoverAndCacheResources(service);
+        cfnDiscoveredResources = ecsResources;
         const clusterName = ecsResources.clusterName || `semiont-${service.environment}`;
         const serviceName = ecsResources.serviceName || resourceName;
         
@@ -662,20 +739,35 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           if (ecsService) {
             const runningCount = ecsService.runningCount || 0;
             const desiredCount = ecsService.desiredCount || 0;
+            const pendingCount = ecsService.pendingCount || 0;
             
             status = runningCount > 0 ? 'running' : 'stopped';
             
+            // Extract deployment information
+            const activeDeployment = ecsService.deployments?.find(d => d.status === 'PRIMARY');
+            const isDeploying = ecsService.deployments && ecsService.deployments.length > 1;
+            
             // Check health via ALB target health (if configured)
+            let targetHealth = 'unknown';
+            let albArn: string | undefined;
             if (requirements.network?.healthCheckPath && ecsService.loadBalancers?.length) {
               const targetGroupArn = ecsService.loadBalancers[0].targetGroupArn;
+              albArn = targetGroupArn; // Store for console links
               if (targetGroupArn) {
-                const targetHealth = await this.checkALBTargetHealthByArn(targetGroupArn, region);
+                targetHealth = await this.checkALBTargetHealthByArn(targetGroupArn, region);
                 health = {
                   healthy: targetHealth === 'healthy',
                   details: {
                     runningCount,
                     desiredCount,
-                    targetHealth
+                    pendingCount,
+                    targetHealth,
+                    // ECS-specific details for dashboard
+                    revision: activeDeployment?.taskDefinition?.split(':').pop(),
+                    taskDefinition: activeDeployment?.taskDefinition,
+                    deploymentStatus: isDeploying ? '🔄 Deploying' : 'Stable',
+                    deploymentId: activeDeployment?.id,
+                    rolloutState: activeDeployment?.rolloutState
                   }
                 };
               }
@@ -684,7 +776,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
                 healthy: runningCount === desiredCount && runningCount > 0,
                 details: {
                   runningCount,
-                  desiredCount
+                  desiredCount,
+                  pendingCount,
+                  revision: activeDeployment?.taskDefinition?.split(':').pop(),
+                  taskDefinition: activeDeployment?.taskDefinition,
+                  deploymentStatus: isDeploying ? '🔄 Deploying' : 'Stable',
+                  deploymentId: activeDeployment?.id,
+                  rolloutState: activeDeployment?.rolloutState
                 }
               };
             }
@@ -692,13 +790,17 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             awsResources = createPlatformResources('aws', {
               clusterId: clusterName,
               serviceArn: ecsService.serviceArn || `arn:aws:ecs:${region}:${accountId}:service/${clusterName}/${serviceName}`,
-              region: region
+              region: region,
+              // Additional identifiers for console links
+              albArn,
+              taskDefinitionArn: activeDeployment?.taskDefinition
             });
           } else {
             status = 'stopped';
           }
         } catch (error) {
-          status = 'stopped';
+          // Can't determine status due to error (e.g., expired credentials)
+          status = 'unknown';
           if (service.verbose) {
             console.log(`[DEBUG] ECS check failed: ${error}`);
           }
@@ -733,8 +835,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             functionArn: `arn:aws:lambda:${region}:${accountId}:function:${functionName}`,
             region: region
           });
-        } catch {
-          status = 'stopped';
+        } catch (error) {
+          // Can't determine status due to error (e.g., expired credentials)
+          status = 'unknown';
+          if (service.verbose) {
+            console.log(`[DEBUG] Lambda check failed: ${error}`);
+          }
         }
         break;
         
@@ -777,7 +883,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             status = 'stopped';
           }
         } catch (error) {
-          status = 'stopped';
+          // Can't determine status due to error (e.g., expired credentials)
+          status = 'unknown';
           if (service.verbose) {
             console.log(`[DEBUG] RDS check failed: ${error}`);
           }
@@ -811,8 +918,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             distributionId,
             region: region
           });
-        } catch {
-          status = 'stopped';
+        } catch (error) {
+          // Can't determine status due to error (e.g., expired credentials)
+          status = 'unknown';
+          if (service.verbose) {
+            console.log(`[DEBUG] S3/CloudFront check failed: ${error}`);
+          }
         }
         break;
         
@@ -823,22 +934,70 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           await this.getEFSId(resourceName, region);
         
         if (fileSystemId) {
-          status = 'running';
-          
-          const fsStatus = await this.getEFSStatus(fileSystemId, region);
-          health = {
-            healthy: fsStatus === 'available',
-            details: {
+          // Get EFS status and metrics
+          const { efs } = this.getAWSClients(region);
+          try {
+            const response = await efs.send(new DescribeFileSystemsCommand({
+              FileSystemId: fileSystemId
+            }));
+            
+            const fileSystem = response.FileSystems?.[0];
+            if (fileSystem) {
+              const fsStatus = fileSystem?.LifeCycleState || 'unknown';
+              
+              // Only set status to running if we successfully queried AWS
+              status = fsStatus === 'available' ? 'running' : 
+                       fsStatus === 'deleted' ? 'stopped' : 'unknown';
+              
+              // Get storage metrics from CloudWatch if available
+              // For now, use the size information from EFS
+              const sizeInBytes = fileSystem?.SizeInBytes;
+            const storageUsedBytes = sizeInBytes?.Value || 0;
+            const storageUsedStandard = sizeInBytes?.ValueInStandard || 0;
+            const storageUsedIA = sizeInBytes?.ValueInIA || 0;
+            
+            // EFS doesn't have a hard limit, but we can estimate based on throughput mode
+            // Standard mode: effectively unlimited
+            // For display purposes, we'll show usage without a hard limit
+            const storageDetails: any = {
               fileSystemId,
-              status: fsStatus
+              status: fsStatus,
+              storageUsedBytes,
+              storageUsedStandard,
+              storageUsedIA,
+              throughputMode: fileSystem?.ThroughputMode,
+              performanceMode: fileSystem?.PerformanceMode,
+              encrypted: fileSystem?.Encrypted,
+              numberOfMountTargets: fileSystem?.NumberOfMountTargets
+            };
+            
+            // If provisioned throughput mode, include that info
+            if (fileSystem?.ThroughputMode === 'provisioned') {
+              storageDetails.provisionedThroughputInMibps = fileSystem.ProvisionedThroughputInMibps;
             }
-          };
-          
-          awsResources = createPlatformResources('aws', {
-            volumeId: fileSystemId,
-            region: region
-          });
+            
+            health = {
+              healthy: fsStatus === 'available',
+              details: storageDetails
+            };
+            
+            awsResources = createPlatformResources('aws', {
+              volumeId: fileSystemId,
+              region: region
+            });
+            } else {
+              // No filesystem found in response
+              status = 'stopped';
+            }
+          } catch (error) {
+            // Can't determine status due to error (e.g., expired credentials)
+            status = 'unknown';
+            if (service.verbose) {
+              console.log(`[DEBUG] EFS check failed: ${error}`);
+            }
+          }
         } else {
+          // No filesystem ID available
           status = 'stopped';
         }
         break;
@@ -866,8 +1025,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             name: tableName,
             region: region
           });
-        } catch {
-          status = 'stopped';
+        } catch (error) {
+          // Can't determine status due to error (e.g., expired credentials)
+          status = 'unknown';
+          if (service.verbose) {
+            console.log(`[DEBUG] DynamoDB check failed: ${error}`);
+          }
         }
         break;
     }
@@ -884,6 +1047,51 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
     }
     
+    // Build comprehensive metadata for dashboard
+    const metadata: Record<string, any> = {
+      serviceType,
+      region: region,
+      awsRegion: region,
+      accountId: accountId
+    };
+    
+    // Add service-specific identifiers for AWS console links
+    if (serviceType === 'ecs-fargate') {
+      // Add ALB and WAF information if available from CloudFormation discovery
+      if (cfnDiscoveredResources.loadBalancerDns) {
+        metadata.loadBalancerDns = cfnDiscoveredResources.loadBalancerDns;
+      }
+      if (cfnDiscoveredResources.wafWebAclArn) {
+        metadata.wafWebAclId = cfnDiscoveredResources.wafWebAclArn;
+      }
+      
+      if (awsResources) {
+        // Use already fetched resources from earlier in the check
+        metadata.ecsClusterName = awsResources.data.clusterId;
+        // Extract service name from ARN if available
+        if (awsResources.data.serviceArn) {
+          const arnParts = awsResources.data.serviceArn.split('/');
+          metadata.ecsServiceName = arnParts[arnParts.length - 1];
+        } else {
+          metadata.ecsServiceName = resourceName;
+        }
+        
+        // Add ALB ARN from the target group if we have it
+        if (awsResources.data.albArn) {
+          metadata.albArn = awsResources.data.albArn;
+        }
+      }
+      metadata.cloudFormationStackName = appStack || 'SemiontAppStack';
+      // Log group was discovered during log fetching
+      metadata.logGroupName = 'SemiontAppStack-SemiontLogGroup6DB34440-vEOfwG1vFUVh'; // TODO: Make this dynamic
+    } else if (serviceType === 'rds' && awsResources) {
+      metadata.rdsInstanceId = awsResources.data.instanceId || `${resourceName}-db`;
+      metadata.cloudFormationStackName = dataStack || 'SemiontDataStack';
+    } else if (serviceType === 'efs' && awsResources) {
+      metadata.efsFileSystemId = awsResources.data.volumeId;
+      metadata.cloudFormationStackName = dataStack || 'SemiontDataStack';
+    }
+    
     return {
       entity: service.name,
       platform: 'aws',
@@ -894,10 +1102,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       resources: awsResources,
       health,
       logs,
-      metadata: {
-        serviceType,
-        region: region
-      }
+      metadata
     };
   }
   

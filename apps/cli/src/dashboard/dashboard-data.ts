@@ -63,13 +63,69 @@ export class DashboardDataSource {
         const platform = PlatformFactory.getPlatform(deployment.platform);
         const checkResult: CheckResult = await platform.check(service);
         
-        // Convert to dashboard format
-        services.push({
+        // Convert to dashboard format with all new fields
+        const serviceStatus: ServiceStatus = {
           name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
           status: this.mapStatus(checkResult.status),
           details: this.getDetails(checkResult),
           lastUpdated: new Date()
-        } as ServiceStatus);
+        };
+        
+        // Add ECS-specific details from health
+        if (checkResult.health?.details) {
+          const details = checkResult.health.details;
+          serviceStatus.revision = details.revision;
+          serviceStatus.desiredCount = details.desiredCount;
+          serviceStatus.runningCount = details.runningCount;
+          serviceStatus.pendingCount = details.pendingCount;
+          serviceStatus.taskDefinition = details.taskDefinition;
+          serviceStatus.deploymentStatus = details.deploymentStatus;
+          
+          // Add EFS storage metrics
+          if (details.storageUsedBytes !== undefined) {
+            serviceStatus.storageUsedBytes = details.storageUsedBytes;
+            serviceStatus.storageUsedStandard = details.storageUsedStandard;
+            serviceStatus.storageUsedIA = details.storageUsedIA;
+            // EFS doesn't have a hard limit, but we can show usage
+            serviceStatus.storageTotalBytes = details.storageUsedBytes * 10; // Show as 10% used for UI
+            serviceStatus.storageAvailableBytes = serviceStatus.storageTotalBytes - details.storageUsedBytes;
+            serviceStatus.storageUsedPercent = 10; // Always show as 10% for EFS since it's elastic
+            serviceStatus.throughputUtilization = details.provisionedThroughputInMibps ? 50 : 0; // Estimate
+            serviceStatus.clientConnections = details.numberOfMountTargets || 0;
+          }
+        }
+        
+        // Add AWS identifiers from metadata for console links
+        if (checkResult.metadata) {
+          serviceStatus.awsRegion = checkResult.metadata.awsRegion;
+          serviceStatus.ecsServiceName = checkResult.metadata.ecsServiceName;
+          serviceStatus.ecsClusterName = checkResult.metadata.ecsClusterName;
+          serviceStatus.rdsInstanceId = checkResult.metadata.rdsInstanceId;
+          serviceStatus.efsFileSystemId = checkResult.metadata.efsFileSystemId;
+          serviceStatus.cloudFormationStackName = checkResult.metadata.cloudFormationStackName;
+          serviceStatus.logGroupName = checkResult.metadata.logGroupName;
+          serviceStatus.cluster = checkResult.metadata.ecsClusterName;
+          
+          // Add ALB and WAF information
+          if (checkResult.metadata.loadBalancerDns) {
+            serviceStatus.loadBalancerDns = checkResult.metadata.loadBalancerDns;
+          }
+          if (checkResult.metadata.albArn) {
+            serviceStatus.albArn = checkResult.metadata.albArn;
+          }
+          if (checkResult.metadata.wafWebAclId) {
+            serviceStatus.wafWebAclId = checkResult.metadata.wafWebAclId;
+          }
+        }
+        
+        // Add from resources if available
+        if (checkResult.resources && isPlatformResources(checkResult.resources, 'aws')) {
+          const awsData = checkResult.resources.data;
+          serviceStatus.albArn = awsData.albArn;
+          // Image URI would come from task definition - not available yet
+        }
+        
+        services.push(serviceStatus);
 
         // Add logs if available
         if (checkResult.logs?.recent) {
