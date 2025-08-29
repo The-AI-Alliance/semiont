@@ -472,9 +472,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        // Start or update ECS service
-        const clusterName = `semiont-${service.environment}`;
-        const serviceName = resourceName;
+        // Get resource IDs from CloudFormation (with caching)
+        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+        
+        // Get cluster and service names from discovered resources
+        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
+        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
         const desiredCount = requirements.resources?.replicas || 1;
         
         try {
@@ -606,9 +609,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        // Stop ECS service by setting desired count to 0
-        const clusterName = `semiont-${service.environment}`;
-        const serviceName = resourceName;
+        // Get resource IDs from CloudFormation (with caching)
+        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+        
+        // Get cluster and service names from discovered resources
+        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
+        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
         
         try {
           execSync(
@@ -866,14 +872,21 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        // Force new deployment
-        const clusterName = `semiont-${service.environment}`;
-        const serviceName = resourceName;
+        // Get resource IDs from CloudFormation (with caching)
+        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+        
+        // Get cluster and service names from discovered resources
+        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
+        const serviceName = cfnDiscoveredResources.serviceName || this.getResourceName(service);
+        
+        if (!clusterName || !serviceName) {
+          throw new Error(`Cluster or service not found for ${service.name}. Discovered: ${JSON.stringify(cfnDiscoveredResources)}`);
+        }
         
         // Get current task definition revision
         previousVersion = await this.getCurrentTaskDefinition(clusterName, serviceName, region);
         
-        // Force new deployment
+        // Force new deployment using the discovered resources
         execSync(
           `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region}`
         );
@@ -1392,9 +1405,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         break;
         
       case 'ecs-fargate':
-        // Backup ECS task definition and ECR image
-        const clusterName = `semiont-${service.environment}`;
-        const serviceName = resourceName;
+        // Get resource IDs from CloudFormation (with caching)
+        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+        
+        // Get cluster and service names from discovered resources
+        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
+        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
         
         // Export task definition
         const taskDef = execSync(
@@ -1463,9 +1479,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        // Use ECS Exec
-        const clusterName = `semiont-${service.environment}`;
-        const serviceName = resourceName;
+        // Get resource IDs from CloudFormation (with caching)
+        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+        
+        // Get cluster and service names from discovered resources
+        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
+        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
         
         // Get running task
         const taskArn = await this.getRunningTask(clusterName, serviceName, region);
@@ -1599,9 +1618,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     switch (serviceType) {
       case 'ecs-fargate':
-        // Run tests as ECS task
+        // Get resource IDs from CloudFormation (with caching)
+        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+        
+        // Get cluster and task definition names from discovered resources
+        const cluster = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
         const taskDefinition = `${resourceName}-test-task`;
-        const cluster = `semiont-${service.environment}`;
         
         // Create test task definition if needed
         await this.createTestTaskDefinition(taskDefinition, testImage || service.getImage(), testCommand, region);
