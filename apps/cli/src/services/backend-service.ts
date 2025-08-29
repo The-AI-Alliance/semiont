@@ -309,7 +309,17 @@ export class BackendService extends BaseService {
         // Ignore errors reading secrets
       }
       
-      return `postgresql://${dbConfig.user}:${password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.name}`;
+      const dbUrl = `postgresql://${dbConfig.user}:${password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.name}`;
+      
+      // Debug logging for CI
+      if (this.systemConfig.environment === 'ci') {
+        console.log(`[DEBUG] Backend DATABASE_URL construction:`);
+        console.log(`  - dbConfig: ${JSON.stringify(dbConfig)}`);
+        console.log(`  - secretsPath: ${secretsPath}`);
+        console.log(`  - DATABASE_URL: ${dbUrl}`);
+      }
+      
+      return dbUrl;
     }
     
     // Fallback to platform-specific defaults

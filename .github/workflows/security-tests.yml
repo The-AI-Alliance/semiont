@@ -250,12 +250,47 @@ jobs:
       - name: Start backend for API security verification
         run: |
           cd ../..
-          semiont start -e ci --service backend &
+          # Start backend and capture output
+          semiont start -e ci --service backend > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
-          # Wait for backend to start
-          timeout 60 bash -c 'until curl -f http://localhost:3001/api/health 2>/dev/null; do sleep 2; done'
-          sleep 2
+          
+          # Give it a moment to start
+          sleep 5
+          
+          # Check if process is still running
+          if ! kill -0 $APP_PID 2>/dev/null; then
+            echo "Backend process died immediately. Logs:"
+            cat backend.log
+            exit 1
+          fi
+          
+          # Try to curl the health endpoint with verbose output
+          echo "Attempting to connect to backend health endpoint..."
+          for i in {1..30}; do
+            if curl -f -v http://localhost:3001/api/health 2>&1; then
+              echo "Backend is healthy!"
+              break
+            fi
+            echo "Attempt $i failed, waiting..."
+            sleep 2
+            
+            # Check if process is still alive
+            if ! kill -0 $APP_PID 2>/dev/null; then
+              echo "Backend process died. Logs:"
+              cat backend.log
+              exit 1
+            fi
+          done
+          
+          # Final check
+          if ! curl -f http://localhost:3001/api/health 2>/dev/null; then
+            echo "Backend never became healthy. Process status:"
+            ps aux | grep -E "node|npm" || true
+            echo "Backend logs:"
+            cat backend.log
+            exit 1
+          fi
 
       - name: Verify API security
         run: |
