@@ -21,6 +21,7 @@
 import { spawn, execSync } from 'child_process';
 import * as path from "path";
 import * as fs from 'fs';
+import * as os from 'os';
 import { StartResult } from "../commands/start.js";
 import { StopResult } from "../commands/stop.js";
 import { CheckResult } from "../commands/check.js";
@@ -28,6 +29,7 @@ import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
 import { BackupResult } from "../commands/backup.js";
+import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
 import { PlatformResources } from "./platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
@@ -35,7 +37,6 @@ import { RestoreResult, RestoreOptions } from "../commands/restore.js";
 import { BasePlatformStrategy } from './platform-strategy.js';
 import { Service } from '../services/service-interface.js';
 import { StateManager } from '../services/state-manager.js';
-import { printInfo, printWarning } from '../lib/cli-logger.js';
 import { isPortInUse } from '../lib/network-utils.js';
 
 export class ProcessPlatformStrategy extends BasePlatformStrategy {
@@ -336,6 +337,11 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
   
   async provision(service: Service): Promise<ProvisionResult> {
     const requirements = service.getRequirements();
+    
+    // Special handling for MCP service OAuth setup
+    if (service.name === 'mcp') {
+      return this.provisionMCPOAuth(service);
+    }
     
     if (!service.quiet) {
       printInfo(`Provisioning ${service.name} for process deployment...`);
@@ -933,6 +939,156 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
+  /**
+   * Provision MCP OAuth authentication
+   * Opens browser for OAuth flow and saves refresh token
+   */
+  private async provisionMCPOAuth(service: Service): Promise<ProvisionResult> {
+    const http = await import('http');
+    const { spawn } = await import('child_process');
+    const { loadEnvironmentConfig } = await import('../platforms/platform-resolver.js');
+    
+    if (!service.environment) {
+      throw new Error('Environment must be specified for MCP provisioning');
+    }
+    
+    const envConfig = loadEnvironmentConfig(service.environment);
+    const domain = envConfig.site?.domain || 'localhost:3000';
+    const protocol = domain.includes('localhost') ? 'http' : 'https';
+    const port = 8585; // Default MCP OAuth callback port
+    
+    // Create config directory
+    const configDir = path.join(os.homedir(), '.config', 'semiont');
+    await fs.promises.mkdir(configDir, { recursive: true });
+    
+    const authPath = path.join(configDir, `mcp-auth-${service.environment}.json`);
+    
+    if (!service.quiet) {
+      printInfo('🔐 Setting up MCP authentication...');
+    }
+    
+    return new Promise((resolve, reject) => {
+      let timeoutId: NodeJS.Timeout;
+      const connections = new Set<any>();
+      
+      // Start local HTTP server to receive OAuth callback
+      const server = http.createServer((req, res) => {
+        const url = new URL(req.url!, `http://localhost:${port}`);
+        
+        if (url.pathname === '/callback') {
+          const token = url.searchParams.get('token');
+          
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(`
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <title>Authentication Successful</title>
+              </head>
+              <body style="font-family: system-ui; padding: 2rem; text-align: center;">
+                <h1>✅ Authentication Successful!</h1>
+                <p>You can close this window and return to the terminal.</p>
+              </body>
+            </html>
+          `);
+          
+          // Clear timeout and close server
+          clearTimeout(timeoutId);
+          
+          // Force close all connections
+          connections.forEach(conn => conn.destroy());
+          server.close(() => {
+            if (token) {
+              // Save the refresh token
+              const authData = {
+                refresh_token: token,
+                api_url: `${protocol}://${domain}`,
+                environment: service.environment,
+                created_at: new Date().toISOString()
+              };
+              
+              fs.writeFileSync(authPath, JSON.stringify(authData, null, 2));
+              
+              if (!service.quiet) {
+                printSuccess(`MCP service provisioned for ${service.environment}`);
+                printInfo('Add to AI application config:');
+                printInfo('Note: Replace SEMIONT_ROOT with your actual project path');
+                printInfo('      (Run "semiont init" in that directory if not already initialized)');
+                console.log(JSON.stringify({
+                  "semiont": {
+                    "command": "semiont",
+                    "args": ["start", "--service", "mcp", "--environment", service.environment],
+                    "env": {
+                      "SEMIONT_ROOT": "/PATH/TO/YOUR/SEMIONT/PROJECT",
+                      "SEMIONT_ENV": service.environment
+                    }
+                  }
+                }, null, 2));
+              }
+              
+              resolve({
+                entity: service.name as ServiceName,
+                platform: 'process',
+                success: true,
+                provisionTime: new Date(),
+                metadata: {
+                  authPath,
+                  environment: service.environment,
+                  apiUrl: authData.api_url
+                }
+              });
+            } else {
+              reject(new Error('No token received from authentication'));
+            }
+          });
+        }
+      });
+      
+      // Track connections to force close them
+      server.on('connection', (conn) => {
+        connections.add(conn);
+        conn.on('close', () => connections.delete(conn));
+      });
+      
+      // Listen on the OAuth callback port
+      server.listen(port, () => {
+        if (!service.quiet) {
+          printInfo('Opening browser for authentication...');
+        }
+        
+        const authUrl = `${protocol}://${domain}/auth/mcp-setup?callback=http://localhost:${port}/callback`;
+        
+        // Open browser using platform-specific command
+        const platform = process.platform;
+        let openCommand: string;
+        if (platform === 'darwin') {
+          openCommand = 'open';
+        } else if (platform === 'win32') {
+          openCommand = 'start';
+        } else {
+          openCommand = 'xdg-open';
+        }
+        
+        try {
+          spawn(openCommand, [authUrl], { detached: true, stdio: 'ignore' }).unref();
+        } catch (err) {
+          if (!service.quiet) {
+            printWarning(`Could not open browser automatically`);
+            printInfo(`Please open this URL manually:`);
+            printInfo(`  ${authUrl}`);
+          }
+        }
+      });
+      
+      // Timeout after 2 minutes
+      timeoutId = setTimeout(() => {
+        connections.forEach(conn => conn.destroy());
+        server.close();
+        reject(new Error('Authentication timeout - please try again'));
+      }, 120000);
+    });
+  }
+
   async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
     const requirements = service.getRequirements();
     const testTime = new Date();
