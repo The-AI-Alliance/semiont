@@ -1162,26 +1162,59 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         if (requirements.build?.dockerfile) {
           const buildContext = requirements.build.buildContext || service.projectRoot;
           
-          // Login to ECR
-          execSync(
-            `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${accountId}.dkr.ecr.${region}.amazonaws.com`
-          );
-          
-          // Build image with necessary build args
-          const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
+          // Build TypeScript/Next.js locally first
+          if (!service.quiet) {
+            printInfo(`Building ${service.name} locally...`);
+          }
           
           // Get the API URL for the environment
           const apiUrl = service.environment === 'production' 
             ? 'https://api.semiont.com'
             : `https://api-${service.environment}.semiont.com`;
           
-          // Build with required build arguments
-          const buildArgs = [
-            `--build-arg NEXT_PUBLIC_API_URL=${apiUrl}`,
-            `--build-arg NODE_ENV=production`
-          ].join(' ');
+          // Set environment variables for the build
+          const buildEnv = {
+            ...process.env,
+            NEXT_PUBLIC_API_URL: apiUrl,
+            NODE_ENV: 'production',
+            NEXT_TELEMETRY_DISABLED: '1'
+          };
           
-          execSync(`docker build ${noCacheFlag}${buildArgs} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`);
+          // Build the TypeScript/Next.js app locally
+          try {
+            // Build api-types first if it exists
+            const apiTypesPath = path.join(buildContext, 'packages', 'api-types');
+            if (fs.existsSync(apiTypesPath)) {
+              execSync('npm run build', {
+                cwd: apiTypesPath,
+                env: buildEnv,
+                stdio: service.verbose ? 'inherit' : 'pipe'
+              });
+            }
+            
+            // Build the app
+            const appPath = path.join(buildContext, 'apps', service.name);
+            if (fs.existsSync(appPath)) {
+              execSync('npm run build', {
+                cwd: appPath,
+                env: buildEnv,
+                stdio: service.verbose ? 'inherit' : 'pipe'
+              });
+            }
+          } catch (error) {
+            throw new Error(`Failed to build ${service.name} locally: ${error}`);
+          }
+          
+          // Login to ECR
+          execSync(
+            `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${accountId}.dkr.ecr.${region}.amazonaws.com`
+          );
+          
+          // Build Docker image with pre-built artifacts
+          const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
+          
+          // No need for build args since we're copying pre-built artifacts
+          execSync(`docker build ${noCacheFlag}-t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`);
           
           // Push to ECR
           execSync(`docker push ${imageUri}`);
