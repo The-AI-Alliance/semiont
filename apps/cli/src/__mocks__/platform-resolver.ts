@@ -34,23 +34,32 @@ export const loadEnvironmentConfig = vi.fn((environment: string) => ({
   } : undefined
 }));
 
-export const resolveServiceDeployments = vi.fn((environment: string) => [
-  {
-    name: 'frontend',
-    platform: environment === 'local' ? 'process' : 'container',
-    config: { port: 3000 }
-  },
-  {
-    name: 'backend', 
-    platform: environment === 'local' ? 'process' : 'container',
-    config: { port: 3001 }
-  },
-  {
-    name: 'database',
-    platform: 'external',
-    config: { host: 'localhost', port: 5432 }
+export const resolveServiceDeployments = vi.fn((services: string[], environment: string) => {
+  // Filter services based on what was requested
+  const allServices = [
+    {
+      name: 'frontend',
+      platform: environment === 'local' ? 'process' : 'container',
+      config: { port: 3000 }
+    },
+    {
+      name: 'backend', 
+      platform: environment === 'local' ? 'process' : 'container',
+      config: { port: 3001 }
+    },
+    {
+      name: 'database',
+      platform: 'external',
+      config: { host: 'localhost', port: 5432 }
+    }
+  ];
+  
+  if (services.includes('all')) {
+    return allServices;
   }
-]);
+  
+  return allServices.filter(s => services.includes(s.name));
+});
 
 export class ConfigurationError extends Error {
   constructor(
