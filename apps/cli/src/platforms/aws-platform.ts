@@ -43,8 +43,9 @@ import { printInfo } from '../lib/cli-logger.js';
 import { ECSClient, DescribeServicesCommand, DescribeClustersCommand, ListServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { RDSClient, DescribeDBInstancesCommand, StartDBInstanceCommand, StopDBInstanceCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
-import { CloudFormationClient, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
+import { CloudFormationClient, ListStackResourcesCommand, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { ElasticLoadBalancingV2Client, DescribeTargetHealthCommand, DescribeTargetGroupsCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
+import { CloudWatchLogsClient, FilterLogEventsCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
 
 export class AWSPlatformStrategy extends BasePlatformStrategy {
   private ecsClient?: ECSClient;
@@ -52,6 +53,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   private efsClient?: EFSClient;
   private cfnClient?: CloudFormationClient;
   private elbClient?: ElasticLoadBalancingV2Client;
+  private logsClient?: CloudWatchLogsClient;
   
   constructor() {
     super();
@@ -89,6 +91,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       this.efsClient = new EFSClient({ region });
       this.cfnClient = new CloudFormationClient({ region });
       this.elbClient = new ElasticLoadBalancingV2Client({ region });
+      this.logsClient = new CloudWatchLogsClient({ region });
     }
     
     return {
@@ -96,7 +99,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       rds: this.rdsClient!,
       efs: this.efsClient!,
       cfn: this.cfnClient!,
-      elb: this.elbClient!
+      elb: this.elbClient!,
+      logs: this.logsClient!
     };
   }
   
@@ -871,7 +875,13 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     // Collect logs if service is running
     let logs: CheckResult['logs'] | undefined;
     if (status === 'running') {
+      if (service.verbose) {
+        console.log(`[DEBUG] Collecting logs for ${service.name} (${serviceType})...`);
+      }
       logs = await this.collectLogs(service);
+      if (service.verbose) {
+        console.log(`[DEBUG] Logs collected for ${service.name}:`, logs ? `${logs.recent?.length || 0} recent, ${logs.errors || 0} errors, ${logs.warnings || 0} warnings` : 'none');
+      }
     }
     
     return {
@@ -1893,50 +1903,39 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async collectLogs(service: Service): Promise<CheckResult['logs']> {
+    const { region } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
-    const resourceName = this.getResourceName(service);
     
-    switch (serviceType) {
-      case 'ecs-fargate':
-        // Get CloudWatch logs
-        const logGroup = `/ecs/${resourceName}`;
-        try {
-          const logs = execSync(
-            `aws logs tail ${logGroup} --max-items 100 --format short --region ${region}`,
-            { encoding: 'utf-8' }
-          ).split('\n').filter(line => line.trim());
-          
-          return {
-            recent: logs.slice(-10),
-            errors: logs.filter(l => l.match(/\b(error|ERROR|Error)\b/)).length,
-            warnings: logs.filter(l => l.match(/\b(warning|WARNING|Warning)\b/)).length
-          };
-        } catch {
-          return undefined;
+    try {
+      // Use our fetchRecentLogs method which properly handles CloudFormation-based log group discovery
+      const recentLogs = await this.fetchRecentLogs(service.name, region, 20, service.verbose);
+      
+      if (!recentLogs || recentLogs.length === 0) {
+        if (service.verbose) {
+          console.log(`[DEBUG] No logs found for ${service.name}`);
         }
-        
-      case 'lambda':
-        // Get Lambda logs
-        const functionName = `${resourceName}-function`;
-        const lambdaLogGroup = `/aws/lambda/${functionName}`;
-        
-        try {
-          const logs = execSync(
-            `aws logs tail ${lambdaLogGroup} --max-items 100 --format short --region ${region}`,
-            { encoding: 'utf-8' }
-          ).split('\n').filter(line => line.trim());
-          
-          return {
-            recent: logs.slice(-10),
-            errors: logs.filter(l => l.match(/\b(error|ERROR|Error)\b/)).length,
-            warnings: logs.filter(l => l.match(/\b(warning|WARNING|Warning)\b/)).length
-          };
-        } catch {
-          return undefined;
-        }
-        
-      default:
         return undefined;
+      }
+      
+      // Count errors and warnings
+      const errors = recentLogs.filter(log => 
+        /\b(error|ERROR|Error|FATAL|fatal|Fatal|exception|Exception|EXCEPTION)\b/.test(log)
+      ).length;
+      
+      const warnings = recentLogs.filter(log => 
+        /\b(warning|WARNING|Warning|warn|WARN|Warn)\b/.test(log)
+      ).length;
+      
+      return {
+        recent: recentLogs.slice(0, 10), // Return the 10 most recent logs
+        errors,
+        warnings
+      };
+    } catch (error) {
+      if (service.verbose) {
+        console.log(`[DEBUG] Failed to collect logs for ${service.name}: ${error}`);
+      }
+      return undefined;
     }
   }
   
@@ -2056,6 +2055,150 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       return health;
     } catch {
       return 'unknown';
+    }
+  }
+  
+  /**
+   * Fetch recent CloudWatch logs for a service
+   */
+  private async fetchRecentLogs(serviceName: string, region: string, limit: number = 20, verbose: boolean = false): Promise<string[]> {
+    try {
+      if (verbose) {
+        console.log(`[DEBUG] Fetching logs for ${serviceName} in region ${region}...`);
+      }
+      const { logs, cfn } = this.getAWSClients(region);
+      
+      // First, try to discover the log group from CloudFormation outputs
+      let discoveredLogGroup: string | undefined;
+      
+      try {
+        // Check both app and data stacks for log group outputs
+        const stackNames = ['SemiontAppStack', 'SemiontDataStack'];
+        
+        for (const stackName of stackNames) {
+          try {
+            const stackResponse = await cfn.send(new DescribeStacksCommand({
+              StackName: stackName
+            }));
+            
+            const outputs = stackResponse.Stacks?.[0]?.Outputs || [];
+            
+            // Look for log group outputs specific to this service
+            const logGroupOutput = outputs.find(o => 
+              o.OutputKey?.toLowerCase().includes('loggroup') && 
+              o.OutputKey?.toLowerCase().includes(serviceName.toLowerCase())
+            );
+            
+            if (logGroupOutput?.OutputValue) {
+              discoveredLogGroup = logGroupOutput.OutputValue;
+              if (verbose) {
+                console.log(`[DEBUG]   Found service-specific log group: ${discoveredLogGroup}`);
+              }
+              break;
+            }
+            
+            // Also check for a general log group that might contain all services
+            const generalLogGroup = outputs.find(o => 
+              o.OutputKey === 'LogGroupName' || 
+              o.OutputKey === 'SemiontLogGroupName'
+            );
+            
+            if (generalLogGroup?.OutputValue) {
+              discoveredLogGroup = generalLogGroup.OutputValue;
+              break;
+            }
+          } catch (error) {
+            // Stack might not exist, continue
+          }
+        }
+      } catch (error) {
+        // CloudFormation discovery failed, continue with patterns
+      }
+      
+      // Build log group patterns to try
+      const logGroupPatterns: string[] = [];
+      
+      // Add discovered log group first if found
+      if (discoveredLogGroup) {
+        logGroupPatterns.push(discoveredLogGroup);
+      }
+      
+      // Add common ECS/Lambda/RDS patterns
+      logGroupPatterns.push(
+        `/ecs/${serviceName}`,
+        `/ecs/semiont-${serviceName}`,
+        `/ecs/semiont`,
+        `/ecs/SemiontCluster`,
+        `/aws/lambda/${serviceName}`,
+        `/aws/lambda/semiont-${serviceName}`,
+        `/aws/rds/instance/${serviceName}/postgresql`,
+        `/aws/rds/instance/semiont-${serviceName}/postgresql`,
+        'SemiontLogGroup'  // Try as a direct name too
+      );
+      
+      // Try each log group pattern
+      for (const logGroupName of logGroupPatterns) {
+        try {
+          const response = await logs.send(new FilterLogEventsCommand({
+            logGroupName,
+            startTime: Date.now() - 2 * 60 * 60 * 1000, // Last 2 hours for better chance of finding logs
+            limit,
+            interleaved: true
+          }));
+          
+          if (response.events && response.events.length > 0) {
+            if (verbose) {
+              console.log(`[DEBUG]   Found ${response.events.length} log events in ${logGroupName}`);
+            }
+            return response.events
+              .filter(e => e.message)
+              .map(e => e.message!.trim());
+          }
+        } catch (error: any) {
+          // Log group doesn't exist or no permissions, try next pattern
+          continue;
+        }
+      }
+      
+      // If no specific log groups found, try to list and find relevant ones
+      try {
+        const describeResponse = await logs.send(new DescribeLogGroupsCommand({
+          limit: 50
+        }));
+        
+        const logGroups = describeResponse.logGroups || [];
+        
+        // Look for log groups that might contain our service logs
+        for (const logGroup of logGroups) {
+          if (logGroup.logGroupName && 
+              (logGroup.logGroupName.toLowerCase().includes('semiont') ||
+               logGroup.logGroupName.toLowerCase().includes(serviceName.toLowerCase()))) {
+            try {
+              const response = await logs.send(new FilterLogEventsCommand({
+                logGroupName: logGroup.logGroupName,
+                startTime: Date.now() - 2 * 60 * 60 * 1000, // Last 2 hours
+                limit,
+                interleaved: true
+              }));
+              
+              if (response.events?.length) {
+                return response.events
+                  .filter(e => e.message)
+                  .map(e => e.message!.trim());
+              }
+            } catch {
+              // Continue to next log group
+            }
+          }
+        }
+      } catch {
+        // Failed to list log groups
+      }
+      
+      return [];
+    } catch (error) {
+      // Silently fail - logs might not be available
+      return [];
     }
   }
   
@@ -2304,7 +2447,39 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     options?: import('./platform-strategy.js').SecretOptions
   ): Promise<import('./platform-strategy.js').SecretResult> {
     const { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand, DeleteSecretCommand, ListSecretsCommand } = await import('@aws-sdk/client-secrets-manager');
-    const secretsClient = new SecretsManagerClient({ region: region });
+    
+    // Get region from environment config
+    let region: string | undefined;
+    
+    if (options?.environment) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const envConfigPath = path.join(process.cwd(), 'environments', `${options.environment}.json`);
+        if (fs.existsSync(envConfigPath)) {
+          const envConfig = JSON.parse(fs.readFileSync(envConfigPath, 'utf-8'));
+          if (envConfig.aws?.region) {
+            region = envConfig.aws.region;
+          }
+        }
+      } catch (error) {
+        // Continue to check other sources
+      }
+    }
+    
+    // If no region from environment config, fail with clear error
+    if (!region) {
+      return {
+        success: false,
+        action,
+        secretPath,
+        platform: 'aws',
+        storage: 'aws-secrets-manager',
+        error: `AWS region not configured. Please ensure your environment config at environments/${options?.environment}.json contains aws.region`
+      };
+    }
+    
+    const secretsClient = new SecretsManagerClient({ region });
     
     // Format secret name for AWS
     const secretName = this.formatSecretName(secretPath, options?.environment);
