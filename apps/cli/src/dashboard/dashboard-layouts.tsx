@@ -4,8 +4,8 @@
  * React components that combine dashboard components into full-screen layouts
  */
 
-import React, { useState } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import React, { useState, useEffect } from 'react';
+import { Box, Text, useStdout, useApp, useInput } from 'ink';
 import { 
   ServicePanel, 
   LogViewer, 
@@ -293,5 +293,107 @@ export const CompactDashboard: React.FC<{
   );
 };
 
-// Hook for keyboard input handling
-import { useInput } from 'ink';
+// Dashboard mode types
+export type DashboardMode = 'unified' | 'logs' | 'metrics';
+
+// Main Dashboard App Component - consolidated from watch-dashboard.tsx
+export const DashboardApp: React.FC<{ 
+  mode: DashboardMode; 
+  refreshInterval?: number;
+  environment: string;
+  data?: DashboardData;  // Accept data as a prop
+}> = ({ mode, refreshInterval = 30, environment, data: propData }) => {
+  // When called from watch.ts, propData will be provided
+  // When run standalone, we need to fetch our own data
+  const isStandalone = !propData;
+  const [data, setData] = useState<DashboardData>(propData || {
+    services: [],
+    logs: [],
+    metrics: [],
+    lastUpdate: new Date(),
+    isRefreshing: false
+  });
+  
+  // Only create dataSource if running standalone (no prop data)
+  const [dataSource] = useState(() => {
+    if (isStandalone) {
+      // Dynamic import to avoid circular dependency
+      const { DashboardDataSource } = require('../dashboard/dashboard-data.js');
+      return new DashboardDataSource(environment);
+    }
+    return null;
+  });
+  const { exit } = useApp();
+
+  // Global keyboard shortcuts
+  useInput((input, key) => {
+    if (input === 'q' || (key.ctrl && input === 'c')) {
+      exit();
+    } else if (input === 'r' && isStandalone) {
+      // Only allow manual refresh in standalone mode
+      refreshData();
+    }
+  });
+
+  // Data refreshing - only used in standalone mode
+  const refreshData = async () => {
+    if (!dataSource) return;
+    
+    setData(prev => ({ ...prev, isRefreshing: true }));
+    try {
+      const newData = await dataSource.getDashboardData();
+      setData(newData);
+    } catch (error) {
+      console.error('Failed to refresh dashboard data:', error);
+    } finally {
+      setData(prev => ({ ...prev, isRefreshing: false }));
+    }
+  };
+
+  // Update data when prop changes (when called from watch.ts)
+  useEffect(() => {
+    if (propData) {
+      setData(propData);
+    }
+  }, [propData]);
+
+  // Initial load and periodic refresh ONLY in standalone mode
+  useEffect(() => {
+    if (isStandalone && dataSource) {
+      refreshData();
+      const interval = setInterval(refreshData, refreshInterval * 1000);
+      return () => clearInterval(interval);
+    }
+  }, []); // Remove dependencies to run only once
+
+  // No filtering needed - show all data
+  const filteredLogs = data.logs;
+  const filteredServices = data.services;
+
+  // Render appropriate dashboard layout
+  switch (mode) {
+    case 'unified':
+      return <UnifiedDashboard data={data} refreshInterval={refreshInterval} />;
+      
+    case 'logs':
+      return (
+        <LogsOnlyDashboard 
+          logs={filteredLogs}
+          services={filteredServices}
+          title='All Service Logs'
+        />
+      );
+      
+    case 'metrics':
+      return (
+        <MetricsOnlyDashboard 
+          metrics={data.metrics}
+          services={data.services}
+          title="Performance Metrics"
+        />
+      );
+      
+    default:
+      return <UnifiedDashboard data={data} refreshInterval={refreshInterval} />;
+  }
+};
