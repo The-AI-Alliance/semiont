@@ -2904,6 +2904,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Get detailed task counts by deployment version
         let taskDetails = { new: { total: 0, running: 0, healthy: 0, pending: 0 }, old: { total: 0, running: 0, healthy: 0, pending: 0 } };
+        let taskHealthStatus = 'UNKNOWN'; // Track overall health status
         try {
           const tasksData = execSync(
             `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status RUNNING --region ${region} --output json`,
@@ -2927,10 +2928,18 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
               
               if (task.lastStatus === 'PENDING' || task.lastStatus === 'PROVISIONING') {
                 details.pending++;
+                if (isNewDeployment) {
+                  taskHealthStatus = 'STARTING';
+                }
               } else if (task.lastStatus === 'RUNNING') {
                 details.running++;
                 if (task.healthStatus === 'HEALTHY') {
                   details.healthy++;
+                  if (isNewDeployment && taskHealthStatus !== 'STARTING') {
+                    taskHealthStatus = 'HEALTHY';
+                  }
+                } else if (isNewDeployment && task.healthStatus === 'UNKNOWN') {
+                  taskHealthStatus = 'STARTING';
                 }
               }
             }
