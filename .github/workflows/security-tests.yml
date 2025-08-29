@@ -249,7 +249,9 @@ jobs:
 
       - name: Start backend for API security verification
         run: |
-          cd apps/backend
+          # We're in apps/backend, but semiont needs to know where the project root is
+          export SEMIONT_ROOT=../..
+          # Now we can run semiont from the backend directory
           semiont start -e ci --service backend > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
