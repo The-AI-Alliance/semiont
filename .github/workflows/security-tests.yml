@@ -190,7 +190,7 @@ jobs:
           cat > environments/ci.json << 'EOF'
           {
             "_comment": "ci environment",
-            "deployment": {
+            "platform": {
               "default": "process"
             },
             "env": {
@@ -198,14 +198,14 @@ jobs:
             },
             "services": {
               "backend": {
-                "deployment": {
+                "platform": {
                   "type": "process"
                 },
                 "command": "npm start",
                 "port": 3001
               },
               "database": {
-                "deployment": {
+                "platform": {
                   "type": "external"
                 },
                 "host": "localhost",
