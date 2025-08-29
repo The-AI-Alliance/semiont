@@ -31,7 +31,7 @@
 import { z } from 'zod';
 import { colors } from '../lib/cli-colors.js';
 import React from 'react';
-import { render } from 'ink';
+import { render, Text } from 'ink';
 import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
 import { type ServicePlatformInfo, type Platform } from '../platforms/platform-resolver.js';
 import type { PlatformResources } from '../platforms/platform-resources.js';
@@ -176,7 +176,7 @@ async function launchDashboard(
             return () => clearInterval(timer);
           }, []);
           
-          if (!data) return React.createElement('div', null, 'Loading...');
+          if (!data) return React.createElement(Text, null, 'Loading...');
           
           return React.createElement(DashboardApp!, {
             mode,

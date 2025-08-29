@@ -73,7 +73,6 @@ export const UnifiedDashboard: React.FC<{
             <ServicePanel 
               services={data.services}
               title="Services Status"
-              showDetails={true}
             />
           </Box>
           
@@ -144,7 +143,6 @@ export const LogsOnlyDashboard: React.FC<{
           <ServicePanel 
             services={filteredServices}
             title="Services"
-            showDetails={false}
           />
         </Box>
       </Box>
@@ -199,7 +197,6 @@ export const MetricsOnlyDashboard: React.FC<{
         <ServicePanel 
           services={services}
           title="Services Health"
-          showDetails={true}
         />
       </Box>
 
@@ -264,7 +261,6 @@ export const CompactDashboard: React.FC<{
           <ServicePanel 
             services={data.services}
             title="Services Status"
-            showDetails={true}
           />
         )}
         

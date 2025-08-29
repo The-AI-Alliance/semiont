@@ -105,6 +105,17 @@ export class DashboardDataSource {
           serviceStatus.cloudFormationStackName = checkResult.metadata.cloudFormationStackName;
           serviceStatus.logGroupName = checkResult.metadata.logGroupName;
           serviceStatus.cluster = checkResult.metadata.ecsClusterName;
+          
+          // Add ALB and WAF information
+          if (checkResult.metadata.loadBalancerDns) {
+            serviceStatus.loadBalancerDns = checkResult.metadata.loadBalancerDns;
+          }
+          if (checkResult.metadata.albArn) {
+            serviceStatus.albArn = checkResult.metadata.albArn;
+          }
+          if (checkResult.metadata.wafWebAclId) {
+            serviceStatus.wafWebAclId = checkResult.metadata.wafWebAclId;
+          }
         }
         
         // Add from resources if available

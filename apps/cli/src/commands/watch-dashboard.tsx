@@ -20,15 +20,17 @@ const DashboardApp: React.FC<{
   service?: ServiceType; 
   refreshInterval?: number;
   environment: string;
-}> = ({ mode, service, refreshInterval = 30, environment }) => {
-  const [data, setData] = useState<DashboardData>({
+  data?: DashboardData;  // Accept data as a prop
+}> = ({ mode, service, refreshInterval = 30, environment, data: propData }) => {
+  // Use prop data if provided, otherwise maintain own state
+  const [data, setData] = useState<DashboardData>(propData || {
     services: [],
     logs: [],
     metrics: [],
     lastUpdate: new Date(),
     isRefreshing: false
   });
-  const [dataSource] = useState(() => new DashboardDataSource(environment));
+  const [dataSource] = useState(() => propData ? null : new DashboardDataSource(environment));
   const { exit } = useApp();
 
   // Global keyboard shortcuts
@@ -42,6 +44,9 @@ const DashboardApp: React.FC<{
 
   // Data refreshing
   const refreshData = async () => {
+    // Only refresh if we have our own dataSource (not using prop data)
+    if (!dataSource) return;
+    
     setData(prev => ({ ...prev, isRefreshing: true }));
     try {
       const newData = await dataSource.getDashboardData();
@@ -53,12 +58,21 @@ const DashboardApp: React.FC<{
     }
   };
 
-  // Initial load and periodic refresh
+  // Update data when prop changes
   useEffect(() => {
-    refreshData();
-    const interval = setInterval(refreshData, refreshInterval * 1000);
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+    if (propData) {
+      setData(propData);
+    }
+  }, [propData]);
+
+  // Initial load and periodic refresh (only if not using prop data)
+  useEffect(() => {
+    if (!propData) {
+      refreshData();
+      const interval = setInterval(refreshData, refreshInterval * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [refreshInterval, propData]);
 
   // Filter data by service if specified
   const filteredLogs = service && service !== 'both' 

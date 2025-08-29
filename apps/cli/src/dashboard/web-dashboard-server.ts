@@ -658,6 +658,16 @@ export class WebDashboardServer {
                       Deployment: {service.deploymentStatus}
                     </div>
                   )}
+                  {service.loadBalancerDns && (
+                    <div className="service-details" style={{ color: '#00bcd4', fontSize: '0.9em' }}>
+                      ALB: {service.loadBalancerDns}
+                    </div>
+                  )}
+                  {service.wafWebAclId && (
+                    <div className="service-details" style={{ color: '#4caf50', fontSize: '0.9em' }}>
+                      WAF: Protected ✓
+                    </div>
+                  )}
                   {/* Action Buttons */}
                   {getConsoleLinks(service).length > 0 && (
                     <div className="action-buttons">
@@ -680,7 +690,7 @@ export class WebDashboardServer {
             </div>
             
             <div className="dashboard-panel">
-              <div className="panel-title">Infrastructure</div>
+              <div className="panel-title">Data</div>
             {data.services.filter(s => 
               ['Database', 'Filesystem'].includes(s.name)
             ).map((service, index) => (
@@ -757,6 +767,16 @@ export class WebDashboardServer {
                   {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
                     <div className="service-details" style={{ color: '#ff9800' }}>
                       Deployment: {service.deploymentStatus}
+                    </div>
+                  )}
+                  {service.loadBalancerDns && (
+                    <div className="service-details" style={{ color: '#00bcd4', fontSize: '0.9em' }}>
+                      ALB: {service.loadBalancerDns}
+                    </div>
+                  )}
+                  {service.wafWebAclId && (
+                    <div className="service-details" style={{ color: '#4caf50', fontSize: '0.9em' }}>
+                      WAF: Protected ✓
                     </div>
                   )}
                   {/* Action Buttons */}

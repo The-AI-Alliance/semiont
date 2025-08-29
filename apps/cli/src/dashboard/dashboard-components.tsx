@@ -41,6 +41,7 @@ export interface ServiceStatus {
   rdsInstanceId?: string;
   efsFileSystemId?: string;
   albArn?: string;
+  loadBalancerDns?: string;
   wafWebAclId?: string;
   route53ZoneId?: string;
   cloudFormationStackName?: string;
@@ -94,11 +95,9 @@ export const StatusIndicator: React.FC<{ status: ServiceStatus['status']; size?:
 export const ServicePanel: React.FC<{ 
   services: ServiceStatus[];
   title?: string;
-  showDetails?: boolean;
 }> = ({ 
   services, 
-  title = "Services",
-  showDetails = false 
+  title = "Services"
 }) => {
   return (
     <Box flexDirection="column">
@@ -109,7 +108,7 @@ export const ServicePanel: React.FC<{
         <Text color="gray">No services to monitor</Text>
       ) : (
         services.map((service, index) => (
-          <Box key={index} marginBottom={showDetails ? 1 : 0}>
+          <Box key={index} marginBottom={1}>
             <Box marginRight={1}>
               <StatusIndicator status={service.status} size="small" />
             </Box>
@@ -124,25 +123,32 @@ export const ServicePanel: React.FC<{
                   <Text color="gray"> [{service.runningCount}/{service.desiredCount}]</Text>
                 )}
               </Box>
-              {showDetails && service.details && (
+              {service.details && (
                 <Text color="gray" dimColor>  {service.details}</Text>
               )}
               {/* Always show deployment status if there's an active deployment */}
               {service.deploymentStatus && service.deploymentStatus.includes('🔄') && (
                 <Text color="yellow">  {service.deploymentStatus}</Text>
               )}
-              {/* Show stable deployment status only in detailed view */}
-              {showDetails && service.deploymentStatus && !service.deploymentStatus.includes('🔄') && (
+              {/* Show stable deployment status */}
+              {service.deploymentStatus && !service.deploymentStatus.includes('🔄') && (
                 <Text color="gray" dimColor>  Deployment: {service.deploymentStatus}</Text>
               )}
-              {showDetails && service.taskDefinition && (
+              {service.taskDefinition && (
                 <Text color="gray" dimColor>  Task: {service.taskDefinition}</Text>
               )}
-              {showDetails && service.lastUpdated && (
+              {service.lastUpdated && (
                 <Text color="gray" dimColor>  Updated: {service.lastUpdated.toLocaleTimeString()}</Text>
               )}
+              {/* ALB and WAF Information */}
+              {service.loadBalancerDns && (
+                <Text color="cyan">  ALB: {service.loadBalancerDns}</Text>
+              )}
+              {service.wafWebAclId && (
+                <Text color="green">  WAF: Protected ✓</Text>
+              )}
               {/* EFS Storage Metrics */}
-              {showDetails && service.name === 'Filesystem' && service.storageTotalBytes && (
+              {service.name === 'Filesystem' && service.storageTotalBytes && (
                 <>
                   <Text color="cyan">  Storage:</Text>
                   {service.storageUsedBytes !== undefined && service.storageTotalBytes && (
