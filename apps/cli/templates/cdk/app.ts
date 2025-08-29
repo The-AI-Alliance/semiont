@@ -25,6 +25,7 @@ const stackProps = {
 };
 
 // Set CDK context with configuration values
+app.node.setContext('environment', environment);
 app.node.setContext('siteName', semiontConfig.site?.siteName || 'Semiont');
 app.node.setContext('domain', semiontConfig.site?.domain || 'example.com');
 app.node.setContext('rootDomain', semiontConfig.site?.domain?.split('.').slice(-2).join('.') || 'example.com');
