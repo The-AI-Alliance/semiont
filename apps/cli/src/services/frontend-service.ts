@@ -80,9 +80,6 @@ export class FrontendService extends BaseService {
     return '/'; // Frontend usually serves index.html at root
   }
   
-  override getCommand(): string {
-    return this.config.command || 'npm run dev';
-  }
   
   override getImage(): string {
     return this.config.image || 'semiont/frontend:latest';

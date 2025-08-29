@@ -129,9 +129,6 @@ export class BackendService extends BaseService {
     return '/health';
   }
   
-  override getCommand(): string {
-    return this.config.command || 'npm run start:prod';
-  }
   
   override getImage(): string {
     return this.config.image || 'semiont/backend:latest';

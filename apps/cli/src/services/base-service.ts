@@ -82,10 +82,13 @@ export abstract class BaseService implements Service {
   
   /**
    * Get the command to run for process deployment
-   * Override in service implementations
+   * Must be configured - no default
    */
   getCommand(): string {
-    return this.config.command || 'npm start';
+    if (!this.config.command) {
+      throw new Error(`No command configured for service '${this.name}'. Add "command" to your service configuration.`);
+    }
+    return this.config.command;
   }
   
   /**

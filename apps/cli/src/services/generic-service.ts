@@ -158,9 +158,6 @@ export class GenericService extends BaseService {
     return this.config.healthEndpoint || '/health';
   }
   
-  override getCommand(): string {
-    return this.config.command || 'npm start';
-  }
   
   override getImage(): string {
     return this.config.image || `${this.name}:latest`;
