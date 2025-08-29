@@ -706,6 +706,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     let health: CheckResult['health'] | undefined;
     let awsResources: PlatformResources | undefined;
     let cfnDiscoveredResources: any = {};
+    let serviceMetadata: Record<string, any> = {};
     
     switch (serviceType) {
       case 'ecs-fargate':
@@ -715,6 +716,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         status = ecsResult.status;
         health = ecsResult.health;
         awsResources = ecsResult.awsResources;
+        serviceMetadata = ecsResult.metadata;
         break;
         
       case 'lambda':
@@ -722,6 +724,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         status = lambdaResult.status;
         health = lambdaResult.health;
         awsResources = lambdaResult.awsResources;
+        serviceMetadata = lambdaResult.metadata;
         break;
         
       case 'rds':
@@ -731,6 +734,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         status = rdsResult.status;
         health = rdsResult.health;
         awsResources = rdsResult.awsResources;
+        serviceMetadata = rdsResult.metadata;
         break;
         
       case 's3-cloudfront':
@@ -776,6 +780,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         status = efsResult.status;
         health = efsResult.health;
         awsResources = efsResult.awsResources;
+        serviceMetadata = efsResult.metadata;
         break;
         
       case 'dynamodb':
@@ -819,14 +824,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     // Build comprehensive metadata for dashboard
     const metadata: Record<string, any> = {
+      ...serviceMetadata,  // Start with service-specific metadata
       serviceType,
       region: region,
       awsRegion: region,
       accountId: accountId
     };
-    
-    // Use the consolidated method to enrich metadata
-    this.enrichWithInfrastructureMetadata(metadata, cfnDiscoveredResources, awsResources, serviceType);
     
     // Add CloudFormation stack names
     if (serviceType === 'ecs-fargate') {
@@ -2638,6 +2641,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     status: CheckResult['status'];
     health?: CheckResult['health'];
     awsResources?: PlatformResources;
+    metadata: Record<string, any>;
   }> {
     const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
@@ -2699,16 +2703,33 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           taskDefinitionArn: activeDeployment?.taskDefinition
         });
         
-        return { status, health, awsResources };
+        // Build ECS-specific metadata
+        const metadata: Record<string, any> = {
+          ecsClusterName: clusterName,
+          ecsServiceName: serviceName
+        };
+        
+        // Add ALB and WAF information if available
+        if (cfnDiscoveredResources.loadBalancerDns) {
+          metadata.loadBalancerDns = cfnDiscoveredResources.loadBalancerDns;
+        }
+        if (cfnDiscoveredResources.wafWebAclArn) {
+          metadata.wafWebAclId = cfnDiscoveredResources.wafWebAclArn;
+        }
+        if (albArn) {
+          metadata.albArn = albArn;
+        }
+        
+        return { status, health, awsResources, metadata };
       } else {
-        return { status: 'stopped' };
+        return { status: 'stopped', metadata: {} };
       }
     } catch (error) {
       // Can't determine status due to error (e.g., expired credentials)
       if (service.verbose) {
         console.log(`[DEBUG] ECS check failed: ${error}`);
       }
-      return { status: 'unknown' };
+      return { status: 'unknown', metadata: {} };
     }
   }
 
@@ -2722,6 +2743,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     status: CheckResult['status'];
     health?: CheckResult['health'];
     awsResources?: PlatformResources;
+    metadata: Record<string, any>;
   }> {
     const { region, accountId } = this.getAWSConfig(service);
     const resourceName = this.getResourceName(service);
@@ -2763,15 +2785,20 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           endpoint: dbInstance.Endpoint?.Address
         });
         
-        return { status, health, awsResources };
+        // Build RDS-specific metadata
+        const metadata: Record<string, any> = {
+          rdsInstanceId: dbInstanceId
+        };
+        
+        return { status, health, awsResources, metadata };
       } else {
-        return { status: 'stopped' };
+        return { status: 'stopped', metadata: {} };
       }
     } catch (error) {
       if (service.verbose) {
         console.log(`[DEBUG] RDS check failed: ${error}`);
       }
-      return { status: 'unknown' };
+      return { status: 'unknown', metadata: {} };
     }
   }
 
@@ -2785,6 +2812,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     status: CheckResult['status'];
     health?: CheckResult['health'];
     awsResources?: PlatformResources;
+    metadata: Record<string, any>;
   }> {
     const { region, accountId } = this.getAWSConfig(service);
     const resourceName = this.getResourceName(service);
@@ -2831,15 +2859,20 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           region: region
         });
         
-        return { status, health, awsResources };
+        // Build EFS-specific metadata
+        const metadata: Record<string, any> = {
+          efsFileSystemId: fileSystemId
+        };
+        
+        return { status, health, awsResources, metadata };
       } else {
-        return { status: 'stopped' };
+        return { status: 'stopped', metadata: {} };
       }
     } catch (error) {
       if (service.verbose) {
         console.log(`[DEBUG] EFS check failed: ${error}`);
       }
-      return { status: 'unknown' };
+      return { status: 'unknown', metadata: {} };
     }
   }
 
@@ -2852,6 +2885,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     status: CheckResult['status'];
     health?: CheckResult['health'];
     awsResources?: PlatformResources;
+    metadata: Record<string, any>;
   }> {
     const { region } = this.getAWSConfig(service);
     const resourceName = this.getResourceName(service);
@@ -2888,46 +2922,21 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           region: region
         });
         
-        return { status, health, awsResources };
+        // Build Lambda-specific metadata
+        const metadata: Record<string, any> = {
+          functionName: functionName
+        };
+        
+        return { status, health, awsResources, metadata };
       } else {
-        return { status: 'stopped' };
+        return { status: 'stopped', metadata: {} };
       }
     } catch (error) {
       if (service.verbose) {
         console.log(`[DEBUG] Lambda check failed: ${error}`);
       }
-      return { status: 'unknown' };
+      return { status: 'unknown', metadata: {} };
     }
   }
 
-  /**
-   * Consolidate infrastructure metadata (ALB, WAF, etc.)
-   */
-  private enrichWithInfrastructureMetadata(
-    metadata: Record<string, any>,
-    cfnDiscoveredResources: any,
-    awsResources: PlatformResources | undefined,
-    serviceType: string
-  ): void {
-    // Add ALB and WAF information if available
-    if (cfnDiscoveredResources.loadBalancerDns) {
-      metadata.loadBalancerDns = cfnDiscoveredResources.loadBalancerDns;
-    }
-    if (cfnDiscoveredResources.wafWebAclArn) {
-      metadata.wafWebAclId = cfnDiscoveredResources.wafWebAclArn;
-    }
-    
-    // Add service-specific identifiers for AWS console links
-    if (serviceType === 'ecs-fargate' && awsResources) {
-      metadata.ecsClusterName = awsResources.data.clusterId;
-      if (awsResources.data.serviceArn) {
-        const arnParts = awsResources.data.serviceArn.split('/');
-        metadata.ecsServiceName = arnParts[arnParts.length - 1];
-      }
-    } else if (serviceType === 'rds' && awsResources) {
-      metadata.rdsInstanceId = awsResources.data.instanceId;
-    } else if (serviceType === 'efs' && awsResources) {
-      metadata.efsFileSystemId = awsResources.data.volumeId;
-    }
-  }
 }
