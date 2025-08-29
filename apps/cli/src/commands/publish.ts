@@ -100,6 +100,8 @@ const PublishOptionsSchema = BaseOptionsSchema.extend({
   all: z.boolean().default(false),
   tag: z.string().optional(), // Custom version tag
   registry: z.string().optional(), // Override default registry
+  semiontRepo: z.string().optional(), // Path to Semiont repository for builds
+  noCache: z.boolean().optional().default(false), // Skip Docker cache
 });
 
 type PublishOptions = z.output<typeof PublishOptionsSchema>;
@@ -142,7 +144,9 @@ async function publishHandler(
         { 
           platform: serviceInfo.platform,
           tag: options.tag,
-          registry: options.registry
+          registry: options.registry,
+          semiontRepo: options.semiontRepo,
+          noCache: options.noCache
         } as ServiceConfig
       );
       
@@ -329,6 +333,8 @@ export const publishCommand = new CommandBuilder()
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
     '--tag': { type: 'string', description: 'Custom version tag' },
     '--registry': { type: 'string', description: 'Override default registry' },
+    '--semiont-repo': { type: 'string', description: 'Path to Semiont repository (for building from source)' },
+    '--no-cache': { type: 'boolean', description: 'Skip Docker build cache', default: false },
   }))
   .handler(publishHandler)
   .build();

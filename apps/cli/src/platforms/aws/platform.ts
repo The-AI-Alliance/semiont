@@ -1156,6 +1156,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         
         // Build and push image
+        if (service.verbose) {
+          console.log(`[DEBUG] Build requirements:`, JSON.stringify(requirements.build, null, 2));
+        }
         if (requirements.build?.dockerfile) {
           const buildContext = requirements.build.buildContext || service.projectRoot;
           
@@ -1164,8 +1167,21 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
             `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${accountId}.dkr.ecr.${region}.amazonaws.com`
           );
           
-          // Build image
-          execSync(`docker build -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`);
+          // Build image with necessary build args
+          const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
+          
+          // Get the API URL for the environment
+          const apiUrl = service.environment === 'production' 
+            ? 'https://api.semiont.com'
+            : `https://api-${service.environment}.semiont.com`;
+          
+          // Build with required build arguments
+          const buildArgs = [
+            `--build-arg NEXT_PUBLIC_API_URL=${apiUrl}`,
+            `--build-arg NODE_ENV=production`
+          ].join(' ');
+          
+          execSync(`docker build ${noCacheFlag}${buildArgs} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`);
           
           // Push to ECR
           execSync(`docker push ${imageUri}`);

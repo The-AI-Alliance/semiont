@@ -46,6 +46,13 @@ export class BackendService extends BaseService {
     // Start with stateless API preset
     const baseRequirements = RequirementPresets.statelessApi();
     
+    // Add dockerfile path if semiontRepo is provided
+    const buildConfig = this.config.semiontRepo ? {
+      dockerfile: `${this.config.semiontRepo}/apps/backend/Dockerfile`,
+      buildContext: this.config.semiontRepo,
+      prebuilt: false
+    } : baseRequirements.build;
+    
     // Define backend-specific requirements
     const backendRequirements: ServiceRequirements = {
       network: {
@@ -66,7 +73,7 @@ export class BackendService extends BaseService {
           }
         ]
       },
-      build: {
+      build: buildConfig || {
         dockerfile: 'Dockerfile.backend',
         buildContext: path.join(this.systemConfig.projectRoot, 'apps/backend'),
         buildArgs: {

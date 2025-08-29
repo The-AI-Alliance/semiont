@@ -43,7 +43,22 @@ export class FrontendService extends BaseService {
   
   override getRequirements(): ServiceRequirements {
     // Frontend typically needs network access and build capabilities
-    return RequirementPresets.webFrontend();
+    const base = RequirementPresets.webFrontend();
+    
+    // Add dockerfile path if semiontRepo is provided
+    if (this.config.semiontRepo) {
+      return {
+        ...base,
+        build: {
+          ...base.build,
+          dockerfile: `${this.config.semiontRepo}/apps/frontend/Dockerfile`,
+          buildContext: this.config.semiontRepo,
+          prebuilt: false
+        }
+      };
+    }
+    
+    return base;
   }
   
   // =====================================================================
