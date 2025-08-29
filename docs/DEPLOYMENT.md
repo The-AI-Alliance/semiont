@@ -2,6 +2,15 @@
 
 This guide provides comprehensive instructions for deploying Semiont to AWS and managing deployments.
 
+## Important Note About Repository Structure
+
+When using Semiont, you typically have **two separate repositories**:
+
+1. **Your Project Repository** - Contains your configuration (`environments/`, `semiont.json`)
+2. **Semiont Platform Repository** - Contains the platform code (Dockerfiles, frontend/backend apps)
+
+Most `semiont` commands are run from your project directory, and the `--semiont-repo` parameter tells the CLI where to find the platform code for building images.
+
 ## Table of Contents
 - [Quick Start](#quick-start)
 - [Core Commands](#core-commands)
@@ -21,7 +30,7 @@ export SEMIONT_ENV=production
 
 # Deploy to AWS
 semiont provision   # One-time: Create AWS infrastructure (~10-15 min)
-semiont publish     # Build and push container images to ECR (~5-8 min)
+semiont publish --semiont-repo /path/to/semiont  # Build and push images (~5-8 min)
 semiont update      # Force ECS to pull and deploy new images (~2-3 min)
 
 # Monitor deployment
@@ -46,42 +55,54 @@ semiont provision --destroy             # Tear down infrastructure
 - Application Stack: ECS Cluster, ALB, WAF, CloudWatch
 
 ### `semiont publish`
-Builds container images and pushes them to AWS ECR.
+Builds applications locally and creates container images for deployment.
 
 ```bash
-semiont publish                          # Build and push all services
-semiont publish --service backend        # Publish specific service
-semiont publish --tag v1.2.3            # Use custom tag
-semiont publish --skip-build            # Push existing local images
-semiont publish --semiont-repo /path    # Use custom source path for building
+semiont publish --semiont-repo /path/to/semiont           # Build and push all services
+semiont publish --service backend --semiont-repo /path/to/semiont  # Specific service
+semiont publish --tag v1.2.3 --semiont-repo /path/to/semiont      # Custom tag
+semiont publish --no-cache --semiont-repo /path/to/semiont        # Force clean build
 ```
 
 **Important Options:**
-- `--semiont-repo`: Specifies the path to the Semiont repository when building images from a different location
-- `--tag`: Custom tag for images (default: latest)
-- `--skip-build`: Skip building, just tag and push existing images
+- `--semiont-repo`: Path to Semiont platform code (required when not in Semiont repo)
+- `--tag`: Override image tag (default depends on environment config)
+- `--no-cache`: Skip Docker build cache for clean builds
 
 **What it does:**
-1. Detects Docker or Podman automatically
-2. Builds optimized production images
-3. Tags images appropriately
-4. Pushes to AWS ECR
-5. Creates ECR repositories if needed
+1. Builds TypeScript/Next.js locally with proper environment variables
+2. Creates optimized Docker images with pre-built artifacts
+3. Tags images based on environment configuration:
+   - Development: Uses `latest` tag (mutable)
+   - Production: Uses git commit hash (immutable)
+4. Pushes images to AWS ECR
+5. Updates ECS task definition to use new image
 
 ### `semiont update`
-Forces ECS services to pull and deploy the latest images from ECR.
+Forces ECS services to redeploy with current task definitions.
 
 ```bash
 semiont update                           # Update all services
 semiont update --service frontend        # Update specific service
-semiont update --force                   # Force update even if no changes
-semiont update --grace-period 10         # Wait 10 seconds between stop/start
+semiont update --wait                    # Wait for deployment to complete
+semiont update --timeout 600             # Custom timeout in seconds (with --wait)
+semiont update --force                   # Continue on errors (don't stop on first failure)
 ```
 
+**Important Options:**
+- `--wait`: Wait for deployment to complete with enhanced monitoring
+- `--timeout`: Maximum time to wait (default: 300 seconds)
+- `--force`: Continue updating other services even if one fails
+
 **What it does:**
-- For AWS: Triggers ECS service update to pull latest images
-- For containers: Restarts containers with new images
-- For processes: Restarts processes with updated code
+1. Forces ECS to create new deployment with current task definition
+2. For `latest` tags: ECS pulls newest image from ECR
+3. For immutable tags (git hash): ECS performs rolling restart
+4. With `--wait`: Monitors deployment phases:
+   - Image pull detection (extends timeout if needed)
+   - Task provisioning and health checks
+   - Old deployment draining
+5. Returns when deployment is fully complete
 
 ### `semiont check`
 Verifies deployment health and service status.
@@ -226,6 +247,75 @@ export SEMIONT_ENV=production
 semiont publish --environment production
 ```
 
+## Image Tagging Strategy
+
+Semiont uses different image tagging strategies based on environment configuration:
+
+### Development/Staging (Mutable Tags)
+
+```json
+// environments/dev.json
+{
+  "deployment": {
+    "imageTagStrategy": "mutable"  // Uses 'latest' tag
+  }
+}
+```
+
+**Workflow:**
+```bash
+# Publish creates/updates 'latest' tag
+semiont publish --environment dev --semiont-repo /path/to/semiont
+# Image: myapp:latest
+
+# Update forces ECS to re-pull 'latest' (gets new code)
+semiont update --environment dev --wait
+```
+
+### Production (Immutable Tags)
+
+```json
+// environments/production.json
+{
+  "deployment": {
+    "imageTagStrategy": "immutable"  // Uses git commit hash
+  }
+}
+```
+
+**Workflow:**
+```bash
+# Commit your changes first (in the Semiont repo)
+cd /path/to/semiont
+git add .
+git commit -m "Fix critical bug"
+
+# From your project directory, publish with git hash tag
+cd /path/to/my-project
+semiont publish --environment production --semiont-repo /path/to/semiont
+# Image: myapp:abc123f
+
+# Update performs rolling restart with specific version
+semiont update --environment production --wait
+```
+
+### Benefits of This Approach
+
+1. **Development Flexibility**: `latest` tag allows quick iterations without tracking versions
+2. **Production Traceability**: Git hash tags provide exact code version tracking
+3. **No Magic Strings**: Environment files control behavior, not hardcoded environment names
+4. **Clear Separation**: Publish creates images, Update deploys them
+5. **Rollback Capability**: Production images are immutable and can be rolled back
+
+### Override Tag Strategy
+
+You can override the configured strategy with explicit tags:
+
+```bash
+# Force specific tag regardless of environment config
+semiont publish --environment production --tag v2.0.0 --semiont-repo /path/to/semiont
+```
+
 ## Deployment Workflow
 
 ### First-Time Deployment
@@ -293,8 +383,8 @@ Future versions will include a proper admin management interface.
 
 #### Step 3: Deploy Application
 ```bash
-# Build and push images
-semiont publish
+# Build and push images (from your project directory)
+semiont publish --semiont-repo /path/to/semiont
 
 # Deploy to ECS
 semiont update
@@ -334,42 +424,68 @@ semiont check --section endpoints
 
 ### Updating Deployments
 
-For code updates:
+#### Development/Staging Updates
+
+For environments using mutable tags (`latest`):
 ```bash
-# Make your code changes
+# Make your code changes (in Semiont repo)
+cd /path/to/semiont
 git add .
 git commit -m "Your changes"
 
-# Test locally (optional but recommended)
-semiont test
+# Build and deploy (from your project directory)
+cd /path/to/my-project
+semiont publish --environment dev --semiont-repo /path/to/semiont
+semiont update --environment dev --wait
 
-# Build and deploy
-semiont publish     # Build and push new images
-semiont update      # Deploy new images to ECS
+# Quick one-liner for dev
+semiont publish --semiont-repo /path/to/semiont && semiont update --wait
+```
+
+#### Production Updates
+
+For environments using immutable tags (git hash):
+```bash
+# Make and commit your changes (in Semiont repo)
+cd /path/to/semiont
+git add .
+git commit -m "Fix: Critical bug in payment processing"
+git push  # Important: commit must exist in git
+
+# Build and deploy with git hash (from your project directory)
+cd /path/to/my-project
+semiont publish --environment production --semiont-repo /path/to/semiont
+semiont update --environment production --wait
 
 # Monitor deployment
 semiont watch
 ```
 
+**Key Differences:**
+- **Dev**: Image tag is reused (`latest`), update pulls new code
+- **Prod**: Each deployment has unique tag (git hash), fully traceable
+- **Rollback**: Production can rollback to any previous git hash
+
 The deployment process:
+- Builds TypeScript locally before Docker packaging
 - Uses container layer caching for faster builds
 - Performs zero-downtime rolling updates
-- Automatic rollback on health check failures
-- Maintains last 5 image versions in ECR
+- Enhanced `--wait` monitoring shows deployment phases
+- Maintains image history in ECR for rollbacks
 
 ### Environment-Specific Deployments
 
 ```bash
 # Deploy to different environments
-semiont publish --environment staging
+semiont publish --environment staging --semiont-repo /path/to/semiont
 semiont update --environment staging
 
-semiont publish --environment production
+semiont publish --environment production --semiont-repo /path/to/semiont
 semiont update --environment production
 
 # Or use SEMIONT_ENV
 export SEMIONT_ENV=staging
-semiont publish
+semiont publish --semiont-repo /path/to/semiont
 semiont update
 ```
 
