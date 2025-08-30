@@ -39,7 +39,7 @@ import { ServiceFactory } from '../../services/service-factory.js';
 import { ServiceName } from '../services.js';
 import { Platform } from '../platform-resolver.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config } from '../cli-config.js';
+import { Config, ServiceConfig } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();

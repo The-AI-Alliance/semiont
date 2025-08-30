@@ -32,7 +32,6 @@
 
 import { z } from 'zod';
 import { colors } from '../io/cli-colors.js';
-import { SemiontStackConfig } from '../../platforms/aws/stack-config.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../platform-resolver.js';
 import { type EnvironmentConfig, hasAWSConfig } from '../environment-config.js';
 import * as readline from 'readline';
@@ -261,7 +260,7 @@ async function configure(
                 metadata: {
                   action: 'show',
                   domain: config.site?.domain || 'Not configured',
-                  platform: config.deployment?.default || 'Not specified',
+                  platform: config.platform?.default || 'Not specified',
                   services: Object.keys(config.services || {}),
                   awsRegion: config.aws?.region,
                 },
@@ -271,7 +270,7 @@ async function configure(
               if (!isStructuredOutput && options.output === 'summary') {
                 console.log(`\n${colors.bright}${env}:${colors.reset}`);
                 console.log(`  Domain: ${config.site?.domain || 'Not configured'}`);
-                console.log(`  Default platform: ${config.deployment?.default || 'Not specified'}`);
+                console.log(`  Default platform: ${config.platform?.default || 'Not specified'}`);
                 console.log(`  Services: ${Object.keys(config.services || {}).join(', ') || 'None'}`);
                 if (config.aws) {
                   console.log(`  AWS Region: ${config.aws.region || 'Not specified'}`);

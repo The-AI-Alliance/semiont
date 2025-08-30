@@ -188,7 +188,7 @@ async function restoreHandler(
       deployment.name as ServiceName,
       deployment.platform,
       config,
-      deployment.config as ServiceConfig
+      deployment.config as unknown as ServiceConfig
     );
     
     try {
