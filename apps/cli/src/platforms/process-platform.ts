@@ -109,7 +109,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // Special handling for MCP service - it needs to run interactively with stdio
     if (service.name === 'mcp') {
       const proc = spawn(cmd, args, {
-        cwd: service.projectRoot,
+        cwd: process.cwd(),  // Use current directory
         env,
         stdio: 'inherit'  // Connect stdin/stdout for JSON-RPC
       });
@@ -136,8 +136,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     }
     
     // Regular service spawning (detached)
+    // For process platform, run commands in the current directory if we're already in the right place
+    // This allows running semiont from a service directory with SEMIONT_ROOT pointing to the project
+    const workingDir = process.cwd();
+    
     const proc = spawn(cmd, args, {
-      cwd: service.projectRoot,
+      cwd: workingDir,
       env,
       detached: true,
       stdio: service.verbose ? 'inherit' : 'ignore'
