@@ -15,6 +15,11 @@ export { MockPlatformStrategy } from './mock/platform.js';
 
 import { PlatformStrategy } from '../core/platform-strategy.js';
 import { Platform } from '../core/platform-resolver.js';
+import { PosixPlatformStrategy } from './posix/platform.js';
+import { ContainerPlatformStrategy } from './container/container-platform.js';
+import { AWSPlatformStrategy } from './aws/platform.js';
+import { ExternalPlatformStrategy } from './external/platform.js';
+import { MockPlatformStrategy } from './mock/platform.js';
 
 /**
  * Factory for creating platform strategy instances
