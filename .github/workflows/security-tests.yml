@@ -249,27 +249,20 @@ jobs:
 
       - name: Start backend for API security verification
         run: |
-          # We're in apps/backend, but semiont needs to know where the project root is
-          export SEMIONT_ROOT=../..
-          
-          # First, let's verify the backend can actually start
-          echo "=== Testing direct npm start ==="
-          echo "Current directory: $(pwd)"
-          echo "Checking for dist/index.js:"
-          ls -la dist/index.js || echo "dist/index.js not found!"
+          # TODO: Fix semiont start to properly detach processes in CI
+          # Currently semiont start spawns the process but it dies when semiont exits
+          # This is a workaround - starting the backend directly
           
           # Set required environment variables
           export PORT=3001
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-for-ci
+          export NODE_ENV=ci
+          export SEMIONT_ENV=ci
           
-          # Try to start directly
-          echo "Starting backend directly with npm start..."
-          timeout 5 npm start || echo "Direct npm start failed or timed out"
-          
-          # Now try with semiont
-          echo "=== Starting with semiont ==="
-          semiont start -e ci --service backend --verbose > backend.log 2>&1 &
+          # Start backend directly - workaround for semiont process spawning issue
+          echo "Starting backend on port 3001..."
+          nohup npm start > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
           
