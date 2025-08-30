@@ -9,8 +9,7 @@ import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
-import { loadEnvironmentConfig } from '../platform-resolver.js';
-import { type EnvironmentConfig } from '../environment-config.js';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '../platform-resolver.js';
 import { CommandResults } from '../command-results.js';
 import { ProvisionResult } from './provision.js';
 

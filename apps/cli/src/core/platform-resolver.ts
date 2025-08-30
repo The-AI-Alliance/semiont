@@ -95,6 +95,7 @@ export interface AppConfig {
 }
 
 export interface EnvironmentConfig {
+  _comment?: string;  // Optional comment for documentation in config files
   platform?: {
     default: Platform;
   };
@@ -144,6 +145,13 @@ export function getNodeEnvForEnvironment(environment: string): 'development' | '
   }
   
   return nodeEnv;
+}
+
+/**
+ * Type guard to check if config has AWS settings
+ */
+export function hasAWSConfig(config: EnvironmentConfig): config is EnvironmentConfig & { aws: AWSConfig } {
+  return !!config.aws && !!config.aws.region;
 }
 
 /**

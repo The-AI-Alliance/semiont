@@ -33,10 +33,9 @@
 import { z } from 'zod';
 import { colors } from '../io/cli-colors.js';
 import { loadEnvironmentConfig, getAvailableEnvironments } from '../platform-resolver.js';
-import { type EnvironmentConfig, hasAWSConfig } from '../environment-config.js';
 import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../io/cli-logger.js';
-import { type Platform } from '../platform-resolver.js';
+import { type Platform, type EnvironmentConfig, hasAWSConfig } from '../platform-resolver.js';
 import type { PlatformResources } from '../../platforms/platform-resources.js';
 import type { ServiceName } from '../services.js';
 import { 
