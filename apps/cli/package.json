@@ -2,6 +2,7 @@
   "name": "semiont-cli",
   "version": "0.0.2",
   "description": "Semiont CLI - Unified environment management tool",
+  "_comment": "AWS SDK dependencies (@aws-sdk/*) are only used by platforms/aws",
   "type": "module",
   "bin": {
     "semiont": "./dist/cli.mjs"
@@ -26,6 +27,7 @@
     "@aws-sdk/client-ecs": "^3.600.0",
     "@aws-sdk/client-efs": "^3.600.0",
     "@aws-sdk/client-elastic-load-balancing-v2": "^3.859.0",
+    "@aws-sdk/client-lambda": "^3.600.0",
     "@aws-sdk/client-rds": "^3.600.0",
     "@aws-sdk/client-route-53": "^3.864.0",
     "@aws-sdk/client-secrets-manager": "^3.600.0",
