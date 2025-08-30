@@ -1,5 +1,6 @@
 import { HandlerDescriptor, CheckHandlerContext, CheckHandlerResult } from './types.js';
 import { lambdaCheckDescriptor } from './lambda-check.js';
+import { ecsCheckDescriptor } from './ecs-check.js';
 
 /**
  * All AWS handler descriptors
@@ -7,9 +8,10 @@ import { lambdaCheckDescriptor } from './lambda-check.js';
  */
 export const handlers: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult>[] = [
   lambdaCheckDescriptor,
+  ecsCheckDescriptor,
   // Future handlers will be added here:
-  // ecsCheckDescriptor,
   // rdsCheckDescriptor,
+  // efsCheckDescriptor,
   // etc.
 ];
 

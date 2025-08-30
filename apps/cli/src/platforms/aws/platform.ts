@@ -103,7 +103,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get AWS SDK clients configured for the right region
    */
-  private getAWSClients(region: string) {
+  public getAWSClients(region: string) {
     if (!this.ecsClient || this.ecsClient.config.region !== region) {
       this.ecsClient = new ECSClient({ region });
       this.rdsClient = new RDSClient({ region });
@@ -637,6 +637,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const registry = HandlerRegistry.getInstance();
     const handler = registry.get('aws', `check-${serviceType}`);
     if (handler) {
+      // Get resource IDs from CloudFormation for services that need it
+      if (['ecs-fargate', 'rds', 'efs'].includes(serviceType)) {
+        cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+      }
 
       const context = HandlerContextBuilder.extend(
         HandlerContextBuilder.buildBaseContext(service, 'aws'),
@@ -650,16 +654,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
 
     } else {
       switch (serviceType) {
-        case 'ecs-fargate':
-          // Get resource IDs from CloudFormation (with caching)
-          cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-          const ecsResult = await this.checkECSService(service, cfnDiscoveredResources);
-          status = ecsResult.status;
-          health = ecsResult.health;
-          awsResources = ecsResult.awsResources;
-          serviceMetadata = ecsResult.metadata;
-          break;
-          
         case 'rds':
           // Get resource IDs from CloudFormation (with caching)
           cfnDiscoveredResources = await this.discoverAndCacheResources(service);
