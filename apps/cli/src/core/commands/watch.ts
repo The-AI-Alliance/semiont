@@ -29,22 +29,22 @@
  */
 
 import { z } from 'zod';
-import { colors } from '../lib/cli-colors.js';
+import { printInfo, setSuppressOutput } from '../io/cli-logger.js';
+import { type ServicePlatformInfo, type Platform } from '../platform-resolver.js';
+import { CommandResults, createBaseResult } from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+
+// Import new service architecture
+import { ServiceName } from '../services.js';
+import { PlatformResources } from '../../platforms/platform-resources.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
+
+import { colors } from '../io/cli-colors.js';
 import React from 'react';
 import { render } from 'ink';
-import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo, type Platform } from '../platforms/platform-resolver.js';
-import type { PlatformResources } from '../platforms/platform-resources.js';
-import type { ServiceName } from '../services/service-interface.js';
-import { 
-  CommandResults, 
-  createBaseResult,
-} from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
-import { Config } from '../lib/cli-config.js';
 import { DashboardDataSource } from '../dashboard/dashboard-data.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
 
 // =====================================================================
 // RESULT TYPE DEFINITIONS

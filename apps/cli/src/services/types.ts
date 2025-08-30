@@ -5,9 +5,10 @@
  * They do NOT implement commands - platforms handle all command operations.
  */
 
-import type { Platform } from '../platforms/platform-resolver.js';
-import type { ServiceConfig } from '../lib/cli-config.js';
-import type { Environment } from '../lib/environment-validator.js';
+import type { Platform } from '../core/platform-resolver.js';
+import type { ServiceConfig } from '../core/cli-config.js';
+import type { Environment } from '../core/environment-validator.js';
+import type { ServiceName } from '../core/services.js';
 import type { 
   ServiceRequirements,
   StorageRequirement,
@@ -15,12 +16,7 @@ import type {
   ResourceRequirement,
   BuildRequirement,
   SecurityRequirement
-} from './service-requirements.js';
-
-/**
- * Available service types in the system
- */
-export type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp';
+} from '../core/service-requirements.js';
 
 /**
  * Core service interface that all services implement

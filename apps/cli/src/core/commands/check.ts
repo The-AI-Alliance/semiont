@@ -27,19 +27,19 @@
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { CommandResults } from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResults } from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
 // Import new service architecture
-import { ServiceFactory } from '../services/service-factory.js';
-import { ServiceName } from '../services/service-interface.js';
-import { Config } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
-import type { Platform } from '../platforms/platform-resolver.js';
-import type { PlatformResources } from '../platforms/platform-resources.js';
+import { ServiceFactory } from '../../services/service-factory.js';
+import { ServiceName } from '../services.js';
+import { Platform } from '../platform-resolver.js';
+import { PlatformResources } from '../../platforms/platform-resources.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -117,7 +117,7 @@ async function checkHandler(
   
   for (const serviceInfo of services) {
     // Get the platform outside try block so it's accessible in catch
-    const { PlatformFactory } = await import('../platforms/index.js');
+    const { PlatformFactory } = await import('../../platforms/index.js');
     const platform = PlatformFactory.getPlatform(serviceInfo.platform);
     const actualPlatformName = platform.getPlatformName();
     
@@ -151,13 +151,13 @@ async function checkHandler(
         if (result.status === 'running' || result.status === 'unhealthy') {
           // Show resource info based on platform
           if (result.resources) {
-            if (result.resources.platform === 'process' && result.resources.data.pid) {
+            if (result.resources.platform === 'posix' && result.resources.data.pid) {
               console.log(`   PID: ${result.resources.data.pid}`);
             }
             if (result.resources.platform === 'container' && result.resources.data.containerId) {
               console.log(`   Container: ${result.resources.data.containerId}`);
             }
-            if (result.resources.platform === 'process' && result.resources.data.port) {
+            if (result.resources.platform === 'posix' && result.resources.data.port) {
               console.log(`   Port: ${result.resources.data.port}`);
             }
           }
@@ -199,7 +199,7 @@ async function checkHandler(
     } catch (error) {
       serviceResults.push({
         entity: serviceInfo.name as ServiceName,
-        platform: actualPlatformName,  // Use actual platform name
+        platform: actualPlatformName as Platform,  // Use actual platform name
         success: false,
         checkTime: new Date(),
         status: 'unknown',

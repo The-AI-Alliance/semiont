@@ -28,19 +28,19 @@
  * - Documentation and demo scenarios
  */
 
-import { StartResult } from "../commands/start.js";
-import { StopResult } from "../commands/stop.js";
-import { CheckResult } from "../commands/check.js";
-import { UpdateResult } from "../commands/update.js";
-import { ProvisionResult } from "../commands/provision.js";
-import { PublishResult } from "../commands/publish.js";
-import { BackupResult } from "../commands/backup.js";
-import { PlatformResources } from "./platform-resources.js";
-import { ExecResult, ExecOptions } from "../commands/exec.js";
-import { TestResult, TestOptions } from "../commands/test.js";
-import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy } from './platform-strategy.js';
-import { Service } from '../services/service-interface.js';
+import { StartResult } from "../../core/commands/start.js";
+import { StopResult } from "../../core/commands/stop.js";
+import { CheckResult } from "../../core/commands/check.js";
+import { UpdateResult } from "../../core/commands/update.js";
+import { ProvisionResult } from "../../core/commands/provision.js";
+import { PublishResult } from "../../core/commands/publish.js";
+import { BackupResult } from "../../core/commands/backup.js";
+import { PlatformResources } from "../platform-resources.js";
+import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
+import { TestResult, TestOptions } from "../../core/commands/test.js";
+import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
+import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { Service } from '../services/types.js';
 
 export class MockPlatformStrategy extends BasePlatformStrategy {
   private mockState: Map<string, any> = new Map();
@@ -443,8 +443,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
     value?: any,
-    options?: import('./platform-strategy.js').SecretOptions
-  ): Promise<import('./platform-strategy.js').SecretResult> {
+    options?: import('../../core/platform-strategy.js').SecretOptions
+  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
     // Store secrets in the mock state under a special namespace
     const secretKey = `secret:${options?.environment || 'test'}:${secretPath}`;
     

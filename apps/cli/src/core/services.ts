@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { findProjectRoot } from '../platforms/platform-resolver.js';
+import { findProjectRoot } from './platform-resolver.js';
 
 // Built-in services that are always available
 export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;
@@ -20,7 +20,8 @@ export type ServiceSelector = 'all' | ServiceName;
  * Central type definition for all service capabilities
  * This should be the single source of truth for what operations can be performed on services
  */
-export type ServiceCapability = 
+delete_this
+export type XXXXServiceCapability = 
   | 'publish' 
   | 'start' 
   | 'stop' 

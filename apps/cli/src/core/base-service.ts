@@ -24,9 +24,10 @@
  * and behaviors.
  */
 
-import { Service, ServiceName } from './service-interface.js';
-import { Config, ServiceConfig } from '../lib/cli-config.js';
-import { Platform } from '../platforms/platform-resolver.js';
+import { Service } from '../services/types.js';
+import { ServiceName } from './services.js';
+import { Config, ServiceConfig } from './cli-config.js';
+import { Platform } from './platform-resolver.js';
 import { 
   ServiceRequirements,
   StorageRequirement,
@@ -34,7 +35,7 @@ import {
   ResourceRequirement,
   BuildRequirement,
   SecurityRequirement
-} from '../services/service-requirements.js';
+} from './service-requirements.js';
 
 export abstract class BaseService implements Service {
   protected readonly systemConfig: Config;

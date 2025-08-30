@@ -24,28 +24,28 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { StartResult } from "../../commands/start.js";
-import { StopResult } from "../../commands/stop.js";
-import { CheckResult } from "../../commands/check.js";
-import { UpdateResult } from "../../commands/update.js";
-import { ProvisionResult } from "../../commands/provision.js";
-import { PublishResult } from "../../commands/publish.js";
+import { StartResult } from "../../core/commands/start.js";
+import { StopResult } from "../../core/commands/stop.js";
+import { CheckResult } from "../../core/commands/check.js";
+import { UpdateResult } from "../../core/commands/update.js";
+import { ProvisionResult } from "../../core/commands/provision.js";
+import { PublishResult } from "../../core/commands/publish.js";
 import { PlatformResources, AWSResources, createPlatformResources } from "../platform-resources.js";
-import { BackupResult } from "../../commands/backup.js";
-import { ExecResult, ExecOptions } from "../../commands/exec.js";
-import { TestResult, TestOptions } from "../../commands/test.js";
-import { RestoreResult, RestoreOptions } from "../../commands/restore.js";
-import { BasePlatformStrategy } from '../platform-strategy.js';
-import { Service } from '../../services/service-interface.js';
-import { printInfo } from '../../lib/cli-logger.js';
-import { loadEnvironmentConfig } from '../platform-resolver.js';
+import { BackupResult } from "../../core/commands/backup.js";
+import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
+import { TestResult, TestOptions } from "../../core/commands/test.js";
+import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
+import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { Service } from '../../services/types.js';
+import { printInfo } from '../../core/io/cli-logger.js';
+import { loadEnvironmentConfig } from '../../core/platform-resolver.js';
 
 // AWS SDK v3 clients
-import { ECSClient, DescribeServicesCommand, DescribeClustersCommand, ListServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
-import { RDSClient, DescribeDBInstancesCommand, StartDBInstanceCommand, StopDBInstanceCommand } from '@aws-sdk/client-rds';
+import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { EFSClient, DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
 import { CloudFormationClient, ListStackResourcesCommand, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { ElasticLoadBalancingV2Client, DescribeTargetHealthCommand, DescribeTargetGroupsCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
+import { ElasticLoadBalancingV2Client, DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { CloudWatchLogsClient, FilterLogEventsCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
 
 export class AWSPlatformStrategy extends BasePlatformStrategy {
@@ -70,7 +70,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     appStack?: string;
   } {
     // Load the environment configuration to get AWS settings
-    const { loadEnvironmentConfig } = require('../platform-resolver.js');
+    const { loadEnvironmentConfig } = require('../../core/platform-resolver.js');
     const envConfig = loadEnvironmentConfig(service.environment);
     
     // Get AWS config from environment file, fallback to env vars
@@ -143,7 +143,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     wafWebAclArn?: string;
   }> {
     const { region, dataStack, appStack } = this.getAWSConfig(service);
-    const { StateManager } = await import('../../services/state-manager.js');
+    const { StateManager } = await import('../../core/state-manager.js');
     
     // Load existing state for potential update
     const existingState = await StateManager.load(
@@ -300,106 +300,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     return serviceResources;
   }
   
-  /**
-   * Get the actual ECS cluster name from CloudFormation
-   */
-  private async getActualClusterName(service: Service): Promise<string | undefined> {
-    const { region, appStack } = this.getAWSConfig(service);
-    if (!appStack) return undefined;
-    
-    const resources = await this.getStackResources(appStack, region, 'AWS::ECS::Cluster');
-    if (resources.length > 0) {
-      return resources[0].PhysicalResourceId;
-    }
-    return undefined;
-  }
-  
-  /**
-   * Get the actual ECS service name from CloudFormation
-   */
-  private async getActualServiceName(
-    service: Service, 
-    clusterName: string
-  ): Promise<string | undefined> {
-    const { region, appStack } = this.getAWSConfig(service);
-    if (!appStack) return undefined;
-    
-    // List all services in the cluster and find the one matching our service name
-    try {
-      const services = execSync(
-        `aws ecs list-services --cluster ${clusterName} --region ${region} --output json`,
-        { encoding: 'utf-8' }
-      );
-      const serviceArns = JSON.parse(services).serviceArns || [];
-      
-      // Find service that contains the service name (backend, frontend, etc)
-      for (const arn of serviceArns) {
-        if (arn.toLowerCase().includes(service.name.toLowerCase())) {
-          // Extract service name from ARN
-          const parts = arn.split('/');
-          return parts[parts.length - 1];
-        }
-      }
-    } catch {
-      return undefined;
-    }
-    return undefined;
-  }
-  
-  /**
-   * Get the actual RDS instance name from CloudFormation
-   */
-  private async getActualRDSInstanceName(service: Service): Promise<string | undefined> {
-    const { region, dataStack } = this.getAWSConfig(service);
-    if (!dataStack) return undefined;
-    
-    try {
-      // List all RDS instances and find one that matches the stack
-      const instances = execSync(
-        `aws rds describe-db-instances --region ${region} --query 'DBInstances[*].DBInstanceIdentifier' --output json`,
-        { encoding: 'utf-8' }
-      );
-      const instanceIds = JSON.parse(instances) || [];
-      
-      // Find instance that contains the stack name
-      for (const id of instanceIds) {
-        if (id.toLowerCase().includes(dataStack.toLowerCase()) || 
-            id.toLowerCase().includes('database')) {
-          return id;
-        }
-      }
-    } catch {
-      return undefined;
-    }
-    return undefined;
-  }
-  
-  /**
-   * Get the actual EFS filesystem ID
-   */
-  private async getActualEFSId(service: Service): Promise<string | undefined> {
-    const { region, dataStack } = this.getAWSConfig(service);
-    if (!dataStack) return undefined;
-    
-    try {
-      // Find EFS filesystem by stack name
-      const filesystems = execSync(
-        `aws efs describe-file-systems --region ${region} --query 'FileSystems[*].[FileSystemId,Name]' --output json`,
-        { encoding: 'utf-8' }
-      );
-      const fsList = JSON.parse(filesystems) || [];
-      
-      // Find filesystem that contains the stack name
-      for (const [fsId, name] of fsList) {
-        if (name && (name.includes(dataStack) || name.toLowerCase().includes('semiont'))) {
-          return fsId;
-        }
-      }
-    } catch {
-      return undefined;
-    }
-    return undefined;
-  }
   
   /**
    * Determine the AWS service type based on service name and requirements
@@ -463,7 +363,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async start(service: Service): Promise<StartResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -604,7 +504,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async stop(service: Service): Promise<StopResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
     
@@ -704,8 +604,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async check(service: Service): Promise<CheckResult> {
-    const { region, accountId, appStack, dataStack } = this.getAWSConfig(service);
-    const requirements = service.getRequirements();
+    const { region, appStack, dataStack } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
     
@@ -862,7 +761,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async update(service: Service): Promise<UpdateResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1032,7 +931,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async provision(service: Service): Promise<ProvisionResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1179,7 +1078,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async publish(service: Service): Promise<PublishResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1407,7 +1306,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async backup(service: Service): Promise<BackupResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1612,7 +1511,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
     const execTime = new Date();
@@ -1742,7 +1641,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1895,7 +1794,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async restore(service: Service, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
     const restoreTime = new Date();
@@ -2019,7 +1918,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   async collectLogs(service: Service): Promise<CheckResult['logs']> {
     const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineAWSServiceType(service);
     
     try {
       // Use our fetchRecentLogs method which properly handles CloudFormation-based log group discovery
@@ -2141,36 +2039,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  private async getEFSStatus(fileSystemId: string, region: string): Promise<string> {
-    try {
-      const { efs } = this.getAWSClients(region);
-      const response = await efs.send(new DescribeFileSystemsCommand({
-        FileSystemId: fileSystemId
-      }));
-      
-      const fileSystem = response.FileSystems?.[0];
-      return fileSystem?.LifeCycleState || 'unknown';
-    } catch {
-      return 'unknown';
-    }
-  }
-  
-  private async checkALBTargetHealth(serviceName: string, region: string): Promise<string> {
-    try {
-      const health = execSync(
-        `aws elbv2 describe-target-health --target-group-arn $(aws elbv2 describe-target-groups --names ${serviceName}-tg --query 'TargetGroups[0].TargetGroupArn' --output text) --query 'TargetHealthDescriptions[0].TargetHealth.State' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return health;
-    } catch {
-      return 'unknown';
-    }
-  }
-  
   /**
    * Fetch recent CloudWatch logs for a service
    */
-  private async fetchRecentLogs(serviceName: string, region: string, limit: number = 20, verbose: boolean = false): Promise<string[]> {
+  private async fetchRecentLogs(serviceName: string, region: string, limit: number = 20): Promise<string[]> {
     try {
       const { logs, cfn } = this.getAWSClients(region);
       
@@ -2621,8 +2493,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
     value?: any,
-    options?: import('./platform-strategy.js').SecretOptions
-  ): Promise<import('./platform-strategy.js').SecretResult> {
+    options?: import('../../core/platform-strategy.js').SecretOptions
+  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
     const { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand, DeleteSecretCommand, ListSecretsCommand } = await import('@aws-sdk/client-secrets-manager');
     
     // Get region from environment config
@@ -3077,7 +2949,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     awsResources?: PlatformResources;
     metadata: Record<string, any>;
   }> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const resourceName = this.getResourceName(service);
     
@@ -3220,7 +3092,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     awsResources?: PlatformResources;
     metadata: Record<string, any>;
   }> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const resourceName = this.getResourceName(service);
     
     const dbInstanceId = cfnDiscoveredResources.dbInstanceId || `${resourceName}-db`;
@@ -3289,7 +3161,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     awsResources?: PlatformResources;
     metadata: Record<string, any>;
   }> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const { region } = this.getAWSConfig(service);
     const resourceName = this.getResourceName(service);
     
     const fileSystemId = cfnDiscoveredResources.fileSystemId || `${resourceName}-fs`;

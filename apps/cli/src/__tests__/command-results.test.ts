@@ -10,10 +10,10 @@ import {
   createBaseResult,
   createErrorResult,
   type CommandResults 
-} from '../commands/command-results.js';
-import { type StartResult } from '../commands/start.js';
-import { type CheckResult } from '../commands/check.js';
-import { type UpdateResult } from '../commands/update.js';
+} from '../core/commands/command-results.js';
+import { type StartResult } from '../core/commands/start.js';
+import { type CheckResult } from '../core/commands/check.js';
+import { type UpdateResult } from '../core/commands/update.js';
 
 describe('Command Result Type System', () => {
   const startTime = Date.now();

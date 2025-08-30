@@ -30,13 +30,13 @@ import { UpdateResult } from "../commands/update.js";
 import { ProvisionResult } from "../commands/provision.js";
 import { PublishResult } from "../commands/publish.js";
 import { BackupResult } from "../commands/backup.js";
-import { createPlatformResources } from "./platform-resources.js";
+import { createPlatformResources } from "../platform-resources.js";
 import { ExecResult, ExecOptions } from "../commands/exec.js";
 import { TestResult, TestOptions } from "../commands/test.js";
 import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy } from './platform-strategy.js';
-import { Service } from '../services/service-interface.js';
-import { printInfo, printWarning } from '../lib/cli-logger.js';
+import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { Service } from '../services/types.js';
+import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
   private runtime: 'docker' | 'podman';
@@ -1461,8 +1461,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
     value?: any,
-    options?: import('./platform-strategy.js').SecretOptions
-  ): Promise<import('./platform-strategy.js').SecretResult> {
+    options?: import('../../core/platform-strategy.js').SecretOptions
+  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
     const secretName = this.formatSecretName(secretPath, options?.environment);
     
     try {

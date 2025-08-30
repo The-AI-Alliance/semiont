@@ -27,17 +27,21 @@
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { ServicePlatformInfo, Platform } from '../platforms/platform-resolver.js';
-import { PlatformResources } from '../platforms/platform-resources.js';
-import { ServiceName } from '../services/service-interface.js';
-import { CommandResults } from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema } from '../commands/base-options-schema.js';
-import { ServiceFactory } from '../services/service-factory.js';
-import { PlatformFactory } from '../platforms/index.js';
-import { Config } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
+import { printError, printSuccess, printInfo } from '../io/cli-logger.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResults } from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema } from '../base-options-schema.js';
+
+// Import new service architecture
+import { ServiceFactory } from '../../services/service-factory.js';
+import { ServiceName } from '../services.js';
+import { Platform } from '../platform-resolver.js';
+import { PlatformResources } from '../../platforms/platform-resources.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
+
+import { PlatformFactory } from '../../platforms/index.js';
 
 // =====================================================================
 // RESULT TYPE DEFINITIONS

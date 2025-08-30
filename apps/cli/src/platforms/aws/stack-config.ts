@@ -1,9 +1,10 @@
 
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { StackOutput, AWSError } from '../../lib/types.js';
-import { validateAwsResourceName, assertValid } from '../../lib/validators.js';
-import { logger } from '../../lib/logger.js';
-import { loadEnvironmentConfig, type EnvironmentConfig } from '../platform-resolver.js';
+import { StackOutput } from '../../core/types.js';
+import { AWSError } from './types.js';
+import { validateAwsResourceName, assertValid } from '../../core/validators.js';
+import { logger } from '../../core/io/logger.js';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '../../core/platform-resolver.js';
 
 export interface SemiontConfig {
   region: string;

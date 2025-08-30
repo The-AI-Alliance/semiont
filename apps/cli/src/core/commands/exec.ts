@@ -28,19 +28,19 @@
  */
 
 import { z } from 'zod';
-import { printError, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { CommandResults } from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { printError, printInfo, printWarning } from '../io/cli-logger.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResults } from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
 // Import new service architecture
-import { ServiceFactory } from '../services/service-factory.js';
-import { ServiceName } from '../services/service-interface.js';
-import { Config } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
-import type { Platform } from '../platforms/platform-resolver.js';
-import type { PlatformResources } from '../platforms/platform-resources.js';
+import { ServiceFactory } from '../../services/service-factory.js';
+import { ServiceName } from '../services.js';
+import { Platform } from '../platform-resolver.js';
+import { PlatformResources } from '../../platforms/platform-resources.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -304,8 +304,8 @@ async function execHandler(
           result.metadata.recommendations.forEach((rec: string) => {
             console.log(`   • ${rec}`);
           });
-        } else if (serviceInfo.platform === 'process' && options.interactive) {
-          console.log('\n💡 Note: Interactive execution is not supported in process platform.');
+        } else if (serviceInfo.platform === 'posix' && options.interactive) {
+          console.log('\n💡 Note: Interactive execution is not supported in posix platform.');
           console.log('   Consider using the container platform for interactive sessions.');
         }
       }

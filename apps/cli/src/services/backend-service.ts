@@ -28,13 +28,13 @@
  * integration with monitoring and logging systems.
  */
 
-import { BaseService } from './base-service.js';
-import { CheckResult } from '../commands/check.js';
+import { BaseService } from '../core/base-service.js';
+import { CheckResult } from '../core/commands/check.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../platforms/platform-resolver.js';
+import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../services/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 
 export class BackendService extends BaseService {
   
@@ -192,7 +192,7 @@ export class BackendService extends BaseService {
   
   protected async doCollectLogs(): Promise<CheckResult['logs']> {
     switch (this.platform) {
-      case 'process':
+      case 'posix':
         return this.collectProcessLogs();
       case 'container':
         return this.collectContainerLogs();
@@ -321,7 +321,7 @@ export class BackendService extends BaseService {
     
     // Fallback to platform-specific defaults
     switch (this.platform) {
-      case 'process':
+      case 'posix':
         return 'postgresql://postgres:localpassword@localhost:5432/semiont';
       case 'container':
         return 'postgresql://postgres:localpassword@semiont-postgres:5432/semiont';

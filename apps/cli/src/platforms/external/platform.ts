@@ -26,19 +26,19 @@
  * - Legacy systems that can't be migrated
  */
 
-import { BasePlatformStrategy } from './platform-strategy.js';
-import { Service } from '../services/service-interface.js';
-import { StartResult } from '../commands/start.js';
-import { StopResult } from '../commands/stop.js';
-import { CheckResult } from '../commands/check.js';
-import { UpdateResult } from '../commands/update.js';
-import { ProvisionResult } from '../commands/provision.js';
-import { PublishResult } from '../commands/publish.js';
-import { BackupResult } from '../commands/backup.js';
-import { ExecResult, ExecOptions } from '../commands/exec.js';
-import { TestResult, TestOptions } from '../commands/test.js';
-import { RestoreResult, RestoreOptions } from '../commands/restore.js';
-import { printInfo, printWarning } from '../lib/cli-logger.js';
+import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { Service } from '../services/types.js';
+import { StartResult } from '../../core/commands/start.js';
+import { StopResult } from '../../core/commands/stop.js';
+import { CheckResult } from '../../core/commands/check.js';
+import { UpdateResult } from '../../core/commands/update.js';
+import { ProvisionResult } from '../../core/commands/provision.js';
+import { PublishResult } from '../../core/commands/publish.js';
+import { BackupResult } from '../../core/commands/backup.js';
+import { ExecResult, ExecOptions } from '../../core/commands/exec.js';
+import { TestResult, TestOptions } from '../../core/commands/test.js';
+import { RestoreResult, RestoreOptions } from '../../core/commands/restore.js';
+import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 
 export class ExternalPlatformStrategy extends BasePlatformStrategy {
   getPlatformName(): string {
@@ -731,8 +731,8 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
     _value?: any,
-    _options?: import('./platform-strategy.js').SecretOptions
-  ): Promise<import('./platform-strategy.js').SecretResult> {
+    _options?: import('../../core/platform-strategy.js').SecretOptions
+  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
     // External platforms typically manage their own secrets
     // This implementation returns appropriate responses without actual storage
     

@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export type Platform = 'aws' | 'container' | 'process' | 'external' | 'mock';
+export type Platform = 'aws' | 'container' | 'posix' | 'external' | 'mock';
 
 export interface ServicePlatformInfo {
   name: string;
@@ -370,7 +370,7 @@ export function getServicePlatform(
   }
   
   // Ultimate fallback
-  return 'process';
+  return 'posix';
 }
 
 /**
@@ -409,7 +409,7 @@ export function resolveServiceDeployments(
       continue;
     }
     
-    const platform = serviceConfig.platform?.type || config.platform?.default || 'process';
+    const platform = serviceConfig.platform?.type || config.platform?.default || 'posix';
     
     platformInfos.push({
       name: serviceName,

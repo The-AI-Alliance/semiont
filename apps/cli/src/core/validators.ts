@@ -4,7 +4,7 @@
  */
 
 import { ValidationResult, ValidationError } from './types.js';
-import { logger } from './logger.js';
+import { logger } from './io/logger.js';
 
 /**
  * Validate and sanitize command arguments

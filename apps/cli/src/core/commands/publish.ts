@@ -28,19 +28,19 @@
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo, printWarning } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { CommandResults } from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResults } from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
 // Import new service architecture
-import { ServiceFactory } from '../services/service-factory.js';
-import { ServiceName } from '../services/service-interface.js';
-import { Platform } from '../platforms/platform-resolver.js';
-import { PlatformResources } from '../platforms/platform-resources.js';
-import { Config, ServiceConfig } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
+import { ServiceFactory } from '../../services/service-factory.js';
+import { ServiceName } from '../services.js';
+import { Platform } from '../platform-resolver.js';
+import { PlatformResources } from '../../platforms/platform-resources.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 

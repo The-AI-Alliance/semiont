@@ -27,20 +27,20 @@
  */
 
 import { z } from 'zod';
-import { colors } from '../lib/cli-colors.js';
-import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { CommandResults } from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { printError, printSuccess, printInfo } from '../io/cli-logger.js';
+import { colors } from '../io/cli-colors.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResults } from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
 // Import new service architecture
-import { ServiceFactory } from '../services/service-factory.js';
-import { ServiceName } from '../services/service-interface.js';
-import { Config } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
-import type { Platform } from '../platforms/platform-resolver.js';
-import type { PlatformResources } from '../platforms/platform-resources.js';
+import { ServiceFactory } from '../../services/service-factory.js';
+import { ServiceName } from '../services.js';
+import { Platform } from '../platform-resolver.js';
+import { PlatformResources } from '../../platforms/platform-resources.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -82,7 +82,7 @@ async function stopServiceImpl(
   config: Config
 ): Promise<StopResult> {
   // Get the platform strategy
-  const { PlatformFactory } = await import('../platforms/index.js');
+  const { PlatformFactory } = await import('../../platforms/index.js');
   const platform = PlatformFactory.getPlatform(serviceInfo.platform);
   
   // Create service instance to act as ServiceContext
@@ -131,7 +131,7 @@ export async function stop(
     
     for (const serviceInfo of reversedDeployments) {
       // Get the platform outside try block so it's accessible in catch
-      const { PlatformFactory } = await import('../platforms/index.js');
+      const { PlatformFactory } = await import('../../platforms/index.js');
       const platform = PlatformFactory.getPlatform(serviceInfo.platform);
       const actualPlatformName = platform.getPlatformName();
       
@@ -142,7 +142,7 @@ export async function stop(
       } catch (error) {
         const errorResult: StopResult = {
           entity: serviceInfo.name as ServiceName,
-          platform: actualPlatformName,  // Use actual platform name
+          platform: actualPlatformName as Platform,  // Use actual platform name
           success: false,
           stopTime: new Date(),
           error: (error as Error).message

@@ -6,17 +6,18 @@
  * to provide platform-specific behavior for common operations.
  */
 
-import { Service, ServiceName } from '../services/service-interface.js';
-import { StartResult } from '../commands/start.js';
-import { StopResult } from '../commands/stop.js';
-import { CheckResult } from '../commands/check.js';
-import { UpdateResult } from '../commands/update.js';
-import { ProvisionResult } from '../commands/provision.js';
-import { PublishResult } from '../commands/publish.js';
-import { BackupResult } from '../commands/backup.js';
-import { ExecResult, ExecOptions } from '../commands/exec.js';
-import { TestResult, TestOptions } from '../commands/test.js';
-import { RestoreResult, RestoreOptions } from '../commands/restore.js';
+// Command result types are now under core/commands
+import { Service } from '../services/types.js';
+import { StartResult } from './commands/start.js';
+import { StopResult } from './commands/stop.js';
+import { CheckResult } from './commands/check.js';
+import { UpdateResult } from './commands/update.js';
+import { ProvisionResult } from './commands/provision.js';
+import { PublishResult } from './commands/publish.js';
+import { BackupResult } from './commands/backup.js';
+import { ExecResult, ExecOptions } from './commands/exec.js';
+import { TestResult, TestOptions } from './commands/test.js';
+import { RestoreResult, RestoreOptions } from './commands/restore.js';
 
 /**
  * Secret management options
@@ -127,7 +128,7 @@ export interface PlatformStrategy {
   /**
    * Quick check if a service is running without full context
    */
-  quickCheckRunning?(state: import('../services/state-manager.js').ServiceState): Promise<boolean>;
+  quickCheckRunning?(state: import('./state-manager.js').ServiceState): Promise<boolean>;
 }
 
 /**
@@ -169,7 +170,7 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
    * Quick check if a service is running without full context
    * Default implementation returns false
    */
-  async quickCheckRunning(_state: import('../services/state-manager.js').ServiceState): Promise<boolean> {
+  async quickCheckRunning(_state: import('./state-manager.js').ServiceState): Promise<boolean> {
     return false;
   }
   

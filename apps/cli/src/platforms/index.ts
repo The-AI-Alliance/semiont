@@ -2,23 +2,19 @@
  * Platform Strategy exports and factory
  */
 
-export { BasePlatformStrategy } from './platform-strategy.js';
-export type { PlatformStrategy, ServiceContext } from './platform-strategy.js';
+export { BasePlatformStrategy } from '../core/platform-strategy.js';
+export type { PlatformStrategy } from '../core/platform-strategy.js';
 
-// Export platform strategies
-export { ProcessPlatformStrategy } from './process-platform.js';
-export { ContainerPlatformStrategy } from './container-platform.js';
+
+export { PosixPlatformStrategy } from './posix/platform.js';
+export { ContainerPlatformStrategy } from './container/container-platform.js';
 export { AWSPlatformStrategy } from './aws/platform.js';
-export { ExternalPlatformStrategy } from './external-platform.js';
-export { MockPlatformStrategy } from './mock-platform.js';
+export { ExternalPlatformStrategy } from './external/platform.js';
+export { MockPlatformStrategy } from './mock/platform.js';
 
-import { PlatformStrategy } from './platform-strategy.js';
-import { ProcessPlatformStrategy } from './process-platform.js';
-import { ContainerPlatformStrategy } from './container-platform.js';
-import { AWSPlatformStrategy } from './aws/platform.js';
-import { ExternalPlatformStrategy } from './external-platform.js';
-import { MockPlatformStrategy } from './mock-platform.js';
-import { Platform } from '../platforms/platform-resolver.js';
+
+import { PlatformStrategy } from '../core/platform-strategy.js';
+import { Platform } from '../core/platform-resolver.js';
 
 /**
  * Factory for creating platform strategy instances
@@ -42,8 +38,8 @@ export class PlatformFactory {
    */
   private static createPlatform(type: Platform): PlatformStrategy {
     switch (type) {
-      case 'process':
-        return new ProcessPlatformStrategy();
+      case 'posix':
+        return new PosixPlatformStrategy();
       case 'container':
         return new ContainerPlatformStrategy();
       case 'aws':

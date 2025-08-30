@@ -5,22 +5,22 @@
  * commands based on the unified command definition structure.
  */
 
-import type { CommandDefinition } from '../commands/command-definition.js';
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { createArgParser, generateHelp } from '../commands/arg-parser.js';
+import type { CommandDefinition } from './command-definition.js';
+import type { ServicePlatformInfo } from './platform-resolver.js';
+import { createArgParser, generateHelp } from './io/arg-parser.js';
 import { 
   getAvailableEnvironments, 
   isValidEnvironment,
   resolveServiceDeployments 
-} from '../platforms/platform-resolver.js';
+} from './platform-resolver.js';
 import { 
   validateServiceSelector, 
   resolveServiceSelector,
   type ServiceCapability 
-} from '../services/services.js';
-import { formatResults } from '../commands/output-formatter.js';
-import { printError } from '../lib/cli-logger.js';
-import { getPreamble, getPreambleSeparator } from '../lib/cli-colors.js';
+} from './services.js';
+import { formatResults } from './io/output-formatter.js';
+import { printError } from './io/cli-logger.js';
+import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
 
 /**
  * Registry of loaded command definitions
@@ -49,31 +49,31 @@ export async function loadCommand(name: string): Promise<CommandDefinition<any>>
     
     // Handle special cases for known commands
     if (name === 'init') {
-      module = await import('../commands/init.js');
+      module = await import('./commands/init.js');
     } else if (name === 'backup') {
-      module = await import('../commands/backup.js');
+      module = await import('./commands/backup.js');
     } else if (name === 'start') {
-      module = await import('../commands/start.js');
+      module = await import('./commands/start.js');
     } else if (name === 'stop') {
-      module = await import('../commands/stop.js');
+      module = await import('./commands/stop.js');
     } else if (name === 'restart') {
-      module = await import('../commands/restart.js');
+      module = await import('./commands/restart.js');
     } else if (name === 'check') {
-      module = await import('../commands/check.js');
+      module = await import('./commands/check.js');
     } else if (name === 'configure') {
-      module = await import('../commands/configure.js');
+      module = await import('./commands/configure.js');
     } else if (name === 'exec') {
-      module = await import('../commands/exec.js');
+      module = await import('./commands/exec.js');
     } else if (name === 'provision') {
-      module = await import('../commands/provision.js');
+      module = await import('./commands/provision.js');
     } else if (name === 'publish') {
-      module = await import('../commands/publish.js');
+      module = await import('./commands/publish.js');
     } else if (name === 'test') {
-      module = await import('../commands/test.js');
+      module = await import('./commands/test.js');
     } else if (name === 'update') {
-      module = await import('../commands/update.js');
+      module = await import('./commands/update.js');
     } else if (name === 'watch') {
-      module = await import('../commands/watch.js');
+      module = await import('./commands/watch.js');
     } else {
       throw new Error(`Command '${name}' not found`);
     }

@@ -30,8 +30,8 @@
  */
 
 import { BaseService } from './base-service.js';
-import { ServiceRequirements, StorageRequirement } from '../services/service-requirements.js';
-import { ServiceName } from './service-interface.js';
+import { ServiceRequirements, StorageRequirement } from './service-requirements.js';
+import { ServiceName } from './services.js';
 
 export class GenericService extends BaseService {
   

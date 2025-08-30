@@ -28,17 +28,18 @@
  * - Mock: Returns simulated test results
  */
 
-import { CommandBuilder } from '../commands/command-definition.js';
+import { CommandBuilder } from '../command-definition.js';
 import { z } from 'zod';
-import { printInfo, printSuccess, printError } from '../lib/cli-logger.js';
-import { ServiceName } from '../services/service-interface.js';
-import { CommandResults } from '../commands/command-results.js';
-import { ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { Platform } from '../platforms/platform-resolver.js';
-import { ServiceFactory } from '../services/service-factory.js';
-import { PlatformFactory } from '../platforms/index.js';
-import { Config } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
+import { printInfo, printSuccess, printError } from '../io/cli-logger.js';
+
+import { CommandResults } from '../command-results.js';
+import { ServicePlatformInfo } from '../platform-resolver.js';
+import { Platform } from '../platform-resolver.js';
+import { ServiceFactory } from '../../services/service-factory.js';
+import { ServiceName } from '../services.js';
+import { PlatformFactory } from '../../platforms/index.js';
+import { Config } from '../cli-config.js';
+import { parseEnvironment } from '../environment-validator.js';
 
 // =====================================================================
 // TYPE DEFINITIONS

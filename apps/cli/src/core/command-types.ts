@@ -5,8 +5,8 @@
  * CLI commands must follow.
  */
 
-import type { ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import type { CommandResults } from '../commands/command-results.js';
+import type { ServicePlatformInfo } from './platform-resolver.js';
+import type { CommandResults } from './command-results.js';
 
 /**
  * Standard command function signature for service-based commands.

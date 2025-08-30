@@ -28,12 +28,12 @@
  * connection pooling, and encryption at rest and in transit.
  */
 
-import { BaseService } from './base-service.js';
-import { CheckResult } from '../commands/check.js';
+import { BaseService } from '../core/base-service.js';
+import { CheckResult } from '../core/commands/check.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../services/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 
 export class DatabaseService extends BaseService {
   
@@ -172,7 +172,7 @@ export class DatabaseService extends BaseService {
     switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
-      case 'process':
+      case 'posix':
         return this.collectProcessLogs();
       default:
         return undefined;

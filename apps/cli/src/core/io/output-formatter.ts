@@ -5,8 +5,8 @@
  * output formats while maintaining backward compatibility with human-readable output.
  */
 
-import { CommandResults, BaseResult } from '../commands/command-results.js';
-import { createStringTable } from '../lib/string-utils.js';
+import { CommandResults, BaseResult } from '../command-results.js';
+import { createStringTable } from './string-utils.js';
 
 export type OutputFormat = 'summary' | 'table' | 'json' | 'yaml';
 

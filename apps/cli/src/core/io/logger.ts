@@ -4,7 +4,18 @@
  */
 
 import chalk from 'chalk';
-import { LogLevel } from './types.js';
+
+
+// Logger types
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export interface LogMessage {
+  level: LogLevel;
+  message: string;
+  timestamp: Date;
+  context?: Record<string, any>;
+}
+
 
 // Sensitive data patterns to redact
 const SENSITIVE_PATTERNS = [

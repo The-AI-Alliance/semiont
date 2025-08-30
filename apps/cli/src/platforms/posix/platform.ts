@@ -1,5 +1,5 @@
 /**
- * Process Platform Strategy
+ * POSIX Platform Strategy
  * 
  * Runs services as native OS processes on the local machine. This platform is ideal for
  * development environments and simple deployments where containerization isn't needed.
@@ -22,26 +22,27 @@ import { spawn, execSync } from 'child_process';
 import * as path from "path";
 import * as fs from 'fs';
 import * as os from 'os';
-import { StartResult } from "../commands/start.js";
-import { StopResult } from "../commands/stop.js";
-import { CheckResult } from "../commands/check.js";
-import { UpdateResult } from "../commands/update.js";
-import { ProvisionResult } from "../commands/provision.js";
-import { PublishResult } from "../commands/publish.js";
-import { BackupResult } from "../commands/backup.js";
-import { printInfo, printSuccess, printError, printWarning } from '../lib/cli-logger.js';
-import { PlatformResources } from "./platform-resources.js";
-import { ExecResult, ExecOptions } from "../commands/exec.js";
-import { TestResult, TestOptions } from "../commands/test.js";
-import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { BasePlatformStrategy } from './platform-strategy.js';
-import { Service } from '../services/service-interface.js';
-import { StateManager } from '../services/state-manager.js';
-import { isPortInUse } from '../lib/network-utils.js';
+import { StartResult } from "../../core/commands/start.js";
+import { StopResult } from "../../core/commands/stop.js";
+import { CheckResult } from "../../core/commands/check.js";
+import { UpdateResult } from "../../core/commands/update.js";
+import { ProvisionResult } from "../../core/commands/provision.js";
+import { PublishResult } from "../../core/commands/publish.js";
+import { BackupResult } from "../../core/commands/backup.js";
+import { printInfo, printSuccess, printWarning } from '../../core/io/cli-logger.js';
+import { PlatformResources } from "../platform-resources.js";
+import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
+import { TestResult, TestOptions } from "../../core/commands/test.js";
+import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
+import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { Service } from '../../services/types.js';
+import { ServiceName } from '../../core/services.js';
+import { StateManager } from '../../core/state-manager.js';
+import { isPortInUse } from '../../core/io/network-utils.js';
 
-export class ProcessPlatformStrategy extends BasePlatformStrategy {
+export class PosixPlatformStrategy extends BasePlatformStrategy {
   getPlatformName(): string {
-    return 'process';
+    return 'posix';
   }
   
   async start(service: Service): Promise<StartResult> {
@@ -70,7 +71,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         let isRunning = false;
         
         // Use the appropriate platform strategy to check if running
-        const { PlatformFactory } = await import('./index.js');
+        const { PlatformFactory } = await import('../index.js');
         const platform = PlatformFactory.getPlatform(depState.platform);
         
         if (platform.quickCheckRunning) {
@@ -124,7 +125,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       // For MCP, we return immediately but the process keeps running
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: true,
         startTime: new Date(),
         metadata: {
@@ -194,12 +195,12 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: service.name,
-      platform: 'process',
+      platform: 'posix',
       success: true,
       startTime: new Date(),
       endpoint,
       resources: {
-        platform: 'process',
+        platform: 'posix',
         data: {
           pid: proc.pid,
           port: primaryPort
@@ -222,7 +223,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       service.name
     );
     
-    const savedPid = savedState?.resources?.platform === 'process' ? 
+    const savedPid = savedState?.resources?.platform === 'posix' ? 
       savedState.resources.data.pid : undefined;
     
     if (!savedPid) {
@@ -247,7 +248,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: true,
         stopTime: new Date(),
         metadata: {
@@ -268,7 +269,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: true,
         stopTime: new Date(),
         gracefulShutdown: true,
@@ -279,7 +280,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: true,
         stopTime: new Date(),
         metadata: {
@@ -301,7 +302,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     let pid: number | undefined;
     
     // Check if saved process is running
-    if (savedState?.resources?.platform === 'process' && 
+    if (savedState?.resources?.platform === 'posix' && 
         savedState.resources.data.pid && 
         StateManager.isProcessRunning(savedState.resources.data.pid)) {
       pid = savedState.resources.data.pid;
@@ -355,13 +356,13 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: service.name,
-      platform: 'process',
+      platform: 'posix',
       success: true,
       checkTime: new Date(),
       status,
       stateVerified: true,
       resources: {
-        platform: 'process',
+        platform: 'posix',
         data: {
           pid,
           port: requirements.network?.ports?.[0]
@@ -388,7 +389,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: service.name,
-      platform: 'process',
+      platform: 'posix',
       success: true,
       updateTime: new Date(),
       strategy: 'restart',
@@ -522,7 +523,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: service.name,
-      platform: 'process',
+      platform: 'posix',
       success: true,
       provisionTime: new Date(),
       dependencies,
@@ -647,7 +648,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     
     return {
       entity: service.name,
-      platform: 'process',
+      platform: 'posix',
       success: true,
       publishTime: new Date(),
       artifacts,
@@ -808,7 +809,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: true,
         backupTime: new Date(),
         backupId,
@@ -820,7 +821,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         },
         restore,
         metadata: {
-          platform: 'process',
+          platform: 'posix',
           compression: backup.compression,
           integrity: 'sha256',
           storageRequirements: requirements.storage
@@ -830,7 +831,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         backupTime: new Date(),
         backupId,
@@ -852,7 +853,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(workingDirectory)) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         execTime,
         command,
@@ -891,7 +892,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       if (options.interactive || options.tty) {
         return {
           entity: service.name,
-          platform: 'process',
+          platform: 'posix',
           success: false,
           execTime,
           command,
@@ -953,7 +954,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: exitCode === 0,
         execTime,
         command,
@@ -990,7 +991,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         execTime,
         command,
@@ -1010,7 +1011,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
   private async provisionMCPOAuth(service: Service): Promise<ProvisionResult> {
     const http = await import('http');
     const { spawn } = await import('child_process');
-    const { loadEnvironmentConfig } = await import('../platforms/platform-resolver.js');
+    const { loadEnvironmentConfig } = await import('../../core/platform-resolver.js');
     
     if (!service.environment) {
       throw new Error('Environment must be specified for MCP provisioning');
@@ -1092,7 +1093,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
               
               resolve({
                 entity: service.name as ServiceName,
-                platform: 'process',
+                platform: 'posix',
                 success: true,
                 provisionTime: new Date(),
                 metadata: {
@@ -1163,7 +1164,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(servicePath)) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         testTime,
         suite: options.suite || 'unit',
@@ -1284,7 +1285,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: exitCode === 0,
         testTime,
         suite: options.suite || 'unit',
@@ -1311,7 +1312,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         testTime,
         suite: options.suite || 'unit',
@@ -1335,7 +1336,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     if (!fs.existsSync(backupPath)) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         restoreTime,
         backupId,
@@ -1354,7 +1355,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
           if (expectedChecksum !== actualChecksum) {
             return {
               entity: service.name,
-              platform: 'process',
+              platform: 'posix',
               success: false,
               restoreTime,
               backupId,
@@ -1438,7 +1439,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
       
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: true,
         restoreTime,
         backupId,
@@ -1467,7 +1468,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
           planned: true
         } : undefined,
         metadata: {
-          platform: 'process',
+          platform: 'posix',
           restoreMethod: 'tar extraction',
           preRestoreBackup: preRestoreBackupId
         }
@@ -1476,7 +1477,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     } catch (error) {
       return {
         entity: service.name,
-        platform: 'process',
+        platform: 'posix',
         success: false,
         restoreTime,
         backupId,
@@ -1672,8 +1673,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,
     value?: any,
-    options?: import('./platform-strategy.js').SecretOptions
-  ): Promise<import('./platform-strategy.js').SecretResult> {
+    options?: import('../../core/platform-strategy.js').SecretOptions
+  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
     const envFile = path.join(
       process.cwd(),
       `.env${options?.environment ? `.${options.environment}` : ''}`
@@ -1687,7 +1688,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
               success: false,
               action,
               secretPath,
-              platform: 'process',
+              platform: 'posix',
               storage: 'env-file',
               error: `Environment file not found: ${envFile}`
             };
@@ -1702,7 +1703,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
               success: false,
               action,
               secretPath,
-              platform: 'process',
+              platform: 'posix',
               storage: 'env-file',
               error: `Secret not found: ${secretPath}`
             };
@@ -1713,7 +1714,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
             action,
             secretPath,
             value: envVars[envKey],
-            platform: 'process',
+            platform: 'posix',
             storage: 'env-file'
           };
         }
@@ -1744,7 +1745,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
             success: true,
             action,
             secretPath,
-            platform: 'process',
+            platform: 'posix',
             storage: 'env-file',
             metadata: {
               file: envFile,
@@ -1760,7 +1761,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
               action,
               secretPath,
               values: [],
-              platform: 'process',
+              platform: 'posix',
               storage: 'env-file'
             };
           }
@@ -1778,7 +1779,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
             action,
             secretPath,
             values: matchingKeys,
-            platform: 'process',
+            platform: 'posix',
             storage: 'env-file'
           };
         }
@@ -1789,7 +1790,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
               success: true,
               action,
               secretPath,
-              platform: 'process',
+              platform: 'posix',
               storage: 'env-file'
             };
           }
@@ -1812,7 +1813,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
             success: true,
             action,
             secretPath,
-            platform: 'process',
+            platform: 'posix',
             storage: 'env-file'
           };
         }
@@ -1822,7 +1823,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
             success: false,
             action,
             secretPath,
-            platform: 'process',
+            platform: 'posix',
             error: `Unknown action: ${action}`
           };
       }
@@ -1831,7 +1832,7 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
         success: false,
         action,
         secretPath,
-        platform: 'process',
+        platform: 'posix',
         storage: 'env-file',
         error: (error as Error).message
       };
@@ -1899,8 +1900,8 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
    * Quick check if a service is running using saved state
    * This is faster than doing a full check() call
    */
-  override async quickCheckRunning(state: import('../services/state-manager.js').ServiceState): Promise<boolean> {
-    if (!state.resources || state.resources.platform !== 'process') {
+  override async quickCheckRunning(state: import('../core/state-manager.js').ServiceState): Promise<boolean> {
+    if (!state.resources || state.resources.platform !== 'posix') {
       return false;
     }
     

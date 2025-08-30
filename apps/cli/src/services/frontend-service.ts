@@ -28,12 +28,12 @@
  * compression, caching strategies, and SSL/TLS termination.
  */
 
-import { BaseService } from './base-service.js';
-import { CheckResult } from '../commands/check.js';
-import { getNodeEnvForEnvironment } from '../platforms/platform-resolver.js';
+import { BaseService } from '../core/base-service.js';
+import { CheckResult } from '../core/commands/check.js';
+import { getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
+import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
 
 export class FrontendService extends BaseService {
   
@@ -192,7 +192,7 @@ export class FrontendService extends BaseService {
   
   private getBackendUrl(): string {
     switch (this.platform) {
-      case 'process':
+      case 'posix':
         return 'http://localhost:3001';
       case 'container':
         return 'http://semiont-backend:3001';

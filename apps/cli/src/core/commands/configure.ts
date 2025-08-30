@@ -29,25 +29,26 @@
  * - Platform config: Platform-specific settings
  */
 
+
 import { z } from 'zod';
-import { colors } from '../lib/cli-colors.js';
-import { SemiontStackConfig } from '../platforms/aws/stack-config.js';
-import { loadEnvironmentConfig, getAvailableEnvironments } from '../platforms/platform-resolver.js';
-import { type EnvironmentConfig, hasAWSConfig } from '../platforms/environment-config.js';
+import { colors } from '../io/cli-colors.js';
+import { SemiontStackConfig } from '../../platforms/aws/stack-config.js';
+import { loadEnvironmentConfig, getAvailableEnvironments } from '../platform-resolver.js';
+import { type EnvironmentConfig, hasAWSConfig } from '../environment-config.js';
 import * as readline from 'readline';
-import { printInfo, setSuppressOutput } from '../lib/cli-logger.js';
-import { type Platform } from '../platforms/platform-resolver.js';
-import type { PlatformResources } from '../platforms/platform-resources.js';
-import type { ServiceName } from '../services/service-interface.js';
+import { printInfo, setSuppressOutput } from '../io/cli-logger.js';
+import { type Platform } from '../platform-resolver.js';
+import type { PlatformResources } from '../../platforms/platform-resources.js';
+import type { ServiceName } from '../services.js';
 import { 
   CommandResults, 
   createBaseResult,
   createErrorResult 
-} from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
-import { PlatformFactory } from '../platforms/index.js';
-import type { SecretOptions } from '../platforms/platform-strategy.js';
+} from '../command-results.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { PlatformFactory } from '../../platforms/index.js';
+import type { SecretOptions } from '../platform-strategy.js';
 
 // =====================================================================
 // RESULT TYPE DEFINITIONS
@@ -170,14 +171,6 @@ function determinePlatformForSecrets(environment: string): Platform {
   return 'process' as Platform;
 }
 
-async function getSecretFullName(environment: string, secretPath: string): Promise<string> {
-  // Convert path format to actual secret name
-  // oauth/google -> semiont-production-oauth-google-secret (or similar based on stack config)
-  const stackConfig = new SemiontStackConfig(environment);
-  const config = await stackConfig.getConfig();
-  const stackName = config.infraStack.name;
-  return `${stackName}-${secretPath.replace('/', '-')}-secret`;
-}
 
 /**
  * Platform-aware secret retrieval

@@ -7,8 +7,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceName } from '../services/service-interface.js';
-import { Platform } from '../platforms/platform-resolver.js';
+import { ServiceName } from './services.js';
+import { Platform } from './platform-resolver.js';
 import { PlatformResources } from '../platforms/platform-resources.js';
 
 export interface ServiceState {

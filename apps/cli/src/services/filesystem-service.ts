@@ -29,9 +29,9 @@
  * backend and other services mount this filesystem directly.
  */
 
-import { BaseService } from './base-service.js';
-import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
-import { CheckResult } from '../commands/check.js';
+import { BaseService } from '../core/base-service.js';
+import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { CheckResult } from '../core/commands/check.js';
 import * as path from 'path';
 
 export class FilesystemService extends BaseService {

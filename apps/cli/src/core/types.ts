@@ -3,64 +3,6 @@
  * Provides type safety and prevents runtime errors
  */
 
-// AWS CloudFormation Stack Output types
-export interface StackOutput {
-  OutputKey?: string;
-  OutputValue?: string;
-  Description?: string;
-  ExportName?: string;
-}
-
-export interface StackOutputs {
-  [key: string]: string;
-}
-
-// Configuration types
-export interface InfraStackConfig {
-  outputs: {
-    GoogleOAuthSecretName: string;
-    AppSecretsName: string;
-    AdminEmailsSecretName: string;
-    AdminPasswordSecretName: string;
-    DatabaseEndpoint: string;
-    DatabaseName: string;
-    DatabasePort: string;
-    EfsFileSystemId: string;
-    VPCId: string;
-    PrivateSubnetIds: string;
-    PublicSubnetIds: string;
-  };
-}
-
-export interface AppStackConfig {
-  outputs: {
-    ClusterName: string;
-    BackendServiceName: string;
-    FrontendServiceName: string;
-    BackendServiceArn: string;
-    FrontendServiceArn: string;
-    LogGroupName: string;
-    CustomDomainUrl: string;
-    LoadBalancerArn: string;
-    LoadBalancerDNS: string;
-    WAFWebACLArn: string;
-  };
-}
-
-export interface StackConfiguration {
-  infraStack: InfraStackConfig;
-  appStack: AppStackConfig;
-}
-
-// ECS Task and Service types
-export interface ECSTask {
-  id: string;
-  service: string;
-  status: string;
-  health: string;
-  createdAt: Date;
-  lastStatus: string;
-}
 
 // OAuth Secret types
 export interface OAuthSecret {
@@ -90,16 +32,6 @@ export interface CommandResult {
   code?: number;
 }
 
-// Logger types
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
-export interface LogMessage {
-  level: LogLevel;
-  message: string;
-  timestamp: Date;
-  context?: Record<string, any>;
-}
-
 // Error types
 export class ScriptError extends Error {
   constructor(
@@ -119,16 +51,9 @@ export class ValidationError extends ScriptError {
   }
 }
 
-export class AWSError extends ScriptError {
-  constructor(message: string, details?: Record<string, any>) {
-    super(message, 'AWS_ERROR', details);
-    this.name = 'AWSError';
-  }
-}
-
 // Service types for script operations
-export type ServiceType = 'frontend' | 'backend' | 'both';
-export type DeploymentTarget = 'infra' | 'app' | 'all';
+// export type ServiceType = 'frontend' | 'backend' | 'both';
+// export type DeploymentTarget = 'data' | 'app' | 'all';
 export type LogMode = 'tail' | 'follow' | 'all' | 'waf';
 
 // Utility types

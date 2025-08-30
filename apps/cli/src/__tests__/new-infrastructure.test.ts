@@ -4,10 +4,10 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { createArgParser } from '../commands/arg-parser.js';
-import { loadCommand } from '../commands/command-loader.js';
-import type { BaseCommandOptions } from '../commands/base-command-options.js';
+import { CommandBuilder } from '../core/command-definition.js';
+import { createArgParser } from '../core/io/arg-parser.js';
+import { loadCommand } from '../core/command-loader.js';
+import type { BaseCommandOptions } from '../core/base-options-schema.js';
 
 describe('Command Infrastructure', () => {
   describe('CommandBuilder', () => {

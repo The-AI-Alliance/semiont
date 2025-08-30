@@ -3,8 +3,8 @@
  */
 
 import { vi } from 'vitest';
-import { MockPlatformStrategy } from '../../platforms/mock-platform.js';
-import { PlatformFactory } from '../../platforms/index.js';
+import { MockPlatformStrategy } from '../../../platforms/mock/platform.js';
+import { PlatformFactory } from '../../../platforms/index.js';
 
 // Get the singleton MockPlatformStrategy instance from PlatformFactory
 // This ensures we're using the same instance that the commands will use
@@ -24,7 +24,7 @@ vi.mock('../../platforms/platform-resolver.js', () => ({
   })),
   getAvailableEnvironments: vi.fn(() => ['dev', 'staging', 'production', 'test']),
   isValidEnvironment: vi.fn((env) => ['dev', 'staging', 'production', 'test'].includes(env)),
-  resolveServiceDeployments: vi.fn((services, env) => services)
+  resolveServiceDeployments: vi.fn((services, _env) => services)
 }));
 
 // Mock cli-paths to provide a test project root

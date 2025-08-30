@@ -7,9 +7,9 @@
  * - Consistent error handling and help generation
  */
 
-import { getPreamble, getPreambleSeparator } from './lib/cli-colors.js';
-import { printError } from './lib/cli-logger.js';
-import { executeCommand as dynamicExecuteCommand, getAvailableCommands, generateGlobalHelp } from './commands/command-loader.js';
+import { getPreamble, getPreambleSeparator } from './core/io/cli-colors.js';
+import { printError } from './core/io/cli-logger.js';
+import { executeCommand as dynamicExecuteCommand, getAvailableCommands, generateGlobalHelp } from './core/command-loader.js';
 
 // Get version from bundled package.json
 // @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
