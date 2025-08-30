@@ -251,6 +251,14 @@ jobs:
         run: |
           # We're in apps/backend, but semiont needs to know where the project root is
           export SEMIONT_ROOT=../..
+          echo "Current directory: $(pwd)"
+          echo "SEMIONT_ROOT: $SEMIONT_ROOT"
+          echo "Checking SEMIONT_ROOT contents:"
+          ls -la $SEMIONT_ROOT/
+          echo "Checking for semiont.json:"
+          ls -la $SEMIONT_ROOT/semiont.json || echo "semiont.json not found!"
+          echo "Checking for environments/ci.json:"
+          ls -la $SEMIONT_ROOT/environments/ci.json || echo "ci.json not found!"
           # Now we can run semiont from the backend directory
           semiont start -e ci --service backend > backend.log 2>&1 &
           APP_PID=$!
