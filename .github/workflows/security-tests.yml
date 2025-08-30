@@ -251,16 +251,25 @@ jobs:
         run: |
           # We're in apps/backend, but semiont needs to know where the project root is
           export SEMIONT_ROOT=../..
+          
+          # First, let's verify the backend can actually start
+          echo "=== Testing direct npm start ==="
           echo "Current directory: $(pwd)"
-          echo "SEMIONT_ROOT: $SEMIONT_ROOT"
-          echo "Checking SEMIONT_ROOT contents:"
-          ls -la $SEMIONT_ROOT/
-          echo "Checking for semiont.json:"
-          ls -la $SEMIONT_ROOT/semiont.json || echo "semiont.json not found!"
-          echo "Checking for environments/ci.json:"
-          ls -la $SEMIONT_ROOT/environments/ci.json || echo "ci.json not found!"
-          # Now we can run semiont from the backend directory
-          semiont start -e ci --service backend > backend.log 2>&1 &
+          echo "Checking for dist/index.js:"
+          ls -la dist/index.js || echo "dist/index.js not found!"
+          
+          # Set required environment variables
+          export PORT=3001
+          export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
+          export JWT_SECRET=test-secret-for-ci
+          
+          # Try to start directly
+          echo "Starting backend directly with npm start..."
+          timeout 5 npm start || echo "Direct npm start failed or timed out"
+          
+          # Now try with semiont
+          echo "=== Starting with semiont ==="
+          semiont start -e ci --service backend --verbose > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
           

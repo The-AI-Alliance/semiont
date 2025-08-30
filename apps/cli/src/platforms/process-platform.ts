@@ -140,15 +140,46 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
     // This allows running semiont from a service directory with SEMIONT_ROOT pointing to the project
     const workingDir = process.cwd();
     
+    // Determine stdio handling:
+    // - quiet: ignore all output
+    // - verbose: inherit (show everything)
+    // - default: pipe (capture but don't show)
+    let stdio: any;
+    if (service.quiet) {
+      stdio = 'ignore';
+    } else if (service.verbose) {
+      stdio = 'inherit';
+    } else {
+      // Default: capture output for logging but don't display
+      stdio = ['ignore', 'pipe', 'pipe'];
+    }
+    
     const proc = spawn(cmd, args, {
       cwd: workingDir,
       env,
       detached: true,
-      stdio: service.verbose ? 'inherit' : 'ignore'
+      stdio
     });
     
     if (!proc.pid) {
       throw new Error('Failed to start process');
+    }
+    
+    // If we're piping output, log any errors
+    if (Array.isArray(stdio) && stdio[1] === 'pipe' && proc.stdout) {
+      proc.stdout.on('data', (data) => {
+        // Could write to a log file here if needed
+        if (service.verbose) {
+          console.log(data.toString());
+        }
+      });
+    }
+    
+    if (Array.isArray(stdio) && stdio[2] === 'pipe' && proc.stderr) {
+      proc.stderr.on('data', (data) => {
+        // Always log errors
+        console.error(`[${service.name}] ${data.toString()}`);
+      });
     }
     
     proc.unref();
