@@ -40,6 +40,7 @@ import { Config } from '../lib/cli-config.js';
 import { parseEnvironment } from '../lib/environment-validator.js';
 import type { Platform } from '../platforms/platform-resolver.js';
 import type { PlatformResources } from '../platforms/platform-resources.js';
+import { provisionCdkStack } from './provision-cdk.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -71,6 +72,7 @@ export interface ProvisionResult {
 
 const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
+  stack: z.string().optional(), // CDK stack to provision (data, app, infra, or all)
   all: z.boolean().default(false),
   force: z.boolean().default(false), // Force re-provisioning
 });
@@ -82,11 +84,38 @@ type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 // =====================================================================
 
 async function provisionHandler(
-  services: ServicePlatformInfo[],
   options: ProvisionOptions
 ): Promise<CommandResults<ProvisionResult>> {
   const serviceResults: ProvisionResult[] = [];
   const commandStartTime = Date.now();
+  
+  // If --stack is specified, handle CDK stack provisioning
+  if (options.stack) {
+    return await provisionCdkStack({
+      stack: options.stack,
+      environment: options.environment || 'development',
+      force: options.force,
+      destroy: false, // Add destroy option if needed
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      quiet: options.quiet,
+      requireApproval: false // Could be added to options schema
+    });
+  }
+  
+  // When not using --stack, we need to resolve services
+  // Import service resolution logic
+  const { resolveServiceSelector } = await import('../services/services.js');
+  const { resolveServiceDeployments } = await import('../platforms/platform-resolver.js');
+  
+  // Resolve services based on --service flag or default to 'all'
+  const serviceSelector = options.service || 'all';
+  const resolvedServiceNames = await resolveServiceSelector(
+    serviceSelector, 
+    'provision', // Use string literal instead of enum
+    options.environment || 'development'
+  );
+  const services = resolveServiceDeployments(resolvedServiceNames, options.environment || 'development');
   
   // Create config for services
   const config: Config = {
@@ -282,13 +311,14 @@ export const provisionCommand = new CommandBuilder()
   .name('provision-new')
   .description('Provision infrastructure and resources for services')
   .schema(ProvisionOptionsSchema)
-  .requiresServices(true)
   .requiresEnvironment(true)
   .args(withBaseArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
+    '--stack': { type: 'string', description: 'CDK stack to provision (data, app, infra, or all)' },
     '--force': { type: 'boolean', description: 'Force re-provisioning' },
   }, {
     '-f': '--force',
+    '-s': '--stack',
   }))
-  .handler(provisionHandler)
+  .setupHandler(provisionHandler) // Use setupHandler since we handle service resolution internally
   .build();

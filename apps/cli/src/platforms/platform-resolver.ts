@@ -114,6 +114,10 @@ export interface EnvironmentConfig {
       };
     };
   };
+  deployment?: {
+    imageTagStrategy?: 'mutable' | 'immutable' | 'git-hash';
+    // Could add more deployment options here in the future
+  };
 }
 
 /**

@@ -1,7 +1,6 @@
 # Backend Dockerfile for Semiont (Monorepo)
-# IMPORTANT: When using --no-cache, pass --build-arg CACHE_BUST=$(date +%s) to force full rebuild
-ARG CACHE_BUST=1
-
+# This Dockerfile expects TypeScript to be built locally before the Docker build.
+# The build process copies pre-built artifacts instead of compiling in Docker.
 FROM node:22-alpine AS base
 
 # Install dependencies only when needed
@@ -17,48 +16,33 @@ COPY packages/api-types/package.json ./packages/api-types/
 # Install all dependencies at root level (this handles workspaces)
 RUN npm ci --workspace=apps/backend --include-workspace-root
 
-# Rebuild the source code only when needed
+# Prepare pre-built artifacts
 FROM base AS builder
-# Inherit cache buster to ensure builder rebuilds when needed
-ARG CACHE_BUST
-RUN echo "Builder stage cache bust: ${CACHE_BUST:-default}"
-
 WORKDIR /app
 
-# Copy workspace structure
+# Copy workspace structure for dependencies
 COPY package.json package-lock.json* ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages/api-types/package.json ./packages/api-types/
 
-# Install all dependencies including dev
-RUN npm ci
+# Install production dependencies only
+RUN npm ci --production --legacy-peer-deps
 
-# Copy source code for all needed packages
-COPY packages/api-types ./packages/api-types
-COPY apps/backend ./apps/backend
+# Copy pre-built artifacts
+COPY packages/api-types/dist ./packages/api-types/dist
+COPY apps/backend/dist ./apps/backend/dist
+COPY apps/backend/prisma ./apps/backend/prisma
+COPY apps/backend/scripts ./apps/backend/scripts
 
-# Validate startup script syntax at build time
-RUN sh -n ./apps/backend/scripts/start.sh || (echo "❌ SYNTAX ERROR in start.sh" && exit 1)
-
-# Build packages in dependency order
-WORKDIR /app/packages/api-types
-RUN npm run build || true
-
-# Build backend
+# Generate Prisma client (needs to be done after copying schema)
 WORKDIR /app/apps/backend
-
-# Generate Prisma client
 RUN npx prisma generate
 
-# Build the application
-RUN npm run build
+# Validate startup script syntax
+RUN sh -n ./scripts/start.sh || (echo "❌ SYNTAX ERROR in start.sh" && exit 1)
 
 # Production image, copy all the files and run the app  
 FROM base AS runner
-# Inherit cache buster to ensure runner rebuilds when builder changes
-ARG CACHE_BUST
-RUN echo "Runner stage cache bust: ${CACHE_BUST:-default}"
-
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -70,19 +54,13 @@ RUN apk add --no-cache openssl postgresql-client
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 semiont
 
-# Copy built application and dependencies
-COPY --from=builder --chown=semiont:nodejs /app/apps/backend/dist ./dist
-COPY --from=builder --chown=semiont:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=semiont:nodejs /app/apps/backend/node_modules ./apps/backend/node_modules
-COPY --from=builder --chown=semiont:nodejs /app/packages/api-types ./packages/api-types
-COPY --from=builder --chown=semiont:nodejs /app/apps/backend/package.json ./package.json
+# Copy the app with dependencies from builder
+COPY --from=builder --chown=semiont:nodejs /app ./
 
-# Copy Prisma files for migrations
-COPY --from=builder --chown=semiont:nodejs /app/apps/backend/prisma ./prisma
+# Set working directory for the backend
+WORKDIR /app/apps/backend
 
-# Copy start script (create dummy if doesn't exist)
-RUN mkdir -p /app/apps/backend/scripts && touch /app/apps/backend/scripts/start.sh || true
-COPY --from=builder --chown=semiont:nodejs /app/apps/backend/scripts/ ./scripts/
+# Ensure scripts are executable
 RUN chmod +x scripts/start.sh || true
 
 # Create uploads directory for EFS mount

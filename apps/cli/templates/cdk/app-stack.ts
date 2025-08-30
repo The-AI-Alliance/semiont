@@ -260,15 +260,19 @@ export class SemiontAppStack extends cdk.Stack {
       })
     );
 
+    // Get environment from context
+    const environment = this.node.tryGetContext('environment') || 'production';
+    
     // Backend container - use ECR image or default
     const backendImageUri = this.node.tryGetContext('backendImageUri');
+    const backendRepoName = `semiont-backend-${environment}`;
     const backendImage = backendImageUri 
       ? ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepo', 'semiont-backend'),
+          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepo', backendRepoName),
           backendImageUri.split(':')[1] || 'latest'
         )
       : ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepoDefault', 'semiont-backend'),
+          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepoDefault', backendRepoName),
           'latest'
         );
     
@@ -325,13 +329,14 @@ export class SemiontAppStack extends cdk.Stack {
 
     // Frontend container - use ECR image or default  
     const frontendImageUri = this.node.tryGetContext('frontendImageUri');
+    const frontendRepoName = `semiont-frontend-${environment}`;
     const frontendImage = frontendImageUri
       ? ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepo', 'semiont-frontend'),
+          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepo', frontendRepoName),
           frontendImageUri.split(':')[1] || 'latest'
         )
       : ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepoDefault', 'semiont-frontend'),
+          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepoDefault', frontendRepoName),
           'latest'
         );
     

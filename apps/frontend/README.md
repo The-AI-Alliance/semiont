@@ -37,7 +37,7 @@ npm run dev
 # Start with mock API (no backend required)
 npm run dev:mock
 
-# Build for production (usually not needed - see note below)
+# Build for production (handled automatically by semiont publish)
 npm run build
 npm start
 
@@ -45,7 +45,7 @@ npm start
 npm run perf
 ```
 
-**Note on Building**: For local development, you don't need to build - use `npm run dev` for hot reload. For production deployment, `semiont publish` handles building automatically. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
+**Note on Building**: For local development, use `npm run dev` for hot reload. For production deployment, `semiont publish` handles building TypeScript locally before creating Docker images. See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for details.
 
 ## 💻 Local Development with Semiont CLI
 
@@ -183,6 +183,47 @@ The mock server (`npm run dev:mock`) provides:
 2. **Disable Type Checking** (temporary) - Add `NEXT_DISABLE_TYPE_CHECK=true` to `.env.local`
 3. **Clear Cache** - Run `rm -rf .next` if experiencing slow builds
 4. **VS Code Integration** - Use Command Palette (`Cmd+Shift+P`) for quick file navigation
+
+## Deployment
+
+### Publishing and Updating
+
+The frontend is deployed using the `semiont publish` and `semiont update` commands:
+
+```bash
+# Development/staging deployment (uses 'latest' tag)
+semiont publish --service frontend --environment dev --semiont-repo /path/to/semiont
+semiont update --service frontend --environment dev --wait
+
+# Production deployment (uses git hash for immutability)
+semiont publish --service frontend --environment production --semiont-repo /path/to/semiont
+semiont update --service frontend --environment production --wait
+```
+
+**Note**: The `--semiont-repo` parameter points to where the Semiont platform code is located (containing the Dockerfiles and application source). This is typically a separate repository from your project configuration.
+
+### How It Works
+
+1. **Build Process**: `semiont publish` builds TypeScript/Next.js locally with proper environment variables before creating Docker images
+2. **Image Tagging**: 
+   - Development environments use `latest` tag (mutable)
+   - Production environments use git commit hash (immutable)
+   - Controlled by `deployment.imageTagStrategy` in environment config
+3. **Deployment**: `semiont update` forces ECS to redeploy with the current task definition
+
+### Environment Configuration
+
+Configure deployment behavior in `/config/environments/[env].json`:
+
+```json
+{
+  "deployment": {
+    "imageTagStrategy": "mutable"    // or "immutable" for production
+  }
+}
+```
+
+See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 
 ## Technology Stack
 

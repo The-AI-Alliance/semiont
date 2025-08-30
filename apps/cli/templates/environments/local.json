@@ -3,6 +3,9 @@
   "platform": {
     "default": "container"
   },
+  "deployment": {
+    "imageTagStrategy": "mutable"
+  },
   "env": {
     "NODE_ENV": "development"
   },

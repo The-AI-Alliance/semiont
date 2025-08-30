@@ -130,10 +130,11 @@ export async function getServicesWithCapability(
       );
     
     case 'provision':
-      // Infrastructure provisioning for database, filesystem, and MCP OAuth
-      return allServices.filter(service => 
-        service === 'database' || service === 'filesystem' || service === 'mcp'
-      );
+      // All services can be provisioned (dependencies, infrastructure, etc.)
+      // - frontend/backend: npm install on process platform, ECS on AWS
+      // - database/filesystem: containers, volumes, or AWS resources
+      // - mcp: OAuth setup
+      return allServices;
     
     case 'start':
     case 'stop':
