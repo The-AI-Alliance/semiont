@@ -173,7 +173,7 @@ export class StateManager {
       // Check if resource still exists
       if (state.resources) {
         switch (state.resources.platform) {
-          case 'process':
+          case 'posix':
             if (state.resources.data.pid && !this.isProcessRunning(state.resources.data.pid)) {
               isStale = true;
             }

@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
 import { loadEnvironmentConfig } from '../platform-resolver.js';
 import { type EnvironmentConfig } from '../environment-config.js';
-import { CommandResults } from './command-results.js';
+import { CommandResults } from '../command-results.js';
 import { ProvisionResult } from './provision.js';
 
 export interface CdkProvisionOptions {

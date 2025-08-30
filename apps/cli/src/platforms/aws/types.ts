@@ -89,6 +89,7 @@ export interface AWSResources {
   databaseId?: string;        // RDS
   volumeId?: string;          // EBS/EFS volume ID
   networkId?: string;         // VPC/subnet ID
+  albArn?: string;            // Application Load Balancer
   
   // Common metadata
   region: string;

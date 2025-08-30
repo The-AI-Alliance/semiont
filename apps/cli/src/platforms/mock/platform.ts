@@ -40,7 +40,7 @@ import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
 import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
-import { Service } from '../services/types.js';
+import { Service } from '../../services/types.js';
 
 export class MockPlatformStrategy extends BasePlatformStrategy {
   private mockState: Map<string, any> = new Map();
@@ -134,8 +134,7 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       metadata: {
         mockImplementation: true,
         wasRunning: !!state,
-        dryRun: service.dryRun || false,
-        force: service.force || false
+        dryRun: service.dryRun || false
       }
     };
   }
@@ -330,17 +329,13 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       backupId,
       backup: {
         size: totalSize,
-        location: service.destination || `mock://backups/${backupId}`,
+        location: `mock://backups/${backupId}`,
         format: requirements.storage?.length ? 'tar' : 'json'
       },
       metadata: {
         mockImplementation: true,
         storageRequirements: requirements.storage,
-        dryRun: service.dryRun || false,
-        compress: service.compress !== false,
-        encrypt: service.encrypt || false,
-        retention: service.retention,
-        outputPath: service.outputPath
+        dryRun: service.dryRun || false
       }
     };
   }

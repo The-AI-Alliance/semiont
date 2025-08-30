@@ -467,7 +467,7 @@ async function configure(
               metadata: {
                 action: 'set',
                 secretPath: options.secretPath,
-                secretName,
+                secretName: secretName,
                 dryRun: true,
               },
             };
@@ -496,7 +496,7 @@ async function configure(
               metadata: {
                 action: 'set',
                 secretPath: options.secretPath,
-                secretName,
+                secretName: `${options.environment}-${options.secretPath!.replace('/', '-')}-secret`,
               },
             };
             configureResults.push(result);

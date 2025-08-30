@@ -153,7 +153,7 @@ async function provisionHandler(
       }
       
       // Get the platform strategy
-      const { PlatformFactory } = await import('../platforms/index.js');
+      const { PlatformFactory } = await import('../../platforms/index.js');
       const platform = PlatformFactory.getPlatform(serviceInfo.platform);
       
       // Platform handles the provision command

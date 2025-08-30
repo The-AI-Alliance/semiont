@@ -59,7 +59,7 @@ export class DashboardDataSource {
         );
 
         // Get platform and delegate check to it
-        const { PlatformFactory } = await import('../platforms/index.js');
+        const { PlatformFactory } = await import('../../platforms/index.js');
         const platform = PlatformFactory.getPlatform(deployment.platform);
         const checkResult: CheckResult = await platform.check(service);
         

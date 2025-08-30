@@ -363,7 +363,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async start(service: Service): Promise<StartResult> {
-    const { region } = this.getAWSConfig(service);
+    const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -604,7 +604,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async check(service: Service): Promise<CheckResult> {
-    const { region, appStack, dataStack } = this.getAWSConfig(service);
+    const { region, accountId, appStack, dataStack } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
     
@@ -931,7 +931,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async provision(service: Service): Promise<ProvisionResult> {
-    const { region } = this.getAWSConfig(service);
+    const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -2202,20 +2202,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  private async checkLambdaLastError(functionName: string, region: string): Promise<string | undefined> {
-    try {
-      // Get recent invocation errors from CloudWatch
-      const logGroup = `/aws/lambda/${functionName}`;
-      const errors = execSync(
-        `aws logs filter-log-events --log-group-name ${logGroup} --filter-pattern ERROR --max-items 1 --query 'events[0].message' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return errors !== 'None' ? errors : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-  
   private async getCurrentTaskDefinition(cluster: string, service: string, region: string): Promise<string> {
     try {
       const taskDef = execSync(
@@ -2859,10 +2845,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           if (!verbose) {
             const progress = desired > 0 ? Math.round((running / desired) * 100) : 0;
             
-            // Check for other active deployments
-            const otherActive = deployments.filter((d: any) => 
-              d.id !== deploymentId && d.status !== 'INACTIVE'
-            ).length;
             
             const barLength = 20;
             const filledLength = Math.round((progress / 100) * barLength);
@@ -3239,7 +3221,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     const functionName = `${resourceName}-function`;
     
     try {
-      const { lambda } = this.getAWSClients(region);
       const { LambdaClient, GetFunctionCommand } = await import('@aws-sdk/client-lambda');
       const lambdaClient = new LambdaClient({ region });
       

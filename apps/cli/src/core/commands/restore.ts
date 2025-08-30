@@ -181,7 +181,7 @@ async function restoreHandler(
   printInfo('📦 Starting restore operations...');
   
   // Import PlatformFactory
-  const { PlatformFactory } = await import('../platforms/index.js');
+  const { PlatformFactory } = await import('../../platforms/index.js');
   
   for (const deployment of serviceDeployments) {
     const service = ServiceFactory.create(

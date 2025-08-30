@@ -7,7 +7,7 @@ export type { PlatformStrategy } from '../core/platform-strategy.js';
 
 
 export { PosixPlatformStrategy } from './posix/platform.js';
-export { ContainerPlatformStrategy } from './container/container-platform.js';
+export { ContainerPlatformStrategy } from './container/platform.js';
 export { AWSPlatformStrategy } from './aws/platform.js';
 export { ExternalPlatformStrategy } from './external/platform.js';
 export { MockPlatformStrategy } from './mock/platform.js';
@@ -16,7 +16,7 @@ export { MockPlatformStrategy } from './mock/platform.js';
 import { PlatformStrategy } from '../core/platform-strategy.js';
 import { Platform } from '../core/platform-resolver.js';
 import { PosixPlatformStrategy } from './posix/platform.js';
-import { ContainerPlatformStrategy } from './container/container-platform.js';
+import { ContainerPlatformStrategy } from './container/platform.js';
 import { AWSPlatformStrategy } from './aws/platform.js';
 import { ExternalPlatformStrategy } from './external/platform.js';
 import { MockPlatformStrategy } from './mock/platform.js';

@@ -1428,7 +1428,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
       let testsPassed = false;
       if (!options.skipTests && serviceStarted) {
         try {
-          const testResult = await this.test(context, { suite: 'health' });
+          const testResult = await this.test(service, { suite: 'health' });
           testsPassed = testResult.success;
         } catch {
           // Tests failed
@@ -1900,7 +1900,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
    * Quick check if a service is running using saved state
    * This is faster than doing a full check() call
    */
-  override async quickCheckRunning(state: import('../core/state-manager.js').ServiceState): Promise<boolean> {
+  override async quickCheckRunning(state: import('../../core/state-manager.js').ServiceState): Promise<boolean> {
     if (!state.resources || state.resources.platform !== 'posix') {
       return false;
     }

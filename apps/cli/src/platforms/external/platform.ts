@@ -27,7 +27,7 @@
  */
 
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
-import { Service } from '../services/types.js';
+import { Service } from '../../services/types.js';
 import { StartResult } from '../../core/commands/start.js';
 import { StopResult } from '../../core/commands/stop.js';
 import { CheckResult } from '../../core/commands/check.js';

@@ -123,7 +123,7 @@ async function updateHandler(
       );
       
       // Get platform and delegate update to it
-      const { PlatformFactory } = await import('../platforms/index.js');
+      const { PlatformFactory } = await import('../../platforms/index.js');
       const platform = PlatformFactory.getPlatform(serviceInfo.platform);
       const result = await platform.update(service);
       

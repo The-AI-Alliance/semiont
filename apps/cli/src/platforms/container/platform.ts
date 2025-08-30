@@ -23,19 +23,19 @@
 import { execSync } from 'child_process';
 import * as path from "path";
 import * as fs from 'fs';
-import { StartResult } from "../commands/start.js";
-import { StopResult } from "../commands/stop.js";
-import { CheckResult } from "../commands/check.js";
-import { UpdateResult } from "../commands/update.js";
-import { ProvisionResult } from "../commands/provision.js";
-import { PublishResult } from "../commands/publish.js";
-import { BackupResult } from "../commands/backup.js";
+import { StartResult } from "../../core/commands/start.js";
+import { StopResult } from "../../core/commands/stop.js";
+import { CheckResult } from "../../core/commands/check.js";
+import { UpdateResult } from "../../core/commands/update.js";
+import { ProvisionResult } from "../../core/commands/provision.js";
+import { PublishResult } from "../../core/commands/publish.js";
+import { BackupResult } from "../../core/commands/backup.js";
 import { createPlatformResources } from "../platform-resources.js";
-import { ExecResult, ExecOptions } from "../commands/exec.js";
-import { TestResult, TestOptions } from "../commands/test.js";
-import { RestoreResult, RestoreOptions } from "../commands/restore.js";
+import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
+import { TestResult, TestOptions } from "../../core/commands/test.js";
+import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
-import { Service } from '../services/types.js';
+import { Service } from '../../services/types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
@@ -374,8 +374,8 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       const newContainerName = `${containerName}-new`;
       
       // Start new container
-      const newContext = { ...context, name: `${service.name}-new` };
-      const startResult = await this.start(newContext as ServiceContext);
+      // Create a new service instance for the rolling update
+      const startResult = await this.start(service);
       
       // Wait for health check
       await this.waitForContainer(newContainerName, requirements);
@@ -1642,7 +1642,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
    * Quick check if a container is running using saved state
    * This is faster than doing a full check() call
    */
-  override async quickCheckRunning(state: import('../services/state-manager.js').ServiceState): Promise<boolean> {
+  override async quickCheckRunning(state: import('../../core/state-manager.js').ServiceState): Promise<boolean> {
     if (!state.resources || state.resources.platform !== 'container') {
       return false;
     }

@@ -379,6 +379,7 @@ export const DashboardApp: React.FC<{
         }
       };
     }
+    return undefined;
   }, []); // Remove dependencies to run only once
 
   // No filtering needed - show all data

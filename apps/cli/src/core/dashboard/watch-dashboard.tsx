@@ -110,4 +110,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
 // Export for use in watch.ts
 export default DashboardApp;
-export { DashboardMode };
+export type { DashboardMode };

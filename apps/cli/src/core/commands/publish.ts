@@ -151,7 +151,7 @@ async function publishHandler(
       );
       
       // Get the platform strategy
-      const { PlatformFactory } = await import('../platforms/index.js');
+      const { PlatformFactory } = await import('../../platforms/index.js');
       const platform = PlatformFactory.getPlatform(serviceInfo.platform);
       
       // Platform handles the publish command
