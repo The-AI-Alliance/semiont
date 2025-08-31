@@ -654,16 +654,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
 
     } else {
       switch (serviceType) {
-        case 'rds':
-          // Get resource IDs from CloudFormation (with caching)
-          cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-          const rdsResult = await this.checkRDSInstance(service, cfnDiscoveredResources);
-          status = rdsResult.status;
-          health = rdsResult.health;
-          awsResources = rdsResult.awsResources;
-          serviceMetadata = rdsResult.metadata;
-          break;
-          
         case 's3-cloudfront':
           const bucketName = `${resourceName}-static`;
           
