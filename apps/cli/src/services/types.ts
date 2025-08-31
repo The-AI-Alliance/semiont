@@ -8,7 +8,7 @@
 import type { Platform } from '../core/platform-resolver.js';
 import type { ServiceConfig } from '../core/cli-config.js';
 import type { Environment } from '../core/environment-validator.js';
-import type { ServiceName } from '../core/services.js';
+import type { ServiceName } from '../core/service-discovery.js';
 import type { 
   ServiceRequirements,
   StorageRequirement,

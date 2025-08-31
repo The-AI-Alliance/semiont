@@ -32,6 +32,8 @@ export interface ServiceStatus {
   storageAvailableBytes?: number;
   storageTotalBytes?: number;
   storageUsedPercent?: number;
+  storageUsedStandard?: number;  // Standard storage class bytes
+  storageUsedIA?: number;        // Infrequent Access storage class bytes
   throughputUtilization?: number;
   clientConnections?: number;
   // AWS Console links data

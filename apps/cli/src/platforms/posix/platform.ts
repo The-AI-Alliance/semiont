@@ -36,7 +36,7 @@ import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
-import { ServiceName } from '../../core/services.js';
+import { ServiceName } from '../../core/service-discovery.js';
 import { StateManager } from '../../core/state-manager.js';
 import { isPortInUse } from '../../core/io/network-utils.js';
 

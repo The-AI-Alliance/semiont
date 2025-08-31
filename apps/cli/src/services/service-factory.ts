@@ -6,7 +6,7 @@
  */
 
 import { Service } from './types.js';
-import { ServiceName } from '../core/services.js';
+import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
 import { Platform } from '../core/platform-resolver.js';
 import { BackendService } from './backend-service.js';

@@ -41,7 +41,7 @@ import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
-import { printInfo } from '../../core/io/cli-logger.js';
+import { printInfo, printSuccess } from '../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../core/platform-resolver.js';
 
 // AWS SDK v3 clients
@@ -67,7 +67,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private registerHandlers(): void {
     const registry = HandlerRegistry.getInstance();
-    registry.registerHandlers('aws', handlers);
+    registry.registerHandlers('aws', handlers as any);
   }
   
   /**
@@ -890,7 +890,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Create service with ALB if needed
         if (requirements.network?.needsLoadBalancer) {
-          const albArn = await this.createALB(resourceName, requirements, region);
+          const albArn = await this.createALB(resourceName, requirements, region, accountId);
           awsResourcesData.arn = albArn;
         }
         
@@ -1002,7 +1002,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async publish(service: Service): Promise<PublishResult> {
-    const { region } = this.getAWSConfig(service);
+    const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1230,7 +1230,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async backup(service: Service): Promise<BackupResult> {
-    const { region } = this.getAWSConfig(service);
+    const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1565,7 +1565,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
-    const { region } = this.getAWSConfig(service);
+    const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
@@ -1592,7 +1592,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         await this.createTestTaskDefinition(taskDefinition, testImage || service.getImage(), testCommand, region);
         
         // Run task
-        const taskArn = await this.runECSTask(cluster, taskDefinition);
+        const taskArn = await this.runECSTask(cluster, taskDefinition, region, accountId);
         
         // Wait for task completion and get logs
         const { success, logs, exitCode } = await this.waitForTaskCompletion(cluster, taskArn);
@@ -1845,7 +1845,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     try {
       // Use our fetchRecentLogs method which properly handles CloudFormation-based log group discovery
-      const recentLogs = await this.fetchRecentLogs(service.name, region, 20, service.verbose);
+      const recentLogs = await this.fetchRecentLogs(service.name, region, 20);
       
       if (!recentLogs || recentLogs.length === 0) {
         return undefined;
@@ -2156,9 +2156,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     // Would create ECS task definition
   }
   
-  private async createALB(resourceName: string, _requirements: any, _region: string): Promise<string> {
+  private async createALB(resourceName: string, _requirements: any, _region: string, accountId: string): Promise<string> {
     // Implementation would create Application Load Balancer
-    return `arn:aws:elasticloadbalancing:${region}:${accountId}:loadbalancer/app/${resourceName}-alb/abc123`;
+    return `arn:aws:elasticloadbalancing:${_region}:${accountId}:loadbalancer/app/${resourceName}-alb/abc123`;
   }
   
   private async createECSService(cluster: string, resourceName: string, requirements: any, _region: string): Promise<void> {
@@ -2178,7 +2178,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private async createFunctionUrl(functionName: string, _region: string): Promise<string> {
     // Implementation would create Lambda function URL
-    return `https://${functionName}.lambda-url.${region}.on.aws/`;
+    return `https://${functionName}.lambda-url.${_region}.on.aws/`;
   }
   
   private async createDBSubnetGroup(resourceName: string, _region: string): Promise<string> {
@@ -2193,6 +2193,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private async createS3Bucket(_bucketName: string, _staticHosting: boolean, _region: string): Promise<void> {
     // Implementation would create S3 bucket with optional static hosting
+  }
+  
+  private async getCloudFrontDistribution(_bucketName: string, _region: string): Promise<string | undefined> {
+    // Implementation would get CloudFront distribution ID for the bucket
+    // For now, return undefined to indicate no existing distribution
+    return undefined;
   }
   
   private async createCloudFrontDistribution(_bucketName: string, _requirements: any, _region: string): Promise<string> {
@@ -2329,9 +2335,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     // Implementation would create test task definition
   }
   
-  private async runECSTask(_cluster: string, _taskDef: string): Promise<string> {
+  private async runECSTask(_cluster: string, _taskDef: string, _region: string, _accountId: string): Promise<string> {
     // Implementation would run ECS task and return ARN
-    return `arn:aws:ecs:${region}:${accountId}:task/cluster/${Date.now()}`;
+    return `arn:aws:ecs:${_region}:${_accountId}:task/cluster/${Date.now()}`;
   }
   
   private async waitForTaskCompletion(_cluster: string, _taskArn: string): Promise<any> {

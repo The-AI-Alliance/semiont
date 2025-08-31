@@ -45,9 +45,9 @@ export class HandlerRegistry {
    * @param platform - Platform name (e.g., 'aws', 'posix')
    * @param descriptors - Array of handler descriptors
    */
-  registerHandlers<TContext extends BaseHandlerContext, TResult extends HandlerResult>(
+  registerHandlers(
     platform: string,
-    descriptors: HandlerDescriptor<TContext, TResult>[]
+    descriptors: HandlerDescriptor<BaseHandlerContext<any>, HandlerResult>[]
   ): void {
     for (const descriptor of descriptors) {
       this.registerHandler(platform, descriptor);

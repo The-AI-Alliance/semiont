@@ -36,7 +36,7 @@ async function getCloudFrontStatus(distributionId: string, region: string): Prom
  * S3 + CloudFront check handler implementation
  */
 const s3CloudFrontCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service, cfnDiscoveredResources } = context;
+  const { platform, service } = context;
   const { region } = platform.getAWSConfig(service);
   const resourceName = platform.getResourceName(service);
   

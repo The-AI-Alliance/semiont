@@ -10,9 +10,9 @@ import { CorePlatformCommand } from '../command-types.js';
 /**
  * Base context provided to all handlers
  */
-export interface BaseHandlerContext {
+export interface BaseHandlerContext<TPlatform = string> {
   service: Service;
-  platform: string;
+  platform: TPlatform;
 }
 
 /**

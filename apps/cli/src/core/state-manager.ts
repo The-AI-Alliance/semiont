@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceName } from './services.js';
+import { ServiceName } from './service-discovery.js';
 import { Platform } from './platform-resolver.js';
 import { PlatformResources } from '../platforms/platform-resources.js';
 

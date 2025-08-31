@@ -3,7 +3,7 @@ import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './ty
 import { createPlatformResources } from '../../platform-resources.js';
 
 const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service, cfnDiscoveredResources } = context;
+  const { platform, service } = context;
   const { region } = platform.getAWSConfig(service);
   const resourceName = platform.getResourceName(service);
   
@@ -50,7 +50,7 @@ const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHa
       let logs;
       if (status === 'running') {
         try {
-          const { LambdaClient } = await import('@aws-sdk/client-lambda');
+          // const { LambdaClient } = await import('@aws-sdk/client-lambda');
           const { CloudWatchLogsClient } = await import('@aws-sdk/client-cloudwatch-logs');
           const logsClient = new CloudWatchLogsClient({ region });
           

@@ -5,7 +5,7 @@
  * Platforms fulfill these requirements without knowing what service they're deploying.
  */
 
-import { ServiceName } from './services.js';
+import { ServiceName } from './service-discovery.js';
 
 /**
  * Storage requirements for persistent data

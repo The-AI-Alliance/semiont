@@ -1,7 +1,7 @@
 // Service architecture exports
 
 export * from './types.js';
-export type { ServiceName } from '../core/services.js';
+export type { ServiceName } from '../core/service-discovery.js';
 // Result types are now exported from their respective command files
 export * from '../core/commands/start.js';
 export * from '../core/commands/stop.js';

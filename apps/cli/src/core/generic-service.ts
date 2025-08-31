@@ -31,7 +31,7 @@
 
 import { BaseService } from './base-service.js';
 import { ServiceRequirements, StorageRequirement } from './service-requirements.js';
-import { ServiceName } from './services.js';
+import { ServiceName } from './service-discovery.js';
 
 export class GenericService extends BaseService {
   

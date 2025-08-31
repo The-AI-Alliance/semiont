@@ -47,7 +47,7 @@ export interface AWSConfig {
   hostedZoneId?: string;
   rootDomain?: string;
   stacks?: {
-    infra?: string;
+    data?: string;
     app?: string;
   };
   database?: {
@@ -110,7 +110,7 @@ export interface EnvironmentConfig {
   cloud?: {
     aws?: {
       stacks?: {
-        infra?: string;
+        data?: string;
         app?: string;
       };
     };
@@ -264,9 +264,6 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
     
     const projectRoot = findProjectRoot();
     let envPath = path.join(projectRoot, 'environments', `${environment}.json`);
-    if (!fs.existsSync(envPath)) {
-      envPath = path.join(projectRoot, 'config', 'environments', `${environment}.json`);
-    }
     
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
       throw new ConfigurationError(
@@ -293,11 +290,6 @@ export function getAvailableEnvironments(): string[] {
     const projectRoot = findProjectRoot();
     // Try new structure first
     let configDir = path.join(projectRoot, 'environments');
-    if (!fs.existsSync(configDir)) {
-      // Fallback to old structure
-      configDir = path.join(projectRoot, 'config', 'environments');
-    }
-    
     if (!fs.existsSync(configDir)) {
       return [];
     }

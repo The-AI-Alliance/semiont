@@ -19,19 +19,49 @@ The Semiont CLI follows a layered architecture that separates concerns and enabl
 ## Core Concepts
 
 ### 1. Commands
-**Location:** `src/commands/`  
+**Location:** `src/core/commands/`  
 **Purpose:** Define CLI operations that users can execute  
-**Pattern:** Commands orchestrate services and handle user interaction
+**Pattern:** Commands define their requirements and handlers
 
 Commands are responsible for:
-- Parsing and validating user input
-- Resolving service deployments
-- Orchestrating operations across services
-- Formatting and presenting results
+- Defining their schema and argument specifications
+- Declaring whether they require services or environment
+- Implementing the business logic in their handler function
+- Returning structured results
+
+The command execution is orchestrated by the core modules:
+
+#### Core Command Modules
+
+**Command Discovery** (`src/core/command-discovery.ts`) → What commands exist?
+- Maintains the authoritative list of available commands
+- Dynamically loads command definitions from their modules
+- Provides metadata about commands (requiresServices, requiresEnvironment)
+
+**Service Discovery** (`src/core/service-discovery.ts`) → What services exist?
+- Discovers services from environment configuration files
+- Manages built-in services (frontend, backend, database, filesystem)
+- Loads service-specific configuration
+
+**Command-Service Matcher** (`src/core/command-service-matcher.ts`) → Which work together?
+- Determines which commands can operate on which services
+- Resolves "all" to the list of applicable services
+- Contains business rules for service capabilities
+
+**Command Executor** (`src/core/command-executor.ts`) → How to run them?
+- Orchestrates the entire command execution pipeline
+- Parses arguments, validates environment, resolves services
+- Executes handlers and formats output
+
+**Command Types** (`src/core/command-types.ts`) → Type definitions only
+- Pure TypeScript type definitions
+- Defines contracts for command functions
+- No behavior or discovery logic
 
 Example flow:
 ```typescript
-start command → resolve services → create service instances → delegate to platform → return results
+CLI entry → command-discovery (load) → command-executor (orchestrate) → 
+command-service-matcher (resolve) → command handler (execute) → format results
 ```
 
 ### 2. Services  
@@ -69,15 +99,39 @@ Platforms handle:
 - Platform-specific operations (backups, logs, exec)
 - State management and resource tracking
 
-Example:
+#### Platform Handlers (New Architecture)
+
+For complex platforms like AWS, operations are broken down into specific handlers:
+
+**Handler Pattern** (`src/platforms/aws/handlers/`)
+- Each service type has dedicated handlers for commands
+- Handlers are registered with descriptors that include metadata
+- Handlers receive context and return command-specific results
+
+Example handler structure:
 ```typescript
-class ContainerPlatform implements PlatformStrategy {
-  async start(context: ServiceContext) {
-    // Use Docker/Podman to start container
-    // Based on service requirements
-  }
-}
+// lambda-check.ts
+export const lambdaCheckHandler: Handler<CheckHandlerContext, CheckHandlerResult> = 
+  async (context) => {
+    // Lambda-specific health check logic
+    // Self-contained log collection
+    // Returns CheckHandlerResult
+  };
+
+// Handler registration
+export const lambdaCheckDescriptor: HandlerDescriptor = {
+  command: 'check',
+  serviceType: 'lambda',
+  handler: lambdaCheckHandler,
+  requiresDiscovery: true  // Needs CloudFormation resource discovery
+};
 ```
+
+Benefits of handler pattern:
+- **Modularity**: Each service type's logic is isolated
+- **Testability**: Handlers can be tested independently
+- **Extensibility**: New handlers added without modifying platform class
+- **Self-contained**: Each handler manages its own concerns (e.g., log collection)
 
 ### 4. Libraries
 **Location:** `src/lib/`  

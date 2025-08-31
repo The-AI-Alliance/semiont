@@ -35,7 +35,7 @@ import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
 // Import new service architecture
 import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../services.js';
+import { ServiceName } from '../service-discovery.js';
 import { Platform } from '../platform-resolver.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
@@ -105,7 +105,7 @@ async function provisionHandler(
   
   // When not using --stack, we need to resolve services
   // Import service resolution logic
-  const { resolveServiceSelector } = await import('../services.js');
+  const { resolveServiceSelector } = await import('../command-service-matcher.js');
   const { resolveServiceDeployments } = await import('../platform-resolver.js');
   
   // Resolve services based on --service flag or default to 'all'

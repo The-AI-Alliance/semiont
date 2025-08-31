@@ -890,10 +890,93 @@ Services can be configured to use specific platforms in environment configs:
 - [ ] quickCheckRunning implemented
 - [ ] Documentation updated
 
+## Advanced: Handler Pattern for Complex Platforms
+
+For platforms with many service types (like AWS), consider using the handler pattern to modularize your code:
+
+### Handler Structure
+
+1. **Create handler files** in `src/platforms/my-platform/handlers/`:
+```typescript
+// src/platforms/my-platform/handlers/service-check.ts
+import type { Handler, HandlerDescriptor } from '../../core/handlers/types.js';
+
+export const serviceCheckHandler: Handler<CheckHandlerContext, CheckHandlerResult> = 
+  async (context) => {
+    // Service-specific check logic
+    const { service, platformResources } = context;
+    
+    // Perform health check
+    const healthy = await checkServiceHealth(service);
+    
+    // Collect logs if needed
+    const logs = await collectServiceLogs(service);
+    
+    return {
+      metadata: {
+        success: true,
+        status: healthy ? 'running' : 'unhealthy',
+        health: healthy,
+        logs
+      }
+    };
+  };
+
+export const serviceCheckDescriptor: HandlerDescriptor = {
+  command: 'check',
+  serviceType: 'my-service-type',
+  handler: serviceCheckHandler,
+  requiresDiscovery: false  // Set to true if needs resource discovery
+};
+```
+
+2. **Register handlers** in your platform:
+```typescript
+// src/platforms/my-platform/platform.ts
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+import { serviceCheckDescriptor } from './handlers/service-check.js';
+
+export class MyPlatformStrategy extends BasePlatformStrategy {
+  constructor() {
+    super();
+    // Register all handlers
+    const registry = HandlerRegistry.getInstance();
+    registry.registerHandler('my-platform', serviceCheckDescriptor);
+  }
+  
+  async check(context: ServiceContext): Promise<CheckResult> {
+    const descriptor = registry.getDescriptor('my-platform', `check-${serviceType}`);
+    if (!descriptor) {
+      // Fallback to default behavior
+      return super.check(context);
+    }
+    
+    // Prepare context for handler
+    const handlerContext = {
+      service: context.service,
+      platformResources: this.resources,
+      // ... other context
+    };
+    
+    // Execute handler
+    const result = await descriptor.handler(handlerContext);
+    return result.metadata;
+  }
+}
+```
+
+### Benefits of Handler Pattern
+
+- **Modularity**: Each service type's logic is isolated
+- **Testability**: Handlers can be unit tested independently
+- **Extensibility**: New service types added without modifying platform class
+- **Self-contained**: Handlers manage their own concerns (logs, metrics, etc.)
+- **Discoverable**: Handlers can declare if they need resource discovery
+
 ## Examples
 
 Look at existing platforms for examples:
 - `process-platform.ts` - Simple local process management
 - `container-platform.ts` - Docker/Podman integration
-- `aws-platform.ts` - Cloud platform with full AWS integration
+- `aws-platform.ts` - Cloud platform with full AWS integration using handler pattern
 - `mock-platform.ts` - Testing platform with minimal implementation

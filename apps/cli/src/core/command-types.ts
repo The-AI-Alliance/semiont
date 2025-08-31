@@ -1,7 +1,44 @@
 
+/**
+ * Command Type Definitions → Type definitions only
+ * 
+ * This module contains ONLY type definitions and minimal constants.
+ * It answers the fundamental question: "What shape should things have?"
+ * 
+ * Contents:
+ * - Type definitions for command functions
+ * - Core platform command constants (used by handlers)
+ * - No behavior, no discovery logic, no business rules
+ * 
+ * Why this exists:
+ * - Provides TypeScript type safety across the codebase
+ * - Defines contracts that commands and handlers must follow
+ * - Avoids circular dependencies by being a leaf module
+ * 
+ * This module should NEVER import from other modules in core/
+ * (except other pure type modules like command-results.ts)
+ */
+
 import type { ServicePlatformInfo } from './platform-resolver.js';
 import type { CommandResults } from './command-results.js';
 
+/**
+ * Core platform commands that most platforms implement.
+ * These are the commands that have handlers in the platform strategies.
+ */
+export const CORE_PLATFORM_COMMANDS = [
+  'check',
+  'start',
+  'stop',
+  'update',
+  'provision',
+  'publish'
+] as const;
+
+/**
+ * Type for core platform commands
+ */
+export type CorePlatformCommand = typeof CORE_PLATFORM_COMMANDS[number];
 
 /**
  * Standard command function signature for service-based commands.

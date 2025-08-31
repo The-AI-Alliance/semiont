@@ -1,5 +1,6 @@
-import { Service } from '../../../services/types.js';
 import { 
+  BaseHandlerContext,
+  HandlerResult,
   CheckHandlerResult as CoreCheckHandlerResult,
   HandlerDescriptor as CoreHandlerDescriptor 
 } from '../../../core/handlers/types.js';
@@ -8,9 +9,7 @@ import type { AWSPlatformStrategy } from '../platform.js';
 /**
  * Context provided to all AWS check handlers
  */
-export interface CheckHandlerContext {
-  platform: AWSPlatformStrategy;
-  service: Service;
+export interface CheckHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
   cfnDiscoveredResources: any;
 }
 
@@ -30,7 +29,7 @@ export type CheckHandler = (context: CheckHandlerContext) => Promise<CheckHandle
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext, TResult> = CoreHandlerDescriptor<TContext, TResult>;
+export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;
 
 /**
  * Registry of check handlers by service type

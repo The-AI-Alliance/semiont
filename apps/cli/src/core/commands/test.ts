@@ -36,7 +36,7 @@ import { CommandResults } from '../command-results.js';
 import { ServicePlatformInfo } from '../platform-resolver.js';
 import { Platform } from '../platform-resolver.js';
 import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../services.js';
+import { ServiceName } from '../service-discovery.js';
 import { PlatformFactory } from '../../platforms/index.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';

@@ -37,7 +37,7 @@ import * as readline from 'readline';
 import { printInfo, setSuppressOutput } from '../io/cli-logger.js';
 import { type Platform, type EnvironmentConfig, hasAWSConfig } from '../platform-resolver.js';
 import type { PlatformResources } from '../../platforms/platform-resources.js';
-import type { ServiceName } from '../services.js';
+import type { ServiceName } from '../service-discovery.js';
 import { 
   CommandResults, 
   createBaseResult,

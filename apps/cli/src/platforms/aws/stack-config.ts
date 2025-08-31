@@ -1,14 +1,13 @@
 
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { StackOutput } from '../../core/types.js';
-import { AWSError } from './types.js';
+import { StackOutput, AWSError } from './types.js';
 import { validateAwsResourceName, assertValid } from '../../core/validators.js';
 import { logger } from '../../core/io/logger.js';
 import { loadEnvironmentConfig, type EnvironmentConfig } from '../../core/platform-resolver.js';
 
 export interface SemiontConfig {
   region: string;
-  infraStack: {
+  dataStack: {
     name: string;
     outputs: Record<string, string>;
   };
@@ -42,12 +41,12 @@ export class SemiontStackConfig {
     }
 
     // Get stack names from new schema
-    const infraStackName = this.environmentConfig.cloud?.aws?.stacks?.infra || 'SemiontDataStack';
-    const appStackName = this.environmentConfig.cloud?.aws?.stacks?.app || 'SemiontAppStack';
+    const dataStackName = this.environmentConfig.aws?.stacks?.data || 'SemiontDataStack';
+    const appStackName = this.environmentConfig.aws?.stacks?.app || 'SemiontAppStack';
 
-    const validatedInfraStackName = assertValid(
-      validateAwsResourceName(infraStackName),
-      'Infrastructure stack name validation'
+    const validatedDataStackName = assertValid(
+      validateAwsResourceName(dataStackName),
+      'Data stack name validation'
     );
     const validatedAppStackName = assertValid(
       validateAwsResourceName(appStackName),
@@ -56,20 +55,20 @@ export class SemiontStackConfig {
 
     try {
       logger.debug('Fetching CloudFormation stack configurations', {
-        infraStack: validatedInfraStackName,
+        dataStack: validatedDataStackName,
         appStack: validatedAppStackName
       });
 
-      // Get infrastructure stack outputs
-      const infraResponse = await this.cfnClient.send(
-        new DescribeStacksCommand({ StackName: validatedInfraStackName })
+      // Get data stack outputs
+      const dataResponse = await this.cfnClient.send(
+        new DescribeStacksCommand({ StackName: validatedDataStackName })
       );
       
-      if (!infraResponse.Stacks?.[0]) {
-        throw new AWSError(`Infrastructure stack ${validatedInfraStackName} not found`);
+      if (!dataResponse.Stacks?.[0]) {
+        throw new AWSError(`Data stack ${validatedDataStackName} not found`);
       }
       
-      const infraOutputs = this.parseOutputs((infraResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
+      const dataOutputs = this.parseOutputs((dataResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       // Get application stack outputs
       const appResponse = await this.cfnClient.send(
@@ -84,9 +83,9 @@ export class SemiontStackConfig {
 
       this.config = {
         region: this.environmentConfig.aws!.region,
-        infraStack: {
-          name: validatedInfraStackName,
-          outputs: infraOutputs,
+        dataStack: {
+          name: validatedDataStackName,
+          outputs: dataOutputs,
         },
         appStack: {
           name: validatedAppStackName,
@@ -115,7 +114,7 @@ export class SemiontStackConfig {
   // Convenience getters with error handling
   async getInfraStackName(): Promise<string> {
     const config = await this.getConfig();
-    return config.infraStack.name;
+    return config.dataStack.name;
   }
 
   async getAppStackName(): Promise<string> {
@@ -188,7 +187,7 @@ export class SemiontStackConfig {
 
   async getGoogleOAuthSecretName(): Promise<string> {
     const config = await this.getConfig();
-    const secretName = config.infraStack.outputs.GoogleOAuthSecretName;
+    const secretName = config.dataStack.outputs.GoogleOAuthSecretName;
     if (!secretName) {
       throw new AWSError('GoogleOAuthSecretName not found in stack outputs');
     }
@@ -202,7 +201,7 @@ export class SemiontStackConfig {
 
   async getAdminEmailsSecretName(): Promise<string> {
     const config = await this.getConfig();
-    const secretName = config.infraStack.outputs.AdminEmailsSecretName;
+    const secretName = config.dataStack.outputs.AdminEmailsSecretName;
     if (!secretName) {
       throw new AWSError('AdminEmailsSecretName not found in stack outputs');
     }
@@ -211,7 +210,7 @@ export class SemiontStackConfig {
 
   async getAdminPasswordSecretName(): Promise<string> {
     const config = await this.getConfig();
-    const secretName = config.infraStack.outputs.AdminPasswordSecretName;
+    const secretName = config.dataStack.outputs.AdminPasswordSecretName;
     if (!secretName) {
       throw new AWSError('AdminPasswordSecretName not found in stack outputs');
     }
@@ -229,7 +228,7 @@ export class SemiontStackConfig {
 
   async getDatabaseEndpoint(): Promise<string> {
     const config = await this.getConfig();
-    const endpoint = config.infraStack.outputs.DatabaseEndpoint;
+    const endpoint = config.dataStack.outputs.DatabaseEndpoint;
     if (!endpoint) {
       throw new AWSError('DatabaseEndpoint not found in stack outputs');
     }
@@ -270,7 +269,7 @@ export class SemiontStackConfig {
 
   async getEfsFileSystemId(): Promise<string> {
     const config = await this.getConfig();
-    const efsId = config.infraStack.outputs.EfsFileSystemId;
+    const efsId = config.dataStack.outputs.EfsFileSystemId;
     if (!efsId) {
       throw new AWSError('EfsFileSystemId not found in stack outputs');
     }

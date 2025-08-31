@@ -1,7 +1,7 @@
 /**
  * CDK Stack Provisioning Module
  * 
- * Handles provisioning of AWS CDK stacks (data, app, infra) separately from
+ * Handles provisioning of AWS CDK stacks (data, app) separately from
  * service-level provisioning. This supports the --stack option for the provision command.
  */
 
@@ -14,7 +14,7 @@ import { CommandResults } from '../command-results.js';
 import { ProvisionResult } from './provision.js';
 
 export interface CdkProvisionOptions {
-  stack: string; // 'data' | 'app' | 'infra' | 'all'
+  stack: string; // 'data' | 'app' | 'all'
   environment: string;
   force?: boolean;
   destroy?: boolean;
@@ -42,8 +42,7 @@ export async function provisionCdkStack(options: CdkProvisionOptions): Promise<C
   const stacksToProvision: string[] = [];
   const stackMapping: Record<string, string> = {
     'data': envConfig.aws.stacks?.data || 'SemiontDataStack',
-    'app': envConfig.aws.stacks?.app || 'SemiontAppStack',
-    'infra': envConfig.aws.stacks?.infra || 'SemiontInfraStack'
+    'app': envConfig.aws.stacks?.app || 'SemiontAppStack'
   };
   
   if (options.stack === 'all') {
@@ -53,7 +52,7 @@ export async function provisionCdkStack(options: CdkProvisionOptions): Promise<C
   } else if (stackMapping[options.stack]) {
     stacksToProvision.push(options.stack);
   } else {
-    throw new Error(`Unknown stack type: ${options.stack}. Available: data, app, infra, all`);
+    throw new Error(`Unknown stack type: ${options.stack}. Available: data, app, all`);
   }
   
   const results: ProvisionResult[] = [];

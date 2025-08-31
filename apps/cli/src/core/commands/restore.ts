@@ -34,7 +34,7 @@ import { CommandBuilder } from '../command-definition.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config, ServiceConfig } from '../cli-config.js';
 import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../services.js';
+import { ServiceName } from '../service-discovery.js';
 import { Platform } from '../platform-resolver.js';
 import { printInfo, printSuccess, printError, printWarning } from '../io/cli-logger.js';
 import { z } from 'zod';

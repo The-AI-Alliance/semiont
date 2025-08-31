@@ -23,10 +23,10 @@ Command → ServiceDeployments → Service → Platform Strategy
 
 ### 1. Create the Command File
 
-Create a new file in `src/commands/` named after your command:
+Create a new file in `src/core/commands/` named after your command:
 
 ```bash
-touch src/commands/my-command.ts
+touch src/core/commands/my-command.ts
 ```
 
 ### 2. Define the Result Types
@@ -255,14 +255,28 @@ export class ProcessPlatformStrategy extends BasePlatformStrategy {
 
 ### 7. Register the Command
 
-The command loader will automatically discover your command if it's exported correctly. Ensure your command exports match the expected pattern:
+You need to register your command in the command discovery module:
 
+1. **Add to command discovery** (`src/core/command-discovery.ts`):
 ```typescript
-// The command loader looks for these exports:
-export default myCommandDefinition;  // Primary export
-// OR
-export const myCommand = myCommandDefinition;  // Named export
+const COMMAND_MODULES: Record<string, string> = {
+  // ... existing commands ...
+  'my-command': './commands/my-command.js',
+};
 ```
+
+2. **Export your command definition correctly**:
+```typescript
+// In your command file, export as:
+export const myCommandCommand = myCommandDefinition;  // camelCase + 'Command'
+// OR
+export default myCommandDefinition;  // Default export
+```
+
+The command discovery module will look for:
+- `${camelCaseName}Command` (e.g., `myCommandCommand`)
+- `default` export
+- Named export matching the command name
 
 ### 8. Add Tests
 

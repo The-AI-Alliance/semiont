@@ -25,7 +25,7 @@
  */
 
 import { Service } from '../services/types.js';
-import { ServiceName } from './services.js';
+import { ServiceName } from './service-discovery.js';
 import { Config, ServiceConfig } from './cli-config.js';
 import { Platform } from './platform-resolver.js';
 import { 

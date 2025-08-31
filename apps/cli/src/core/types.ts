@@ -77,14 +77,6 @@ export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isServiceType(value: string): value is ServiceType {
-  return ['frontend', 'backend', 'both'].includes(value);
-}
-
-export function isDeploymentTarget(value: string): value is DeploymentTarget {
-  return ['infra', 'app', 'all'].includes(value);
-}
-
 export function isLogMode(value: string): value is LogMode {
   return ['tail', 'follow', 'all', 'waf'].includes(value);
 }

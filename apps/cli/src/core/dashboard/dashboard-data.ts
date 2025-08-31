@@ -5,7 +5,7 @@
  */
 
 import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../services.js';
+import { ServiceName } from '../service-discovery.js';
 import { CheckResult } from '../commands/check.js';
 import { ServiceConfig } from '../cli-config.js';
 import { type ServicePlatformInfo, Platform } from '../platform-resolver.js';

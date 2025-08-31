@@ -36,7 +36,7 @@ import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
 // Import new service architecture
-import { ServiceName } from '../services.js';
+import { ServiceName } from '../service-discovery.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';

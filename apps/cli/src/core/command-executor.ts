@@ -1,12 +1,30 @@
 /**
- * Command Loader - Dynamic command loading and execution
+ * Command Executor Module → How to run them?
  * 
- * This module provides utilities for dynamically loading and executing
- * commands based on the unified command definition structure.
+ * This module orchestrates the entire command execution pipeline.
+ * It answers the fundamental question: "How do we execute a command?"
+ * 
+ * Responsibilities:
+ * - Loads the command definition (via command-discovery)
+ * - Parses and validates command-line arguments
+ * - Validates environment requirements
+ * - Resolves services if needed (via command-service-matcher)
+ * - Executes the command handler with appropriate context
+ * - Formats and displays output
+ * - Manages process exit codes
+ * 
+ * Execution Pipeline:
+ * 1. Load command → Parse args → Validate environment
+ * 2. If services needed → Validate selector → Resolve services
+ * 3. Execute handler → Format output → Exit appropriately
+ * 
+ * This module is the conductor that coordinates all other modules
+ * to deliver the complete command execution experience.
  */
 
-import type { CommandDefinition } from './command-definition.js';
 import type { ServicePlatformInfo } from './platform-resolver.js';
+import { loadCommand, loadAllCommands } from './command-discovery.js';
+import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
 import { 
   getAvailableEnvironments, 
@@ -17,12 +35,10 @@ import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
 import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
 
-
 /**
  * Get the CLI version from package.json
  */
 function getVersion(): string {
-  // Simple approach: require the package.json which will be bundled
   // @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
   const pkg = require('../../package.json');
   return pkg.version || '0.0.1';
@@ -50,6 +66,9 @@ function printPreamble(options: any): void {
 
 /**
  * Execute a command with full lifecycle management
+ * 
+ * @param commandName - The command to execute
+ * @param argv - The command line arguments
  */
 export async function executeCommand(
   commandName: string,
@@ -111,8 +130,8 @@ export async function executeCommand(
         : 'all';
       // At this point, environment is guaranteed to be defined if requiresEnvironment is true
       const environment = options.environment!;
-      await validateServiceSelector(service, commandName as ServiceCapability, environment);
-      const resolvedServices = await resolveServiceSelector(service, commandName as ServiceCapability, environment);
+      await validateServiceSelector(service, commandName, environment);
+      const resolvedServices = await resolveServiceSelector(service, commandName, environment);
       services = resolveServiceDeployments(resolvedServices, environment);
     }
     
@@ -153,7 +172,6 @@ export async function executeCommand(
     process.exit(1);
   }
 }
-
 
 /**
  * Generate help text for all commands

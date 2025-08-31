@@ -75,6 +75,8 @@ export interface AWSResources {
   arn?: string;
   id?: string;                // Generic resource ID
   name?: string;              // Resource name
+  stackName?: string;         // CloudFormation stack name
+  stackType?: string;         // Stack type (data, app)
   
   // Service-specific
   taskArn?: string;          // ECS

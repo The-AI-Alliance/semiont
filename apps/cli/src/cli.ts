@@ -9,7 +9,8 @@
 
 import { getPreamble, getPreambleSeparator } from './core/io/cli-colors.js';
 import { printError } from './core/io/cli-logger.js';
-import { executeCommand as dynamicExecuteCommand, getAvailableCommands, generateGlobalHelp } from './core/command-loader.js';
+import { getAvailableCommands } from './core/command-discovery.js';
+import { executeCommand as dynamicExecuteCommand, generateGlobalHelp } from './core/command-executor.js';
 
 // Get version from bundled package.json
 // @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
