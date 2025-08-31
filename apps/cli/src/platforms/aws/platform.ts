@@ -623,67 +623,64 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   async check(service: Service): Promise<CheckResult> {
-
-    const { region, accountId, appStack, dataStack } = this.getAWSConfig(service);
+    const { region, accountId } = this.getAWSConfig(service);
     const serviceType = this.determineAWSServiceType(service);
-    const resourceName = this.getResourceName(service);
     
-    let status: CheckResult['status'] = 'unknown';
-    let health: CheckResult['health'] | undefined;
-    let awsResources: PlatformResources | undefined;
-    let cfnDiscoveredResources: any = {};
-    let serviceMetadata: Record<string, any> = {};
-    let logs: CheckResult['logs'] | undefined;
-      
+    // 1. Get handler descriptor
     const registry = HandlerRegistry.getInstance();
     const descriptor = registry.getDescriptor('aws', `check-${serviceType}`);
-    if (descriptor) {
-      // Get resource IDs from CloudFormation for services that need it
-      if (descriptor.requiresDiscovery) {
-        cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+    
+    if (!descriptor) {
+      // Better error handling for missing handler
+      return {
+        entity: service.name,
+        platform: 'aws',
+        success: false,
+        checkTime: new Date(),
+        status: 'unknown',
+        stateVerified: false,
+        metadata: {
+          error: `No check handler registered for service type: ${serviceType}`
+        }
+      };
+    }
+
+    // 2. Perform discovery if needed
+    let cfnDiscoveredResources = {};
+    if (descriptor.requiresDiscovery) {
+      cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+    }
+
+    // 3. Build context and call handler
+    const context = HandlerContextBuilder.extend(
+      HandlerContextBuilder.buildBaseContext(service, 'aws'),
+      { 
+        cfnDiscoveredResources, 
+        region, 
+        accountId,
+        resourceName: this.getResourceName(service)  // Add this for handlers to use
       }
-
-      const context = HandlerContextBuilder.extend(
-        HandlerContextBuilder.buildBaseContext(service, 'aws'),
-        { cfnDiscoveredResources, region, accountId }
-      );
-      const result = await descriptor.handler(context) as CheckHandlerResult;
-      status = result.status;
-      health = result.health;
-      awsResources = result.platformResources;
-      serviceMetadata = result.metadata || {};
-      logs = result.logs;
-
-    }
+    );
     
-    // Build comprehensive metadata for dashboard
-    const metadata: Record<string, any> = {
-      ...serviceMetadata,  // Start with service-specific metadata
-      serviceType,
-      region: region,
-      accountId: accountId
-    };
+    const result = await descriptor.handler(context) as CheckHandlerResult;
     
-    // Add CloudFormation stack names
-    if (serviceType === 'ecs-fargate') {
-      metadata.cloudFormationStackName = appStack || 'SemiontAppStack';
-      // TODO: Make log group name dynamic
-      metadata.logGroupName = 'SemiontAppStack-SemiontLogGroup6DB34440-vEOfwG1vFUVh';
-    } else if (serviceType === 'rds' || serviceType === 'efs') {
-      metadata.cloudFormationStackName = dataStack || 'SemiontDataStack';
-    }
-    
+    // 4. Build response from handler result
     return {
       entity: service.name,
       platform: 'aws',
-      success: true,
+      success: result.success ?? true,
       checkTime: new Date(),
-      status,
+      status: result.status,
       stateVerified: true,
-      resources: awsResources,
-      health,
-      logs,
-      metadata
+      resources: result.platformResources,
+      health: result.health,
+      logs: result.logs,
+      metadata: {
+        ...result.metadata,
+        serviceType,
+        region,
+        accountId
+      }
     };
   }
   
