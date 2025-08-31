@@ -654,42 +654,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
 
     } else {
       switch (serviceType) {
-        case 's3-cloudfront':
-          const bucketName = `${resourceName}-static`;
-          
-          try {
-            // Check if bucket exists
-            execSync(`aws s3api head-bucket --bucket ${bucketName} --region ${region} 2>/dev/null`);
-            status = 'running';
-            
-            // Check CloudFront distribution status
-            const distributionId = await this.getCloudFrontDistribution(bucketName, region);
-            if (distributionId) {
-              const distStatus = await this.getCloudFrontStatus(distributionId, region);
-              health = {
-                healthy: distStatus === 'Deployed',
-                details: {
-                  bucket: bucketName,
-                  distributionId,
-                  status: distStatus
-                }
-              };
-            }
-            
-            awsResources = createPlatformResources('aws', {
-              bucketName,
-              distributionId,
-              region: region
-            });
-          } catch (error) {
-            // Can't determine status due to error (e.g., expired credentials)
-            status = 'unknown';
-            if (service.verbose) {
-              console.log(`[DEBUG] S3/CloudFront check failed: ${error}`);
-            }
-          }
-          break;
-          
         case 'dynamodb':
           const tableName = `${resourceName}-table`;
           
