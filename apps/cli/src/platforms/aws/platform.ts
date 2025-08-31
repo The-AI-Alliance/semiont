@@ -700,16 +700,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           }
           break;
           
-        case 'efs':
-          // Get resource IDs from CloudFormation (with caching)
-          cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-          const efsResult = await this.checkEFSFileSystem(service, cfnDiscoveredResources);
-          status = efsResult.status;
-          health = efsResult.health;
-          awsResources = efsResult.awsResources;
-          serviceMetadata = efsResult.metadata;
-          break;
-          
         case 'dynamodb':
           const tableName = `${resourceName}-table`;
           
