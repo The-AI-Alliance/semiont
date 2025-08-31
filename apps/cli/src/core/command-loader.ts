@@ -13,114 +13,10 @@ import {
   isValidEnvironment,
   resolveServiceDeployments 
 } from './platform-resolver.js';
-import { 
-  validateServiceSelector, 
-  resolveServiceSelector,
-  type ServiceCapability 
-} from './services.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
 import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
 
-/**
- * Registry of loaded command definitions
- */
-const commandRegistry = new Map<string, CommandDefinition<any>>();
-
-/**
- * Register a command definition directly (useful for testing)
- */
-export function registerCommand(name: string, command: CommandDefinition<any>): void {
-  commandRegistry.set(name, command);
-}
-
-/**
- * Load a command definition from its module
- */
-export async function loadCommand(name: string): Promise<CommandDefinition<any>> {
-  // Check cache first
-  if (commandRegistry.has(name)) {
-    return commandRegistry.get(name)!;
-  }
-  
-  try {
-    // For testing or when dynamic imports don't work, try direct imports
-    let module: any;
-    
-    // Handle special cases for known commands
-    if (name === 'init') {
-      module = await import('./commands/init.js');
-    } else if (name === 'backup') {
-      module = await import('./commands/backup.js');
-    } else if (name === 'start') {
-      module = await import('./commands/start.js');
-    } else if (name === 'stop') {
-      module = await import('./commands/stop.js');
-    } else if (name === 'restart') {
-      module = await import('./commands/restart.js');
-    } else if (name === 'check') {
-      module = await import('./commands/check.js');
-    } else if (name === 'configure') {
-      module = await import('./commands/configure.js');
-    } else if (name === 'exec') {
-      module = await import('./commands/exec.js');
-    } else if (name === 'provision') {
-      module = await import('./commands/provision.js');
-    } else if (name === 'publish') {
-      module = await import('./commands/publish.js');
-    } else if (name === 'test') {
-      module = await import('./commands/test.js');
-    } else if (name === 'update') {
-      module = await import('./commands/update.js');
-    } else if (name === 'watch') {
-      module = await import('./commands/watch.js');
-    } else {
-      throw new Error(`Command '${name}' not found`);
-    }
-    
-    // Look for the command export (could be named export or default)
-    // Handle hyphenated command names by converting to camelCase for the export name
-    const camelName = name.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
-    const command = module[`${camelName}Command`] || module.default || module[name];
-    
-    if (!command) {
-      throw new Error(`Command module does not export '${name}Command', 'default', or '${name}'`);
-    }
-    
-    // Validate it's a proper command definition
-    if (!isCommandDefinition(command)) {
-      throw new Error(`Exported command does not match CommandDefinition interface`);
-    }
-    
-    // Cache for future use
-    commandRegistry.set(name, command);
-    
-    return command;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Cannot find module')) {
-      throw new Error(`Command '${name}' not found`);
-    }
-    if (error instanceof Error && error.message.includes("Command '") && error.message.includes("' not found")) {
-      throw error; // Re-throw our own not found errors
-    }
-    throw error;
-  }
-}
-
-/**
- * Type guard to check if an object is a CommandDefinition
- */
-function isCommandDefinition(obj: any): obj is CommandDefinition<any> {
-  return (
-    obj &&
-    typeof obj === 'object' &&
-    typeof obj.name === 'string' &&
-    typeof obj.description === 'string' &&
-    obj.schema &&
-    obj.argSpec &&
-    typeof obj.handler === 'function'
-  );
-}
 
 /**
  * Get the CLI version from package.json
@@ -258,48 +154,6 @@ export async function executeCommand(
   }
 }
 
-/**
- * Get all available command names
- */
-export async function getAvailableCommands(): Promise<string[]> {
-  // This could be made more dynamic by scanning the commands directory
-  // For now, return the known commands
-  return [
-    'init',
-    'provision',
-    'configure',
-    'start',
-    'stop',
-    'restart',
-    'publish',
-    'update',
-    'check',
-    'watch',
-    'test',
-    'backup',
-    'exec',
-  ];
-}
-
-/**
- * Load all commands and return their definitions
- */
-export async function loadAllCommands(): Promise<Map<string, CommandDefinition<any>>> {
-  const commands = await getAvailableCommands();
-  const definitions = new Map<string, CommandDefinition<any>>();
-  
-  for (const name of commands) {
-    try {
-      const command = await loadCommand(name);
-      definitions.set(name, command);
-    } catch (error) {
-      // Skip commands that can't be loaded
-      console.warn(`Warning: Could not load command '${name}': ${error}`);
-    }
-  }
-  
-  return definitions;
-}
 
 /**
  * Generate help text for all commands
@@ -326,9 +180,7 @@ export async function generateGlobalHelp(): Promise<string> {
   
   lines.push('ENVIRONMENT VARIABLES:');
   lines.push('  SEMIONT_ENV                 Environment to use when --environment flag is not provided');
-  lines.push('  SEMIONT_ROOT                Project root directory (parent of config/)');
-  lines.push('  AWS_PROFILE                 AWS profile to use for AWS operations');
-  lines.push('  AWS_REGION                  AWS region (overrides config file)');
+  lines.push('  SEMIONT_ROOT                Project root directory (parent of environments/)');
   lines.push('');
   
   lines.push('PROJECT RESOLUTION:');
