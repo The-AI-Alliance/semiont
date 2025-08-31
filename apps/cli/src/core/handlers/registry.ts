@@ -7,7 +7,7 @@ import { Handler, HandlerResult, BaseHandlerContext, HandlerDescriptor } from '.
  */
 export class HandlerRegistry {
   private static instance: HandlerRegistry;
-  private handlers: Map<string, Map<string, Handler<any, any>>> = new Map();
+  private handlers: Map<string, Map<string, HandlerDescriptor<any, any>>> = new Map();
 
   private constructor() {}
 
@@ -36,7 +36,7 @@ export class HandlerRegistry {
     if (!this.handlers.has(platform)) {
       this.handlers.set(platform, new Map());
     }
-    this.handlers.get(platform)!.set(key, descriptor.handler);
+    this.handlers.get(platform)!.set(key, descriptor);
   }
 
   /**
@@ -55,7 +55,21 @@ export class HandlerRegistry {
   }
 
   /**
-   * Get a handler for a specific platform and operation
+   * Get a handler descriptor for a specific platform and operation
+   * 
+   * @param platform - Platform name
+   * @param operation - Operation name
+   * @returns Handler descriptor or undefined if not found
+   */
+  getDescriptor<TContext extends BaseHandlerContext, TResult extends HandlerResult>(
+    platform: string,
+    operation: string
+  ): HandlerDescriptor<TContext, TResult> | undefined {
+    return this.handlers.get(platform)?.get(operation) as HandlerDescriptor<TContext, TResult> | undefined;
+  }
+
+  /**
+   * Get a handler function for a specific platform and operation
    * 
    * @param platform - Platform name
    * @param operation - Operation name
@@ -65,7 +79,8 @@ export class HandlerRegistry {
     platform: string,
     operation: string
   ): Handler<TContext, TResult> | undefined {
-    return this.handlers.get(platform)?.get(operation) as Handler<TContext, TResult> | undefined;
+    const descriptor = this.getDescriptor<TContext, TResult>(platform, operation);
+    return descriptor?.handler;
   }
 
   /**

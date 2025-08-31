@@ -87,5 +87,6 @@ const rdsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
 export const rdsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'rds',
-  handler: rdsCheckHandler
+  handler: rdsCheckHandler,
+  requiresDiscovery: true
 };

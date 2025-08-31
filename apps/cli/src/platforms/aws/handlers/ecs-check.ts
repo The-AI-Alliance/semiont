@@ -192,5 +192,6 @@ const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
 export const ecsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'ecs-fargate',
-  handler: ecsCheckHandler
+  handler: ecsCheckHandler,
+  requiresDiscovery: true
 };

@@ -93,5 +93,6 @@ const efsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
 export const efsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'efs',
-  handler: efsCheckHandler
+  handler: efsCheckHandler,
+  requiresDiscovery: true
 };

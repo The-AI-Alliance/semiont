@@ -1,6 +1,7 @@
 import { Service } from '../../services/types.js';
 import { CheckResult } from '../commands/check.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
+import { CorePlatformCommand } from '../command-types.js';
 
 /**
  * Core handler types that all platform handlers must implement
@@ -49,7 +50,8 @@ export type CheckHandler<TContext extends BaseHandlerContext> =
  * Handler descriptor that explicitly declares what command and service type it handles
  */
 export interface HandlerDescriptor<TContext extends BaseHandlerContext, TResult extends HandlerResult> {
-  command: 'check' | 'start' | 'stop' | 'update' | 'provision' | 'publish';
+  command: CorePlatformCommand;
   serviceType: string;  // 'lambda', 'ecs-fargate', etc.
   handler: Handler<TContext, TResult>;
+  requiresDiscovery?: boolean;  // Whether this handler needs resource discovery
 }

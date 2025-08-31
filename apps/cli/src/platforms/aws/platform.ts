@@ -635,10 +635,10 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     let serviceMetadata: Record<string, any> = {};
       
     const registry = HandlerRegistry.getInstance();
-    const handler = registry.get('aws', `check-${serviceType}`);
-    if (handler) {
+    const descriptor = registry.getDescriptor('aws', `check-${serviceType}`);
+    if (descriptor) {
       // Get resource IDs from CloudFormation for services that need it
-      if (['ecs-fargate', 'rds', 'efs'].includes(serviceType)) {
+      if (descriptor.requiresDiscovery) {
         cfnDiscoveredResources = await this.discoverAndCacheResources(service);
       }
 
@@ -646,46 +646,12 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         HandlerContextBuilder.buildBaseContext(service, 'aws'),
         { cfnDiscoveredResources, region, accountId }
       );
-      const result = await handler(context) as CheckHandlerResult;
+      const result = await descriptor.handler(context) as CheckHandlerResult;
       status = result.status;
       health = result.health;
       awsResources = result.platformResources;
       serviceMetadata = result.metadata || {};
 
-    } else {
-      switch (serviceType) {
-        case 'dynamodb':
-          const tableName = `${resourceName}-table`;
-          
-          try {
-            const tableStatus = execSync(
-              `aws dynamodb describe-table --table-name ${tableName} --query 'Table.TableStatus' --output text --region ${region}`,
-              { encoding: 'utf-8' }
-            ).trim();
-            
-            status = tableStatus === 'ACTIVE' ? 'running' : 'stopped';
-            
-            health = {
-              healthy: tableStatus === 'ACTIVE',
-              details: {
-                tableName,
-                status: tableStatus
-              }
-            };
-            
-            awsResources = createPlatformResources('aws', {
-              name: tableName,
-              region: region
-            });
-          } catch (error) {
-            // Can't determine status due to error (e.g., expired credentials)
-            status = 'unknown';
-            if (service.verbose) {
-              console.log(`[DEBUG] DynamoDB check failed: ${error}`);
-            }
-          }
-          break;
-      }
     }
     
     // Collect logs if service is running
@@ -699,7 +665,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       ...serviceMetadata,  // Start with service-specific metadata
       serviceType,
       region: region,
-      awsRegion: region,
       accountId: accountId
     };
     
