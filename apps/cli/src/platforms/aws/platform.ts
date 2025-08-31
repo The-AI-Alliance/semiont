@@ -28,17 +28,17 @@ import { StartResult } from "../../core/commands/start.js";
 import { StopResult } from "../../core/commands/stop.js";
 import { CheckResult } from "../../core/commands/check.js";
 import { UpdateResult } from "../../core/commands/update.js";
-import { ProvisionResult } from "../../core/commands/provision.js";
 import { PublishResult } from "../../core/commands/publish.js";
-import { PlatformResources, AWSResources, createPlatformResources } from "../platform-resources.js";
-import { BackupResult } from "../../core/commands/backup.js";
+import { PlatformResources, createPlatformResources } from "../platform-resources.js";
+//import { ProvisionResult } from "../../core/commands/provision.js";
+//import { BackupResult } from "../../core/commands/backup.js";
+//import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
+//import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { HandlerContextBuilder } from "../../core/handlers/context.js";
 import { CheckHandlerResult } from "../../core/handlers/types.js";
 import { handlers } from './handlers/index.js';
 import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
-import { TestResult, TestOptions } from "../../core/commands/test.js";
-import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { printInfo, printSuccess } from '../../core/io/cli-logger.js';
@@ -419,28 +419,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           throw new Error(`Failed to start ECS service: ${error}`);
         }
         break;
-        
-      case 'lambda':
-        // Lambda functions are always "running"
-        const functionName = `${resourceName}-function`;
-        
-        // Get function URL or API Gateway endpoint
-        try {
-          const functionUrl = execSync(
-            `aws lambda get-function-url-config --function-name ${functionName} --query FunctionUrl --output text --region ${region} 2>/dev/null`,
-            { encoding: 'utf-8' }
-          ).trim();
-          
-          endpoint = functionUrl !== 'None' ? functionUrl : undefined;
-        } catch {
-          // No function URL configured
-        }
-        
-        resources = createPlatformResources('aws', {
-          functionArn: `arn:aws:lambda:${region}:${accountId}:function:${functionName}`,
-          region: region
-        });
-        break;
+       
         
       case 'rds':
         // Start RDS instance
@@ -466,44 +445,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         break;
         
-      case 's3-cloudfront':
-        // S3 + CloudFront doesn't really "start" but we can return the endpoint
-        const bucketName = `${resourceName}-static`;
-        const distributionId = await this.getCloudFrontDistribution(bucketName, region);
-        
-        if (distributionId) {
-          const domain = await this.getCloudFrontDomain(distributionId, region);
-          endpoint = `https://${domain}`;
-        } else {
-          endpoint = `https://${bucketName}.s3-website-${region}.amazonaws.com`;
-        }
-        
-        resources = createPlatformResources('aws', {
-          bucketName,
-          distributionId,
-          region: region
-        });
-        break;
-        
-      case 'efs':
-        // EFS is always available
-        const fileSystemId = await this.getOrCreateEFS(resourceName, region);
-        
-        resources = createPlatformResources('aws', {
-          volumeId: fileSystemId,
-          region: region
-        });
-        break;
-        
-      case 'dynamodb':
-        // DynamoDB tables are always available
-        const tableName = `${resourceName}-table`;
-        
-        resources = createPlatformResources('aws', {
-          name: tableName,
-          region: region
-        });
-        break;
     }
     
     return {
@@ -593,10 +534,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         }
         
-      case 'lambda':
-      case 's3-cloudfront':
       case 'efs':
-      case 'dynamodb':
         // These services don't stop
         return {
           entity: service.name,
@@ -686,7 +624,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   async update(service: Service): Promise<UpdateResult> {
     const { region } = this.getAWSConfig(service);
-    const requirements = service.getRequirements();
     const serviceType = this.determineAWSServiceType(service);
     const resourceName = this.getResourceName(service);
     
@@ -768,51 +705,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         newVersion = await this.getCurrentTaskDefinition(clusterName, serviceName, region);
         strategy = 'rolling';
         break;
-        
-      case 'lambda':
-        // Update function code and configuration
-        const functionName = `${resourceName}-function`;
-        
-        // Get current version
-        previousVersion = await this.getLambdaVersion(functionName, region);
-        
-        // Update function (would need actual deployment package)
-        if (requirements.build?.buildArgs?.DEPLOYMENT_PACKAGE) {
-          execSync(
-            `aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${requirements.build.buildArgs.DEPLOYMENT_PACKAGE} --region ${region}`
-          );
-        }
-        
-        // Publish new version
-        const versionOutput = execSync(
-          `aws lambda publish-version --function-name ${functionName} --query Version --output text --region ${region}`,
-          { encoding: 'utf-8' }
-        ).trim();
-        
-        newVersion = versionOutput;
-        strategy = 'blue-green';
-        break;
-        
-      case 's3-cloudfront':
-        // Sync new content and invalidate cache
-        const bucketName = `${resourceName}-static`;
-        const sourcePath = requirements.build?.buildContext || path.join(service.projectRoot, 'dist');
-        
-        // Sync to S3
-        execSync(`aws s3 sync ${sourcePath} s3://${bucketName}/ --delete --region ${region}`);
-        
-        // Invalidate CloudFront
-        const distributionId = await this.getCloudFrontDistribution(bucketName, region);
-        if (distributionId) {
-          execSync(
-            `aws cloudfront create-invalidation --distribution-id ${distributionId} --paths "/*" --region ${region}`
-          );
-        }
-        
-        newVersion = new Date().toISOString();
-        strategy = 'blue-green';
-        break;
-        
+      
       case 'rds':
         // Apply pending modifications
         const instanceId = `${resourceName}-db`;
@@ -850,153 +743,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         serviceType,
         region: region,
         resourceName
-      }
-    };
-  }
-  
-  async provision(service: Service): Promise<ProvisionResult> {
-    const { region, accountId } = this.getAWSConfig(service);
-    const requirements = service.getRequirements();
-    const serviceType = this.determineAWSServiceType(service);
-    const resourceName = this.getResourceName(service);
-    
-    if (!service.quiet) {
-      printInfo(`Provisioning ${service.name} on AWS as ${serviceType}...`);
-    }
-    
-    const dependencies = requirements.dependencies?.services || [];
-    // Build up AWS resources as we provision
-    const awsResourcesData: AWSResources = {
-      region: region
-    };
-    
-    const cost = { estimatedMonthly: 0, currency: 'USD' };
-    
-    switch (serviceType) {
-      case 'ecs-fargate':
-        // Create ECS cluster and service
-        const clusterName = `semiont-${service.environment}`;
-        
-        // Create cluster
-        try {
-          execSync(`aws ecs create-cluster --cluster-name ${clusterName} --region ${region}`);
-          awsResourcesData.clusterId = clusterName;
-        } catch {
-          // Cluster might already exist
-        }
-        
-        // Create task definition from requirements
-        await this.createTaskDefinition(resourceName, requirements, region, accountId);
-        
-        // Create service with ALB if needed
-        if (requirements.network?.needsLoadBalancer) {
-          const albArn = await this.createALB(resourceName, requirements, region, accountId);
-          awsResourcesData.arn = albArn;
-        }
-        
-        // Create service
-        await this.createECSService(clusterName, resourceName, requirements, region);
-        
-        // Estimate costs
-        const cpu = parseFloat(requirements.resources?.cpu || '0.25');
-        const memory = this.parseMemory(requirements.resources?.memory || '512Mi');
-        cost.estimatedMonthly = (cpu * 40 + memory * 4.5) * (requirements.resources?.replicas || 1);
-        break;
-        
-      case 'lambda':
-        // Create Lambda function
-        const functionName = `${resourceName}-function`;
-        
-        // Create execution role
-        const roleArn = await this.createLambdaRole(functionName, region, accountId);
-        awsResourcesData.arn = roleArn;
-        
-        // Create function
-        await this.createLambdaFunction(functionName, requirements, roleArn, region);
-        awsResourcesData.functionArn = `arn:aws:lambda:${region}:${accountId}:function:${functionName}`;
-        
-        // Create function URL if needed
-        if (requirements.network?.ports) {
-          const functionUrl = await this.createFunctionUrl(functionName, region);
-          awsResourcesData.consoleUrl = functionUrl;
-        }
-        
-        // Estimate costs (very rough)
-        cost.estimatedMonthly = 5; // Lambda is typically very cheap
-        break;
-        
-      case 'rds':
-        // Create RDS instance
-        const instanceId = `${resourceName}-db`;
-        const instanceClass = requirements.annotations?.['aws/rds-class'] || 'db.t3.micro';
-        
-        // Create DB subnet group
-        const subnetGroupName = await this.createDBSubnetGroup(resourceName, region);
-        awsResourcesData.networkId = subnetGroupName;
-        
-        // Create RDS instance
-        await this.createRDSInstance(instanceId, instanceClass, requirements, region);
-        awsResourcesData.instanceId = instanceId;
-        
-        // Estimate costs
-        cost.estimatedMonthly = this.getRDSCost(instanceClass);
-        break;
-        
-      case 's3-cloudfront':
-        // Create S3 bucket and CloudFront distribution
-        const bucketName = `${resourceName}-static`;
-        
-        // Create S3 bucket with static website hosting
-        await this.createS3Bucket(bucketName, true, region);
-        awsResourcesData.bucketName = bucketName;
-        
-        // Create CloudFront distribution
-        if (requirements.network?.customDomains?.length) {
-          const distributionId = await this.createCloudFrontDistribution(bucketName, requirements, region);
-          awsResourcesData.distributionId = distributionId;
-        }
-        
-        // Estimate costs
-        cost.estimatedMonthly = 5; // S3 + CloudFront minimal cost
-        break;
-        
-      case 'efs':
-        // Create EFS file system
-        const fileSystemId = await this.createEFS(resourceName, region);
-        awsResourcesData.volumeId = fileSystemId;
-        
-        // Create mount targets in each subnet
-        await this.createEFSMountTargets(fileSystemId, region);
-        
-        // Estimate costs
-        const storageGB = this.parseStorageSize(requirements.storage?.[0]?.size || '10Gi');
-        cost.estimatedMonthly = storageGB * 0.30;
-        break;
-        
-      case 'dynamodb':
-        // Create DynamoDB table
-        const tableName = `${resourceName}-table`;
-        
-        await this.createDynamoDBTable(tableName, requirements, region);
-        awsResourcesData.name = tableName;
-        
-        // Estimate costs
-        cost.estimatedMonthly = 25; // On-demand pricing estimate
-        break;
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'aws',
-      success: true,
-      provisionTime: new Date(),
-      resources: createPlatformResources('aws', awsResourcesData),
-      dependencies,
-      cost,
-      metadata: {
-        serviceType,
-        region: region,
-        accountId: accountId
       }
     };
   }
@@ -1142,64 +888,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         rollback.command = `aws ecs update-service --cluster semiont-${service.environment} --service ${resourceName} --task-definition ${resourceName}-task:PREVIOUS`;
         break;
-        
-      case 'lambda':
-        // Package and deploy Lambda function
-        const functionName = `${resourceName}-function`;
-        const packagePath = path.join(service.projectRoot, 'dist', `${functionName}.zip`);
-        
-        // Create deployment package
-        if (requirements.build?.buildContext) {
-          const buildDir = requirements.build.buildContext;
-          execSync(`cd ${buildDir} && zip -r ${packagePath} .`);
-        }
-        
-        // Update function code
-        execSync(
-          `aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${packagePath} --region ${region}`
-        );
-        
-        // Publish version
-        const versionNum = execSync(
-          `aws lambda publish-version --function-name ${functionName} --query Version --output text --region ${region}`,
-          { encoding: 'utf-8' }
-        ).trim();
-        
-        // Store Lambda version info properly
-        artifacts.packageVersion = versionNum;
-        
-        rollback.command = `aws lambda update-alias --function-name ${functionName} --name prod --function-version PREVIOUS`;
-        break;
-        
-      case 's3-cloudfront':
-        // Deploy static site to S3
-        const bucketName = `${resourceName}-static`;
-        const sourcePath = requirements.build?.buildContext || path.join(service.projectRoot, 'dist');
-        
-        // Build if needed
-        if (requirements.build?.buildArgs?.BUILD_COMMAND) {
-          execSync(requirements.build.buildArgs.BUILD_COMMAND, { cwd: service.projectRoot });
-        }
-        
-        // Sync to S3
-        execSync(`aws s3 sync ${sourcePath} s3://${bucketName}/ --delete --region ${region}`);
-        
-        // Invalidate CloudFront
-        const distributionId = await this.getCloudFrontDistribution(bucketName, region);
-        if (distributionId) {
-          execSync(  // Returns invalidation ID
-            `aws cloudfront create-invalidation --distribution-id ${distributionId} --paths "/*" --query Invalidation.Id --output text --region ${region}`,
-            { encoding: 'utf-8' }
-          ).trim();
-          
-          // CloudFront invalidation ID will be in metadata
-        }
-        
-        artifacts.staticSiteUrl = `https://${bucketName}.s3-website-${region}.amazonaws.com`;
-        
-        rollback.supported = false; // S3 sync is destructive
-        break;
-        
+
       case 'rds':
         // Apply database migrations
         if (!service.quiet) {
@@ -1228,211 +917,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
     };
   }
-  
-  async backup(service: Service): Promise<BackupResult> {
-    const { region, accountId } = this.getAWSConfig(service);
-    const requirements = service.getRequirements();
-    const serviceType = this.determineAWSServiceType(service);
-    const resourceName = this.getResourceName(service);
-    const backupId = `${resourceName}-${Date.now()}`;
-    
-    if (!service.quiet) {
-      printInfo(`Creating AWS backup for ${service.name} (${serviceType})...`);
-    }
-    
-    const backup: BackupResult['backup'] = {
-      size: 0,
-      location: '',
-      format: 'snapshot'
-    };
-    
-    switch (serviceType) {
-      case 'rds':
-        // Create RDS snapshot
-        const instanceId = `${resourceName}-db`;
-        const snapshotId = `${instanceId}-backup-${backupId}`;
-        
-        execSync(
-          `aws rds create-db-snapshot --db-instance-identifier ${instanceId} --db-snapshot-identifier ${snapshotId} --region ${region}`
-        );
-        
-        // Wait for snapshot to complete (async in real implementation)
-        if (backup) {
-          backup.location = `arn:aws:rds:${region}:${accountId}:snapshot:${snapshotId}`;
-          backup.details = {
-            type: 'rds',
-            engine: 'postgres',
-            automated: false
-          };
-        }
-        
-        // Get snapshot size
-        const snapshotSize = await this.getRDSSnapshotSize(snapshotId, region);
-        if (backup) {
-          backup.size = snapshotSize;
-        }
-        break;
-        
-      case 's3-cloudfront':
-        // Enable versioning and create backup
-        const bucketName = `${resourceName}-static`;
-        
-        // Enable versioning
-        execSync(
-          `aws s3api put-bucket-versioning --bucket ${bucketName} --versioning-configuration Status=Enabled --region ${region}`
-        );
-        
-        // Create backup bucket
-        const backupBucket = `${bucketName}-backup-${backupId}`;
-        execSync(`aws s3 mb s3://${backupBucket} --region ${region}`);
-        
-        // Copy all objects
-        execSync(`aws s3 sync s3://${bucketName}/ s3://${backupBucket}/ --region ${region}`);
-        
-        if (backup) {
-          backup.location = `s3://${backupBucket}`;
-          backup.details = {
-            paths: [bucketName],
-            preservePermissions: true,
-            type: 's3'
-          };
-        }
-        
-        // Get bucket size
-        const bucketSize = await this.getS3BucketSize(bucketName, region);
-        if (backup) {
-          backup.size = bucketSize;
-        }
-        break;
-        
-      case 'efs':
-        // Create EFS backup using AWS Backup
-        const fileSystemId = await this.getEFSId(resourceName, region);
-        
-        if (fileSystemId) {
-          // Create backup using AWS Backup service
-          const backupJobId = await this.createEFSBackup(fileSystemId, backupId, region);
-          
-          if (backup) {
-            backup.location = `arn:aws:backup:${region}:${accountId}:recovery-point:${backupJobId}`;
-            backup.details = {
-              paths: [`efs://${fileSystemId}`],
-              preservePermissions: true,
-              type: 'efs'
-            };
-          }
-        }
-        break;
-        
-      case 'dynamodb':
-        // Create DynamoDB backup
-        const tableName = `${resourceName}-table`;
-        
-        execSync(
-          `aws dynamodb create-backup --table-name ${tableName} --backup-name ${backupId} --region ${region}`
-        );
-        
-        if (backup) {
-          backup.location = `arn:aws:dynamodb:${region}:${accountId}:table/${tableName}/backup/${backupId}`;
-          backup.details = {
-            type: 'dynamodb',
-            automated: false
-          };
-        }
-        break;
-        
-      case 'lambda':
-        // Export Lambda function
-        const functionName = `${resourceName}-function`;
-        const exportPath = `/tmp/${functionName}-${backupId}.zip`;
-        
-        // Get function code
-        const codeLocation = execSync(
-          `aws lambda get-function --function-name ${functionName} --query Code.Location --output text --region ${region}`,
-          { encoding: 'utf-8' }
-        ).trim();
-        
-        // Download code
-        execSync(`curl -o ${exportPath} "${codeLocation}"`);
-        
-        // Upload to S3 for storage
-        const lambdaBackupBucket = `semiont-backups-${region}`;
-        const s3Key = `lambda/${functionName}/${backupId}.zip`;
-        
-        execSync(`aws s3 cp ${exportPath} s3://${lambdaBackupBucket}/${s3Key} --region ${region}`);
-        
-        if (backup) {
-          backup.location = `s3://${lambdaBackupBucket}/${s3Key}`;
-          backup.size = fs.statSync(exportPath).size;
-        }
-        break;
-        
-      case 'ecs-fargate':
-        // Get resource IDs from CloudFormation (with caching)
-        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-        
-        // Get cluster and service names from discovered resources
-        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
-        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
-        
-        // Export task definition
-        const taskDef = execSync(
-          `aws ecs describe-task-definition --task-definition ${serviceName}-task --region ${region}`,
-          { encoding: 'utf-8' }
-        );
-        
-        const backupBucketECS = `semiont-backups-${region}`;
-        const taskDefKey = `ecs/${serviceName}/${backupId}-task-definition.json`;
-        
-        // Save task definition to S3
-        fs.writeFileSync(`/tmp/${backupId}-task-def.json`, taskDef);
-        execSync(
-          `aws s3 cp /tmp/${backupId}-task-def.json s3://${backupBucketECS}/${taskDefKey} --region ${region}`
-        );
-        
-        if (backup) {
-          backup.location = `s3://${backupBucketECS}/${taskDefKey}`;
-          backup.details = {
-            taskDefinition: `${serviceName}-task`,
-            cluster: clusterName,
-            type: 'ecs-fargate'
-          };
-        }
-        break;
-    }
-    
-    // Calculate retention
-    const retentionDays = requirements.annotations?.['backup/retention'] 
-      ? parseInt(requirements.annotations['backup/retention'])
-      : 30;
-    
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + retentionDays);
-    
-    return {
-      entity: service.name,
-      platform: 'aws',
-      success: true,
-      backupTime: new Date(),
-      backupId,
-      backup,
-      retention: {
-        expiresAt,
-        policy: retentionDays > 30 ? 'yearly' : retentionDays > 7 ? 'monthly' : 'weekly',
-        autoCleanup: true
-      },
-      restore: {
-        supported: true,
-        command: `semiont restore --service ${service.name} --backup-id ${backupId}`,
-        requirements: ['AWS credentials', 'Same region']
-      },
-      metadata: {
-        serviceType,
-        region: region,
-        backupMethod: this.getBackupMethod(serviceType)
-      }
-    };
-  }
+
   
   async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
     const { region } = this.getAWSConfig(service);
@@ -1508,50 +993,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           };
         }
         
-      case 'lambda':
-        // Invoke Lambda with command as payload
-        const functionName = `${resourceName}-function`;
-        
-        const payload = JSON.stringify({
-          command,
-          options
-        });
-        
-        try {
-          execSync(
-            `aws lambda invoke --function-name ${functionName} --payload '${payload}' --query 'Payload' --output text --region ${region} /tmp/lambda-output.txt`,
-            { encoding: 'utf-8' }
-          );
-          
-          const output = fs.readFileSync('/tmp/lambda-output.txt', 'utf-8');
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            execTime,
-            command,
-            output: {
-              stdout: output,
-              stderr: '',
-              combined: output
-            },
-            metadata: {
-              serviceType: 'lambda',
-              functionName
-            }
-          };
-        } catch (error: any) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            execTime,
-            command,
-            error: error.message
-          };
-        }
-        
       default:
         return {
           entity: service.name,
@@ -1560,282 +1001,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
           execTime,
           command,
           error: `Exec not supported for ${serviceType} services`
-        };
-    }
-  }
-  
-  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
-    const { region, accountId } = this.getAWSConfig(service);
-    const requirements = service.getRequirements();
-    const serviceType = this.determineAWSServiceType(service);
-    const resourceName = this.getResourceName(service);
-    const testTime = new Date();
-    
-    if (!service.quiet) {
-      printInfo(`Running tests for ${service.name} on AWS ${serviceType}...`);
-    }
-    
-    // Use test annotations or defaults
-    const testImage = requirements.annotations?.['test/image'];
-    const testCommand = requirements.annotations?.['test/command'] || 'npm test';
-    
-    switch (serviceType) {
-      case 'ecs-fargate':
-        // Get resource IDs from CloudFormation (with caching)
-        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-        
-        // Get cluster and task definition names from discovered resources
-        const cluster = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
-        const taskDefinition = `${resourceName}-test-task`;
-        
-        // Create test task definition if needed
-        await this.createTestTaskDefinition(taskDefinition, testImage || service.getImage(), testCommand, region);
-        
-        // Run task
-        const taskArn = await this.runECSTask(cluster, taskDefinition, region, accountId);
-        
-        // Wait for task completion and get logs
-        const { success, logs, exitCode } = await this.waitForTaskCompletion(cluster, taskArn);
-        
-        // Parse test output - basic implementation for now
-        // TODO: Implement proper test output parsing
-        
-        return {
-          entity: service.name,
-          platform: 'aws',
-          success,
-          testTime,
-          suite: options.suite || 'unit',
-          metadata: {
-            serviceType: 'ecs-fargate',
-            taskArn,
-            exitCode,
-            logs
-          }
-        };
-        
-      case 'lambda':
-        // Invoke Lambda function with test event
-        const functionName = `${resourceName}-function`;
-        const testEvent = {
-          test: true,
-          suite: options.suite || 'unit',
-          coverage: options.coverage
-        };
-        
-        try {
-          execSync(
-            `aws lambda invoke --function-name ${functionName} --payload '${JSON.stringify(testEvent)}' --query 'Payload' --output text --region ${region} /tmp/test-output.txt`,
-            { encoding: 'utf-8' }
-          );
-          
-          const output = fs.readFileSync('/tmp/test-output.txt', 'utf-8');
-          const testResult = JSON.parse(output);
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: testResult.success || false,
-            testTime,
-            suite: options.suite || 'unit',
-            passed: testResult.passed,
-            failed: testResult.failed,
-            skipped: testResult.skipped,
-            coverage: testResult.coverage,
-            metadata: {
-              serviceType: 'lambda',
-              functionName
-            }
-          };
-        } catch (error) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            testTime,
-            suite: options.suite || 'unit',
-            error: `Test invocation failed: ${error}`
-          };
-        }
-        
-      case 's3-cloudfront':
-        // Use CloudWatch Synthetics for frontend testing
-        const canaryName = `${resourceName}-canary`;
-        
-        // Run canary
-        try {
-          execSync(
-            `aws synthetics start-canary --name ${canaryName} --region ${region}`
-          );
-          
-          // Wait for results
-          await new Promise(resolve => setTimeout(resolve, 30000));
-          
-          // Get canary results
-          const runs = execSync(
-            `aws synthetics describe-canary-runs --name ${canaryName} --max-results 1 --query 'CanaryRuns[0]' --region ${region}`,
-            { encoding: 'utf-8' }
-          );
-          
-          const runResult = JSON.parse(runs);
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: runResult.Status.State === 'PASSED',
-            testTime,
-            suite: 'synthetic',
-            passed: runResult.Status.State === 'PASSED' ? 1 : 0,
-            failed: runResult.Status.State === 'PASSED' ? 0 : 1,
-            skipped: 0,
-            metadata: {
-              serviceType: 's3-cloudfront',
-              canaryName,
-              runId: runResult.Id
-            }
-          };
-        } catch (error) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            testTime,
-            suite: 'synthetic',
-            error: `Canary test failed: ${error}`
-          };
-        }
-        
-      default:
-        return {
-          entity: service.name,
-          platform: 'aws',
-          success: false,
-          testTime,
-          suite: options.suite || 'unit',
-          error: `Testing not supported for ${serviceType} services`
-        };
-    }
-  }
-  
-  async restore(service: Service, backupId: string, options: RestoreOptions = {}): Promise<RestoreResult> {
-    const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineAWSServiceType(service);
-    const resourceName = this.getResourceName(service);
-    const restoreTime = new Date();
-    
-    if (!service.quiet) {
-      printInfo(`Restoring ${service.name} from backup ${backupId} on AWS...`);
-    }
-    
-    switch (serviceType) {
-      case 'rds':
-        // Restore from RDS snapshot
-        const instanceId = `${resourceName}-db`;
-        const snapshotId = `${instanceId}-backup-${backupId}`;
-        const restoredInstanceId = `${instanceId}-restored`;
-        
-        try {
-          // Restore to new instance
-          execSync(
-            `aws rds restore-db-instance-from-db-snapshot --db-instance-identifier ${restoredInstanceId} --db-snapshot-identifier ${snapshotId} --region ${region}`
-          );
-          
-          // Wait for instance to be available
-          await this.waitForRDSInstance(restoredInstanceId);
-          
-          // Swap instances if requested
-          if (!options.targetPath) {
-            // Stop original instance
-            execSync(`aws rds stop-db-instance --db-instance-identifier ${instanceId} --region ${region}`);
-            
-            // Rename instances
-            execSync(`aws rds modify-db-instance --db-instance-identifier ${instanceId} --new-db-instance-identifier ${instanceId}-old --apply-immediately --region ${region}`);
-            execSync(`aws rds modify-db-instance --db-instance-identifier ${restoredInstanceId} --new-db-instance-identifier ${instanceId} --apply-immediately --region ${region}`);
-          }
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            restoreTime,
-            backupId,
-            restore: {
-              source: snapshotId,
-              destination: restoredInstanceId,
-              duration: Date.now() - restoreTime.getTime()
-            },
-            metadata: {
-              serviceType: 'rds',
-              instanceId: restoredInstanceId
-            }
-          };
-        } catch (error) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            restoreTime,
-            backupId,
-            error: `RDS restore failed: ${error}`
-          };
-        }
-        
-      case 's3-cloudfront':
-        // Restore from S3 backup
-        const bucketName = `${resourceName}-static`;
-        const backupBucket = `${bucketName}-backup-${backupId}`;
-        
-        try {
-          // Clear current bucket
-          execSync(`aws s3 rm s3://${bucketName}/ --recursive --region ${region}`);
-          
-          // Copy from backup
-          execSync(`aws s3 sync s3://${backupBucket}/ s3://${bucketName}/ --region ${region}`);
-          
-          // Invalidate CloudFront
-          const distributionId = await this.getCloudFrontDistribution(bucketName, region);
-          if (distributionId) {
-            execSync(
-              `aws cloudfront create-invalidation --distribution-id ${distributionId} --paths "/*" --region ${region}`
-            );
-          }
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            restoreTime,
-            backupId,
-            restore: {
-              source: backupBucket,
-              destination: bucketName,
-              duration: Date.now() - restoreTime.getTime()
-            },
-            metadata: {
-              serviceType: 's3-cloudfront',
-              bucketName,
-              distributionId
-            }
-          };
-        } catch (error) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            restoreTime,
-            backupId,
-            error: `S3 restore failed: ${error}`
-          };
-        }
-        
-      default:
-        return {
-          entity: service.name,
-          platform: 'aws',
-          success: false,
-          restoreTime,
-          backupId,
-          error: `Restore not implemented for ${serviceType} services`
         };
     }
   }
@@ -1899,48 +1064,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       return '';
     }
   }
-  
-  
-  private async getCloudFrontDomain(distributionId: string, region: string): Promise<string> {
-    try {
-      const domain = execSync(
-        `aws cloudfront get-distribution --id ${distributionId} --query 'Distribution.DomainName' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return domain;
-    } catch {
-      return '';
-    }
-  }
-  
-  
-  private async getOrCreateEFS(resourceName: string, region: string): Promise<string> {
-    try {
-      // Check if exists
-      const fileSystemId = await this.getEFSId(resourceName, region);
-      if (fileSystemId) {
-        return fileSystemId;
-      }
-      
-      // Create new
-      return await this.createEFS(resourceName, region);
-    } catch {
-      return '';
-    }
-  }
-  
-  private async getEFSId(resourceName: string, region: string): Promise<string | undefined> {
-    try {
-      const fileSystemId = execSync(
-        `aws efs describe-file-systems --creation-token ${resourceName} --query 'FileSystems[0].FileSystemId' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return fileSystemId !== 'None' ? fileSystemId : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-  
+    
   /**
    * Fetch recent CloudWatch logs for a service
    */
@@ -2091,135 +1215,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       return '';
     }
   }
-  
-  private async getLambdaVersion(functionName: string, region: string): Promise<string> {
-    try {
-      const version = execSync(
-        `aws lambda get-function --function-name ${functionName} --query 'Configuration.Version' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return version;
-    } catch {
-      return '$LATEST';
-    }
-  }
-  
-  private parseMemory(memory: string): number {
-    const match = memory.match(/(\d+)(Mi|Gi)?/);
-    if (match) {
-      const value = parseInt(match[1]);
-      const unit = match[2];
-      return unit === 'Gi' ? value : value / 1024;
-    }
-    return 0.5;
-  }
-  
-  private parseStorageSize(size: string): number {
-    const match = size.match(/(\d+)(Gi|Ti)?/);
-    if (match) {
-      const value = parseInt(match[1]);
-      const unit = match[2];
-      return unit === 'Ti' ? value * 1024 : value;
-    }
-    return 10;
-  }
-  
-  private getRDSCost(instanceClass: string): number {
-    const costs: Record<string, number> = {
-      'db.t3.micro': 15,
-      'db.t3.small': 30,
-      'db.t3.medium': 60,
-      'db.t3.large': 120,
-      'db.m5.large': 150,
-      'db.m5.xlarge': 300
-    };
-    return costs[instanceClass] || 50;
-  }
-  
-  private getBackupMethod(serviceType: string): string {
-    const methods: Record<string, string> = {
-      'rds': 'RDS Snapshot',
-      's3-cloudfront': 'S3 Bucket Copy',
-      'efs': 'AWS Backup',
-      'dynamodb': 'On-Demand Backup',
-      'lambda': 'Code Export',
-      'ecs-fargate': 'Task Definition + ECR'
-    };
-    return methods[serviceType] || 'Custom';
-  }
-  
-  // Stub implementations for complex AWS operations
-  // These would be fully implemented in production
-  
-  private async createTaskDefinition(_resourceName: string, _requirements: any, _region: string, _accountId: string): Promise<void> {
-    // Implementation would create ECS task definition from requirements
-    // Would create ECS task definition
-  }
-  
-  private async createALB(resourceName: string, _requirements: any, _region: string, accountId: string): Promise<string> {
-    // Implementation would create Application Load Balancer
-    return `arn:aws:elasticloadbalancing:${_region}:${accountId}:loadbalancer/app/${resourceName}-alb/abc123`;
-  }
-  
-  private async createECSService(cluster: string, resourceName: string, requirements: any, _region: string): Promise<void> {
-    // Implementation would create ECS service
-    if (!cluster || !resourceName || !requirements) return;
-  }
-  
-  private async createLambdaRole(functionName: string, _region: string, accountId: string): Promise<string> {
-    // Implementation would create IAM role for Lambda
-    return `arn:aws:iam::${accountId}:role/${functionName}-role`;
-  }
-  
-  private async createLambdaFunction(functionName: string, requirements: any, roleArn: string, _region: string): Promise<void> {
-    // Implementation would create Lambda function
-    if (!functionName || !requirements || !roleArn) return;
-  }
-  
-  private async createFunctionUrl(functionName: string, _region: string): Promise<string> {
-    // Implementation would create Lambda function URL
-    return `https://${functionName}.lambda-url.${_region}.on.aws/`;
-  }
-  
-  private async createDBSubnetGroup(resourceName: string, _region: string): Promise<string> {
-    // Implementation would create RDS subnet group
-    return `${resourceName}-subnet-group`;
-  }
-  
-  private async createRDSInstance(instanceId: string, instanceClass: string, requirements: any, _region: string): Promise<void> {
-    // Implementation would create RDS instance
-    if (!instanceId || !instanceClass || !requirements) return;
-  }
-  
-  private async createS3Bucket(_bucketName: string, _staticHosting: boolean, _region: string): Promise<void> {
-    // Implementation would create S3 bucket with optional static hosting
-  }
-  
-  private async getCloudFrontDistribution(_bucketName: string, _region: string): Promise<string | undefined> {
-    // Implementation would get CloudFront distribution ID for the bucket
-    // For now, return undefined to indicate no existing distribution
-    return undefined;
-  }
-  
-  private async createCloudFrontDistribution(_bucketName: string, _requirements: any, _region: string): Promise<string> {
-    // Implementation would create CloudFront distribution
-    return `ABCDEF123456`;
-  }
-  
-  private async createEFS(resourceName: string, _region: string): Promise<string> {
-    // Implementation would create EFS file system
-    return `fs-${resourceName.substring(0, 8)}`;
-  }
-  
-  private async createEFSMountTargets(fileSystemId: string, _region: string): Promise<void> {
-    // Implementation would create EFS mount targets in each subnet
-    if (!fileSystemId) return;
-  }
-  
-  private async createDynamoDBTable(tableName: string, requirements: any, _region: string): Promise<void> {
-    // Implementation would create DynamoDB table
-    if (!tableName || !requirements) return;
-  }
+
   
   private async updateTaskDefinition(service: Service, imageUri: string): Promise<void> {
     if (!service || !imageUri) return;
@@ -2302,24 +1298,9 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       // Don't fail the publish - the update command can still work with force-new-deployment
     }
   }
-  
-  private async getRDSSnapshotSize(_snapshotId: string, _region: string): Promise<number> {
-    // Implementation would get RDS snapshot size
-    return 10 * 1024 * 1024 * 1024; // 10GB default
-  }
-  
-  private async getS3BucketSize(_bucketName: string, _region: string): Promise<number> {
-    // Implementation would calculate S3 bucket size
-    return 1 * 1024 * 1024 * 1024; // 1GB default
-  }
-  
-  private async createEFSBackup(_fileSystemId: string, _backupId: string, _region: string): Promise<string> {
-    // Implementation would create EFS backup via AWS Backup
-    return `backup-job-id`;
-  }
+ 
   
   private async getRunningTask(cluster: string, service: string, region: string): Promise<string | undefined> {
-    // Implementation would get a running task ARN
     try {
       const taskArn = execSync(
         `aws ecs list-tasks --cluster ${cluster} --service-name ${service} --desired-status RUNNING --query 'taskArns[0]' --output text --region ${region}`,
@@ -2330,32 +1311,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       return undefined;
     }
   }
-  
-  private async createTestTaskDefinition(_taskDef: string, _image: string, _command: string, _region: string): Promise<void> {
-    // Implementation would create test task definition
-  }
-  
-  private async runECSTask(_cluster: string, _taskDef: string, _region: string, _accountId: string): Promise<string> {
-    // Implementation would run ECS task and return ARN
-    return `arn:aws:ecs:${_region}:${_accountId}:task/cluster/${Date.now()}`;
-  }
-  
-  private async waitForTaskCompletion(_cluster: string, _taskArn: string): Promise<any> {
-    // Implementation would wait for task and return results
-    return {
-      success: true,
-      logs: 'Test output here',
-      exitCode: 0
-    };
-  }
-  
-  private async waitForRDSInstance(instanceId: string): Promise<void> {
-    // Implementation would wait for RDS instance to be available
-    if (!instanceId) return;
-  }
-  
-  // parseTestOutput method removed as it was not being used
-  
+    
   /**
    * Manage secrets using AWS Secrets Manager
    */
@@ -2806,8 +1762,5 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   /**
    * Check ECS Fargate service status
    */
-
-
-
 
 }
