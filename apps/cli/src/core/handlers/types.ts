@@ -32,6 +32,7 @@ export interface CheckHandlerResult extends HandlerResult {
   health?: CheckResult['health'];
   platformResources?: PlatformResources;
   metadata: Record<string, any>;
+  logs?: CheckResult['logs'];
 }
 
 /**

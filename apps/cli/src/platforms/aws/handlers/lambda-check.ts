@@ -1,3 +1,4 @@
+import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 
@@ -45,12 +46,65 @@ const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHa
         functionName: functionName
       };
       
+      // Collect Lambda-specific logs if function is running
+      let logs;
+      if (status === 'running') {
+        try {
+          const { LambdaClient } = await import('@aws-sdk/client-lambda');
+          const { CloudWatchLogsClient } = await import('@aws-sdk/client-cloudwatch-logs');
+          const logsClient = new CloudWatchLogsClient({ region });
+          
+          // Lambda log group is deterministic: /aws/lambda/{functionName}
+          const logGroupName = `/aws/lambda/${functionName}`;
+          
+          try {
+            const response = await logsClient.send(new FilterLogEventsCommand({
+              logGroupName,
+              startTime: Date.now() - 2 * 60 * 60 * 1000, // Last 2 hours
+              limit: 20,
+              interleaved: true
+            }));
+            
+            if (response.events && response.events.length > 0) {
+              const recentLogs = response.events
+                .filter(e => e.message)
+                .map(e => e.message!.trim());
+              
+              // Count errors and warnings
+              const errors = recentLogs.filter(log => 
+                /\b(error|ERROR|Error|FATAL|fatal|Fatal|exception|Exception|EXCEPTION)\b/.test(log)
+              ).length;
+              
+              const warnings = recentLogs.filter(log => 
+                /\b(warning|WARNING|Warning|warn|WARN|Warn)\b/.test(log)
+              ).length;
+              
+              logs = {
+                recent: recentLogs.slice(0, 10), // Return the 10 most recent logs
+                errors,
+                warnings
+              };
+            }
+          } catch (error) {
+            // Log group might not exist if function was never invoked
+            if (service.verbose) {
+              console.log(`[DEBUG] Lambda log group ${logGroupName} not found or no logs available`);
+            }
+          }
+        } catch (error) {
+          if (service.verbose) {
+            console.log(`[DEBUG] Failed to collect Lambda logs: ${error}`);
+          }
+        }
+      }
+      
       return { 
         success: true,
         status, 
         health, 
         platformResources, 
-        metadata 
+        metadata,
+        logs
       };
     } else {
       return { 

@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import { DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
+import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { AWSPlatformStrategy } from '../platform.js';
@@ -157,12 +158,74 @@ const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
         metadata.albArn = albArn;
       }
       
+      // Collect ECS-specific logs if service is running
+      let logs;
+      if (status === 'running') {
+        try {
+          const { logs: logsClient } = platform.getAWSClients(region);
+          
+          // ECS-specific log group patterns
+          const logGroupPatterns = [
+            `/ecs/${serviceName}`,
+            `/ecs/${clusterName}/${serviceName}`,
+            `/ecs/semiont-${service.environment}`,
+            metadata.logGroupName // From CloudFormation if available
+          ].filter(Boolean);
+          
+          let recentLogs: string[] = [];
+          
+          // Try each pattern until we find logs
+          for (const logGroupName of logGroupPatterns) {
+            try {
+              const response = await logsClient.send(new FilterLogEventsCommand({
+                logGroupName,
+                startTime: Date.now() - 2 * 60 * 60 * 1000, // Last 2 hours
+                limit: 20,
+                interleaved: true
+              }));
+              
+              if (response.events && response.events.length > 0) {
+                recentLogs = response.events
+                  .filter(e => e.message)
+                  .map(e => e.message!.trim());
+                break; // Found logs, stop searching
+              }
+            } catch {
+              // Log group doesn't exist, try next pattern
+              continue;
+            }
+          }
+          
+          if (recentLogs.length > 0) {
+            // Count errors and warnings
+            const errors = recentLogs.filter(log => 
+              /\b(error|ERROR|Error|FATAL|fatal|Fatal|exception|Exception|EXCEPTION)\b/.test(log)
+            ).length;
+            
+            const warnings = recentLogs.filter(log => 
+              /\b(warning|WARNING|Warning|warn|WARN|Warn)\b/.test(log)
+            ).length;
+            
+            logs = {
+              recent: recentLogs.slice(0, 10), // Return the 10 most recent logs
+              errors,
+              warnings
+            };
+          }
+        } catch (error) {
+          if (service.verbose) {
+            console.log(`[DEBUG] Failed to collect ECS logs: ${error}`);
+          }
+        }
+      }
+      
       return { 
         success: true,
         status, 
         health, 
         platformResources, 
-        metadata 
+        metadata,
+        logs
       };
     } else {
       return { 

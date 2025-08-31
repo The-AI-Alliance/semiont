@@ -633,6 +633,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     let awsResources: PlatformResources | undefined;
     let cfnDiscoveredResources: any = {};
     let serviceMetadata: Record<string, any> = {};
+    let logs: CheckResult['logs'] | undefined;
       
     const registry = HandlerRegistry.getInstance();
     const descriptor = registry.getDescriptor('aws', `check-${serviceType}`);
@@ -651,13 +652,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       health = result.health;
       awsResources = result.platformResources;
       serviceMetadata = result.metadata || {};
+      logs = result.logs;
 
-    }
-    
-    // Collect logs if service is running
-    let logs: CheckResult['logs'] | undefined;
-    if (status === 'running') {
-      logs = await this.collectLogs(service);
     }
     
     // Build comprehensive metadata for dashboard
@@ -1847,7 +1843,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async collectLogs(service: Service): Promise<CheckResult['logs']> {
+  public async collectLogs(service: Service): Promise<CheckResult['logs']> {
     const { region } = this.getAWSConfig(service);
     
     try {
@@ -1951,7 +1947,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   /**
    * Fetch recent CloudWatch logs for a service
    */
-  private async fetchRecentLogs(serviceName: string, region: string, limit: number = 20): Promise<string[]> {
+  public async fetchRecentLogs(serviceName: string, region: string, limit: number = 20): Promise<string[]> {
     try {
       const { logs, cfn } = this.getAWSClients(region);
       

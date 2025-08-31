@@ -53,12 +53,24 @@ const rdsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
         rdsInstanceId: dbInstanceId
       };
       
+      // Collect RDS-specific logs if database is running
+      let logs;
+      if (status === 'running') {
+        // Note: RDS logs are typically accessed via RDS API, not CloudWatch
+        // For now, we'll skip RDS log collection as it requires different approach
+        // (download log files via DescribeDBLogFiles and DownloadDBLogFilePortion)
+        if (service.verbose) {
+          console.log(`[DEBUG] RDS log collection not implemented - would require RDS log file API`);
+        }
+      }
+      
       return { 
         success: true,
         status, 
         health, 
         platformResources, 
-        metadata 
+        metadata,
+        logs
       };
     } else {
       return { 
