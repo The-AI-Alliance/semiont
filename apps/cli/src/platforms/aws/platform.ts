@@ -36,7 +36,6 @@ import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { HandlerContextBuilder } from "../../core/handlers/context.js";
 import { CheckHandlerResult } from "../../core/handlers/types.js";
 import { handlers } from './handlers/index.js';
-import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { printInfo, printSuccess } from '../../core/io/cli-logger.js';
@@ -874,92 +873,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     };
   }
 
-  
-  async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
-    const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineServiceType(service);
-    const resourceName = this.getResourceName(service);
-    const execTime = new Date();
-    
-    switch (serviceType) {
-      case 'ecs-fargate':
-        // Get resource IDs from CloudFormation (with caching)
-        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-        
-        // Get cluster and service names from discovered resources
-        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
-        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
-        
-        // Get running task
-        const taskArn = await this.getRunningTask(clusterName, serviceName, region);
-        
-        if (!taskArn) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            execTime,
-            command,
-            error: 'No running tasks found'
-          };
-        }
-        
-        // Execute command via ECS Exec
-        const execCommand = [
-          'aws', 'ecs', 'execute-command',
-          '--cluster', clusterName,
-          '--task', taskArn,
-          '--container', resourceName,
-          '--command', `"${command}"`,
-          '--interactive',
-          '--region', region
-        ].join(' ');
-        
-        try {
-          const output = execSync(execCommand, {
-            encoding: 'utf-8',
-            timeout: options.timeout || 30000
-          });
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            execTime,
-            command,
-            output: {
-              stdout: output,
-              stderr: '',
-              combined: output
-            },
-            metadata: {
-              serviceType: 'ecs-fargate',
-              taskArn,
-              container: resourceName
-            }
-          };
-        } catch (error: any) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            execTime,
-            command,
-            error: error.message
-          };
-        }
-        
-      default:
-        return {
-          entity: service.name,
-          platform: 'aws',
-          success: false,
-          execTime,
-          command,
-          error: `Exec not supported for ${serviceType} services`
-        };
-    }
-  }
   
   public async collectLogs(service: Service): Promise<CheckResult['logs']> {
     const { region } = this.getAWSConfig(service);

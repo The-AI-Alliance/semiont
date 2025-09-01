@@ -31,7 +31,6 @@ const COMMAND_MODULES: Record<string, string> = {
   'stop': './commands/stop.js',
   'check': './commands/check.js',
   'configure': './commands/configure.js',
-  'exec': './commands/exec.js',
   'provision': './commands/provision.js',
   'provision-cdk': './commands/provision-cdk.js',
   'publish': './commands/publish.js',

@@ -14,7 +14,6 @@ import { CheckResult } from './commands/check.js';
 import { UpdateResult } from './commands/update.js';
 import { ProvisionResult } from './commands/provision.js';
 import { PublishResult } from './commands/publish.js';
-import { ExecResult, ExecOptions } from './commands/exec.js';
 import { TestResult, TestOptions } from './commands/test.js';
 
 /**
@@ -85,11 +84,6 @@ export interface PlatformStrategy {
   publish(service: Service): Promise<PublishResult>;
   
   /**
-   * Execute a command in the service context on this platform
-   */
-  exec(service: Service, command: string, options?: ExecOptions): Promise<ExecResult>;
-  
-  /**
    * Run tests for a service on this platform
    */
   test(service: Service, options?: TestOptions): Promise<TestResult>;
@@ -137,7 +131,6 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   abstract update(service: Service): Promise<UpdateResult>;
   abstract provision(service: Service): Promise<ProvisionResult>;
   abstract publish(service: Service): Promise<PublishResult>;
-  abstract exec(service: Service, command: string, options?: ExecOptions): Promise<ExecResult>;
   abstract test(service: Service, options?: TestOptions): Promise<TestResult>;
   abstract collectLogs(service: Service): Promise<CheckResult['logs']>;
   abstract getPlatformName(): string;

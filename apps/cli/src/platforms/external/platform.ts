@@ -34,7 +34,6 @@ import { CheckResult } from '../../core/commands/check.js';
 import { UpdateResult } from '../../core/commands/update.js';
 import { ProvisionResult } from '../../core/commands/provision.js';
 import { PublishResult } from '../../core/commands/publish.js';
-import { ExecResult, ExecOptions } from '../../core/commands/exec.js';
 import { TestResult, TestOptions } from '../../core/commands/test.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
@@ -186,31 +185,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async exec(service: Service, command: string, _options: ExecOptions = {}): Promise<ExecResult> {
-    const requirements = service.getRequirements();
-    const execTime = new Date();
-    
-    if (!service.quiet) {
-      printWarning(`Cannot execute commands on external ${service.name} service - managed externally`);
-    }
-    
-    const recommendations = this.getExecRecommendations(service.config, requirements);
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: false,
-      execTime,
-      command,
-      error: 'External services cannot execute commands through Semiont',
-      metadata: {
-        message: 'Command execution not available for external services',
-        provider: service.config.provider,
-        recommendations
-      }
-    };
-  }
-  
   async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
     const requirements = service.getRequirements();
     const endpoint = this.buildEndpoint(service.config, requirements);
@@ -356,74 +330,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get recommendations based on requirements
    */
-  private getExecRecommendations(config: any, requirements: any): string[] {
-    const recommendations: string[] = [];
-    
-    if (requirements.storage?.some((s: any) => s.type === 'database')) {
-      const host = config.host || '<host>';
-      const user = config.user || '<user>';
-      const database = config.database || config.name || '<database>';
-      recommendations.push(
-        `Use database client: psql -h ${host} -U ${user} -d ${database}`,
-        'Set up SSH tunnel if database is behind firewall',
-        'Use database management tools (pgAdmin, MySQL Workbench)',
-        'Consider using database proxy for secure connections'
-      );
-    }
-    
-    if (config.ssh || config.sshHost) {
-      const sshHost = config.sshHost || config.host || '<host>';
-      const sshUser = config.sshUser || 'user';
-      recommendations.push(
-        `Use SSH to connect: ssh ${sshUser}@${sshHost}`,
-        'Set up SSH key authentication',
-        'Use SSH config for easier access'
-      );
-    }
-    
-    if (config.provider) {
-      switch (config.provider) {
-        case 'aws':
-          recommendations.push(
-            'Use AWS CLI: aws ssm start-session',
-            'Use AWS Systems Manager Session Manager',
-            'Use ECS Exec for container access'
-          );
-          break;
-        case 'gcp':
-          recommendations.push(
-            'Use gcloud CLI: gcloud compute ssh',
-            'Use Cloud Shell for web-based access'
-          );
-          break;
-        case 'azure':
-          recommendations.push(
-            'Use Azure CLI: az vm run-command',
-            'Use Azure Cloud Shell'
-          );
-          break;
-      }
-    }
-    
-    if (requirements.network?.needsLoadBalancer) {
-      recommendations.push(
-        'Frontend is typically static - no execution needed',
-        'Use browser developer tools for debugging',
-        'Access through CDN management console'
-      );
-    }
-    
-    if (recommendations.length === 0) {
-      recommendations.push(
-        'Check external service documentation',
-        'Use service provider management console',
-        'Set up appropriate access credentials'
-      );
-    }
-    
-    return recommendations;
-  }
-  
   private getTestRecommendations(requirements: any): string[] {
     const recommendations: string[] = [];
     

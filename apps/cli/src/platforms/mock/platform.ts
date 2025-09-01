@@ -35,7 +35,6 @@ import { UpdateResult } from "../../core/commands/update.js";
 import { ProvisionResult } from "../../core/commands/provision.js";
 import { PublishResult } from "../../core/commands/publish.js";
 import { PlatformResources } from "../platform-resources.js";
-import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
 import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
@@ -295,24 +294,6 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       metadata: {
         mockImplementation: true,
         testSuite: options.suite
-      }
-    };
-  }
-  
-  async exec(service: Service, command: string, _options?: ExecOptions): Promise<ExecResult> {
-    return {
-      entity: service.name,
-      platform: 'mock',
-      success: true,
-      execTime: new Date(),
-      command: command,
-      output: {
-        stdout: `Mock output for: ${command}`,
-        stderr: '',
-        combined: `Mock output for: ${command}`
-      },
-      metadata: {
-        mockImplementation: true
       }
     };
   }
