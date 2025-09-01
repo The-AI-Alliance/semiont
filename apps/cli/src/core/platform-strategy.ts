@@ -146,6 +146,8 @@ export interface PlatformStrategy {
  */
 export abstract class BasePlatformStrategy implements PlatformStrategy {
 
+  abstract determineServiceType(service: Service): string;
+  abstract buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>>;
   
   abstract start(service: Service): Promise<StartResult>;
   abstract stop(service: Service): Promise<StopResult>;
@@ -186,7 +188,7 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   /**
    * Helper to generate container/instance names
    */
-  protected getResourceName(service: Service): string {
+  public getResourceName(service: Service): string {
     return `semiont-${service.name}-${service.environment}`;
   }
   
