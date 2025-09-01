@@ -31,8 +31,6 @@ import { UpdateResult } from "../../core/commands/update.js";
 import { PublishResult } from "../../core/commands/publish.js";
 import { PlatformResources, createPlatformResources } from "../platform-resources.js";
 //import { ProvisionResult } from "../../core/commands/provision.js";
-//import { BackupResult } from "../../core/commands/backup.js";
-//import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 //import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { HandlerContextBuilder } from "../../core/handlers/context.js";

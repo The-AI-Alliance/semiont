@@ -34,10 +34,8 @@ import { CheckResult } from '../../core/commands/check.js';
 import { UpdateResult } from '../../core/commands/update.js';
 import { ProvisionResult } from '../../core/commands/provision.js';
 import { PublishResult } from '../../core/commands/publish.js';
-import { BackupResult } from '../../core/commands/backup.js';
 import { ExecResult, ExecOptions } from '../../core/commands/exec.js';
 import { TestResult, TestOptions } from '../../core/commands/test.js';
-import { RestoreResult, RestoreOptions } from '../../core/commands/restore.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
@@ -188,34 +186,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async backup(service: Service): Promise<BackupResult> {
-    const requirements = service.getRequirements();
-    const backupId = `${service.name}-${service.environment}-${Date.now()}`;
-    
-    if (!service.quiet) {
-      printWarning(`Cannot backup external ${service.name} service - managed externally`);
-      printInfo('External services must be backed up through their own backup systems');
-    }
-    
-    const recommendations = this.getBackupRecommendations(requirements);
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      backupTime: new Date(),
-      backupId,
-      restore: {
-        supported: false
-      },
-      metadata: {
-        message: 'External services cannot be backed up through Semiont',
-        recommendations,
-        provider: service.config.provider
-      }
-    };
-  }
-  
   async exec(service: Service, command: string, _options: ExecOptions = {}): Promise<ExecResult> {
     const requirements = service.getRequirements();
     const execTime = new Date();
@@ -312,35 +282,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async restore(service: Service, backupId: string, _options: RestoreOptions = {}): Promise<RestoreResult> {
-    const requirements = service.getRequirements();
-    const restoreTime = new Date();
-    
-    if (!service.quiet) {
-      printWarning(`Cannot directly restore external ${service.name} service`);
-      printInfo('Providing guidance for manual restore process');
-    }
-    
-    const guidance = this.getRestoreGuidance(service.config, requirements, backupId);
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: false,
-      restoreTime,
-      backupId,
-      error: 'External services must be restored through their own management interfaces',
-      warnings: guidance.warnings,
-      metadata: {
-        provider: service.config.provider,
-        instructions: guidance.instructions,
-        requirements: guidance.requirements,
-        estimatedTime: guidance.estimatedTime,
-        documentation: guidance.documentation
-      }
-    };
-  }
-  
   async collectLogs(_service: Service): Promise<CheckResult['logs']> {
     // Can't collect logs from external services
     return undefined;
@@ -415,55 +356,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get recommendations based on requirements
    */
-  private getBackupRecommendations(requirements: any): string[] {
-    const recommendations: string[] = [];
-    
-    if (requirements.storage?.some((s: any) => s.type === 'database')) {
-      recommendations.push(
-        'Use database-native backup tools (pg_dump, mysqldump, mongodump)',
-        'Configure automated backups in your database provider',
-        'Consider point-in-time recovery options',
-        'Test backup restoration procedures regularly'
-      );
-    }
-    
-    if (requirements.storage?.some((s: any) => s.type === 'filesystem')) {
-      recommendations.push(
-        'Use cloud storage backup features',
-        'Configure automated snapshots',
-        'Implement cross-region replication',
-        'Document access patterns and permissions'
-      );
-    }
-    
-    if (requirements.network?.needsLoadBalancer) {
-      recommendations.push(
-        'Use CDN/hosting provider backup features',
-        'Maintain source code in version control',
-        'Document deployment procedures',
-        'Consider blue-green deployment strategies'
-      );
-    }
-    
-    if (requirements.build?.dockerfile) {
-      recommendations.push(
-        'Maintain container images in registry',
-        'Use infrastructure as code',
-        'Document service dependencies'
-      );
-    }
-    
-    if (recommendations.length === 0) {
-      recommendations.push(
-        'Consult service provider documentation for backup options',
-        'Implement monitoring and alerting',
-        'Document service configuration and dependencies'
-      );
-    }
-    
-    return recommendations;
-  }
-  
   private getExecRecommendations(config: any, requirements: any): string[] {
     const recommendations: string[] = [];
     
@@ -601,87 +493,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     );
     
     return recommendations;
-  }
-  
-  private getRestoreGuidance(config: any, requirements: any, backupId: string): any {
-    const guidance: any = {
-      instructions: [],
-      requirements: [],
-      warnings: [],
-      estimatedTime: 'Varies by service',
-      documentation: 'Consult provider documentation'
-    };
-    
-    // Provider-specific guidance
-    if (config.provider) {
-      guidance.instructions.push(
-        `1. Log into ${config.provider} console`,
-        `2. Navigate to backup/restore section`,
-        `3. Find backup: ${backupId}`,
-        `4. Follow ${config.provider} restore procedure`
-      );
-      
-      switch (config.provider) {
-        case 'aws':
-          guidance.documentation = 'https://docs.aws.amazon.com/';
-          guidance.estimatedTime = '15-60 minutes';
-          break;
-        case 'gcp':
-          guidance.documentation = 'https://cloud.google.com/docs';
-          guidance.estimatedTime = '10-45 minutes';
-          break;
-        case 'azure':
-          guidance.documentation = 'https://docs.microsoft.com/azure/';
-          guidance.estimatedTime = '15-60 minutes';
-          break;
-      }
-    }
-    
-    // Storage-specific guidance
-    if (requirements.storage?.some((s: any) => s.type === 'database')) {
-      guidance.instructions = [
-        `1. Access database management console`,
-        `2. Locate backup section`,
-        `3. Find backup with ID: ${backupId}`,
-        `4. Initiate restore to new or existing instance`,
-        `5. Update connection strings if endpoint changes`,
-        `6. Verify data integrity`
-      ];
-      guidance.requirements.push(
-        'Database admin credentials',
-        'Sufficient storage space',
-        'Backup must exist in system'
-      );
-      guidance.warnings.push(
-        'May cause downtime',
-        'Connection strings may need updating'
-      );
-    }
-    
-    if (requirements.storage?.some((s: any) => s.type === 'filesystem')) {
-      guidance.instructions.push(
-        'Restore files from backup location',
-        'Verify file permissions',
-        'Update mount points if needed'
-      );
-      guidance.requirements.push(
-        'Storage admin access',
-        'Sufficient storage quota'
-      );
-    }
-    
-    // Add general requirements
-    guidance.requirements.push(
-      'Access to external service provider',
-      'Appropriate permissions for restore operation'
-    );
-    
-    guidance.warnings.push(
-      'Ensure compatibility with current version',
-      'May require configuration updates after restore'
-    );
-    
-    return guidance;
   }
   
   /**

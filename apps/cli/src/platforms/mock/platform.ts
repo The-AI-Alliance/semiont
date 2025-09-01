@@ -34,11 +34,9 @@ import { CheckResult } from "../../core/commands/check.js";
 import { UpdateResult } from "../../core/commands/update.js";
 import { ProvisionResult } from "../../core/commands/provision.js";
 import { PublishResult } from "../../core/commands/publish.js";
-import { BackupResult } from "../../core/commands/backup.js";
 import { PlatformResources } from "../platform-resources.js";
 import { ExecResult, ExecOptions } from "../../core/commands/exec.js";
 import { TestResult, TestOptions } from "../../core/commands/test.js";
-import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
@@ -279,84 +277,6 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       metadata: {
         mockImplementation: true,
         buildRequirements: requirements.build
-      }
-    };
-  }
-  
-  async backup(service: Service): Promise<BackupResult> {
-    const requirements = service.getRequirements();
-    const backupId = `backup-${service.name}-${Date.now()}`;
-    
-    // Calculate backup size based on storage requirements
-    let totalSize = 0;
-    const backedUpVolumes: string[] = [];
-    
-    if (requirements.storage) {
-      for (const storage of requirements.storage) {
-        if (storage.persistent && storage.backupEnabled !== false) {
-          // Mock size calculation (convert size spec to bytes)
-          const sizeInBytes = this.parseSizeToBytes(storage.size || '1Gi');
-          totalSize += sizeInBytes;
-          backedUpVolumes.push(storage.volumeName || 'default');
-        }
-      }
-    }
-    
-    // Default size if no storage requirements
-    if (totalSize === 0) {
-      totalSize = 1024 * 1024; // 1MB default
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'mock',
-      success: true,
-      backupTime: new Date(),
-      backupId,
-      backup: {
-        size: totalSize,
-        location: `mock://backups/${backupId}`,
-        format: requirements.storage?.length ? 'tar' : 'json'
-      },
-      metadata: {
-        mockImplementation: true,
-        storageRequirements: requirements.storage,
-        dryRun: service.dryRun || false
-      }
-    };
-  }
-  
-  private parseSizeToBytes(size: string): number {
-    const units: Record<string, number> = {
-      'Ki': 1024,
-      'Mi': 1024 * 1024,
-      'Gi': 1024 * 1024 * 1024,
-      'Ti': 1024 * 1024 * 1024 * 1024,
-      'K': 1000,
-      'M': 1000 * 1000,
-      'G': 1000 * 1000 * 1000,
-      'T': 1000 * 1000 * 1000 * 1000
-    };
-    
-    const match = size.match(/^(\d+)([KMGT]i?)$/);
-    if (match) {
-      const value = parseInt(match[1]);
-      const unit = match[2];
-      return value * (units[unit] || 1);
-    }
-    return parseInt(size) || 0;
-  }
-  
-  async restore(service: Service, backupId: string, _options?: RestoreOptions): Promise<RestoreResult> {
-    return {
-      entity: service.name,
-      platform: 'mock',
-      success: true,
-      restoreTime: new Date(),
-      backupId: backupId || 'mock-backup-id',
-      metadata: {
-        mockImplementation: true,
-        fromBackup: backupId
       }
     };
   }

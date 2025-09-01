@@ -9,10 +9,8 @@ export * from '../core/commands/check.js';
 export * from '../core/commands/update.js';
 export * from '../core/commands/provision.js';
 export * from '../core/commands/publish.js';
-export * from '../core/commands/backup.js';
 export * from '../core/commands/exec.js';
 export * from '../core/commands/test.js';
-export * from '../core/commands/restore.js';
 export * from '../core/base-service.js';
 export * from './service-factory.js';
 

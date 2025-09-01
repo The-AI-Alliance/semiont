@@ -27,17 +27,14 @@ const commandCache = new Map<string, CommandDefinition<any>>();
  */
 const COMMAND_MODULES: Record<string, string> = {
   'init': './commands/init.js',
-  'backup': './commands/backup.js',
   'start': './commands/start.js',
   'stop': './commands/stop.js',
-  'restart': './commands/restart.js',
   'check': './commands/check.js',
   'configure': './commands/configure.js',
   'exec': './commands/exec.js',
   'provision': './commands/provision.js',
   'provision-cdk': './commands/provision-cdk.js',
   'publish': './commands/publish.js',
-  'restore': './commands/restore.js',
   'test': './commands/test.js',
   'update': './commands/update.js',
   'watch': './commands/watch.js',

@@ -14,10 +14,8 @@ import { CheckResult } from './commands/check.js';
 import { UpdateResult } from './commands/update.js';
 import { ProvisionResult } from './commands/provision.js';
 import { PublishResult } from './commands/publish.js';
-import { BackupResult } from './commands/backup.js';
 import { ExecResult, ExecOptions } from './commands/exec.js';
 import { TestResult, TestOptions } from './commands/test.js';
-import { RestoreResult, RestoreOptions } from './commands/restore.js';
 
 /**
  * Secret management options
@@ -87,11 +85,6 @@ export interface PlatformStrategy {
   publish(service: Service): Promise<PublishResult>;
   
   /**
-   * Backup service data and state on this platform
-   */
-  backup(service: Service): Promise<BackupResult>;
-  
-  /**
    * Execute a command in the service context on this platform
    */
   exec(service: Service, command: string, options?: ExecOptions): Promise<ExecResult>;
@@ -100,11 +93,6 @@ export interface PlatformStrategy {
    * Run tests for a service on this platform
    */
   test(service: Service, options?: TestOptions): Promise<TestResult>;
-  
-  /**
-   * Restore service data and state from a backup on this platform
-   */
-  restore(service: Service, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
   
   /**
    * Collect logs from a service on this platform
@@ -149,10 +137,8 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   abstract update(service: Service): Promise<UpdateResult>;
   abstract provision(service: Service): Promise<ProvisionResult>;
   abstract publish(service: Service): Promise<PublishResult>;
-  abstract backup(service: Service): Promise<BackupResult>;
   abstract exec(service: Service, command: string, options?: ExecOptions): Promise<ExecResult>;
   abstract test(service: Service, options?: TestOptions): Promise<TestResult>;
-  abstract restore(service: Service, backupId: string, options?: RestoreOptions): Promise<RestoreResult>;
   abstract collectLogs(service: Service): Promise<CheckResult['logs']>;
   abstract getPlatformName(): string;
   
