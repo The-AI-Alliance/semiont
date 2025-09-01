@@ -1,4 +1,4 @@
-import { HandlerDescriptor, CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, ProvisionHandlerContext, ProvisionHandlerResult, PublishHandlerContext, PublishHandlerResult } from './types.js';
+import { HandlerDescriptor, CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, ProvisionHandlerContext, ProvisionHandlerResult, PublishHandlerContext, PublishHandlerResult, UpdateHandlerContext, UpdateHandlerResult } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 import { lambdaCheckDescriptor } from './lambda-check.js';
 import { ecsCheckDescriptor } from './ecs-check.js';
@@ -9,6 +9,7 @@ import { ecsFargateStartDescriptor } from './ecs-fargate-start.js';
 import { rdsStartDescriptor } from './rds-start.js';
 import { stackProvisionDescriptor } from './stack-provision.js';
 import { ecsPublishDescriptor, ecsFargatePublishDescriptor } from './ecs-publish.js';
+import { ecsUpdateDescriptor, ecsFargateUpdateDescriptor } from './ecs-update.js';
 
 /**
  * All AWS handler descriptors
@@ -19,7 +20,8 @@ const awsHandlers: Array<
   HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> | 
   HandlerDescriptor<StartHandlerContext, StartHandlerResult> |
   HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> |
-  HandlerDescriptor<PublishHandlerContext, PublishHandlerResult>
+  HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> |
+  HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult>
 > = [
   // Check handlers
   lambdaCheckDescriptor,
@@ -35,6 +37,9 @@ const awsHandlers: Array<
   // Publish handlers
   ecsPublishDescriptor,
   ecsFargatePublishDescriptor,
+  // Update handlers
+  ecsUpdateDescriptor,
+  ecsFargateUpdateDescriptor,
   // Future handlers will be added here:
   // dynamodb, etc.
 ];

@@ -112,6 +112,32 @@ export interface PublishHandlerResult extends HandlerResult {
 export type PublishHandler = (context: PublishHandlerContext) => Promise<PublishHandlerResult>;
 
 /**
+ * Context provided to AWS update handlers
+ */
+export interface UpdateHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+  cfnDiscoveredResources: any;
+  region: string;
+  accountId: string;
+  resourceName: string;
+}
+
+/**
+ * Result returned by update handlers
+ */
+export interface UpdateHandlerResult extends HandlerResult {
+  previousVersion?: string;
+  newVersion?: string;
+  strategy?: 'rolling' | 'restart' | 'recreate' | 'blue-green' | 'none';
+  downtime?: number;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Function signature for update handlers
+ */
+export type UpdateHandler = (context: UpdateHandlerContext) => Promise<UpdateHandlerResult>;
+
+/**
  * Re-export HandlerDescriptor for convenience
  */
 export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;
