@@ -150,6 +150,26 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
+   * Build platform-specific context extensions for handlers
+   * Including CloudFormation resource discovery if needed
+   */
+  public async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+    const { region, accountId } = this.getAWSConfig(service);
+    
+    let cfnDiscoveredResources = {};
+    if (requiresDiscovery) {
+      cfnDiscoveredResources = await this.discoverAndCacheResources(service);
+    }
+    
+    return {
+      cfnDiscoveredResources,
+      region,
+      accountId,
+      resourceName: this.getResourceName(service)
+    };
+  }
+  
+  /**
    * Get all CloudFormation resources and cache them in StateManager
    */
   private async discoverAndCacheResources(service: Service): Promise<{
@@ -214,7 +234,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     if (dataStack) {
       // Get RDS Instance - match database service
-      if (service.name === 'database' || this.determineAWSServiceType(service) === 'rds') {
+      if (service.name === 'database' || this.determineServiceType(service) === 'rds') {
         const databases = await this.getStackResources(dataStack, region, 'AWS::RDS::DBInstance');
         if (databases[0]) {
           resources[service.name] = { dbInstanceId: databases[0].PhysicalResourceId };
@@ -222,7 +242,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       }
       
       // Get EFS FileSystem - match filesystem service
-      if (service.name === 'filesystem' || this.determineAWSServiceType(service) === 'efs') {
+      if (service.name === 'filesystem' || this.determineServiceType(service) === 'efs') {
         const filesystems = await this.getStackResources(dataStack, region, 'AWS::EFS::FileSystem');
         if (filesystems[0]) {
           resources[service.name] = { fileSystemId: filesystems[0].PhysicalResourceId };
@@ -322,7 +342,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   /**
    * Determine the AWS service type based on service name and requirements
    */
-  private determineAWSServiceType(service: Service): string {
+  public determineServiceType(service: Service): string {
     const requirements = service.getRequirements();
     
     // Check explicit AWS service annotation first
@@ -383,7 +403,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   async start(service: Service): Promise<StartResult> {
     const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
-    const serviceType = this.determineAWSServiceType(service);
+    const serviceType = this.determineServiceType(service);
     const resourceName = this.getResourceName(service);
     
     let endpoint: string | undefined;
@@ -465,7 +485,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   async stop(service: Service): Promise<StopResult> {
 
     const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineAWSServiceType(service);
+    const serviceType = this.determineServiceType(service);
     const resourceName = this.getResourceName(service);
     
     switch (serviceType) {
@@ -562,7 +582,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   async check(service: Service): Promise<CheckResult> {
     const { region, accountId } = this.getAWSConfig(service);
-    const serviceType = this.determineAWSServiceType(service);
+    const serviceType = this.determineServiceType(service);
     
     // 1. Get handler descriptor
     const registry = HandlerRegistry.getInstance();
@@ -624,7 +644,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   async update(service: Service): Promise<UpdateResult> {
     const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineAWSServiceType(service);
+    const serviceType = this.determineServiceType(service);
     const resourceName = this.getResourceName(service);
     
     let previousVersion: string | undefined;
@@ -750,7 +770,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   async publish(service: Service): Promise<PublishResult> {
     const { region, accountId } = this.getAWSConfig(service);
     const requirements = service.getRequirements();
-    const serviceType = this.determineAWSServiceType(service);
+    const serviceType = this.determineServiceType(service);
     const resourceName = this.getResourceName(service);
     
     // Determine image tag based on configuration
@@ -921,7 +941,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   async exec(service: Service, command: string, options: ExecOptions = {}): Promise<ExecResult> {
     const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineAWSServiceType(service);
+    const serviceType = this.determineServiceType(service);
     const resourceName = this.getResourceName(service);
     const execTime = new Date();
     

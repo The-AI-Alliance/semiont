@@ -51,6 +51,16 @@ export interface SecretResult {
  * Implemented by each deployment platform (process, container, AWS, external)
  */
 export interface PlatformStrategy {
+
+  getResourceName(service: Service): string;
+
+  determineServiceType(service: Service): string;
+
+  /**
+   * Build platform-specific context extensions for handlers
+   * Including resource discovery if needed
+   */
+  buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>>;
   /**
    * Start a service on this platform
    */
@@ -135,6 +145,8 @@ export interface PlatformStrategy {
  * Base platform strategy with common functionality
  */
 export abstract class BasePlatformStrategy implements PlatformStrategy {
+
+  
   abstract start(service: Service): Promise<StartResult>;
   abstract stop(service: Service): Promise<StopResult>;
   abstract check(service: Service): Promise<CheckResult>;
@@ -148,9 +160,6 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   abstract collectLogs(service: Service): Promise<CheckResult['logs']>;
   abstract getPlatformName(): string;
   
-  /**
-   * Default implementation throws - platforms should override
-   */
   async manageSecret(
     action: 'get' | 'set' | 'list' | 'delete',
     secretPath: string,

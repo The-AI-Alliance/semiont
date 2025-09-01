@@ -33,13 +33,21 @@ import { CommandResults } from '../command-results.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
+
 // Import new service architecture
 import { ServiceFactory } from '../../services/service-factory.js';
 import { ServiceName } from '../service-discovery.js';
 import { Platform } from '../platform-resolver.js';
+import { PlatformStrategy } from '../platform-strategy.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';
+
+// Imports needed for performAWSCheck
+import { Service } from '../../services/types.js';
+import { HandlerRegistry } from '../handlers/registry.js';
+import { HandlerContextBuilder } from '../handlers/context.js';
+import { CheckHandlerResult } from '../handlers/types.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -52,7 +60,7 @@ const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
  */
 export interface CheckResult {
   entity: ServiceName | string;
-  platform: Platform;
+  platform: Platform | string;
   success: boolean;
   checkTime: Date;
   status: 'running' | 'stopped' | 'unhealthy' | 'unknown';
@@ -89,6 +97,59 @@ const CheckOptionsSchema = BaseOptionsSchema.extend({
 });
 
 type CheckOptions = z.output<typeof CheckOptionsSchema>;
+
+// =====================================================================
+// CHECK IMPLEMENTATION
+// =====================================================================
+
+async function performCheck(service: Service, platform: PlatformStrategy): Promise<CheckResult> {
+  const serviceType = platform.determineServiceType(service);
+  
+  const registry = HandlerRegistry.getInstance();
+  const descriptor = registry.getDescriptor(platform.getPlatformName(), `check-${serviceType}`);
+  
+  if (!descriptor) {
+    return {
+      entity: service.name,
+      platform: platform.getPlatformName(),
+      success: false,
+      checkTime: new Date(),
+      status: 'unknown',
+      stateVerified: false,
+      metadata: {
+        error: `No check handler registered for service type: ${serviceType}`
+      }
+    };
+  }
+
+  const contextExtensions = await platform.buildHandlerContextExtensions(
+    service, 
+    descriptor.requiresDiscovery || false
+  );
+  
+  const context = HandlerContextBuilder.extend(
+    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
+    contextExtensions
+  );
+  
+  const result = await descriptor.handler(context) as CheckHandlerResult;
+  
+  return {
+    entity: service.name,
+    platform: platform.getPlatformName(),
+    success: result.success,
+    checkTime: new Date(),
+    status: result.status,
+    stateVerified: true,
+    resources: result.platformResources,
+    health: result.health,
+    logs: result.logs,
+    metadata: {
+      ...result.metadata,
+      serviceType
+    }
+  };
+}
 
 // =====================================================================
 // COMMAND HANDLER
@@ -132,8 +193,7 @@ async function checkHandler(
         } // Service config would come from project config
       );
       
-      // Platform handles the check command with service as context
-      const result = await platform.check(service);
+      const result = await performCheck(service, platform);
       
       // Record result directly - no conversion needed!
       serviceResults.push(result);
