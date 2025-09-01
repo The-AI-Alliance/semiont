@@ -5,7 +5,7 @@ import { ecsCheckDescriptor } from './ecs-check.js';
 import { efsCheckDescriptor } from './efs-check.js';
 import { rdsCheckDescriptor } from './rds-check.js';
 import { s3CloudFrontCheckDescriptor } from './s3-cloudfront-check.js';
-import { ecsFargateStartDescriptor } from './ecs-fargate-start.js';
+import { ecsFargateStartDescriptor, ecsStartDescriptor } from './ecs-start.js';
 import { rdsStartDescriptor } from './rds-start.js';
 import { stackProvisionDescriptor } from './stack-provision.js';
 import { ecsPublishDescriptor, ecsFargatePublishDescriptor } from './ecs-publish.js';
@@ -31,6 +31,7 @@ const awsHandlers: Array<
   s3CloudFrontCheckDescriptor,
   // Start handlers
   ecsFargateStartDescriptor,
+  ecsStartDescriptor,  // Shorter alias
   rdsStartDescriptor,
   // Provision handlers
   stackProvisionDescriptor,

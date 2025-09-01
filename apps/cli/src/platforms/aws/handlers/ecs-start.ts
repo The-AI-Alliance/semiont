@@ -3,9 +3,9 @@ import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './ty
 import { createPlatformResources } from '../../platform-resources.js';
 
 /**
- * Start handler for ECS Fargate services
+ * Start handler for ECS services (Fargate and EC2)
  */
-const startECSFargateService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startECSService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
   const { service, cfnDiscoveredResources, accountId, region } = context;
   const requirements = service.getRequirements();
   const resourceName = `semiont-${service.name}-${service.environment}`;
@@ -77,6 +77,14 @@ const startECSFargateService = async (context: StartHandlerContext): Promise<Sta
 export const ecsFargateStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
   serviceType: 'ecs-fargate',
-  handler: startECSFargateService,
+  handler: startECSService,
+  requiresDiscovery: true
+};
+
+// Also export as 'ecs' (shorter alias)
+export const ecsStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+  command: 'start',
+  serviceType: 'ecs',
+  handler: startECSService,
   requiresDiscovery: true
 };
