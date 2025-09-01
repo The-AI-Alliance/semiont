@@ -39,6 +39,7 @@ import { Service } from '../../services/types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
+
   private runtime: 'docker' | 'podman';
   
   constructor() {
@@ -1305,7 +1306,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Get standardized resource name for container
    */
-  protected override getResourceName(service: Service): string {
+  override getResourceName(service: Service): string {
     return `semiont-${service.name}-${service.environment}`;
   }
   
