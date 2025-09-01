@@ -146,18 +146,22 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
    * Including CloudFormation resource discovery if needed
    */
   public async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
-    const { region, accountId } = this.getAWSConfig(service);
+    const awsConfig = this.getAWSConfig(service);
     
     let cfnDiscoveredResources = {};
     if (requiresDiscovery) {
       cfnDiscoveredResources = await this.discoverAndCacheResources(service);
     }
     
+    // For provision handlers, provide the full AWS config
+    // For other handlers, maintain backward compatibility
     return {
       cfnDiscoveredResources,
-      region,
-      accountId,
-      resourceName: this.getResourceName(service)
+      region: awsConfig.region,
+      accountId: awsConfig.accountId,
+      resourceName: this.getResourceName(service),
+      // Include full awsConfig for provision handlers
+      awsConfig
     };
   }
   
@@ -336,6 +340,11 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
    */
   public determineServiceType(service: Service): string {
     const requirements = service.getRequirements();
+    
+    // Check for stack provisioning (special case)
+    if (service.name === '__aws_stack__') {
+      return 'stack';
+    }
     
     // Check explicit AWS service annotation first
     if (requirements.annotations?.['aws/service']) {

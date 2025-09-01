@@ -6,6 +6,7 @@ import {
   HandlerDescriptor as CoreHandlerDescriptor 
 } from '../../../core/handlers/types.js';
 import type { AWSPlatformStrategy } from '../platform.js';
+import { PlatformResources } from '../../platform-resources.js';
 
 /**
  * Context provided to all AWS check handlers
@@ -48,6 +49,32 @@ export type CheckHandler = (context: CheckHandlerContext) => Promise<CheckHandle
  * Function signature for start handlers
  */
 export type StartHandler = (context: StartHandlerContext) => Promise<StartHandlerResult>;
+
+/**
+ * Context provided to AWS provision handlers
+ */
+export interface ProvisionHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+  awsConfig: {
+    region: string;
+    accountId: string;
+    dataStack?: string;
+    appStack?: string;
+  };
+}
+
+/**
+ * Result returned by provision handlers
+ */
+export interface ProvisionHandlerResult extends HandlerResult {
+  dependencies?: string[];
+  resources?: PlatformResources;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Function signature for provision handlers
+ */
+export type ProvisionHandler = (context: ProvisionHandlerContext) => Promise<ProvisionHandlerResult>;
 
 /**
  * Re-export HandlerDescriptor for convenience

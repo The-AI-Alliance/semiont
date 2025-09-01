@@ -40,7 +40,6 @@ import { Platform } from '../platform-resolver.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';
-import { provisionCdkStack } from './provision-cdk.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -178,16 +177,120 @@ async function provisionHandler(
   
   // If --stack is specified, handle CDK stack provisioning
   if (options.stack) {
-    return await provisionCdkStack({
-      stack: options.stack,
-      environment: options.environment || 'development',
-      force: options.force,
-      destroy: false, // Add destroy option if needed
-      dryRun: options.dryRun,
+    // Validate that stack provisioning only works with AWS
+    const { loadEnvironmentConfig } = await import('../platform-resolver.js');
+    const envConfig = loadEnvironmentConfig(options.environment || 'development');
+    
+    if (!envConfig.aws) {
+      if (!options.quiet) {
+        printError('Stack provisioning is only supported on AWS platform');
+      }
+      return {
+        command: 'provision',
+        environment: options.environment || 'development',
+        timestamp: new Date(),
+        duration: Date.now() - commandStartTime,
+        results: [{
+          entity: '__aws_stack__',
+          platform: 'aws' as Platform,
+          success: false,
+          provisionTime: new Date(),
+          error: 'Stack provisioning is only supported on AWS platform'
+        }],
+        summary: {
+          total: 1,
+          succeeded: 0,
+          failed: 1,
+          warnings: 0
+        },
+        executionContext: {
+          user: process.env.USER || 'unknown',
+          workingDirectory: process.cwd(),
+          dryRun: options.dryRun || false
+        }
+      };
+    }
+    
+    // Validate stack type
+    const validStackTypes = ['data', 'app', 'all'];
+    if (!validStackTypes.includes(options.stack)) {
+      if (!options.quiet) {
+        printError(`Invalid stack type: ${options.stack}. Valid options are: data, app, all`);
+      }
+      return {
+        command: 'provision',
+        environment: options.environment || 'development',
+        timestamp: new Date(),
+        duration: Date.now() - commandStartTime,
+        results: [{
+          entity: '__aws_stack__',
+          platform: 'aws' as Platform,
+          success: false,
+          provisionTime: new Date(),
+          error: `Invalid stack type: ${options.stack}`
+        }],
+        summary: {
+          total: 1,
+          succeeded: 0,
+          failed: 1,
+          warnings: 0
+        },
+        executionContext: {
+          user: process.env.USER || 'unknown',
+          workingDirectory: process.cwd(),
+          dryRun: options.dryRun || false
+        }
+      };
+    }
+    
+    // Create a synthetic service for stack provisioning
+    const config: Config = {
+      projectRoot: PROJECT_ROOT,
+      environment: parseEnvironment(options.environment),
       verbose: options.verbose,
       quiet: options.quiet,
-      requireApproval: false // Could be added to options schema
-    });
+      dryRun: options.dryRun,
+    };
+    
+    // Create synthetic stack service
+    const stackService = ServiceFactory.create(
+      '__aws_stack__' as ServiceName,
+      'aws' as Platform,
+      config,
+      {
+        stackType: options.stack,
+        destroy: false,
+        force: options.force,
+        requireApproval: false
+      }
+    );
+    
+    // Get AWS platform
+    const { PlatformFactory } = await import('../../platforms/index.js');
+    const platform = PlatformFactory.getPlatform('aws' as Platform);
+    
+    // Use the handler approach
+    const result = await performProvision(stackService, platform);
+    
+    // Return properly formatted results
+    return {
+      command: 'provision',
+      environment: options.environment || 'development',
+      timestamp: new Date(),
+      duration: Date.now() - commandStartTime,
+      results: [result],
+      summary: {
+        total: 1,
+        succeeded: result.success ? 1 : 0,
+        failed: result.success ? 0 : 1,
+        warnings: 0
+      },
+      executionContext: {
+        user: process.env.USER || 'unknown',
+        workingDirectory: process.cwd(),
+        dryRun: options.dryRun || false
+      }
+    };
   }
   
   // When not using --stack, we need to resolve services

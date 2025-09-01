@@ -1,4 +1,4 @@
-import { HandlerDescriptor, CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult } from './types.js';
+import { HandlerDescriptor, CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, ProvisionHandlerContext, ProvisionHandlerResult } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 import { lambdaCheckDescriptor } from './lambda-check.js';
 import { ecsCheckDescriptor } from './ecs-check.js';
@@ -7,6 +7,7 @@ import { rdsCheckDescriptor } from './rds-check.js';
 import { s3CloudFrontCheckDescriptor } from './s3-cloudfront-check.js';
 import { ecsFargateStartDescriptor } from './ecs-fargate-start.js';
 import { rdsStartDescriptor } from './rds-start.js';
+import { stackProvisionDescriptor } from './stack-provision.js';
 
 /**
  * All AWS handler descriptors
@@ -15,7 +16,8 @@ import { rdsStartDescriptor } from './rds-start.js';
 // Platform-specific handlers with typed contexts
 const awsHandlers: Array<
   HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> | 
-  HandlerDescriptor<StartHandlerContext, StartHandlerResult>
+  HandlerDescriptor<StartHandlerContext, StartHandlerResult> |
+  HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult>
 > = [
   // Check handlers
   lambdaCheckDescriptor,
@@ -26,6 +28,8 @@ const awsHandlers: Array<
   // Start handlers
   ecsFargateStartDescriptor,
   rdsStartDescriptor,
+  // Provision handlers
+  stackProvisionDescriptor,
   // Future handlers will be added here:
   // dynamodb, etc.
 ];
