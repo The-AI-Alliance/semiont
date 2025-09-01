@@ -110,7 +110,7 @@ async function performProvision(
     };
   }
 
-  const { HandlerContextBuilder } = await import('../handlers/context-builder.js');
+  const { HandlerContextBuilder } = await import('../handlers/context.js');
   
   const contextExtensions = await platform.buildHandlerContextExtensions(
     service, 
@@ -258,6 +258,7 @@ async function provisionHandler(
       'aws' as Platform,
       config,
       {
+        platform: 'aws' as Platform,
         stackType: options.stack,
         destroy: false,
         force: options.force,

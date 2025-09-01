@@ -77,6 +77,41 @@ export interface ProvisionHandlerResult extends HandlerResult {
 export type ProvisionHandler = (context: ProvisionHandlerContext) => Promise<ProvisionHandlerResult>;
 
 /**
+ * Context provided to AWS publish handlers
+ */
+export interface PublishHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+  awsConfig: {
+    region: string;
+    accountId: string;
+    dataStack?: string;
+    appStack?: string;
+  };
+  resourceName: string;
+}
+
+/**
+ * Result returned by publish handlers
+ */
+export interface PublishHandlerResult extends HandlerResult {
+  artifacts?: Record<string, any>;
+  rollback?: {
+    supported: boolean;
+    command?: string;
+  };
+  registry?: {
+    type: string;
+    uri: string;
+    tags: string[];
+  };
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Function signature for publish handlers
+ */
+export type PublishHandler = (context: PublishHandlerContext) => Promise<PublishHandlerResult>;
+
+/**
  * Re-export HandlerDescriptor for convenience
  */
 export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;

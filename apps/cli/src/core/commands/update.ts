@@ -115,8 +115,7 @@ async function performUpdate(
     };
   }
 
-  const { HandlerContextBuilder } = await import('../handlers/context-builder.js');
-  const { UpdateHandlerResult } = await import('../handlers/types.js');
+  const { HandlerContextBuilder } = await import('../handlers/context.js');
   
   const contextExtensions = await platform.buildHandlerContextExtensions(
     service, 

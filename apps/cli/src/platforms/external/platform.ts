@@ -28,12 +28,6 @@
 
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
-import type { 
-  UpdateResult, 
-  ProvisionResult,
-  PublishResult,
-  CheckResult 
-} from '../../core/command-types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
@@ -52,91 +46,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   getPlatformName(): string {
     return 'external';
   }
-  
-  async update(service: Service): Promise<UpdateResult> {
-    if (!service.quiet) {
-      printWarning(`Cannot update external ${service.name} service - managed externally`);
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      updateTime: new Date(),
-      strategy: 'none',
-      metadata: {
-        message: 'External service must be updated through its own management interface',
-        provider: service.config.provider
-      }
-    };
-  }
-  
-  async provision(service: Service): Promise<ProvisionResult> {
-    const requirements = service.getRequirements();
-    
-    if (!service.quiet) {
-      printWarning(`Cannot provision external ${service.name} service - managed externally`);
-      printInfo('Validating configuration instead...');
-    }
-    
-    // Validate we have necessary configuration for requirements
-    this.validateConfiguration(service.config, requirements);
-    
-    const dependencies = requirements.dependencies?.services || [];
-    
-    // Check external dependencies if specified
-    const externalDepsStatus: Record<string, boolean> = {};
-    if (requirements.dependencies?.external) {
-      for (const ext of requirements.dependencies.external) {
-        if (ext.healthCheck) {
-          try {
-            const response = await fetch(ext.healthCheck, {
-              signal: AbortSignal.timeout(5000)
-            });
-            externalDepsStatus[ext.name] = response.ok;
-          } catch {
-            externalDepsStatus[ext.name] = false;
-            if (ext.required) {
-              printWarning(`Required external dependency '${ext.name}' is not reachable`);
-            }
-          }
-        }
-      }
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      provisionTime: new Date(),
-      dependencies,
-      metadata: {
-        provider: service.config.provider,
-        externalDependencies: externalDepsStatus,
-        message: 'External service configuration validated. Actual provisioning must be done externally.'
-      }
-    };
-  }
-  
-  async publish(service: Service): Promise<PublishResult> {
-    if (!service.quiet) {
-      printWarning(`Cannot publish to external ${service.name} service - managed externally`);
-    }
-        
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      publishTime: new Date(),
-      rollback: {
-        supported: false
-      },
-      metadata: {
-        message: 'External services must be published through their own deployment pipelines'
-      }
-    };
-  }
-  
+
   
   /**
    * Build endpoint URL from configuration and requirements
@@ -168,40 +78,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     }
     
     return undefined;
-  }
-  
-  /**
-   * Validate configuration based on requirements
-   */
-  private validateConfiguration(config: any, requirements: any): void {
-    // Network requirements validation
-    if (requirements.network?.ports && requirements.network.ports.length > 0) {
-      if (!config.host && !config.url && !config.endpoint) {
-        throw new Error('External service with network requirements needs host, url, or endpoint configuration');
-      }
-    }
-    
-    // Storage requirements validation
-    if (requirements.storage?.some((s: any) => s.persistent)) {
-      if (requirements.storage.some((s: any) => s.type === 'database')) {
-        if (!config.host || !config.user) {
-          throw new Error('External database requires host and user configuration');
-        }
-      } else if (!config.path && !config.url) {
-        throw new Error('External storage requires path or url configuration');
-      }
-    }
-    
-    // Security requirements validation
-    if (requirements.security?.secrets && requirements.security.secrets.length > 0) {
-      const missingSecrets = requirements.security.secrets.filter(
-        (secret: string) => !config[secret.toLowerCase()] && !process.env[secret]
-      );
-      
-      if (missingSecrets.length > 0) {
-        printWarning(`Missing secrets for external service: ${missingSecrets.join(', ')}`);
-      }
-    }
   }
   
   /**

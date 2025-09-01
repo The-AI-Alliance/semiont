@@ -137,7 +137,7 @@ async function performPublish(
     };
   }
 
-  const { HandlerContextBuilder } = await import('../handlers/context-builder.js');
+  const { HandlerContextBuilder } = await import('../handlers/context.js');
   
   const contextExtensions = await platform.buildHandlerContextExtensions(
     service, 
