@@ -50,7 +50,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   
   private registerHandlers(): void {
     const registry = HandlerRegistry.getInstance();
-    registry.registerHandlers('external', handlers as any);
+    registry.registerHandlers('external', handlers);
   }
   
   getPlatformName(): string {

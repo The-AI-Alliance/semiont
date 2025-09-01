@@ -52,7 +52,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   
   private registerHandlers(): void {
     const registry = HandlerRegistry.getInstance();
-    registry.registerHandlers('container', handlers as any);
+    registry.registerHandlers('container', handlers);
   }
   
   getPlatformName(): string {

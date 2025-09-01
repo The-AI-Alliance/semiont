@@ -50,7 +50,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
   
   private registerHandlers(): void {
     const registry = HandlerRegistry.getInstance();
-    registry.registerHandlers('posix', handlers as any);
+    registry.registerHandlers('posix', handlers);
   }
   
   getPlatformName(): string {

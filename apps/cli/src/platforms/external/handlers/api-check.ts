@@ -1,9 +1,9 @@
-import { CheckHandlerResult } from '../../../core/handlers/types.js';
+import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for external API services
  */
-const checkExternalAPI = async (context: any): Promise<CheckHandlerResult> => {
+const checkExternalAPI = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, endpoint } = context;
   const requirements = service.getRequirements();
   
@@ -80,7 +80,7 @@ const checkExternalAPI = async (context: any): Promise<CheckHandlerResult> => {
 /**
  * Descriptor for external API check handler
  */
-export const apiCheckDescriptor = {
+export const apiCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'api',
   handler: checkExternalAPI

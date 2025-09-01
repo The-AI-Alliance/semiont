@@ -1,12 +1,12 @@
-import { CheckHandlerResult } from '../../../core/handlers/types.js';
 import { StateManager } from '../../../core/state-manager.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for MCP (Model Context Protocol) services
  */
-const checkMCPProcess = async (context: any): Promise<CheckHandlerResult> => {
+const checkMCPProcess = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, savedState } = context;
   
   let status: 'running' | 'stopped' = 'stopped';
@@ -80,7 +80,7 @@ const checkMCPProcess = async (context: any): Promise<CheckHandlerResult> => {
 /**
  * Descriptor for POSIX MCP check handler
  */
-export const mcpCheckDescriptor = {
+export const mcpCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'mcp',
   handler: checkMCPProcess

@@ -1,11 +1,11 @@
-import { CheckHandlerResult } from '../../../core/handlers/types.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
+import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for POSIX filesystem services (NFS, Samba, etc.)
  */
-const checkFilesystemProcess = async (context: any): Promise<CheckHandlerResult> => {
+const checkFilesystemProcess = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, savedState } = context;
   const requirements = service.getRequirements();
   
@@ -70,7 +70,7 @@ const checkFilesystemProcess = async (context: any): Promise<CheckHandlerResult>
 /**
  * Descriptor for POSIX filesystem check handler
  */
-export const filesystemCheckDescriptor = {
+export const filesystemCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'filesystem',
   handler: checkFilesystemProcess

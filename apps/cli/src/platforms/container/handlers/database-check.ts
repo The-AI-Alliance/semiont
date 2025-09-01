@@ -1,10 +1,10 @@
-import { CheckHandlerResult } from '../../../core/handlers/types.js';
 import { execSync } from 'child_process';
+import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for containerized database services
  */
-const checkDatabaseContainer = async (context: any): Promise<CheckHandlerResult> => {
+const checkDatabaseContainer = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   
@@ -116,7 +116,7 @@ const checkDatabaseContainer = async (context: any): Promise<CheckHandlerResult>
 /**
  * Descriptor for database container check handler
  */
-export const databaseCheckDescriptor = {
+export const databaseCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'database',
   handler: checkDatabaseContainer

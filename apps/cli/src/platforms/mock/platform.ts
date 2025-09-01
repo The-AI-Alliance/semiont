@@ -54,7 +54,7 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   
   private registerHandlers(): void {
     const registry = HandlerRegistry.getInstance();
-    registry.registerHandlers('mock', handlers as any);
+    registry.registerHandlers('mock', handlers);
   }
   
   getPlatformName(): string {

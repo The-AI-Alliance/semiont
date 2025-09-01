@@ -67,7 +67,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   private registerHandlers(): void {
     const registry = HandlerRegistry.getInstance();
-    registry.registerHandlers('aws', handlers as any);
+    registry.registerHandlers('aws', handlers);
   }
   
   /**

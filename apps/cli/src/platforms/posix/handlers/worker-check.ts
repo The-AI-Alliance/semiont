@@ -1,10 +1,10 @@
-import { CheckHandlerResult } from '../../../core/handlers/types.js';
 import { StateManager } from '../../../core/state-manager.js';
+import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for POSIX worker/background services
  */
-const checkWorkerProcess = async (context: any): Promise<CheckHandlerResult> => {
+const checkWorkerProcess = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, savedState } = context;
   
   let status: 'running' | 'stopped' = 'stopped';
@@ -53,7 +53,7 @@ const checkWorkerProcess = async (context: any): Promise<CheckHandlerResult> => 
 /**
  * Descriptor for POSIX worker check handler
  */
-export const workerCheckDescriptor = {
+export const workerCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'worker',
   handler: checkWorkerProcess

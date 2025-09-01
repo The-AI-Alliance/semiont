@@ -1,10 +1,10 @@
-import { CheckHandlerResult } from '../../../core/handlers/types.js';
 import { execSync } from 'child_process';
+import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for containerized web services
  */
-const checkWebContainer = async (context: any): Promise<CheckHandlerResult> => {
+const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   
@@ -131,7 +131,7 @@ const checkWebContainer = async (context: any): Promise<CheckHandlerResult> => {
 /**
  * Descriptor for web container check handler
  */
-export const webCheckDescriptor = {
+export const webCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   serviceType: 'web',
   handler: checkWebContainer
