@@ -45,6 +45,7 @@ const checkMockService = async (context: CheckHandlerContext): Promise<CheckHand
  */
 export const defaultCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'mock',
   serviceType: 'default',
   handler: checkMockService
 };

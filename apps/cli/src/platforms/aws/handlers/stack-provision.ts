@@ -201,6 +201,7 @@ const provisionStackService = async (context: ProvisionHandlerContext): Promise<
  */
 export const stackProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
+  platform: 'aws',
   serviceType: 'stack',
   handler: provisionStackService,
   requiresDiscovery: false

@@ -192,6 +192,7 @@ async function waitForContainer(runtime: string, containerName: string, requirem
  */
 export const genericUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
+  platform: 'container',
   serviceType: 'generic',
   handler: updateGenericService
 };

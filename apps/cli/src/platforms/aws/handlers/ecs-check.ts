@@ -254,6 +254,7 @@ const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
  */
 export const ecsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: ecsCheckHandler,
   requiresDiscovery: true

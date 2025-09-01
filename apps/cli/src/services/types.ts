@@ -53,3 +53,6 @@ export interface Service {
   getSecurityRequirements(): SecurityRequirement | undefined;
   getRequiredSecrets(): string[];
 }
+
+// Re-export ServiceName for convenience
+export { ServiceName } from '../core/service-discovery.js';

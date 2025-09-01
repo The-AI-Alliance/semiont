@@ -82,6 +82,7 @@ const checkExternalAPI = async (context: CheckHandlerContext): Promise<CheckHand
  */
 export const apiCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'external',
   serviceType: 'api',
   handler: checkExternalAPI
 };

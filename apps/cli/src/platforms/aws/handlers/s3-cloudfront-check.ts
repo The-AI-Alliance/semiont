@@ -115,6 +115,7 @@ const s3CloudFrontCheckHandler = async (context: CheckHandlerContext): Promise<C
  */
 export const s3CloudFrontCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'aws',
   serviceType: 's3-cloudfront',
   handler: s3CloudFrontCheckHandler
 };

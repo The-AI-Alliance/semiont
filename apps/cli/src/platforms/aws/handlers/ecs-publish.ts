@@ -308,6 +308,7 @@ async function updateTaskDefinition(
  */
 export const ecsPublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
+  platform: 'aws',
   serviceType: 'ecs',
   handler: publishECSService,
   requiresDiscovery: true
@@ -316,6 +317,7 @@ export const ecsPublishDescriptor: HandlerDescriptor<PublishHandlerContext, Publ
 // Also export for ecs-fargate (alias)
 export const ecsFargatePublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
+  platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: publishECSService,
   requiresDiscovery: true

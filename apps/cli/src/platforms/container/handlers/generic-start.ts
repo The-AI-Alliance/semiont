@@ -239,6 +239,7 @@ async function waitForContainer(runtime: string, containerName: string, requirem
  */
 export const genericStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'container',
   serviceType: 'generic',
   handler: startGenericContainer
 };

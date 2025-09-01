@@ -226,6 +226,7 @@ async function waitForDatabase(runtime: string, containerName: string, image: st
  */
 export const databaseStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'container',
   serviceType: 'database',
   handler: startDatabaseContainer
 };

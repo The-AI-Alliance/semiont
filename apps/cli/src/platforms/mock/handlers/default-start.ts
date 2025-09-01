@@ -90,6 +90,7 @@ const startMockService = async (context: StartHandlerContext): Promise<StartHand
  */
 export const defaultStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'mock',
   serviceType: 'default',
   handler: startMockService
 };

@@ -70,6 +70,7 @@ const startMCPService = async (context: StartHandlerContext): Promise<StartHandl
  */
 export const mcpStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'posix',
   serviceType: 'mcp',
   handler: startMCPService
 };

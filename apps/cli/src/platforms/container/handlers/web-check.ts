@@ -133,6 +133,7 @@ const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHan
  */
 export const webCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'container',
   serviceType: 'web',
   handler: checkWebContainer
 };

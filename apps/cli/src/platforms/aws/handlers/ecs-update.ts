@@ -326,6 +326,7 @@ async function waitForECSDeployment(
  */
 export const ecsUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
+  platform: 'aws',
   serviceType: 'ecs',
   handler: updateECSService,
   requiresDiscovery: true
@@ -334,6 +335,7 @@ export const ecsUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, Update
 // Also export for ecs-fargate (alias)
 export const ecsFargateUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
+  platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: updateECSService,
   requiresDiscovery: true

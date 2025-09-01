@@ -98,6 +98,7 @@ const rdsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
  */
 export const rdsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'aws',
   serviceType: 'rds',
   handler: rdsCheckHandler,
   requiresDiscovery: true

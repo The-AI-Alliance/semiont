@@ -10,10 +10,15 @@ export class HandlerContextBuilder {
   /**
    * Build base context that all handlers receive
    */
-  static buildBaseContext(service: Service, platform: string): BaseHandlerContext {
+  static buildBaseContext(
+    service: Service, 
+    platform: string,
+    options: Record<string, any> = {}
+  ): BaseHandlerContext {
     return {
       service,
-      platform
+      platform,
+      options
     };
   }
 

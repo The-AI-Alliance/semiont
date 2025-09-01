@@ -122,6 +122,7 @@ const startWebService = async (context: StartHandlerContext): Promise<StartHandl
  */
 export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'posix',
   serviceType: 'web',
   handler: startWebService
 };

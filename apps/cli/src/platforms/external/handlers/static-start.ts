@@ -99,6 +99,7 @@ const startStaticService = async (context: StartHandlerContext): Promise<StartHa
  */
 export const staticStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'external',
   serviceType: 'static',
   handler: startStaticService
 };

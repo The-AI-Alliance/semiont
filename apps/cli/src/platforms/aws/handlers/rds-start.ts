@@ -70,6 +70,7 @@ const startRDSInstance = async (context: StartHandlerContext): Promise<StartHand
  */
 export const rdsStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'aws',
   serviceType: 'rds',
   handler: startRDSInstance,
   requiresDiscovery: false

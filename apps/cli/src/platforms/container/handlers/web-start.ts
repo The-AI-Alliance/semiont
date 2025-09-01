@@ -204,6 +204,7 @@ async function waitForContainer(runtime: string, containerName: string, requirem
  */
 export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'container',
   serviceType: 'web',
   handler: startWebContainer
 };

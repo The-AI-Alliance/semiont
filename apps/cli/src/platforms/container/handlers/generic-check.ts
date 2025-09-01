@@ -82,6 +82,7 @@ const checkGenericContainer = async (context: CheckHandlerContext): Promise<Chec
  */
 export const genericCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'container',
   serviceType: 'generic',
   handler: checkGenericContainer
 };

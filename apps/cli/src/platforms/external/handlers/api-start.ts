@@ -80,6 +80,7 @@ const startAPIService = async (context: StartHandlerContext): Promise<StartHandl
  */
 export const apiStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'external',
   serviceType: 'api',
   handler: startAPIService
 };

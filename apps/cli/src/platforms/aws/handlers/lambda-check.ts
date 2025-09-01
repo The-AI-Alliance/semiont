@@ -128,6 +128,7 @@ const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHa
 
 export const lambdaCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'aws',
   serviceType: 'lambda',
   handler: lambdaCheckHandler
 };

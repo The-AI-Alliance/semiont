@@ -182,6 +182,7 @@ const provisionGenericService = async (context: ProvisionHandlerContext): Promis
  */
 export const genericProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
+  platform: 'container',
   serviceType: 'generic',
   handler: provisionGenericService
 };

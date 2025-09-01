@@ -64,6 +64,7 @@ const checkExternalStatic = async (context: CheckHandlerContext): Promise<CheckH
  */
 export const staticCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'external',
   serviceType: 'static',
   handler: checkExternalStatic
 };

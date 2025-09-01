@@ -55,6 +55,7 @@ const checkWorkerProcess = async (context: CheckHandlerContext): Promise<CheckHa
  */
 export const workerCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'posix',
   serviceType: 'worker',
   handler: checkWorkerProcess
 };

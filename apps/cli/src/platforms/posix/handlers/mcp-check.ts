@@ -82,6 +82,7 @@ const checkMCPProcess = async (context: CheckHandlerContext): Promise<CheckHandl
  */
 export const mcpCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'posix',
   serviceType: 'mcp',
   handler: checkMCPProcess
 };

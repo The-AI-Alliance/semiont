@@ -1,7 +1,6 @@
 import { Service } from '../../services/types.js';
 import { CheckResult } from '../commands/check.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
-import { CorePlatformCommand } from '../command-types.js';
 
 /**
  * Core handler types that all platform handlers must implement
@@ -13,6 +12,7 @@ import { CorePlatformCommand } from '../command-types.js';
 export interface BaseHandlerContext<TPlatform = string> {
   service: Service;
   platform: TPlatform;
+  options: Record<string, any>;  // Command-specific options passed through
 }
 
 /**
@@ -66,8 +66,10 @@ export type StartHandler<TContext extends BaseHandlerContext> =
  * Handler descriptor that explicitly declares what command and service type it handles
  */
 export interface HandlerDescriptor<TContext extends BaseHandlerContext, TResult extends HandlerResult> {
-  command: CorePlatformCommand;
+  command: string;  // 'start', 'update', etc. - handler declares its command
+  platform: string; // 'aws', 'container', etc. - handler declares its platform
   serviceType: string;  // 'lambda', 'ecs-fargate', etc.
   handler: Handler<TContext, TResult>;
   requiresDiscovery?: boolean;  // Whether this handler needs resource discovery
+  expectedOptions?: string[];  // Options that this handler expects in context
 }

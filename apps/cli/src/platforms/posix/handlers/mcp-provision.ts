@@ -181,6 +181,7 @@ const provisionMCPService = async (context: ProvisionHandlerContext): Promise<Pr
  */
 export const mcpProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
+  platform: 'posix',
   serviceType: 'mcp',
   handler: provisionMCPService
 };

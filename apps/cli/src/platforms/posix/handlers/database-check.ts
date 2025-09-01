@@ -103,6 +103,7 @@ const checkDatabaseProcess = async (context: CheckHandlerContext): Promise<Check
  */
 export const databaseCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'posix',
   serviceType: 'database',
   handler: checkDatabaseProcess
 };

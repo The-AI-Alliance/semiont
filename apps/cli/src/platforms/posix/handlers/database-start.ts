@@ -177,6 +177,7 @@ const startDatabaseService = async (context: StartHandlerContext): Promise<Start
  */
 export const databaseStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'posix',
   serviceType: 'database',
   handler: startDatabaseService
 };

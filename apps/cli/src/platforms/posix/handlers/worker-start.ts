@@ -118,6 +118,7 @@ const startWorkerService = async (context: StartHandlerContext): Promise<StartHa
  */
 export const workerStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'posix',
   serviceType: 'worker',
   handler: startWorkerService
 };

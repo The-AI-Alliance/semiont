@@ -115,6 +115,7 @@ const checkWebProcess = async (context: CheckHandlerContext): Promise<CheckHandl
  */
 export const webCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'posix',
   serviceType: 'web',
   handler: checkWebProcess
 };

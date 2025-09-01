@@ -171,6 +171,7 @@ const publishGenericService = async (context: PublishHandlerContext): Promise<Pu
  */
 export const genericPublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
+  platform: 'container',
   serviceType: 'generic',
   handler: publishGenericService
 };

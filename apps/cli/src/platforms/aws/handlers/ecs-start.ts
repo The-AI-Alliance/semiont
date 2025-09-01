@@ -76,6 +76,7 @@ const startECSService = async (context: StartHandlerContext): Promise<StartHandl
  */
 export const ecsFargateStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: startECSService,
   requiresDiscovery: true
@@ -84,6 +85,7 @@ export const ecsFargateStartDescriptor: HandlerDescriptor<StartHandlerContext, S
 // Also export as 'ecs' (shorter alias)
 export const ecsStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'aws',
   serviceType: 'ecs',
   handler: startECSService,
   requiresDiscovery: true

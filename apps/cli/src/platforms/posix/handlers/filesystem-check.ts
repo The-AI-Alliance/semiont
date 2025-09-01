@@ -72,6 +72,7 @@ const checkFilesystemProcess = async (context: CheckHandlerContext): Promise<Che
  */
 export const filesystemCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'posix',
   serviceType: 'filesystem',
   handler: checkFilesystemProcess
 };

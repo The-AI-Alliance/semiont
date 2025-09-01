@@ -163,6 +163,7 @@ const startFilesystemService = async (context: StartHandlerContext): Promise<Sta
  */
 export const filesystemStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
+  platform: 'posix',
   serviceType: 'filesystem',
   handler: startFilesystemService
 };

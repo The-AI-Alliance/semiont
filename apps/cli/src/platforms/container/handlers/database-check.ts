@@ -118,6 +118,7 @@ const checkDatabaseContainer = async (context: CheckHandlerContext): Promise<Che
  */
 export const databaseCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
+  platform: 'container',
   serviceType: 'database',
   handler: checkDatabaseContainer
 };
