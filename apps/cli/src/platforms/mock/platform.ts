@@ -41,9 +41,21 @@ import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+import { handlers } from './handlers/index.js';
 
 export class MockPlatformStrategy extends BasePlatformStrategy {
   private mockState: Map<string, any> = new Map();
+  
+  constructor() {
+    super();
+    this.registerHandlers();
+  }
+  
+  private registerHandlers(): void {
+    const registry = HandlerRegistry.getInstance();
+    registry.registerHandlers('mock', handlers as any);
+  }
   
   getPlatformName(): string {
     return 'mock';

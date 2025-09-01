@@ -3,7 +3,7 @@ import { CheckHandlerResult } from '../../../core/handlers/types.js';
 /**
  * Check handler for mock services (used for testing)
  */
-export async function checkMockService(context: any): Promise<CheckHandlerResult> {
+const checkMockService = async (context: any): Promise<CheckHandlerResult> => {
   const { platform, service, mockState } = context;
   
   const state = mockState.get(service.name);
@@ -38,4 +38,13 @@ export async function checkMockService(context: any): Promise<CheckHandlerResult
       stateVerified: true
     }
   };
-}
+};
+
+/**
+ * Descriptor for mock default check handler
+ */
+export const defaultCheckDescriptor = {
+  command: 'check',
+  serviceType: 'default',
+  handler: checkMockService
+};

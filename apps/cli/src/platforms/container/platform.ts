@@ -37,6 +37,8 @@ import { RestoreResult, RestoreOptions } from "../../core/commands/restore.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+import { handlers } from './handlers/index.js';
 
 export class ContainerPlatformStrategy extends BasePlatformStrategy {
 
@@ -45,6 +47,12 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   constructor() {
     super();
     this.runtime = this.detectContainerRuntime();
+    this.registerHandlers();
+  }
+  
+  private registerHandlers(): void {
+    const registry = HandlerRegistry.getInstance();
+    registry.registerHandlers('container', handlers as any);
   }
   
   getPlatformName(): string {

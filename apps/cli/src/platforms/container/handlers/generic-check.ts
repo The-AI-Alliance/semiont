@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 /**
  * Check handler for generic containerized services
  */
-export async function checkGenericContainer(context: any): Promise<CheckHandlerResult> {
+const checkGenericContainer = async (context: any): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   
@@ -75,4 +75,13 @@ export async function checkGenericContainer(context: any): Promise<CheckHandlerR
       metadata: {}
     };
   }
-}
+};
+
+/**
+ * Descriptor for generic container check handler
+ */
+export const genericCheckDescriptor = {
+  command: 'check',
+  serviceType: 'generic',
+  handler: checkGenericContainer
+};

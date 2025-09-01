@@ -39,8 +39,20 @@ import { ExecResult, ExecOptions } from '../../core/commands/exec.js';
 import { TestResult, TestOptions } from '../../core/commands/test.js';
 import { RestoreResult, RestoreOptions } from '../../core/commands/restore.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+import { handlers } from './handlers/index.js';
 
 export class ExternalPlatformStrategy extends BasePlatformStrategy {
+  constructor() {
+    super();
+    this.registerHandlers();
+  }
+  
+  private registerHandlers(): void {
+    const registry = HandlerRegistry.getInstance();
+    registry.registerHandlers('external', handlers as any);
+  }
+  
   getPlatformName(): string {
     return 'external';
   }

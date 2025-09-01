@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 /**
  * Check handler for containerized database services
  */
-export async function checkDatabaseContainer(context: any): Promise<CheckHandlerResult> {
+const checkDatabaseContainer = async (context: any): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   
@@ -111,4 +111,13 @@ export async function checkDatabaseContainer(context: any): Promise<CheckHandler
       metadata: {}
     };
   }
-}
+};
+
+/**
+ * Descriptor for database container check handler
+ */
+export const databaseCheckDescriptor = {
+  command: 'check',
+  serviceType: 'database',
+  handler: checkDatabaseContainer
+};

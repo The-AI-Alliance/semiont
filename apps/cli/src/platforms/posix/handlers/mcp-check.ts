@@ -6,7 +6,7 @@ import * as path from 'path';
 /**
  * Check handler for MCP (Model Context Protocol) services
  */
-export async function checkMCPProcess(context: any): Promise<CheckHandlerResult> {
+const checkMCPProcess = async (context: any): Promise<CheckHandlerResult> => {
   const { platform, service, savedState } = context;
   
   let status: 'running' | 'stopped' = 'stopped';
@@ -75,4 +75,13 @@ export async function checkMCPProcess(context: any): Promise<CheckHandlerResult>
       stateVerified: true
     }
   };
-}
+};
+
+/**
+ * Descriptor for POSIX MCP check handler
+ */
+export const mcpCheckDescriptor = {
+  command: 'check',
+  serviceType: 'mcp',
+  handler: checkMCPProcess
+};

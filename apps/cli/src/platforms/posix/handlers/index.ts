@@ -1,5 +1,16 @@
-export { checkWebProcess } from './web-check.js';
-export { checkDatabaseProcess } from './database-check.js';
-export { checkWorkerProcess } from './worker-check.js';
-export { checkFilesystemProcess } from './filesystem-check.js';
-export { checkMCPProcess } from './mcp-check.js';
+import { webCheckDescriptor } from './web-check.js';
+import { databaseCheckDescriptor } from './database-check.js';
+import { workerCheckDescriptor } from './worker-check.js';
+import { filesystemCheckDescriptor } from './filesystem-check.js';
+import { mcpCheckDescriptor } from './mcp-check.js';
+
+/**
+ * All POSIX platform handler descriptors
+ */
+export const handlers = [
+  webCheckDescriptor,
+  databaseCheckDescriptor,
+  workerCheckDescriptor,
+  filesystemCheckDescriptor,
+  mcpCheckDescriptor
+];

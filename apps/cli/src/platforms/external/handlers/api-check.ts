@@ -3,7 +3,7 @@ import { CheckHandlerResult } from '../../../core/handlers/types.js';
 /**
  * Check handler for external API services
  */
-export async function checkExternalAPI(context: any): Promise<CheckHandlerResult> {
+const checkExternalAPI = async (context: any): Promise<CheckHandlerResult> => {
   const { service, endpoint } = context;
   const requirements = service.getRequirements();
   
@@ -75,4 +75,13 @@ export async function checkExternalAPI(context: any): Promise<CheckHandlerResult
       stateVerified: true
     }
   };
-}
+};
+
+/**
+ * Descriptor for external API check handler
+ */
+export const apiCheckDescriptor = {
+  command: 'check',
+  serviceType: 'api',
+  handler: checkExternalAPI
+};

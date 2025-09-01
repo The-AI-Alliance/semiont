@@ -1,12 +1,12 @@
 import { CheckHandlerResult } from '../../../core/handlers/types.js';
 import { StateManager } from '../../../core/state-manager.js';
-import { isPortInUse } from '../../../core/utils/port-utils.js';
+import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execSync } from 'child_process';
 
 /**
  * Check handler for POSIX database services
  */
-export async function checkDatabaseProcess(context: any): Promise<CheckHandlerResult> {
+const checkDatabaseProcess = async (context: any): Promise<CheckHandlerResult> => {
   const { platform, service } = context;
   const requirements = service.getRequirements();
   
@@ -96,4 +96,13 @@ export async function checkDatabaseProcess(context: any): Promise<CheckHandlerRe
       stateVerified: true
     }
   };
-}
+};
+
+/**
+ * Descriptor for POSIX database check handler
+ */
+export const databaseCheckDescriptor = {
+  command: 'check',
+  serviceType: 'database',
+  handler: checkDatabaseProcess
+};

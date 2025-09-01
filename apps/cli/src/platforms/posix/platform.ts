@@ -39,8 +39,20 @@ import { Service } from '../../services/types.js';
 import { ServiceName } from '../../core/service-discovery.js';
 import { StateManager } from '../../core/state-manager.js';
 import { isPortInUse } from '../../core/io/network-utils.js';
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+import { handlers } from './handlers/index.js';
 
 export class PosixPlatformStrategy extends BasePlatformStrategy {
+  constructor() {
+    super();
+    this.registerHandlers();
+  }
+  
+  private registerHandlers(): void {
+    const registry = HandlerRegistry.getInstance();
+    registry.registerHandlers('posix', handlers as any);
+  }
+  
   getPlatformName(): string {
     return 'posix';
   }
