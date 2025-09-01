@@ -21,11 +21,8 @@
  */
 
 import { execSync } from 'child_process';
-import * as path from "path";
-import * as fs from 'fs';
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
-import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
@@ -73,49 +70,6 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     return `semiont-${service.name}-${service.environment}`;
   }
   
-  /**
-   * Wait for container to be ready
-   */
-  private async waitForContainer(containerName: string, requirements?: any): Promise<void> {
-    const maxAttempts = 30;
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-      try {
-        const status = execSync(
-          `${this.runtime} inspect ${containerName} --format '{{.State.Status}}'`,
-          { encoding: 'utf-8' }
-        ).trim();
-        
-        if (status === 'running') {
-          // If health check is configured, wait for it
-          if (requirements?.network?.healthCheckPath) {
-            try {
-              const health = execSync(
-                `${this.runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
-                { encoding: 'utf-8' }
-              ).trim();
-              
-              if (health === 'healthy') {
-                return;
-              }
-            } catch {
-              // No health status yet
-            }
-          } else {
-            return; // Container is running, no health check configured
-          }
-        }
-      } catch {
-        // Container might not exist yet
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      attempts++;
-    }
-    
-    throw new Error(`Container ${containerName} failed to start within ${maxAttempts} seconds`);
-  }
   
   /**
    * Quick check if a container is running using saved state

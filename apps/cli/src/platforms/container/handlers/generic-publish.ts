@@ -16,7 +16,7 @@ import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
  * Supports both Docker and Podman runtimes
  */
 const publishGenericService = async (context: PublishHandlerContext): Promise<PublishHandlerResult> => {
-  const { service, runtime, containerName } = context;
+  const { service, runtime } = context;
   const requirements = service.getRequirements();
   const imageTag = `${service.name}:${service.environment}`;
   const version = new Date().toISOString().replace(/[:.]/g, '-');

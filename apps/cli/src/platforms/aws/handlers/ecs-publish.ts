@@ -215,7 +215,7 @@ async function updateTaskDefinition(
   service: any,
   imageUri: string,
   region: string,
-  accountId: string,
+  _accountId: string,
   cfnDiscoveredResources: any,
   resourceName: string
 ): Promise<void> {

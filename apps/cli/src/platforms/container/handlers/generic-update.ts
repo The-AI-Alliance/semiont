@@ -34,7 +34,7 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
       tempService.getResourceName = () => newContainerName;
       
       // Start new container
-      const startResult = await platform.start(tempService);
+      await platform.start(tempService);
       
       // Wait for new container to be healthy
       await waitForContainer(runtime, newContainerName, requirements);
@@ -96,7 +96,7 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
       // Start new container
       const { ContainerPlatformStrategy } = await import('../platform.js');
       const platform = new ContainerPlatformStrategy();
-      const startResult = await platform.start(service);
+      await platform.start(service);
       
       const downtime = Date.now() - startTime;
       const newContainerId = await getContainerId(runtime, containerName);

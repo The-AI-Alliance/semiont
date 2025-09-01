@@ -28,7 +28,6 @@
 
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
-import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
