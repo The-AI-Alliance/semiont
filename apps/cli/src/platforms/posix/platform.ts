@@ -290,89 +290,6 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async check(service: Service): Promise<CheckResult> {
-    const requirements = service.getRequirements();
-    const savedState = await StateManager.load(
-      service.projectRoot,
-      service.environment,
-      service.name
-    );
-    
-    let status: CheckResult['status'] = 'stopped';
-    let pid: number | undefined;
-    
-    // Check if saved process is running
-    if (savedState?.resources?.platform === 'posix' && 
-        savedState.resources.data.pid && 
-        StateManager.isProcessRunning(savedState.resources.data.pid)) {
-      pid = savedState.resources.data.pid;
-      status = 'running';
-    } else {
-      // Try to find process by port from requirements
-      const port = requirements.network?.ports?.[0];
-      if (port && await isPortInUse(port)) {
-        try {
-          pid = this.findProcessByPort(port);
-          if (pid) {
-            status = 'running';
-          }
-        } catch {
-          // Couldn't determine PID
-        }
-      }
-    }
-    
-    // Collect logs if running
-    let logs: CheckResult['logs'] | undefined;
-    if (status === 'running') {
-      logs = await this.collectLogs(service);
-    }
-    
-    // Health check based on requirements
-    let health: CheckResult['health'] | undefined;
-    if (status === 'running' && requirements.network?.healthCheckPath) {
-      const port = requirements.network.healthCheckPort || requirements.network.ports?.[0];
-      if (port) {
-        const healthUrl = `http://localhost:${port}${requirements.network.healthCheckPath}`;
-        try {
-          const response = await fetch(healthUrl, {
-            signal: AbortSignal.timeout(5000)
-          });
-          health = {
-            endpoint: healthUrl,
-            statusCode: response.status,
-            healthy: response.ok,
-            details: { status: response.ok ? 'healthy' : 'unhealthy' }
-          };
-        } catch (error) {
-          health = {
-            endpoint: healthUrl,
-            healthy: false,
-            details: { error: (error as Error).message }
-          };
-        }
-      }
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'posix',
-      success: true,
-      checkTime: new Date(),
-      status,
-      stateVerified: true,
-      resources: {
-        platform: 'posix',
-        data: {
-          pid,
-          port: requirements.network?.ports?.[0]
-        }
-      } as PlatformResources,
-      health,
-      logs
-    };
-  }
-  
   async update(service: Service): Promise<UpdateResult> {
     // For process: stop and restart
     const stopResult = await this.stop(service);
@@ -1911,5 +1828,61 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
     }
     
     return this.isProcessRunning(pid);
+  }
+  
+  /**
+   * Determine service type for handler selection
+   */
+  determineServiceType(service: Service): string {
+    const requirements = service.getRequirements();
+    const serviceName = service.name.toLowerCase();
+    
+    // Check for MCP services
+    if (service.name === ServiceName.MCP || 
+        requirements.annotations?.['service/type'] === 'mcp') {
+      return 'mcp';
+    }
+    
+    // Check for database services
+    if (requirements.annotations?.['service/type'] === 'database' ||
+        serviceName.includes('postgres') || 
+        serviceName.includes('mysql') || 
+        serviceName.includes('mongodb') ||
+        serviceName.includes('redis')) {
+      return 'database';
+    }
+    
+    // Check for web services
+    if (requirements.network?.healthCheckPath ||
+        requirements.annotations?.['service/type'] === 'web') {
+      return 'web';
+    }
+    
+    // Check for filesystem services
+    if (requirements.annotations?.['service/type'] === 'filesystem' ||
+        serviceName.includes('nfs') ||
+        serviceName.includes('samba') ||
+        serviceName.includes('webdav')) {
+      return 'filesystem';
+    }
+    
+    // Default to worker for everything else
+    return 'worker';
+  }
+  
+  /**
+   * Build platform-specific context extensions for handlers
+   */
+  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+    // Load saved state for posix handlers
+    const savedState = await StateManager.load(
+      service.projectRoot,
+      service.environment,
+      service.name
+    );
+    
+    return {
+      savedState
+    };
   }
 }

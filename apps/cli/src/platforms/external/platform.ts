@@ -88,57 +88,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async check(service: Service): Promise<CheckResult> {
-    const requirements = service.getRequirements();
-    const endpoint = this.buildEndpoint(service.config, requirements);
-    
-    let status: CheckResult['status'] = 'unknown';
-    let health: CheckResult['health'] | undefined;
-    
-    // Try health check if we have a health check path from requirements
-    if (endpoint && requirements.network?.healthCheckPath) {
-      try {
-        const healthUrl = `${endpoint}${requirements.network.healthCheckPath}`;
-        const response = await fetch(healthUrl, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000)
-        });
-        
-        status = response.ok ? 'running' : 'unhealthy';
-        health = {
-          endpoint: healthUrl,
-          statusCode: response.status,
-          healthy: response.ok
-        };
-      } catch (error) {
-        // Can't reach the service
-        health = {
-          endpoint: `${endpoint}${requirements.network.healthCheckPath}`,
-          healthy: false,
-          details: {
-            message: 'Could not reach external service - may be behind firewall',
-            error: (error as Error).message
-          }
-        };
-      }
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      checkTime: new Date(),
-      status,
-      stateVerified: false, // Can never truly verify external state
-      health,
-      metadata: {
-        endpoint,
-        provider: service.config.provider,
-        message: 'External service status cannot be reliably determined'
-      }
-    };
-  }
-  
   async update(service: Service): Promise<UpdateResult> {
     if (!service.quiet) {
       printWarning(`Cannot update external ${service.name} service - managed externally`);
@@ -790,5 +739,35 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
           error: `Unknown action: ${action}`
         };
     }
+  }
+  
+  /**
+   * Determine service type for handler selection
+   */
+  determineServiceType(service: Service): string {
+    const requirements = service.getRequirements();
+    const serviceName = service.name.toLowerCase();
+    
+    // Check for static sites/CDNs
+    if (requirements.annotations?.['service/type'] === 'static' ||
+        serviceName.includes('cdn') ||
+        serviceName.includes('static')) {
+      return 'static';
+    }
+    
+    // Default to API for external services
+    return 'api';
+  }
+  
+  /**
+   * Build platform-specific context extensions for handlers
+   */
+  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+    const requirements = service.getRequirements();
+    const endpoint = this.buildEndpoint(service.config, requirements);
+    
+    return {
+      endpoint
+    };
   }
 }

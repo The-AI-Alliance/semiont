@@ -258,109 +258,6 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  async check(service: Service): Promise<CheckResult> {
-    const requirements = service.getRequirements();
-    const containerName = this.getResourceName(service);
-    let status: CheckResult['status'] = 'stopped';
-    let containerId: string | undefined;
-    
-    try {
-      // Check container status
-      const containerStatus = execSync(
-        `${this.runtime} inspect ${containerName} --format '{{.State.Status}}'`,
-        { encoding: 'utf-8' }
-      ).trim();
-      
-      if (containerStatus === 'running') {
-        status = 'running';
-        
-        // Get container ID
-        containerId = execSync(
-          `${this.runtime} inspect ${containerName} --format '{{.Id}}'`,
-          { encoding: 'utf-8' }
-        ).trim().substring(0, 12);
-        
-        // Check container health if health check was configured
-        if (requirements.network?.healthCheckPath) {
-          try {
-            const health = execSync(
-              `${this.runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
-              { encoding: 'utf-8' }
-            ).trim();
-            
-            if (health === 'unhealthy') {
-              status = 'unhealthy';
-            }
-          } catch {
-            // No health check results yet
-          }
-        }
-      } else if (containerStatus === 'exited' || containerStatus === 'stopped') {
-        status = 'stopped';
-      } else {
-        status = 'unknown';
-      }
-    } catch {
-      // Container doesn't exist
-      status = 'stopped';
-    }
-    
-    // Collect logs if running
-    let logs: CheckResult['logs'] | undefined;
-    if (status === 'running' || status === 'unhealthy') {
-      logs = await this.collectLogs(service);
-    }
-    
-    // Get health details
-    let health: CheckResult['health'] | undefined;
-    if (status === 'running' && requirements.network?.healthCheckPath) {
-      const port = requirements.network.healthCheckPort || requirements.network.ports?.[0];
-      if (port) {
-        const healthUrl = `http://localhost:${port}${requirements.network.healthCheckPath}`;
-        try {
-          const response = await fetch(healthUrl, {
-            signal: AbortSignal.timeout(5000)
-          });
-          health = {
-            endpoint: healthUrl,
-            statusCode: response.status,
-            healthy: response.ok,
-            details: { 
-              status: response.ok ? 'healthy' : 'unhealthy',
-              containerHealth: status === 'running' ? 'healthy' : status
-            }
-          };
-        } catch (error) {
-          health = {
-            endpoint: healthUrl,
-            healthy: false,
-            details: { 
-              error: (error as Error).message,
-              containerHealth: status
-            }
-          };
-        }
-      }
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'container',
-      success: true,
-      checkTime: new Date(),
-      status,
-      stateVerified: true,
-      resources: containerId ? createPlatformResources('container', {
-        containerId,
-        ports: requirements.network?.ports ? { 
-          [requirements.network.ports[0]]: String(requirements.network.ports[0]) 
-        } : undefined
-      }) : undefined,
-      health,
-      logs
-    };
-  }
-  
   async update(service: Service): Promise<UpdateResult> {
     const requirements = service.getRequirements();
     const containerName = this.getResourceName(service);
@@ -1664,5 +1561,43 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       // Container doesn't exist or error checking
       return false;
     }
+  }
+  
+  /**
+   * Determine service type for handler selection
+   */
+  determineServiceType(service: Service): string {
+    const requirements = service.getRequirements();
+    const serviceName = service.name.toLowerCase();
+    
+    // Check for database services
+    if (requirements.annotations?.['service/type'] === 'database' ||
+        serviceName.includes('postgres') || 
+        serviceName.includes('mysql') || 
+        serviceName.includes('mongodb') ||
+        serviceName.includes('redis')) {
+      return 'database';
+    }
+    
+    // Check for web services
+    if (requirements.network?.healthCheckPath ||
+        requirements.annotations?.['service/type'] === 'web') {
+      return 'web';
+    }
+    
+    // Default to generic
+    return 'generic';
+  }
+  
+  /**
+   * Build platform-specific context extensions for handlers
+   */
+  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+    const containerName = this.getResourceName(service);
+    
+    return {
+      runtime: this.runtime,
+      containerName
+    };
   }
 }

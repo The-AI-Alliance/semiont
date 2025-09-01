@@ -139,32 +139,6 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async check(service: Service): Promise<CheckResult> {
-    const state = this.mockState.get(service.name);
-    const status = state?.running ? 'running' : 'stopped';
-    
-    return {
-      entity: service.name,
-      platform: 'mock',
-      success: true,
-      checkTime: new Date(),
-      status,
-      stateVerified: true,
-      resources: state ? {
-        platform: 'mock',
-        data: {
-          mockId: state.id
-        }
-      } as PlatformResources : undefined,
-      health: {
-        healthy: state?.running || false,
-        details: {
-          message: state?.running ? 'Mock service is running' : 'Mock service is stopped'
-        }
-      }
-    };
-  }
-  
   async update(service: Service): Promise<UpdateResult> {
     // Mock update: simulate stop and start
     await this.stop(service);
@@ -517,5 +491,22 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
           error: `Unknown action: ${action}`
         };
     }
+  }
+  
+  /**
+   * Determine service type for handler selection
+   */
+  determineServiceType(service: Service): string {
+    // Mock platform uses default handler for all services
+    return 'default';
+  }
+  
+  /**
+   * Build platform-specific context extensions for handlers
+   */
+  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+    return {
+      mockState: this.mockState
+    };
   }
 }

@@ -1,0 +1,1 @@
+export { checkMockService } from './default-check.js';

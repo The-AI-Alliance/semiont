@@ -72,11 +72,6 @@ export interface PlatformStrategy {
   stop(service: Service): Promise<StopResult>;
   
   /**
-   * Check the status of a service on this platform
-   */
-  check(service: Service): Promise<CheckResult>;
-  
-  /**
    * Update a service on this platform
    */
   update(service: Service): Promise<UpdateResult>;
@@ -151,7 +146,6 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   
   abstract start(service: Service): Promise<StartResult>;
   abstract stop(service: Service): Promise<StopResult>;
-  abstract check(service: Service): Promise<CheckResult>;
   abstract update(service: Service): Promise<UpdateResult>;
   abstract provision(service: Service): Promise<ProvisionResult>;
   abstract publish(service: Service): Promise<PublishResult>;
