@@ -28,16 +28,18 @@
  * - Documentation and demo scenarios
  */
 
-import { StartResult } from "../../core/commands/start.js";
-import { StopResult } from "../../core/commands/stop.js";
-import { CheckResult } from "../../core/commands/check.js";
-import { UpdateResult } from "../../core/commands/update.js";
-import { ProvisionResult } from "../../core/commands/provision.js";
-import { PublishResult } from "../../core/commands/publish.js";
-import { PlatformResources } from "../platform-resources.js";
-import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
+import type { 
+  StopResult, 
+  UpdateResult, 
+  ProvisionResult,
+  PublishResult,
+  TestResult,
+  TestOptions,
+  CheckResult,
+  PlatformResources 
+} from '../../core/command-types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
@@ -58,73 +60,6 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     return 'mock';
   }
   
-  async start(service: Service): Promise<StartResult> {
-    const requirements = service.getRequirements();
-    const mockId = `mock-${service.name}-${Date.now()}`;
-    
-    // Build endpoint from network requirements
-    let endpoint: string | undefined;
-    if (requirements.network?.ports && requirements.network.ports.length > 0) {
-      const primaryPort = requirements.network.ports[0];
-      endpoint = `http://localhost:${primaryPort}`;
-      
-      if (requirements.network.customDomains?.length) {
-        // Mock custom domain support
-        endpoint = `https://${requirements.network.customDomains[0]}`;
-      }
-    }
-    
-    // Check dependencies are met
-    if (requirements.dependencies?.services) {
-      for (const dep of requirements.dependencies.services) {
-        const depState = this.mockState.get(dep);
-        if (!depState?.running) {
-          console.log(`[MOCK] Dependency ${dep} not running, would normally fail`);
-        }
-      }
-    }
-    
-    // Simulate resource allocation
-    const allocatedResources = {
-      cpu: requirements.resources?.cpu || '0.1',
-      memory: requirements.resources?.memory || '128Mi',
-      replicas: requirements.resources?.replicas || 1
-    };
-    
-    // Store mock state with requirements info (unless dry run)
-    if (!service.dryRun) {
-      this.mockState.set(service.name, {
-        id: mockId,
-        running: true,
-        startTime: new Date(),
-        requirements,
-        allocatedResources,
-        endpoint
-      });
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'mock',
-      success: true,
-      startTime: new Date(),
-      endpoint,
-      resources: {
-        platform: 'mock',
-        data: {
-          mockId: mockId,
-          mockPort: requirements.network?.ports?.[0],
-          mockEndpoint: endpoint
-        }
-      } as PlatformResources,
-      metadata: {
-        mockImplementation: true,
-        allocatedResources,
-        requirementsMet: true,
-        dryRun: service.dryRun || false
-      }
-    };
-  }
   
   async stop(service: Service): Promise<StopResult> {
     const state = this.mockState.get(service.name);
@@ -149,9 +84,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   }
   
   async update(service: Service): Promise<UpdateResult> {
-    // Mock update: simulate stop and start
+    // Mock update: simulate stop
     await this.stop(service);
-    const startResult = await this.start(service);
     
     return {
       entity: service.name,
@@ -160,11 +94,10 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       updateTime: new Date(),
       previousVersion: 'mock-v1',
       newVersion: 'mock-v2',
-      strategy: 'rolling',
-      resources: startResult.resources,
+      strategy: 'stop-only',
       metadata: {
         mockImplementation: true,
-        rollingUpdate: false
+        message: 'Service stopped. Run start command to launch updated version.'
       }
     };
   }
@@ -317,95 +250,8 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   getMockState(serviceName: string): any {
     return this.mockState.get(serviceName);
   }
-  
-  /**
-   * Manage secrets in memory for testing
-   */
-  override async manageSecret(
-    action: 'get' | 'set' | 'list' | 'delete',
-    secretPath: string,
-    value?: any,
-    options?: import('../../core/platform-strategy.js').SecretOptions
-  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
-    // Store secrets in the mock state under a special namespace
-    const secretKey = `secret:${options?.environment || 'test'}:${secretPath}`;
-    
-    switch (action) {
-      case 'get': {
-        const storedValue = this.mockState.get(secretKey);
-        if (storedValue === undefined) {
-          return {
-            success: false,
-            action,
-            secretPath,
-            platform: 'mock',
-            storage: 'memory',
-            error: `Secret not found: ${secretPath}`
-          };
-        }
-        
-        return {
-          success: true,
-          action,
-          secretPath,
-          value: storedValue,
-          platform: 'mock',
-          storage: 'memory'
-        };
-      }
-      
-      case 'set': {
-        this.mockState.set(secretKey, value);
-        return {
-          success: true,
-          action,
-          secretPath,
-          platform: 'mock',
-          storage: 'memory',
-          metadata: {
-            stored: true
-          }
-        };
-      }
-      
-      case 'list': {
-        const prefix = `secret:${options?.environment || 'test'}:${secretPath}`;
-        const matchingKeys = Array.from(this.mockState.keys())
-          .filter(key => key.startsWith(prefix))
-          .map(key => key.replace(/^secret:[^:]+:/, ''));
-        
-        return {
-          success: true,
-          action,
-          secretPath,
-          values: matchingKeys,
-          platform: 'mock',
-          storage: 'memory'
-        };
-      }
-      
-      case 'delete': {
-        this.mockState.delete(secretKey);
-        return {
-          success: true,
-          action,
-          secretPath,
-          platform: 'mock',
-          storage: 'memory'
-        };
-      }
-      
-      default:
-        return {
-          success: false,
-          action,
-          secretPath,
-          platform: 'mock',
-          error: `Unknown action: ${action}`
-        };
-    }
-  }
-  
+
+
   /**
    * Determine service type for handler selection
    */

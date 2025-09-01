@@ -85,6 +85,73 @@ export interface SecurityRequirement {
 }
 
 /**
+ * Database-specific requirements
+ */
+export interface DatabaseRequirement {
+  type?: 'postgres' | 'postgresql' | 'mysql' | 'mariadb' | 'mongodb' | 'mongo' | 'redis' | string;
+  name?: string;
+  user?: string;
+  password?: string;
+  version?: string;
+  encoding?: string;
+  collation?: string;
+}
+
+/**
+ * Worker service requirements
+ */
+export interface WorkerRequirement {
+  type?: string;
+  concurrency?: number;
+  queueName?: string;
+  maxRetries?: number;
+  timeout?: number;
+  deadLetterQueue?: boolean;
+}
+
+/**
+ * Filesystem service requirements
+ */
+export interface FilesystemRequirement {
+  watchPaths?: string[];
+  syncInterval?: number;
+  maxFileSize?: string;
+  allowedExtensions?: string[];
+  indexingEnabled?: boolean;
+}
+
+/**
+ * MCP (Model Context Protocol) service requirements
+ */
+export interface MCPRequirement {
+  transport?: 'stdio' | 'http' | 'websocket';
+  serverName?: string;
+  capabilities?: string[];
+  version?: string;
+  authentication?: boolean;
+}
+
+/**
+ * External service requirements
+ */
+export interface ExternalRequirement {
+  endpoint?: string;
+  apiType?: 'rest' | 'graphql' | 'grpc' | 'soap';
+  authentication?: {
+    type: 'apikey' | 'oauth2' | 'basic' | 'bearer';
+    location?: 'header' | 'query' | 'body';
+  };
+  headers?: Record<string, string>;
+  healthPath?: string;
+  cdnUrl?: string;
+  cdnProvider?: string;
+  cacheControl?: string;
+  cors?: boolean;
+  indexDocument?: string;
+  errorDocument?: string;
+}
+
+/**
  * Complete service requirements specification
  */
 export interface ServiceRequirements {
@@ -97,6 +164,13 @@ export interface ServiceRequirements {
   environment?: Record<string, string>;
   labels?: Record<string, string>;  // For metadata/organization
   annotations?: Record<string, string>;  // Platform-specific hints
+  
+  // Platform-specific requirements
+  database?: DatabaseRequirement;
+  worker?: WorkerRequirement;
+  filesystem?: FilesystemRequirement;
+  mcp?: MCPRequirement;
+  external?: ExternalRequirement;
 }
 
 /**

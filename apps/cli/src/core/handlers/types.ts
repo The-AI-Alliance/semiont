@@ -36,6 +36,15 @@ export interface CheckHandlerResult extends HandlerResult {
 }
 
 /**
+ * Start handler specific types
+ */
+export interface StartHandlerResult extends HandlerResult {
+  endpoint?: string;
+  resources?: PlatformResources;
+  metadata?: Record<string, any>;
+}
+
+/**
  * Generic handler function signature
  */
 export type Handler<TContext extends BaseHandlerContext, TResult extends HandlerResult> = 
@@ -46,6 +55,12 @@ export type Handler<TContext extends BaseHandlerContext, TResult extends Handler
  */
 export type CheckHandler<TContext extends BaseHandlerContext> = 
   Handler<TContext, CheckHandlerResult>;
+
+/**
+ * Start handler function signature
+ */
+export type StartHandler<TContext extends BaseHandlerContext> = 
+  Handler<TContext, StartHandlerResult>;
 
 /**
  * Handler descriptor that explicitly declares what command and service type it handles

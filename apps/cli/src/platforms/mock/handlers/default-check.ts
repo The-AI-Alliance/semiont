@@ -22,7 +22,7 @@ const checkMockService = async (context: CheckHandlerContext): Promise<CheckHand
       platform: 'mock',
       data: {
         mockId: state.id,
-        port: state.port
+        mockPort: state.port
       }
     } : undefined,
     health: {

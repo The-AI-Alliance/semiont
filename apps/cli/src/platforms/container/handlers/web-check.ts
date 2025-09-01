@@ -83,9 +83,9 @@ const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHan
         }
       } catch (error) {
         health = {
-          endpoint: `http://localhost:${requirements.network?.healthCheckPort || requirements.network?.ports?.[0]}${requirements.network.healthCheckPath}`,
           healthy: false,
           details: { 
+            endpoint: `http://localhost:${requirements.network?.healthCheckPort || requirements.network?.ports?.[0]}${requirements.network.healthCheckPath}`,
             error: error instanceof Error ? error.message : 'Health check failed',
             containerHealth: 'running'
           }

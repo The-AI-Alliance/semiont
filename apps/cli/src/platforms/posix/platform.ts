@@ -18,21 +18,22 @@
  * - Dependencies: Verifies dependent processes are running via PID checks
  */
 
-import { spawn, execSync } from 'child_process';
+import { execSync } from 'child_process';
 import * as path from "path";
 import * as fs from 'fs';
 import * as os from 'os';
-import { StartResult } from "../../core/commands/start.js";
-import { StopResult } from "../../core/commands/stop.js";
-import { CheckResult } from "../../core/commands/check.js";
-import { UpdateResult } from "../../core/commands/update.js";
-import { ProvisionResult } from "../../core/commands/provision.js";
-import { PublishResult } from "../../core/commands/publish.js";
 import { printInfo, printSuccess, printWarning } from '../../core/io/cli-logger.js';
-import { PlatformResources } from "../platform-resources.js";
-import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
+import type { 
+  StopResult, 
+  UpdateResult, 
+  ProvisionResult,
+  PublishResult,
+  TestResult,
+  TestOptions,
+  CheckResult 
+} from '../../core/command-types.js';
 import { ServiceName } from '../../core/service-discovery.js';
 import { StateManager } from '../../core/state-manager.js';
 import { isPortInUse } from '../../core/io/network-utils.js';
@@ -52,176 +53,6 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
   
   getPlatformName(): string {
     return 'posix';
-  }
-  
-  async start(service: Service): Promise<StartResult> {
-    const requirements = service.getRequirements();
-    const command = service.getCommand();
-    
-    // Check network port availability
-    const primaryPort = requirements.network?.ports?.[0];
-    if (primaryPort && await isPortInUse(primaryPort)) {
-      throw new Error(`Port ${primaryPort} is already in use`);
-    }
-    
-    // Check dependencies are running
-    const dependencies = requirements.dependencies?.services || [];
-    for (const dep of dependencies) {
-      const depState = await StateManager.load(
-        service.projectRoot,
-        service.environment,
-        dep
-      );
-      
-      if (!depState) {
-        printWarning(`Dependency '${dep}' has never been started`);
-      } else {
-        // Verify the dependency is actually running
-        let isRunning = false;
-        
-        // Use the appropriate platform strategy to check if running
-        const { PlatformFactory } = await import('../index.js');
-        const platform = PlatformFactory.getPlatform(depState.platform);
-        
-        if (platform.quickCheckRunning) {
-          isRunning = await platform.quickCheckRunning(depState);
-        } else {
-          // For platforms without quickCheckRunning (AWS, external, mock),
-          // assume they're running if state exists
-          isRunning = true;
-        }
-        
-        if (!isRunning) {
-          printWarning(`Dependency '${dep}' is not running`);
-          
-          // Note: Auto-starting dependencies could be added here in the future
-          // This would require creating a minimal service context and calling start()
-        }
-      }
-    }
-    
-    // Build environment from requirements
-    const env = {
-      ...process.env,
-      ...service.getEnvironmentVariables(),
-      ...(requirements.environment || {}),
-      NODE_ENV: service.environment
-    };
-    
-    // Add port if specified in network requirements
-    if (primaryPort) {
-      (env as any).PORT = primaryPort.toString();
-    }
-    
-    // Parse command
-    const [cmd, ...args] = command.split(' ');
-    
-    // Special handling for MCP service - it needs to run interactively with stdio
-    if (service.name === 'mcp') {
-      const proc = spawn(cmd, args, {
-        cwd: process.cwd(),  // Use current directory
-        env,
-        stdio: 'inherit'  // Connect stdin/stdout for JSON-RPC
-      });
-      
-      if (!proc.pid) {
-        throw new Error('Failed to start MCP process');
-      }
-      
-      // Don't detach or unref - MCP needs to keep running
-      // The process will handle signals and exit appropriately
-      
-      // For MCP, we return immediately but the process keeps running
-      return {
-        entity: service.name,
-        platform: 'posix',
-        success: true,
-        startTime: new Date(),
-        metadata: {
-          command,
-          mode: 'stdio',
-          pid: proc.pid
-        }
-      };
-    }
-    
-    // Regular service spawning (detached)
-    // For process platform, run commands in the current directory if we're already in the right place
-    // This allows running semiont from a service directory with SEMIONT_ROOT pointing to the project
-    const workingDir = process.cwd();
-    
-    // Determine stdio handling:
-    // - quiet: ignore all output
-    // - verbose: inherit (show everything)
-    // - default: pipe (capture but don't show)
-    let stdio: any;
-    if (service.quiet) {
-      stdio = 'ignore';
-    } else if (service.verbose) {
-      stdio = 'inherit';
-    } else {
-      // Default: capture output for logging but don't display
-      stdio = ['ignore', 'pipe', 'pipe'];
-    }
-    
-    const proc = spawn(cmd, args, {
-      cwd: workingDir,
-      env,
-      detached: true,
-      stdio
-    });
-    
-    if (!proc.pid) {
-      throw new Error('Failed to start process');
-    }
-    
-    // If we're piping output, log any errors
-    if (Array.isArray(stdio) && stdio[1] === 'pipe' && proc.stdout) {
-      proc.stdout.on('data', (data) => {
-        // Could write to a log file here if needed
-        if (service.verbose) {
-          console.log(data.toString());
-        }
-      });
-    }
-    
-    if (Array.isArray(stdio) && stdio[2] === 'pipe' && proc.stderr) {
-      proc.stderr.on('data', (data) => {
-        // Always log errors
-        console.error(`[${service.name}] ${data.toString()}`);
-      });
-    }
-    
-    proc.unref();
-    
-    // Build endpoint from network requirements
-    let endpoint: string | undefined;
-    if (primaryPort) {
-      // Protocol is tcp/udp, but for endpoint we use http/https
-      const protocol = 'http'; // Default to http for process platform
-      endpoint = `${protocol}://localhost:${primaryPort}`;
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'posix',
-      success: true,
-      startTime: new Date(),
-      endpoint,
-      resources: {
-        platform: 'posix',
-        data: {
-          pid: proc.pid,
-          port: primaryPort
-        }
-      },
-      metadata: {
-        command,
-        port: primaryPort,
-        dependencies: dependencies.length > 0 ? dependencies : undefined,
-        environment: Object.keys(requirements.environment || {})
-      }
-    };
   }
   
   async stop(service: Service): Promise<StopResult> {
@@ -300,7 +131,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
   }
   
   async update(service: Service): Promise<UpdateResult> {
-    // For process: stop and restart
+    // For process: stop the service
     const stopResult = await this.stop(service);
     
     // Clear state
@@ -310,18 +141,17 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
       service.name
     );
     
-    // Start new version
-    const startResult = await this.start(service);
+    // Update is a stop operation for now - user must manually start with new version
     
     return {
       entity: service.name,
       platform: 'posix',
       success: true,
       updateTime: new Date(),
-      strategy: 'restart',
+      strategy: 'stop-only',
       metadata: {
         stopped: stopResult.success,
-        started: startResult.success
+        message: 'Service stopped. Run start command to launch updated version.'
       }
     };
   }
@@ -1084,180 +914,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
       return undefined;
     }
   }
-  
-  /**
-   * Manage secrets using .env files
-   */
-  override async manageSecret(
-    action: 'get' | 'set' | 'list' | 'delete',
-    secretPath: string,
-    value?: any,
-    options?: import('../../core/platform-strategy.js').SecretOptions
-  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
-    const envFile = path.join(
-      process.cwd(),
-      `.env${options?.environment ? `.${options.environment}` : ''}`
-    );
-    
-    try {
-      switch (action) {
-        case 'get': {
-          if (!fs.existsSync(envFile)) {
-            return {
-              success: false,
-              action,
-              secretPath,
-              platform: 'posix',
-              storage: 'env-file',
-              error: `Environment file not found: ${envFile}`
-            };
-          }
-          
-          const content = fs.readFileSync(envFile, 'utf-8');
-          const envVars = this.parseEnvFile(content);
-          const envKey = this.secretPathToEnvKey(secretPath);
-          
-          if (!(envKey in envVars)) {
-            return {
-              success: false,
-              action,
-              secretPath,
-              platform: 'posix',
-              storage: 'env-file',
-              error: `Secret not found: ${secretPath}`
-            };
-          }
-          
-          return {
-            success: true,
-            action,
-            secretPath,
-            value: envVars[envKey],
-            platform: 'posix',
-            storage: 'env-file'
-          };
-        }
-        
-        case 'set': {
-          const envKey = this.secretPathToEnvKey(secretPath);
-          const envValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-          
-          let content = '';
-          let envVars: Record<string, string> = {};
-          
-          if (fs.existsSync(envFile)) {
-            content = fs.readFileSync(envFile, 'utf-8');
-            envVars = this.parseEnvFile(content);
-          }
-          
-          // Update or add the variable
-          envVars[envKey] = envValue;
-          
-          // Rebuild the file content
-          const newContent = Object.entries(envVars)
-            .map(([key, val]) => `${key}=${val}`)
-            .join('\n') + '\n';
-          
-          fs.writeFileSync(envFile, newContent, 'utf-8');
-          
-          return {
-            success: true,
-            action,
-            secretPath,
-            platform: 'posix',
-            storage: 'env-file',
-            metadata: {
-              file: envFile,
-              key: envKey
-            }
-          };
-        }
-        
-        case 'list': {
-          if (!fs.existsSync(envFile)) {
-            return {
-              success: true,
-              action,
-              secretPath,
-              values: [],
-              platform: 'posix',
-              storage: 'env-file'
-            };
-          }
-          
-          const content = fs.readFileSync(envFile, 'utf-8');
-          const envVars = this.parseEnvFile(content);
-          const prefix = this.secretPathToEnvKey(secretPath);
-          
-          const matchingKeys = Object.keys(envVars)
-            .filter(key => key.startsWith(prefix))
-            .map(key => this.envKeyToSecretPath(key));
-          
-          return {
-            success: true,
-            action,
-            secretPath,
-            values: matchingKeys,
-            platform: 'posix',
-            storage: 'env-file'
-          };
-        }
-        
-        case 'delete': {
-          if (!fs.existsSync(envFile)) {
-            return {
-              success: true,
-              action,
-              secretPath,
-              platform: 'posix',
-              storage: 'env-file'
-            };
-          }
-          
-          const content = fs.readFileSync(envFile, 'utf-8');
-          const envVars = this.parseEnvFile(content);
-          const envKey = this.secretPathToEnvKey(secretPath);
-          
-          if (envKey in envVars) {
-            delete envVars[envKey];
-            
-            const newContent = Object.entries(envVars)
-              .map(([key, val]) => `${key}=${val}`)
-              .join('\n') + '\n';
-            
-            fs.writeFileSync(envFile, newContent, 'utf-8');
-          }
-          
-          return {
-            success: true,
-            action,
-            secretPath,
-            platform: 'posix',
-            storage: 'env-file'
-          };
-        }
-        
-        default:
-          return {
-            success: false,
-            action,
-            secretPath,
-            platform: 'posix',
-            error: `Unknown action: ${action}`
-          };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        action,
-        secretPath,
-        platform: 'posix',
-        storage: 'env-file',
-        error: (error as Error).message
-      };
-    }
-  }
-  
+   
   /**
    * Parse .env file content into key-value pairs
    */
@@ -1281,26 +938,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
     
     return envVars;
   }
-  
-  /**
-   * Convert secret path to environment variable key
-   * e.g., "oauth/google/client_id" -> "OAUTH_GOOGLE_CLIENT_ID"
-   */
-  private secretPathToEnvKey(secretPath: string): string {
-    return secretPath
-      .toUpperCase()
-      .replace(/[\/\-\.]/g, '_')
-      .replace(/[^A-Z0-9_]/g, '');
-  }
-  
-  /**
-   * Convert environment variable key back to secret path
-   * e.g., "OAUTH_GOOGLE_CLIENT_ID" -> "oauth/google/client_id"
-   */
-  private envKeyToSecretPath(envKey: string): string {
-    return envKey.toLowerCase().replace(/_/g, '/');
-  }
-  
+    
   /**
    * Check if a process is running by PID
    */

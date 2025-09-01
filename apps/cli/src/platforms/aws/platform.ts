@@ -24,20 +24,16 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { StartResult } from "../../core/commands/start.js";
-import { StopResult } from "../../core/commands/stop.js";
-import { CheckResult } from "../../core/commands/check.js";
-import { UpdateResult } from "../../core/commands/update.js";
-import { PublishResult } from "../../core/commands/publish.js";
-import { PlatformResources, createPlatformResources } from "../platform-resources.js";
-//import { ProvisionResult } from "../../core/commands/provision.js";
-//import { TestResult, TestOptions } from "../../core/commands/test.js";
 import { HandlerRegistry } from "../../core/handlers/registry.js";
-import { HandlerContextBuilder } from "../../core/handlers/context.js";
-import { CheckHandlerResult } from "../../core/handlers/types.js";
 import { handlers } from './handlers/index.js';
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
+import type { 
+  StopResult, 
+  UpdateResult, 
+  PublishResult, 
+  CheckResult 
+} from '../../core/command-types.js';
 import { printInfo, printSuccess } from '../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../core/platform-resolver.js';
 
@@ -395,88 +391,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         // Default to ECS Fargate for services
         return 'ecs-fargate';
     }
-  }
-  
-  async start(service: Service): Promise<StartResult> {
-    const { region, accountId } = this.getAWSConfig(service);
-    const requirements = service.getRequirements();
-    const serviceType = this.determineServiceType(service);
-    const resourceName = this.getResourceName(service);
-    
-    let endpoint: string | undefined;
-    let resources: PlatformResources | undefined;
-    
-    switch (serviceType) {
-      case 'ecs-fargate':
-        // Get resource IDs from CloudFormation (with caching)
-        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-        
-        // Get cluster and service names from discovered resources
-        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
-        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
-        const desiredCount = requirements.resources?.replicas || 1;
-        
-        try {
-          execSync(
-            `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --desired-count ${desiredCount} --region ${region}`
-          );
-          
-          // Get service endpoint from load balancer
-          if (requirements.network?.needsLoadBalancer) {
-            const albDns = await this.getALBEndpoint(serviceName, region);
-            endpoint = `https://${albDns}`;
-          }
-          
-          resources = createPlatformResources('aws', {
-            clusterId: clusterName,
-            serviceArn: `arn:aws:ecs:${region}:${accountId}:service/${clusterName}/${serviceName}`,
-            region: region
-          });
-        } catch (error) {
-          throw new Error(`Failed to start ECS service: ${error}`);
-        }
-        break;
-       
-        
-      case 'rds':
-        // Start RDS instance
-        const instanceId = `${resourceName}-db`;
-        
-        try {
-          execSync(`aws rds start-db-instance --db-instance-identifier ${instanceId} --region ${region}`);
-          
-          if (!service.quiet) {
-            printInfo('RDS instance starting... this may take several minutes');
-          }
-          
-          // Get endpoint
-          const dbEndpoint = await this.getRDSEndpoint(instanceId, region);
-          endpoint = dbEndpoint;
-          
-          resources = createPlatformResources('aws', {
-            instanceId,
-            region: region
-          });
-        } catch (error) {
-          throw new Error(`Failed to start RDS instance: ${error}`);
-        }
-        break;
-        
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'aws',
-      success: true,
-      startTime: new Date(),
-      endpoint,
-      resources,
-      metadata: {
-        serviceType,
-        region: region,
-        resourceName
-      }
-    };
   }
   
   async stop(service: Service): Promise<StopResult> {
@@ -909,30 +823,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   public override getResourceName(service: Service): string {
     return `semiont-${service.name}-${service.environment}`;
   }
-  
-  private async getALBEndpoint(serviceName: string, region: string): Promise<string> {
-    try {
-      const albDns = execSync(
-        `aws elbv2 describe-load-balancers --names ${serviceName}-alb --query 'LoadBalancers[0].DNSName' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return albDns;
-    } catch {
-      return '';
-    }
-  }
-  
-  private async getRDSEndpoint(instanceId: string, region: string): Promise<string> {
-    try {
-      const endpoint = execSync(
-        `aws rds describe-db-instances --db-instance-identifier ${instanceId} --query 'DBInstances[0].Endpoint.Address' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
-      return endpoint;
-    } catch {
-      return '';
-    }
-  }
     
   /**
    * Fetch recent CloudWatch logs for a service
@@ -1180,233 +1070,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       return undefined;
     }
   }
-    
-  /**
-   * Manage secrets using AWS Secrets Manager
-   */
-  override async manageSecret(
-    action: 'get' | 'set' | 'list' | 'delete',
-    secretPath: string,
-    value?: any,
-    options?: import('../../core/platform-strategy.js').SecretOptions
-  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
-    const { SecretsManagerClient, GetSecretValueCommand, UpdateSecretCommand, CreateSecretCommand, DeleteSecretCommand, ListSecretsCommand } = await import('@aws-sdk/client-secrets-manager');
-    
-    // Get region from environment config
-    let region: string | undefined;
-    
-    if (options?.environment) {
-      try {
-        const fs = await import('fs');
-        const path = await import('path');
-        const envConfigPath = path.join(process.cwd(), 'environments', `${options.environment}.json`);
-        if (fs.existsSync(envConfigPath)) {
-          const envConfig = JSON.parse(fs.readFileSync(envConfigPath, 'utf-8'));
-          if (envConfig.aws?.region) {
-            region = envConfig.aws.region;
-          }
-        }
-      } catch (error) {
-        // Continue to check other sources
-      }
-    }
-    
-    // If no region from environment config, fail with clear error
-    if (!region) {
-      return {
-        success: false,
-        action,
-        secretPath,
-        platform: 'aws',
-        storage: 'aws-secrets-manager',
-        error: `AWS region not configured. Please ensure your environment config at environments/${options?.environment}.json contains aws.region`
-      };
-    }
-    
-    const secretsClient = new SecretsManagerClient({ region });
-    
-    // Format secret name for AWS
-    const secretName = this.formatSecretName(secretPath, options?.environment);
-    
-    try {
-      switch (action) {
-        case 'get': {
-          try {
-            const response = await secretsClient.send(
-              new GetSecretValueCommand({
-                SecretId: secretName
-              })
-            );
-            
-            // Try to parse as JSON if requested
-            let secretValue = response.SecretString || '';
-            if (options?.format === 'json' && secretValue) {
-              try {
-                secretValue = JSON.parse(secretValue);
-              } catch {
-                // Keep as string if not valid JSON
-              }
-            }
-            
-            return {
-              success: true,
-              action,
-              secretPath,
-              value: secretValue,
-              platform: 'aws',
-              storage: 'aws-secrets-manager',
-              metadata: {
-                arn: response.ARN,
-                versionId: response.VersionId
-              }
-            };
-          } catch (error: any) {
-            if (error.name === 'ResourceNotFoundException') {
-              return {
-                success: false,
-                action,
-                secretPath,
-                platform: 'aws',
-                storage: 'aws-secrets-manager',
-                error: `Secret not found: ${secretPath}`
-              };
-            }
-            throw error;
-          }
-        }
-        
-        case 'set': {
-          const secretString = typeof value === 'object' ? JSON.stringify(value) : String(value);
-          
-          // First try to update existing secret
-          try {
-            const response = await secretsClient.send(
-              new UpdateSecretCommand({
-                SecretId: secretName,
-                SecretString: secretString
-              })
-            );
-            
-            return {
-              success: true,
-              action,
-              secretPath,
-              platform: 'aws',
-              storage: 'aws-secrets-manager',
-              metadata: {
-                arn: response.ARN,
-                versionId: response.VersionId
-              }
-            };
-          } catch (error: any) {
-            // If secret doesn't exist, create it
-            if (error.name === 'ResourceNotFoundException') {
-              const response = await secretsClient.send(
-                new CreateSecretCommand({
-                  Name: secretName,
-                  SecretString: secretString,
-                  Description: `Created by semiont configure command`
-                })
-              );
-              
-              return {
-                success: true,
-                action,
-                secretPath,
-                platform: 'aws',
-                storage: 'aws-secrets-manager',
-                metadata: {
-                  arn: response.ARN,
-                  versionId: response.VersionId,
-                  created: true
-                }
-              };
-            }
-            throw error;
-          }
-        }
-        
-        case 'list': {
-          const response = await secretsClient.send(
-            new ListSecretsCommand({
-              MaxResults: 100,
-              Filters: secretPath ? [
-                {
-                  Key: 'name',
-                  Values: [secretPath]
-                }
-              ] : undefined
-            })
-          );
-          
-          const secretNames = (response.SecretList || [])
-            .map(secret => this.extractSecretPath(secret.Name || ''))
-            .filter(name => name !== null);
-          
-          return {
-            success: true,
-            action,
-            secretPath,
-            values: secretNames as string[],
-            platform: 'aws',
-            storage: 'aws-secrets-manager',
-            metadata: {
-              totalFound: secretNames.length
-            }
-          };
-        }
-        
-        case 'delete': {
-          try {
-            await secretsClient.send(
-              new DeleteSecretCommand({
-                SecretId: secretName,
-                ForceDeleteWithoutRecovery: true
-              })
-            );
-            
-            return {
-              success: true,
-              action,
-              secretPath,
-              platform: 'aws',
-              storage: 'aws-secrets-manager'
-            };
-          } catch (error: any) {
-            if (error.name === 'ResourceNotFoundException') {
-              // Already deleted
-              return {
-                success: true,
-                action,
-                secretPath,
-                platform: 'aws',
-                storage: 'aws-secrets-manager'
-              };
-            }
-            throw error;
-          }
-        }
-        
-        default:
-          return {
-            success: false,
-            action,
-            secretPath,
-            platform: 'aws',
-            error: `Unknown action: ${action}`
-          };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        action,
-        secretPath,
-        platform: 'aws',
-        storage: 'aws-secrets-manager',
-        error: (error as Error).message
-      };
-    }
-  }
   
   /**
    * Wait for ECS deployment to complete with enhanced monitoring
@@ -1598,38 +1261,4 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
     
     throw new Error(`Deployment ${deploymentId} timed out after ${effectiveTimeout} seconds`);
   }
-  
-  /**
-   * Format secret name for AWS Secrets Manager
-   */
-  private formatSecretName(secretPath: string, environment?: string): string {
-    // If the path already looks like a full AWS secret name, use it
-    if (secretPath.includes('semiont-') && secretPath.includes('-secret')) {
-      return secretPath;
-    }
-    
-    // Otherwise format it: semiont-{environment}-{path}-secret
-    if (!environment) {
-      throw new Error('Environment is required for secret management');
-    }
-    const formattedPath = secretPath.replace(/[\/\-\.]/g, '-');
-    return `semiont-${environment}-${formattedPath}-secret`;
-  }
-  
-  /**
-   * Extract secret path from AWS secret name
-   */
-  private extractSecretPath(secretName: string): string | null {
-    // Extract path from names like: semiont-production-oauth-google-secret
-    const match = secretName.match(/^semiont-[^-]+-(.+)-secret$/);
-    if (match) {
-      return match[1].replace(/-/g, '/');
-    }
-    return null;
-  }
-
-  /**
-   * Check ECS Fargate service status
-   */
-
 }

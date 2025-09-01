@@ -9,8 +9,13 @@
  * 1. Resolves service configurations from environment files
  * 2. Checks and starts service dependencies first
  * 3. Creates service instances via ServiceFactory
- * 4. Delegates to platform strategies for actual startup
+ * 4. Delegates to platform-specific handlers or strategies for actual startup
  * 5. Saves service state for tracking and management
+ * 
+ * Handler Pattern:
+ * - Uses handler registry to find platform and service-type specific implementations
+ * - Returns error if no handler is registered for the service type
+ * - Handlers provide consistent interface across different service types
  * 
  * Options:
  * - --all: Start all services defined in the environment
@@ -38,9 +43,16 @@ import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 import { ServiceFactory } from '../../services/service-factory.js';
 import { ServiceName } from '../service-discovery.js';
 import { Platform } from '../platform-resolver.js';
+import { PlatformStrategy } from '../platform-strategy.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';
+
+// Imports needed for handler-based start
+import { Service } from '../../services/types.js';
+import { HandlerRegistry } from '../handlers/registry.js';
+import { HandlerContextBuilder } from '../handlers/context.js';
+import { StartHandlerResult } from '../handlers/types.js';
 
 const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
@@ -73,8 +85,54 @@ const StartOptionsSchema = BaseOptionsSchema.extend({
 type StartOptions = z.output<typeof StartOptionsSchema>;
 
 // =====================================================================
-// SERVICE-BASED START IMPLEMENTATION
+// HANDLER-BASED START IMPLEMENTATION
 // =====================================================================
+
+async function performStart(service: Service, platform: PlatformStrategy): Promise<StartResult> {
+  const serviceType = platform.determineServiceType(service);
+  
+  const registry = HandlerRegistry.getInstance();
+  const descriptor = registry.getDescriptor(platform.getPlatformName(), `start-${serviceType}`);
+  
+  if (!descriptor) {
+    return {
+      entity: service.name,
+      platform: platform.getPlatformName() as Platform,
+      success: false,
+      startTime: new Date(),
+      error: `No start handler registered for service type: ${serviceType}`,
+      metadata: {
+        serviceType
+      }
+    };
+  }
+
+  const contextExtensions = await platform.buildHandlerContextExtensions(
+    service, 
+    descriptor.requiresDiscovery || false
+  );
+  
+  const context = HandlerContextBuilder.extend(
+    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
+    contextExtensions
+  );
+  
+  const result = await descriptor.handler(context) as StartHandlerResult;
+  
+  return {
+    entity: service.name,
+    platform: platform.getPlatformName() as Platform,
+    success: result.success,
+    startTime: new Date(),
+    endpoint: result.endpoint,
+    resources: result.resources,
+    error: result.error,
+    metadata: {
+      ...result.metadata,
+      serviceType
+    }
+  };
+}
 
 async function startServiceImpl(
   serviceInfo: ServicePlatformInfo, 
@@ -92,8 +150,8 @@ async function startServiceImpl(
     { ...serviceInfo.config, platform: serviceInfo.platform, environment: config.environment }
   );
   
-  // Platform handles the start command with service as context
-  return await platform.start(service);
+  // Use handler-based approach if available, otherwise fall back to direct method
+  return await performStart(service, platform);
 }
 
 // =====================================================================

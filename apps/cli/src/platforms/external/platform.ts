@@ -28,13 +28,15 @@
 
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
-import { StartResult } from '../../core/commands/start.js';
-import { StopResult } from '../../core/commands/stop.js';
-import { CheckResult } from '../../core/commands/check.js';
-import { UpdateResult } from '../../core/commands/update.js';
-import { ProvisionResult } from '../../core/commands/provision.js';
-import { PublishResult } from '../../core/commands/publish.js';
-import { TestResult, TestOptions } from '../../core/commands/test.js';
+import type { 
+  StopResult, 
+  UpdateResult, 
+  ProvisionResult,
+  PublishResult,
+  TestResult,
+  TestOptions,
+  CheckResult 
+} from '../../core/command-types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
@@ -52,33 +54,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   
   getPlatformName(): string {
     return 'external';
-  }
-  
-  async start(service: Service): Promise<StartResult> {
-    const requirements = service.getRequirements();
-    
-    if (!service.quiet) {
-      printInfo(`Verifying external ${service.name} service configuration...`);
-    }
-    
-    // Build endpoint from configuration and network requirements
-    const endpoint = this.buildEndpoint(service.config, requirements);
-    
-    // Validate required configuration based on requirements
-    this.validateConfiguration(service.config, requirements);
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      startTime: new Date(),
-      endpoint,
-      metadata: {
-        message: `External service configured${endpoint ? ` at ${endpoint}` : ''}`,
-        provider: service.config.provider,
-        region: service.config.region
-      }
-    };
   }
   
   async stop(service: Service): Promise<StopResult> {
@@ -399,75 +374,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     );
     
     return recommendations;
-  }
-  
-  /**
-   * Manage secrets for external services
-   * This is a basic implementation - real external services would have their own secret management
-   */
-  override async manageSecret(
-    action: 'get' | 'set' | 'list' | 'delete',
-    secretPath: string,
-    _value?: any,
-    _options?: import('../../core/platform-strategy.js').SecretOptions
-  ): Promise<import('../../core/platform-strategy.js').SecretResult> {
-    // External platforms typically manage their own secrets
-    // This implementation returns appropriate responses without actual storage
-    
-    switch (action) {
-      case 'get':
-        return {
-          success: false,
-          action,
-          secretPath,
-          platform: 'external',
-          storage: 'external-provider',
-          error: 'External services manage their own secrets. Check provider documentation.'
-        };
-        
-      case 'set':
-        return {
-          success: true,
-          action,
-          secretPath,
-          platform: 'external',
-          storage: 'external-provider',
-          metadata: {
-            note: 'Secret should be configured directly in the external service provider'
-          }
-        };
-        
-      case 'list':
-        return {
-          success: true,
-          action,
-          secretPath,
-          values: [],
-          platform: 'external',
-          storage: 'external-provider',
-          metadata: {
-            note: 'External secrets are managed by the service provider'
-          }
-        };
-        
-      case 'delete':
-        return {
-          success: true,
-          action,
-          secretPath,
-          platform: 'external',
-          storage: 'external-provider'
-        };
-        
-      default:
-        return {
-          success: false,
-          action,
-          secretPath,
-          platform: 'external',
-          error: `Unknown action: ${action}`
-        };
-    }
   }
   
   /**
