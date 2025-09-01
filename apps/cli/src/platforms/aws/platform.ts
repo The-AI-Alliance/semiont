@@ -29,7 +29,6 @@ import { handlers } from './handlers/index.js';
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import type { 
-  StopResult, 
   UpdateResult, 
   PublishResult, 
   CheckResult 
@@ -390,104 +389,6 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         
         // Default to ECS Fargate for services
         return 'ecs-fargate';
-    }
-  }
-  
-  async stop(service: Service): Promise<StopResult> {
-
-    const { region } = this.getAWSConfig(service);
-    const serviceType = this.determineServiceType(service);
-    const resourceName = this.getResourceName(service);
-    
-    switch (serviceType) {
-      case 'ecs-fargate':
-        // Get resource IDs from CloudFormation (with caching)
-        const cfnDiscoveredResources = await this.discoverAndCacheResources(service);
-        
-        // Get cluster and service names from discovered resources
-        const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
-        const serviceName = cfnDiscoveredResources.serviceName || resourceName;
-        
-        try {
-          execSync(
-            `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --desired-count 0 --region ${region}`
-          );
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            stopTime: new Date(),
-            gracefulShutdown: true,
-            metadata: {
-              serviceType: 'ecs-fargate',
-              cluster: clusterName,
-              service: serviceName
-            }
-          };
-        } catch (error) {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: false,
-            stopTime: new Date(),
-            error: `Failed to stop ECS service: ${error}`
-          };
-        }
-        
-      case 'rds':
-        // Stop RDS instance
-        const instanceId = `${resourceName}-db`;
-        
-        try {
-          execSync(`aws rds stop-db-instance --db-instance-identifier ${instanceId} --region ${region}`);
-          
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            stopTime: new Date(),
-            gracefulShutdown: true,
-            metadata: {
-              serviceType: 'rds',
-              instanceId
-            }
-          };
-        } catch {
-          return {
-            entity: service.name,
-            platform: 'aws',
-            success: true,
-            stopTime: new Date(),
-            metadata: {
-              message: 'RDS instance already stopped or not found'
-            }
-          };
-        }
-        
-      case 'efs':
-        // These services don't stop
-        return {
-          entity: service.name,
-          platform: 'aws',
-          success: true,
-          stopTime: new Date(),
-          metadata: {
-            serviceType,
-            message: `AWS ${serviceType} services do not support stop operation`
-          }
-        };
-        
-      default:
-        return {
-          entity: service.name,
-          platform: 'aws',
-          success: true,
-          stopTime: new Date(),
-          metadata: {
-            message: `Service type ${serviceType} does not support stop operation`
-          }
-        };
     }
   }
   

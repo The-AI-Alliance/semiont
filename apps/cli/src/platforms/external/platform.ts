@@ -29,12 +29,9 @@
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import type { 
-  StopResult, 
   UpdateResult, 
   ProvisionResult,
   PublishResult,
-  TestResult,
-  TestOptions,
   CheckResult 
 } from '../../core/command-types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
@@ -54,22 +51,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   
   getPlatformName(): string {
     return 'external';
-  }
-  
-  async stop(service: Service): Promise<StopResult> {
-    if (!service.quiet) {
-      printWarning(`Cannot stop external ${service.name} service - managed externally`);
-    }
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: true,
-      stopTime: new Date(),
-      metadata: {
-        message: 'External service must be stopped through its own management interface'
-      }
-    };
   }
   
   async update(service: Service): Promise<UpdateResult> {
@@ -141,10 +122,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     if (!service.quiet) {
       printWarning(`Cannot publish to external ${service.name} service - managed externally`);
     }
-    
-    const requirements = service.getRequirements();
-    const recommendations = this.getPublishRecommendations(requirements);
-    
+        
     return {
       entity: service.name,
       platform: 'external',
@@ -154,87 +132,11 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         supported: false
       },
       metadata: {
-        message: 'External services must be published through their own deployment pipelines',
-        recommendations
+        message: 'External services must be published through their own deployment pipelines'
       }
     };
   }
   
-  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
-    const requirements = service.getRequirements();
-    const endpoint = this.buildEndpoint(service.config, requirements);
-    const testTime = new Date();
-    
-    if (!service.quiet) {
-      printWarning(`Cannot run tests inside external ${service.name} service`);
-      printInfo('Running smoke tests against external endpoints instead');
-    }
-    
-    // Try connectivity test if we have a health check endpoint
-    if (endpoint && requirements.network?.healthCheckPath) {
-      try {
-        const startTime = Date.now();
-        const healthUrl = `${endpoint}${requirements.network.healthCheckPath}`;
-        const response = await fetch(healthUrl, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000)
-        });
-        
-        return {
-          entity: service.name,
-          platform: 'external',
-          success: response.ok,
-          testTime,
-          suite: 'smoke',
-          passed: response.ok ? 1 : 0,
-          failed: response.ok ? 0 : 1,
-          duration: Date.now() - startTime,
-          metadata: {
-            message: 'External service smoke test via health endpoint',
-            endpoint: healthUrl,
-            statusCode: response.status
-          }
-        };
-      } catch (error) {
-        return {
-          entity: service.name,
-          platform: 'external',
-          success: false,
-          testTime,
-          suite: 'smoke',
-          error: `Failed to reach external service: ${error}`,
-          metadata: {
-            endpoint,
-            recommendations: [
-              'Verify external service is running',
-              'Check network connectivity',
-              'Ensure correct endpoint configuration'
-            ]
-          }
-        };
-      }
-    }
-    
-    const recommendations = this.getTestRecommendations(requirements);
-    
-    return {
-      entity: service.name,
-      platform: 'external',
-      success: false,
-      testTime,
-      suite: options.suite || 'unit',
-      error: 'Cannot run tests on external services',
-      metadata: {
-        recommendations,
-        provider: service.config.provider
-      }
-    };
-  }
-  
-  async collectLogs(_service: Service): Promise<CheckResult['logs']> {
-    // Can't collect logs from external services
-    return undefined;
-  }
   
   /**
    * Build endpoint URL from configuration and requirements
@@ -300,80 +202,6 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
         printWarning(`Missing secrets for external service: ${missingSecrets.join(', ')}`);
       }
     }
-  }
-  
-  /**
-   * Get recommendations based on requirements
-   */
-  private getTestRecommendations(requirements: any): string[] {
-    const recommendations: string[] = [];
-    
-    if (requirements.network?.healthCheckPath) {
-      recommendations.push(
-        'Implement health check monitoring',
-        'Set up synthetic monitoring for endpoints',
-        'Use external monitoring services (Datadog, New Relic)'
-      );
-    }
-    
-    if (requirements.storage?.some((s: any) => s.type === 'database')) {
-      recommendations.push(
-        'Run test queries against the database',
-        'Use database performance monitoring',
-        'Implement data validation tests'
-      );
-    }
-    
-    if (requirements.annotations?.['test/external-suite']) {
-      recommendations.push(
-        `Use external test suite: ${requirements.annotations['test/external-suite']}`,
-        'Schedule regular test runs',
-        'Monitor test results'
-      );
-    }
-    
-    recommendations.push(
-      'Implement contract testing',
-      'Use API testing tools for endpoints',
-      'Set up end-to-end tests from your application'
-    );
-    
-    return recommendations;
-  }
-  
-  private getPublishRecommendations(requirements: any): string[] {
-    const recommendations: string[] = [];
-    
-    if (requirements.build?.dockerfile) {
-      recommendations.push(
-        'Build and push container images to registry',
-        'Use CI/CD pipeline for automated deployments',
-        'Maintain version tags for rollback'
-      );
-    }
-    
-    if (requirements.annotations?.['external/deploy-method']) {
-      recommendations.push(
-        `Use deployment method: ${requirements.annotations['external/deploy-method']}`,
-        'Follow provider-specific deployment procedures'
-      );
-    }
-    
-    if (requirements.network?.customDomains) {
-      recommendations.push(
-        'Update DNS records after deployment',
-        'Configure SSL certificates',
-        'Set up CDN if not already configured'
-      );
-    }
-    
-    recommendations.push(
-      'Use external service deployment pipeline',
-      'Document deployment procedures',
-      'Implement deployment validation tests'
-    );
-    
-    return recommendations;
   }
   
   /**

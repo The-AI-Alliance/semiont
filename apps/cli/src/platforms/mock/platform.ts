@@ -31,12 +31,9 @@
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import type { 
-  StopResult, 
   UpdateResult, 
   ProvisionResult,
   PublishResult,
-  TestResult,
-  TestOptions,
   CheckResult,
   PlatformResources 
 } from '../../core/command-types.js';
@@ -84,8 +81,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   }
   
   async update(service: Service): Promise<UpdateResult> {
-    // Mock update: simulate stop
+    // Mock update: simulate stop and start
     await this.stop(service);
+    const startResult = await this.start(service);
     
     return {
       entity: service.name,
@@ -94,10 +92,11 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
       updateTime: new Date(),
       previousVersion: 'mock-v1',
       newVersion: 'mock-v2',
-      strategy: 'stop-only',
+      strategy: 'rolling',
+      resources: startResult.resources,
       metadata: {
         mockImplementation: true,
-        message: 'Service stopped. Run start command to launch updated version.'
+        rollingUpdate: false
       }
     };
   }
@@ -213,34 +212,7 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     };
   }
   
-  async test(service: Service, options: TestOptions): Promise<TestResult> {
-    return {
-      entity: service.name,
-      platform: 'mock',
-      success: true,
-      testTime: new Date(),
-      suite: options?.suite || 'unit',
-      passed: 10,
-      failed: 0,
-      skipped: 2,
-      coverage: 85, // Line coverage percentage
-      metadata: {
-        mockImplementation: true,
-        testSuite: options.suite
-      }
-    };
-  }
-  
-  async collectLogs(service: Service): Promise<CheckResult['logs']> {
-    const state = this.mockState.get(service.name);
-    return {
-      recent: state?.running ? [
-        `[MOCK] ${service.name} started at ${state.startTime}`,
-        `[MOCK] Service is running with id: ${state.id}`
-      ] : []
-    };
-  }
-  
+    
   // Helper method to reset mock state (useful for tests)
   resetMockState(): void {
     this.mockState.clear();

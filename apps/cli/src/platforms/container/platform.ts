@@ -26,12 +26,9 @@ import * as fs from 'fs';
 import { BasePlatformStrategy } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import type { 
-  StopResult, 
   UpdateResult, 
   ProvisionResult,
   PublishResult,
-  TestResult,
-  TestOptions,
   CheckResult 
 } from '../../core/command-types.js';
 import { printInfo, printWarning } from '../../core/io/cli-logger.js';
@@ -55,43 +52,6 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   
   getPlatformName(): string {
     return 'container';
-  }
-  
-  async stop(service: Service): Promise<StopResult> {
-    const containerName = this.getResourceName(service);
-    
-    try {
-      // Check if container exists
-      execSync(`${this.runtime} inspect ${containerName}`, { stdio: 'ignore' });
-      
-      // Stop container
-      execSync(`${this.runtime} stop ${containerName}`);
-      
-      // Remove container
-      execSync(`${this.runtime} rm ${containerName}`);
-      
-      return {
-        entity: service.name,
-        platform: 'container',
-        success: true,
-        stopTime: new Date(),
-        gracefulShutdown: true,
-        metadata: {
-          containerName,
-          runtime: this.runtime
-        }
-      };
-    } catch {
-      return {
-        entity: service.name,
-        platform: 'container',
-        success: true,
-        stopTime: new Date(),
-        metadata: {
-          message: 'Container not found or already stopped'
-        }
-      };
-    }
   }
   
   async update(service: Service): Promise<UpdateResult> {
@@ -385,170 +345,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       }
     };
   }
-  
-  async test(service: Service, options: TestOptions = {}): Promise<TestResult> {
-    const requirements = service.getRequirements();
-    const testTime = new Date();
-    const startTime = Date.now();
-    
-    // Use test container if specified
-    const testImage = requirements.annotations?.['test/image'] || service.getImage();
-    const testCommand = requirements.annotations?.['test/command'] || 'npm test';
-    
-    // Create test container name
-    const testContainerName = `${this.getResourceName(service)}-test-${Date.now()}`;
-    
-    if (!service.quiet) {
-      printInfo(`Running tests for ${service.name} in container...`);
-    }
-    
-    try {
-      // Build test run command
-      const runArgs = [
-        'run',
-        '--rm',
-        '--name', testContainerName,
-        '--network', `semiont-${service.environment}`
-      ];
-      
-      // Add test environment
-      const env = {
-        NODE_ENV: 'test',
-        CI: 'true',
-        ...service.getEnvironmentVariables(),
-        ...(requirements.environment || {})
-      };
-      
-      for (const [key, value] of Object.entries(env)) {
-        runArgs.push('-e', `${key}=${value}`);
-      }
-      
-      // Mount source code if needed
-      if (requirements.annotations?.['test/mount-source'] === 'true') {
-        const sourcePath = path.join(service.projectRoot, 'apps', service.name);
-        runArgs.push('-v', `${sourcePath}:/app`);
-        runArgs.push('-w', '/app');
-      }
-      
-      // Add coverage volume if requested
-      if (options.coverage) {
-        const coverageDir = path.join(service.projectRoot, 'coverage', service.name);
-        fs.mkdirSync(coverageDir, { recursive: true });
-        runArgs.push('-v', `${coverageDir}:/coverage`);
-      }
-      
-      runArgs.push(testImage);
-      
-      // Add test command with options
-      let fullTestCommand = testCommand;
-      if (options.suite) {
-        fullTestCommand = testCommand.replace('test', `test:${options.suite}`);
-      }
-      if (options.coverage) {
-        fullTestCommand += ' --coverage';
-      }
-      // Pattern option would be added here if it existed in TestOptions
-      if (options.bail) {
-        fullTestCommand += ' --bail';
-      }
-      
-      runArgs.push('sh', '-c', fullTestCommand);
-      
-      // Run tests
-      const output = execSync(
-        `${this.runtime} ${runArgs.join(' ')}`,
-        {
-          encoding: 'utf-8',
-          timeout: options.timeout || 300000, // 5 minutes
-          maxBuffer: 1024 * 1024 * 50 // 50MB
-        }
-      );
-      
-      const duration = Date.now() - startTime;
-      
-      // Parse test results
-      const framework = requirements.annotations?.['test/framework'] || 'jest';
-      const testResults = this.parseTestOutput(output, framework);
-      const coverage = options.coverage ? this.parseCoverageOutput(output, framework) : undefined;
-      
-      // Collect metadata
-      const testMetadata: any = {};
-      if (options.coverage) {
-        const coverageDir = path.join(service.projectRoot, 'coverage', service.name);
-        if (fs.existsSync(coverageDir)) {
-          testMetadata.coverageDir = coverageDir;
-        }
-      }
-      
-      return {
-        entity: service.name,
-        platform: 'container',
-        success: true,
-        testTime,
-        suite: options.suite || 'unit',
-        passed: testResults.passed,
-        failed: testResults.failed,
-        skipped: testResults.skipped,
-        duration,
-        coverage,
-        metadata: {
-          ...testMetadata,
-          framework,
-          runner: 'container',
-          parallel: false,
-          containerName: testContainerName,
-          testImage,
-          testCommand: fullTestCommand
-        }
-      };
-      
-    } catch (error: any) {
-      const exitCode = error.status || 1;
-      const output = error.stdout?.toString() || '';
-      const framework = requirements.annotations?.['test/framework'] || 'jest';
-      
-      // Even on failure, try to parse what we can
-      const testResults = this.parseTestOutput(output, framework);
-      const failures = this.parseFailures(output, framework);
-      
-      return {
-        entity: service.name,
-        platform: 'container',
-        success: false,
-        testTime,
-        suite: options.suite || 'unit',
-        passed: testResults.passed,
-        failed: testResults.failed,
-        skipped: testResults.skipped,
-        duration: Date.now() - startTime,
-        error: `Tests failed with exit code ${exitCode}`,
-        metadata: {
-          exitCode,
-          outputLength: output.length,
-          failures
-        }
-      };
-    }
-  }
-  
-  async collectLogs(service: Service): Promise<CheckResult['logs']> {
-    const containerName = this.getResourceName(service);
-    
-    try {
-      const logs = execSync(
-        `${this.runtime} logs --tail 100 ${containerName} 2>&1`,
-        { encoding: 'utf-8' }
-      ).split('\n').filter(line => line.trim());
-      
-      return {
-        recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\b(error|ERROR|Error)\b/)).length,
-        warnings: logs.filter(l => l.match(/\b(warning|WARNING|Warning)\b/)).length
-      };
-    } catch {
-      return undefined;
-    }
-  }
+
   
   /**
    * Helper method to detect container runtime
@@ -647,37 +444,6 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
     }
   }
   
-  /**
-   * Parse test output
-   */
-  private parseTestOutput(output: string, framework: string): any {
-    const results = {
-      total: 0,
-      passed: 0,
-      failed: 0,
-      skipped: 0
-    };
-    
-    if (framework === 'jest') {
-      const match = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
-      if (match) {
-        results.failed = parseInt(match[1]);
-        results.passed = parseInt(match[2]);
-        results.total = parseInt(match[3]);
-      }
-    } else if (framework === 'mocha') {
-      const passMatch = output.match(/(\d+)\s+passing/);
-      const failMatch = output.match(/(\d+)\s+failing/);
-      const skipMatch = output.match(/(\d+)\s+pending/);
-      
-      if (passMatch) results.passed = parseInt(passMatch[1]);
-      if (failMatch) results.failed = parseInt(failMatch[1]);
-      if (skipMatch) results.skipped = parseInt(skipMatch[1]);
-      results.total = results.passed + results.failed + results.skipped;
-    }
-    
-    return results;
-  }
   
   /**
    * Parse coverage output

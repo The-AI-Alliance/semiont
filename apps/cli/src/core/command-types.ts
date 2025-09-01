@@ -29,7 +29,6 @@ import type { CommandResults } from './command-results.js';
 export const CORE_PLATFORM_COMMANDS = [
   'check',
   'start',
-  'stop',
   'update',
   'provision',
   'publish'
