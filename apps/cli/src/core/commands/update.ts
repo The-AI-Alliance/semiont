@@ -87,6 +87,97 @@ type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
 // COMMAND HANDLER
 // =====================================================================
 
+async function performUpdate(
+  service: any,
+  platform: any
+): Promise<UpdateResult> {
+  const serviceType = platform.determineServiceType(service);
+  const { HandlerRegistry } = await import('../handlers/registry.js');
+  const registry = HandlerRegistry.getInstance();
+  
+  const descriptor = registry.getDescriptor(
+    platform.getPlatformName(),
+    `update-${serviceType}`
+  );
+  
+  if (!descriptor) {
+    // No handler found, return error result
+    return {
+      entity: service.name,
+      platform: platform.getPlatformName() as Platform,
+      success: false,
+      updateTime: new Date(),
+      strategy: 'none',
+      error: `No update handler registered for service type: ${serviceType}`,
+      metadata: {
+        serviceType
+      }
+    };
+  }
+
+  const { HandlerContextBuilder } = await import('../handlers/context-builder.js');
+  const { UpdateHandlerResult } = await import('../handlers/types.js');
+  
+  const contextExtensions = await platform.buildHandlerContextExtensions(
+    service, 
+    descriptor.requiresDiscovery || false
+  );
+  
+  const context = HandlerContextBuilder.extend(
+    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
+    contextExtensions
+  );
+  
+  const result = await descriptor.handler(context) as any; // UpdateHandlerResult
+  
+  return {
+    entity: service.name,
+    platform: platform.getPlatformName() as Platform,
+    success: result.success,
+    updateTime: new Date(),
+    previousVersion: result.previousVersion,
+    newVersion: result.newVersion,
+    strategy: result.strategy || 'none',
+    downtime: result.downtime,
+    resources: result.resources,
+    error: result.error,
+    metadata: {
+      ...result.metadata,
+      serviceType
+    }
+  };
+}
+
+async function updateServiceImpl(
+  serviceInfo: ServicePlatformInfo, 
+  config: Config,
+  options: UpdateOptions
+): Promise<UpdateResult> {
+  // Get the platform strategy
+  const { PlatformFactory } = await import('../../platforms/index.js');
+  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+  
+  // Create service instance to act as ServiceContext
+  const service = ServiceFactory.create(
+    serviceInfo.name as ServiceName,
+    serviceInfo.platform,
+    config,
+    { 
+      ...serviceInfo.config, 
+      platform: serviceInfo.platform,
+      force: options.force,
+      wait: options.wait,
+      timeout: options.timeout,
+      skipTests: options.skipTests,
+      skipBuild: options.skipBuild,
+      gracePeriod: options.gracePeriod
+    }
+  );
+  
+  // Use handler-based approach
+  return performUpdate(service, platform);
+}
+
 async function updateHandler(
   services: ServicePlatformInfo[],
   options: UpdateOptions
@@ -105,27 +196,7 @@ async function updateHandler(
   for (const serviceInfo of services) {
     
     try {
-      // Create service instance with update options
-      const service = ServiceFactory.create(
-        serviceInfo.name as ServiceName,
-        serviceInfo.platform,
-        config,
-        { 
-          ...serviceInfo.config, 
-          platform: serviceInfo.platform,
-          force: options.force,
-          wait: options.wait,
-          timeout: options.timeout,
-          skipTests: options.skipTests,
-          skipBuild: options.skipBuild,
-          gracePeriod: options.gracePeriod
-        }
-      );
-      
-      // Get platform and delegate update to it
-      const { PlatformFactory } = await import('../../platforms/index.js');
-      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-      const result = await platform.update(service);
+      const result = await updateServiceImpl(serviceInfo, config, options);
       
       // Record result directly - no conversion needed!
       serviceResults.push(result);

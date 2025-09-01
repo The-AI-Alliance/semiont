@@ -8,7 +8,8 @@ import { databaseStartDescriptor } from './database-start.js';
 import { workerStartDescriptor } from './worker-start.js';
 import { filesystemStartDescriptor } from './filesystem-start.js';
 import { mcpStartDescriptor } from './mcp-start.js';
-import { CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { mcpProvisionDescriptor } from './mcp-provision.js';
+import { CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, ProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
 /**
@@ -17,7 +18,8 @@ import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.
 // Platform-specific handlers with typed contexts
 const posixHandlers: Array<
   HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> | 
-  HandlerDescriptor<StartHandlerContext, StartHandlerResult>
+  HandlerDescriptor<StartHandlerContext, StartHandlerResult> |
+  HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult>
 > = [
   // Check handlers
   webCheckDescriptor,
@@ -30,7 +32,9 @@ const posixHandlers: Array<
   databaseStartDescriptor,
   workerStartDescriptor,
   filesystemStartDescriptor,
-  mcpStartDescriptor
+  mcpStartDescriptor,
+  // Provision handlers
+  mcpProvisionDescriptor
 ];
 
 // Export as base handler type for registry compatibility

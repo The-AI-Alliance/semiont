@@ -110,6 +110,91 @@ type PublishOptions = z.output<typeof PublishOptionsSchema>;
 // COMMAND HANDLER
 // =====================================================================
 
+async function performPublish(
+  service: any,
+  platform: any
+): Promise<PublishResult> {
+  const serviceType = platform.determineServiceType(service);
+  const { HandlerRegistry } = await import('../handlers/registry.js');
+  const registry = HandlerRegistry.getInstance();
+  
+  const descriptor = registry.getDescriptor(
+    platform.getPlatformName(),
+    `publish-${serviceType}`
+  );
+  
+  if (!descriptor) {
+    // No handler found, return error result
+    return {
+      entity: service.name,
+      platform: platform.getPlatformName() as Platform,
+      success: false,
+      publishTime: new Date(),
+      error: `No publish handler registered for service type: ${serviceType}`,
+      metadata: {
+        serviceType
+      }
+    };
+  }
+
+  const { HandlerContextBuilder } = await import('../handlers/context-builder.js');
+  
+  const contextExtensions = await platform.buildHandlerContextExtensions(
+    service, 
+    descriptor.requiresDiscovery || false
+  );
+  
+  const context = HandlerContextBuilder.extend(
+    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
+    contextExtensions
+  );
+  
+  const result = await descriptor.handler(context) as any; // PublishHandlerResult
+  
+  return {
+    entity: service.name,
+    platform: platform.getPlatformName() as Platform,
+    success: result.success,
+    publishTime: new Date(),
+    version: result.version,
+    artifacts: result.artifacts,
+    rollback: result.rollback,
+    resources: result.resources,
+    error: result.error,
+    metadata: {
+      ...result.metadata,
+      serviceType
+    }
+  };
+}
+
+async function publishServiceImpl(
+  serviceInfo: ServicePlatformInfo, 
+  config: Config,
+  options: PublishOptions
+): Promise<PublishResult> {
+  // Get the platform strategy
+  const { PlatformFactory } = await import('../../platforms/index.js');
+  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+  
+  // Create service instance to act as ServiceContext
+  const service = ServiceFactory.create(
+    serviceInfo.name as ServiceName,
+    serviceInfo.platform,
+    config,
+    { 
+      platform: serviceInfo.platform,
+      tag: options.tag,
+      registry: options.registry,
+      semiontRepo: options.semiontRepo,
+      noCache: options.noCache
+    } as ServiceConfig
+  );
+  
+  // Use handler-based approach
+  return performPublish(service, platform);
+}
+
 async function publishHandler(
   services: ServicePlatformInfo[],
   options: PublishOptions
@@ -136,26 +221,7 @@ async function publishHandler(
   for (const serviceInfo of sortedServices) {
     
     try {
-      // Create service instance
-      const service = ServiceFactory.create(
-        serviceInfo.name as ServiceName,
-        serviceInfo.platform,
-        config,
-        { 
-          platform: serviceInfo.platform,
-          tag: options.tag,
-          registry: options.registry,
-          semiontRepo: options.semiontRepo,
-          noCache: options.noCache
-        } as ServiceConfig
-      );
-      
-      // Get the platform strategy
-      const { PlatformFactory } = await import('../../platforms/index.js');
-      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-      
-      // Platform handles the publish command
-      const result = await platform.publish(service);
+      const result = await publishServiceImpl(serviceInfo, config, options);
       publishResults.set(serviceInfo.name, result);
       
       // Track result directly - no conversion needed!

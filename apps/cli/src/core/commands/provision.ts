@@ -83,6 +83,93 @@ type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 // COMMAND HANDLER
 // =====================================================================
 
+async function performProvision(
+  service: any,
+  platform: any
+): Promise<ProvisionResult> {
+  const serviceType = platform.determineServiceType(service);
+  const { HandlerRegistry } = await import('../handlers/registry.js');
+  const registry = HandlerRegistry.getInstance();
+  
+  const descriptor = registry.getDescriptor(
+    platform.getPlatformName(),
+    `provision-${serviceType}`
+  );
+  
+  if (!descriptor) {
+    // No handler found, return error result
+    return {
+      entity: service.name,
+      platform: platform.getPlatformName() as Platform,
+      success: false,
+      provisionTime: new Date(),
+      dependencies: [],
+      error: `No provision handler registered for service type: ${serviceType}`,
+      metadata: {
+        serviceType
+      }
+    };
+  }
+
+  const { HandlerContextBuilder } = await import('../handlers/context-builder.js');
+  
+  const contextExtensions = await platform.buildHandlerContextExtensions(
+    service, 
+    descriptor.requiresDiscovery || false
+  );
+  
+  const context = HandlerContextBuilder.extend(
+    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
+    contextExtensions
+  );
+  
+  const result = await descriptor.handler(context) as any; // ProvisionHandlerResult
+  
+  return {
+    entity: service.name,
+    platform: platform.getPlatformName() as Platform,
+    success: result.success,
+    provisionTime: new Date(),
+    dependencies: result.dependencies || [],
+    resources: result.resources,
+    cost: result.cost,
+    error: result.error,
+    metadata: {
+      ...result.metadata,
+      serviceType
+    }
+  };
+}
+
+async function provisionServiceImpl(
+  serviceInfo: ServicePlatformInfo, 
+  config: Config,
+  options: any
+): Promise<ProvisionResult> {
+  // Get the platform strategy
+  const { PlatformFactory } = await import('../../platforms/index.js');
+  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+  
+  // Create service instance to act as ServiceContext
+  const service = ServiceFactory.create(
+    serviceInfo.name as ServiceName,
+    serviceInfo.platform,
+    config,
+    {
+      platform: serviceInfo.platform,
+      environment: options.environment
+    } // Service config would come from project config
+  );
+  
+  // Check if already provisioned (unless force)
+  if (!options.force) {
+    // Could implement provisioning state check here
+  }
+  
+  // Use handler-based approach
+  return performProvision(service, platform);
+}
+
 async function provisionHandler(
   options: ProvisionOptions
 ): Promise<CommandResults<ProvisionResult>> {
@@ -136,28 +223,7 @@ async function provisionHandler(
   for (const serviceInfo of sortedServices) {
     
     try {
-      // Create service instance
-      const service = ServiceFactory.create(
-        serviceInfo.name as ServiceName,
-        serviceInfo.platform,
-        config,
-        {
-          platform: serviceInfo.platform,
-          environment: options.environment
-        } // Service config would come from project config
-      );
-      
-      // Check if already provisioned (unless force)
-      if (!options.force) {
-        // Could implement provisioning state check here
-      }
-      
-      // Get the platform strategy
-      const { PlatformFactory } = await import('../../platforms/index.js');
-      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-      
-      // Platform handles the provision command
-      const result = await platform.provision(service);
+      const result = await provisionServiceImpl(serviceInfo, config, options);
       provisionResults.set(serviceInfo.name, result);
       
       // Track total cost
