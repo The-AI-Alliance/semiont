@@ -26,7 +26,7 @@
  * - Legacy systems that can't be migrated
  */
 
-import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
@@ -107,5 +107,30 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
     return {
       endpoint
     };
+  }
+  
+  /**
+   * Collect logs for an external service
+   * External services don't provide logs directly, so return undefined
+   * unless the service has configured a log endpoint
+   */
+  async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
+    // External services typically don't provide direct log access
+    // Could be extended to fetch from external logging services if configured
+    
+    // Check if service has configured a logs endpoint
+    const logsEndpoint = service.config?.logsEndpoint || service.config?.logs?.url;
+    if (!logsEndpoint) {
+      // No logs available for external services
+      return undefined;
+    }
+    
+    // In a real implementation, this could:
+    // - Fetch logs from an external API
+    // - Query a third-party logging service
+    // - Read from a shared S3 bucket
+    // For now, return undefined
+    
+    return undefined;
   }
 }

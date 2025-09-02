@@ -9,6 +9,26 @@
 // Command result types are now under core/commands
 import { Service } from '../services/types.js';
 
+/**
+ * Options for collecting logs
+ */
+export interface LogOptions {
+  tail?: number;        // Number of recent lines (default: 10)
+  since?: Date;         // Logs since this time
+  filter?: string;      // Filter pattern
+  level?: string;       // Log level filter
+}
+
+/**
+ * Represents a single log entry
+ */
+export interface LogEntry {
+  timestamp: Date;
+  message: string;
+  level?: string;
+  source?: string;      // Container ID, process name, etc.
+}
+
 
 /**
  * Platform strategy interface
@@ -35,6 +55,12 @@ export interface PlatformStrategy {
    * Quick check if a service is running without full context
    */
   quickCheckRunning?(state: import('./state-manager.js').ServiceState): Promise<boolean>;
+  
+  /**
+   * Collect logs for a service
+   * Platform determines how to collect based on service type
+   */
+  collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
 }
 
 /**
@@ -55,6 +81,11 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   async quickCheckRunning(_state: import('./state-manager.js').ServiceState): Promise<boolean> {
     return false;
   }
+  
+  /**
+   * Collect logs for a service - must be implemented by each platform
+   */
+  abstract collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
   
   /**
    * Helper to generate container/instance names

@@ -36,7 +36,8 @@ const checkDatabaseContainer = async (context: CheckHandlerContext): Promise<Che
     // Collect logs if platform provides collectLogs
     let logs = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
-      logs = await platform.collectLogs(service);
+      const logEntries = await platform.collectLogs(service, { tail: 10 });
+      logs = logEntries;
     }
     
     // Database-specific health check

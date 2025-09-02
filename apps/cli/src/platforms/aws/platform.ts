@@ -23,15 +23,21 @@
 
 import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { handlers } from './handlers/index.js';
-import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
+import { StateManager } from '../../core/state-manager.js';
 
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { RDSClient } from '@aws-sdk/client-rds';
 import { EFSClient } from '@aws-sdk/client-efs';
 import { CloudFormationClient, ListStackResourcesCommand, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
-import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
+import { 
+  CloudWatchLogsClient,
+  GetLogEventsCommand,
+  DescribeLogStreamsCommand,
+  type OutputLogEvent 
+} from '@aws-sdk/client-cloudwatch-logs';
 
 export class AWSPlatformStrategy extends BasePlatformStrategy {
   private ecsClient?: ECSClient;
@@ -394,6 +400,193 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   public override getResourceName(service: Service): string {
     return `semiont-${service.name}-${service.environment}`;
+  }
+  
+  /**
+   * Collect logs for an AWS service
+   * Routes to appropriate CloudWatch log collection based on service type
+   */
+  async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
+    const serviceType = this.determineServiceType(service);
+    const { region } = this.getAWSConfig(service);
+    const { logs } = this.getAWSClients(region);
+    
+    // Get log group and stream based on service type
+    const logConfig = await this.getLogConfiguration(service, serviceType);
+    if (!logConfig) {
+      return undefined;
+    }
+    
+    return this.fetchCloudWatchLogs(
+      logs,
+      logConfig.logGroup,
+      logConfig.logStream,
+      options
+    );
+  }
+  
+  /**
+   * Get CloudWatch log configuration for a service
+   */
+  private async getLogConfiguration(
+    service: Service,
+    serviceType: string
+  ): Promise<{ logGroup: string; logStream?: string } | undefined> {
+    const state = await StateManager.load(
+      service.projectRoot,
+      service.environment,
+      service.name
+    );
+    
+    // Check if log group is stored in state metadata
+    if (state?.metadata?.logGroup) {
+      return {
+        logGroup: state.metadata.logGroup,
+        logStream: state.metadata.logStream
+      };
+    }
+    
+    // Otherwise, use conventions based on service type
+    switch (serviceType) {
+      case 'ecs':
+      case 'ecs-fargate':
+        return {
+          logGroup: `/ecs/${service.name}`,
+          // For ECS, we'll get the latest stream dynamically
+        };
+        
+      case 'lambda':
+        return {
+          logGroup: `/aws/lambda/${service.name}-${service.environment}`,
+        };
+        
+      case 'rds':
+        // RDS logs are in a specific format
+        return {
+          logGroup: `/aws/rds/instance/${service.name}-${service.environment}/postgresql`,
+        };
+        
+      case 's3-cloudfront':
+        // CloudFront logs might be in S3, not CloudWatch
+        // For now, return undefined
+        return undefined;
+        
+      default:
+        // Try generic log group
+        return {
+          logGroup: `/aws/${serviceType}/${service.name}`,
+        };
+    }
+  }
+  
+  /**
+   * Fetch logs from CloudWatch
+   */
+  private async fetchCloudWatchLogs(
+    logsClient: CloudWatchLogsClient,
+    logGroup: string,
+    logStream?: string,
+    options?: LogOptions
+  ): Promise<LogEntry[] | undefined> {
+    const { tail = 10, since, filter, level } = options || {};
+    const logs: LogEntry[] = [];
+    
+    try {
+      // If no log stream specified, get the latest one
+      if (!logStream) {
+        const streamsResponse = await logsClient.send(
+          new DescribeLogStreamsCommand({
+            logGroupName: logGroup,
+            orderBy: 'LastEventTime',
+            descending: true,
+            limit: 1
+          })
+        );
+        
+        logStream = streamsResponse.logStreams?.[0]?.logStreamName;
+        if (!logStream) {
+          return undefined;
+        }
+      }
+      
+      // Get log events
+      const startTime = since ? since.getTime() : undefined;
+      
+      const response = await logsClient.send(
+        new GetLogEventsCommand({
+          logGroupName: logGroup,
+          logStreamName: logStream,
+          startTime,
+          limit: tail,
+          startFromHead: false // Get most recent logs
+        })
+      );
+      
+      // Parse CloudWatch log events
+      for (const event of response.events || []) {
+        const entry = this.parseCloudWatchLogEvent(event);
+        
+        // Apply filters
+        if (filter && !entry.message.includes(filter)) {
+          continue;
+        }
+        
+        if (level && entry.level !== level) {
+          continue;
+        }
+        
+        logs.push(entry);
+      }
+      
+      return logs.length > 0 ? logs : undefined;
+      
+    } catch (error) {
+      console.debug(`Failed to collect logs from CloudWatch ${logGroup}:`, error);
+      return undefined;
+    }
+  }
+  
+  /**
+   * Parse a CloudWatch log event
+   */
+  private parseCloudWatchLogEvent(event: OutputLogEvent): LogEntry {
+    const timestamp = event.timestamp ? new Date(event.timestamp) : new Date();
+    const message = event.message || '';
+    
+    // Try to detect log level from message
+    let level: string | undefined;
+    if (/\b(ERROR|ERR|FATAL|CRITICAL)\b/i.test(message)) {
+      level = 'error';
+    } else if (/\b(WARN|WARNING)\b/i.test(message)) {
+      level = 'warn';
+    } else if (/\b(DEBUG|TRACE)\b/i.test(message)) {
+      level = 'debug';
+    } else if (/\b(INFO|LOG)\b/i.test(message)) {
+      level = 'info';
+    }
+    
+    // Try to parse structured JSON logs (common in Lambda and ECS)
+    try {
+      const json = JSON.parse(message);
+      if (json.level) level = json.level.toLowerCase();
+      if (json.message) {
+        return {
+          timestamp,
+          message: json.message,
+          level,
+          source: 'cloudwatch'
+        };
+      }
+    } catch {
+      // Not JSON, use raw message
+    }
+    
+    return {
+      timestamp,
+      message,
+      level,
+      source: 'cloudwatch'
+    };
   }
 
 }

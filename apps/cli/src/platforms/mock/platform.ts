@@ -28,7 +28,7 @@
  * - Documentation and demo scenarios
  */
 
-import { BasePlatformStrategy } from '../../core/platform-strategy.js';
+import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
@@ -76,5 +76,48 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
     return {
       mockState: this.mockState
     };
+  }
+  
+  /**
+   * Collect logs for a mock service
+   * Returns simulated log entries for testing
+   */
+  async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
+    const { tail = 10 } = options || {};
+    const state = this.mockState.get(service.name);
+    
+    // If service is not "running" in mock state, no logs
+    if (!state || state.status !== 'running') {
+      return undefined;
+    }
+    
+    // Generate mock log entries
+    const logs: LogEntry[] = [];
+    const now = new Date();
+    
+    for (let i = 0; i < Math.min(tail, 5); i++) {
+      const timestamp = new Date(now.getTime() - (i * 60000)); // 1 minute apart
+      
+      // Generate different log levels for variety
+      const levels = ['info', 'debug', 'warn', 'error'];
+      const level = levels[i % levels.length];
+      
+      logs.push({
+        timestamp,
+        message: `Mock log entry ${i + 1} for ${service.name}`,
+        level,
+        source: 'mock'
+      });
+    }
+    
+    // Add a startup message
+    logs.push({
+      timestamp: new Date(now.getTime() - (logs.length * 60000)),
+      message: `Service ${service.name} started successfully (mock)`,
+      level: 'info',
+      source: 'mock'
+    });
+    
+    return logs.reverse(); // Return in chronological order
   }
 }

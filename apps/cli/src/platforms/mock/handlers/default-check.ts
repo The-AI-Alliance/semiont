@@ -12,7 +12,8 @@ const checkMockService = async (context: CheckHandlerContext): Promise<CheckHand
   // Mock platform doesn't have real logs, but we can simulate
   let logs = undefined;
   if (status === 'running' && platform && typeof platform.collectLogs === 'function') {
-    logs = await platform.collectLogs(service);
+    const logEntries = await platform.collectLogs(service, { tail: 10 });
+    logs = logEntries;
   }
   
   return {

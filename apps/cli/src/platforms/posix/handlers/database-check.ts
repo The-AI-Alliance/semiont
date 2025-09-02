@@ -82,7 +82,8 @@ const checkDatabaseProcess = async (context: CheckHandlerContext): Promise<Check
   // Collect logs if running
   let logs = undefined;
   if (status === 'running' && platform && typeof platform.collectLogs === 'function') {
-    logs = await platform.collectLogs(service);
+    const logEntries = await platform.collectLogs(service, { tail: 10 });
+    logs = logEntries;
   }
   
   return {

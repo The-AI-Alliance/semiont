@@ -47,7 +47,8 @@ const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHan
     // Collect logs if platform provides collectLogs
     let logs = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
-      logs = await platform.collectLogs(service);
+      const logEntries = await platform.collectLogs(service, { tail: 10 });
+      logs = logEntries;
     }
     
     // Perform health check if available

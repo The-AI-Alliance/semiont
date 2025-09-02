@@ -36,7 +36,8 @@ const checkGenericContainer = async (context: CheckHandlerContext): Promise<Chec
     // Collect logs using platform's collectLogs method
     let logs = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
-      logs = await platform.collectLogs(service);
+      const logEntries = await platform.collectLogs(service, { tail: 10 });
+      logs = logEntries;
     }
     
     // Build port mapping for resources if available
