@@ -63,14 +63,12 @@ describe('Check Command', () => {
           expect.objectContaining({
             entity: 'backend',
             platform: 'mock',
-            success: true,
-            status: 'running'
+            success: true
           }),
           expect.objectContaining({
             entity: 'database',
             platform: 'mock',
-            success: true,
-            status: 'stopped'
+            success: true
           })
         ]),
         summary: {

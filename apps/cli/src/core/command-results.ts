@@ -10,6 +10,7 @@ import type { Platform } from './platform-resolver.js';
 // Base result interface that all command results extend (for testing/mocking)
 export interface BaseCommandResult {
   command: string;
+  entity: string;  // The entity this result applies to (service, resource, etc.)
   service: string;
   platform: Platform;
   environment: string;

@@ -47,7 +47,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     const fooConfig = {
       "_comment": "Custom foo environment - this would have been rejected by hardcoded validation",
-      "deployment": {
+      "platform": {
         "default": "container"
       },
       "site": {
