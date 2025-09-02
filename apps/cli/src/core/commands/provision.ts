@@ -134,14 +134,7 @@ export async function provision(
   return provisionExecutor.execute(serviceDeployments, options);
 }
 
-// =====================================================================
-// BACKWARD COMPATIBILITY EXPORTS
-// =====================================================================
-
-/**
- * Type alias for backward compatibility with tests and existing code
- */
-export type ProvisionResult = CommandResult;
+// ProvisionResult type alias removed - use CommandResult directly
 
 // =====================================================================
 // COMMAND DEFINITION (for CLI)

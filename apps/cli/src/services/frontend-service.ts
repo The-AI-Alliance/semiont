@@ -29,7 +29,7 @@
  */
 
 import { BaseService } from '../core/base-service.js';
-import { CheckResult } from '../core/commands/check.js';
+import { CommandResult, CommandExtensions } from '../core/command-result.js';
 import { getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
@@ -102,7 +102,7 @@ export class FrontendService extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const endpoint = `http://localhost:${this.getPort()}/`;
     
     try {
@@ -131,7 +131,7 @@ export class FrontendService extends BaseService {
     }
   }
   
-  protected async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CommandExtensions['logs']> {
     switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
@@ -143,7 +143,7 @@ export class FrontendService extends BaseService {
     }
   }
   
-  private async collectContainerLogs(): Promise<CheckResult['logs']> {
+  private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
     const containerName = `semiont-frontend-${this.config.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
@@ -163,7 +163,7 @@ export class FrontendService extends BaseService {
     }
   }
   
-  private async collectAWSLogs(): Promise<CheckResult['logs']> {
+  private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     // CloudWatch logs for frontend (if using ECS/Fargate)
     try {
       const logGroup = `/ecs/semiont-${this.config.environment}-frontend`;

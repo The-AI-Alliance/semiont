@@ -4,7 +4,8 @@
  * Provides real-time data collection using the Platform Strategy pattern
  */
 
-import { CheckResult, check } from '../commands/check.js';
+import { check } from '../commands/check.js';
+import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../platform-resolver.js';
 import { Config } from '../cli-config.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
@@ -212,7 +213,7 @@ export class DashboardDataSource {
     }
   }
 
-  private getDetails(checkResult: CheckResult): string {
+  private getDetails(checkResult: CommandResult): string {
     const parts = [];
     
     if (checkResult.extensions?.health?.healthy) {

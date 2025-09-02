@@ -120,14 +120,7 @@ export async function update(
   return updateExecutor.execute(serviceDeployments, options);
 }
 
-// =====================================================================
-// BACKWARD COMPATIBILITY EXPORTS
-// =====================================================================
-
-/**
- * Type alias for backward compatibility with tests and existing code
- */
-export type UpdateResult = CommandResult;
+// UpdateResult type alias removed - use CommandResult directly
 
 // =====================================================================
 // COMMAND DEFINITION (for CLI)

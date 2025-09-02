@@ -29,7 +29,7 @@
  */
 
 import { BaseService } from '../core/base-service.js';
-import { CheckResult } from '../core/commands/check.js';
+import { CommandResult, CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
 import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import * as path from 'path';
@@ -157,7 +157,7 @@ export class BackendService extends BaseService {
     // This could check database connectivity
   }
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const endpoint = `http://localhost:${this.getPort()}/health`;
     
     try {
@@ -190,7 +190,7 @@ export class BackendService extends BaseService {
     }
   }
   
-  protected async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CommandExtensions['logs']> {
     switch (this.platform) {
       case 'posix':
         return this.collectProcessLogs();
@@ -203,7 +203,7 @@ export class BackendService extends BaseService {
     }
   }
   
-  private async collectProcessLogs(): Promise<CheckResult['logs']> {
+  private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
     const logPath = path.join(this.config.projectRoot, 'apps/backend/logs/app.log');
     const recent: string[] = [];
     let errors = 0;
@@ -232,7 +232,7 @@ export class BackendService extends BaseService {
     };
   }
   
-  private async collectContainerLogs(): Promise<CheckResult['logs']> {
+  private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
     const containerName = `semiont-backend-${this.config.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
@@ -252,7 +252,7 @@ export class BackendService extends BaseService {
     }
   }
   
-  private async collectAWSLogs(): Promise<CheckResult['logs']> {
+  private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     try {
       const logGroup = `/ecs/semiont-${this.config.environment}-backend`;
       const logsJson = execSync(

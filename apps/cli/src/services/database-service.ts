@@ -29,7 +29,7 @@
  */
 
 import { BaseService } from '../core/base-service.js';
-import { CheckResult } from '../core/commands/check.js';
+import { CommandResult, CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -119,7 +119,7 @@ export class DatabaseService extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const port = this.getPort();
     const dbName = this.config.name || 'semiont';
     const user = this.config.user || 'postgres';
@@ -168,7 +168,7 @@ export class DatabaseService extends BaseService {
     }
   }
   
-  protected async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CommandExtensions['logs']> {
     switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
@@ -179,7 +179,7 @@ export class DatabaseService extends BaseService {
     }
   }
   
-  private async collectProcessLogs(): Promise<CheckResult['logs']> {
+  private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
     // PostgreSQL logs location varies by installation
     const possibleLogPaths = [
       '/var/log/postgresql/',
@@ -208,7 +208,7 @@ export class DatabaseService extends BaseService {
     return undefined;
   }
   
-  private async collectContainerLogs(): Promise<CheckResult['logs']> {
+  private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
     const containerName = `semiont-postgres-${this.config.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     

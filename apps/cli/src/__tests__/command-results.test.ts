@@ -11,9 +11,7 @@ import {
   createErrorResult,
   type CommandResults 
 } from '../core/command-results.js';
-import { type StartResult } from '../core/commands/start.js';
-import { type CheckResult } from '../core/commands/check.js';
-import { type UpdateResult } from '../core/commands/update.js';
+import { CommandResult } from '../core/command-result.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Platform } from '../core/platform-resolver.js';
 import { PlatformResources } from '../platforms/platform-resources.js';
@@ -81,8 +79,8 @@ describe('Command Result Type System', () => {
   });
 
   describe('Command Result Interfaces', () => {
-    it('should support StartResult structure', () => {
-      const startResult: StartResult = {
+    it('should support CommandResult structure for start', () => {
+      const startResult: CommandResult = {
         entity: 'frontend' as ServiceName,
         platform: 'container' as Platform,
         success: true,
@@ -108,8 +106,8 @@ describe('Command Result Type System', () => {
       expect((startResult.extensions?.resources as any)?.container?.id).toBe('abc123');
     });
 
-    it('should support CheckResult structure', () => {
-      const checkResult: CheckResult = {
+    it('should support CommandResult structure for check', () => {
+      const checkResult: CommandResult = {
         entity: 'database' as ServiceName,
         platform: 'aws' as Platform,
         success: true,
@@ -145,8 +143,8 @@ describe('Command Result Type System', () => {
       expect((checkResult.extensions?.health?.details as any)?.checks[0].status).toBe('pass');
     });
 
-    it('should support UpdateResult structure', () => {
-      const updateResult: UpdateResult = {
+    it('should support CommandResult structure for update', () => {
+      const updateResult: CommandResult = {
         entity: 'backend' as ServiceName,
         platform: 'aws' as Platform,
         success: true,
