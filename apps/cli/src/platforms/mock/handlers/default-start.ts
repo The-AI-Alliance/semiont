@@ -6,8 +6,23 @@ import { printInfo } from '../../../core/io/cli-logger.js';
  * Start handler for default services on Mock platform
  */
 const startMockService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
-  const { service, mockData } = context;
+  const { service, mockData, mockState } = context;
   const requirements = service.getRequirements();
+  
+  // Check if there's existing mock state for this service
+  const existingState = mockState?.get(service.name);
+  if (existingState?.simulateFailure) {
+    return {
+      success: false,
+      error: existingState.failureMessage || 'Mock service failed to start',
+      metadata: {
+        serviceType: 'default',
+        mock: true,
+        simulatedFailure: true,
+        serviceName: service.name
+      }
+    };
+  }
   
   // Mock platform simulates service startup
   if (!service.quiet) {
@@ -65,8 +80,25 @@ const startMockService = async (context: StartHandlerContext): Promise<StartHand
     printInfo(`[MOCK] State: ${serviceState}, Health: ${healthStatus}`);
   }
   
+  // Use existing state's startTime if available, otherwise create new
+  const startTime = existingState?.startTime || new Date();
+  
+  // Update mock state with running service info
+  if (mockState) {
+    mockState.set(service.name, {
+      ...existingState,
+      id: mockId,
+      running: true,
+      startTime,
+      endpoint,
+      state: serviceState,
+      healthStatus
+    });
+  }
+  
   return {
     success: true,
+    startTime,
     endpoint,
     resources: mockResources,
     metadata: {

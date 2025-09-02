@@ -44,6 +44,7 @@ export interface CheckHandlerResult extends HandlerResult {
  * Start handler specific types
  */
 export interface StartHandlerResult extends HandlerResult {
+  startTime?: Date;
   endpoint?: string;
   resources?: PlatformResources;
   metadata?: Record<string, any>;

@@ -75,14 +75,13 @@ const updateDescriptor: CommandDescriptor<UpdateOptions> = createCommandDescript
       metadata: {
         ...handlerResult.metadata,
         serviceType,
-      },
-      extensions: {
-        previousVersion: updateResult.previousVersion,
-        newVersion: updateResult.newVersion,
-        strategy: updateResult.strategy || 'none',
-        downtime: updateResult.downtime,
-        resources: updateResult.resources,
-      },
+      }
+    }, {
+      previousVersion: updateResult.previousVersion,
+      newVersion: updateResult.newVersion,
+      strategy: updateResult.strategy || 'none',
+      downtime: updateResult.downtime,
+      resources: updateResult.resources,
     });
   },
   

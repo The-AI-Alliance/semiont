@@ -72,14 +72,13 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
         serviceType,
         stateVerified: checkResult.stateVerified,
         stateMismatch: checkResult.stateMismatch,
-      },
-      extensions: {
-        status: checkResult.status || 'unknown',
-        health: checkResult.health,
-        logs: checkResult.logs,
-        resources: checkResult.platformResources,
-        dependencies: checkResult.dependencies,  // For deep checking
-      },
+      }
+    }, {
+      status: checkResult.status || 'unknown',
+      health: checkResult.health,
+      logs: checkResult.logs,
+      resources: checkResult.platformResources,
+      dependencies: checkResult.dependencies,  // For deep checking
     });
   },
   

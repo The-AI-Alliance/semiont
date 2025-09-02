@@ -91,12 +91,11 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
       metadata: {
         ...handlerResult.metadata,
         serviceType,
-      },
-      extensions: {
-        provisionedResources: provisionResult.provisionedResources,
-        stackOutputs: provisionResult.stackOutputs,
-        resources: provisionResult.resources,
-      },
+      }
+    }, {
+      provisionedResources: provisionResult.provisionedResources,
+      stackOutputs: provisionResult.stackOutputs,
+      resources: provisionResult.resources,
     });
   },
   

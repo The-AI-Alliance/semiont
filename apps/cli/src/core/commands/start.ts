@@ -57,11 +57,11 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
       metadata: {
         ...handlerResult.metadata,
         serviceType,
-      },
-      extensions: {
-        endpoint: startResult.endpoint,
-        resources: startResult.resources,
-      },
+      }
+    }, {
+      startTime: startResult.startTime,
+      endpoint: startResult.endpoint,
+      resources: startResult.resources,
     });
   },
   

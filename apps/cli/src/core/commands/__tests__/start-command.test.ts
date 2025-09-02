@@ -90,11 +90,11 @@ describe('Start Command', () => {
 
       expect(result.results[0]!).toMatchObject({
         entity: 'frontend',
-        success: true,
-        metadata: expect.objectContaining({
-          dryRun: true
-        })
+        success: true
       });
+      
+      // Dry run is tracked in executionContext, not per-result metadata
+      expect(result.executionContext.dryRun).toBe(true);
     });
 
     it('should return error results for failed starts', async () => {
@@ -182,7 +182,7 @@ describe('Start Command', () => {
       ]);
 
       const options: StartOptions = {
-        environment: 'local',
+        environment: 'test',
         output: 'json',
         quiet: false,
         verbose: false,
@@ -195,7 +195,8 @@ describe('Start Command', () => {
         entity: 'backend',
         success: true
       });
-      expect(result.results[0]!.extensions?.startTime).toEqual(expect.any(Date));
+      expect(result.results[0]!.extensions).toBeDefined();
+      expect(result.results[0]!.extensions!.startTime).toEqual(expect.any(Date));
     });
 
     // External service behavior should be tested in platform tests, not command tests

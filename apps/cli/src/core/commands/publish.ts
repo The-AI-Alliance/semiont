@@ -70,14 +70,13 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
       metadata: {
         ...handlerResult.metadata,
         serviceType,
-      },
-      extensions: {
-        version: publishResult.version || publishResult.artifacts?.imageTag,
-        artifacts: publishResult.artifacts,
-        rollback: publishResult.rollback,
-        registry: publishResult.registry,
-        resources: publishResult.resources,
-      },
+      }
+    }, {
+      version: publishResult.version || publishResult.artifacts?.imageTag,
+      artifacts: publishResult.artifacts,
+      rollback: publishResult.rollback,
+      registry: publishResult.registry,
+      resources: publishResult.resources,
     });
   },
   

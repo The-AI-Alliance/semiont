@@ -31,6 +31,7 @@ export interface CommandResult {
  */
 export interface CommandExtensions {
   // start command extensions
+  startTime?: Date;
   endpoint?: string;
   resources?: PlatformResources;
   
