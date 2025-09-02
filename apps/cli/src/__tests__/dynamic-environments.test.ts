@@ -143,7 +143,7 @@ describe('Dynamic Environment Discovery', () => {
     // Remove config directory entirely
     fs.rmSync(configDir, { recursive: true, force: true });
     
-    const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
@@ -155,7 +155,7 @@ describe('Dynamic Environment Discovery', () => {
     fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
     fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
     
-    const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual(['valid']);
@@ -209,7 +209,7 @@ describe('Dynamic Environment Discovery', () => {
     expect(sandboxConfig.services?.web?.port).toBe(3000);
     
     const integrationConfig = loadEnvironmentConfig('integration-testing');
-    expect(integrationConfig.deployment?.default).toBe('aws');
+    expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });
 });

@@ -147,7 +147,7 @@ describe('Dynamic Environment Validation', () => {
       
       const loaded = loadEnvironmentConfig('custom');
       
-      expect(loaded.deployment?.default).toBe('posix');
+      expect(loaded.platform?.default).toBe('posix');
       expect(loaded.site?.domain).toBe('custom.example.com');
       expect(loaded.services?.backend?.port).toBe(8080);
       expect(loaded.services?.frontend?.port).toBe(3000);
@@ -167,7 +167,7 @@ describe('Dynamic Environment Validation', () => {
       const loaded = loadEnvironmentConfig('minimal');
       
       expect(loaded.services).toEqual({});
-      expect(loaded.deployment?.default).toBe('aws');
+      expect(loaded.platform?.default).toBe('aws');
     });
     
     it('should throw helpful error for missing config file', () => {

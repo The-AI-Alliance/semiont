@@ -141,7 +141,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     // Test 5: Deployment types should be read correctly
     expect(loadedConfig.services?.backend?.deployment?.type).toBe('container');
     expect(loadedConfig.services?.frontend?.deployment?.type).toBe('container');
-    expect(loadedConfig.deployment?.default).toBe('container');
+    expect(loadedConfig.platform?.default).toBe('container');
     
     // Test 6: App configuration should be fully accessible
     expect(loadedConfig.app?.features?.enableAnalytics).toBe(true);

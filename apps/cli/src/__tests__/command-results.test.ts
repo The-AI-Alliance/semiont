@@ -225,18 +225,18 @@ describe('Command Result Type System', () => {
     it('should handle mixed success/failure results', () => {
       const services = [
         {
-          ...createBaseResult('restart', 'frontend', 'posix', 'local', startTime),
-          restartTime: new Date(),
+          ...createBaseResult('start', 'frontend', 'posix', 'local', startTime),
+          startTime: new Date(),
           resourceId: { process: { pid: 12345, port: 3000 } },
           status: 'running',
           metadata: {}
         },
         {
           ...createErrorResult(
-            createBaseResult('restart', 'backend', 'posix', 'local', startTime), 
+            createBaseResult('start', 'backend', 'posix', 'local', startTime), 
             'Port already in use'
           ),
-          restartTime: new Date(),
+          startTime: new Date(),
           resourceId: { process: { pid: 0, port: 3001 } },
           status: 'failed',
           metadata: {}
@@ -244,7 +244,7 @@ describe('Command Result Type System', () => {
       ];
 
       const commandResults: CommandResults = {
-        command: 'restart',
+        command: 'start',
         environment: 'local',
         timestamp: new Date(),
         duration: 2100,

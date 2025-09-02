@@ -5,8 +5,8 @@
  * Focus: command orchestration and result aggregation.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createServiceDeployments, resetMockState } from './_mock-setup.js';
 
 // Import mocks (side effects)
 import './_mock-setup.js';
