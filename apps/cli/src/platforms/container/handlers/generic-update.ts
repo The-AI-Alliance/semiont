@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
-import { UpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor } from './types.js';
+import { UpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor, StartHandlerContext, StartHandlerResult } from './types.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
+import { HandlerRegistry } from '../../../core/handlers/registry.js';
 
 /**
  * Update handler for generic container services
@@ -25,16 +26,37 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
     const newContainerName = `${containerName}-new`;
     
     try {
-      // Start new container alongside old one
-      const { ContainerPlatformStrategy } = await import('../platform.js');
-      const platform = new ContainerPlatformStrategy();
+      // Start new container alongside old one using the start handler
+      const registry = HandlerRegistry.getInstance();
+      const startDescriptor = registry.getHandlerForCommand<StartHandlerContext, StartHandlerResult>(
+        'start',
+        'container',
+        'generic'
+      );
+      
+      if (!startDescriptor) {
+        throw new Error('Start handler not found for container:generic');
+      }
       
       // Create a temporary service config for the new container
       const tempService = Object.create(service);
       tempService.getResourceName = () => newContainerName;
       
-      // Start new container
-      await platform.start(tempService);
+      // Build context for start handler (matching what the update handler received)
+      const startContext: StartHandlerContext = {
+        service: tempService,
+        runtime,
+        containerName: newContainerName,
+        platform: context.platform,
+        options: context.options || {}
+      };
+      
+      // Call the start handler directly
+      const startResult = await startDescriptor.handler(startContext);
+      
+      if (!startResult.success) {
+        throw new Error(startResult.error || 'Failed to start new container');
+      }
       
       // Wait for new container to be healthy
       await waitForContainer(runtime, newContainerName, requirements);
@@ -93,10 +115,33 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
         }
       }
       
-      // Start new container
-      const { ContainerPlatformStrategy } = await import('../platform.js');
-      const platform = new ContainerPlatformStrategy();
-      await platform.start(service);
+      // Start new container using the start handler
+      const registry = HandlerRegistry.getInstance();
+      const startDescriptor = registry.getHandlerForCommand<StartHandlerContext, StartHandlerResult>(
+        'start',
+        'container',
+        'generic'
+      );
+      
+      if (!startDescriptor) {
+        throw new Error('Start handler not found for container:generic');
+      }
+      
+      // Build context for start handler
+      const startContext: StartHandlerContext = {
+        service,
+        runtime,
+        containerName,
+        platform: context.platform,
+        options: context.options || {}
+      };
+      
+      // Call the start handler directly
+      const startResult = await startDescriptor.handler(startContext);
+      
+      if (!startResult.success) {
+        throw new Error(startResult.error || 'Failed to start container');
+      }
       
       const downtime = Date.now() - startTime;
       const newContainerId = await getContainerId(runtime, containerName);
