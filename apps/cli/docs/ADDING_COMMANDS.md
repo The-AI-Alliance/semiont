@@ -4,20 +4,30 @@ This guide walks you through adding a new command to the Semiont CLI using the n
 
 ## Overview
 
-Semiont CLI commands follow a consistent pattern using:
-- **CommandBuilder** for type-safe command definitions
-- **Service-based architecture** for business logic
-- **Platform strategies** for deployment-specific behavior
+Semiont CLI commands follow a unified pattern using:
+- **Environment** as the primary configuration context
+- **UnifiedExecutor** for consistent command execution
+- **CommandDescriptor** for configuring command behavior
+- **Handler-based architecture** for platform-specific logic
 - **Zod schemas** for runtime validation
-- **Structured results** for consistent output
+- **CommandResult** type for uniform output
 
 ## Architecture Quick Reference
 
 ```
-Command → ServiceDeployments → Service → Platform Strategy
-                                ↓              ↓
-                            Business Logic  Infrastructure
+Command → UnifiedExecutor → Environment Resolution → Service Discovery
+                ↓                    ↓                       ↓
+        CommandDescriptor    Load Config from         Platform/ServiceType
+                            environments/*.json        Handler Resolution
 ```
+
+### Core Concepts Working Together
+
+1. **Environment**: Defines which services exist and their configurations
+2. **Command**: User-facing operation to execute
+3. **Service**: Business entity that the command operates on
+4. **Service Type**: Platform-specific categorization (web, database, lambda, etc.)
+5. **Platform**: Infrastructure target (posix, container, aws, etc.)
 
 ## Step-by-Step Guide
 
@@ -29,39 +39,28 @@ Create a new file in `src/core/commands/` named after your command:
 touch src/core/commands/my-command.ts
 ```
 
-### 2. Define the Result Types
+### 2. Define the Command Descriptor
 
-Start by defining your command's result structure:
+Start by defining your command's descriptor and extensions:
 
 ```typescript
 /**
- * My Command - Service-based implementation
+ * My Command - Unified implementation
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo } from '../lib/cli-logger.js';
-import { type ServicePlatformInfo } from '../platforms/platform-resolver.js';
-import { CommandResults } from '../commands/command-results.js';
-import { CommandBuilder } from '../commands/command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../commands/base-options-schema.js';
+import { CommandDescriptor } from '../core/command-descriptor.js';
+import { CommandResult } from '../core/command-result.js';
+import { executeUnifiedCommand } from '../core/unified-executor.js';
+import { BaseOptionsSchema } from '../commands/base-options-schema.js';
 
-// Import service architecture
-import { ServiceFactory } from '../services/service-factory.js';
-import { ServiceName } from '../services/service-interface.js';
-import { Config } from '../lib/cli-config.js';
-import { parseEnvironment } from '../lib/environment-validator.js';
-import type { Platform } from '../platforms/platform-resolver.js';
-import type { PlatformResources } from '../platforms/platform-resources.js';
-
-// Define your result type
-export interface MyCommandResult {
-  entity: string;
-  platform: Platform;
-  success: boolean;
-  status: 'completed' | 'failed' | 'skipped';
-  message?: string;
-  resources?: PlatformResources;
-  metadata?: Record<string, any>;
+// Define command-specific extensions
+interface MyCommandExtensions {
+  myCommand?: {
+    operationId?: string;
+    duration?: number;
+    // Add command-specific fields
+  };
 }
 ```
 
@@ -80,203 +79,163 @@ const MyCommandOptionsSchema = BaseOptionsSchema.extend({
 export type MyCommandOptions = z.infer<typeof MyCommandOptionsSchema>;
 ```
 
-### 4. Implement the Command Handler
+### 4. Create the Command Descriptor
 
-Implement the command logic using services and platforms:
+Define how your command should be executed:
 
 ```typescript
-/**
- * Execute my-command for the given services
- */
-export async function myCommand(
-  serviceDeployments: ServicePlatformInfo[],
-  options: MyCommandOptions
-): Promise<CommandResults<MyCommandResult>> {
-  const { environment, verbose, quiet, dryRun, force } = options;
+const myCommandDescriptor: CommandDescriptor<MyCommandOptions> = {
+  name: 'my-command',
   
-  const config: Config = {
-    projectRoot: process.env.SEMIONT_ROOT || process.cwd(),
-    environment: parseEnvironment(environment),
-    verbose: verbose ?? false,
-    quiet: quiet ?? false,
-    dryRun,
-  };
-  
-  const results: MyCommandResult[] = [];
-  
-  // Process each service
-  for (const deployment of serviceDeployments) {
-    const { name, platform, config: serviceConfig } = deployment;
-    
-    if (!quiet) {
-      printInfo(`Processing ${name} on ${platform}...`);
-    }
-    
-    try {
-      // Create service instance with platform strategy
-      const service = ServiceFactory.create(
-        name as ServiceName,
-        platform as Platform,
-        config,
-        serviceConfig
-      );
-      
-      // Get the platform strategy
-      const platformStrategy = service.getPlatformStrategy();
-      
-      // Execute platform-specific logic
-      // Most commands will delegate to a platform method
-      const result = await platformStrategy.myOperation(service);
-      
-      results.push({
-        entity: name,
-        platform,
-        success: result.success,
-        status: result.success ? 'completed' : 'failed',
-        message: result.message,
-        resources: result.resources,
-        metadata: {
-          ...result.metadata,
-          force,
-          timeout: options.timeout,
-        }
-      });
-      
-      if (!quiet && result.success) {
-        printSuccess(`${name}: ${result.message || 'Operation completed'}`);
-      }
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      results.push({
-        entity: name,
-        platform,
-        success: false,
-        status: 'failed',
-        message: errorMessage,
-      });
-      
-      if (!quiet) {
-        printError(`${name}: ${errorMessage}`);
-      }
-      
-      // Stop on first error unless --force
-      if (!force) {
-        break;
+  // Transform handler results to CommandResult
+  buildResult: (handlerResult, service, platform, serviceType) => ({
+    entity: service.name,
+    platform: platform.type,
+    success: handlerResult.success,
+    timestamp: new Date(),
+    error: handlerResult.error,
+    metadata: handlerResult.metadata,
+    extensions: {
+      myCommand: {
+        operationId: handlerResult.operationId,
+        duration: handlerResult.duration,
       }
     }
+  }),
+  
+  // Merge options with service configuration
+  buildServiceConfig: (options, serviceInfo) => ({
+    verbose: options.verbose,
+    quiet: options.quiet,
+    environment: options.environment,
+    ...serviceInfo.config
+  }),
+  
+  // Extract handler-specific options
+  extractHandlerOptions: (options) => ({
+    force: options.force,
+    timeout: options.timeout,
+    skipValidation: options.skipValidation
+  }),
+  
+  // Optional: Pre-execution hook for special cases
+  preExecute: async (serviceDeployments, options) => {
+    // Modify serviceDeployments if needed
+    // e.g., add synthetic services
+    return serviceDeployments;
   }
-  
-  // Return structured results
-  const succeeded = results.filter(r => r.success).length;
-  const failed = results.filter(r => !r.success).length;
-  
-  return {
-    command: 'my-command',
-    executionContext: {
-      environment: parseEnvironment(environment),
-      timestamp: new Date(),
-      dryRun: dryRun ?? false,
-    },
-    results,
-    summary: {
-      total: results.length,
-      succeeded,
-      failed,
-      skipped: 0,
-    },
+};
+
+/**
+ * Execute my-command using UnifiedExecutor
+ * 
+ * Environment is resolved from:
+ * 1. options.environment (if provided)
+ * 2. process.env.SEMIONT_ENV (fallback)
+ * 3. Error if neither is set
+ */
+export async function myCommand(options: MyCommandOptions) {
+  return executeUnifiedCommand(myCommandDescriptor, options);
+}
+```
+
+### 5. Add Platform Handlers
+
+Create handlers for each platform that supports your command:
+
+```typescript
+// In src/platforms/posix/handlers/my-command.ts
+import { HandlerDescriptor } from '../../core/handlers/types.js';
+
+export interface MyCommandHandlerContext {
+  service: Service;
+  options: {
+    force?: boolean;
+    timeout?: number;
+    skipValidation?: boolean;
   };
 }
-```
 
-### 5. Export the Command Definition
-
-Use CommandBuilder to define your command:
-
-```typescript
-// Command definition
-export const myCommandDefinition = new CommandBuilder()
-  .name('my-command')
-  .description('Brief description of what your command does')
-  .schema(MyCommandOptionsSchema)
-  .requiresServices(true)  // or false if services are optional
-  .args(withBaseArgs({
-    // Add command-specific arguments
-    'force': {
-      type: 'boolean',
-      description: 'Force operation even on failures',
-      default: false,
-    },
-    'timeout': {
-      type: 'number', 
-      description: 'Operation timeout in seconds',
-      default: 30,
-    },
-  }))
-  .handler(myCommand)
-  .build();
-```
-
-### 6. Add Platform Strategy Methods (if needed)
-
-If your command requires new platform behavior, add methods to the platform strategies:
-
-```typescript
-// In src/platforms/platform-strategy.ts
-export interface PlatformStrategy {
-  // ... existing methods ...
-  
-  /**
-   * My new operation
-   */
-  myOperation?(context: ServiceContext): Promise<MyOperationResult>;
+export interface MyCommandHandlerResult {
+  success: boolean;
+  error?: string;
+  operationId?: string;
+  duration?: number;
+  metadata?: Record<string, any>;
 }
 
-// In src/platforms/process-platform.ts
-export class ProcessPlatformStrategy extends BasePlatformStrategy {
-  async myOperation(context: ServiceContext): Promise<MyOperationResult> {
-    // Process-specific implementation
-    const { name, config } = context;
-    
+const myCommandHandler = async (context: MyCommandHandlerContext): Promise<MyCommandHandlerResult> => {
+  const { service, options } = context;
+  
+  // Platform-specific implementation
+  const startTime = Date.now();
+  
+  try {
     // Perform operation
     // ...
     
     return {
       success: true,
-      message: 'Operation completed',
-      resources: this.createResources(/* ... */),
+      operationId: generateId(),
+      duration: Date.now() - startTime,
+      metadata: { /* ... */ }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      duration: Date.now() - startTime
     };
   }
-}
+};
 
-// Similarly for container-platform.ts, aws-platform.ts, etc.
-```
-
-### 7. Register the Command
-
-You need to register your command in the command discovery module:
-
-1. **Add to command discovery** (`src/core/command-discovery.ts`):
-```typescript
-const COMMAND_MODULES: Record<string, string> = {
-  // ... existing commands ...
-  'my-command': './commands/my-command.js',
+// Register the handler
+export const myCommandDescriptor: HandlerDescriptor<MyCommandHandlerContext, MyCommandHandlerResult> = {
+  command: 'my-command',
+  platform: 'posix',
+  serviceType: 'web',  // or 'database', 'worker', etc.
+  handler: myCommandHandler
 };
 ```
 
-2. **Export your command definition correctly**:
+### 6. Register Handlers
+
+Handlers self-register when imported. Ensure your handlers are imported:
+
 ```typescript
-// In your command file, export as:
-export const myCommandCommand = myCommandDefinition;  // camelCase + 'Command'
-// OR
-export default myCommandDefinition;  // Default export
+// In src/platforms/posix/handlers/index.ts
+export * from './my-command.js';
+
+// In src/platforms/container/handlers/index.ts
+export * from './my-command.js';
+
+// In src/platforms/aws/handlers/index.ts
+export * from './my-command.js';
 ```
 
-The command discovery module will look for:
-- `${camelCaseName}Command` (e.g., `myCommandCommand`)
-- `default` export
-- Named export matching the command name
+The HandlerRegistry will automatically discover handlers based on:
+- Platform (posix, container, aws, etc.)
+- Command (my-command)
+- ServiceType (web, database, worker, etc.)
+
+### 7. Export the Command for CLI
+
+Export your command for the CLI to discover:
+
+```typescript
+// Export for CLI integration
+export const myCommandCommand = {
+  name: 'my-command',
+  description: 'Brief description of what your command does',
+  schema: MyCommandOptionsSchema,
+  handler: myCommand,
+  requiresServices: true,  // or false if services are optional
+  requiresEnvironment: true  // Always true for UnifiedExecutor commands
+};
+
+// For backward compatibility
+export type MyCommandResult = CommandResult;
+```
 
 ### 8. Add Tests
 
@@ -285,36 +244,23 @@ Create a test file at `src/commands/__tests__/my-command.test.ts`:
 ```typescript
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { myCommand } from '../my-command.js';
-import type { ServicePlatformInfo } from '../../platforms/platform-resolver.js';
 
 describe('my-command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock environment
+    process.env.SEMIONT_ENV = 'test';
   });
   
-  function createServiceDeployments(
-    services: Array<{name: string, platform: string, config?: any}>
-  ): ServicePlatformInfo[] {
-    return services.map(service => ({
-      name: service.name,
-      platform: service.platform as Platform,
-      config: service.config || {}
-    }));
-  }
-  
   it('should return structured results', async () => {
-    const deployments = createServiceDeployments([
-      { name: 'backend', platform: 'process' },
-      { name: 'frontend', platform: 'container' },
-    ]);
-    
     const options = {
       environment: 'test',
+      services: ['backend', 'frontend'],
       force: false,
       timeout: 30,
     };
     
-    const result = await myCommand(deployments, options);
+    const result = await myCommand(options);
     
     expect(result).toMatchObject({
       command: 'my-command',
@@ -326,105 +272,148 @@ describe('my-command', () => {
         total: 2,
       },
     });
+    
+    // Verify CommandResult structure
+    result.results.forEach(r => {
+      expect(r).toHaveProperty('entity');
+      expect(r).toHaveProperty('platform');
+      expect(r).toHaveProperty('success');
+      expect(r).toHaveProperty('timestamp');
+    });
   });
   
   it('should handle dry-run mode', async () => {
-    const deployments = createServiceDeployments([
-      { name: 'backend', platform: 'process' },
-    ]);
-    
     const options = {
       environment: 'test',
+      services: ['backend'],
       dryRun: true,
     };
     
-    const result = await myCommand(deployments, options);
+    const result = await myCommand(options);
     
     expect(result.executionContext.dryRun).toBe(true);
     // Verify no actual operations were performed
   });
   
-  it('should stop on error unless force is true', async () => {
-    // Test error handling behavior
+  it('should use SEMIONT_ENV when --environment not provided', async () => {
+    process.env.SEMIONT_ENV = 'staging';
+    
+    const options = {
+      services: ['backend'],
+    };
+    
+    const result = await myCommand(options);
+    expect(result.executionContext.environment).toBe('staging');
+  });
+  
+  it('should error when no environment specified', async () => {
+    delete process.env.SEMIONT_ENV;
+    
+    const options = {
+      services: ['backend'],
+    };
+    
+    await expect(myCommand(options)).rejects.toThrow(
+      'Environment is required. Specify --environment flag or set SEMIONT_ENV environment variable'
+    );
+  });
+  
+  it('should load services from environment config', async () => {
+    // Environment config defines which services exist
+    const options = {
+      environment: 'dev',
+      services: ['all'],  // Will resolve to services defined in dev.json
+    };
+    
+    const result = await myCommand(options);
+    // Result includes all services defined in environments/dev.json
+    expect(result.results.length).toBeGreaterThan(0);
   });
 });
 ```
 
 ## Best Practices
 
-### 1. Use Services for Business Logic
+### 1. Use UnifiedExecutor for Consistency
 
-Services encapsulate business logic independent of deployment platform:
+All commands should use UnifiedExecutor for consistent behavior:
 
 ```typescript
-// ✅ Good - Service handles business logic
-const service = ServiceFactory.create(name, platform, config, serviceConfig);
-const result = await service.performOperation();
+// ✅ Good - Use UnifiedExecutor
+export async function myCommand(options: MyCommandOptions) {
+  return executeUnifiedCommand(myCommandDescriptor, options);
+}
 
-// ❌ Bad - Command directly implements business logic
-if (platform === 'aws') {
-  // AWS-specific code in command
-} else if (platform === 'container') {
-  // Container-specific code in command
+// ❌ Bad - Custom implementation
+export async function myCommand(options: MyCommandOptions) {
+  // Manual service resolution and execution
+  const services = resolveServices(options);
+  // ...
 }
 ```
 
-### 2. Use Platform Strategies for Infrastructure
+### 2. Create Platform Handlers for Each ServiceType
 
-Platform strategies handle infrastructure-specific operations:
-
-```typescript
-// ✅ Good - Platform strategy handles infrastructure
-const strategy = service.getPlatformStrategy();
-const result = await strategy.start(service);
-
-// ❌ Bad - Service contains platform-specific code
-class MyService {
-  async start() {
-    if (this.platform === 'aws') {
-      // AWS code in service
-    }
-  }
-}
-```
-
-### 3. Return Structured Results
-
-Always return CommandResults for consistency:
+Handlers provide platform-specific implementations:
 
 ```typescript
-// ✅ Good - Structured results
-return {
+// ✅ Good - Handler for specific platform/serviceType
+export const webMyCommandDescriptor: HandlerDescriptor = {
   command: 'my-command',
-  executionContext: { /* ... */ },
-  results: results,
-  summary: {
-    total: results.length,
-    succeeded: successCount,
-    failed: failureCount,
-    skipped: skippedCount,
-  },
+  platform: 'posix',
+  serviceType: 'web',
+  handler: webMyCommandHandler
 };
 
-// ❌ Bad - Unstructured output
-console.log('Command completed');
-return;
+// ❌ Bad - Generic handler trying to handle all service types
+export const myCommandDescriptor: HandlerDescriptor = {
+  command: 'my-command',
+  platform: 'posix',
+  serviceType: '*',  // Don't use wildcards
+  handler: genericHandler
+};
 ```
 
-### 4. Handle All Platforms
+### 3. Use CommandResult Type
 
-Ensure your command works with all platform types:
+Always return CommandResult with appropriate extensions:
 
 ```typescript
-// Each platform strategy should implement your operation
-// Or explicitly state it's not supported:
+// ✅ Good - CommandResult with extensions
+buildResult: (handlerResult, service, platform, serviceType) => ({
+  entity: service.name,
+  platform: platform.type,
+  success: handlerResult.success,
+  timestamp: new Date(),
+  extensions: {
+    myCommand: {
+      customField: handlerResult.customField
+    }
+  }
+})
 
-async myOperation(context: ServiceContext): Promise<MyOperationResult> {
-  return {
-    success: false,
-    message: 'Operation not supported on external platform',
-  };
+// ❌ Bad - Custom result type
+interface MyCustomResult {
+  serviceName: string;
+  worked: boolean;
+  // ...
 }
+```
+
+### 4. Handle Missing Handlers Gracefully
+
+UnifiedExecutor will handle missing handlers, but provide clear messages:
+
+```typescript
+// Handler not found for a platform/serviceType combination
+// UnifiedExecutor will return an error result:
+{
+  success: false,
+  error: 'No handler found for command "my-command" on platform "external" with service type "api"'
+}
+
+// Consider if your command should support all platforms
+// or document which platforms are supported
 ```
 
 ### 5. Use Type-Safe Patterns
@@ -451,34 +440,43 @@ type Options = z.infer<typeof schema>;
 
 ## Common Patterns
 
-### Working with Service Requirements
+### Pre-execution Hooks for Synthetic Services
 
 ```typescript
-// Services declare their requirements
-class MyService extends BaseService {
-  getRequirements(): ServiceRequirements {
-    return {
-      compute: { memory: 512, cpu: 0.5 },
-      network: { ports: [{ port: 3000, protocol: 'tcp' }] },
-      storage: { ephemeral: 1024 },
-    };
-  }
-}
+// Add synthetic services in preExecute
+const provisionDescriptor: CommandDescriptor = {
+  preExecute: async (serviceDeployments, options) => {
+    if (options.stack && serviceDeployments.length === 0) {
+      // Add synthetic service for stack operations
+      return [{
+        name: '__aws_stack__',
+        platform: 'aws',
+        config: { stackName: options.stackName }
+      }];
+    }
+    return serviceDeployments;
+  },
+  // ...
+};
 ```
 
-### Platform Resource Management
+### Handler Context and Options
 
 ```typescript
-// Platforms create typed resources
-const resources = createPlatformResources('process', {
-  pid: process.pid,
-  port: 3000,
-});
+// Options flow from command to handler
+const descriptor: CommandDescriptor = {
+  extractHandlerOptions: (options) => ({
+    force: options.force,
+    custom: options.customFlag
+  })
+};
 
-// Store in results for state management
-return {
-  resources,
-  // ...
+// Handler receives options in context
+const handler = async (context) => {
+  const { service, options } = context;
+  if (options.force) {
+    // Force mode behavior
+  }
 };
 ```
 
@@ -528,4 +526,24 @@ const state = await StateManager.load(
 4. Look at shared utilities in `src/lib/`
 5. Run tests to verify behavior: `npm test`
 
-Remember: Commands orchestrate, Services contain business logic, Platforms handle infrastructure.
+## Key Relationships
+
+```
+Environment (dev.json) defines:
+  → Services (backend, database, worker)
+  → Platform assignments (backend: posix, database: container)
+  → Service configurations (ports, env vars, etc.)
+
+Command execution:
+  → Resolves environment (--environment or SEMIONT_ENV)
+  → Loads environment config
+  → Discovers services
+  → For each service:
+      → Determines platform (from environment config)
+      → Determines service type (from service characteristics)
+      → Finds handler (platform + serviceType + command)
+      → Executes handler
+      → Returns CommandResult
+```
+
+Remember: Environment defines context, Commands use UnifiedExecutor, Handlers implement platform-specific logic, CommandDescriptor configures behavior.

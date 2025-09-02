@@ -1,631 +1,238 @@
 # Adding New Platforms to Semiont CLI
 
-This guide walks you through adding a new platform strategy to the Semiont CLI.
+This guide walks you through adding a new platform to the Semiont CLI using the handler-based architecture.
 
 ## Overview
 
 Platforms in Semiont represent different infrastructure targets where services can be deployed:
-- **process** - Local processes on the host machine
+- **posix** - Local processes on POSIX-compliant systems (Linux, macOS)
 - **container** - Docker/Podman containers
-- **aws** - AWS ECS/Fargate services  
+- **aws** - AWS cloud services (ECS, Lambda, RDS, etc.)
 - **external** - Externally managed services
 - **mock** - Mock platform for testing
 
-Each platform implements the `PlatformStrategy` interface to provide infrastructure-specific behavior.
+Each platform uses handlers to implement command-specific logic for different service types.
 
 ## Architecture
 
 ```
-Service → Platform Strategy → Infrastructure
-            ↓
-    Implements all commands
-    (start, stop, check, etc.)
+UnifiedExecutor → Platform/ServiceType → Handler → Result
+                           ↓                ↓
+                  Handler Resolution   Command Logic
 ```
 
 ## Step-by-Step Guide
 
-### 1. Create the Platform File
+### 1. Create Platform Directory Structure
 
-Create a new file in `src/platforms/`:
+Create a new directory for your platform with handlers:
 
 ```bash
-touch src/platforms/my-platform.ts
+mkdir -p src/platforms/my-platform/handlers
+touch src/platforms/my-platform/index.ts
+touch src/platforms/my-platform/platform.ts
 ```
 
-### 2. Import Dependencies
+### 2. Define Handler Types
+
+Create handler type definitions in `src/platforms/my-platform/handlers/types.ts`:
 
 ```typescript
 /**
- * My Platform Strategy
- * 
- * Implements service deployment on [describe your platform]
+ * Handler types for my-platform
  */
 
-import { BasePlatformStrategy, ServiceContext } from './platform-strategy.js';
-import { StartResult } from "../commands/start.js";
-import { StopResult } from "../commands/stop.js";
-import { CheckResult } from "../commands/check.js";
-import { UpdateResult } from "../commands/update.js";
-import { ProvisionResult } from "../commands/provision.js";
-import { PublishResult } from "../commands/publish.js";
-import { BackupResult } from "../commands/backup.js";
-import { ExecResult, ExecOptions } from "../commands/exec.js";
-import { TestResult, TestOptions } from "../commands/test.js";
-import { RestoreResult, RestoreOptions } from "../commands/restore.js";
-import { PlatformResources, createPlatformResources } from "./platform-resources.js";
-import { StateManager } from '../services/state-manager.js';
-import { printInfo, printWarning, printError } from '../lib/cli-logger.js';
+import type { Service } from '../../../services/service-interface.js';
+import type { PlatformResources } from '../../platform-resources.js';
+
+// Base context for all handlers
+export interface BaseHandlerContext {
+  service: Service;
+  options?: Record<string, any>;
+}
+
+// Command-specific contexts
+export interface StartHandlerContext extends BaseHandlerContext {
+  restart?: boolean;
+  force?: boolean;
+}
+
+export interface CheckHandlerContext extends BaseHandlerContext {
+  includeMetrics?: boolean;
+}
+
+// Command-specific results
+export interface StartHandlerResult {
+  success: boolean;
+  error?: string;
+  resources?: PlatformResources;
+  endpoint?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CheckHandlerResult {
+  success: boolean;
+  error?: string;
+  status?: 'running' | 'stopped' | 'error' | 'not-found';
+  healthy?: boolean;
+  checks?: Array<{ name: string; status: string; }>;
+  logs?: Array<{ timestamp: Date; message: string; level?: string; }>;
+  metadata?: Record<string, any>;
+}
 ```
 
-### 3. Implement the Platform Strategy
+### 3. Create Handlers for Each Service Type
+
+Create handlers for each service type your platform supports:
 
 ```typescript
-export class MyPlatformStrategy extends BasePlatformStrategy {
+// src/platforms/my-platform/handlers/web-start.ts
+import { HandlerDescriptor } from '../../../core/handlers/types.js';
+import { StartHandlerContext, StartHandlerResult } from './types.js';
+import { PlatformResources } from '../../platform-resources.js';
+
+/**
+ * Start handler for web services on my-platform
+ */
+const startWebService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+  const { service, options } = context;
+  const requirements = service.getRequirements();
   
+  try {
+    // Check port availability
+    const port = requirements.network?.ports?.[0];
+    if (port && await isPortInUse(port)) {
+      return {
+        success: false,
+        error: `Port ${port} is already in use`,
+      };
+    }
+    
+    // Platform-specific start logic
+    const serviceId = await startServiceOnMyPlatform({
+      name: service.name,
+      command: service.getCommand(),
+      environment: service.getEnvironmentVariables(),
+      port,
+      memory: requirements.compute?.memory,
+      cpu: requirements.compute?.cpu,
+    });
+    
+    // Create platform resources
+    const resources: PlatformResources = {
+      platform: 'my-platform',
+      data: {
+        serviceId,
+        port,
+        // Add platform-specific resource data
+      }
+    };
+    
+    // Build endpoint URL
+    const endpoint = port ? `http://localhost:${port}` : undefined;
+    
+    return {
+      success: true,
+      resources,
+      endpoint,
+      metadata: {
+        serviceType: 'web',
+        serviceId,
+        port,
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to start web service: ${error}`,
+    };
+  }
+};
+
+/**
+ * Descriptor for web service start handler
+ */
+export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+  command: 'start',
+  platform: 'my-platform',
+  serviceType: 'web',
+  handler: startWebService
+};
+```
+
+### 4. Create Handlers for All Commands
+
+Create handlers for each command your platform supports:
+
+```typescript
+// src/platforms/my-platform/handlers/web-check.ts
+export const webCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+  command: 'check',
+  platform: 'my-platform',
+  serviceType: 'web',
+  handler: async (context) => {
+    // Health check logic
+  }
+};
+
+// src/platforms/my-platform/handlers/web-update.ts
+export const webUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
+  command: 'update',
+  platform: 'my-platform',
+  serviceType: 'web',
+  handler: async (context) => {
+    // Update logic
+  }
+};
+
+// Continue for other commands: publish, provision, etc.
+```
+
+### 5. Register All Handlers
+
+Create an index file to export all handlers:
+
+```typescript
+// src/platforms/my-platform/handlers/index.ts
+
+// Web service handlers
+export * from './web-start.js';
+export * from './web-check.js';
+export * from './web-update.js';
+
+// Database service handlers
+export * from './database-start.js';
+export * from './database-check.js';
+
+// Worker service handlers
+export * from './worker-start.js';
+export * from './worker-check.js';
+
+// Add more as needed
+```
+
+### 6. Create Platform Strategy (Optional)
+
+For backward compatibility or complex platforms, you can still create a platform strategy:
+
+```typescript
+// src/platforms/my-platform/platform.ts
+import { BasePlatformStrategy, ServiceContext } from '../platform-strategy.js';
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+
+export class MyPlatformStrategy extends BasePlatformStrategy {
   getPlatformName(): string {
     return 'my-platform';
   }
   
-  /**
-   * Start a service on this platform
-   */
-  async start(context: ServiceContext): Promise<StartResult> {
-    const { name, config, requirements, verbose, dryRun } = context;
-    
-    if (dryRun) {
-      printInfo(`[DRY RUN] Would start ${name} on my-platform`);
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        startTime: new Date(),
-        metadata: { dryRun: true }
-      };
-    }
-    
-    // Implement platform-specific start logic
-    try {
-      // 1. Provision resources based on requirements
-      const resources = await this.provisionResources(context);
-      
-      // 2. Start the service
-      const serviceId = await this.startService(context, resources);
-      
-      // 3. Save state
-      await StateManager.save(
-        context.projectRoot,
-        context.environment,
-        name,
-        {
-          entity: name,
-          platform: 'my-platform' as any,
-          environment: context.environment,
-          startTime: new Date(),
-          resources: createPlatformResources('my-platform' as any, {
-            serviceId,
-            // Add platform-specific resource data
-          }),
-        }
-      );
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        startTime: new Date(),
-        resources: createPlatformResources('my-platform' as any, { serviceId }),
-        endpoint: this.getServiceEndpoint(serviceId),
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Stop a service on this platform
-   */
-  async stop(context: ServiceContext): Promise<StopResult> {
-    const { name, dryRun } = context;
-    
-    if (dryRun) {
-      printInfo(`[DRY RUN] Would stop ${name} on my-platform`);
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        metadata: { dryRun: true }
-      };
-    }
-    
-    try {
-      // Load saved state
-      const state = await StateManager.load(
-        context.projectRoot,
-        context.environment,
-        name
-      );
-      
-      if (!state) {
-        return {
-          entity: name,
-          platform: 'my-platform' as any,
-          success: false,
-          error: 'Service not found',
-        };
-      }
-      
-      // Stop the service using saved resources
-      if (state.resources && 'serviceId' in state.resources.data) {
-        await this.stopService(state.resources.data.serviceId);
-      }
-      
-      // Clear state
-      await StateManager.clear(
-        context.projectRoot,
-        context.environment,
-        name
-      );
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        stoppedAt: new Date(),
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Check service status
-   */
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const { name } = context;
-    
-    try {
-      const state = await StateManager.load(
-        context.projectRoot,
-        context.environment,
-        name
-      );
-      
-      if (!state) {
-        return {
-          entity: name,
-          platform: 'my-platform' as any,
-          success: true,
-          status: 'not-found',
-          healthy: false,
-        };
-      }
-      
-      // Check actual service status
-      const status = await this.getServiceStatus(state.resources?.data);
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        status: status.running ? 'running' : 'stopped',
-        healthy: status.healthy,
-        checks: status.checks,
-        resources: state.resources,
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        status: 'error',
-        healthy: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Update a service
-   */
-  async update(context: ServiceContext): Promise<UpdateResult> {
-    // Implementation similar to stop + start
-    const stopResult = await this.stop(context);
-    if (!stopResult.success) {
-      return {
-        entity: context.name,
-        platform: 'my-platform' as any,
-        success: false,
-        error: stopResult.error,
-      };
-    }
-    
-    const startResult = await this.start(context);
-    return {
-      entity: context.name,
-      platform: 'my-platform' as any,
-      success: startResult.success,
-      version: 'latest',
-      updatedAt: new Date(),
-      error: startResult.error,
-    };
-  }
-  
-  /**
-   * Provision infrastructure
-   */
-  async provision(context: ServiceContext): Promise<ProvisionResult> {
-    const { name, requirements, dryRun } = context;
-    
-    if (dryRun) {
-      printInfo(`[DRY RUN] Would provision infrastructure for ${name}`);
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        metadata: { dryRun: true }
-      };
-    }
-    
-    try {
-      // Create infrastructure based on requirements
-      const infrastructure = await this.createInfrastructure(requirements);
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        resources: createPlatformResources('my-platform' as any, infrastructure),
-        metadata: {
-          provisioned: Object.keys(infrastructure),
-        }
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Publish/deploy artifacts
-   */
-  async publish(context: ServiceContext): Promise<PublishResult> {
-    const { name, config, dryRun } = context;
-    
-    if (dryRun) {
-      printInfo(`[DRY RUN] Would publish ${name} to my-platform`);
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        metadata: { dryRun: true }
-      };
-    }
-    
-    try {
-      // Build and publish artifacts
-      const artifact = await this.buildArtifact(context);
-      const location = await this.publishArtifact(artifact);
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        artifact: location,
-        version: artifact.version,
-        publishedAt: new Date(),
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Backup service data
-   */
-  async backup(context: ServiceContext): Promise<BackupResult> {
-    const { name } = context;
-    
-    try {
-      // Create backup
-      const backupId = `backup-${Date.now()}`;
-      const backupData = await this.createBackup(context);
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        backupId,
-        location: `/backups/${backupId}`,
-        size: backupData.size,
-        timestamp: new Date(),
-        details: backupData.details,
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Execute command in service context
-   */
-  async exec(
-    context: ServiceContext,
-    command: string,
-    options?: ExecOptions
-  ): Promise<ExecResult> {
-    const { name } = context;
-    const { interactive = false, detach = false } = options || {};
-    
-    try {
-      const state = await StateManager.load(
-        context.projectRoot,
-        context.environment,
-        name
-      );
-      
-      if (!state) {
-        throw new Error('Service not running');
-      }
-      
-      // Execute command in service context
-      const result = await this.executeInService(
-        state.resources?.data,
-        command,
-        { interactive, detach }
-      );
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        output: result.output,
-        exitCode: result.exitCode,
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        exitCode: 1,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Run tests
-   */
-  async test(
-    context: ServiceContext,
-    options?: TestOptions
-  ): Promise<TestResult> {
-    const { name } = context;
-    const { suite = 'unit', coverage = false } = options || {};
-    
-    try {
-      // Run test suite
-      const results = await this.runTests(context, suite, coverage);
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: results.passed,
-        passed: results.passedCount,
-        failed: results.failedCount,
-        skipped: results.skippedCount,
-        duration: results.duration,
-        coverage: coverage ? results.coverage : undefined,
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        passed: 0,
-        failed: 0,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Restore from backup
-   */
-  async restore(
-    context: ServiceContext,
-    backupId: string,
-    options?: RestoreOptions
-  ): Promise<RestoreResult> {
-    const { name } = context;
-    const { force = false } = options || {};
-    
-    try {
-      // Restore from backup
-      await this.restoreBackup(context, backupId, force);
-      
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: true,
-        backupId,
-        restoredAt: new Date(),
-      };
-      
-    } catch (error) {
-      return {
-        entity: name,
-        platform: 'my-platform' as any,
-        success: false,
-        backupId,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-  
-  /**
-   * Collect logs from service
-   */
-  async collectLogs(context: ServiceContext): Promise<CheckResult['logs']> {
-    const state = await StateManager.load(
-      context.projectRoot,
-      context.environment,
-      context.name
-    );
-    
-    if (!state || !state.resources) {
-      return undefined;
-    }
-    
-    // Fetch logs from platform
-    const logs = await this.fetchLogs(state.resources.data);
-    
-    return logs.map(log => ({
-      timestamp: log.timestamp,
-      message: log.message,
-      level: log.level,
-    }));
-  }
-  
-  /**
-   * Quick check if service is running (for dependency checks)
-   */
-  override async quickCheckRunning(
-    state: import('../services/state-manager.js').ServiceState
-  ): Promise<boolean> {
-    if (!state.resources || state.resources.platform !== 'my-platform') {
-      return false;
-    }
-    
-    try {
-      const status = await this.getServiceStatus(state.resources.data);
-      return status.running;
-    } catch {
-      return false;
-    }
-  }
-  
-  // ============================================
-  // Platform-specific helper methods
-  // ============================================
-  
-  private async provisionResources(context: ServiceContext): Promise<any> {
-    // Implement resource provisioning
-    throw new Error('Not implemented');
-  }
-  
-  private async startService(context: ServiceContext, resources: any): Promise<string> {
-    // Implement service start
-    throw new Error('Not implemented');
-  }
-  
-  private async stopService(serviceId: string): Promise<void> {
-    // Implement service stop
-    throw new Error('Not implemented');
-  }
-  
-  private async getServiceStatus(resources: any): Promise<{
-    running: boolean;
-    healthy: boolean;
-    checks?: Array<{name: string; status: string}>;
-  }> {
-    // Implement status check
-    throw new Error('Not implemented');
-  }
-  
-  private getServiceEndpoint(serviceId: string): string | undefined {
-    // Return service endpoint if applicable
-    return undefined;
-  }
-  
-  private async createInfrastructure(requirements: any): Promise<any> {
-    // Implement infrastructure creation
-    throw new Error('Not implemented');
-  }
-  
-  private async buildArtifact(context: ServiceContext): Promise<any> {
-    // Implement artifact building
-    throw new Error('Not implemented');
-  }
-  
-  private async publishArtifact(artifact: any): Promise<string> {
-    // Implement artifact publishing
-    throw new Error('Not implemented');
-  }
-  
-  private async createBackup(context: ServiceContext): Promise<any> {
-    // Implement backup creation
-    throw new Error('Not implemented');
-  }
-  
-  private async executeInService(
-    resources: any,
-    command: string,
-    options: any
-  ): Promise<{output?: string; exitCode: number}> {
-    // Implement command execution
-    throw new Error('Not implemented');
-  }
-  
-  private async runTests(
-    context: ServiceContext,
-    suite: string,
-    coverage: boolean
-  ): Promise<any> {
-    // Implement test execution
-    throw new Error('Not implemented');
-  }
-  
-  private async restoreBackup(
-    context: ServiceContext,
-    backupId: string,
-    force: boolean
-  ): Promise<void> {
-    // Implement backup restoration
-    throw new Error('Not implemented');
-  }
-  
-  private async fetchLogs(resources: any): Promise<any[]> {
-    // Implement log fetching
-    return [];
-  }
+  // Override methods if needed for special cases
+  // Most logic should be in handlers
 }
 ```
 
-### 4. Add Platform Resources Type
+### 7. Update Platform Resources Type
 
-If your platform needs custom resource types, add them to `src/platforms/platform-resources.ts`:
+Add your platform's resource type to `src/platforms/platform-resources.ts`:
 
 ```typescript
 // Add your platform's resource type
@@ -634,349 +241,280 @@ export interface MyPlatformResources {
   data: {
     serviceId: string;
     endpoint?: string;
+    port?: number;
     // Add platform-specific fields
   };
 }
 
 // Update the union type
 export type PlatformResources = 
-  | ProcessResources
+  | PosixResources
   | ContainerResources
   | AWSResources
   | MyPlatformResources;
 ```
 
-### 5. Register the Platform
-
-Add your platform to the factory in `src/platforms/index.ts`:
-
-```typescript
-import { MyPlatformStrategy } from './my-platform.js';
-
-export class PlatformFactory {
-  private static createPlatform(type: Platform): PlatformStrategy {
-    switch (type) {
-      case 'process':
-        return new ProcessPlatformStrategy();
-      case 'container':
-        return new ContainerPlatformStrategy();
-      case 'aws':
-        return new AWSPlatformStrategy();
-      case 'my-platform':
-        return new MyPlatformStrategy();
-      // ...
-    }
-  }
-}
-```
-
-### 6. Update Platform Type
+### 8. Update Platform Type
 
 Add your platform to the Platform type in `src/platforms/platform-resolver.ts`:
 
 ```typescript
-export type Platform = 'aws' | 'container' | 'process' | 'external' | 'mock' | 'my-platform';
+export type Platform = 'aws' | 'container' | 'posix' | 'external' | 'mock' | 'my-platform';
 ```
 
-### 7. Add Tests
+### 9. Import Handlers for Registration
 
-Create test file at `src/platforms/__tests__/my-platform.test.ts`:
+Ensure your handlers are imported so they self-register:
 
 ```typescript
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MyPlatformStrategy } from '../my-platform.js';
-import { ServiceContext } from '../platform-strategy.js';
+// src/platforms/index.ts or main entry point
+import './my-platform/handlers/index.js';
+```
 
-describe('MyPlatformStrategy', () => {
-  let platform: MyPlatformStrategy;
-  let context: ServiceContext;
-  
-  beforeEach(() => {
-    platform = new MyPlatformStrategy();
-    context = {
-      name: 'test-service',
-      config: {},
-      projectRoot: '/test',
-      environment: 'test',
-      verbose: false,
-      requirements: {
-        compute: { memory: 512, cpu: 0.5 },
-        network: { ports: [{ port: 3000, protocol: 'tcp' }] },
+### 10. Add Tests
+
+Create tests for your handlers:
+
+```typescript
+// src/platforms/my-platform/handlers/__tests__/web-start.test.ts
+import { describe, it, expect, vi } from 'vitest';
+import { webStartDescriptor } from '../web-start.js';
+
+describe('my-platform web-start handler', () => {
+  it('should start a web service', async () => {
+    const context = {
+      service: {
+        name: 'test-web',
+        getRequirements: () => ({
+          network: { ports: [3000] },
+          compute: { memory: 512, cpu: 1 }
+        }),
+        getCommand: () => 'npm start',
+        getEnvironmentVariables: () => ({ NODE_ENV: 'production' })
       },
-      getEnvironmentVariables: () => ({}),
-      getCapabilities: () => [],
+      options: {}
     };
-  });
-  
-  describe('start', () => {
-    it('should start a service', async () => {
-      const result = await platform.start(context);
-      
-      expect(result.success).toBe(true);
-      expect(result.platform).toBe('my-platform');
-      expect(result.entity).toBe('test-service');
-    });
     
-    it('should handle dry-run mode', async () => {
-      context.dryRun = true;
-      
-      const result = await platform.start(context);
-      
-      expect(result.success).toBe(true);
-      expect(result.metadata?.dryRun).toBe(true);
-    });
+    const result = await webStartDescriptor.handler(context);
+    
+    expect(result.success).toBe(true);
+    expect(result.resources).toBeDefined();
+    expect(result.endpoint).toBe('http://localhost:3000');
   });
   
-  // Add more tests for other methods
+  it('should handle port conflicts', async () => {
+    // Mock port in use
+    vi.mock('../../../core/io/network-utils.js', () => ({
+      isPortInUse: vi.fn().mockResolvedValue(true)
+    }));
+    
+    const context = {
+      service: {
+        name: 'test-web',
+        getRequirements: () => ({
+          network: { ports: [3000] }
+        }),
+        // ...
+      },
+      options: {}
+    };
+    
+    const result = await webStartDescriptor.handler(context);
+    
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Port 3000 is already in use');
+  });
 });
 ```
 
-## Best Practices
+## Handler Pattern Best Practices
 
-### 1. Use Service Requirements
+### 1. Self-Contained Handlers
 
-Respect the service requirements when provisioning resources:
-
-```typescript
-const { compute, network, storage } = context.requirements || {};
-
-if (compute) {
-  // Allocate CPU and memory based on requirements
-  resources.cpu = compute.cpu;
-  resources.memory = compute.memory;
-}
-
-if (network?.ports) {
-  // Configure network ports
-  resources.ports = network.ports;
-}
-```
-
-### 2. Implement State Management
-
-Always save and load state properly:
+Each handler should be self-contained with its own logic:
 
 ```typescript
-// Save state after successful start
-await StateManager.save(projectRoot, environment, name, {
-  entity: name,
-  platform: 'my-platform',
-  environment,
-  startTime: new Date(),
-  resources,
-});
-
-// Load state for operations
-const state = await StateManager.load(projectRoot, environment, name);
-```
-
-### 3. Handle Errors Gracefully
-
-Return structured error responses:
-
-```typescript
-try {
-  // Operation
-} catch (error) {
-  return {
-    entity: name,
-    platform: 'my-platform',
-    success: false,
-    error: error instanceof Error ? error.message : String(error),
-  };
-}
-```
-
-### 4. Support Dry-Run Mode
-
-Check for dry-run in all modifying operations:
-
-```typescript
-if (context.dryRun) {
-  printInfo(`[DRY RUN] Would perform operation`);
+// ✅ Good - Self-contained handler
+const handler = async (context) => {
+  // All logic for this command/serviceType combination
+  const logs = await collectLogs(context.service);
+  const health = await checkHealth(context.service);
+  
   return {
     success: true,
-    metadata: { dryRun: true }
+    healthy: health.isHealthy,
+    logs,
   };
-}
-```
+};
 
-### 5. Implement quickCheckRunning
-
-For efficient dependency checking:
-
-```typescript
-override async quickCheckRunning(state: ServiceState): Promise<boolean> {
-  // Quick check without full context
-  // Should be faster than full check() method
-  return this.isServiceAlive(state.resources);
-}
-```
-
-## Platform Capabilities
-
-Different platforms may not support all operations. It's okay to return "not supported":
-
-```typescript
-async backup(context: ServiceContext): Promise<BackupResult> {
-  return {
-    entity: context.name,
-    platform: 'my-platform',
-    success: false,
-    error: 'Backup not supported on this platform',
-  };
-}
-```
-
-## Integration Points
-
-### Service Requirements
-
-Services declare what they need, platforms provide it:
-
-```typescript
-// Service declares requirements
-class MyService extends BaseService {
-  getRequirements(): ServiceRequirements {
-    return {
-      compute: { memory: 512, cpu: 1 },
-      network: { ports: [{ port: 8080, protocol: 'tcp' }] },
-    };
-  }
-}
-
-// Platform uses requirements
-async start(context: ServiceContext) {
-  const { requirements } = context;
-  // Provision based on requirements
-}
-```
-
-### Platform Selection
-
-Services can be configured to use specific platforms in environment configs:
-
-```json
-{
-  "services": {
-    "backend": {
-      "platform": "my-platform",
-      "config": {
-        "region": "us-west-2"
-      }
-    }
-  }
-}
-```
-
-## Testing Your Platform
-
-1. **Unit tests** - Test each method independently
-2. **Integration tests** - Test with real services
-3. **State management** - Verify state is saved/loaded correctly
-4. **Error scenarios** - Test failure cases
-5. **Resource cleanup** - Ensure resources are cleaned up
-
-## Checklist
-
-- [ ] All PlatformStrategy methods implemented
-- [ ] Platform resources type defined
-- [ ] Platform registered in factory
-- [ ] Platform type added to union
-- [ ] State management working
-- [ ] Dry-run mode supported
-- [ ] Error handling consistent
-- [ ] Tests cover main scenarios
-- [ ] quickCheckRunning implemented
-- [ ] Documentation updated
-
-## Advanced: Handler Pattern for Complex Platforms
-
-For platforms with many service types (like AWS), consider using the handler pattern to modularize your code:
-
-### Handler Structure
-
-1. **Create handler files** in `src/platforms/my-platform/handlers/`:
-```typescript
-// src/platforms/my-platform/handlers/service-check.ts
-import type { Handler, HandlerDescriptor } from '../../core/handlers/types.js';
-
-export const serviceCheckHandler: Handler<CheckHandlerContext, CheckHandlerResult> = 
-  async (context) => {
-    // Service-specific check logic
-    const { service, platformResources } = context;
-    
-    // Perform health check
-    const healthy = await checkServiceHealth(service);
-    
-    // Collect logs if needed
-    const logs = await collectServiceLogs(service);
-    
-    return {
-      metadata: {
-        success: true,
-        status: healthy ? 'running' : 'unhealthy',
-        health: healthy,
-        logs
-      }
-    };
-  };
-
-export const serviceCheckDescriptor: HandlerDescriptor = {
-  command: 'check',
-  serviceType: 'my-service-type',
-  handler: serviceCheckHandler,
-  requiresDiscovery: false  // Set to true if needs resource discovery
+// ❌ Bad - Handler depends on external state
+const handler = async (context) => {
+  // Don't reference global state or platform instance
+  return this.platformInstance.doSomething();
 };
 ```
 
-2. **Register handlers** in your platform:
-```typescript
-// src/platforms/my-platform/platform.ts
-import { HandlerRegistry } from '../../core/handlers/registry.js';
-import { serviceCheckDescriptor } from './handlers/service-check.js';
+### 2. Proper Handler Registration
 
-export class MyPlatformStrategy extends BasePlatformStrategy {
-  constructor() {
-    super();
-    // Register all handlers
-    const registry = HandlerRegistry.getInstance();
-    registry.registerHandler('my-platform', serviceCheckDescriptor);
-  }
-  
-  async check(context: ServiceContext): Promise<CheckResult> {
-    const descriptor = registry.getDescriptor('my-platform', `check-${serviceType}`);
-    if (!descriptor) {
-      // Fallback to default behavior
-      return super.check(context);
-    }
-    
-    // Prepare context for handler
-    const handlerContext = {
-      service: context.service,
-      platformResources: this.resources,
-      // ... other context
-    };
-    
-    // Execute handler
-    const result = await descriptor.handler(handlerContext);
-    return result.metadata;
-  }
-}
+Handlers self-register when their descriptors are exported:
+
+```typescript
+// ✅ Good - Handler with descriptor
+export const myHandlerDescriptor: HandlerDescriptor = {
+  command: 'start',
+  platform: 'my-platform',
+  serviceType: 'web',
+  handler: myHandler
+};
+
+// ❌ Bad - Handler without registration
+const myHandler = async (context) => {
+  // Handler won't be discovered
+};
 ```
 
-### Benefits of Handler Pattern
+### 3. ServiceType Specificity
 
-- **Modularity**: Each service type's logic is isolated
-- **Testability**: Handlers can be unit tested independently
-- **Extensibility**: New service types added without modifying platform class
-- **Self-contained**: Handlers manage their own concerns (logs, metrics, etc.)
-- **Discoverable**: Handlers can declare if they need resource discovery
+Create specific handlers for each service type:
+
+```typescript
+// ✅ Good - Specific handlers
+export const webStartDescriptor = {
+  serviceType: 'web',
+  handler: webStartHandler
+};
+
+export const databaseStartDescriptor = {
+  serviceType: 'database',
+  handler: databaseStartHandler
+};
+
+// ❌ Bad - Generic handler for all types
+export const genericStartDescriptor = {
+  serviceType: '*',  // Avoid wildcards
+  handler: genericHandler
+};
+```
+
+### 4. Options Pass-through
+
+Handlers receive options from commands via context:
+
+```typescript
+const handler = async (context) => {
+  const { service, options } = context;
+  
+  // Options come from CommandDescriptor.extractHandlerOptions
+  if (options.force) {
+    // Force mode behavior
+  }
+  
+  if (options.timeout) {
+    // Apply timeout
+  }
+};
+```
+
+### 5. Error Handling
+
+Return structured errors in handler results:
+
+```typescript
+const handler = async (context) => {
+  try {
+    // Operation
+    return {
+      success: true,
+      // ...
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      metadata: {
+        errorType: error.constructor.name,
+        // Additional error context
+      }
+    };
+  }
+};
+```
+
+## Platform Capabilities Matrix
+
+Document which commands and service types your platform supports:
+
+| Command | Web | Database | Worker | Filesystem | MCP |
+|---------|-----|----------|--------|------------|-----|
+| start   | ✅  | ✅       | ✅     | ✅         | ❌  |
+| check   | ✅  | ✅       | ✅     | ✅         | ❌  |
+| update  | ✅  | ❌       | ✅     | ❌         | ❌  |
+| publish | ✅  | ❌       | ✅     | ❌         | ❌  |
+| provision | ❌ | ❌      | ❌     | ❌         | ❌  |
+
+## Integration with UnifiedExecutor
+
+The UnifiedExecutor automatically discovers and uses your handlers:
+
+1. **Handler Discovery**: Based on platform, command, and serviceType
+2. **Automatic Resolution**: No manual registration needed
+3. **Fallback Handling**: Returns error if no handler found
+4. **Result Transformation**: CommandDescriptor transforms handler results
+
+## Testing Strategy
+
+### Unit Tests
+Test individual handlers in isolation:
+```typescript
+// Test handler directly
+const result = await webStartDescriptor.handler(mockContext);
+expect(result.success).toBe(true);
+```
+
+### Integration Tests
+Test with UnifiedExecutor:
+```typescript
+// Test through command execution
+const result = await startCommand({
+  services: ['web-service'],
+  environment: 'test'
+});
+expect(result.results[0].success).toBe(true);
+```
+
+### Platform Tests
+Test platform-specific behavior:
+```typescript
+// Test resource creation, networking, etc.
+```
+
+## Migration from PlatformStrategy
+
+If migrating from the old PlatformStrategy pattern:
+
+1. **Extract logic** from platform methods into handlers
+2. **Create handlers** for each command/serviceType combination
+3. **Remove** platform method implementations
+4. **Update tests** to test handlers directly
+
+## Checklist
+
+- [ ] Handler types defined
+- [ ] Handlers created for all supported commands
+- [ ] Handlers created for all service types
+- [ ] Platform resources type defined
+- [ ] Platform type added to union
+- [ ] Handlers exported for registration
+- [ ] Tests cover main scenarios
+- [ ] Documentation updated
+- [ ] Platform capabilities documented
 
 ## Examples
 
 Look at existing platforms for examples:
-- `process-platform.ts` - Simple local process management
-- `container-platform.ts` - Docker/Podman integration
-- `aws-platform.ts` - Cloud platform with full AWS integration using handler pattern
-- `mock-platform.ts` - Testing platform with minimal implementation
+- `posix/handlers/` - POSIX system handlers with process management
+- `container/handlers/` - Docker/Podman container handlers
+- `aws/handlers/` - AWS cloud service handlers with multiple service types
+- `mock/handlers/` - Simple mock handlers for testing
+
+Remember: Handlers are self-contained, platform-specific, and service-type-specific implementations of commands.

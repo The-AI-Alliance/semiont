@@ -18,25 +18,53 @@ The Semiont CLI follows a layered architecture that separates concerns and enabl
 
 ## Core Concepts
 
-### 1. Commands
+The Semiont CLI is built around five fundamental concepts that work together:
+
+### 1. Environment
+**Location:** `environments/` directory  
+**Purpose:** Define deployment contexts and service configurations  
+**Pattern:** Environment files specify which services exist and how they're deployed
+
+Environments represent different deployment contexts (dev, staging, production) and are the primary configuration mechanism:
+- **Configuration Files**: JSON files in `environments/` directory
+- **Service Definitions**: Which services exist in this environment
+- **Platform Mappings**: Which platform each service uses
+- **Service Configuration**: Environment-specific settings
+- **Resolution**: `--environment` flag or `SEMIONT_ENV` variable (required)
+
+### 2. Commands
 **Location:** `src/core/commands/`  
 **Purpose:** Define CLI operations that users can execute  
-**Pattern:** Commands define their requirements and handlers
+**Pattern:** Commands use the UnifiedExecutor with CommandDescriptor configuration
 
 Commands are responsible for:
 - Defining their schema and argument specifications
-- Declaring whether they require services or environment
-- Implementing the business logic in their handler function
-- Returning structured results
+- Providing a CommandDescriptor that configures execution behavior
+- Defining how handler results are transformed to CommandResult
+- Optional pre-execution hooks for special cases
 
-The command execution is orchestrated by the core modules:
+The command execution is orchestrated by the UnifiedExecutor pattern:
 
 #### Core Command Modules
 
-**Command Discovery** (`src/core/command-discovery.ts`) → What commands exist?
-- Maintains the authoritative list of available commands
-- Dynamically loads command definitions from their modules
-- Provides metadata about commands (requiresServices, requiresEnvironment)
+**Unified Executor** (`src/core/unified-executor.ts`) → Single execution path
+- Orchestrates all command execution with consistent behavior
+- Resolves environment (--environment flag or SEMIONT_ENV)
+- Executes pre-execution hooks from CommandDescriptor
+- For each service: resolves platform → determines serviceType → finds handler → executes
+- Aggregates results with consistent error handling
+
+**Command Descriptor** (`src/core/command-descriptor.ts`) → Command configuration
+- Defines how commands are executed within UnifiedExecutor
+- `buildResult`: Transforms handler results to CommandResult
+- `buildServiceConfig`: Merges options with service configuration
+- `extractHandlerOptions`: Extracts handler-specific options
+- `preExecute`: Optional hook for synthetic services (e.g., AWS stack)
+
+**Command Result** (`src/core/command-result.ts`) → Unified result type
+- Generic CommandResult type with extensions field
+- Replaces individual result types (StartResult, CheckResult, etc.)
+- Provides consistent structure across all commands
 
 **Service Discovery** (`src/core/service-discovery.ts`) → What services exist?
 - Discovers services from environment configuration files
@@ -48,23 +76,54 @@ The command execution is orchestrated by the core modules:
 - Resolves "all" to the list of applicable services
 - Contains business rules for service capabilities
 
-**Command Executor** (`src/core/command-executor.ts`) → How to run them?
-- Orchestrates the entire command execution pipeline
-- Parses arguments, validates environment, resolves services
-- Executes handlers and formats output
-
-**Command Types** (`src/core/command-types.ts`) → Type definitions only
-- Pure TypeScript type definitions
-- Defines contracts for command functions
-- No behavior or discovery logic
-
 Example flow:
 ```typescript
-CLI entry → command-discovery (load) → command-executor (orchestrate) → 
-command-service-matcher (resolve) → command handler (execute) → format results
+CLI entry → UnifiedExecutor → resolve environment (--env or SEMIONT_ENV) →
+load environment config → resolve services → preExecute hook →
+for each service: determine platform → determine serviceType → 
+find handler → execute handler → transform result → aggregate results
 ```
 
-### 2. Services  
+## Concept Relationships
+
+```
+Environment
+    ↓ defines
+Services + Platform Assignments
+    ↓ resolved by
+UnifiedExecutor
+    ↓ executes
+Commands
+    ↓ finds
+Handlers (Platform + ServiceType + Command)
+    ↓ operates on
+Infrastructure
+```
+
+### How They Work Together
+
+1. **Environment** defines the deployment context:
+   - Which services exist
+   - Which platform each service uses
+   - Service-specific configuration
+
+2. **Services** declare what they need:
+   - Business logic and requirements
+   - Platform-agnostic implementation
+
+3. **Service Types** categorize services:
+   - Platform-specific categorization
+   - Determines handler selection
+
+4. **Commands** define operations:
+   - User-facing CLI operations
+   - Use UnifiedExecutor for consistency
+
+5. **Platforms** provide infrastructure:
+   - Implement handlers for each service type
+   - Manage platform-specific resources
+
+### 3. Services  
 **Location:** `src/services/`  
 **Purpose:** Encapsulate business logic and declare requirements  
 **Pattern:** Services are platform-agnostic and focus on "what" not "how"
@@ -88,7 +147,17 @@ class BackendService extends BaseService {
 }
 ```
 
-### 3. Platforms
+### 4. Service Types
+**Purpose:** Categorize services for platform-specific handling  
+**Pattern:** Determined at runtime based on service characteristics
+
+Service types are platform-specific categorizations that determine which handler to use:
+- **Common Types**: web, database, worker, filesystem, mcp
+- **Platform-Specific**: lambda (AWS), ecs (AWS), rds (AWS)
+- **Determination**: Services are mapped to types based on their requirements
+- **Handler Resolution**: Platform + ServiceType + Command = Specific Handler
+
+### 5. Platforms
 **Location:** `src/platforms/`  
 **Purpose:** Implement infrastructure-specific operations  
 **Pattern:** Platforms interpret service requirements and manage resources
@@ -99,39 +168,48 @@ Platforms handle:
 - Platform-specific operations (backups, logs, exec)
 - State management and resource tracking
 
-#### Platform Handlers (New Architecture)
+#### Platform Handlers Architecture
 
-For complex platforms like AWS, operations are broken down into specific handlers:
+All platforms now use a unified handler-based architecture:
 
-**Handler Pattern** (`src/platforms/aws/handlers/`)
+**Handler Pattern** (`src/platforms/*/handlers/`)
 - Each service type has dedicated handlers for commands
-- Handlers are registered with descriptors that include metadata
-- Handlers receive context and return command-specific results
+- Handlers self-declare their command, platform, and serviceType
+- Automatic registration via HandlerRegistry
+- Handlers receive context with options passed through from commands
 
 Example handler structure:
 ```typescript
-// lambda-check.ts
-export const lambdaCheckHandler: Handler<CheckHandlerContext, CheckHandlerResult> = 
-  async (context) => {
-    // Lambda-specific health check logic
-    // Self-contained log collection
-    // Returns CheckHandlerResult
-  };
+// posix/handlers/web-start.ts
+export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+  command: 'start',
+  platform: 'posix',
+  serviceType: 'web',
+  handler: async (context) => {
+    // Web service start logic for POSIX systems
+    // Access to context.service and context.options
+    // Returns StartHandlerResult
+  }
+};
 
-// Handler registration
+// aws/handlers/lambda-check.ts
 export const lambdaCheckDescriptor: HandlerDescriptor = {
   command: 'check',
+  platform: 'aws',
   serviceType: 'lambda',
   handler: lambdaCheckHandler,
   requiresDiscovery: true  // Needs CloudFormation resource discovery
 };
 ```
 
-Benefits of handler pattern:
-- **Modularity**: Each service type's logic is isolated
+Benefits of unified handler architecture:
+- **Modularity**: Each service type's logic is isolated per platform
 - **Testability**: Handlers can be tested independently
 - **Extensibility**: New handlers added without modifying platform class
-- **Self-contained**: Each handler manages its own concerns (e.g., log collection)
+- **Self-contained**: Each handler manages its own concerns
+- **Auto-discovery**: Handlers self-register with platform, command, and serviceType
+- **Consistent execution**: UnifiedExecutor ensures uniform behavior across all commands
+- **Type safety**: CommandDescriptor and HandlerDescriptor provide strong typing
 
 ### 4. Libraries
 **Location:** `src/lib/`  
@@ -164,17 +242,40 @@ ServiceFactory.create(name, platform, config)
 PlatformFactory.getPlatform(type)
 ```
 
-### Command Builder Pattern
-Commands use a fluent builder for consistent definitions:
+### Command Descriptor Pattern
+Commands use CommandDescriptor with UnifiedExecutor:
 
 ```typescript
-new CommandBuilder()
-  .name('start')
-  .description('Start services')
-  .schema(StartOptionsSchema)
-  .requiresServices(true)
-  .handler(startCommand)
-  .build()
+const startDescriptor: CommandDescriptor<StartOptions> = {
+  name: 'start',
+  buildResult: (handlerResult, service, platform, serviceType) => ({
+    entity: service.name,
+    platform: platform.type,
+    success: handlerResult.success,
+    timestamp: new Date(),
+    error: handlerResult.error,
+    extensions: {
+      start: {
+        endpoint: handlerResult.endpoint,
+        resources: handlerResult.resources
+      }
+    }
+  }),
+  buildServiceConfig: (options, serviceInfo) => ({
+    verbose: options.verbose,
+    quiet: options.quiet,
+    environment: options.environment
+  }),
+  extractHandlerOptions: (options) => ({
+    force: options.force,
+    restart: options.restart
+  })
+};
+
+// Command uses UnifiedExecutor
+export const startCommand = async (options: StartOptions) => {
+  return executeUnifiedCommand(startDescriptor, options);
+};
 ```
 
 ### Requirements Pattern
@@ -387,7 +488,7 @@ src/
 
 ```typescript
 // Platform types
-type Platform = 'process' | 'container' | 'aws' | 'external' | 'mock';
+type Platform = 'posix' | 'container' | 'aws' | 'external' | 'mock';
 
 // Service types  
 type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp';
@@ -402,10 +503,20 @@ interface Config {
 }
 
 // Results types
-interface CommandResults<TResult> {
+interface CommandResult {
+  entity: ServiceName;
+  platform: Platform;
+  success: boolean;
+  timestamp: Date;
+  error?: string;
+  metadata?: Record<string, any>;
+  extensions?: CommandExtensions;
+}
+
+interface CommandResults {
   command: string;
   executionContext: ExecutionContext;
-  results: TResult[];
+  results: CommandResult[];
   summary: {
     total: number;
     succeeded: number;
@@ -420,48 +531,77 @@ Discriminated union for type-safe resource handling:
 
 ```typescript
 type PlatformResources = 
-  | { platform: 'process'; data: { pid: number; port?: number } }
+  | { platform: 'posix'; data: { pid: number; port?: number; command: string; workingDirectory: string } }
   | { platform: 'container'; data: { containerId: string } }
   | { platform: 'aws'; data: { serviceArn: string; taskArn?: string } };
 ```
 
 ## Configuration System
 
-### Environment Configuration
-Environments are defined in JSON files:
+### Environment as the Primary Configuration
+
+Environments are the central configuration mechanism in Semiont:
 
 ```
 environments/
-├── dev.json
-├── staging.json
-└── prod.json
+├── dev.json        # Local development
+├── staging.json    # Staging deployment
+└── prod.json       # Production deployment
 ```
 
-Example configuration:
+#### Environment Resolution
+1. **Command Line**: `--environment dev` (highest priority)
+2. **Environment Variable**: `SEMIONT_ENV=dev`
+3. **Error**: If neither is set, execution fails with clear message
+
+#### Example Environment Configuration
 ```json
 {
   "platform": {
-    "default": "container"
+    "default": "container"  // Default platform for services
   },
   "services": {
     "backend": {
-      "platform": "process",
+      "platform": "posix",    // Override default platform
       "port": 3000,
-      "command": "npm start"
+      "command": "npm start",
+      "env": {                  // Service-specific env vars
+        "NODE_ENV": "development",
+        "LOG_LEVEL": "debug"
+      }
     },
     "database": {
       "platform": "container",
-      "image": "postgres:15"
+      "image": "postgres:15",
+      "port": 5432,
+      "volumes": ["/data/postgres:/var/lib/postgresql/data"]
+    },
+    "worker": {
+      "platform": "aws",
+      "serviceType": "lambda",  // Hint for service type
+      "memory": 512,
+      "timeout": 300
     }
+  },
+  "aws": {                      // Platform-specific config
+    "region": "us-west-2",
+    "profile": "staging"
   }
 }
 ```
 
-### Service Configuration Resolution
-1. Environment-specific config (`environments/<env>.json`)
-2. Service-specific overrides
-3. Platform defaults
-4. Service defaults
+### Configuration Resolution Order
+1. **Environment Selection**: `--environment` or `SEMIONT_ENV` (required)
+2. **Environment Config**: Load `environments/<env>.json`
+3. **Service Discovery**: Find all services defined in environment
+4. **Platform Resolution**: Determine platform for each service
+5. **Service Type Determination**: Based on service characteristics
+6. **Handler Selection**: Find handler for (platform, serviceType, command)
+7. **Configuration Merge**:
+   - Environment-specific config
+   - Service-specific overrides
+   - Platform defaults
+   - Service defaults
 
 ## Extension Points
 
