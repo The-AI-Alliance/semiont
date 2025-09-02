@@ -73,7 +73,7 @@ describe('Filesystem Authority for Environment Validation', () => {
       },
       "services": {
         "backend": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "port": 8080,
@@ -81,7 +81,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           "command": "npm start"
         },
         "frontend": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "port": 3000,
@@ -89,7 +89,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           "command": "npm run start"
         },
         "database": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "host": "localhost",
@@ -98,7 +98,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           "user": "postgres"
         },
         "filesystem": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "path": "/data/foo"
@@ -139,8 +139,8 @@ describe('Filesystem Authority for Environment Validation', () => {
     );
     
     // Test 5: Deployment types should be read correctly
-    expect(loadedConfig.services?.backend?.deployment?.type).toBe('container');
-    expect(loadedConfig.services?.frontend?.deployment?.type).toBe('container');
+    expect(loadedConfig.services?.backend?.platform?.type).toBe('container');
+    expect(loadedConfig.services?.frontend?.platform?.type).toBe('container');
     expect(loadedConfig.platform?.default).toBe('container');
     
     // Test 6: App configuration should be fully accessible

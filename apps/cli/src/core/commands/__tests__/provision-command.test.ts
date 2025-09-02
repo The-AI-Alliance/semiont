@@ -24,6 +24,10 @@ describe('Provision Command', () => {
     it('should execute provision command successfully', async () => {
       const { provisionCommand } = await import('../provision.js');
       const provision = provisionCommand.handler;
+      
+      const serviceDeployments = createServiceDeployments([
+        { name: 'backend', type: 'mock' }
+      ]);
 
       const options = {
         environment: 'test',
@@ -34,7 +38,7 @@ describe('Provision Command', () => {
         dryRun: false
       };
 
-      const result = await provision(options);
+      const result = await provision(serviceDeployments, options);
 
       expect(result).toMatchObject({
         command: 'provision',

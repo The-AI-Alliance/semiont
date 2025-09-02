@@ -50,7 +50,8 @@ describe('Start Command', () => {
         summary: {
           total: 2,
           succeeded: 2,
-          failed: 0
+          failed: 0,
+          warnings: 0
         }
       });
       
@@ -192,9 +193,9 @@ describe('Start Command', () => {
 
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
-        success: true,
-        startTime: expect.any(Date)
+        success: true
       });
+      expect(result.results[0]!.extensions?.startTime).toEqual(expect.any(Date));
     });
 
     // External service behavior should be tested in platform tests, not command tests
@@ -331,7 +332,8 @@ describe('Start Command', () => {
         summary: {
           total: 1,
           succeeded: 1,
-          failed: 0
+          failed: 0,
+          warnings: 0
         }
       });
       

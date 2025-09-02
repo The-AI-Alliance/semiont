@@ -69,7 +69,8 @@ export function createBaseResult(
 ): BaseCommandResult {
   return {
     command,
-    service,
+    entity: service,  // Use entity field as expected by BaseResult
+    service,  // Keep service for backward compatibility
     platform,
     environment,
     timestamp: new Date(),

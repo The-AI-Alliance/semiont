@@ -76,7 +76,8 @@ describe('Check Command', () => {
         summary: {
           total: 2,
           succeeded: 2,
-          failed: 0
+          failed: 0,
+          warnings: 0
         }
       });
     });
@@ -114,7 +115,8 @@ describe('Check Command', () => {
       expect(result.summary).toMatchObject({
         total: 1,
         succeeded: 0,
-        failed: 1
+        failed: 1,
+        warnings: 0
       });
 
       // Restore original method
@@ -154,7 +156,7 @@ describe('Check Command', () => {
       const result = await check(serviceDeployments, options);
 
       // Should eventually report as running if wait logic works
-      expect(result.results[0]!.status).toBeDefined();
+      expect(result.results[0]!.extensions?.status).toBeDefined();
     });
   });
 
@@ -264,7 +266,7 @@ describe('Check Command', () => {
 
       expect(result.results).toHaveLength(1);
       expect(result.results[0]!.entity).toBe('backend');
-      expect(result.results[0]!.status).toBe('running');
+      expect(result.results[0]!.extensions?.status).toBe('running');
     });
 
     it('should report accurate health status for each service', async () => {
@@ -308,9 +310,9 @@ describe('Check Command', () => {
       const backendResult = result.results.find(r => r.entity === 'backend');
       const databaseResult = result.results.find(r => r.entity === 'database');
 
-      expect(frontendResult?.status).toBe('running');
-      expect(backendResult?.status).toBe('stopped');
-      expect(databaseResult?.status).toBe('stopped');
+      expect(frontendResult?.extensions?.status).toBe('running');
+      expect(backendResult?.extensions?.status).toBe('stopped');
+      expect(databaseResult?.extensions?.status).toBe('stopped');
     });
   });
 });
