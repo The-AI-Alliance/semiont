@@ -1,54 +1,54 @@
 import { 
-  BaseHandlerContext,
-  HandlerResult,
-  CheckHandlerResult as CoreCheckHandlerResult,
-  StartHandlerResult as CoreStartHandlerResult,
-  HandlerDescriptor as CoreHandlerDescriptor 
+  CheckHandlerContext as CoreCheckHandlerContext,
+  StartHandlerContext as CoreStartHandlerContext,
+  CheckHandlerResult,
+  StartHandlerResult,
+  CheckHandler as CoreCheckHandler,
+  StartHandler as CoreStartHandler,
+  HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
 import type { MockPlatformStrategy } from '../platform.js';
 
 /**
- * Context provided to all Mock check handlers
+ * Mock-specific check handler context
  */
-export interface CheckHandlerContext extends BaseHandlerContext<MockPlatformStrategy> {
+export interface MockCheckHandlerContext extends CoreCheckHandlerContext<MockPlatformStrategy> {
   mockState: Map<string, any>;
 }
 
 /**
- * Context provided to all Mock start handlers
+ * Mock-specific start handler context
  */
-export interface StartHandlerContext extends BaseHandlerContext<MockPlatformStrategy> {
+export interface MockStartHandlerContext extends CoreStartHandlerContext<MockPlatformStrategy> {
   mockState: Map<string, any>;
   mockData?: any;
 }
 
 /**
- * Result returned by check handlers
- * Extends the core CheckHandlerResult
+ * Function signature for Mock check handlers
  */
-export interface CheckHandlerResult extends CoreCheckHandlerResult {
-  // Mock-specific additions can go here if needed
-}
+export type CheckHandler = CoreCheckHandler<MockPlatformStrategy, MockCheckHandlerContext>;
 
 /**
- * Result returned by start handlers
- * Extends the core StartHandlerResult
+ * Function signature for Mock start handlers
  */
-export interface StartHandlerResult extends CoreStartHandlerResult {
-  // Mock-specific additions can go here if needed
-}
+export type StartHandler = CoreStartHandler<MockPlatformStrategy, MockStartHandlerContext>;
 
 /**
- * Function signature for check handlers
+ * Re-export result types for convenience
  */
-export type CheckHandler = (context: CheckHandlerContext) => Promise<CheckHandlerResult>;
+export type { 
+  CheckHandlerResult,
+  StartHandlerResult
+};
 
 /**
- * Function signature for start handlers
+ * Backward compatibility aliases for context types
  */
-export type StartHandler = (context: StartHandlerContext) => Promise<StartHandlerResult>;
+export type CheckHandlerContext = MockCheckHandlerContext;
+export type StartHandlerContext = MockStartHandlerContext;
 
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<MockPlatformStrategy> | CoreStartHandlerContext<MockPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult> = CoreHandlerDescriptor<MockPlatformStrategy, TContext, TResult>;

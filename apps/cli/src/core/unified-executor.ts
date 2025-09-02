@@ -215,7 +215,7 @@ export class UnifiedExecutor<TOptions extends BaseOptions> {
     
     const baseContext = HandlerContextBuilder.buildBaseContext(
       service, 
-      platform.getPlatformName(),
+      platform,  // Pass the platform object, not just its name
       handlerOptions  // Pass options to base context
     );
     const context = HandlerContextBuilder.extend(baseContext, contextExtensions);

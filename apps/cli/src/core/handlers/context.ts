@@ -10,11 +10,11 @@ export class HandlerContextBuilder {
   /**
    * Build base context that all handlers receive
    */
-  static buildBaseContext(
+  static buildBaseContext<TPlatform = any>(
     service: Service, 
-    platform: string,
+    platform: TPlatform,
     options: Record<string, any> = {}
-  ): BaseHandlerContext {
+  ): BaseHandlerContext<TPlatform> {
     return {
       service,
       platform,
@@ -25,9 +25,9 @@ export class HandlerContextBuilder {
   /**
    * Extend context with additional properties
    */
-  static extend<T extends BaseHandlerContext>(
-    base: BaseHandlerContext,
-    extensions: Omit<T, keyof BaseHandlerContext>
+  static extend<TPlatform = any, T extends BaseHandlerContext<TPlatform> = BaseHandlerContext<TPlatform>>(
+    base: BaseHandlerContext<TPlatform>,
+    extensions: Omit<T, keyof BaseHandlerContext<TPlatform>>
   ): T {
     return {
       ...base,

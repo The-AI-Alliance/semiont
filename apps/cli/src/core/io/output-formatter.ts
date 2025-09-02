@@ -101,6 +101,9 @@ export class OutputFormatter {
 
     // Command results
     for (const result of results.results) {
+      // Get status from extensions for unified CommandResult
+      const status = result.extensions?.status || result.status || 'unknown';
+      
       // Determine appropriate status indicator and color
       let statusIndicator = '';
       let statusColor = '';
@@ -108,19 +111,19 @@ export class OutputFormatter {
       if (!result.success) {
         statusIndicator = '[FAIL]';
         statusColor = c.red;
-      } else if (result.status === 'running' || result.status === 'healthy') {
+      } else if (status === 'running' || status === 'healthy') {
         statusIndicator = '[OK]';
         statusColor = c.green;
-      } else if (result.status === 'stopped') {
+      } else if (status === 'stopped') {
         statusIndicator = '[--]';
         statusColor = c.yellow;
-      } else if (result.status === 'error') {
+      } else if (status === 'error') {
         statusIndicator = '[ERR]';
         statusColor = c.red;
-      } else if (result.status === 'unknown') {
+      } else if (status === 'unknown') {
         statusIndicator = '[??]';
         statusColor = c.dim;
-      } else if (result.status === 'degraded') {
+      } else if (status === 'degraded') {
         statusIndicator = '[WARN]';
         statusColor = c.yellow;
       } else {
@@ -128,32 +131,69 @@ export class OutputFormatter {
         statusColor = c.dim;
       }
       
-      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${result.entity}${c.reset} (${result.platform}): ${statusColor}${result.status}${c.reset}\n`;
+      output += `${statusColor}${statusIndicator}${c.reset} ${c.bright}${result.entity}${c.reset} (${result.platform}): ${statusColor}${status}${c.reset}\n`;
       
       // Show endpoint if available (for start results)
-      if ('endpoint' in result && result.endpoint && !options.quiet) {
-        output += `   ${c.dim}endpoint: ${result.endpoint}${c.reset}\n`;
+      const endpoint = result.extensions?.endpoint || (result as any).endpoint;
+      if (endpoint && !options.quiet) {
+        output += `   ${c.dim}endpoint: ${endpoint}${c.reset}\n`;
       }
       
       // Show revision information for update results
-      if ('previousVersion' in result && 'newVersion' in result && !options.quiet) {
-        if (result.previousVersion && result.newVersion) {
-          output += `   ${c.dim}revision: ${result.previousVersion} → ${result.newVersion}${c.reset}\n`;
-        } else if (result.newVersion) {
-          output += `   ${c.dim}revision: ${result.newVersion}${c.reset}\n`;
+      const previousVersion = result.extensions?.previousVersion || (result as any).previousVersion;
+      const newVersion = result.extensions?.newVersion || (result as any).newVersion;
+      if (previousVersion && newVersion && !options.quiet) {
+        if (previousVersion && newVersion) {
+          output += `   ${c.dim}revision: ${previousVersion} → ${newVersion}${c.reset}\n`;
+        } else if (newVersion) {
+          output += `   ${c.dim}revision: ${newVersion}${c.reset}\n`;
         }
       }
       
       // Show resource ID and console URL
-      if (options.verbose && result.resourceId) {
-        const resourceInfo = this.formatResourceId(result.resourceId);
+      const resourceId = result.extensions?.resources || (result as any).resourceId;
+      if (options.verbose && resourceId) {
+        const resourceInfo = this.formatResourceId(resourceId);
         if (resourceInfo) {
           output += `   ${c.dim}resource: ${resourceInfo}${c.reset}\n`;
         }
         
         // Show AWS console URL if available
-        if (result.resourceId.aws?.consoleUrl) {
-          output += `   ${c.cyan}console: ${result.resourceId.aws.consoleUrl}${c.reset}\n`;
+        if (resourceId.aws?.consoleUrl) {
+          output += `   ${c.cyan}console: ${resourceId.aws.consoleUrl}${c.reset}\n`;
+        }
+      }
+      
+      // Show health information (for check results)
+      const health = result.extensions?.health;
+      if (health && !options.quiet) {
+        const healthStatus = health.healthy ? c.green + 'healthy' : c.red + 'unhealthy';
+        output += `   ${c.dim}health: ${healthStatus}${c.reset}\n`;
+        
+        // Show health details in verbose mode
+        if (options.verbose && health.details) {
+          for (const [key, value] of Object.entries(health.details)) {
+            if (value !== undefined && value !== null && key !== 'taskDefinition') {
+              output += `     ${c.dim}${key}: ${this.formatValue(value)}${c.reset}\n`;
+            }
+          }
+        }
+      }
+      
+      // Show recent logs (for check results in verbose mode)
+      const logs = result.extensions?.logs;
+      if (logs && options.verbose) {
+        if (logs.errors && logs.errors.length > 0) {
+          output += `   ${c.red}Recent errors:${c.reset}\n`;
+          for (const error of logs.errors.slice(0, 3)) {
+            output += `     ${c.dim}${error}${c.reset}\n`;
+          }
+        }
+        if (logs.recent && logs.recent.length > 0 && !logs.errors?.length) {
+          output += `   ${c.cyan}Recent logs:${c.reset}\n`;
+          for (const log of logs.recent.slice(0, 3)) {
+            output += `     ${c.dim}${log}${c.reset}\n`;
+          }
         }
       }
       
@@ -225,20 +265,23 @@ export class OutputFormatter {
       const c = options.colors !== false ? this.colors : this.createNoColorMap();
       let statusText = '';
       
+      // Get status from extensions for unified CommandResult
+      const status = result.extensions?.status || (result as any).status || 'unknown';
+      
       if (!result.success) {
-        statusText = `${c.red}[FAIL]${c.reset} ${result.status}`;
-      } else if (result.status === 'running' || result.status === 'healthy') {
-        statusText = `${c.green}[OK]${c.reset} ${result.status}`;
-      } else if (result.status === 'stopped') {
-        statusText = `${c.yellow}[--]${c.reset} ${result.status}`;
-      } else if (result.status === 'error') {
-        statusText = `${c.red}[ERR]${c.reset} ${result.status}`;
-      } else if (result.status === 'unknown') {
-        statusText = `${c.dim}[??]${c.reset} ${result.status}`;
-      } else if (result.status === 'degraded') {
-        statusText = `${c.yellow}[WARN]${c.reset} ${result.status}`;
+        statusText = `${c.red}[FAIL]${c.reset} ${status}`;
+      } else if (status === 'running' || status === 'healthy') {
+        statusText = `${c.green}[OK]${c.reset} ${status}`;
+      } else if (status === 'stopped') {
+        statusText = `${c.yellow}[--]${c.reset} ${status}`;
+      } else if (status === 'error') {
+        statusText = `${c.red}[ERR]${c.reset} ${status}`;
+      } else if (status === 'unknown') {
+        statusText = `${c.dim}[??]${c.reset} ${status}`;
+      } else if (status === 'degraded') {
+        statusText = `${c.yellow}[WARN]${c.reset} ${status}`;
       } else {
-        statusText = `${c.dim}[--]${c.reset} ${result.status}`;
+        statusText = `${c.dim}[--]${c.reset} ${status}`;
       }
       
       const row: Record<string, any> = {
@@ -249,8 +292,9 @@ export class OutputFormatter {
 
       // Add endpoint if available
       if (hasEndpoints) {
-        if ('endpoint' in result && result.endpoint) {
-          row.Endpoint = result.endpoint;
+        const endpoint = result.extensions?.endpoint || (result as any).endpoint;
+        if (endpoint) {
+          row.Endpoint = endpoint;
         } else {
           row.Endpoint = '-';
         }

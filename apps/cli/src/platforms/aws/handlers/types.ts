@@ -1,59 +1,52 @@
 import { 
-  BaseHandlerContext,
-  HandlerResult,
-  CheckHandlerResult as CoreCheckHandlerResult,
-  StartHandlerResult as CoreStartHandlerResult,
-  HandlerDescriptor as CoreHandlerDescriptor 
+  CheckHandlerContext as CoreCheckHandlerContext,
+  StartHandlerContext as CoreStartHandlerContext,
+  ProvisionHandlerContext as CoreProvisionHandlerContext,
+  PublishHandlerContext as CorePublishHandlerContext,
+  UpdateHandlerContext as CoreUpdateHandlerContext,
+  CheckHandlerResult,
+  StartHandlerResult,
+  ProvisionHandlerResult,
+  PublishHandlerResult,
+  UpdateHandlerResult,
+  CheckHandler as CoreCheckHandler,
+  StartHandler as CoreStartHandler,
+  ProvisionHandler as CoreProvisionHandler,
+  PublishHandler as CorePublishHandler,
+  UpdateHandler as CoreUpdateHandler,
+  HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
 import type { AWSPlatformStrategy } from '../platform.js';
-import { PlatformResources } from '../../platform-resources.js';
 
 /**
- * Context provided to all AWS check handlers
+ * AWS-specific check handler context
  */
-export interface CheckHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+export interface AWSCheckHandlerContext extends CoreCheckHandlerContext<AWSPlatformStrategy> {
   cfnDiscoveredResources: any;
+  region: string;
+  accountId: string;
+  resourceName: string;
+  awsConfig?: {
+    region: string;
+    accountId: string;
+    dataStack?: string;
+    appStack?: string;
+  };
 }
 
 /**
- * Context provided to all AWS start handlers
+ * AWS-specific start handler context
  */
-export interface StartHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+export interface AWSStartHandlerContext extends CoreStartHandlerContext<AWSPlatformStrategy> {
   cfnDiscoveredResources?: any;
   accountId: string;
   region: string;
 }
 
 /**
- * Result returned by check handlers
- * Extends the core CheckHandlerResult
+ * AWS-specific provision handler context
  */
-export interface CheckHandlerResult extends CoreCheckHandlerResult {
-  // AWS-specific additions can go here if needed
-}
-
-/**
- * Result returned by start handlers
- * Extends the core StartHandlerResult
- */
-export interface StartHandlerResult extends CoreStartHandlerResult {
-  // AWS-specific additions can go here if needed
-}
-
-/**
- * Function signature for check handlers
- */
-export type CheckHandler = (context: CheckHandlerContext) => Promise<CheckHandlerResult>;
-
-/**
- * Function signature for start handlers
- */
-export type StartHandler = (context: StartHandlerContext) => Promise<StartHandlerResult>;
-
-/**
- * Context provided to AWS provision handlers
- */
-export interface ProvisionHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+export interface AWSProvisionHandlerContext extends CoreProvisionHandlerContext<AWSPlatformStrategy> {
   awsConfig: {
     region: string;
     accountId: string;
@@ -63,23 +56,9 @@ export interface ProvisionHandlerContext extends BaseHandlerContext<AWSPlatformS
 }
 
 /**
- * Result returned by provision handlers
+ * AWS-specific publish handler context
  */
-export interface ProvisionHandlerResult extends HandlerResult {
-  dependencies?: string[];
-  resources?: PlatformResources;
-  metadata?: Record<string, any>;
-}
-
-/**
- * Function signature for provision handlers
- */
-export type ProvisionHandler = (context: ProvisionHandlerContext) => Promise<ProvisionHandlerResult>;
-
-/**
- * Context provided to AWS publish handlers
- */
-export interface PublishHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+export interface AWSPublishHandlerContext extends CorePublishHandlerContext<AWSPlatformStrategy> {
   awsConfig: {
     region: string;
     accountId: string;
@@ -90,31 +69,9 @@ export interface PublishHandlerContext extends BaseHandlerContext<AWSPlatformStr
 }
 
 /**
- * Result returned by publish handlers
+ * AWS-specific update handler context
  */
-export interface PublishHandlerResult extends HandlerResult {
-  artifacts?: Record<string, any>;
-  rollback?: {
-    supported: boolean;
-    command?: string;
-  };
-  registry?: {
-    type: string;
-    uri: string;
-    tags: string[];
-  };
-  metadata?: Record<string, any>;
-}
-
-/**
- * Function signature for publish handlers
- */
-export type PublishHandler = (context: PublishHandlerContext) => Promise<PublishHandlerResult>;
-
-/**
- * Context provided to AWS update handlers
- */
-export interface UpdateHandlerContext extends BaseHandlerContext<AWSPlatformStrategy> {
+export interface AWSUpdateHandlerContext extends CoreUpdateHandlerContext<AWSPlatformStrategy> {
   cfnDiscoveredResources: any;
   region: string;
   accountId: string;
@@ -122,25 +79,54 @@ export interface UpdateHandlerContext extends BaseHandlerContext<AWSPlatformStra
 }
 
 /**
- * Result returned by update handlers
+ * Function signature for AWS check handlers
  */
-export interface UpdateHandlerResult extends HandlerResult {
-  previousVersion?: string;
-  newVersion?: string;
-  strategy?: 'rolling' | 'restart' | 'recreate' | 'blue-green' | 'none';
-  downtime?: number;
-  metadata?: Record<string, any>;
-}
+export type CheckHandler = CoreCheckHandler<AWSPlatformStrategy, AWSCheckHandlerContext>;
 
 /**
- * Function signature for update handlers
+ * Function signature for AWS start handlers
  */
-export type UpdateHandler = (context: UpdateHandlerContext) => Promise<UpdateHandlerResult>;
+export type StartHandler = CoreStartHandler<AWSPlatformStrategy, AWSStartHandlerContext>;
+
+/**
+ * Function signature for AWS provision handlers
+ */
+export type ProvisionHandler = CoreProvisionHandler<AWSPlatformStrategy, AWSProvisionHandlerContext>;
+
+/**
+ * Function signature for AWS publish handlers
+ */
+export type PublishHandler = CorePublishHandler<AWSPlatformStrategy, AWSPublishHandlerContext>;
+
+/**
+ * Function signature for AWS update handlers
+ */
+export type UpdateHandler = CoreUpdateHandler<AWSPlatformStrategy, AWSUpdateHandlerContext>;
+
+/**
+ * Re-export result types for convenience
+ */
+export type { 
+  CheckHandlerResult,
+  StartHandlerResult,
+  ProvisionHandlerResult,
+  PublishHandlerResult,
+  UpdateHandlerResult
+};
 
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<AWSPlatformStrategy> | CoreStartHandlerContext<AWSPlatformStrategy> | CoreProvisionHandlerContext<AWSPlatformStrategy> | CorePublishHandlerContext<AWSPlatformStrategy> | CoreUpdateHandlerContext<AWSPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | PublishHandlerResult | UpdateHandlerResult> = CoreHandlerDescriptor<AWSPlatformStrategy, TContext, TResult>;
+
+/**
+ * Backward compatibility aliases for context types
+ */
+export type CheckHandlerContext = AWSCheckHandlerContext;
+export type StartHandlerContext = AWSStartHandlerContext;
+export type ProvisionHandlerContext = AWSProvisionHandlerContext;
+export type PublishHandlerContext = AWSPublishHandlerContext;
+export type UpdateHandlerContext = AWSUpdateHandlerContext;
 
 /**
  * Registry of check handlers by service type

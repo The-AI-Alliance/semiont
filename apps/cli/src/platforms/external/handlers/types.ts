@@ -1,53 +1,53 @@
 import { 
-  BaseHandlerContext,
-  HandlerResult,
-  CheckHandlerResult as CoreCheckHandlerResult,
-  StartHandlerResult as CoreStartHandlerResult,
-  HandlerDescriptor as CoreHandlerDescriptor 
+  CheckHandlerContext as CoreCheckHandlerContext,
+  StartHandlerContext as CoreStartHandlerContext,
+  CheckHandlerResult,
+  StartHandlerResult,
+  CheckHandler as CoreCheckHandler,
+  StartHandler as CoreStartHandler,
+  HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
 import type { ExternalPlatformStrategy } from '../platform.js';
 
 /**
- * Context provided to all External check handlers
+ * External-specific check handler context
  */
-export interface CheckHandlerContext extends BaseHandlerContext<ExternalPlatformStrategy> {
+export interface ExternalCheckHandlerContext extends CoreCheckHandlerContext<ExternalPlatformStrategy> {
   endpoint?: string;
 }
 
 /**
- * Context provided to all External start handlers
+ * External-specific start handler context
  */
-export interface StartHandlerContext extends BaseHandlerContext<ExternalPlatformStrategy> {
+export interface ExternalStartHandlerContext extends CoreStartHandlerContext<ExternalPlatformStrategy> {
   endpoint?: string;
 }
 
 /**
- * Result returned by check handlers
- * Extends the core CheckHandlerResult
+ * Function signature for External check handlers
  */
-export interface CheckHandlerResult extends CoreCheckHandlerResult {
-  // External-specific additions can go here if needed
-}
+export type CheckHandler = CoreCheckHandler<ExternalPlatformStrategy, ExternalCheckHandlerContext>;
 
 /**
- * Result returned by start handlers
- * Extends the core StartHandlerResult
+ * Function signature for External start handlers
  */
-export interface StartHandlerResult extends CoreStartHandlerResult {
-  // External-specific additions can go here if needed
-}
+export type StartHandler = CoreStartHandler<ExternalPlatformStrategy, ExternalStartHandlerContext>;
 
 /**
- * Function signature for check handlers
+ * Re-export result types for convenience
  */
-export type CheckHandler = (context: CheckHandlerContext) => Promise<CheckHandlerResult>;
+export type { 
+  CheckHandlerResult,
+  StartHandlerResult
+};
 
 /**
- * Function signature for start handlers
+ * Backward compatibility aliases for context types
  */
-export type StartHandler = (context: StartHandlerContext) => Promise<StartHandlerResult>;
+export type CheckHandlerContext = ExternalCheckHandlerContext;
+export type StartHandlerContext = ExternalStartHandlerContext;
 
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ExternalPlatformStrategy> | CoreStartHandlerContext<ExternalPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult> = CoreHandlerDescriptor<ExternalPlatformStrategy, TContext, TResult>;

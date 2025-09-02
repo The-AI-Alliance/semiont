@@ -1,130 +1,108 @@
 import { 
-  BaseHandlerContext,
-  HandlerResult,
-  CheckHandlerResult as CoreCheckHandlerResult,
-  StartHandlerResult as CoreStartHandlerResult,
-  HandlerDescriptor as CoreHandlerDescriptor 
+  CheckHandlerContext as CoreCheckHandlerContext,
+  StartHandlerContext as CoreStartHandlerContext,
+  ProvisionHandlerContext as CoreProvisionHandlerContext,
+  PublishHandlerContext as CorePublishHandlerContext,
+  UpdateHandlerContext as CoreUpdateHandlerContext,
+  CheckHandlerResult,
+  StartHandlerResult,
+  ProvisionHandlerResult,
+  PublishHandlerResult,
+  UpdateHandlerResult,
+  CheckHandler as CoreCheckHandler,
+  StartHandler as CoreStartHandler,
+  ProvisionHandler as CoreProvisionHandler,
+  PublishHandler as CorePublishHandler,
+  UpdateHandler as CoreUpdateHandler,
+  HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
 import type { ContainerPlatformStrategy } from '../platform.js';
 
 /**
- * Context provided to all Container check handlers
+ * Container-specific check handler context
  */
-export interface CheckHandlerContext extends BaseHandlerContext<ContainerPlatformStrategy> {
+export interface ContainerCheckHandlerContext extends CoreCheckHandlerContext<ContainerPlatformStrategy> {
   runtime: 'docker' | 'podman';
   containerName: string;
 }
 
 /**
- * Context provided to all Container start handlers
+ * Container-specific start handler context
  */
-export interface StartHandlerContext extends BaseHandlerContext<ContainerPlatformStrategy> {
+export interface ContainerStartHandlerContext extends CoreStartHandlerContext<ContainerPlatformStrategy> {
   runtime: 'docker' | 'podman';
   containerName: string;
 }
 
 /**
- * Result returned by check handlers
- * Extends the core CheckHandlerResult
+ * Container-specific provision handler context
  */
-export interface CheckHandlerResult extends CoreCheckHandlerResult {
-  // Container-specific additions can go here if needed
-}
-
-/**
- * Result returned by start handlers
- * Extends the core StartHandlerResult
- */
-export interface StartHandlerResult extends CoreStartHandlerResult {
-  // Container-specific additions can go here if needed
-}
-
-/**
- * Function signature for check handlers
- */
-export type CheckHandler = (context: CheckHandlerContext) => Promise<CheckHandlerResult>;
-
-/**
- * Function signature for start handlers
- */
-export type StartHandler = (context: StartHandlerContext) => Promise<StartHandlerResult>;
-
-/**
- * Context provided to Container provision handlers
- */
-export interface ProvisionHandlerContext extends BaseHandlerContext<ContainerPlatformStrategy> {
+export interface ContainerProvisionHandlerContext extends CoreProvisionHandlerContext<ContainerPlatformStrategy> {
   runtime: 'docker' | 'podman';
 }
 
 /**
- * Result returned by provision handlers
+ * Container-specific publish handler context
  */
-export interface ProvisionHandlerResult extends HandlerResult {
-  dependencies?: string[];
-  resources?: any;
-  metadata?: Record<string, any>;
-}
-
-/**
- * Function signature for provision handlers
- */
-export type ProvisionHandler = (context: ProvisionHandlerContext) => Promise<ProvisionHandlerResult>;
-
-/**
- * Context provided to Container publish handlers
- */
-export interface PublishHandlerContext extends BaseHandlerContext<ContainerPlatformStrategy> {
+export interface ContainerPublishHandlerContext extends CorePublishHandlerContext<ContainerPlatformStrategy> {
   runtime: 'docker' | 'podman';
   containerName: string;
 }
 
 /**
- * Result returned by publish handlers
+ * Container-specific update handler context
  */
-export interface PublishHandlerResult extends HandlerResult {
-  artifacts?: Record<string, any>;
-  rollback?: {
-    supported: boolean;
-    command?: string;
-  };
-  registry?: {
-    type: string;
-    uri: string;
-    tags: string[];
-  };
-  metadata?: Record<string, any>;
-}
-
-/**
- * Function signature for publish handlers
- */
-export type PublishHandler = (context: PublishHandlerContext) => Promise<PublishHandlerResult>;
-
-/**
- * Context provided to Container update handlers
- */
-export interface UpdateHandlerContext extends BaseHandlerContext<ContainerPlatformStrategy> {
+export interface ContainerUpdateHandlerContext extends CoreUpdateHandlerContext<ContainerPlatformStrategy> {
   runtime: 'docker' | 'podman';
   containerName: string;
 }
 
 /**
- * Result returned by update handlers
+ * Function signature for Container check handlers
  */
-export interface UpdateHandlerResult extends HandlerResult {
-  previousVersion?: string;
-  newVersion?: string;
-  strategy?: 'rolling' | 'restart' | 'recreate' | 'blue-green' | 'none';
-  downtime?: number;
-  metadata?: Record<string, any>;
-}
+export type CheckHandler = CoreCheckHandler<ContainerPlatformStrategy, ContainerCheckHandlerContext>;
 
 /**
- * Function signature for update handlers
+ * Function signature for Container start handlers
  */
-export type UpdateHandler = (context: UpdateHandlerContext) => Promise<UpdateHandlerResult>;
+export type StartHandler = CoreStartHandler<ContainerPlatformStrategy, ContainerStartHandlerContext>;
+
+/**
+ * Function signature for Container provision handlers
+ */
+export type ProvisionHandler = CoreProvisionHandler<ContainerPlatformStrategy, ContainerProvisionHandlerContext>;
+
+/**
+ * Function signature for Container publish handlers
+ */
+export type PublishHandler = CorePublishHandler<ContainerPlatformStrategy, ContainerPublishHandlerContext>;
+
+/**
+ * Function signature for Container update handlers
+ */
+export type UpdateHandler = CoreUpdateHandler<ContainerPlatformStrategy, ContainerUpdateHandlerContext>;
+
+/**
+ * Re-export result types for convenience
+ */
+export type { 
+  CheckHandlerResult,
+  StartHandlerResult,
+  ProvisionHandlerResult,
+  PublishHandlerResult,
+  UpdateHandlerResult
+};
+
+/**
+ * Backward compatibility aliases for context types
+ */
+export type CheckHandlerContext = ContainerCheckHandlerContext;
+export type StartHandlerContext = ContainerStartHandlerContext;
+export type ProvisionHandlerContext = ContainerProvisionHandlerContext;
+export type PublishHandlerContext = ContainerPublishHandlerContext;
+export type UpdateHandlerContext = ContainerUpdateHandlerContext;
 
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult> = CoreHandlerDescriptor<TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ContainerPlatformStrategy> | CoreStartHandlerContext<ContainerPlatformStrategy> | CoreProvisionHandlerContext<ContainerPlatformStrategy> | CorePublishHandlerContext<ContainerPlatformStrategy> | CoreUpdateHandlerContext<ContainerPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | PublishHandlerResult | UpdateHandlerResult> = CoreHandlerDescriptor<ContainerPlatformStrategy, TContext, TResult>;

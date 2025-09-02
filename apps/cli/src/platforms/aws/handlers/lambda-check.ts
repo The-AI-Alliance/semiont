@@ -3,9 +3,7 @@ import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './ty
 import { createPlatformResources } from '../../platform-resources.js';
 
 const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service } = context;
-  const { region } = platform.getAWSConfig(service);
-  const resourceName = platform.getResourceName(service);
+  const { service, region, resourceName } = context;
   
   // Lambda doesn't use cfnDiscoveredResources, derive name directly
   const functionName = `${resourceName}-function`;

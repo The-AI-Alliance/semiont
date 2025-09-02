@@ -2,22 +2,20 @@ import { execSync } from 'child_process';
 import { DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
-import { AWSPlatformStrategy } from '../platform.js';
 
 /**
  * Check ALB target health for ECS service
  */
-async function checkALBTargetHealthByArn(platform: AWSPlatformStrategy, targetGroupArn: string, region: string): Promise<string> {
+async function checkALBTargetHealthByArn(elb: any, targetGroupArn: string): Promise<string> {
   try {
-    const { elb } = platform.getAWSClients(region);
     const response = await elb.send(new DescribeTargetHealthCommand({
       TargetGroupArn: targetGroupArn
     }));
     
     // Check if any targets are healthy
-    const healthStates = response.TargetHealthDescriptions?.map(t => t.TargetHealth?.State) || [];
+    const healthStates = response.TargetHealthDescriptions?.map((t: any) => t.TargetHealth?.State) || [];
     
     if (healthStates.includes('healthy')) {
       return 'healthy';
@@ -37,18 +35,15 @@ async function checkALBTargetHealthByArn(platform: AWSPlatformStrategy, targetGr
 /**
  * ECS service check handler implementation
  */
-const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service, cfnDiscoveredResources } = context;
-  const { region } = platform.getAWSConfig(service);
+const ecsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
+  const { platform, service, cfnDiscoveredResources, region, accountId, resourceName } = context;
   const requirements = service.getRequirements();
-  const resourceName = platform.getResourceName(service);
-  const accountId = platform.getAccountId(service);
   
   const clusterName = cfnDiscoveredResources.clusterName || `semiont-${service.environment}`;
   const serviceName = cfnDiscoveredResources.serviceName || resourceName;
   
   try {
-    const { ecs } = platform.getAWSClients(region);
+    const { ecs, elb, logs: logsClient } = platform.getAWSClients(region);
     const response = await ecs.send(new DescribeServicesCommand({
       cluster: clusterName,
       services: [serviceName]
@@ -97,7 +92,7 @@ const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
         const targetGroupArn = ecsService.loadBalancers[0].targetGroupArn;
         albArn = targetGroupArn; // Store for console links
         if (targetGroupArn) {
-          targetHealth = await checkALBTargetHealthByArn(platform, targetGroupArn, region);
+          targetHealth = await checkALBTargetHealthByArn(elb, targetGroupArn);
         }
       }
       
@@ -162,7 +157,6 @@ const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
       let logs;
       if (status === 'running') {
         try {
-          const { logs: logsClient } = platform.getAWSClients(region);
           
           // ECS-specific log group patterns
           const logGroupPatterns = [
@@ -247,7 +241,7 @@ const ecsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
  * ECS check handler descriptor
  * Explicitly declares this handler is for 'check' command on 'ecs-fargate' service type
  */
-export const ecsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const ecsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'ecs-fargate',

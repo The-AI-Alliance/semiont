@@ -165,12 +165,15 @@ const provisionGenericService = async (context: ProvisionHandlerContext): Promis
   return {
     success: true,
     dependencies,
-    metadata,
+    metadata: {
+      ...metadata,
+      runtime  // Include runtime in metadata instead
+    },
     resources: {
       platform: 'container',
       data: {
-        runtime,
-        network: metadata.network,
+        containerId: '', // Will be populated when container is started
+        networkName: metadata.network,
         volumes: metadata.volumes
       }
     }
