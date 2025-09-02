@@ -4,11 +4,8 @@
  * Provides real-time data collection using the Platform Strategy pattern
  */
 
-import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../service-discovery.js';
-import { CheckResult } from '../commands/check.js';
-import { ServiceConfig } from '../cli-config.js';
-import { type ServicePlatformInfo, Platform } from '../platform-resolver.js';
+import { CheckResult, check } from '../commands/check.js';
+import { type ServicePlatformInfo } from '../platform-resolver.js';
 import { Config } from '../cli-config.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
 
@@ -51,29 +48,48 @@ export class DashboardDataSource {
     // Use the new service implementations to check status
     for (const deployment of this.serviceDeployments) {
       try {
-        const service = ServiceFactory.create(
-          deployment.name as ServiceName,
-          this.environment as Platform,
-          this.config,
-          { platform: this.environment as Platform } as ServiceConfig
+        // Use UnifiedExecutor through the check command
+        const checkResults = await check(
+          [deployment],  // Pass single deployment as array
+          {
+            environment: this.environment,
+            service: deployment.name,
+            all: false,
+            deep: true,
+            wait: false,
+            verbose: false,
+            quiet: true,
+            dryRun: false,
+            output: 'json',
+            forceDiscovery: false
+          }
         );
-
-        // Get platform and delegate check to it
-        const { PlatformFactory } = await import('../../platforms/index.js');
-        const platform = PlatformFactory.getPlatform(deployment.platform);
-        const checkResult: CheckResult = await platform.check(service);
+        
+        // Extract the first (and only) result from the aggregated results
+        const checkResult = checkResults.results?.[0];
+        
+        if (!checkResult) {
+          // No result returned - service check failed
+          services.push({
+            name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
+            status: 'unknown',
+            details: 'Check failed - no result',
+            lastUpdated: new Date()
+          });
+          continue;
+        }
         
         // Convert to dashboard format with all new fields
         const serviceStatus: ServiceStatus = {
           name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
-          status: this.mapStatus(checkResult.status),
+          status: this.mapStatus(checkResult.extensions?.status || 'unknown'),
           details: this.getDetails(checkResult),
           lastUpdated: new Date()
         };
         
         // Add ECS-specific details from health
-        if (checkResult.health?.details) {
-          const details = checkResult.health.details;
+        if (checkResult.extensions?.health?.details) {
+          const details = checkResult.extensions.health.details;
           serviceStatus.revision = details.revision;
           serviceStatus.desiredCount = details.desiredCount;
           serviceStatus.runningCount = details.runningCount;
@@ -119,8 +135,8 @@ export class DashboardDataSource {
         }
         
         // Add from resources if available
-        if (checkResult.resources && isPlatformResources(checkResult.resources, 'aws')) {
-          const awsData = checkResult.resources.data;
+        if (checkResult.extensions?.resources && isPlatformResources(checkResult.extensions.resources, 'aws')) {
+          const awsData = checkResult.extensions.resources.data;
           serviceStatus.albArn = awsData.albArn;
           // Image URI would come from task definition - not available yet
         }
@@ -128,8 +144,8 @@ export class DashboardDataSource {
         services.push(serviceStatus);
 
         // Add logs if available
-        if (checkResult.logs?.recent) {
-          checkResult.logs.recent.forEach(log => {
+        if (checkResult.extensions?.logs?.recent) {
+          checkResult.extensions.logs.recent.forEach(log => {
             logs.push({
               service: deployment.name,
               message: log,
@@ -143,8 +159,8 @@ export class DashboardDataSource {
         // Note: cpu, memory, and uptime are not typically stored in resources
         // They would come from runtime monitoring. For now, we'll skip these
         // unless they're added to the health check results.
-        if (checkResult.health?.details) {
-          const details = checkResult.health.details;
+        if (checkResult.extensions?.health?.details) {
+          const details = checkResult.extensions.health.details;
           if (details.cpu !== undefined) {
             metrics.push({
               name: `${deployment.name} CPU`,
@@ -188,11 +204,10 @@ export class DashboardDataSource {
     };
   }
 
-  private mapStatus(status: CheckResult['status']): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {
+  private mapStatus(status?: 'running' | 'stopped' | 'unknown'): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {
     switch (status) {
       case 'running': return 'healthy';
       case 'stopped': return 'unhealthy';
-      case 'unhealthy': return 'unhealthy';
       default: return 'unknown';
     }
   }
@@ -200,42 +215,42 @@ export class DashboardDataSource {
   private getDetails(checkResult: CheckResult): string {
     const parts = [];
     
-    if (checkResult.health?.healthy) {
+    if (checkResult.extensions?.health?.healthy) {
       parts.push('Healthy');
     }
     
     // Extract resource info based on platform
-    if (checkResult.resources) {
-      if (isPlatformResources(checkResult.resources, 'posix')) {
-        if (checkResult.resources.data.pid) {
-          parts.push(`PID: ${checkResult.resources.data.pid}`);
+    if (checkResult.extensions?.resources) {
+      if (isPlatformResources(checkResult.extensions.resources, 'posix')) {
+        if (checkResult.extensions.resources.data.pid) {
+          parts.push(`PID: ${checkResult.extensions.resources.data.pid}`);
         }
-        if (checkResult.resources.data.port) {
-          parts.push(`Port: ${checkResult.resources.data.port}`);
+        if (checkResult.extensions.resources.data.port) {
+          parts.push(`Port: ${checkResult.extensions.resources.data.port}`);
         }
-      } else if (isPlatformResources(checkResult.resources, 'container')) {
-        if (checkResult.resources.data.containerId) {
-          parts.push(`Container: ${checkResult.resources.data.containerId.slice(0, 12)}`);
+      } else if (isPlatformResources(checkResult.extensions.resources, 'container')) {
+        if (checkResult.extensions.resources.data.containerId) {
+          parts.push(`Container: ${checkResult.extensions.resources.data.containerId.slice(0, 12)}`);
         }
         // Container ports are stored differently
-        const ports = checkResult.resources.data.ports;
+        const ports = checkResult.extensions.resources.data.ports;
         if (ports) {
           const firstPort = Object.keys(ports)[0];
           if (firstPort) {
             parts.push(`Port: ${firstPort}`);
           }
         }
-      } else if (isPlatformResources(checkResult.resources, 'aws')) {
-        if (checkResult.resources.data.instanceId) {
-          parts.push(`Instance: ${checkResult.resources.data.instanceId}`);
-        } else if (checkResult.resources.data.taskArn) {
-          const taskId = checkResult.resources.data.taskArn.split('/').pop()?.slice(0, 12);
+      } else if (isPlatformResources(checkResult.extensions.resources, 'aws')) {
+        if (checkResult.extensions.resources.data.instanceId) {
+          parts.push(`Instance: ${checkResult.extensions.resources.data.instanceId}`);
+        } else if (checkResult.extensions.resources.data.taskArn) {
+          const taskId = checkResult.extensions.resources.data.taskArn.split('/').pop()?.slice(0, 12);
           parts.push(`Task: ${taskId}`);
         }
       }
     }
     
-    return parts.join(', ') || checkResult.status;
+    return parts.join(', ') || checkResult.extensions?.status || 'unknown';
   }
 
   private detectLogLevel(log: string): 'info' | 'warn' | 'error' {
