@@ -125,6 +125,39 @@ export const publishCommand = new CommandBuilder()
     'semiont publish --service backend --no-cache',
     'semiont publish --all --registry my-registry.com'
   )
+  .args({
+    args: {
+      '--service': {
+        type: 'string',
+        description: 'Service to publish (or "all" for all services)',
+      },
+      '--all': {
+        type: 'boolean',
+        description: 'Publish all services',
+        default: false,
+      },
+      '--tag': {
+        type: 'string',
+        description: 'Custom version tag',
+      },
+      '--registry': {
+        type: 'string',
+        description: 'Override default registry',
+      },
+      '--semiont-repo': {
+        type: 'string',
+        description: 'Path to Semiont repository for builds',
+      },
+      '--no-cache': {
+        type: 'boolean',
+        description: 'Skip Docker cache',
+        default: false,
+      },
+    },
+    aliases: {
+      '-s': '--service',
+    },
+  })
   .schema(PublishOptionsSchema)
   .handler(publish)
   .build();

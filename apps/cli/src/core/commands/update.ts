@@ -133,6 +133,50 @@ export const updateCommand = new CommandBuilder()
     'semiont update --service backend --wait --timeout 300',
     'semiont update --all --skip-tests'
   )
+  .args({
+    args: {
+      '--service': {
+        type: 'string',
+        description: 'Service to update (or "all" for all services)',
+      },
+      '--all': {
+        type: 'boolean',
+        description: 'Update all services',
+        default: false,
+      },
+      '--force': {
+        type: 'boolean',
+        description: 'Force update without prompts',
+        default: false,
+      },
+      '--wait': {
+        type: 'boolean',
+        description: 'Wait for update to complete',
+        default: false,
+      },
+      '--timeout': {
+        type: 'number',
+        description: 'Timeout in seconds when using --wait',
+      },
+      '--skip-tests': {
+        type: 'boolean',
+        description: 'Skip running tests during update',
+        default: false,
+      },
+      '--skip-build': {
+        type: 'boolean',
+        description: 'Skip building during update',
+        default: false,
+      },
+      '--grace-period': {
+        type: 'number',
+        description: 'Grace period in seconds for graceful shutdown',
+      },
+    },
+    aliases: {
+      '-s': '--service',
+    },
+  })
   .schema(UpdateOptionsSchema)
   .handler(update)
   .build();

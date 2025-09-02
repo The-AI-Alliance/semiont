@@ -105,6 +105,22 @@ export const startCommand = new CommandBuilder()
     'semiont start --service backend --verbose',
     'semiont start --all'
   )
+  .args({
+    args: {
+      '--service': {
+        type: 'string',
+        description: 'Service to start (or "all" for all services)',
+      },
+      '--all': {
+        type: 'boolean',
+        description: 'Start all services',
+        default: false,
+      },
+    },
+    aliases: {
+      '-s': '--service',
+    },
+  })
   .schema(StartOptionsSchema)
   .handler(start)
   .build();
