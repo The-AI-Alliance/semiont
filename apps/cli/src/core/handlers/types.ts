@@ -1,5 +1,5 @@
 import { Service } from '../../services/types.js';
-import { CheckResult } from '../commands/check.js';
+import { CommandResult } from '../command-result.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 
 /**
@@ -28,11 +28,17 @@ export interface HandlerResult {
  * Check handler specific types
  */
 export interface CheckHandlerResult extends HandlerResult {
-  status: CheckResult['status'];
-  health?: CheckResult['health'];
+  status: 'running' | 'stopped' | 'unknown';
+  health?: {
+    healthy: boolean;
+    details: Record<string, any>;
+  };
   platformResources?: PlatformResources;
   metadata: Record<string, any>;
-  logs?: CheckResult['logs'];
+  logs?: {
+    recent: string[];
+    errors: string[];
+  };
 }
 
 /**
