@@ -23,10 +23,11 @@ describe('init command', () => {
     // Change to test directory
     process.chdir(testDir);
     
-    // Set the templates directory for tests to use the built templates
+    // Set the templates directory for tests to use the actual templates
     const testFilePath = fileURLToPath(import.meta.url);
     const testFileDir = path.dirname(testFilePath);
-    process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', '..', 'dist', 'templates');
+    // Go up from __tests__ to commands, to core, to src, to cli root, then to templates
+    process.env.SEMIONT_TEMPLATES_DIR = path.join(testFileDir, '..', '..', '..', '..', 'templates');
   });
 
   afterEach(() => {
@@ -227,12 +228,12 @@ describe('init command', () => {
       };
       await init(options);
       
-      // Check local environment config - uses container as default but services use process
+      // Check local environment config - uses container as default but services use posix
       const localConfig = JSON.parse(fs.readFileSync('environments/local.json', 'utf-8'));
       expect(localConfig.platform.default).toBe('container');
-      // But individual services use process for local development
-      expect(localConfig.services.backend.platform.type).toBe('process');
-      expect(localConfig.services.frontend.platform.type).toBe('process');
+      // But individual services use posix for local development
+      expect(localConfig.services.backend.platform.type).toBe('posix');
+      expect(localConfig.services.frontend.platform.type).toBe('posix');
       
       // Check staging environment config uses AWS
       const stagingConfig = JSON.parse(fs.readFileSync('environments/staging.json', 'utf-8'));

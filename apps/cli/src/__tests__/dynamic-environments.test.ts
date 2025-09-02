@@ -69,7 +69,7 @@ describe('Dynamic Environment Discovery', () => {
     
     // Import the modules after setting up the filesystem
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -122,7 +122,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -192,7 +192,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     // These would have been rejected by hardcoded validation
     expect(isValidEnvironment('sandbox')).toBe(true);

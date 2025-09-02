@@ -66,9 +66,17 @@ function getTemplatesDir(): string {
     return process.env.SEMIONT_TEMPLATES_DIR;
   }
   
-  // Production path: templates are at ../templates relative to the command
+  // Check if we're running from source (tests) or dist (production)
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  return path.join(__dirname, '..', 'templates');
+  
+  // If we're in src/core/commands, go up to find templates
+  if (__dirname.includes(path.sep + 'src' + path.sep)) {
+    // Running from source: go up 3 levels to project root, then to templates
+    return path.join(__dirname, '..', '..', '..', 'templates');
+  } else {
+    // Production path: templates are at ../templates relative to the command
+    return path.join(__dirname, '..', 'templates');
+  }
 }
 
 // Copy template file or directory
@@ -155,7 +163,7 @@ async function init(
           console.log(`    - ${env}.json`);
         });
         console.log(`  - cdk/`);
-        console.log(`    - infra-stack.ts`);
+        console.log(`    - data-stack.ts`);
         console.log(`    - app-stack.ts`);
       }
       
