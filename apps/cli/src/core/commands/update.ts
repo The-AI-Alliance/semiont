@@ -1,70 +1,20 @@
 /**
- * Update Command
+ * Update Command - Unified Executor Implementation
  * 
- * Updates running services with new code, configuration, or dependencies.
- * This command handles rolling updates, blue-green deployments, and zero-downtime
- * updates across different platforms.
- * 
- * Workflow:
- * 1. Pulls latest code or configuration changes
- * 2. Builds new artifacts if needed
- * 3. Validates new version before deployment
- * 4. Executes platform-specific update strategy
- * 5. Verifies service health after update
- * 6. Optionally rolls back on failure
- * 
- * Options:
- * - --all: Update all services
- * - --strategy: Update strategy (rolling, blue-green, recreate)
- * - --rollback: Automatically rollback on failure
- * - --wait: Wait for update to complete and verify health
- * - --force: Force update even if no changes detected
- * 
- * Platform Behavior:
- * - Process: Stops old process, starts new one with updated code
- * - Container: Pulls new image, recreates container with rolling update
- * - AWS: Updates ECS service, triggers CodeDeploy, updates Lambda
- * - External: Notifies about configuration changes
- * - Mock: Simulates update process for testing
+ * Updates running services with new versions or configurations
+ * using the UnifiedExecutor architecture.
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
-import { type ServicePlatformInfo } from '../platform-resolver.js';
-import { CommandResults } from '../command-results.js';
+import { ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResult, createCommandResult } from '../command-result.js';
+import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
+import { UnifiedExecutor } from '../unified-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
-
-// Import new service architecture
-import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../service-discovery.js';
-import { Platform } from '../platform-resolver.js';
-import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config } from '../cli-config.js';
-import { parseEnvironment } from '../environment-validator.js';
-
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
-
-// =====================================================================
-// RESULT TYPE DEFINITIONS
-// =====================================================================
-
-/**
- * Result of an update operation
- */
-export interface UpdateResult {
-  entity: ServiceName | string;
-  platform: Platform;
-  success: boolean;
-  updateTime: Date;
-  previousVersion?: string;
-  newVersion?: string;
-  strategy: 'restart' | 'rolling' | 'blue-green' | 'recreate' | 'none';
-  downtime?: number; // milliseconds
-  resources?: PlatformResources;
-  error?: string;
-  metadata?: Record<string, any>;
-}
+import { BaseOptionsSchema } from '../base-options-schema.js';
+import { PlatformStrategy } from '../platform-strategy.js';
+import { Service } from '../../services/types.js';
+import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -72,293 +22,125 @@ export interface UpdateResult {
 
 const UpdateOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
-  all: z.boolean().default(false),
-  force: z.boolean().optional().default(false),
-  wait: z.boolean().optional().default(false),
-  timeout: z.number().optional().default(300), // 5 minutes default
-  skipTests: z.boolean().optional().default(false),
-  skipBuild: z.boolean().optional().default(false),
-  gracePeriod: z.number().optional().default(30),
+  force: z.boolean().default(false),
+  wait: z.boolean().default(false),
+  timeout: z.number().optional(),
+  skipTests: z.boolean().default(false),
+  skipBuild: z.boolean().default(false),
+  gracePeriod: z.number().optional(),
 });
 
 type UpdateOptions = z.output<typeof UpdateOptionsSchema>;
 
 // =====================================================================
-// COMMAND HANDLER
+// COMMAND DESCRIPTOR
 // =====================================================================
 
-async function performUpdate(
-  service: any,
-  platform: any
-): Promise<UpdateResult> {
-  const serviceType = platform.determineServiceType(service);
-  const { HandlerRegistry } = await import('../handlers/registry.js');
-  const registry = HandlerRegistry.getInstance();
+const updateDescriptor: CommandDescriptor<UpdateOptions> = createCommandDescriptor({
+  name: 'update',
   
-  const descriptor = registry.getDescriptor(
-    platform.getPlatformName(),
-    `update-${serviceType}`
-  );
+  buildServiceConfig: (options, serviceInfo) => ({
+    ...serviceInfo.config,
+    platform: serviceInfo.platform,
+    environment: options.environment,
+    force: options.force,
+    wait: options.wait,
+    timeout: options.timeout,
+    skipTests: options.skipTests,
+    skipBuild: options.skipBuild,
+    gracePeriod: options.gracePeriod,
+  }),
   
-  if (!descriptor) {
-    // No handler found, return error result
-    return {
-      entity: service.name,
-      platform: platform.getPlatformName() as Platform,
-      success: false,
-      updateTime: new Date(),
-      strategy: 'none',
-      error: `No update handler registered for service type: ${serviceType}`,
-      metadata: {
-        serviceType
-      }
-    };
-  }
-
-  const { HandlerContextBuilder } = await import('../handlers/context.js');
-  
-  const contextExtensions = await platform.buildHandlerContextExtensions(
-    service, 
-    descriptor.requiresDiscovery || false
-  );
-  
-  const context = HandlerContextBuilder.extend(
-    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
-    contextExtensions
-  );
-  
-  const result = await descriptor.handler(context) as any; // UpdateHandlerResult
-  
-  return {
-    entity: service.name,
-    platform: platform.getPlatformName() as Platform,
-    success: result.success,
-    updateTime: new Date(),
-    previousVersion: result.previousVersion,
-    newVersion: result.newVersion,
-    strategy: result.strategy || 'none',
-    downtime: result.downtime,
-    resources: result.resources,
-    error: result.error,
-    metadata: {
-      ...result.metadata,
-      serviceType
-    }
-  };
-}
-
-async function updateServiceImpl(
-  serviceInfo: ServicePlatformInfo, 
-  config: Config,
-  options: UpdateOptions
-): Promise<UpdateResult> {
-  // Get the platform strategy
-  const { PlatformFactory } = await import('../../platforms/index.js');
-  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-  
-  // Create service instance to act as ServiceContext
-  const service = ServiceFactory.create(
-    serviceInfo.name as ServiceName,
-    serviceInfo.platform,
-    config,
-    { 
-      ...serviceInfo.config, 
-      platform: serviceInfo.platform,
-      force: options.force,
-      wait: options.wait,
-      timeout: options.timeout,
-      skipTests: options.skipTests,
-      skipBuild: options.skipBuild,
-      gracePeriod: options.gracePeriod
-    }
-  );
-  
-  // Use handler-based approach
-  return performUpdate(service, platform);
-}
-
-async function updateHandler(
-  services: ServicePlatformInfo[],
-  options: UpdateOptions
-): Promise<CommandResults<UpdateResult>> {
-  const serviceResults: UpdateResult[] = [];
-  
-  // Create config for services
-  const config: Config = {
-    projectRoot: PROJECT_ROOT,
-    environment: parseEnvironment(options.environment),
+  extractHandlerOptions: (options) => ({
+    force: options.force,
+    wait: options.wait,
+    timeout: options.timeout,
+    skipTests: options.skipTests,
+    skipBuild: options.skipBuild,
+    gracePeriod: options.gracePeriod,
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
-  };
+  }),
   
-  for (const serviceInfo of services) {
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+    // Type guard for update-specific results
+    const updateResult = handlerResult as any; // UpdateHandlerResult
     
-    try {
-      const result = await updateServiceImpl(serviceInfo, config, options);
-      
-      // Record result directly - no conversion needed!
-      serviceResults.push(result);
-      
-      // Display result
-      if (!options.quiet) {
-        if (result.success) {
-          const strategyEmojis: Record<string, string> = {
-            'restart': '🔄',
-            'recreate': '♻️',
-            'rolling': '🌊',
-            'blue-green': '🔵🟢',
-            'none': '⏸️'
-          };
-          const strategyEmoji = strategyEmojis[result.strategy || ''] || '❓';
-          
-          printSuccess(`${strategyEmoji} ${serviceInfo.name} updated (${result.strategy} strategy)`);
-          
-          // Show version info if available
-          if (result.previousVersion || result.newVersion) {
-            console.log(`   Version: ${result.previousVersion || '?'} → ${result.newVersion || 'latest'}`);
-          }
-          
-          // Show downtime if measured
-          if (result.downtime !== undefined) {
-            const seconds = (result.downtime / 1000).toFixed(1);
-            console.log(`   Downtime: ${seconds}s`);
-          }
-          
-          // Show metadata
-          if (result.metadata) {
-            if (result.metadata.message) {
-              console.log(`   ℹ️  ${result.metadata.message}`);
-            }
-            if (options.verbose) {
-              const { message, ...otherMetadata } = result.metadata;
-              if (Object.keys(otherMetadata).length > 0) {
-                console.log('   Metadata:', JSON.stringify(otherMetadata, null, 2));
-              }
-            }
-          }
-        } else {
-          printError(`❌ Failed to update ${serviceInfo.name}: ${result.error}`);
-        }
-      }
-      
-    } catch (error) {
-      serviceResults.push({
-        entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform,
-        success: false,
-        updateTime: new Date(),
-        strategy: 'none',
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
-      if (!options.quiet) {
-        printError(`Failed to update ${serviceInfo.name}: ${error}`);
-      }
-      
-      // Stop on first error unless --force is used
-      if (!options.force) {
-        if (!options.quiet) {
-          printError(`Stopping due to error. Use --force to continue despite errors.`);
-        }
-        break;
-      }
-    }
-  }
+    return createCommandResult({
+      entity: service.name,
+      platform: platform.getPlatformName() as any,
+      success: handlerResult.success,
+      error: handlerResult.error,
+      metadata: {
+        ...handlerResult.metadata,
+        serviceType,
+      },
+      extensions: {
+        previousVersion: updateResult.previousVersion,
+        newVersion: updateResult.newVersion,
+        strategy: updateResult.strategy || 'none',
+        downtime: updateResult.downtime,
+        resources: updateResult.resources,
+      },
+    });
+  },
   
-  // Summary for multiple services
-  if (!options.quiet && services.length > 1) {
-    console.log('\n📊 Update Summary:');
-    
-    const successful = serviceResults.filter((r: any) => r.data.success).length;
-    const failed = serviceResults.filter((r: any) => !r.data.success).length;
-    
-    // Count by strategy
-    const strategies = serviceResults.reduce((acc: any, r: any) => {
-      if (r.data.success && r.data.strategy) {
-        acc[r.data.strategy] = (acc[r.data.strategy] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    console.log(`   Successful: ${successful}`);
-    if (failed > 0) console.log(`   Failed: ${failed}`);
-    
-    if (Object.keys(strategies).length > 0) {
-      console.log('\n   Strategies used:');
-      Object.entries(strategies).forEach(([strategy, count]) => {
-        const emoji = {
-          'restart': '🔄',
-          'recreate': '♻️',
-          'rolling': '🌊',
-          'blue-green': '🔵🟢',
-          'none': '⏸️'
-        }[strategy] || '❓';
-        console.log(`     ${emoji} ${strategy}: ${count}`);
-      });
+  validateOptions: (options) => {
+    // Environment validation is handled by UnifiedExecutor
+    if (options.timeout && options.timeout < 0) {
+      throw new Error('Timeout must be a positive number');
     }
-    
-    // Calculate total downtime
-    const totalDowntime = serviceResults
-      .filter((r: any) => r.data.downtime !== undefined)
-      .reduce((sum: number, r: any) => sum + (r.data.downtime || 0), 0);
-    
-    if (totalDowntime > 0) {
-      const seconds = (totalDowntime / 1000).toFixed(1);
-      console.log(`\n   Total downtime: ${seconds}s`);
+    if (options.gracePeriod && options.gracePeriod < 0) {
+      throw new Error('Grace period must be a positive number');
     }
-    
-    if (successful === services.length) {
-      printSuccess('\n✨ All services updated successfully!');
-    } else if (failed > 0) {
-      printWarning(`\n⚠️  ${failed} service(s) failed to update.`);
-    }
-  }
+  },
   
-  if (options.dryRun && !options.quiet) {
-    printInfo('\n🔍 This was a dry run. No actual changes were made.');
-  }
-  
-  // Return results directly - no conversion needed!
-  const startTime = Date.now();
-  return {
-    command: 'update',
-    environment: options.environment!,  // Guaranteed by requiresEnvironment
-    timestamp: new Date(),
-    duration: Date.now() - startTime,
-    results: serviceResults,  // Rich types preserved!
-    summary: {
-      total: services.length,
-      succeeded: serviceResults.filter(r => r.success).length,
-      failed: serviceResults.filter(r => !r.success).length,
-      warnings: 0
-    },
-    executionContext: {
-      user: process.env.USER || 'unknown',
-      workingDirectory: process.cwd(),
-      dryRun: options.dryRun || false
-    }
-  } as CommandResults<UpdateResult>;
+  continueOnError: true,  // Continue updating all services even if one fails
+  supportsAll: true,
+});
+
+// =====================================================================
+// EXECUTOR INSTANCE
+// =====================================================================
+
+const updateExecutor = new UnifiedExecutor(updateDescriptor);
+
+// =====================================================================
+// COMMAND EXPORT
+// =====================================================================
+
+/**
+ * Main update command function
+ */
+export async function update(
+  serviceDeployments: ServicePlatformInfo[],
+  options: UpdateOptions
+) {
+  return updateExecutor.execute(serviceDeployments, options);
 }
 
 // =====================================================================
-// COMMAND DEFINITION
+// BACKWARD COMPATIBILITY EXPORTS
+// =====================================================================
+
+/**
+ * Type alias for backward compatibility with tests and existing code
+ */
+export type UpdateResult = CommandResult;
+
+// =====================================================================
+// COMMAND DEFINITION (for CLI)
 // =====================================================================
 
 export const updateCommand = new CommandBuilder()
-  .name('update-new')
-  .description('Update services to latest version using new service architecture')
+  .name('update')
+  .description('Update running services with new versions')
+  .examples(
+    'semiont update --service frontend --force',
+    'semiont update --service backend --wait --timeout 300',
+    'semiont update --all --skip-tests'
+  )
   .schema(UpdateOptionsSchema)
-  .requiresServices(true)
-  .requiresEnvironment(true)
-  .args(withBaseArgs({
-    '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    '--force': { type: 'boolean', description: 'Force update even if no changes detected', default: false },
-    '--wait': { type: 'boolean', description: 'Wait for deployment to complete', default: false },
-    '--timeout': { type: 'number', description: 'Timeout in seconds when using --wait', default: 300 },
-    '--skip-tests': { type: 'boolean', description: 'Skip running tests before update', default: false },
-    '--skip-build': { type: 'boolean', description: 'Skip building (use existing artifacts)', default: false },
-    '--grace-period': { type: 'number', description: 'Grace period in seconds for rolling updates', default: 30 },
-  }))
-  .handler(updateHandler)
+  .handler(update)
   .build();

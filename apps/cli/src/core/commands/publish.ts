@@ -1,95 +1,20 @@
 /**
- * Publish Command
+ * Publish Command - Unified Executor Implementation
  * 
- * Publishes service artifacts to registries or deployment targets.
- * This command handles building, packaging, and pushing service code
- * and configurations to production environments.
- * 
- * Workflow:
- * 1. Builds service artifacts (containers, packages, bundles)
- * 2. Runs pre-publish validation and tests
- * 3. Tags artifacts with version information
- * 4. Pushes to platform-specific registries
- * 5. Updates deployment manifests and configurations
- * 
- * Options:
- * - --all: Publish all services
- * - --tag: Version tag for the publication
- * - --registry: Target registry for artifacts
- * - --skip-tests: Skip test execution before publishing
- * - --force: Overwrite existing artifacts
- * 
- * Platform Behavior:
- * - Process: Creates deployment packages, updates scripts
- * - Container: Builds and pushes Docker images to registry
- * - AWS: Pushes to ECR, updates Lambda functions, CloudFormation
- * - External: Updates external service configurations
- * - Mock: Simulates publication process for testing
+ * Publishes services to their respective registries (Docker Hub, ECR, npm, etc.)
+ * using the UnifiedExecutor architecture.
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
-import { type ServicePlatformInfo } from '../platform-resolver.js';
-import { CommandResults } from '../command-results.js';
+import { ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResult, createCommandResult } from '../command-result.js';
+import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
+import { UnifiedExecutor } from '../unified-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
-
-// Import new service architecture
-import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../service-discovery.js';
-import { Platform } from '../platform-resolver.js';
-import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config, ServiceConfig } from '../cli-config.js';
-import { parseEnvironment } from '../environment-validator.js';
-
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
-
-// =====================================================================
-// RESULT TYPE DEFINITIONS
-// =====================================================================
-
-/**
- * Result of a publish operation
- */
-export interface PublishResult {
-  entity: ServiceName | string;
-  platform: Platform;
-  success: boolean;
-  publishTime: Date;
-  artifacts?: {
-    // Published artifacts
-    imageTag?: string;
-    imageUrl?: string;
-    packageName?: string;
-    packageVersion?: string;
-    bundleUrl?: string;
-    staticSiteUrl?: string;
-    // Registry/repository info
-    registry?: string;
-    repository?: string;
-    branch?: string;
-    commitSha?: string;
-  };
-  version?: {
-    previous?: string;
-    current?: string;
-    tag?: string;
-  };
-  destinations?: {
-    registry?: string;
-    bucket?: string;
-    cdn?: string;
-    repository?: string;
-  };
-  rollback?: {
-    supported: boolean;
-    command?: string;
-    artifactId?: string;
-  };
-  resources?: PlatformResources;
-  error?: string;
-  metadata?: Record<string, any>;
-}
+import { BaseOptionsSchema } from '../base-options-schema.js';
+import { PlatformStrategy } from '../platform-strategy.js';
+import { Service } from '../../services/types.js';
+import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -98,309 +23,116 @@ export interface PublishResult {
 const PublishOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   all: z.boolean().default(false),
-  tag: z.string().optional(), // Custom version tag
-  registry: z.string().optional(), // Override default registry
-  semiontRepo: z.string().optional(), // Path to Semiont repository for builds
-  noCache: z.boolean().optional().default(false), // Skip Docker cache
+  tag: z.string().optional(),  // Custom version tag
+  registry: z.string().optional(),  // Override default registry
+  semiontRepo: z.string().optional(),  // Path to Semiont repository for builds
+  noCache: z.boolean().optional().default(false),  // Skip Docker cache
 });
 
 type PublishOptions = z.output<typeof PublishOptionsSchema>;
 
 // =====================================================================
-// COMMAND HANDLER
+// COMMAND DESCRIPTOR
 // =====================================================================
 
-async function performPublish(
-  service: any,
-  platform: any
-): Promise<PublishResult> {
-  const serviceType = platform.determineServiceType(service);
-  const { HandlerRegistry } = await import('../handlers/registry.js');
-  const registry = HandlerRegistry.getInstance();
+const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescriptor({
+  name: 'publish',
   
-  const descriptor = registry.getDescriptor(
-    platform.getPlatformName(),
-    `publish-${serviceType}`
-  );
+  buildServiceConfig: (options, serviceInfo) => ({
+    ...serviceInfo.config,
+    platform: serviceInfo.platform,
+    environment: options.environment,
+    tag: options.tag,
+    registry: options.registry,
+    semiontRepo: options.semiontRepo,
+    noCache: options.noCache,
+  }),
   
-  if (!descriptor) {
-    // No handler found, return error result
-    return {
-      entity: service.name,
-      platform: platform.getPlatformName() as Platform,
-      success: false,
-      publishTime: new Date(),
-      error: `No publish handler registered for service type: ${serviceType}`,
-      metadata: {
-        serviceType
-      }
-    };
-  }
-
-  const { HandlerContextBuilder } = await import('../handlers/context.js');
-  
-  const contextExtensions = await platform.buildHandlerContextExtensions(
-    service, 
-    descriptor.requiresDiscovery || false
-  );
-  
-  const context = HandlerContextBuilder.extend(
-    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
-    contextExtensions
-  );
-  
-  const result = await descriptor.handler(context) as any; // PublishHandlerResult
-  
-  return {
-    entity: service.name,
-    platform: platform.getPlatformName() as Platform,
-    success: result.success,
-    publishTime: new Date(),
-    version: result.version,
-    artifacts: result.artifacts,
-    rollback: result.rollback,
-    resources: result.resources,
-    error: result.error,
-    metadata: {
-      ...result.metadata,
-      serviceType
-    }
-  };
-}
-
-async function publishServiceImpl(
-  serviceInfo: ServicePlatformInfo, 
-  config: Config,
-  options: PublishOptions
-): Promise<PublishResult> {
-  // Get the platform strategy
-  const { PlatformFactory } = await import('../../platforms/index.js');
-  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-  
-  // Create service instance to act as ServiceContext
-  const service = ServiceFactory.create(
-    serviceInfo.name as ServiceName,
-    serviceInfo.platform,
-    config,
-    { 
-      platform: serviceInfo.platform,
-      tag: options.tag,
-      registry: options.registry,
-      semiontRepo: options.semiontRepo,
-      noCache: options.noCache
-    } as ServiceConfig
-  );
-  
-  // Use handler-based approach
-  return performPublish(service, platform);
-}
-
-async function publishHandler(
-  services: ServicePlatformInfo[],
-  options: PublishOptions
-): Promise<CommandResults<PublishResult>> {
-  const startTime = Date.now();
-  const serviceResults: PublishResult[] = [];
-  
-  // Create config for services
-  const config: Config = {
-    projectRoot: PROJECT_ROOT,
-    environment: parseEnvironment(options.environment),
+  extractHandlerOptions: (options) => ({
+    tag: options.tag,
+    registry: options.registry,
+    semiontRepo: options.semiontRepo,
+    noCache: options.noCache,
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
-  };
+  }),
   
-  // Let platforms handle publish ordering
-  const sortedServices = sortServicesByPublishOrder(services);
-  
-  // Track publishing results
-  const publishResults = new Map<string, PublishResult>();
-  const rollbackCommands: string[] = [];
-  
-  for (const serviceInfo of sortedServices) {
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+    // Type guard for publish-specific results
+    const publishResult = handlerResult as any; // PublishHandlerResult
     
-    try {
-      const result = await publishServiceImpl(serviceInfo, config, options);
-      publishResults.set(serviceInfo.name, result);
-      
-      // Track result directly - no conversion needed!
-      serviceResults.push(result);
-      
-      // Collect rollback command if available
-      if (result.rollback?.supported && result.rollback.command) {
-        rollbackCommands.unshift(result.rollback.command); // Reverse order for rollback
-      }
-      
-      // Display result
-      if (!options.quiet) {
-        if (result.success) {
-          printSuccess(`🚀 ${serviceInfo.name} (${serviceInfo.platform}) published`);
-          
-          // Show version info
-          if (result.version?.current) {
-            console.log(`   📦 Version: ${result.version.current}`);
-          }
-          
-          // Show artifacts
-          if (result.artifacts) {
-            if (result.artifacts.imageUrl) {
-              console.log(`   🐳 Image: ${result.artifacts.imageUrl}`);
-            }
-            if (result.artifacts.staticSiteUrl) {
-              console.log(`   🌐 Site: ${result.artifacts.staticSiteUrl}`);
-            }
-            if (result.artifacts.packageName) {
-              console.log(`   📦 Package: ${result.artifacts.packageName}@${result.artifacts.packageVersion}`);
-            }
-            if (result.artifacts.bundleUrl) {
-              console.log(`   📄 Bundle: ${result.artifacts.bundleUrl}`);
-            }
-          }
-          
-          // Show destinations
-          if (result.destinations) {
-            if (result.destinations.registry) {
-              console.log(`   📂 Registry: ${result.destinations.registry}`);
-            }
-            if (result.destinations.bucket) {
-              console.log(`   🪣 Bucket: ${result.destinations.bucket}`);
-            }
-            if (result.destinations.cdn) {
-              console.log(`   ⚡ CDN: ${result.destinations.cdn}`);
-            }
-          }
-          
-          // Show rollback info
-          if (result.rollback?.supported) {
-            const rollbackEmoji = result.rollback.supported ? '↩️' : '❌';
-            console.log(`   ${rollbackEmoji} Rollback: ${result.rollback.supported ? 'Available' : 'Not supported'}`);
-          }
-          
-          // Show git info
-          if (result.artifacts?.commitSha) {
-            console.log(`   🔗 Commit: ${result.artifacts.commitSha} (${result.artifacts.branch || 'unknown branch'})`);
-          }
-          
-          // Show metadata in verbose mode
-          if (options.verbose && result.metadata) {
-            console.log('   📝 Details:', JSON.stringify(result.metadata, null, 2));
-          }
-        } else {
-          printError(`❌ Failed to publish ${serviceInfo.name}: ${result.error}`);
-        }
-      }
-      
-    } catch (error) {
-      serviceResults.push({
-        entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform,
-        success: false,
-        publishTime: new Date(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
-      if (!options.quiet) {
-        printError(`Failed to publish ${serviceInfo.name}: ${error}`);
-      }
-    }
-  }
-  
-  // Summary for multiple services
-  if (!options.quiet && services.length > 1) {
-    console.log('\n📊 Publishing Summary:');
-    
-    const successful = serviceResults.filter((r: any) => r.success).length;
-    const failed = serviceResults.filter((r: any) => !r.success).length;
-    
-    console.log(`   ✅ Successful: ${successful}`);
-    if (failed > 0) console.log(`   ❌ Failed: ${failed}`);
-    
-    // Platform breakdown
-    const platforms = serviceResults.reduce((acc: any, r: any) => {
-      if (r.success) {
-        acc[r.deployment] = (acc[r.deployment] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    console.log('\n🖥️  Platform breakdown:');
-    Object.entries(platforms).forEach(([platform, count]) => {
-      const emoji = {
-        'process': '⚡',
-        'container': '🐳',
-        'aws': '☁️',
-        'external': '🔗'
-      }[platform] || '❓';
-      console.log(`   ${emoji} ${platform}: ${count} published`);
+    return createCommandResult({
+      entity: service.name,
+      platform: platform.getPlatformName() as any,
+      success: handlerResult.success,
+      error: handlerResult.error,
+      metadata: {
+        ...handlerResult.metadata,
+        serviceType,
+      },
+      extensions: {
+        version: publishResult.version || publishResult.artifacts?.imageTag,
+        artifacts: publishResult.artifacts,
+        rollback: publishResult.rollback,
+        registry: publishResult.registry,
+        resources: publishResult.resources,
+      },
     });
-    
-    // Rollback instructions
-    if (rollbackCommands.length > 0) {
-      console.log('\n↩️  Rollback commands (run in reverse order):');
-      rollbackCommands.forEach((cmd, index) => {
-        console.log(`   ${index + 1}. ${cmd}`);
-      });
-    }
-    
-    if (successful === services.length) {
-      printSuccess('\n🎉 All services published successfully!');
-    } else if (failed > 0) {
-      printWarning(`\n⚠️  ${failed} service(s) failed to publish.`);
-    }
-  }
+  },
   
-  if (options.dryRun && !options.quiet) {
-    printInfo('\n🔍 This was a dry run. No actual publishing was performed.');
-  }
-  
-  // Return results directly - no conversion needed!
-  return {
-    command: 'publish',
-    environment: options.environment!,  // Guaranteed by requiresEnvironment
-    timestamp: new Date(),
-    duration: Date.now() - startTime,
-    results: serviceResults,  // Rich types preserved!
-    summary: {
-      total: services.length,
-      succeeded: serviceResults.filter((r: any) => r.success).length,
-      failed: serviceResults.filter((r: any) => !r.success).length,
-      warnings: 0
-    },
-    executionContext: {
-      user: process.env.USER || 'unknown',
-      workingDirectory: process.cwd(),
-      dryRun: options.dryRun || false
+  validateOptions: (options) => {
+    // Environment validation is handled by UnifiedExecutor
+    if (options.tag && !/^[\w.-]+$/.test(options.tag)) {
+      throw new Error('Tag must contain only alphanumeric characters, dots, underscores, and hyphens');
     }
-  } as CommandResults<PublishResult>;
-}
+  },
+  
+  continueOnError: true,  // Continue publishing all services even if one fails
+  supportsAll: true,
+});
+
+// =====================================================================
+// EXECUTOR INSTANCE
+// =====================================================================
+
+const publishExecutor = new UnifiedExecutor(publishDescriptor);
+
+// =====================================================================
+// COMMAND EXPORT
+// =====================================================================
 
 /**
- * Sort services for publishing
- * Platforms determine the actual ordering
+ * Main publish command function
  */
-function sortServicesByPublishOrder(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  // Platforms handle publish ordering
-  // Just return services in the order provided
-  return services;
+export async function publish(
+  serviceDeployments: ServicePlatformInfo[],
+  options: PublishOptions
+) {
+  return publishExecutor.execute(serviceDeployments, options);
 }
 
 // =====================================================================
-// COMMAND DEFINITION
+// BACKWARD COMPATIBILITY EXPORTS
+// =====================================================================
+
+/**
+ * Type alias for backward compatibility with tests and existing code
+ */
+export type PublishResult = CommandResult;
+
+// =====================================================================
+// COMMAND DEFINITION (for CLI)
 // =====================================================================
 
 export const publishCommand = new CommandBuilder()
-  .name('publish-new')
-  .description('Publish and deploy service artifacts')
+  .name('publish')
+  .description('Publish services to their configured registries')
+  .examples(
+    'semiont publish --service frontend --tag v1.2.3',
+    'semiont publish --service backend --no-cache',
+    'semiont publish --all --registry my-registry.com'
+  )
   .schema(PublishOptionsSchema)
-  .requiresServices(true)
-  .requiresEnvironment(true)
-  .args(withBaseArgs({
-    '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    '--tag': { type: 'string', description: 'Custom version tag' },
-    '--registry': { type: 'string', description: 'Override default registry' },
-    '--semiont-repo': { type: 'string', description: 'Path to Semiont repository (for building from source)' },
-    '--no-cache': { type: 'boolean', description: 'Skip Docker build cache', default: false },
-  }))
-  .handler(publishHandler)
+  .handler(publish)
   .build();

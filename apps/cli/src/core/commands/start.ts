@@ -1,78 +1,19 @@
 /**
- * Start Command
+ * Start Command - Unified Executor Implementation
  * 
- * Starts one or more services using their configured platform strategies.
- * This command handles service initialization, dependency checking, and resource
- * provisioning across different deployment platforms.
- * 
- * Workflow:
- * 1. Resolves service configurations from environment files
- * 2. Checks and starts service dependencies first
- * 3. Creates service instances via ServiceFactory
- * 4. Delegates to platform-specific handlers or strategies for actual startup
- * 5. Saves service state for tracking and management
- * 
- * Handler Pattern:
- * - Uses handler registry to find platform and service-type specific implementations
- * - Returns error if no handler is registered for the service type
- * - Handlers provide consistent interface across different service types
- * 
- * Options:
- * - --all: Start all services defined in the environment
- * - --force: Continue starting services even if dependencies fail
- * - --build: Build containers/artifacts before starting (platform-specific)
- * - --wait: Wait for services to become healthy before returning
- * 
- * Platform Behavior:
- * - Process: Spawns local OS processes
- * - Container: Creates and starts Docker/Podman containers
- * - AWS: Deploys to ECS/Fargate or Lambda
- * - External: Validates external service connectivity
- * - Mock: Simulates startup for testing
+ * Starts services across all platforms using the UnifiedExecutor architecture.
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo } from '../io/cli-logger.js';
-import { colors } from '../io/cli-colors.js';
-import { type ServicePlatformInfo } from '../platform-resolver.js';
-import { CommandResults } from '../command-results.js';
+import { ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResult, createCommandResult } from '../command-result.js';
+import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
+import { UnifiedExecutor } from '../unified-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
-
-// Import new service architecture
-import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../service-discovery.js';
-import { Platform } from '../platform-resolver.js';
+import { BaseOptionsSchema } from '../base-options-schema.js';
 import { PlatformStrategy } from '../platform-strategy.js';
-import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config } from '../cli-config.js';
-import { parseEnvironment } from '../environment-validator.js';
-
-// Imports needed for handler-based start
 import { Service } from '../../services/types.js';
-import { HandlerRegistry } from '../handlers/registry.js';
-import { HandlerContextBuilder } from '../handlers/context.js';
-import { StartHandlerResult } from '../handlers/types.js';
-
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
-
-// =====================================================================
-// RESULT TYPE DEFINITIONS
-// =====================================================================
-
-/**
- * Result of a start operation
- */
-export interface StartResult {
-  entity: ServiceName | string;
-  platform: Platform;
-  success: boolean;
-  startTime: Date;
-  endpoint?: string;
-  resources?: PlatformResources;  // Platform-specific resource identifiers
-  error?: string;
-  metadata?: Record<string, any>;
-}
+import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -85,219 +26,92 @@ const StartOptionsSchema = BaseOptionsSchema.extend({
 type StartOptions = z.output<typeof StartOptionsSchema>;
 
 // =====================================================================
-// HANDLER-BASED START IMPLEMENTATION
+// COMMAND DESCRIPTOR
 // =====================================================================
 
-async function performStart(service: Service, platform: PlatformStrategy): Promise<StartResult> {
-  const serviceType = platform.determineServiceType(service);
+const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
+  name: 'start',
   
-  const registry = HandlerRegistry.getInstance();
-  const descriptor = registry.getDescriptor(platform.getPlatformName(), `start-${serviceType}`);
+  buildServiceConfig: (options, serviceInfo) => ({
+    ...serviceInfo.config,
+    platform: serviceInfo.platform,
+    environment: options.environment,
+  }),
   
-  if (!descriptor) {
-    return {
+  extractHandlerOptions: (options) => ({
+    service: options.service,
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun,
+  }),
+  
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+    // Type guard for start-specific results
+    const startResult = handlerResult as any; // StartHandlerResult
+    
+    return createCommandResult({
       entity: service.name,
-      platform: platform.getPlatformName() as Platform,
-      success: false,
-      startTime: new Date(),
-      error: `No start handler registered for service type: ${serviceType}`,
+      platform: platform.getPlatformName() as any,
+      success: handlerResult.success,
+      error: handlerResult.error,
       metadata: {
-        serviceType
-      }
-    };
-  }
-
-  const contextExtensions = await platform.buildHandlerContextExtensions(
-    service, 
-    descriptor.requiresDiscovery || false
-  );
+        ...handlerResult.metadata,
+        serviceType,
+      },
+      extensions: {
+        endpoint: startResult.endpoint,
+        resources: startResult.resources,
+      },
+    });
+  },
   
-  const context = HandlerContextBuilder.extend(
-    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
-    contextExtensions
-  );
+  // Environment validation is handled by UnifiedExecutor
   
-  const result = await descriptor.handler(context) as StartHandlerResult;
-  
-  return {
-    entity: service.name,
-    platform: platform.getPlatformName() as Platform,
-    success: result.success,
-    startTime: new Date(),
-    endpoint: result.endpoint,
-    resources: result.resources,
-    error: result.error,
-    metadata: {
-      ...result.metadata,
-      serviceType
-    }
-  };
-}
-
-async function startServiceImpl(
-  serviceInfo: ServicePlatformInfo, 
-  config: Config
-): Promise<StartResult> {
-  // Get the platform strategy
-  const { PlatformFactory } = await import('../../platforms/index.js');
-  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-  
-  // Create service instance to act as ServiceContext
-  const service = ServiceFactory.create(
-    serviceInfo.name as ServiceName,
-    serviceInfo.platform,
-    config,
-    { ...serviceInfo.config, platform: serviceInfo.platform, environment: config.environment }
-  );
-  
-  // Use handler-based approach if available, otherwise fall back to direct method
-  return await performStart(service, platform);
-}
+  continueOnError: true,  // Continue starting all services even if one fails
+  supportsAll: true,
+});
 
 // =====================================================================
-// MAIN START FUNCTION
+// EXECUTOR INSTANCE
 // =====================================================================
 
+const startExecutor = new UnifiedExecutor(startDescriptor);
+
+// =====================================================================
+// COMMAND EXPORT
+// =====================================================================
+
+/**
+ * Main start command function
+ */
 export async function start(
   serviceDeployments: ServicePlatformInfo[],
   options: StartOptions
-): Promise<CommandResults<StartResult>> {
-  const startTime = Date.now();
-  const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = options.environment!; // Environment is guaranteed by command loader
-  
-  // Special handling for MCP - suppress all output to avoid corrupting JSON-RPC
-  const isMCP = serviceDeployments.length === 1 && serviceDeployments[0].name === 'mcp';
-  
-  // Create shared config
-  const config: Config = {
-    projectRoot: PROJECT_ROOT,
-    environment: parseEnvironment(environment),
-    verbose: options.verbose,
-    quiet: options.quiet || isStructuredOutput || isMCP, // Force quiet for MCP
-    dryRun: options.dryRun
-  };
-  
-  try {
-    if (!isStructuredOutput && !options.quiet) {
-      printInfo(`Starting services in ${colors.bright}${environment}${colors.reset} environment`);
-    }
-    
-    // Start services and collect results
-    const serviceResults: StartResult[] = [];
-    
-    for (const serviceInfo of serviceDeployments) {
-      // Get the platform outside try block so it's accessible in catch
-      const { PlatformFactory } = await import('../../platforms/index.js');
-      const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-      const actualPlatformName = platform.getPlatformName();
-      
-      try {
-        const result = await startServiceImpl(serviceInfo, config);
-        serviceResults.push(result);
-        
-      } catch (error) {
-        const errorResult: StartResult = {
-          entity: serviceInfo.name as ServiceName,
-          platform: actualPlatformName as Platform,  // Use actual platform name
-          success: false,
-          startTime: new Date(),
-          error: (error as Error).message
-        };
-        
-        serviceResults.push(errorResult);
-        
-        if (!isStructuredOutput && !options.quiet) {
-          printError(`Failed to start ${serviceInfo.name}: ${error}`);
-        }
-      }
-    }
-    
-    // Create aggregated results structure - no conversion needed!
-    const commandResults: CommandResults<StartResult> = {
-      command: 'start',
-      environment: environment,
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      results: serviceResults,  // Rich types preserved!
-      summary: {
-        total: serviceResults.length,
-        succeeded: serviceResults.filter(r => r.success).length,
-        failed: serviceResults.filter(r => !r.success).length,
-        warnings: 0
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun || false
-      }
-    };
-    
-    // Create summary for display
-    const summary = {
-      total: serviceResults.length,
-      succeeded: serviceResults.filter(r => r.success).length,
-      failed: serviceResults.filter(r => !r.success).length,
-      warnings: 0,
-    };
-    
-    if (!isStructuredOutput && !options.quiet) {
-      const { succeeded, failed } = summary;
-      if (failed === 0) {
-        printSuccess(`All ${succeeded} service(s) started successfully`);
-      } else {
-        printError(`${failed} service(s) failed to start`);
-      }
-    }
-    
-    return commandResults;
-    
-  } catch (error) {
-    if (!isStructuredOutput) {
-      printError(`Failed to start services: ${error}`);
-    }
-    
-    return {
-      command: 'start',
-      environment: environment,
-      timestamp: new Date(),
-      duration: Date.now() - startTime,
-      results: [],
-      summary: {
-        total: 0,
-        succeeded: 0,
-        failed: 1,
-        warnings: 0,
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun,
-      },
-    };
-  }
+) {
+  return startExecutor.execute(serviceDeployments, options);
 }
 
 // =====================================================================
-// COMMAND DEFINITION
+// BACKWARD COMPATIBILITY EXPORTS
+// =====================================================================
+
+/**
+ * Type alias for backward compatibility with tests and existing code
+ */
+export type StartResult = CommandResult;
+
+// =====================================================================
+// COMMAND DEFINITION (for CLI)
 // =====================================================================
 
 export const startCommand = new CommandBuilder()
   .name('start')
-  .description('Start services in an environment')
-  .schema(StartOptionsSchema)
-  .requiresEnvironment(true)
-  .requiresServices(true)
-  .args(withBaseArgs({
-    '--service': { type: 'string', description: 'Service name or "all" for all services' },
-  }))
+  .description('Start services on their configured platforms')
   .examples(
-    'semiont start --environment local',
-    'semiont start --environment staging --service myservice',
-    'semiont start --environment prod --dry-run'
+    'semiont start --service frontend',
+    'semiont start --service backend --verbose',
+    'semiont start --all'
   )
+  .schema(StartOptionsSchema)
   .handler(start)
   .build();
-
-export type { StartOptions };
-export { StartOptionsSchema };

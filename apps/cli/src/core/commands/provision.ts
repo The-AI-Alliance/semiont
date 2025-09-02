@@ -1,69 +1,20 @@
 /**
- * Provision Command
+ * Provision Command - Unified Executor Implementation
  * 
- * Provisions infrastructure resources required by services before they can start.
- * This command handles pre-deployment setup, resource allocation, and environment
- * preparation across different platforms.
- * 
- * Workflow:
- * 1. Analyzes service requirements (compute, network, storage)
- * 2. Checks for existing resources to avoid duplication
- * 3. Provisions platform-specific infrastructure
- * 4. Configures networking, security, and access controls
- * 5. Validates provisioned resources are ready
- * 
- * Options:
- * - --all: Provision resources for all services
- * - --plan: Show what would be provisioned without doing it
- * - --parallel: Provision multiple services simultaneously
- * - --wait: Wait for resources to be fully ready
- * 
- * Platform Behavior:
- * - Process: Creates directories, checks ports, sets permissions
- * - Container: Pulls images, creates networks, prepares volumes
- * - AWS: Creates ECS clusters, VPCs, load balancers, databases
- * - External: Validates external service availability
- * - Mock: Simulates resource provisioning for testing
+ * Provisions infrastructure and resources for services
+ * using the UnifiedExecutor architecture.
  */
 
 import { z } from 'zod';
-import { printError, printSuccess, printInfo, printWarning } from '../io/cli-logger.js';
-import { type ServicePlatformInfo } from '../platform-resolver.js';
-import { CommandResults } from '../command-results.js';
+import { ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResult, createCommandResult } from '../command-result.js';
+import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
+import { UnifiedExecutor } from '../unified-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
-
-// Import new service architecture
-import { ServiceFactory } from '../../services/service-factory.js';
-import { ServiceName } from '../service-discovery.js';
-import { Platform } from '../platform-resolver.js';
-import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config } from '../cli-config.js';
-import { parseEnvironment } from '../environment-validator.js';
-
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
-
-// =====================================================================
-// RESULT TYPE DEFINITIONS
-// =====================================================================
-
-/**
- * Result of a provision operation
- */
-export interface ProvisionResult {
-  entity: ServiceName | string;
-  platform: Platform;
-  success: boolean;
-  provisionTime: Date;
-  dependencies?: string[]; // Other services this depends on
-  cost?: {
-    estimatedMonthly?: number;
-    currency?: string;
-  };
-  resources?: PlatformResources;
-  error?: string;
-  metadata?: Record<string, any>;
-}
+import { BaseOptionsSchema } from '../base-options-schema.js';
+import { PlatformStrategy } from '../platform-strategy.js';
+import { Service } from '../../services/types.js';
+import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -71,424 +22,140 @@ export interface ProvisionResult {
 
 const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
-  stack: z.string().optional(), // CDK stack to provision (data, app, infra, or all)
   all: z.boolean().default(false),
-  force: z.boolean().default(false), // Force re-provisioning
+  stack: z.enum(['data', 'app', 'all']).optional(),  // AWS-specific stack provisioning
+  force: z.boolean().default(false),
+  skipValidation: z.boolean().default(false),
+  destroy: z.boolean().default(false),
 });
 
 type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 
 // =====================================================================
-// COMMAND HANDLER
+// COMMAND DESCRIPTOR
 // =====================================================================
 
-async function performProvision(
-  service: any,
-  platform: any
-): Promise<ProvisionResult> {
-  const serviceType = platform.determineServiceType(service);
-  const { HandlerRegistry } = await import('../handlers/registry.js');
-  const registry = HandlerRegistry.getInstance();
+const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDescriptor({
+  name: 'provision',
   
-  const descriptor = registry.getDescriptor(
-    platform.getPlatformName(),
-    `provision-${serviceType}`
-  );
-  
-  if (!descriptor) {
-    // No handler found, return error result
-    return {
-      entity: service.name,
-      platform: platform.getPlatformName() as Platform,
-      success: false,
-      provisionTime: new Date(),
-      dependencies: [],
-      error: `No provision handler registered for service type: ${serviceType}`,
-      metadata: {
-        serviceType
-      }
-    };
-  }
-
-  const { HandlerContextBuilder } = await import('../handlers/context.js');
-  
-  const contextExtensions = await platform.buildHandlerContextExtensions(
-    service, 
-    descriptor.requiresDiscovery || false
-  );
-  
-  const context = HandlerContextBuilder.extend(
-    HandlerContextBuilder.buildBaseContext(service, platform.getPlatformName()),
-    contextExtensions
-  );
-  
-  const result = await descriptor.handler(context) as any; // ProvisionHandlerResult
-  
-  return {
-    entity: service.name,
-    platform: platform.getPlatformName() as Platform,
-    success: result.success,
-    provisionTime: new Date(),
-    dependencies: result.dependencies || [],
-    resources: result.resources,
-    cost: result.cost,
-    error: result.error,
-    metadata: {
-      ...result.metadata,
-      serviceType
-    }
-  };
-}
-
-async function provisionServiceImpl(
-  serviceInfo: ServicePlatformInfo, 
-  config: Config,
-  options: any
-): Promise<ProvisionResult> {
-  // Get the platform strategy
-  const { PlatformFactory } = await import('../../platforms/index.js');
-  const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-  
-  // Create service instance to act as ServiceContext
-  const service = ServiceFactory.create(
-    serviceInfo.name as ServiceName,
-    serviceInfo.platform,
-    config,
-    {
-      platform: serviceInfo.platform,
-      environment: options.environment
-    } // Service config would come from project config
-  );
-  
-  // Check if already provisioned (unless force)
-  if (!options.force) {
-    // Could implement provisioning state check here
-  }
-  
-  // Use handler-based approach
-  return performProvision(service, platform);
-}
-
-async function provisionHandler(
-  options: ProvisionOptions
-): Promise<CommandResults<ProvisionResult>> {
-  const serviceResults: ProvisionResult[] = [];
-  const commandStartTime = Date.now();
-  
-  // If --stack is specified, handle CDK stack provisioning
-  if (options.stack) {
-    // Validate that stack provisioning only works with AWS
-    const { loadEnvironmentConfig } = await import('../platform-resolver.js');
-    const envConfig = loadEnvironmentConfig(options.environment || 'development');
-    
-    if (!envConfig.aws) {
-      if (!options.quiet) {
-        printError('Stack provisioning is only supported on AWS platform');
-      }
-      return {
-        command: 'provision',
-        environment: options.environment || 'development',
-        timestamp: new Date(),
-        duration: Date.now() - commandStartTime,
-        results: [{
-          entity: '__aws_stack__',
-          platform: 'aws' as Platform,
-          success: false,
-          provisionTime: new Date(),
-          error: 'Stack provisioning is only supported on AWS platform'
-        }],
-        summary: {
-          total: 1,
-          succeeded: 0,
-          failed: 1,
-          warnings: 0
-        },
-        executionContext: {
-          user: process.env.USER || 'unknown',
-          workingDirectory: process.cwd(),
-          dryRun: options.dryRun || false
-        }
+  // Pre-execution hook to handle synthetic stack service
+  preExecute: async (serviceDeployments, options) => {
+    // If --stack is specified, create a synthetic service for AWS stack provisioning
+    if (options.stack) {
+      const stackService: ServicePlatformInfo = {
+        name: '__aws_stack__',  // Special synthetic service name
+        platform: 'aws',
+        config: {
+          // Pass stack-specific options through generic config
+          // The handler will extract these from context.options
+          verbose: options.verbose,
+          quiet: options.quiet,
+        } as any  // ServiceConfig doesn't have stack-specific fields
       };
+      // Replace all services with the synthetic stack service
+      return [stackService];
     }
-    
-    // Validate stack type
-    const validStackTypes = ['data', 'app', 'all'];
-    if (!validStackTypes.includes(options.stack)) {
-      if (!options.quiet) {
-        printError(`Invalid stack type: ${options.stack}. Valid options are: data, app, all`);
-      }
-      return {
-        command: 'provision',
-        environment: options.environment || 'development',
-        timestamp: new Date(),
-        duration: Date.now() - commandStartTime,
-        results: [{
-          entity: '__aws_stack__',
-          platform: 'aws' as Platform,
-          success: false,
-          provisionTime: new Date(),
-          error: `Invalid stack type: ${options.stack}`
-        }],
-        summary: {
-          total: 1,
-          succeeded: 0,
-          failed: 1,
-          warnings: 0
-        },
-        executionContext: {
-          user: process.env.USER || 'unknown',
-          workingDirectory: process.cwd(),
-          dryRun: options.dryRun || false
-        }
-      };
-    }
-    
-    // Create a synthetic service for stack provisioning
-    const config: Config = {
-      projectRoot: PROJECT_ROOT,
-      environment: parseEnvironment(options.environment),
-      verbose: options.verbose,
-      quiet: options.quiet,
-      dryRun: options.dryRun,
-    };
-    
-    // Create synthetic stack service
-    const stackService = ServiceFactory.create(
-      '__aws_stack__' as ServiceName,
-      'aws' as Platform,
-      config,
-      {
-        platform: 'aws' as Platform,
-        stackType: options.stack,
-        destroy: false,
-        force: options.force,
-        requireApproval: false
-      }
-    );
-    
-    // Get AWS platform
-    const { PlatformFactory } = await import('../../platforms/index.js');
-    const platform = PlatformFactory.getPlatform('aws' as Platform);
-    
-    // Use the handler approach
-    const result = await performProvision(stackService, platform);
-    
-    // Return properly formatted results
-    return {
-      command: 'provision',
-      environment: options.environment || 'development',
-      timestamp: new Date(),
-      duration: Date.now() - commandStartTime,
-      results: [result],
-      summary: {
-        total: 1,
-        succeeded: result.success ? 1 : 0,
-        failed: result.success ? 0 : 1,
-        warnings: 0
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun || false
-      }
-    };
-  }
+    // Otherwise use normal services
+    return serviceDeployments;
+  },
   
-  // When not using --stack, we need to resolve services
-  // Import service resolution logic
-  const { resolveServiceSelector } = await import('../command-service-matcher.js');
-  const { resolveServiceDeployments } = await import('../platform-resolver.js');
+  buildServiceConfig: (options, serviceInfo) => ({
+    ...serviceInfo.config,
+    platform: serviceInfo.platform,
+    environment: options.environment,
+    stackType: options.stack,
+    force: options.force,
+    skipValidation: options.skipValidation,
+    destroy: options.destroy,
+  }),
   
-  // Resolve services based on --service flag or default to 'all'
-  const serviceSelector = options.service || 'all';
-  const resolvedServiceNames = await resolveServiceSelector(
-    serviceSelector, 
-    'provision', // Use string literal instead of enum
-    options.environment || 'development'
-  );
-  const services = resolveServiceDeployments(resolvedServiceNames, options.environment || 'development');
-  
-  // Create config for services
-  const config: Config = {
-    projectRoot: PROJECT_ROOT,
-    environment: parseEnvironment(options.environment),
+  extractHandlerOptions: (options) => ({
+    stack: options.stack,
+    force: options.force,
+    skipValidation: options.skipValidation,
+    destroy: options.destroy,
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
-  };
+  }),
   
-  // Let platforms handle dependency ordering
-  const sortedServices = sortServicesByDependencies(services);
-  
-  // Track provisioning results for dependency resolution
-  const provisionResults = new Map<string, ProvisionResult>();
-  let totalCost = 0;
-  
-  for (const serviceInfo of sortedServices) {
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+    // Type guard for provision-specific results
+    const provisionResult = handlerResult as any; // ProvisionHandlerResult
     
-    try {
-      const result = await provisionServiceImpl(serviceInfo, config, options);
-      provisionResults.set(serviceInfo.name, result);
-      
-      // Track total cost
-      if (result.cost?.estimatedMonthly) {
-        totalCost += result.cost.estimatedMonthly;
-      }
-      
-      // Record result directly - no conversion needed!
-      serviceResults.push(result);
-      
-      // Display result
-      if (!options.quiet) {
-        if (result.success) {
-          printSuccess(`✅ ${serviceInfo.name} (${serviceInfo.platform}) provisioned`);
-          
-          // Show key resources based on platform
-          if (result.resources) {
-            if (result.resources.platform === 'aws') {
-              const awsData = result.resources.data;
-              if (awsData.clusterId) {
-                console.log(`   🖥️  Cluster: ${awsData.clusterId}`);
-              }
-              if (awsData.instanceId) {
-                console.log(`   🗄️  Instance: ${awsData.instanceId}`);
-              }
-              if (awsData.bucketName) {
-                console.log(`   🪣  Bucket: ${awsData.bucketName}`);
-              }
-              if (awsData.volumeId) {
-                console.log(`   💾 Volume: ${awsData.volumeId}`);
-              }
-              if (awsData.networkId) {
-                console.log(`   🌐 Network: ${awsData.networkId}`);
-              }
-            }
-          }
-          
-          // Show cost
-          if (result.cost?.estimatedMonthly) {
-            console.log(`   💰 Monthly cost: $${result.cost.estimatedMonthly} ${result.cost.currency}`);
-          }
-          
-          // Show dependencies
-          if (result.dependencies && result.dependencies.length > 0) {
-            console.log(`   🔗 Depends on: ${result.dependencies.join(', ')}`);
-          }
-          
-          // Show metadata in verbose mode
-          if (options.verbose && result.metadata) {
-            console.log('   📝 Details:', JSON.stringify(result.metadata, null, 2));
-          }
-        } else {
-          printError(`❌ Failed to provision ${serviceInfo.name}: ${result.error}`);
-        }
-      }
-      
-    } catch (error) {
-      serviceResults.push({
-        entity: serviceInfo.name as ServiceName,
-        platform: serviceInfo.platform,
-        success: false,
-        provisionTime: new Date(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
-      if (!options.quiet) {
-        printError(`Failed to provision ${serviceInfo.name}: ${error}`);
-      }
-    }
-  }
-  
-  // Summary for multiple services
-  if (!options.quiet && services.length > 1) {
-    console.log('\n📊 Provisioning Summary:');
-    
-    const successful = serviceResults.filter(r => r.success).length;
-    const failed = serviceResults.filter(r => !r.success).length;
-    
-    console.log(`   ✅ Successful: ${successful}`);
-    if (failed > 0) console.log(`   ❌ Failed: ${failed}`);
-    
-    // Total cost estimate
-    if (totalCost > 0) {
-      console.log(`\n💰 Total estimated monthly cost: $${totalCost.toFixed(2)} USD`);
-    }
-    
-    // Platform breakdown
-    const platforms = serviceResults.reduce((acc, r) => {
-      acc[r.platform] = (acc[r.platform] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    console.log('\n🖥️  Platform breakdown:');
-    Object.entries(platforms).forEach(([platform, count]) => {
-      const emoji = {
-        'process': '⚡',
-        'container': '🐳',
-        'aws': '☁️',
-        'external': '🔗'
-      }[platform] || '❓';
-      console.log(`   ${emoji} ${platform}: ${count}`);
+    return createCommandResult({
+      entity: service.name,
+      platform: platform.getPlatformName() as any,
+      success: handlerResult.success,
+      error: handlerResult.error,
+      metadata: {
+        ...handlerResult.metadata,
+        serviceType,
+      },
+      extensions: {
+        provisionedResources: provisionResult.provisionedResources,
+        stackOutputs: provisionResult.stackOutputs,
+        resources: provisionResult.resources,
+      },
     });
-    
-    if (successful === services.length) {
-      printSuccess('\n🎉 All services provisioned successfully!');
-    } else if (failed > 0) {
-      printWarning(`\n⚠️  ${failed} service(s) failed to provision.`);
-    }
-  }
+  },
   
-  if (options.dryRun && !options.quiet) {
-    printInfo('\n🔍 This was a dry run. No actual provisioning was performed.');
-  }
-  
-  // Return results directly - no conversion needed!
-  return {
-    command: 'provision',
-    environment: options.environment || 'unknown',
-    timestamp: new Date(),
-    duration: Date.now() - commandStartTime,
-    results: serviceResults,  // Rich types preserved!
-    summary: {
-      total: serviceResults.length,
-      succeeded: serviceResults.filter(r => r.success).length,
-      failed: serviceResults.filter(r => !r.success).length,
-      warnings: 0
-    },
-    executionContext: {
-      user: process.env.USER || 'unknown',
-      workingDirectory: process.cwd(),
-      dryRun: options.dryRun || false
+  validateOptions: (options) => {
+    // Environment validation is handled by UnifiedExecutor
+    if (options.stack && options.service) {
+      throw new Error('Cannot specify both --stack and --service');
     }
-  } as CommandResults<ProvisionResult>;
-}
+    if (options.stack && options.all) {
+      throw new Error('Cannot specify both --stack and --all');
+    }
+  },
+  
+  continueOnError: true,  // Continue provisioning all services even if one fails
+  supportsAll: true,
+});
+
+// =====================================================================
+// EXECUTOR INSTANCE
+// =====================================================================
+
+const provisionExecutor = new UnifiedExecutor(provisionDescriptor);
+
+// =====================================================================
+// COMMAND EXPORT
+// =====================================================================
 
 /**
- * Sort services by dependencies
- * Platforms determine the actual ordering
+ * Main provision command function
  */
-function sortServicesByDependencies(services: ServicePlatformInfo[]): ServicePlatformInfo[] {
-  // Platforms handle dependency resolution
-  // Just return services in the order provided
-  return services;
+export async function provision(
+  serviceDeployments: ServicePlatformInfo[],
+  options: ProvisionOptions
+) {
+  return provisionExecutor.execute(serviceDeployments, options);
 }
 
 // =====================================================================
-// COMMAND DEFINITION
+// BACKWARD COMPATIBILITY EXPORTS
+// =====================================================================
+
+/**
+ * Type alias for backward compatibility with tests and existing code
+ */
+export type ProvisionResult = CommandResult;
+
+// =====================================================================
+// COMMAND DEFINITION (for CLI)
 // =====================================================================
 
 export const provisionCommand = new CommandBuilder()
-  .name('provision-new')
+  .name('provision')
   .description('Provision infrastructure and resources for services')
+  .examples(
+    'semiont provision --service frontend',
+    'semiont provision --all',
+    'semiont provision --stack data',
+    'semiont provision --stack app --force'
+  )
   .schema(ProvisionOptionsSchema)
-  .requiresEnvironment(true)
-  .args(withBaseArgs({
-    '--service': { type: 'string', description: 'Service name or "all" for all services' },
-    '--stack': { type: 'string', description: 'CDK stack to provision (data, app, infra, or all)' },
-    '--force': { type: 'boolean', description: 'Force re-provisioning' },
-  }, {
-    '-f': '--force',
-    '-s': '--stack',
-  }))
-  .setupHandler(provisionHandler) // Use setupHandler since we handle service resolution internally
+  .handler(provision)
   .build();
