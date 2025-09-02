@@ -95,7 +95,7 @@ describe('CLI Environment Validation Logic', () => {
         fs.writeFileSync(
           path.join(configDir, `${env}.json`),
           JSON.stringify({ 
-            platform: { default: 'process' },
+            platform: { default: 'posix' },
             services: {} 
           })
         );
@@ -170,7 +170,7 @@ describe('CLI Environment Validation Logic', () => {
   describe('Configuration Validation', () => {
     it('should validate complete environment configurations', async () => {
       const validConfig = {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: {
           domain: 'test.local',
           adminEmail: 'admin@test.local',
@@ -188,12 +188,12 @@ describe('CLI Environment Validation Logic', () => {
         },
         services: {
           backend: {
-            platform: { type: 'process' },
+            platform: { type: 'posix' },
             port: 4001,
             command: 'npm start'
           },
           frontend: {
-            platform: { type: 'process' },
+            platform: { type: 'posix' },
             port: 4000,
             command: 'npm start'
           }

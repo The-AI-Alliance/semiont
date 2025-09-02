@@ -41,7 +41,7 @@
     },
     "mcp": {
       "platform": {
-        "type": "process"
+        "type": "posix"
       },
       "dependsOn": ["backend"]
     }

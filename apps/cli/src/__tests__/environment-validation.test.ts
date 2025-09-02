@@ -47,7 +47,7 @@ describe('Dynamic Environment Validation', () => {
       const testConfigs = {
         'local.json': { services: {}, platform: { default: 'container' } },
         'staging.json': { services: {}, platform: { default: 'aws' } },
-        'custom.json': { services: {}, platform: { default: 'process' } }
+        'custom.json': { services: {}, platform: { default: 'posix' } }
       };
       
       for (const [filename, config] of Object.entries(testConfigs)) {
@@ -132,11 +132,11 @@ describe('Dynamic Environment Validation', () => {
   describe('loadEnvironmentConfig()', () => {
     it('should load custom environment configurations', () => {
       const customConfig = {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'custom.example.com' },
         services: {
-          backend: { platform: { type: 'process' }, port: 8080 },
-          frontend: { platform: { type: 'process' }, port: 3000 }
+          backend: { platform: { type: 'posix' }, port: 8080 },
+          frontend: { platform: { type: 'posix' }, port: 3000 }
         }
       };
       
@@ -147,7 +147,7 @@ describe('Dynamic Environment Validation', () => {
       
       const loaded = loadEnvironmentConfig('custom');
       
-      expect(loaded.deployment?.default).toBe('process');
+      expect(loaded.deployment?.default).toBe('posix');
       expect(loaded.site?.domain).toBe('custom.example.com');
       expect(loaded.services?.backend?.port).toBe(8080);
       expect(loaded.services?.frontend?.port).toBe(3000);
@@ -266,7 +266,7 @@ describe('Environment Discovery Integration', () => {
       fs.writeFileSync(
         path.join(configDir, `${env}.json`),
         JSON.stringify({ 
-          platform: { default: 'process' },
+          platform: { default: 'posix' },
           services: {} 
         })
       );

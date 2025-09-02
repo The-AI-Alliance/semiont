@@ -160,11 +160,11 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     for (const envName of customEnvironments) {
       const config = {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: `${envName}.example.com` },
         services: {
-          api: { platform: { type: 'process' }, port: 4000 },
-          web: { platform: { type: 'process' }, port: 3000 }
+          api: { platform: { type: 'posix' }, port: 4000 },
+          web: { platform: { type: 'posix' }, port: 3000 }
         }
       };
       
@@ -253,7 +253,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     // Add one environment
     fs.writeFileSync(
       path.join(configDir, 'new-env.json'),
-      JSON.stringify({ platform: { default: 'process' }, services: {} })
+      JSON.stringify({ platform: { default: 'posix' }, services: {} })
     );
     
     // Now only that environment should be valid

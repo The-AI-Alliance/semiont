@@ -43,9 +43,9 @@ describe('Dynamic Environment Discovery', () => {
     // Create custom environment files that would NOT be in hardcoded lists
     const customEnvironments = {
       'demo.json': {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'demo.local' },
-        services: { backend: { platform: { type: 'process' } } }
+        services: { backend: { platform: { type: 'posix' } } }
       },
       'feature-branch.json': {
         platform: { default: 'container' },
@@ -108,9 +108,9 @@ describe('Dynamic Environment Discovery', () => {
         services: { backend: { platform: { type: 'aws' } } }
       },
       'my-custom-env.json': {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'custom.local' },
-        services: { backend: { platform: { type: 'process' } } }
+        services: { backend: { platform: { type: 'posix' } } }
       }
     };
     

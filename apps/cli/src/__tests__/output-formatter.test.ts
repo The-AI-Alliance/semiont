@@ -11,13 +11,13 @@ import {
   formatResults, 
   formatResultsQuiet, 
   formatResultsVerbose 
-} from '../core/commands/output-formatter.js';
+} from '../core/io/output-formatter.js';
 import { 
   createBaseResult, 
   createErrorResult,
   type CommandResults,
   type StartResult 
-} from '../core/commands/command-results.js';
+} from '../core/command-results.js';
 
 describe('Output Formatter', () => {
   const startTime = Date.now();
@@ -50,7 +50,7 @@ describe('Output Formatter', () => {
       } as StartResult,
       {
         ...createErrorResult(
-          createBaseResult('start', 'backend', 'process', 'test', startTime),
+          createBaseResult('start', 'backend', 'posix', 'test', startTime),
           'Port 3001 already in use'
         ),
         resourceId: {
@@ -211,7 +211,7 @@ describe('Output Formatter', () => {
       expect(formatted).toContain('[OK]');
       expect(formatted).toContain('running');
       expect(formatted).toContain('backend');
-      expect(formatted).toContain('process');
+      expect(formatted).toContain('posix');
       expect(formatted).toContain('[FAIL]');
       expect(formatted).toContain('failed');
     });
@@ -393,7 +393,7 @@ describe('Output Formatter', () => {
       const processResults: CommandResults = {
         ...createTestResults(),
         services: [{
-          ...createBaseResult('start', 'backend', 'process', 'local', startTime),
+          ...createBaseResult('start', 'backend', 'posix', 'local', startTime),
           resourceId: {
             process: {
               pid: 12345,

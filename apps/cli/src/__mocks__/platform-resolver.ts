@@ -39,12 +39,12 @@ export const resolveServiceDeployments = vi.fn((services: string[], environment:
   const allServices = [
     {
       name: 'frontend',
-      platform: environment === 'local' ? 'process' : 'container',
+      platform: environment === 'local' ? 'posix' : 'container',
       config: { port: 3000 }
     },
     {
       name: 'backend', 
-      platform: environment === 'local' ? 'process' : 'container',
+      platform: environment === 'local' ? 'posix' : 'container',
       config: { port: 3001 }
     },
     {
