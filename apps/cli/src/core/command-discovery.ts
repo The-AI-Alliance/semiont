@@ -16,26 +16,32 @@
 
 import type { CommandDefinition } from './command-definition.js';
 
+// Import all command modules statically for bundling
+import { initCommand } from './commands/init.js';
+import { startCommand } from './commands/start.js';
+import { checkCommand } from './commands/check.js';
+import { provisionCommand } from './commands/provision.js';
+import { publishCommand } from './commands/publish.js';
+import { updateCommand } from './commands/update.js';
+import { watchCommand } from './commands/watch.js';
+
 /**
  * Cache of loaded command definitions
  */
 const commandCache = new Map<string, CommandDefinition<any>>();
 
 /**
- * Map of command names to their module paths
- * This provides the mapping but will eventually be replaced by filesystem scanning
+ * Map of command names to their command definitions
+ * Using static imports for proper bundling
  */
-const COMMAND_MODULES: Record<string, string> = {
-  'init': './commands/init.js',
-  'start': './commands/start.js',
-  'stop': './commands/stop.js',
-  'check': './commands/check.js',
-  'provision': './commands/provision.js',
-  'provision-cdk': './commands/provision-cdk.js',
-  'publish': './commands/publish.js',
-  'test': './commands/test.js',
-  'update': './commands/update.js',
-  'watch': './commands/watch.js',
+const COMMANDS: Record<string, CommandDefinition<any>> = {
+  'init': initCommand,
+  'start': startCommand,
+  'check': checkCommand,
+  'provision': provisionCommand,
+  'publish': publishCommand,
+  'update': updateCommand,
+  'watch': watchCommand,
 };
 
 /**
@@ -51,38 +57,20 @@ export async function loadCommand(name: string): Promise<CommandDefinition<any>>
     return commandCache.get(name)!;
   }
   
-  const modulePath = COMMAND_MODULES[name];
-  if (!modulePath) {
+  const command = COMMANDS[name];
+  if (!command) {
     throw new Error(`Command '${name}' not found`);
   }
   
-  try {
-    const module = await import(modulePath);
-    
-    // Look for the command export (could be named export or default)
-    // Handle hyphenated command names by converting to camelCase for the export name
-    const camelName = name.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
-    const command = module[`${camelName}Command`] || module.default || module[name];
-    
-    if (!command) {
-      throw new Error(`Command module does not export '${camelName}Command', 'default', or '${name}'`);
-    }
-    
-    // Validate it's a proper command definition
-    if (!isCommandDefinition(command)) {
-      throw new Error(`Exported command does not match CommandDefinition interface`);
-    }
-    
-    // Cache for future use
-    commandCache.set(name, command);
-    
-    return command;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Cannot find module')) {
-      throw new Error(`Command '${name}' module not found at ${modulePath}`);
-    }
-    throw error;
+  // Validate it's a proper command definition
+  if (!isCommandDefinition(command)) {
+    throw new Error(`Exported command does not match CommandDefinition interface`);
   }
+  
+  // Cache for future use
+  commandCache.set(name, command);
+  
+  return command;
 }
 
 /**
@@ -91,9 +79,7 @@ export async function loadCommand(name: string): Promise<CommandDefinition<any>>
  * @returns Array of command names
  */
 export async function getAvailableCommands(): Promise<string[]> {
-  // For now, return the keys from our module map
-  // Eventually this should scan the filesystem
-  return Object.keys(COMMAND_MODULES);
+  return Object.keys(COMMANDS);
 }
 
 /**
