@@ -33,10 +33,10 @@
  * and service management capabilities through the MCP protocol.
  */
 
-import { BaseService } from './base-service.js';
-import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
-import { CheckResult } from '../commands/check.js';
-import { loadEnvironmentConfig } from '../platforms/platform-resolver.js';
+import { BaseService } from '../core/base-service.js';
+import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { CommandExtensions } from '../core/command-result.js';
+import { loadEnvironmentConfig } from '../core/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -82,7 +82,7 @@ export class MCPService extends BaseService {
     };
   }
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     // MCP runs on stdio, hard to health check
     return {
       healthy: true,

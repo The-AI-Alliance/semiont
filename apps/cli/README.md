@@ -4,16 +4,28 @@ The unified command-line interface for managing Semiont environments and service
 
 ## Overview
 
-The Semiont CLI provides a consistent interface for:
-- **Service Management**: start, stop, restart, check, watch services based on platform
-- **Infrastructure Operations**: provision, configure, backup services across platforms
-- **Development Workflows**: publish, update, test, exec commands with platform awareness
+The Semiont CLI provides a consistent interface for managing services across different environments and platforms through five core concepts:
+
+### Core Concepts
+
+1. **Environment** - The primary configuration context (dev, staging, production)
+2. **Service** - Business entities managed by the CLI (backend, frontend, database)
+3. **Service Type** - Platform-specific categorizations (web, worker, lambda, ecs)
+4. **Command** - Operations you can perform (start, stop, check, deploy)
+5. **Platform** - Infrastructure targets (posix, container, aws, external)
+
+### Key Capabilities
+
+- **Environment-Driven Configuration**: All operations require an environment context
+- **Service Management**: start, stop, restart, check services based on environment
+- **Infrastructure Operations**: provision, configure, backup across platforms
+- **Development Workflows**: publish, update, test with platform awareness
 - **Safety Features**: comprehensive `--dry-run` support for all operations
-- **Environment Agnostic**: no special treatment of "local" vs "cloud" environments
 
 ## Quick Links
 
-- [**Architecture Overview**](./docs/ARCHITECTURE.md) - Understanding the CLI architecture and design patterns
+- [**Architecture Overview**](./docs/ARCHITECTURE.md) - Understanding the CLI architecture and core concepts
+- [**Managing Environments**](./docs/ADDING_ENVIRONMENTS.md) - Guide for configuring and managing environments
 - [**Adding New Commands**](./docs/ADDING_COMMANDS.md) - Step-by-step guide for adding new CLI commands
 - [**Adding New Platforms**](./docs/ADDING_PLATFORMS.md) - Guide for implementing new platform strategies
 - [**Adding New Services**](./docs/ADDING_SERVICES.md) - Guide for adding new service types
@@ -34,11 +46,28 @@ semiont --help
 
 All commands support these common options:
 
-- **Environment**: `<environment>` (positional) or `--environment <env>` - Target environment 
+- **Environment** (required): `--environment <env>` or via `SEMIONT_ENV` - Target environment
 - **Service Selection**: `-s, --service <service>` - Target specific service(s) (default: "all")
 - **Safety**: `--dry-run` - Preview changes without applying (comprehensive support)
 - **Output**: `-v, --verbose` - Show detailed output and debug information
 - **Help**: `-h, --help` - Show help for the command
+
+### Environment Configuration (Required)
+
+Every command requires an environment to be specified:
+
+```bash
+# Via command-line flag (highest priority)
+semiont start backend --environment production
+
+# Via environment variable
+export SEMIONT_ENV=staging
+semiont start backend
+
+# Error if neither is provided
+semiont start backend
+# Error: Environment is required. Specify --environment flag or set SEMIONT_ENV
+```
 
 ### Dry-Run Support
 
@@ -68,93 +97,153 @@ Flexible service targeting:
 - `filesystem` - Just the filesystem service
 - Service combinations and patterns (future extension)
 
-### Environment Agnostic
+### Environment-Driven Architecture
 
-No special treatment of environment names:
-- `local`, `development`, `staging`, `production` are all treated equally
-- Behavior is determined by each service's **platform**, not environment name
-- Same commands work across all environments with appropriate adaptations
+Environments are the foundation of configuration:
+- **Define which services exist** in each deployment context
+- **Specify platform assignments** for each service (posix, container, aws)
+- **Configure service settings** (ports, environment variables, resources)
+- **No special environment names** - all environments are treated equally
+- **Required for all operations** via `--environment` or `SEMIONT_ENV`
 
 ## Architecture
 
-The CLI follows a layered architecture separating commands, services, platforms, and utilities. See [Architecture Overview](./docs/ARCHITECTURE.md) for detailed information.
+The CLI follows a unified architecture built on five core concepts:
+
+```
+Environment (configuration context)
+    ↓ defines
+Services (what exists)
+    ↓ assigns to
+Platforms (where they run)
+    ↓ categorized as
+Service Types (how they're handled)
+    ↓ operated via
+Commands (what you can do)
+```
+
+See [Architecture Overview](./docs/ARCHITECTURE.md) for detailed information.
 
 ### Directory Structure
 
 ```
+environments/                 # Environment configurations (primary config)
+├── dev.json                 # Development environment
+├── staging.json             # Staging environment
+└── production.json          # Production environment
+
 src/
 ├── cli.ts                    # CLI entry point
+├── core/                     # Core execution engine
+│   ├── unified-executor.ts  # Unified command execution
+│   ├── command-descriptor.ts # Command configuration
+│   ├── command-result.ts    # Unified result type
+│   └── handlers/            # Handler management
+│       ├── registry.ts      # Handler registration
+│       └── types.ts         # Handler types
 ├── commands/                 # Command implementations
 │   ├── start.ts             # Start services
 │   ├── stop.ts              # Stop services
 │   ├── check.ts             # Health checks
-│   ├── backup.ts            # Backup operations
 │   └── ...                  # Other commands
 ├── services/                 # Service definitions
 │   ├── service-interface.ts # Service contracts
 │   ├── base-service.ts      # Base service class
-│   ├── backend-service.ts   # Backend service
-│   ├── frontend-service.ts  # Frontend service
-│   └── ...                  # Other services
-├── platforms/                # Platform strategies
-│   ├── platform-strategy.ts # Platform interface
-│   ├── process-platform.ts  # Local process platform
-│   ├── container-platform.ts # Docker/Podman platform
-│   ├── aws-platform.ts      # AWS ECS platform
+│   └── ...                  # Service implementations
+├── platforms/                # Platform implementations
+│   ├── posix/handlers/      # POSIX system handlers
+│   ├── container/handlers/  # Docker/Podman handlers
+│   ├── aws/handlers/        # AWS service handlers
 │   └── ...                  # Other platforms
 ├── lib/                      # Shared utilities
-│   ├── cli-colors.ts        # Color definitions
-│   ├── cli-logger.ts        # Logging utilities
-│   ├── validators.ts        # Input validation
-│   └── ...                  # Other utilities
-├── dashboard/                # Dashboard components
-│   ├── dashboard-data.ts    # Data collection
-│   └── dashboard-layouts.tsx # UI layouts
 └── docs/                     # Documentation
-    ├── ARCHITECTURE.md       # Architecture overview
-    ├── ADDING_COMMANDS.md    # Adding commands guide
-    ├── ADDING_PLATFORMS.md   # Adding platforms guide
-    └── ADDING_SERVICES.md    # Adding services guide
+    ├── ARCHITECTURE.md       # Architecture & concepts
+    ├── ADDING_ENVIRONMENTS.md # Environment guide
+    ├── ADDING_COMMANDS.md    # Commands guide
+    ├── ADDING_PLATFORMS.md   # Platforms guide
+    └── ADDING_SERVICES.md    # Services guide
 ```
 
-### Environment Selection
+### Environment Configuration
 
-The CLI determines the environment using the following precedence:
+Environments are JSON files that define:
+- Which services exist
+- Platform assignments for each service
+- Service-specific configuration
+- Platform settings (AWS regions, Docker registries, etc.)
 
-1. **Command-line flag** (`-e` or `--environment`) - highest priority
+#### Example Environment File (environments/staging.json)
+
+```json
+{
+  "platform": {
+    "default": "container"
+  },
+  "services": {
+    "backend": {
+      "platform": "container",
+      "image": "myorg/backend:staging",
+      "port": 3000,
+      "env": {
+        "NODE_ENV": "staging"
+      }
+    },
+    "database": {
+      "platform": "aws",
+      "serviceType": "rds",
+      "instanceClass": "db.t3.medium"
+    }
+  }
+}
+```
+
+#### Environment Resolution
+
+The CLI determines the environment using:
+
+1. **Command-line flag** (`--environment`) - highest priority
 2. **Environment variable** (`SEMIONT_ENV`) - fallback
+3. **Error** - if neither is provided
 
-Example:
 ```bash
-# Set environment via SEMIONT_ENV
+# Via flag
+semiont start backend --environment production
+
+# Via environment variable
 export SEMIONT_ENV=staging
+semiont start backend
 
-# Commands will use staging
-semiont start                    # Uses staging
-semiont check --service backend  # Uses staging
-
-# Override with -e flag when needed
-semiont start -e production      # Uses production
+# Error if neither
+semiont start backend
+# Error: Environment is required
 ```
 
 ## Platform Support
 
-The CLI adapts its behavior based on each service's configured platform:
+Platforms are determined by environment configuration, not hardcoded:
 
-- **Process**: Services running as local OS processes (development)
-- **Container**: Services in Docker/Podman containers  
-- **AWS**: Services on AWS (ECS, RDS, EFS, Lambda)
-- **External**: Third-party or existing services
-- **Mock**: Simulated services for testing
+- **POSIX** (`posix`): Services running as local OS processes
+- **Container** (`container`): Services in Docker/Podman containers  
+- **AWS** (`aws`): Services on AWS with various service types:
+  - ECS (Fargate containers)
+  - Lambda (serverless functions)
+  - RDS (managed databases)
+  - S3/CloudFront (static hosting)
+- **External** (`external`): Third-party or existing services
+- **Mock** (`mock`): Simulated services for testing
+
+Each service's platform is specified in the environment configuration file.
 
 ## Key Design Principles
 
-1. **Platform-Aware Operations** - Commands adapt behavior based on service platform
-2. **Service Requirements Pattern** - Services declare what they need, platforms provide it
-3. **Comprehensive Dry-Run Support** - All commands support `--dry-run` with detailed previews
-4. **Type Safety** - Full TypeScript and Zod validation throughout
-5. **Environment Agnostic** - No special treatment of environment names
-6. **Extensible Architecture** - Easy to add new services, platforms, and commands
+1. **Environment-First Configuration** - All configuration flows from environment files
+2. **Unified Execution Pattern** - All commands use UnifiedExecutor for consistency
+3. **Handler-Based Architecture** - Platform-specific logic in self-contained handlers
+4. **Service Requirements Pattern** - Services declare needs, platforms provide resources
+5. **Comprehensive Dry-Run Support** - All commands support `--dry-run` with detailed previews
+6. **Type Safety** - Full TypeScript and Zod validation throughout
+7. **No Special Environment Names** - All environments treated equally
+8. **Extensible Architecture** - Easy to add new services, platforms, handlers, and commands
 
 ## Command Overview
 
@@ -319,9 +408,10 @@ We welcome contributions! Please see our contributing guidelines for:
 
 ### Adding New Features
 
-1. **Commands**: See [Adding Commands Guide](./docs/ADDING_COMMANDS.md)
-2. **Services**: See [Adding Services Guide](./docs/ADDING_SERVICES.md)
-3. **Platforms**: See [Adding Platforms Guide](./docs/ADDING_PLATFORMS.md)
+1. **Environments**: See [Managing Environments Guide](./docs/ADDING_ENVIRONMENTS.md)
+2. **Commands**: See [Adding Commands Guide](./docs/ADDING_COMMANDS.md)
+3. **Services**: See [Adding Services Guide](./docs/ADDING_SERVICES.md)
+4. **Platforms**: See [Adding Platforms Guide](./docs/ADDING_PLATFORMS.md)
 
 ### Development Workflow
 

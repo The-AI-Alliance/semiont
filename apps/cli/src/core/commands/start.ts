@@ -1,0 +1,110 @@
+/**
+ * Start Command - Unified Executor Implementation
+ * 
+ * Starts services across all platforms using the UnifiedExecutor architecture.
+ */
+
+import { z } from 'zod';
+import { ServicePlatformInfo } from '../platform-resolver.js';
+import { CommandResult, createCommandResult } from '../command-result.js';
+import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
+import { UnifiedExecutor } from '../unified-executor.js';
+import { CommandBuilder } from '../command-definition.js';
+import { BaseOptionsSchema } from '../base-options-schema.js';
+import { PlatformStrategy } from '../platform-strategy.js';
+import { Service } from '../../services/types.js';
+import { HandlerResult } from '../handlers/types.js';
+
+// =====================================================================
+// SCHEMA DEFINITIONS
+// =====================================================================
+
+const StartOptionsSchema = BaseOptionsSchema.extend({
+  service: z.string().optional(),
+});
+
+type StartOptions = z.output<typeof StartOptionsSchema>;
+
+// =====================================================================
+// COMMAND DESCRIPTOR
+// =====================================================================
+
+const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
+  name: 'start',
+  
+  buildServiceConfig: (options, serviceInfo) => ({
+    ...serviceInfo.config,
+    platform: serviceInfo.platform,
+    environment: options.environment,
+  }),
+  
+  extractHandlerOptions: (options) => ({
+    service: options.service,
+    verbose: options.verbose,
+    quiet: options.quiet,
+    dryRun: options.dryRun,
+  }),
+  
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+    // Type guard for start-specific results
+    const startResult = handlerResult as any; // StartHandlerResult
+    
+    return createCommandResult({
+      entity: service.name,
+      platform: platform.getPlatformName() as any,
+      success: handlerResult.success,
+      error: handlerResult.error,
+      metadata: {
+        ...handlerResult.metadata,
+        serviceType,
+      }
+    }, {
+      startTime: startResult.startTime,
+      endpoint: startResult.endpoint,
+      resources: startResult.resources,
+    });
+  },
+  
+  // Environment validation is handled by UnifiedExecutor
+  
+  continueOnError: true,  // Continue starting all services even if one fails
+  supportsAll: true,
+});
+
+// =====================================================================
+// EXECUTOR INSTANCE
+// =====================================================================
+
+const startExecutor = new UnifiedExecutor(startDescriptor);
+
+// =====================================================================
+// COMMAND EXPORT
+// =====================================================================
+
+/**
+ * Main start command function
+ */
+export async function start(
+  serviceDeployments: ServicePlatformInfo[],
+  options: StartOptions
+) {
+  return startExecutor.execute(serviceDeployments, options);
+}
+
+// StartResult type alias removed - use CommandResult directly
+
+// =====================================================================
+// COMMAND DEFINITION (for CLI)
+// =====================================================================
+
+export const startCommand = new CommandBuilder()
+  .name('start')
+  .description('Start services on their configured platforms')
+  .examples(
+    'semiont start --service frontend',
+    'semiont start --service backend --verbose',
+    'semiont start --all'
+  )
+  .schema(StartOptionsSchema)
+  .handler(start)
+  .build();

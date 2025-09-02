@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
-import { initCommand } from '../commands/init.js';
+import { initCommand } from '../core/commands/init.js';
 
 const init = initCommand.handler;
 
@@ -52,7 +52,7 @@ export async function createTestEnvironment(
         verbose: false,
         dryRun: false
       };
-      const result = await init(options);
+      const result = await (init as (options: any) => Promise<any>)(options);
       
       // Check if init failed
       if (result && result.summary && result.summary.failed > 0) {

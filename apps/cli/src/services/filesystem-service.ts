@@ -29,9 +29,9 @@
  * backend and other services mount this filesystem directly.
  */
 
-import { BaseService } from './base-service.js';
-import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
-import { CheckResult } from '../commands/check.js';
+import { BaseService } from '../core/base-service.js';
+import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { CommandExtensions } from '../core/command-result.js';
 import * as path from 'path';
 
 export class FilesystemService extends BaseService {
@@ -78,7 +78,7 @@ export class FilesystemService extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     // Filesystem health is whether the path is accessible
     const dataPath = this.getDataPath();
     

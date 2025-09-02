@@ -28,12 +28,12 @@
  * compression, caching strategies, and SSL/TLS termination.
  */
 
-import { BaseService } from './base-service.js';
-import { CheckResult } from '../commands/check.js';
-import { getNodeEnvForEnvironment } from '../platforms/platform-resolver.js';
+import { BaseService } from '../core/base-service.js';
+import { CommandExtensions } from '../core/command-result.js';
+import { getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import { ServiceRequirements, RequirementPresets } from '../services/service-requirements.js';
+import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
 
 export class FrontendService extends BaseService {
   
@@ -102,7 +102,7 @@ export class FrontendService extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const endpoint = `http://localhost:${this.getPort()}/`;
     
     try {
@@ -113,25 +113,27 @@ export class FrontendService extends BaseService {
       const responseTime = Date.now() - startTime;
       
       return {
-        endpoint,
-        statusCode: response.status,
-        responseTime,
         healthy: response.ok,
         details: { 
+          endpoint,
+          statusCode: response.status,
+          responseTime,
           contentType: response.headers.get('content-type'),
           message: response.ok ? 'Frontend serving' : 'Frontend not serving'
         }
       };
     } catch (error) {
       return {
-        endpoint,
         healthy: false,
-        details: { error: (error as Error).message }
+        details: { 
+          endpoint,
+          error: (error as Error).message 
+        }
       };
     }
   }
   
-  protected async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CommandExtensions['logs']> {
     switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
@@ -143,7 +145,7 @@ export class FrontendService extends BaseService {
     }
   }
   
-  private async collectContainerLogs(): Promise<CheckResult['logs']> {
+  private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
     const containerName = `semiont-frontend-${this.config.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
@@ -155,15 +157,14 @@ export class FrontendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\berror\b/i)).length,
-        warnings: logs.filter(l => l.match(/\bwarning\b/i)).length
+        errors: logs.filter(l => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
     }
   }
   
-  private async collectAWSLogs(): Promise<CheckResult['logs']> {
+  private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     // CloudWatch logs for frontend (if using ECS/Fargate)
     try {
       const logGroup = `/ecs/semiont-${this.config.environment}-frontend`;
@@ -177,8 +178,7 @@ export class FrontendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter((l: string) => l.match(/\berror\b/i)).length,
-        warnings: logs.filter((l: string) => l.match(/\bwarning\b/i)).length
+        errors: logs.filter((l: string) => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       // Frontend might be static S3/CloudFront, no logs
@@ -192,7 +192,7 @@ export class FrontendService extends BaseService {
   
   private getBackendUrl(): string {
     switch (this.platform) {
-      case 'process':
+      case 'posix':
         return 'http://localhost:3001';
       case 'container':
         return 'http://semiont-backend:3001';

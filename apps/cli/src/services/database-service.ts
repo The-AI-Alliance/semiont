@@ -28,12 +28,12 @@
  * connection pooling, and encryption at rest and in transit.
  */
 
-import { BaseService } from './base-service.js';
-import { CheckResult } from '../commands/check.js';
+import { BaseService } from '../core/base-service.js';
+import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../services/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 
 export class DatabaseService extends BaseService {
   
@@ -119,7 +119,7 @@ export class DatabaseService extends BaseService {
   // Service-specific hooks
   // =====================================================================
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const port = this.getPort();
     const dbName = this.config.name || 'semiont';
     const user = this.config.user || 'postgres';
@@ -148,9 +148,9 @@ export class DatabaseService extends BaseService {
       }
       
       return {
-        endpoint: `postgresql://localhost:${port}/${dbName}`,
         healthy: true,
         details: { 
+          endpoint: `postgresql://localhost:${port}/${dbName}`,
           message: 'Database accepting connections',
           connections: connectionCount,
           activeQueries
@@ -158,9 +158,9 @@ export class DatabaseService extends BaseService {
       };
     } catch (error) {
       return {
-        endpoint: `postgresql://localhost:${port}/${dbName}`,
         healthy: false,
         details: { 
+          endpoint: `postgresql://localhost:${port}/${dbName}`,
           message: 'Database not responding',
           error: (error as Error).message
         }
@@ -168,18 +168,18 @@ export class DatabaseService extends BaseService {
     }
   }
   
-  protected async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CommandExtensions['logs']> {
     switch (this.platform) {
       case 'container':
         return this.collectContainerLogs();
-      case 'process':
+      case 'posix':
         return this.collectProcessLogs();
       default:
         return undefined;
     }
   }
   
-  private async collectProcessLogs(): Promise<CheckResult['logs']> {
+  private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
     // PostgreSQL logs location varies by installation
     const possibleLogPaths = [
       '/var/log/postgresql/',
@@ -196,8 +196,7 @@ export class DatabaseService extends BaseService {
           
           return {
             recent: logs.slice(-10),
-            errors: logs.filter(l => l.match(/\bERROR\b/)).length,
-            warnings: logs.filter(l => l.match(/\bWARNING\b/)).length
+            errors: logs.filter(l => l.match(/\bERROR\b/)).slice(-10)
           };
         } catch {
           continue;
@@ -208,7 +207,7 @@ export class DatabaseService extends BaseService {
     return undefined;
   }
   
-  private async collectContainerLogs(): Promise<CheckResult['logs']> {
+  private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
     const containerName = `semiont-postgres-${this.config.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
@@ -220,8 +219,7 @@ export class DatabaseService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\bERROR\b/)).length,
-        warnings: logs.filter(l => l.match(/\bWARNING\b/)).length
+        errors: logs.filter(l => l.match(/\bERROR\b/)).slice(-10)
       };
     } catch {
       return undefined;

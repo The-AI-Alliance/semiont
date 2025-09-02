@@ -28,13 +28,13 @@
  * integration with monitoring and logging systems.
  */
 
-import { BaseService } from './base-service.js';
-import { CheckResult } from '../commands/check.js';
+import { BaseService } from '../core/base-service.js';
+import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../platforms/platform-resolver.js';
+import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../services/service-requirements.js';
+import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 
 export class BackendService extends BaseService {
   
@@ -157,7 +157,7 @@ export class BackendService extends BaseService {
     // This could check database connectivity
   }
   
-  protected override async checkHealth(): Promise<CheckResult['health']> {
+  protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const endpoint = `http://localhost:${this.getPort()}/health`;
     
     try {
@@ -175,24 +175,28 @@ export class BackendService extends BaseService {
       }
       
       return {
-        endpoint,
-        statusCode: response.status,
-        responseTime,
         healthy: response.ok,
-        details
+        details: {
+          ...details,
+          endpoint,
+          statusCode: response.status,
+          responseTime
+        }
       };
     } catch (error) {
       return {
-        endpoint,
         healthy: false,
-        details: { error: (error as Error).message }
+        details: { 
+          endpoint,
+          error: (error as Error).message 
+        }
       };
     }
   }
   
-  protected async doCollectLogs(): Promise<CheckResult['logs']> {
+  protected async doCollectLogs(): Promise<CommandExtensions['logs']> {
     switch (this.platform) {
-      case 'process':
+      case 'posix':
         return this.collectProcessLogs();
       case 'container':
         return this.collectContainerLogs();
@@ -203,11 +207,10 @@ export class BackendService extends BaseService {
     }
   }
   
-  private async collectProcessLogs(): Promise<CheckResult['logs']> {
+  private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
     const logPath = path.join(this.config.projectRoot, 'apps/backend/logs/app.log');
     const recent: string[] = [];
-    let errors = 0;
-    let warnings = 0;
+    const errorLogs: string[] = [];
     
     try {
       if (fs.existsSync(logPath)) {
@@ -217,8 +220,7 @@ export class BackendService extends BaseService {
         
         recent.push(...logs.slice(-10));
         logs.forEach(line => {
-          if (line.match(/\berror\b/i)) errors++;
-          if (line.match(/\bwarning\b/i)) warnings++;
+          if (line.match(/\berror\b/i)) errorLogs.push(line);
         });
       }
     } catch {
@@ -226,13 +228,12 @@ export class BackendService extends BaseService {
     }
     
     return {
-      recent: recent.length > 0 ? recent : undefined,
-      errors,
-      warnings
+      recent: recent.slice(-10),
+      errors: errorLogs.slice(-10)
     };
   }
   
-  private async collectContainerLogs(): Promise<CheckResult['logs']> {
+  private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
     const containerName = `semiont-backend-${this.config.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
@@ -244,15 +245,14 @@ export class BackendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\berror\b/i)).length,
-        warnings: logs.filter(l => l.match(/\bwarning\b/i)).length
+        errors: logs.filter(l => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
     }
   }
   
-  private async collectAWSLogs(): Promise<CheckResult['logs']> {
+  private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     try {
       const logGroup = `/ecs/semiont-${this.config.environment}-backend`;
       const logsJson = execSync(
@@ -265,8 +265,7 @@ export class BackendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter((l: string) => l.match(/\berror\b/i)).length,
-        warnings: logs.filter((l: string) => l.match(/\bwarning\b/i)).length
+        errors: logs.filter((l: string) => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
@@ -321,7 +320,7 @@ export class BackendService extends BaseService {
     
     // Fallback to platform-specific defaults
     switch (this.platform) {
-      case 'process':
+      case 'posix':
         return 'postgresql://postgres:localpassword@localhost:5432/semiont';
       case 'container':
         return 'postgresql://postgres:localpassword@semiont-postgres:5432/semiont';

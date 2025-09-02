@@ -43,9 +43,9 @@ describe('Dynamic Environment Discovery', () => {
     // Create custom environment files that would NOT be in hardcoded lists
     const customEnvironments = {
       'demo.json': {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'demo.local' },
-        services: { backend: { platform: { type: 'process' } } }
+        services: { backend: { platform: { type: 'posix' } } }
       },
       'feature-branch.json': {
         platform: { default: 'container' },
@@ -69,7 +69,7 @@ describe('Dynamic Environment Discovery', () => {
     
     // Import the modules after setting up the filesystem
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -108,9 +108,9 @@ describe('Dynamic Environment Discovery', () => {
         services: { backend: { platform: { type: 'aws' } } }
       },
       'my-custom-env.json': {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'custom.local' },
-        services: { backend: { platform: { type: 'process' } } }
+        services: { backend: { platform: { type: 'posix' } } }
       }
     };
     
@@ -122,7 +122,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -143,7 +143,7 @@ describe('Dynamic Environment Discovery', () => {
     // Remove config directory entirely
     fs.rmSync(configDir, { recursive: true, force: true });
     
-    const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
@@ -155,7 +155,7 @@ describe('Dynamic Environment Discovery', () => {
     fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
     fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
     
-    const { getAvailableEnvironments } = await import('../platforms/platform-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual(['valid']);
@@ -192,7 +192,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     // These would have been rejected by hardcoded validation
     expect(isValidEnvironment('sandbox')).toBe(true);
@@ -209,7 +209,7 @@ describe('Dynamic Environment Discovery', () => {
     expect(sandboxConfig.services?.web?.port).toBe(3000);
     
     const integrationConfig = loadEnvironmentConfig('integration-testing');
-    expect(integrationConfig.deployment?.default).toBe('aws');
+    expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });
 });

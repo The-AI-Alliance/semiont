@@ -47,7 +47,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     const fooConfig = {
       "_comment": "Custom foo environment - this would have been rejected by hardcoded validation",
-      "deployment": {
+      "platform": {
         "default": "container"
       },
       "site": {
@@ -73,7 +73,7 @@ describe('Filesystem Authority for Environment Validation', () => {
       },
       "services": {
         "backend": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "port": 8080,
@@ -81,7 +81,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           "command": "npm start"
         },
         "frontend": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "port": 3000,
@@ -89,7 +89,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           "command": "npm run start"
         },
         "database": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "host": "localhost",
@@ -98,7 +98,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           "user": "postgres"
         },
         "filesystem": {
-          "deployment": {
+          "platform": {
             "type": "container"
           },
           "path": "/data/foo"
@@ -114,7 +114,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     // Import the CLI validation functions
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     // Test 1: Environment discovery should find 'foo'
     const availableEnvironments = getAvailableEnvironments();
@@ -139,9 +139,9 @@ describe('Filesystem Authority for Environment Validation', () => {
     );
     
     // Test 5: Deployment types should be read correctly
-    expect(loadedConfig.services?.backend?.deployment?.type).toBe('container');
-    expect(loadedConfig.services?.frontend?.deployment?.type).toBe('container');
-    expect(loadedConfig.deployment?.default).toBe('container');
+    expect(loadedConfig.services?.backend?.platform?.type).toBe('container');
+    expect(loadedConfig.services?.frontend?.platform?.type).toBe('container');
+    expect(loadedConfig.platform?.default).toBe('container');
     
     // Test 6: App configuration should be fully accessible
     expect(loadedConfig.app?.features?.enableAnalytics).toBe(true);
@@ -160,11 +160,11 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     for (const envName of customEnvironments) {
       const config = {
-        platform: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: `${envName}.example.com` },
         services: {
-          api: { platform: { type: 'process' }, port: 4000 },
-          web: { platform: { type: 'process' }, port: 3000 }
+          api: { platform: { type: 'posix' }, port: 4000 },
+          web: { platform: { type: 'posix' }, port: 3000 }
         }
       };
       
@@ -175,7 +175,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const available = getAvailableEnvironments();
     
@@ -223,7 +223,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const available = getAvailableEnvironments();
     
@@ -242,7 +242,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(fs.readdirSync(configDir)).toEqual([]);
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../platforms/platform-resolver.js');
+      await import('../core/platform-resolver.js');
     
     // Nothing should be valid initially
     expect(getAvailableEnvironments()).toEqual([]);
@@ -253,7 +253,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     // Add one environment
     fs.writeFileSync(
       path.join(configDir, 'new-env.json'),
-      JSON.stringify({ platform: { default: 'process' }, services: {} })
+      JSON.stringify({ platform: { default: 'posix' }, services: {} })
     );
     
     // Now only that environment should be valid

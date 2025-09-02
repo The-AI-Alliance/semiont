@@ -1,4 +1,4 @@
-import { ServicePlatformInfo } from '../platforms/platform-resolver.js';
+import { ServicePlatformInfo } from '../core/platform-resolver.js';
 
 /**
  * Helper functions for exec tests
@@ -38,7 +38,7 @@ export function createProcessDeployment(
 ): ServicePlatformInfo {
   return {
     name,
-    platform: 'process',
+    platform: 'posix',
     config: config as any
   };
 }

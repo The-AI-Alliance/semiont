@@ -5,15 +5,16 @@
  * Uses GenericService for unknown service types.
  */
 
-import { Service, ServiceName } from './service-interface.js';
-import { Config, ServiceConfig } from '../lib/cli-config.js';
-import { Platform } from '../platforms/platform-resolver.js';
+import { Service } from './types.js';
+import { ServiceName } from '../core/service-discovery.js';
+import { Config, ServiceConfig } from '../core/cli-config.js';
+import { Platform } from '../core/platform-resolver.js';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';
 import { FilesystemService } from './filesystem-service.js';
 import { MCPService } from './mcp-service.js';
-import { GenericService } from './generic-service.js';
+import { GenericService } from '../core/generic-service.js';
 
 export class ServiceFactory {
   /**

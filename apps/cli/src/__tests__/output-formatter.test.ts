@@ -11,13 +11,13 @@ import {
   formatResults, 
   formatResultsQuiet, 
   formatResultsVerbose 
-} from '../commands/output-formatter.js';
+} from '../core/io/output-formatter.js';
 import { 
   createBaseResult, 
   createErrorResult,
   type CommandResults,
   type StartResult 
-} from '../commands/command-results.js';
+} from '../core/command-results.js';
 
 describe('Output Formatter', () => {
   const startTime = Date.now();
@@ -28,7 +28,7 @@ describe('Output Formatter', () => {
     environment: 'test',
     timestamp: new Date('2024-01-15T10:30:00Z'),
     duration: 1500,
-    services: [
+    results: [
       {
         ...createBaseResult('start', 'frontend', 'container', 'test', startTime),
         startTime: new Date('2024-01-15T10:30:01Z'),
@@ -50,7 +50,7 @@ describe('Output Formatter', () => {
       } as StartResult,
       {
         ...createErrorResult(
-          createBaseResult('start', 'backend', 'process', 'test', startTime),
+          createBaseResult('start', 'backend', 'posix', 'test', startTime),
           'Port 3001 already in use'
         ),
         resourceId: {
@@ -99,7 +99,7 @@ describe('Output Formatter', () => {
         environment: 'test',
         timestamp: '2024-01-15T10:30:00.000Z',
         duration: 1500,
-        services: expect.arrayContaining([
+        results: expect.arrayContaining([
           expect.objectContaining({
             service: 'frontend',
             success: true,
@@ -165,7 +165,7 @@ describe('Output Formatter', () => {
 
       expect(formatted).toContain('command: "start"');
       expect(formatted).toContain('environment: "test"');
-      expect(formatted).toContain('services:');
+      expect(formatted).toContain('results:');
       expect(formatted).toContain('  - command: "start"');
       expect(formatted).toContain('    service: "frontend"');
       expect(formatted).toContain('    success: true');
@@ -201,7 +201,7 @@ describe('Output Formatter', () => {
         colors: false
       });
 
-      expect(formatted).toContain('Service');
+      expect(formatted).toContain('Entity');
       expect(formatted).toContain('Type');
       expect(formatted).toContain('Status');
       // Note: Duration column was removed in refactoring
@@ -211,7 +211,7 @@ describe('Output Formatter', () => {
       expect(formatted).toContain('[OK]');
       expect(formatted).toContain('running');
       expect(formatted).toContain('backend');
-      expect(formatted).toContain('process');
+      expect(formatted).toContain('posix');
       expect(formatted).toContain('[FAIL]');
       expect(formatted).toContain('failed');
     });
@@ -245,7 +245,7 @@ describe('Output Formatter', () => {
     it('should handle empty services list', () => {
       const emptyResults: CommandResults = {
         ...createTestResults(),
-        services: [],
+        results: [],
         summary: { total: 0, succeeded: 0, failed: 0, warnings: 0 }
       };
 
@@ -256,7 +256,7 @@ describe('Output Formatter', () => {
         colors: false
       });
 
-      expect(formatted).toBe('No services to display\n');
+      expect(formatted).toBe('No results to display\n');
     });
   });
 
@@ -272,7 +272,7 @@ describe('Output Formatter', () => {
 
       expect(formatted).toContain('📊 start completed in 1500ms');
       expect(formatted).toContain('[OK] frontend (container): running');
-      expect(formatted).toContain('[FAIL] backend (process): failed');
+      expect(formatted).toContain('[FAIL] backend (posix): failed');
       expect(formatted).toContain('endpoint: http://localhost:3000');
       expect(formatted).toContain('error: Port 3001 already in use');
       expect(formatted).toContain('Summary: 1 succeeded, 1 failed, 2 total');
@@ -308,7 +308,7 @@ describe('Output Formatter', () => {
       expect(formatted).not.toContain('endpoint:');
       expect(formatted).not.toContain('Summary:');
       expect(formatted).toContain('[OK] frontend (container): running');
-      expect(formatted).toContain('[FAIL] backend (process): failed');
+      expect(formatted).toContain('[FAIL] backend (posix): failed');
     });
 
     it('should handle color codes correctly', () => {
@@ -365,7 +365,7 @@ describe('Output Formatter', () => {
     it('should format AWS resource IDs', () => {
       const awsResults: CommandResults = {
         ...createTestResults(),
-        services: [{
+        results: [{
           ...createBaseResult('provision', 'database', 'aws', 'production', startTime),
           resourceId: {
             aws: {
@@ -392,8 +392,8 @@ describe('Output Formatter', () => {
     it('should format process resource IDs', () => {
       const processResults: CommandResults = {
         ...createTestResults(),
-        services: [{
-          ...createBaseResult('start', 'backend', 'process', 'local', startTime),
+        results: [{
+          ...createBaseResult('start', 'backend', 'posix', 'local', startTime),
           resourceId: {
             process: {
               pid: 12345,
@@ -419,7 +419,7 @@ describe('Output Formatter', () => {
     it('should format external resource IDs', () => {
       const externalResults: CommandResults = {
         ...createTestResults(),
-        services: [{
+        results: [{
           ...createBaseResult('check', 'database', 'external', 'remote', startTime),
           resourceId: {
             external: {
@@ -474,7 +474,7 @@ describe('Output Formatter', () => {
     it('should handle null/undefined metadata values', () => {
       const resultsWithNulls: CommandResults = {
         ...createTestResults(),
-        services: [{
+        results: [{
           ...createBaseResult('test', 'service', 'container', 'test', startTime),
           resourceId: { container: { id: 'test', name: 'test' } },
           status: 'running',
@@ -504,7 +504,7 @@ describe('Output Formatter', () => {
     it('should handle Date objects in metadata', () => {
       const resultsWithDates: CommandResults = {
         ...createTestResults(),
-        services: [{
+        results: [{
           ...createBaseResult('test', 'service', 'container', 'test', startTime),
           resourceId: { container: { id: 'test', name: 'test' } },
           status: 'running',
@@ -529,7 +529,7 @@ describe('Output Formatter', () => {
     it('should handle complex nested objects in metadata', () => {
       const resultsWithComplexMetadata: CommandResults = {
         ...createTestResults(),
-        services: [{
+        results: [{
           ...createBaseResult('test', 'service', 'container', 'test', startTime),
           resourceId: { container: { id: 'test', name: 'test' } },
           status: 'running',

@@ -9,7 +9,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { beforeAll, afterAll } from 'vitest';
-import { initCommand } from '../commands/init.js';
+import { initCommand } from '../core/commands/init.js';
 
 export interface TestEnvironment {
   projectDir: string;
@@ -30,7 +30,7 @@ export async function setupTestProject(environments: string[] = ['local', 'stagi
     process.chdir(projectDir);
     
     // Call the init command handler directly, simulating what the CLI would do
-    const init = initCommand.handler;
+    const init = initCommand.handler as typeof initCommand.handler & ((options: any) => Promise<any>);
     // init is a SetupCommandFunction, it only expects options
     const options = {
       environment: 'none',

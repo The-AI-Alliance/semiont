@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { vi } from 'vitest';
-import type { BaseCommandOptions } from '../commands/base-command-options.js';
+import type { BaseCommandOptions } from '../core/base-command-options.js';
 
 interface TestProject {
   directory: string;
@@ -128,7 +128,7 @@ export class CLITestEnvironment {
     
     try {
       // Import init command dynamically
-      const initModule = await import('../commands/init.js');
+      const initModule = await import('../core/commands/init.js');
       const init = initModule.init;
       
       if (!init) {
