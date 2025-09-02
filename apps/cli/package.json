@@ -8,7 +8,9 @@
     "semiont": "./dist/cli.mjs"
   },
   "scripts": {
-    "build": "node build.mjs",
+    "build": "npm run typecheck && node build.mjs",
+    "build:only": "node build.mjs",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest",
     "test:run": "vitest run",
@@ -54,6 +56,7 @@
     "@types/react": "^19.1.10",
     "@types/yargs": "^17.0.0",
     "chalk": "^5.3.0",
+    "typescript": "^5.9.2",
     "yargs": "^17.7.0"
   }
 }
