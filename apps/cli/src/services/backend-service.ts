@@ -29,7 +29,7 @@
  */
 
 import { BaseService } from '../core/base-service.js';
-import { CommandResult, CommandExtensions } from '../core/command-result.js';
+import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
 import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import * as path from 'path';
@@ -175,17 +175,21 @@ export class BackendService extends BaseService {
       }
       
       return {
-        endpoint,
-        statusCode: response.status,
-        responseTime,
         healthy: response.ok,
-        details
+        details: {
+          ...details,
+          endpoint,
+          statusCode: response.status,
+          responseTime
+        }
       };
     } catch (error) {
       return {
-        endpoint,
         healthy: false,
-        details: { error: (error as Error).message }
+        details: { 
+          endpoint,
+          error: (error as Error).message 
+        }
       };
     }
   }
@@ -206,8 +210,7 @@ export class BackendService extends BaseService {
   private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
     const logPath = path.join(this.config.projectRoot, 'apps/backend/logs/app.log');
     const recent: string[] = [];
-    let errors = 0;
-    let warnings = 0;
+    const errorLogs: string[] = [];
     
     try {
       if (fs.existsSync(logPath)) {
@@ -217,8 +220,7 @@ export class BackendService extends BaseService {
         
         recent.push(...logs.slice(-10));
         logs.forEach(line => {
-          if (line.match(/\berror\b/i)) errors++;
-          if (line.match(/\bwarning\b/i)) warnings++;
+          if (line.match(/\berror\b/i)) errorLogs.push(line);
         });
       }
     } catch {
@@ -226,9 +228,8 @@ export class BackendService extends BaseService {
     }
     
     return {
-      recent: recent.length > 0 ? recent : undefined,
-      errors,
-      warnings
+      recent: recent.slice(-10),
+      errors: errorLogs.slice(-10)
     };
   }
   
@@ -244,8 +245,7 @@ export class BackendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\berror\b/i)).length,
-        warnings: logs.filter(l => l.match(/\bwarning\b/i)).length
+        errors: logs.filter(l => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
@@ -265,8 +265,7 @@ export class BackendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter((l: string) => l.match(/\berror\b/i)).length,
-        warnings: logs.filter((l: string) => l.match(/\bwarning\b/i)).length
+        errors: logs.filter((l: string) => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;

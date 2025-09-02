@@ -381,8 +381,7 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
         }
         
         // File storage → EFS
-        if (requirements.annotations?.['service/type'] === 'filesystem' ||
-            requirements.storage?.type === 'filesystem') {
+        if (requirements.annotations?.['service/type'] === 'filesystem') {
           return 'efs';
         }
         

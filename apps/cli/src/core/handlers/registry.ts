@@ -66,7 +66,7 @@ export class HandlerRegistry {
    * @param serviceType - Service type (e.g., 'ecs', 'lambda')
    * @returns Handler descriptor or undefined if not found
    */
-  getHandlerForCommand<TContext extends BaseHandlerContext, TResult extends HandlerResult>(
+  getHandlerForCommand<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult>(
     command: string,
     platform: string,
     serviceType: string

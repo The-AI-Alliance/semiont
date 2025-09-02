@@ -29,7 +29,7 @@
  */
 
 import { BaseService } from '../core/base-service.js';
-import { CommandResult, CommandExtensions } from '../core/command-result.js';
+import { CommandExtensions } from '../core/command-result.js';
 import { getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
@@ -113,20 +113,22 @@ export class FrontendService extends BaseService {
       const responseTime = Date.now() - startTime;
       
       return {
-        endpoint,
-        statusCode: response.status,
-        responseTime,
         healthy: response.ok,
         details: { 
+          endpoint,
+          statusCode: response.status,
+          responseTime,
           contentType: response.headers.get('content-type'),
           message: response.ok ? 'Frontend serving' : 'Frontend not serving'
         }
       };
     } catch (error) {
       return {
-        endpoint,
         healthy: false,
-        details: { error: (error as Error).message }
+        details: { 
+          endpoint,
+          error: (error as Error).message 
+        }
       };
     }
   }
@@ -155,8 +157,7 @@ export class FrontendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\berror\b/i)).length,
-        warnings: logs.filter(l => l.match(/\bwarning\b/i)).length
+        errors: logs.filter(l => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
@@ -177,8 +178,7 @@ export class FrontendService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter((l: string) => l.match(/\berror\b/i)).length,
-        warnings: logs.filter((l: string) => l.match(/\bwarning\b/i)).length
+        errors: logs.filter((l: string) => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       // Frontend might be static S3/CloudFront, no logs

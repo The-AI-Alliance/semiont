@@ -55,4 +55,4 @@ export interface Service {
 }
 
 // Re-export ServiceName for convenience
-export { ServiceName } from '../core/service-discovery.js';
+export type { ServiceName } from '../core/service-discovery.js';

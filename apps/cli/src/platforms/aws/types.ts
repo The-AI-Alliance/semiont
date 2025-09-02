@@ -94,6 +94,9 @@ export interface AWSResources {
   albArn?: string;            // Application Load Balancer
   endpoint?: string;          // Connection endpoint (RDS, ECS ALB, Lambda URL, etc.)
   
+  // Stack-related
+  stacks?: string[];          // List of stack names (for stack provision)
+  
   // Common metadata
   region: string;
   accountId?: string;

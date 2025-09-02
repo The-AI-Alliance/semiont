@@ -29,7 +29,7 @@
  */
 
 import { BaseService } from '../core/base-service.js';
-import { CommandResult, CommandExtensions } from '../core/command-result.js';
+import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -148,9 +148,9 @@ export class DatabaseService extends BaseService {
       }
       
       return {
-        endpoint: `postgresql://localhost:${port}/${dbName}`,
         healthy: true,
         details: { 
+          endpoint: `postgresql://localhost:${port}/${dbName}`,
           message: 'Database accepting connections',
           connections: connectionCount,
           activeQueries
@@ -158,9 +158,9 @@ export class DatabaseService extends BaseService {
       };
     } catch (error) {
       return {
-        endpoint: `postgresql://localhost:${port}/${dbName}`,
         healthy: false,
         details: { 
+          endpoint: `postgresql://localhost:${port}/${dbName}`,
           message: 'Database not responding',
           error: (error as Error).message
         }
@@ -196,8 +196,7 @@ export class DatabaseService extends BaseService {
           
           return {
             recent: logs.slice(-10),
-            errors: logs.filter(l => l.match(/\bERROR\b/)).length,
-            warnings: logs.filter(l => l.match(/\bWARNING\b/)).length
+            errors: logs.filter(l => l.match(/\bERROR\b/)).slice(-10)
           };
         } catch {
           continue;
@@ -220,8 +219,7 @@ export class DatabaseService extends BaseService {
       
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\bERROR\b/)).length,
-        warnings: logs.filter(l => l.match(/\bWARNING\b/)).length
+        errors: logs.filter(l => l.match(/\bERROR\b/)).slice(-10)
       };
     } catch {
       return undefined;

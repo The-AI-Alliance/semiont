@@ -45,10 +45,15 @@ const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHan
     }
     
     // Collect logs if platform provides collectLogs
-    let logs = undefined;
+    let logs: { recent: string[]; errors: string[] } | undefined = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
       const logEntries = await platform.collectLogs(service, { tail: 10 });
-      logs = logEntries;
+      if (logEntries) {
+        logs = {
+          recent: logEntries.map(entry => entry.message),
+          errors: logEntries.filter(entry => entry.level === 'error').map(entry => entry.message)
+        };
+      }
     }
     
     // Perform health check if available
@@ -64,10 +69,10 @@ const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHan
             signal: AbortSignal.timeout(5000)
           });
           health = {
-            endpoint: healthUrl,
-            statusCode: response.status,
             healthy: response.ok && dockerHealthStatus !== 'unhealthy',
             details: { 
+              endpoint: healthUrl,
+              statusCode: response.status,
               status: response.ok ? 'healthy' : 'unhealthy',
               containerHealth: 'running',
               dockerHealthStatus
@@ -75,7 +80,7 @@ const checkWebContainer = async (context: CheckHandlerContext): Promise<CheckHan
           };
         } catch {
           // Fall back to container exec
-          const healthCheck = execSync(
+          execSync(
             `${runtime} exec ${containerName} curl -f -s ${healthUrl}`,
             { encoding: 'utf-8' }
           );

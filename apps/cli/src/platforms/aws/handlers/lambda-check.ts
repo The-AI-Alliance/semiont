@@ -70,19 +70,14 @@ const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHa
                 .filter(e => e.message)
                 .map(e => e.message!.trim());
               
-              // Count errors and warnings
-              const errors = recentLogs.filter(log => 
+              // Filter error logs
+              const errorLogs = recentLogs.filter(log => 
                 /\b(error|ERROR|Error|FATAL|fatal|Fatal|exception|Exception|EXCEPTION)\b/.test(log)
-              ).length;
-              
-              const warnings = recentLogs.filter(log => 
-                /\b(warning|WARNING|Warning|warn|WARN|Warn)\b/.test(log)
-              ).length;
+              );
               
               logs = {
                 recent: recentLogs.slice(0, 10), // Return the 10 most recent logs
-                errors,
-                warnings
+                errors: errorLogs.slice(0, 10) // Return up to 10 error logs
               };
             }
           } catch (error) {

@@ -30,7 +30,7 @@ const startFilesystemService = async (context: StartHandlerContext): Promise<Sta
   const mountPaths: string[] = [];
   if (requirements.storage) {
     for (const storage of requirements.storage) {
-      const mountPath = storage.mountPath || path.join(process.cwd(), 'data', service.name, storage.name || 'default');
+      const mountPath = storage.mountPath || path.join(process.cwd(), 'data', service.name, storage.volumeName || 'default');
       fs.mkdirSync(mountPath, { recursive: true });
       mountPaths.push(mountPath);
     }

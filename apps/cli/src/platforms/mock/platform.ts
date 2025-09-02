@@ -64,7 +64,7 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   /**
    * Determine service type for handler selection
    */
-  determineServiceType(service: Service): string {
+  determineServiceType(_service: Service): string {
     // Mock platform uses default handler for all services
     return 'default';
   }
@@ -72,7 +72,7 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
   /**
    * Build platform-specific context extensions for handlers
    */
-  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+  async buildHandlerContextExtensions(_service: Service, _requiresDiscovery: boolean): Promise<Record<string, any>> {
     return {
       mockState: this.mockState
     };

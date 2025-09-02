@@ -34,10 +34,15 @@ const checkDatabaseContainer = async (context: CheckHandlerContext): Promise<Che
     ).trim().substring(0, 12);
     
     // Collect logs if platform provides collectLogs
-    let logs = undefined;
+    let logs: { recent: string[]; errors: string[] } | undefined = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
       const logEntries = await platform.collectLogs(service, { tail: 10 });
-      logs = logEntries;
+      if (logEntries) {
+        logs = {
+          recent: logEntries.map(entry => entry.message),
+          errors: logEntries.filter(entry => entry.level === 'error').map(entry => entry.message)
+        };
+      }
     }
     
     // Database-specific health check

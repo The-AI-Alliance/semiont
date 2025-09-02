@@ -20,7 +20,7 @@
 
 
 import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
-import { Service, ServiceName } from '../../services/types.js';
+import { Service } from '../../services/types.js';
 import { StateManager } from '../../core/state-manager.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
@@ -51,7 +51,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
     const serviceName = service.name.toLowerCase();
     
     // Check for MCP services
-    if (service.name === ServiceName.MCP || 
+    if (service.name === 'mcp' || 
         requirements.annotations?.['service/type'] === 'mcp') {
       return 'mcp';
     }
@@ -86,7 +86,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
   /**
    * Build platform-specific context extensions for handlers
    */
-  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+  async buildHandlerContextExtensions(service: Service, _requiresDiscovery: boolean): Promise<Record<string, any>> {
     // Load saved state for posix handlers
     const savedState = await StateManager.load(
       service.projectRoot,
@@ -255,7 +255,7 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
    */
   private async collectDatabaseLogs(
     service: Service,
-    state: import('../../core/state-manager.js').ServiceState | null,
+    _state: import('../../core/state-manager.js').ServiceState | null,
     options?: LogOptions
   ): Promise<LogEntry[] | undefined> {
     const { tail = 10 } = options || {};

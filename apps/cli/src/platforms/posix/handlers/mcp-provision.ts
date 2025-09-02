@@ -5,7 +5,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { ProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { ServiceName } from '../../../core/service-discovery.js';
 import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
 
 /**
@@ -44,7 +43,7 @@ const provisionMCPService = async (context: ProvisionHandlerContext): Promise<Pr
     printInfo('🔐 Setting up MCP authentication...');
   }
   
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     let timeoutId: NodeJS.Timeout;
     const connections = new Set<any>();
     

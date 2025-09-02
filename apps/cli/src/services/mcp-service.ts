@@ -35,7 +35,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
-import { CommandResult, CommandExtensions } from '../core/command-result.js';
+import { CommandExtensions } from '../core/command-result.js';
 import { loadEnvironmentConfig } from '../core/platform-resolver.js';
 import * as path from 'path';
 import * as fs from 'fs';

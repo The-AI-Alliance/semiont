@@ -100,7 +100,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   /**
    * Build platform-specific context extensions for handlers
    */
-  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+  async buildHandlerContextExtensions(service: Service, _requiresDiscovery: boolean): Promise<Record<string, any>> {
     const requirements = service.getRequirements();
     const endpoint = this.buildEndpoint(service.config, requirements);
     
@@ -114,7 +114,7 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
    * External services don't provide logs directly, so return undefined
    * unless the service has configured a log endpoint
    */
-  async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
+  async collectLogs(service: Service, _options?: LogOptions): Promise<LogEntry[] | undefined> {
     // External services typically don't provide direct log access
     // Could be extended to fetch from external logging services if configured
     

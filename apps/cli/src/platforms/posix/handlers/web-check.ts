@@ -53,10 +53,15 @@ const checkWebProcess = async (context: CheckHandlerContext): Promise<CheckHandl
   }
   
   // Collect logs if running
-  let logs = undefined;
+  let logs: { recent: string[]; errors: string[] } | undefined = undefined;
   if (status === 'running' && platform && typeof platform.collectLogs === 'function') {
     const logEntries = await platform.collectLogs(service, { tail: 10 });
-    logs = logEntries;
+    if (logEntries) {
+      logs = {
+        recent: logEntries.map(entry => entry.message),
+        errors: logEntries.filter(entry => entry.level === 'error').map(entry => entry.message)
+      };
+    }
   }
   
   // Perform health check for web services

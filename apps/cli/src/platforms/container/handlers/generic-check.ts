@@ -34,10 +34,15 @@ const checkGenericContainer = async (context: CheckHandlerContext): Promise<Chec
     ).trim().substring(0, 12);
     
     // Collect logs using platform's collectLogs method
-    let logs = undefined;
+    let logs: { recent: string[]; errors: string[] } | undefined = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
       const logEntries = await platform.collectLogs(service, { tail: 10 });
-      logs = logEntries;
+      if (logEntries) {
+        logs = {
+          recent: logEntries.map(entry => entry.message),
+          errors: logEntries.filter(entry => entry.level === 'error').map(entry => entry.message)
+        };
+      }
     }
     
     // Build port mapping for resources if available

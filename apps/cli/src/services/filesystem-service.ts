@@ -31,7 +31,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
-import { CommandResult, CommandExtensions } from '../core/command-result.js';
+import { CommandExtensions } from '../core/command-result.js';
 import * as path from 'path';
 
 export class FilesystemService extends BaseService {

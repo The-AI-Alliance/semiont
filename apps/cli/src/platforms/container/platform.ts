@@ -128,7 +128,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Build platform-specific context extensions for handlers
    */
-  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+  async buildHandlerContextExtensions(service: Service, _requiresDiscovery: boolean): Promise<Record<string, any>> {
     const containerName = this.getResourceName(service);
     
     return {
@@ -186,9 +186,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
       
       // Add since option if provided
       if (since) {
-        const sinceStr = since instanceof Date 
-          ? since.toISOString() 
-          : since.toString();
+        const sinceStr = since.toISOString();
         cmd += ` --since "${sinceStr}"`;
       }
       

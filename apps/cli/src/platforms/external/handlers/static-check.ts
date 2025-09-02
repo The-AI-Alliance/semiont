@@ -4,7 +4,7 @@ import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './ty
  * Check handler for external static sites/CDNs
  */
 const checkExternalStatic = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service, endpoint } = context;
+  const { endpoint } = context;
   
   let status: 'running' | 'stopped' | 'unhealthy' | 'unknown' = 'unknown';
   let health: any = undefined;

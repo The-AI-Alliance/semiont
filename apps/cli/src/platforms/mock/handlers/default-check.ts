@@ -10,10 +10,15 @@ const checkMockService = async (context: CheckHandlerContext): Promise<CheckHand
   const status = state?.running ? 'running' : 'stopped';
   
   // Mock platform doesn't have real logs, but we can simulate
-  let logs = undefined;
+  let logs: { recent: string[]; errors: string[] } | undefined = undefined;
   if (status === 'running' && platform && typeof platform.collectLogs === 'function') {
     const logEntries = await platform.collectLogs(service, { tail: 10 });
-    logs = logEntries;
+    if (logEntries) {
+      logs = {
+        recent: logEntries.map(entry => entry.message),
+        errors: logEntries.filter(entry => entry.level === 'error').map(entry => entry.message)
+      };
+    }
   }
   
   return {
