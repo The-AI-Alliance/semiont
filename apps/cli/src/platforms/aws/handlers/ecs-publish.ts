@@ -115,10 +115,9 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     buildEnv.NEXT_PUBLIC_DOMAIN = domain;
     buildEnv.NEXT_PUBLIC_APP_VERSION = '1.0.0';
     
-    // Critical: OAuth allowed domains must be set at build time for Next.js
-    if (envConfig.site?.oauthAllowedDomains) {
-      buildEnv.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = envConfig.site.oauthAllowedDomains.join(',');
-    }
+    // Note: OAuth allowed domains are set at runtime via ECS task definition,
+    // not at build time. The server-side auth code reads OAUTH_ALLOWED_DOMAINS
+    // from the runtime environment.
     
     // Note: Google OAuth client ID and secret should be set via environment variables
     // during deployment, not in the build configuration
@@ -131,7 +130,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
       printInfo(`  API URL: ${apiUrl}`);
       printInfo(`  Domain: ${domain}`);
       printInfo(`  Site Name: ${buildEnv.NEXT_PUBLIC_SITE_NAME}`);
-      printInfo(`  OAuth Domains: ${buildEnv.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '(none)'}`);
+      printInfo(`  OAuth Domains: ${envConfig.site?.oauthAllowedDomains?.join(', ') || '(none)'} (set at runtime)`);
     }
   }
   

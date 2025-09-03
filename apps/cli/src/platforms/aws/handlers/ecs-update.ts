@@ -1,6 +1,6 @@
 import { execSync } from 'child_process';
 import { AWSUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
  * Update handler for ECS Fargate services
@@ -671,6 +671,17 @@ async function waitForECSDeployment(
   // Clear progress line
   if (!verbose) {
     process.stdout.write('\n');
+  }
+  
+  // Check if deployment is functionally complete even if timeout reached
+  // This happens when new tasks are healthy but old deployments are still draining
+  if (taskDetails.new.healthy === taskDetails.new.total && 
+      taskDetails.new.total > 0 && 
+      taskDetails.old.running === 0) {
+    printWarning(`⚠️  Deployment ${deploymentId} is functionally complete but old deployments still draining`);
+    printSuccess(`✅ ${serviceName} updated successfully - new tasks are healthy`);
+    printInfo(`   Old deployments will finish draining in the background (up to 5 minutes)`);
+    return;
   }
   
   throw new Error(`Deployment ${deploymentId} timed out after ${effectiveTimeout} seconds\n` +
