@@ -203,6 +203,75 @@ async function getLatestTaskDefinitionRevision(cluster: string, service: string,
 }
 
 /**
+ * Fetch recent logs for a failed ECS task
+ */
+async function fetchTaskLogs(
+  clusterName: string,
+  taskArn: string,
+  region: string,
+  verbose: boolean = false
+): Promise<string[]> {
+  try {
+    // Get the task definition to find log configuration
+    const taskId = taskArn.split('/').pop();
+    
+    // Get task details to find the log stream
+    const taskDetails = execSync(
+      `aws ecs describe-tasks --cluster ${clusterName} --tasks ${taskArn} --region ${region} --output json`,
+      { encoding: 'utf-8' }
+    );
+    const task = JSON.parse(taskDetails).tasks?.[0];
+    
+    if (!task) {
+      return [];
+    }
+    
+    // Get log configuration from task definition
+    const taskDefDetails = execSync(
+      `aws ecs describe-task-definition --task-definition ${task.taskDefinitionArn} --region ${region} --output json`,
+      { encoding: 'utf-8' }
+    );
+    const taskDef = JSON.parse(taskDefDetails).taskDefinition;
+    
+    // Find the main container's log configuration
+    const mainContainer = taskDef.containerDefinitions?.[0];
+    const logConfig = mainContainer?.logConfiguration;
+    
+    if (!logConfig || logConfig.logDriver !== 'awslogs') {
+      return [];
+    }
+    
+    const logGroup = logConfig.options?.['awslogs-group'];
+    const streamPrefix = logConfig.options?.['awslogs-stream-prefix'];
+    
+    if (!logGroup || !streamPrefix) {
+      return [];
+    }
+    
+    // Construct the log stream name (format: prefix/container-name/task-id)
+    const containerName = mainContainer.name;
+    const logStream = `${streamPrefix}/${containerName}/${taskId}`;
+    
+    // Fetch recent log events
+    const logsJson = execSync(
+      `aws logs filter-log-events --log-group-name ${logGroup} --log-stream-names ${logStream} --limit 20 --region ${region} --output json`,
+      { encoding: 'utf-8' }
+    );
+    
+    const logEvents = JSON.parse(logsJson).events || [];
+    
+    // Extract just the messages
+    return logEvents.map((event: any) => event.message?.trim()).filter(Boolean);
+    
+  } catch (error) {
+    if (verbose) {
+      console.log(`Failed to fetch logs: ${error}`);
+    }
+    return [];
+  }
+}
+
+/**
  * Wait for ECS deployment to complete with enhanced monitoring
  */
 async function waitForECSDeployment(
@@ -345,9 +414,30 @@ async function waitForECSDeployment(
                   }
                 }
                 
+                // Proactively fetch and display recent logs for the failed task
+                try {
+                  const logs = await fetchTaskLogs(
+                    clusterName, 
+                    task.taskArn, // Use full taskArn, not the shortened one
+                    region,
+                    verbose // Use the verbose variable directly
+                  );
+                  if (logs && logs.length > 0) {
+                    console.log('\n   📋 Recent logs from failed task:');
+                    for (const log of logs.slice(-10)) { // Show last 10 log lines
+                      console.log(`      ${log}`);
+                    }
+                  }
+                } catch (logError) {
+                  // Ignore log fetch errors
+                  if (verbose) {
+                    console.log(`   (Could not fetch task logs: ${logError})`);
+                  }
+                }
+                
                 // Suggest debugging steps based on failure reason
                 if (stopInfo.stoppedReason?.includes('Essential container')) {
-                  console.log('\n   💡 Suggestion: Check container logs with:');
+                  console.log('\n   💡 Suggestion: Check full container logs with:');
                   console.log(`      aws logs tail /ecs/${clusterName}/${serviceName} --follow`);
                 } else if (stopInfo.stoppedReason?.includes('OutOfMemory')) {
                   console.log('\n   💡 Suggestion: Increase task memory in your task definition');
@@ -516,9 +606,10 @@ async function waitForECSDeployment(
         if (!verbose) {
           process.stdout.write('\n');
         }
-        throw new Error(`Deployment ${deploymentId} failed - tasks repeatedly failing to start. Check CloudWatch logs for details.\n` +
-          `   Run with --verbose flag for detailed failure information.\n` +
-          `   Check logs: aws logs tail /ecs/${clusterName}/${serviceName} --follow`);
+        const errorMessage = `Deployment ${deploymentId} failed - tasks repeatedly failing to start. Check CloudWatch logs for details.\n` +
+          (!verbose ? `   Run with --verbose flag for detailed failure information.\n` : '') +
+          `   Check logs: aws logs tail /ecs/${clusterName}/${serviceName} --follow`;
+        throw new Error(errorMessage);
       }
       
       // Reset failure counter if we have running tasks
