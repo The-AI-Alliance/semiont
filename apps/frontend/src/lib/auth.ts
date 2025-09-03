@@ -16,7 +16,8 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google') {
         // Frontend domain validation for better UX (fail fast)
         // Security principle: No configured domains = reject all (closed system)
-        const allowedDomainsStr = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
+        // Server-side env var for NextAuth callbacks (runs on server, not in browser)
+        const allowedDomainsStr = process.env.OAUTH_ALLOWED_DOMAINS || '';
         const allowedDomains = allowedDomainsStr.split(',').map(d => d.trim()).filter(Boolean);
         
         if (!user.email) {
