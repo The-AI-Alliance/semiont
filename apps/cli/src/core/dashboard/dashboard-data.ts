@@ -25,24 +25,14 @@ export class DashboardDataSource {
     private environment: string,
     private serviceDeployments?: ServicePlatformInfo[],
     private config?: Config
-  ) {
-    console.log('[DEBUG] DashboardDataSource constructor called with:');
-    console.log('  environment:', environment);
-    console.log('  serviceDeployments:', JSON.stringify(serviceDeployments, null, 2));
-    console.log('  config:', config ? 'provided' : 'missing');
-  }
+  ) {}
 
   /**
    * Get dashboard data using the new service architecture
    */
   async getDashboardData(): Promise<DashboardData> {
-    console.log('[DEBUG] getDashboardData called');
-    console.log('  serviceDeployments:', this.serviceDeployments ? `${this.serviceDeployments.length} services` : 'none');
-    console.log('  config:', this.config ? 'available' : 'missing');
-    
     // If no service deployments provided, return empty data
     if (!this.serviceDeployments || !this.config) {
-      console.log('[DEBUG] Returning empty data - missing serviceDeployments or config');
       return {
         services: [],
         logs: [],
@@ -94,7 +84,7 @@ export class DashboardDataSource {
         const serviceStatus: ServiceStatus = {
           name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
           status: this.mapStatus(checkResult.extensions?.status || 'unknown'),
-          details: this.getDetails(checkResult),
+          details: checkResult.error || this.getDetails(checkResult),
           lastUpdated: new Date()
         };
         
@@ -215,11 +205,12 @@ export class DashboardDataSource {
     };
   }
 
-  private mapStatus(status?: 'running' | 'stopped' | 'unknown'): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {
+  private mapStatus(status?: 'running' | 'stopped' | 'unknown' | string): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {
     switch (status) {
       case 'running': return 'healthy';
       case 'stopped': return 'unhealthy';
-      default: return 'unknown';
+      case 'unknown': return 'warning';  // Show as warning instead of unknown
+      default: return 'warning';
     }
   }
 
