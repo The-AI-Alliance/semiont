@@ -1,7 +1,6 @@
 import GoogleProvider from 'next-auth/providers/google';
 import { JWTTokenSchema, OAuthUserSchema, validateData } from '@/lib/validation';
 import type { NextAuthOptions } from 'next-auth';
-import { getRuntimeConfig } from '@/lib/runtime-config';
 
 export const authOptions: NextAuthOptions = {
   providers: [
