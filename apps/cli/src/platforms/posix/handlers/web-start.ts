@@ -1,12 +1,12 @@
 import { spawn } from 'child_process';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 
 /**
  * Start handler for web services on POSIX systems
  */
-const startWebService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startWebService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const requirements = service.getRequirements();
   const command = service.getCommand();
@@ -120,7 +120,7 @@ const startWebService = async (context: StartHandlerContext): Promise<StartHandl
 /**
  * Descriptor for web service start handler
  */
-export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const webStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'web',

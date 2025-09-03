@@ -1,4 +1,4 @@
-import { Handler, HandlerResult, BaseHandlerContext, HandlerDescriptor } from './types.js';
+import { HandlerResult, BaseHandlerContext, HandlerDescriptor } from './types.js';
 
 /**
  * Handler Registry
@@ -7,7 +7,7 @@ import { Handler, HandlerResult, BaseHandlerContext, HandlerDescriptor } from '.
  */
 export class HandlerRegistry {
   private static instance: HandlerRegistry;
-  private handlers: Map<string, Map<string, HandlerDescriptor<any, any>>> = new Map();
+  private handlers: Map<string, Map<string, HandlerDescriptor<any, any, any>>> = new Map();
 
   private constructor() {}
 
@@ -27,8 +27,8 @@ export class HandlerRegistry {
    * 
    * @param descriptor - Handler descriptor containing platform, command, serviceType, and handler
    */
-  registerHandler<TContext extends BaseHandlerContext, TResult extends HandlerResult>(
-    descriptor: HandlerDescriptor<TContext, TResult>
+  registerHandler<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult>(
+    descriptor: HandlerDescriptor<TPlatform, TContext, TResult>
   ): void {
     const platform = descriptor.platform;
     const key = `${descriptor.command}:${descriptor.serviceType}`;
@@ -47,7 +47,7 @@ export class HandlerRegistry {
    */
   registerHandlers(
     platform: string,
-    descriptors: HandlerDescriptor<BaseHandlerContext<any>, HandlerResult>[]
+    descriptors: HandlerDescriptor<any, BaseHandlerContext<any>, HandlerResult>[]
   ): void {
     for (const descriptor of descriptors) {
       // Use descriptor's platform if available, otherwise use provided platform
@@ -66,13 +66,13 @@ export class HandlerRegistry {
    * @param serviceType - Service type (e.g., 'ecs', 'lambda')
    * @returns Handler descriptor or undefined if not found
    */
-  getHandlerForCommand<TContext extends BaseHandlerContext<any>, TResult extends HandlerResult>(
+  getHandlerForCommand<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult>(
     command: string,
     platform: string,
     serviceType: string
-  ): HandlerDescriptor<TContext, TResult> | undefined {
+  ): HandlerDescriptor<TPlatform, TContext, TResult> | undefined {
     const key = `${command}:${serviceType}`;
-    return this.handlers.get(platform)?.get(key) as HandlerDescriptor<TContext, TResult> | undefined;
+    return this.handlers.get(platform)?.get(key) as HandlerDescriptor<TPlatform, TContext, TResult> | undefined;
   }
 
   /**
@@ -83,19 +83,19 @@ export class HandlerRegistry {
    * @param operation - Operation name (e.g., 'check-ecs' or 'check:ecs')
    * @returns Handler descriptor or undefined if not found
    */
-  getDescriptor<TContext extends BaseHandlerContext, TResult extends HandlerResult>(
+  getDescriptor<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult>(
     platform: string,
     operation: string
-  ): HandlerDescriptor<TContext, TResult> | undefined {
+  ): HandlerDescriptor<TPlatform, TContext, TResult> | undefined {
     // Try new format first (command:serviceType)
-    let descriptor = this.handlers.get(platform)?.get(operation) as HandlerDescriptor<TContext, TResult> | undefined;
+    let descriptor = this.handlers.get(platform)?.get(operation) as HandlerDescriptor<TPlatform, TContext, TResult> | undefined;
     
     // If not found and operation contains dash, try converting to new format
     if (!descriptor && operation.includes('-')) {
       const [command, ...serviceTypeParts] = operation.split('-');
       const serviceType = serviceTypeParts.join('-');
       const newKey = `${command}:${serviceType}`;
-      descriptor = this.handlers.get(platform)?.get(newKey) as HandlerDescriptor<TContext, TResult> | undefined;
+      descriptor = this.handlers.get(platform)?.get(newKey) as HandlerDescriptor<TPlatform, TContext, TResult> | undefined;
     }
     
     return descriptor;
@@ -108,11 +108,11 @@ export class HandlerRegistry {
    * @param operation - Operation name
    * @returns Handler function or undefined if not found
    */
-  get<TContext extends BaseHandlerContext, TResult extends HandlerResult>(
+  get<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult>(
     platform: string,
     operation: string
-  ): Handler<TContext, TResult> | undefined {
-    const descriptor = this.getDescriptor<TContext, TResult>(platform, operation);
+  ): ((context: TContext) => Promise<TResult>) | undefined {
+    const descriptor = this.getDescriptor<TPlatform, TContext, TResult>(platform, operation);
     return descriptor?.handler;
   }
 

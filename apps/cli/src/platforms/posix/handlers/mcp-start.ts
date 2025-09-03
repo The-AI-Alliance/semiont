@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 
 /**
@@ -8,7 +8,7 @@ import { PlatformResources } from '../../platform-resources.js';
  * MCP is a special service that needs to run interactively with stdio for JSON-RPC communication.
  * It runs as a blocking process that inherits stdin/stdout to communicate with MCP clients.
  */
-const startMCPService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startMCPService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const command = service.getCommand();
   
@@ -68,7 +68,7 @@ const startMCPService = async (context: StartHandlerContext): Promise<StartHandl
 /**
  * Descriptor for MCP service start handler
  */
-export const mcpStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const mcpStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'mcp',

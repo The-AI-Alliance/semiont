@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { PublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
+import { ContainerPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
@@ -15,7 +15,7 @@ import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
  * 
  * Supports both Docker and Podman runtimes
  */
-const publishGenericService = async (context: PublishHandlerContext): Promise<PublishHandlerResult> => {
+const publishGenericService = async (context: ContainerPublishHandlerContext): Promise<PublishHandlerResult> => {
   const { service, runtime } = context;
   const requirements = service.getRequirements();
   const imageTag = `${service.name}:${service.environment}`;
@@ -169,7 +169,7 @@ const publishGenericService = async (context: PublishHandlerContext): Promise<Pu
 /**
  * Descriptor for generic container publish handler
  */
-export const genericPublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
+export const genericPublishDescriptor: HandlerDescriptor<ContainerPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'container',
   serviceType: 'generic',

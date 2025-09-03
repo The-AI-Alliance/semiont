@@ -21,8 +21,8 @@ import { Config } from './cli-config.js';
 import { parseEnvironment } from './environment-validator.js';
 import { printError, printInfo } from './io/cli-logger.js';
 
-// Get project root
-const PROJECT_ROOT = process.env.SEMIONT_PROJECT_ROOT || process.cwd();
+// Get project root (user's project directory, NOT the Semiont source repo)
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 /**
  * Options that all commands have
@@ -215,7 +215,7 @@ export class UnifiedExecutor<TOptions extends BaseOptions> {
     
     const baseContext = HandlerContextBuilder.buildBaseContext(
       service, 
-      platform.getPlatformName(),
+      platform,  // Pass the platform object, not just its name
       handlerOptions  // Pass options to base context
     );
     const context = HandlerContextBuilder.extend(baseContext, contextExtensions);

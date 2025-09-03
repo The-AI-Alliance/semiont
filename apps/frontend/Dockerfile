@@ -1,53 +1,28 @@
 # Frontend Dockerfile for Semiont (Monorepo)
+# Using Next.js standalone output for optimized production deployment
 FROM node:22-alpine AS base
 
-# Install dependencies only when needed
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
-WORKDIR /app
-
-# Copy root package files for workspace resolution
-COPY package.json package-lock.json* ./
-COPY apps/frontend/package.json ./apps/frontend/
-COPY packages/api-types/package.json ./packages/api-types/
-
-# Install all dependencies at root level (this handles workspaces)
-RUN npm ci --workspace=apps/frontend --include-workspace-root
-
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-
-# Copy workspace structure for dependencies
-COPY package.json package-lock.json* ./
-COPY apps/frontend/package.json ./apps/frontend/
-COPY packages/api-types/package.json ./packages/api-types/
-
-# Install production dependencies only
-RUN npm ci --production --legacy-peer-deps
-
-# Copy pre-built artifacts
-COPY packages/api-types/dist ./packages/api-types/dist
-COPY apps/frontend/.next ./apps/frontend/.next
-COPY apps/frontend/public ./apps/frontend/public
-COPY apps/frontend/next.config.js ./apps/frontend/next.config.js
-
-# Set working directory for the app
-WORKDIR /app/apps/frontend
-
-# Production image, copy all the files and run next
+# Production runner stage
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
 # Create a non-root user to own the files and run our server
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 semiont
 
-# Copy the app with dependencies
-COPY --from=builder --chown=semiont:nodejs /app ./
+# Copy the standalone server files
+# The standalone output includes all necessary dependencies
+COPY --chown=semiont:nodejs apps/frontend/.next/standalone ./
+# Static files must be in the .next directory relative to where server.js runs
+COPY --chown=semiont:nodejs apps/frontend/.next/static ./apps/frontend/.next/static  
+# Public files should be at the same level as .next
+COPY --chown=semiont:nodejs apps/frontend/public ./apps/frontend/public
 
 USER semiont
 
@@ -56,12 +31,10 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Set working directory
-WORKDIR /app/apps/frontend
-
-# Health check
+# Health check - check root path to match ALB configuration
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+  CMD node -e "require('http').get('http://localhost:3000/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Use Next.js production server
-CMD ["npx", "next", "start"]
+# Run the standalone server
+# The standalone server is located at the root after copying from .next/standalone
+CMD ["node", "apps/frontend/server.js"]

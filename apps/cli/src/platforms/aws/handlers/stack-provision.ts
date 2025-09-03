@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printError, printSuccess, printInfo, printWarning } from '../../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
 
@@ -16,16 +16,18 @@ import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
  * - 'app': Application resources (ECS, ALB, services)
  * - 'all': Both stacks in dependency order
  */
-const provisionStackService = async (context: ProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
+const provisionStackService = async (context: AWSProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, awsConfig } = context;
   
   // Extract stack configuration from service
   const stackType = service.config?.stackType || 'all'; // 'data' | 'app' | 'all'
   const destroy = service.config?.destroy || false;
   const force = service.config?.force || false;
-  const requireApproval = service.config?.requireApproval ?? true;
   
-  const projectRoot = service.projectRoot;
+  // Always use the actual project root (user's project), not semiont-repo
+  // When --semiont-repo is used, service.projectRoot incorrectly points to the semiont repo
+  // We need to use the actual user's project directory where semiont.json lives
+  const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
   const environment = service.environment;
   
   // Load environment config to get AWS settings
@@ -111,9 +113,15 @@ const provisionStackService = async (context: ProvisionHandlerContext): Promise<
       const cdkCommand = destroy ? 'destroy' : 'deploy';
       const cdkArgs = [
         cdkCommand,
-        stackName,
-        '--require-approval', requireApproval ? 'broadening' : 'never'
+        stackName
       ];
+      
+      // In CI mode (always true for Semiont), we cannot use --require-approval broadening
+      // because it requires TTY interaction. Use 'never' to allow non-interactive execution.
+      cdkArgs.push('--require-approval', 'never');
+      cdkArgs.push('--ci');
+      // Force CDK to show real-time progress events even in CI mode
+      cdkArgs.push('--progress', 'events');
       
       if (force) {
         cdkArgs.push('--force');
@@ -126,18 +134,28 @@ const provisionStackService = async (context: ProvisionHandlerContext): Promise<
         printInfo(`Account: ${awsConfig.accountId}`);
       }
       
-      // Execute CDK command
-      execSync(`npx cdk ${cdkArgs.join(' ')}`, {
+      // Execute CDK command from the project root where cdk/ directory exists
+      // The CDK files are in projectRoot/cdk/ after 'semiont init'
+      // Use spawnSync for better real-time output handling
+      const result = spawnSync('npx', ['cdk', ...cdkArgs], {
         cwd: projectRoot,
-        stdio: service.verbose ? 'inherit' : 'pipe',
+        // Always show CDK output for provision commands since they're important operations
+        // Users need to see what resources are being created/updated
+        stdio: 'inherit',
         env: {
           ...process.env,
           AWS_REGION: awsConfig.region,
           CDK_DEFAULT_ACCOUNT: awsConfig.accountId,
           CDK_DEFAULT_REGION: awsConfig.region,
-          SEMIONT_ENV: environment
-        }
+          SEMIONT_ENV: environment,
+          SEMIONT_ROOT: projectRoot
+        },
+        shell: true
       });
+      
+      if (result.status !== 0) {
+        throw new Error(`CDK command failed with exit code ${result.status}`);
+      }
       
       if (!service.quiet) {
         if (destroy) {
@@ -199,7 +217,7 @@ const provisionStackService = async (context: ProvisionHandlerContext): Promise<
 /**
  * Descriptor for AWS stack provision handler
  */
-export const stackProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
+export const stackProvisionDescriptor: HandlerDescriptor<AWSProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'aws',
   serviceType: 'stack',

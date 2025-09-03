@@ -1,16 +1,12 @@
 import { DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
-// import { AWSPlatformStrategy } from '../platform.js';
 
 /**
  * EFS file system check handler implementation
  */
-const efsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service, cfnDiscoveredResources } = context;
-  const { region } = platform.getAWSConfig(service);
-  const resourceName = platform.getResourceName(service);
-  const accountId = platform.getAccountId(service);
+const efsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
+  const { platform, service, cfnDiscoveredResources, region, resourceName, accountId } = context;
   
   const fileSystemId = cfnDiscoveredResources.fileSystemId || `${resourceName}-fs`;
   
@@ -90,7 +86,7 @@ const efsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
  * EFS check handler descriptor
  * Explicitly declares this handler is for 'check' command on 'efs' service type
  */
-export const efsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const efsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'efs',

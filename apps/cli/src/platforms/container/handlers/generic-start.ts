@@ -1,14 +1,14 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for generic services in containers
  */
-const startGenericContainer = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startGenericContainer = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   const image = service.getImage();
@@ -237,7 +237,7 @@ async function waitForContainer(runtime: string, containerName: string, requirem
 /**
  * Descriptor for generic container start handler
  */
-export const genericStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const genericStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'generic',

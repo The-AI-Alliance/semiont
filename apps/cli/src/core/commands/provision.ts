@@ -148,6 +148,42 @@ export const provisionCommand = new CommandBuilder()
     'semiont provision --stack data',
     'semiont provision --stack app --force'
   )
+  .args({
+    args: {
+      '--service': {
+        type: 'string',
+        description: 'Service to provision (or "all" for all services)',
+      },
+      '--all': {
+        type: 'boolean',
+        description: 'Provision all services',
+        default: false,
+      },
+      '--stack': {
+        type: 'string',
+        description: 'AWS CDK stack to provision (data or app)',
+        choices: ['data', 'app'],
+      },
+      '--force': {
+        type: 'boolean',
+        description: 'Force provision without prompts',
+        default: false,
+      },
+      '--destroy': {
+        type: 'boolean',
+        description: 'Destroy provisioned resources',
+        default: false,
+      },
+      '--skip-dependencies': {
+        type: 'boolean',
+        description: 'Skip provisioning service dependencies',
+        default: false,
+      },
+    },
+    aliases: {
+      '-s': '--service',
+    },
+  })
   .schema(ProvisionOptionsSchema)
   .handler(provision)
   .build();

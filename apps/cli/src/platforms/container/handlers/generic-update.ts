@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
-import { UpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor, StartHandlerContext, StartHandlerResult } from './types.js';
+import { ContainerUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor, ContainerStartHandlerContext, StartHandlerResult } from './types.js';
+import type { ContainerPlatformStrategy } from '../platform.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../../core/handlers/registry.js';
 
@@ -12,7 +13,7 @@ import { HandlerRegistry } from '../../../core/handlers/registry.js';
  * - Preserves Docker/Podman compatibility
  * - Maintains zero downtime when possible
  */
-const updateGenericService = async (context: UpdateHandlerContext): Promise<UpdateHandlerResult> => {
+const updateGenericService = async (context: ContainerUpdateHandlerContext): Promise<UpdateHandlerResult> => {
   const { service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   const oldContainerId = await getContainerId(runtime, containerName);
@@ -28,7 +29,7 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
     try {
       // Start new container alongside old one using the start handler
       const registry = HandlerRegistry.getInstance();
-      const startDescriptor = registry.getHandlerForCommand<StartHandlerContext, StartHandlerResult>(
+      const startDescriptor = registry.getHandlerForCommand<ContainerPlatformStrategy, ContainerStartHandlerContext, StartHandlerResult>(
         'start',
         'container',
         'generic'
@@ -43,7 +44,7 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
       tempService.getResourceName = () => newContainerName;
       
       // Build context for start handler (matching what the update handler received)
-      const startContext: StartHandlerContext = {
+      const startContext: ContainerStartHandlerContext = {
         service: tempService,
         runtime,
         containerName: newContainerName,
@@ -117,7 +118,7 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
       
       // Start new container using the start handler
       const registry = HandlerRegistry.getInstance();
-      const startDescriptor = registry.getHandlerForCommand<StartHandlerContext, StartHandlerResult>(
+      const startDescriptor = registry.getHandlerForCommand<ContainerPlatformStrategy, ContainerStartHandlerContext, StartHandlerResult>(
         'start',
         'container',
         'generic'
@@ -128,7 +129,7 @@ const updateGenericService = async (context: UpdateHandlerContext): Promise<Upda
       }
       
       // Build context for start handler
-      const startContext: StartHandlerContext = {
+      const startContext: ContainerStartHandlerContext = {
         service,
         runtime,
         containerName,
@@ -235,7 +236,7 @@ async function waitForContainer(runtime: string, containerName: string, requirem
 /**
  * Descriptor for generic container update handler
  */
-export const genericUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
+export const genericUpdateDescriptor: HandlerDescriptor<ContainerUpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
   platform: 'container',
   serviceType: 'generic',

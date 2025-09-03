@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { PublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
 
@@ -17,10 +17,16 @@ import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
  * 3. Pushes the image to ECR
  * 4. Updates the ECS task definition with the new image
  */
-const publishECSService = async (context: PublishHandlerContext): Promise<PublishHandlerResult> => {
+const publishECSService = async (context: AWSPublishHandlerContext): Promise<PublishHandlerResult> => {
   const { service, awsConfig, resourceName, cfnDiscoveredResources } = context as any;
   const { region, accountId } = awsConfig;
   const requirements = service.getRequirements();
+  
+  // Load environment configuration from the PROJECT ROOT (current working directory)
+  // NOT from the semiont source code repository
+  // The project's semiont.json is ALWAYS in the user's project directory
+  const projectConfigPath = path.join(process.cwd(), 'semiont.json');
+  const envConfig = loadEnvironmentConfig(service.environment, projectConfigPath);
   
   // Determine image tag based on configuration
   let version: string;
@@ -30,7 +36,6 @@ const publishECSService = async (context: PublishHandlerContext): Promise<Publis
     version = service.config.tag;
   } else {
     // Check environment configuration for deployment strategy
-    const envConfig = loadEnvironmentConfig(service.environment);
     const deploymentStrategy = envConfig.deployment?.imageTagStrategy || 'mutable';
     
     if (deploymentStrategy === 'immutable' || deploymentStrategy === 'git-hash') {
@@ -59,7 +64,8 @@ const publishECSService = async (context: PublishHandlerContext): Promise<Publis
   const rollback: PublishHandlerResult['rollback'] = { supported: true };
   
   // Build and push container to ECR
-  const ecrRepo = `${resourceName}`;
+  // Use simple service name for ECR repo to maintain compatibility with existing infrastructure
+  const ecrRepo = `semiont-${service.name}`;
   const imageUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${ecrRepo}:${version}`;
   
   // Create ECR repository if needed
@@ -96,18 +102,35 @@ const publishECSService = async (context: PublishHandlerContext): Promise<Publis
   
   // For frontend, set build-time environment variables
   if (service.name === 'frontend') {
-    const domain = service.config?.domain || 
+    // Use domain from environment config or fall back to defaults
+    const domain = envConfig.site?.domain || 
+                  service.config?.domain || 
                   (service.environment === 'production' ? 'semiont.com' : `${service.environment}.semiont.com`);
     const apiUrl = `https://${domain}`;
     
+    // Set all NEXT_PUBLIC_ variables that frontend needs
     buildEnv.NEXT_PUBLIC_API_URL = apiUrl;
-    buildEnv.NEXT_PUBLIC_APP_NAME = 'Semiont';
+    buildEnv.NEXT_PUBLIC_APP_NAME = envConfig.site?.siteName || 'Semiont';
+    buildEnv.NEXT_PUBLIC_SITE_NAME = envConfig.site?.siteName || 'Semiont';
+    buildEnv.NEXT_PUBLIC_DOMAIN = domain;
     buildEnv.NEXT_PUBLIC_APP_VERSION = '1.0.0';
+    
+    // Note: OAuth allowed domains are set at runtime via ECS task definition,
+    // not at build time. The server-side auth code reads OAUTH_ALLOWED_DOMAINS
+    // from the runtime environment.
+    
+    // Note: Google OAuth client ID and secret should be set via environment variables
+    // during deployment, not in the build configuration
+    
     buildEnv.NODE_ENV = 'production';
     buildEnv.NEXT_TELEMETRY_DISABLED = '1';
     
-    if (!service.quiet) {
-      printInfo(`Using API URL for frontend: ${apiUrl}`);
+    if (!service.quiet && service.verbose) {
+      printInfo(`Frontend build configuration:`);
+      printInfo(`  API URL: ${apiUrl}`);
+      printInfo(`  Domain: ${domain}`);
+      printInfo(`  Site Name: ${buildEnv.NEXT_PUBLIC_SITE_NAME}`);
+      printInfo(`  OAuth Domains: ${envConfig.site?.oauthAllowedDomains?.join(', ') || '(none)'} (set at runtime)`);
     }
   }
   
@@ -153,7 +176,7 @@ const publishECSService = async (context: PublishHandlerContext): Promise<Publis
     const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
     const platformFlag = '--platform linux/amd64'; // ECS runs on x86_64
     
-    const buildCommand = `docker build ${noCacheFlag}${platformFlag} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`;
+    const buildCommand = `docker build ${noCacheFlag} ${platformFlag} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`;
     
     if (service.verbose) {
       console.log(`[DEBUG] Docker build command: ${buildCommand}`);
@@ -167,10 +190,17 @@ const publishECSService = async (context: PublishHandlerContext): Promise<Publis
     artifacts.imageTag = version;
     artifacts.imageUrl = imageUri;
     
-    // Update task definition with new image
-    await updateTaskDefinition(service, imageUri, region, accountId, cfnDiscoveredResources, resourceName);
+    // Create new task definition with the new image
+    const newTaskDefRevision = await createNewTaskDefinition(service, imageUri, region, accountId, cfnDiscoveredResources, resourceName);
     
-    rollback.command = `aws ecs update-service --cluster semiont-${service.environment} --service ${resourceName} --task-definition ${resourceName}-task:PREVIOUS`;
+    if (newTaskDefRevision) {
+      artifacts.taskDefinitionRevision = newTaskDefRevision;
+      
+      if (!service.quiet) {
+        printInfo(`   📋 Created new task definition revision: ${newTaskDefRevision}`);
+        console.log(`   💡 Run 'semiont update --service ${service.name}' to deploy this new version`);
+      }
+    }
     
     if (!service.quiet) {
       printSuccess(`✅ ${service.name} published successfully`);
@@ -209,17 +239,18 @@ const publishECSService = async (context: PublishHandlerContext): Promise<Publis
 };
 
 /**
- * Update ECS task definition with new image
+ * Create a new ECS task definition revision with the new image
+ * Does NOT update the service - that's the job of the update command
  */
-async function updateTaskDefinition(
+async function createNewTaskDefinition(
   service: any,
   imageUri: string,
   region: string,
   _accountId: string,
   cfnDiscoveredResources: any,
   resourceName: string
-): Promise<void> {
-  if (!service || !imageUri) return;
+): Promise<string> {
+  if (!service || !imageUri) return '';
   
   try {
     // Get the actual ECS service name from CloudFormation discovery
@@ -228,7 +259,7 @@ async function updateTaskDefinition(
     
     if (!serviceName) {
       console.warn(`   ⚠️  Could not find ECS service name for ${service.name}`);
-      return;
+      return '';
     }
     
     // Get the current service to find its task definition
@@ -241,7 +272,7 @@ async function updateTaskDefinition(
     
     if (!currentTaskDefArn) {
       console.warn(`   ⚠️  Could not find task definition for ${serviceName}`);
-      return;
+      return '';
     }
     
     // Get the current task definition
@@ -284,19 +315,15 @@ async function updateTaskDefinition(
     const newTaskDefData = JSON.parse(registerOutput);
     const newTaskDefArn = newTaskDefData.taskDefinition.taskDefinitionArn;
     
-    if (!service.quiet) {
-      printInfo(`   📝 Registered new task definition: ${newTaskDefArn.split('/').pop()}`);
-    }
-    
-    // Update the service to use the new task definition
-    execSync(
-      `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --task-definition ${newTaskDefArn} --region ${region}`,
-      { stdio: 'pipe' }
-    );
+    // Extract just the revision number from the ARN
+    const revision = newTaskDefArn.split(':').pop();
     
     if (!service.quiet) {
-      printSuccess(`   🚀 Service ${serviceName} updated with new image`);
+      printSuccess(`   📝 Registered new task definition revision: ${revision}`);
     }
+    
+    // Return just the revision number
+    return revision || '';
   } catch (error) {
     console.error(`   ❌ Failed to update task definition: ${error}`);
     throw error;
@@ -306,7 +333,7 @@ async function updateTaskDefinition(
 /**
  * Descriptor for ECS publish handler
  */
-export const ecsPublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
+export const ecsPublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
   serviceType: 'ecs',
@@ -315,7 +342,7 @@ export const ecsPublishDescriptor: HandlerDescriptor<PublishHandlerContext, Publ
 };
 
 // Also export for ecs-fargate (alias)
-export const ecsFargatePublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
+export const ecsFargatePublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
   serviceType: 'ecs-fargate',

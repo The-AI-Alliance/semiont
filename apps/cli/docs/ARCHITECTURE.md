@@ -286,6 +286,39 @@ Service: "I need 512MB RAM and port 3000"
 Platform: "I'll provide that using [platform-specific method]"
 ```
 
+### Publish and Update Contract
+
+The `publish` and `update` commands follow a strict separation of concerns:
+
+**Publish Command:**
+- Builds application artifacts (binaries, containers, packages)
+- Pushes artifacts to registries (ECR, Docker Hub, npm, etc.)
+- Creates deployment metadata (task definitions, manifests)
+- **Does NOT modify running services**
+- Returns artifact information for tracking
+
+**Update Command:**
+- Checks for newer versions created by publish
+- Deploys new versions to running services
+- Handles both immutable (git hash) and mutable (`:latest`) tags
+- Monitors deployment progress
+- Reports success/failure
+
+**Example Flow (ECS):**
+```typescript
+// 1. Publish creates new task definition revision
+publish: "Built image, pushed to ECR, created task definition revision 75"
+
+// 2. Update deploys that revision
+update: "Found newer revision 75 (current: 74), deploying..."
+```
+
+This separation ensures:
+- Clear deployment audit trail
+- Ability to publish without immediate deployment
+- Support for both CI/CD and manual deployment workflows
+- Rollback capabilities (update to previous revision)
+
 #### How Services Declare Requirements
 
 Services declare their infrastructure needs through the `getRequirements()` method:

@@ -181,11 +181,24 @@ export const webUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, Update
   platform: 'my-platform',
   serviceType: 'web',
   handler: async (context) => {
-    // Update logic
+    // Update logic - deploys previously published artifacts
+    // Should check for newer versions and deploy them
   }
 };
 
-// Continue for other commands: publish, provision, etc.
+// src/platforms/my-platform/handlers/web-publish.ts
+export const webPublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
+  command: 'publish',
+  platform: 'my-platform',
+  serviceType: 'web',
+  handler: async (context) => {
+    // Publish logic - builds and pushes artifacts
+    // Does NOT deploy to running services
+    // Creates new versions/revisions for update command to deploy
+  }
+};
+
+// Continue for other commands: provision, etc.
 ```
 
 ### 5. Register All Handlers

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
+import * as path from 'path';
 import { SemiontDataStack } from './data-stack';
 import { SemiontAppStack } from './app-stack';
 
@@ -9,9 +10,11 @@ const app = new cdk.App();
 const stackType = app.node.tryGetContext('stack-type') || 'all';
 const environment = app.node.tryGetContext('environment') || process.env.SEMIONT_ENV || 'production';
 
-// Load configurations
-const semiontConfig = require('../semiont.json');
-const envConfig = require(`../environments/${environment}.json`);
+// Load configurations using absolute paths from the project root
+// Use process.cwd() which is the project root when CDK executes
+const projectRoot = process.cwd();
+const semiontConfig = require(path.join(projectRoot, 'semiont.json'));
+const envConfig = require(path.join(projectRoot, 'environments', `${environment}.json`));
 
 // Stack properties
 const stackProps = {

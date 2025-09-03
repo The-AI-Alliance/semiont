@@ -122,6 +122,37 @@ export const checkCommand = new CommandBuilder()
     'semiont check --all',
     'semiont check --deep --wait'
   )
+  .args({
+    args: {
+      '--service': {
+        type: 'string',
+        description: 'Service to check (or "all" for all services)',
+      },
+      '--all': {
+        type: 'boolean',
+        description: 'Check all services',
+        default: false,
+      },
+      '--deep': {
+        type: 'boolean',
+        description: 'Run deep health checks',
+        default: false,
+      },
+      '--wait': {
+        type: 'boolean',
+        description: 'Wait for services to become healthy',
+        default: false,
+      },
+      '--timeout': {
+        type: 'number',
+        description: 'Timeout in seconds when using --wait',
+        default: 60,
+      },
+    },
+    aliases: {
+      '-s': '--service',
+    },
+  })
   .schema(CheckOptionsSchema)
   .handler(check)
   .build();

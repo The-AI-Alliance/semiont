@@ -1,16 +1,13 @@
 import { defaultCheckDescriptor } from './default-check.js';
 import { defaultStartDescriptor } from './default-start.js';
-import { CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
 /**
  * All Mock platform handler descriptors
  */
 // Platform-specific handlers with typed contexts
-const mockHandlers: Array<
-  HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> | 
-  HandlerDescriptor<StartHandlerContext, StartHandlerResult>
-> = [
+const mockHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
   defaultCheckDescriptor,
   // Start handlers

@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
@@ -15,7 +15,7 @@ import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
  * 
  * Supports both Docker and Podman runtimes
  */
-const provisionGenericService = async (context: ProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
+const provisionGenericService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, runtime } = context;
   const requirements = service.getRequirements();
   
@@ -165,12 +165,15 @@ const provisionGenericService = async (context: ProvisionHandlerContext): Promis
   return {
     success: true,
     dependencies,
-    metadata,
+    metadata: {
+      ...metadata,
+      runtime  // Include runtime in metadata instead
+    },
     resources: {
       platform: 'container',
       data: {
-        runtime,
-        network: metadata.network,
+        containerId: '', // Will be populated when container is started
+        networkName: metadata.network,
         volumes: metadata.volumes
       }
     }
@@ -180,7 +183,7 @@ const provisionGenericService = async (context: ProvisionHandlerContext): Promis
 /**
  * Descriptor for generic container provision handler
  */
-export const genericProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
+export const genericProvisionDescriptor: HandlerDescriptor<ContainerProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'container',
   serviceType: 'generic',

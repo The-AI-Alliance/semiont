@@ -1,15 +1,12 @@
 import { DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 
 /**
  * RDS database instance check handler implementation
  */
-const rdsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service, cfnDiscoveredResources } = context;
-  const { region } = platform.getAWSConfig(service);
-  const resourceName = platform.getResourceName(service);
-  const accountId = platform.getAccountId(service);
+const rdsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
+  const { platform, service, cfnDiscoveredResources, region, resourceName, accountId } = context;
   
   const dbInstanceId = cfnDiscoveredResources.dbInstanceId || `${resourceName}-db`;
   
@@ -96,7 +93,7 @@ const rdsCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandl
  * RDS check handler descriptor
  * Explicitly declares this handler is for 'check' command on 'rds' service type
  */
-export const rdsCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const rdsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'rds',

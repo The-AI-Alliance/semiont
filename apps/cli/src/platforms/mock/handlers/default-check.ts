@@ -1,9 +1,9 @@
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { MockCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for mock services (used for testing)
  */
-const checkMockService = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
+const checkMockService = async (context: MockCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, mockState } = context;
   
   const state = mockState.get(service.name);
@@ -49,7 +49,7 @@ const checkMockService = async (context: CheckHandlerContext): Promise<CheckHand
 /**
  * Descriptor for mock default check handler
  */
-export const defaultCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const defaultCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'mock',
   serviceType: 'default',

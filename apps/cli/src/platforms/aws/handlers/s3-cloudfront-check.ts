@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 
 /**
@@ -35,10 +35,8 @@ async function getCloudFrontStatus(distributionId: string, region: string): Prom
 /**
  * S3 + CloudFront check handler implementation
  */
-const s3CloudFrontCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service } = context;
-  const { region } = platform.getAWSConfig(service);
-  const resourceName = platform.getResourceName(service);
+const s3CloudFrontCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
+  const { service, region, resourceName } = context;
   
   const bucketName = `${resourceName}-static`;
   
@@ -113,7 +111,7 @@ const s3CloudFrontCheckHandler = async (context: CheckHandlerContext): Promise<C
  * S3-CloudFront check handler descriptor
  * Explicitly declares this handler is for 'check' command on 's3-cloudfront' service type
  */
-export const s3CloudFrontCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const s3CloudFrontCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 's3-cloudfront',

@@ -1,8 +1,22 @@
 /**
  * Update Command - Unified Executor Implementation
  * 
- * Updates running services with new versions or configurations
- * using the UnifiedExecutor architecture.
+ * Deploys new versions of services that have been previously published.
+ * 
+ * For containerized services (e.g., ECS):
+ * - Checks for newer task definition revisions (created by 'publish' command)
+ * - If found: Updates the service to use the newer revision
+ * - If not found: Forces a redeployment of the current revision (useful for mutable tags like ':latest')
+ * - Monitors the deployment progress and reports success/failure
+ * 
+ * The update command performs the actual deployment of artifacts prepared by 'publish'.
+ * 
+ * Typical workflow:
+ * 1. 'semiont publish --service frontend' - Builds and pushes new image, creates task definition
+ * 2. 'semiont update --service frontend' - Deploys the new task definition to the running service
+ * 
+ * For services using mutable tags (e.g., ':latest'), update can also force a redeployment
+ * to pull the latest image even without a new task definition.
  */
 
 import { z } from 'zod';
@@ -133,6 +147,50 @@ export const updateCommand = new CommandBuilder()
     'semiont update --service backend --wait --timeout 300',
     'semiont update --all --skip-tests'
   )
+  .args({
+    args: {
+      '--service': {
+        type: 'string',
+        description: 'Service to update (or "all" for all services)',
+      },
+      '--all': {
+        type: 'boolean',
+        description: 'Update all services',
+        default: false,
+      },
+      '--force': {
+        type: 'boolean',
+        description: 'Force update without prompts',
+        default: false,
+      },
+      '--wait': {
+        type: 'boolean',
+        description: 'Wait for update to complete',
+        default: false,
+      },
+      '--timeout': {
+        type: 'number',
+        description: 'Timeout in seconds when using --wait',
+      },
+      '--skip-tests': {
+        type: 'boolean',
+        description: 'Skip running tests during update',
+        default: false,
+      },
+      '--skip-build': {
+        type: 'boolean',
+        description: 'Skip building during update',
+        default: false,
+      },
+      '--grace-period': {
+        type: 'number',
+        description: 'Grace period in seconds for graceful shutdown',
+      },
+    },
+    aliases: {
+      '-s': '--service',
+    },
+  })
   .schema(UpdateOptionsSchema)
   .handler(update)
   .build();

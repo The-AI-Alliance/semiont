@@ -1,11 +1,9 @@
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 
-const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service } = context;
-  const { region } = platform.getAWSConfig(service);
-  const resourceName = platform.getResourceName(service);
+const lambdaCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
+  const { service, region, resourceName } = context;
   
   // Lambda doesn't use cfnDiscoveredResources, derive name directly
   const functionName = `${resourceName}-function`;
@@ -121,7 +119,7 @@ const lambdaCheckHandler = async (context: CheckHandlerContext): Promise<CheckHa
   }
 };
 
-export const lambdaCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const lambdaCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'lambda',

@@ -1,14 +1,14 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 
 /**
  * Start handler for database services on POSIX systems
  */
-const startDatabaseService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startDatabaseService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const requirements = service.getRequirements();
   const command = service.getCommand();
@@ -175,7 +175,7 @@ const startDatabaseService = async (context: StartHandlerContext): Promise<Start
 /**
  * Descriptor for database service start handler
  */
-export const databaseStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const databaseStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'database',
