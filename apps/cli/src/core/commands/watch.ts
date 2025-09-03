@@ -223,6 +223,11 @@ export async function watch(
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
   const environment = options.environment!;
   
+  // Debug: Log received service deployments
+  if (options.verbose) {
+    console.log('[DEBUG] Watch command received serviceDeployments:', JSON.stringify(serviceDeployments, null, 2));
+  }
+  
   // Create config for the services
   const config: Config = {
     projectRoot: process.cwd(),

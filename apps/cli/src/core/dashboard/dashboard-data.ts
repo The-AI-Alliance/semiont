@@ -25,14 +25,24 @@ export class DashboardDataSource {
     private environment: string,
     private serviceDeployments?: ServicePlatformInfo[],
     private config?: Config
-  ) {}
+  ) {
+    console.log('[DEBUG] DashboardDataSource constructor called with:');
+    console.log('  environment:', environment);
+    console.log('  serviceDeployments:', JSON.stringify(serviceDeployments, null, 2));
+    console.log('  config:', config ? 'provided' : 'missing');
+  }
 
   /**
    * Get dashboard data using the new service architecture
    */
   async getDashboardData(): Promise<DashboardData> {
+    console.log('[DEBUG] getDashboardData called');
+    console.log('  serviceDeployments:', this.serviceDeployments ? `${this.serviceDeployments.length} services` : 'none');
+    console.log('  config:', this.config ? 'available' : 'missing');
+    
     // If no service deployments provided, return empty data
     if (!this.serviceDeployments || !this.config) {
+      console.log('[DEBUG] Returning empty data - missing serviceDeployments or config');
       return {
         services: [],
         logs: [],
