@@ -23,6 +23,9 @@ COPY --chown=semiont:nodejs apps/frontend/.next/standalone ./
 COPY --chown=semiont:nodejs apps/frontend/.next/static ./apps/frontend/.next/static  
 # Public files should be at the same level as .next
 COPY --chown=semiont:nodejs apps/frontend/public ./apps/frontend/public
+# Copy the start script
+COPY --chown=semiont:nodejs apps/frontend/start-server.sh ./start-server.sh
+RUN chmod +x ./start-server.sh
 
 USER semiont
 
@@ -35,6 +38,6 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Run the standalone server
-# The standalone server is located at the root after copying from .next/standalone
-CMD ["node", "apps/frontend/server.js"]
+# Run the standalone server via wrapper script to ensure env vars are available
+# The wrapper script ensures runtime environment variables are passed to Next.js
+CMD ["./start-server.sh"]
