@@ -47,8 +47,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Install OpenSSL for Prisma and PostgreSQL client for database access
-RUN apk add --no-cache openssl postgresql-client
+# Install OpenSSL for Prisma, PostgreSQL client for database access, and curl for health checks
+RUN apk add --no-cache openssl postgresql-client curl
 
 # Create a non-root user to own the files and run our server
 RUN addgroup --system --gid 1001 nodejs
@@ -75,7 +75,7 @@ ENV NODE_ENV=production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+  CMD curl -f http://localhost:4000/api/health || exit 1
 
 # Use the start script if it exists, otherwise run directly
 CMD [ -f "./scripts/start.sh" ] && sh ./scripts/start.sh || node dist/index.js
