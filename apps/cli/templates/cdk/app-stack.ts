@@ -293,6 +293,7 @@ export class SemiontAppStack extends cdk.Stack {
         SITE_NAME: siteName,
         DOMAIN: domainName,
         OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
+        SITE_DOMAIN: domainName,
       }, 
       secrets: {
         DB_USER: ecs.Secret.fromSecretsManager(dbCredentials, 'username'),
@@ -351,7 +352,8 @@ export class SemiontAppStack extends cdk.Stack {
         NEXT_PUBLIC_API_URL: `https://${domainName}`,
         NEXT_PUBLIC_SITE_NAME: siteName,
         NEXT_PUBLIC_DOMAIN: domainName,
-        NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
+        // OAuth domains for server-side NextAuth validation
+        OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
         // NextAuth configuration
         NEXTAUTH_URL: `https://${domainName}`,
         // Backend URL for server-side authentication calls
