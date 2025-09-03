@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
@@ -23,7 +23,6 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
   const stackType = service.config?.stackType || 'all'; // 'data' | 'app' | 'all'
   const destroy = service.config?.destroy || false;
   const force = service.config?.force || false;
-  const requireApproval = service.config?.requireApproval ?? true;
   
   // Always use the actual project root (user's project), not semiont-repo
   // When --semiont-repo is used, service.projectRoot incorrectly points to the semiont repo
@@ -114,9 +113,15 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
       const cdkCommand = destroy ? 'destroy' : 'deploy';
       const cdkArgs = [
         cdkCommand,
-        stackName,
-        '--require-approval', requireApproval ? 'broadening' : 'never'
+        stackName
       ];
+      
+      // In CI mode (always true for Semiont), we cannot use --require-approval broadening
+      // because it requires TTY interaction. Use 'never' to allow non-interactive execution.
+      cdkArgs.push('--require-approval', 'never');
+      cdkArgs.push('--ci');
+      // Force CDK to show real-time progress events even in CI mode
+      cdkArgs.push('--progress', 'events');
       
       if (force) {
         cdkArgs.push('--force');
@@ -131,9 +136,12 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
       
       // Execute CDK command from the project root where cdk/ directory exists
       // The CDK files are in projectRoot/cdk/ after 'semiont init'
-      execSync(`npx cdk ${cdkArgs.join(' ')}`, {
+      // Use spawnSync for better real-time output handling
+      const result = spawnSync('npx', ['cdk', ...cdkArgs], {
         cwd: projectRoot,
-        stdio: service.verbose ? 'inherit' : 'pipe',
+        // Always show CDK output for provision commands since they're important operations
+        // Users need to see what resources are being created/updated
+        stdio: 'inherit',
         env: {
           ...process.env,
           AWS_REGION: awsConfig.region,
@@ -141,8 +149,13 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
           CDK_DEFAULT_REGION: awsConfig.region,
           SEMIONT_ENV: environment,
           SEMIONT_ROOT: projectRoot
-        }
+        },
+        shell: true
       });
+      
+      if (result.status !== 0) {
+        throw new Error(`CDK command failed with exit code ${result.status}`);
+      }
       
       if (!service.quiet) {
         if (destroy) {
