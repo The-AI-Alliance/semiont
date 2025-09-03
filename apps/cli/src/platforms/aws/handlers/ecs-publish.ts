@@ -154,7 +154,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
     const platformFlag = '--platform linux/amd64'; // ECS runs on x86_64
     
-    const buildCommand = `docker build ${noCacheFlag}${platformFlag} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`;
+    const buildCommand = `docker build ${noCacheFlag} ${platformFlag} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`;
     
     if (service.verbose) {
       console.log(`[DEBUG] Docker build command: ${buildCommand}`);
