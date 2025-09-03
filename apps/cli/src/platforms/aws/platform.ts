@@ -23,7 +23,7 @@
 
 import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { handlers } from './handlers/index.js';
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
+import { BasePlatformStrategy, LogOptions, LogEntry, CredentialValidationResult } from '../../core/platform-strategy.js';
 import { Service } from '../../services/types.js';
 import { StateManager } from '../../core/state-manager.js';
 
@@ -586,6 +586,52 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       level,
       source: 'cloudwatch'
     };
+  }
+
+  /**
+   * Validate AWS credentials and prerequisites
+   */
+  override async validateCredentials(environment: string): Promise<CredentialValidationResult> {
+    try {
+      const { validateAWSCredentials } = await import('./utils/credential-validator.js');
+      const result = await validateAWSCredentials(environment);
+      
+      if (!result.valid) {
+        const errorMsg = result.error || 'AWS credentials are not configured';
+        let requiresAction: string | undefined;
+        
+        if (result.ssoExpired) {
+          requiresAction = `aws sso login`;
+        } else if (result.profileMissing) {
+          requiresAction = `Configure AWS credentials (aws configure or set AWS_PROFILE)`;
+        }
+        
+        return {
+          valid: false,
+          error: errorMsg,
+          requiresAction,
+          details: {
+            ssoExpired: result.ssoExpired,
+            profileMissing: result.profileMissing
+          }
+        };
+      }
+      
+      return {
+        valid: true,
+        details: {
+          accountId: result.accountId,
+          region: result.region
+        }
+      };
+    } catch (error) {
+      return {
+        valid: false,
+        error: `Failed to validate AWS credentials: ${error}`,
+        requiresAction: `Check AWS configuration with: aws sts get-caller-identity`,
+        details: { error: String(error) }
+      };
+    }
   }
 
 }

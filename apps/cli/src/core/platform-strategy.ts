@@ -31,6 +31,16 @@ export interface LogEntry {
 
 
 /**
+ * Result of credential validation
+ */
+export interface CredentialValidationResult {
+  valid: boolean;
+  error?: string;
+  requiresAction?: string;  // Command or action user should take to fix
+  details?: Record<string, any>;  // Platform-specific details
+}
+
+/**
  * Platform strategy interface
  * Implemented by each deployment platform (process, container, AWS, external)
  */
@@ -61,6 +71,12 @@ export interface PlatformStrategy {
    * Platform determines how to collect based on service type
    */
   collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
+  
+  /**
+   * Validate credentials/prerequisites for this platform
+   * Returns validation result with helpful error messages if invalid
+   */
+  validateCredentials(environment: string): Promise<CredentialValidationResult>;
 }
 
 /**
@@ -86,6 +102,14 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
    * Collect logs for a service - must be implemented by each platform
    */
   abstract collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
+  
+  /**
+   * Validate credentials/prerequisites for this platform
+   * Default implementation always returns valid
+   */
+  async validateCredentials(_environment: string): Promise<CredentialValidationResult> {
+    return { valid: true };
+  }
   
   /**
    * Helper to generate container/instance names

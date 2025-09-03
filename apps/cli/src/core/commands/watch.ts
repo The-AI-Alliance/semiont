@@ -29,7 +29,7 @@
  */
 
 import { z } from 'zod';
-import { printInfo, setSuppressOutput } from '../io/cli-logger.js';
+import { printInfo, printError, setSuppressOutput } from '../io/cli-logger.js';
 import { type ServicePlatformInfo, type Platform } from '../platform-resolver.js';
 import { CommandResults, createBaseResult } from '../command-results.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -40,6 +40,10 @@ import { ServiceName } from '../service-discovery.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';
+import { PlatformStrategy } from '../platform-strategy.js';
+import { AWSPlatformStrategy } from '../../platforms/aws/platform.js';
+import { ContainerPlatformStrategy } from '../../platforms/container/platform.js';
+import { PosixPlatformStrategy } from '../../platforms/posix/platform.js';
 
 import { colors } from '../io/cli-colors.js';
 import React from 'react';
@@ -236,6 +240,103 @@ export async function watch(
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
   try {
+    // Group services by platform for credential validation
+    const servicesByPlatform = new Map<Platform, ServicePlatformInfo[]>();
+    for (const service of serviceDeployments) {
+      const existing = servicesByPlatform.get(service.platform) || [];
+      existing.push(service);
+      servicesByPlatform.set(service.platform, existing);
+    }
+    
+    // Validate credentials for each platform
+    const failedPlatforms: { platform: Platform; error: string; action?: string; services: ServicePlatformInfo[] }[] = [];
+    
+    for (const [platform, services] of servicesByPlatform) {
+      // Get strategy for the platform
+      let strategy: PlatformStrategy;
+      switch (platform) {
+        case 'aws':
+          strategy = new AWSPlatformStrategy();
+          break;
+        case 'container':
+          strategy = new ContainerPlatformStrategy();
+          break;
+        case 'posix':
+          strategy = new PosixPlatformStrategy();
+          break;
+        default:
+          // Skip validation for unknown platforms
+          continue;
+      }
+      
+      const validation = await strategy.validateCredentials(environment);
+      
+      if (!validation.valid) {
+        failedPlatforms.push({
+          platform,
+          error: validation.error || `${platform} credentials are not configured`,
+          action: validation.requiresAction,
+          services
+        });
+      }
+    }
+    
+    // If any platform failed validation, report errors and exit
+    if (failedPlatforms.length > 0) {
+      if (!isStructuredOutput) {
+        for (const failure of failedPlatforms) {
+          const platformName = failure.platform.charAt(0).toUpperCase() + failure.platform.slice(1);
+          printError(`${colors.red}✗ ${platformName} credentials check failed${colors.reset}`);
+          printError(`  ${failure.error}`);
+          
+          if (failure.action) {
+            printInfo(`\n${colors.bright}To fix this issue:${colors.reset}`);
+            printInfo(`  Run: ${colors.cyan}${failure.action}${colors.reset}`);
+            printInfo(`  Then try the watch command again`);
+          }
+        }
+      }
+      
+      // Return early with error results for all failed services
+      const errorResults: WatchResult[] = [];
+      for (const failure of failedPlatforms) {
+        for (const serviceInfo of failure.services) {
+          const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.platform, environment, startTime);
+          errorResults.push({
+            ...baseResult,
+            entity: baseResult.service,
+            success: false,
+            watchType: 'events' as const,
+            error: `Cannot start watch: ${failure.error}`,
+            metadata: {
+              credentialError: true,
+              platform: failure.platform,
+              requiresAction: failure.action
+            }
+          });
+        }
+      }
+      
+      return {
+        command: 'watch',
+        environment,
+        timestamp: new Date(),
+        duration: Date.now() - startTime,
+        results: errorResults,
+        summary: {
+          total: errorResults.length,
+          succeeded: 0,
+          failed: errorResults.length,
+          warnings: 0,
+        },
+        executionContext: {
+          user: process.env.USER || 'unknown',
+          workingDirectory: process.cwd(),
+          dryRun: options.dryRun,
+        }
+      };
+    }
+    
     if (!isStructuredOutput && options.output === 'summary') {
       if (options.terminal) {
         printInfo(`Starting terminal dashboard for ${colors.bright}${environment}${colors.reset} environment`);
