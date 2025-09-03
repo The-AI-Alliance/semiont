@@ -1,6 +1,7 @@
 import GoogleProvider from 'next-auth/providers/google';
 import { JWTTokenSchema, OAuthUserSchema, validateData } from '@/lib/validation';
 import type { NextAuthOptions } from 'next-auth';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -16,9 +17,12 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google') {
         // Frontend domain validation for better UX (fail fast)
         // Security principle: No configured domains = reject all (closed system)
-        // Server-side env var for NextAuth callbacks (runs on server, not in browser)
+        // Force fresh read of environment variable to bypass any caching
         const allowedDomainsStr = process.env.OAUTH_ALLOWED_DOMAINS || '';
         const allowedDomains = allowedDomainsStr.split(',').map(d => d.trim()).filter(Boolean);
+        
+        console.log(`OAuth Debug: Raw env var = '${allowedDomainsStr}'`);
+        console.log(`OAuth Debug: Parsed domains = ${JSON.stringify(allowedDomains)}`);
         
         if (!user.email) {
           console.log('OAuth Debug: No email provided');
