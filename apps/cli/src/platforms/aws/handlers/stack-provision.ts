@@ -25,7 +25,10 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
   const force = service.config?.force || false;
   const requireApproval = service.config?.requireApproval ?? true;
   
-  const projectRoot = service.projectRoot;
+  // Always use the actual project root (user's project), not semiont-repo
+  // When --semiont-repo is used, service.projectRoot incorrectly points to the semiont repo
+  // We need to use the actual user's project directory where semiont.json lives
+  const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
   const environment = service.environment;
   
   // Load environment config to get AWS settings
@@ -126,7 +129,8 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
         printInfo(`Account: ${awsConfig.accountId}`);
       }
       
-      // Execute CDK command
+      // Execute CDK command from the project root where cdk/ directory exists
+      // The CDK files are in projectRoot/cdk/ after 'semiont init'
       execSync(`npx cdk ${cdkArgs.join(' ')}`, {
         cwd: projectRoot,
         stdio: service.verbose ? 'inherit' : 'pipe',
@@ -135,7 +139,8 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
           AWS_REGION: awsConfig.region,
           CDK_DEFAULT_ACCOUNT: awsConfig.accountId,
           CDK_DEFAULT_REGION: awsConfig.region,
-          SEMIONT_ENV: environment
+          SEMIONT_ENV: environment,
+          SEMIONT_ROOT: projectRoot
         }
       });
       

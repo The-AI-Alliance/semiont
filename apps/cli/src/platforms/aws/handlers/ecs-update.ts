@@ -557,19 +557,54 @@ async function waitForECSDeployment(
             // Still draining old tasks or waiting for health
             if (verbose) {
               if (otherActiveDeployments.length > 0) {
+                // Show detailed deployment status
+                console.log('\n📊 Deployment Status:');
+                console.log(`  ✅ New deployment (${deploymentId.substring(0, 8)}): ${ourDeployment.status}`);
+                console.log(`     - Revision: ${ourRevision}`);
+                console.log(`     - Tasks: ${running}/${desired} running`);
+                console.log(`     - Health: ${taskHealthStatus}`);
+                
+                for (const dep of otherActiveDeployments) {
+                  const depId = dep.id.substring(0, 8);
+                  const depRevision = dep.taskDefinition?.split(':').pop() || 'unknown';
+                  const depTasks = dep.runningCount || 0;
+                  const depStatus = dep.status || 'UNKNOWN';
+                  
+                  // Show why we're waiting
+                  if (depTasks === 0 && depStatus !== 'INACTIVE') {
+                    console.log(`  ⏳ Old deployment (${depId}): ${depStatus} (draining connections)`);
+                    console.log(`     - Revision: ${depRevision}`);
+                    console.log(`     - Tasks: 0 (all stopped, waiting for ECS to mark as INACTIVE)`);
+                  } else {
+                    console.log(`  🔄 Old deployment (${depId}): ${depStatus}`);
+                    console.log(`     - Revision: ${depRevision}`);
+                    console.log(`     - Tasks: ${depTasks} still running`);
+                  }
+                }
+                
+                // Explain the wait
+                const hasZeroTaskDeployments = otherActiveDeployments.some((d: any) => 
+                  (d.runningCount || 0) === 0 && d.status !== 'INACTIVE'
+                );
+                if (hasZeroTaskDeployments) {
+                  console.log('\n💡 Note: Old deployments with 0 tasks may remain in DRAINING state');
+                  console.log('   while ECS waits for connection draining to complete (default: 5 minutes).');
+                  console.log('   This ensures graceful termination of in-flight requests.');
+                }
+                
                 const oldDeploymentRevs = otherActiveDeployments.map((d: any) => {
                   const rev = d.taskDefinition?.split(':').pop();
                   return rev || 'unknown';
                 }).join(', ');
                 
                 if (allSameRevision) {
-                  console.log(`Restarting tasks with same revision (${oldDeploymentRevs})...`);
+                  console.log(`\nRestarting tasks with same revision (${oldDeploymentRevs})...`);
                 } else {
-                  console.log(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain (rev: ${oldDeploymentRevs})...`);
+                  console.log(`\nWaiting for ${otherActiveDeployments.length} old deployment(s) to complete draining...`);
                 }
               }
               if (taskHealthStatus === 'STARTING') {
-                console.log('Waiting for tasks to pass health checks...');
+                console.log('⏳ Waiting for new tasks to pass health checks...');
               }
             }
           }

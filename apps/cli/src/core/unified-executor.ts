@@ -21,8 +21,8 @@ import { Config } from './cli-config.js';
 import { parseEnvironment } from './environment-validator.js';
 import { printError, printInfo } from './io/cli-logger.js';
 
-// Get project root
-const PROJECT_ROOT = process.env.SEMIONT_PROJECT_ROOT || process.cwd();
+// Get project root (user's project directory, NOT the Semiont source repo)
+const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
 
 /**
  * Options that all commands have

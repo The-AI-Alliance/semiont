@@ -22,6 +22,12 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   const { region, accountId } = awsConfig;
   const requirements = service.getRequirements();
   
+  // Load environment configuration from the PROJECT ROOT (current working directory)
+  // NOT from the semiont source code repository
+  // The project's semiont.json is ALWAYS in the user's project directory
+  const projectConfigPath = path.join(process.cwd(), 'semiont.json');
+  const envConfig = loadEnvironmentConfig(service.environment, projectConfigPath);
+  
   // Determine image tag based on configuration
   let version: string;
   
@@ -30,7 +36,6 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     version = service.config.tag;
   } else {
     // Check environment configuration for deployment strategy
-    const envConfig = loadEnvironmentConfig(service.environment);
     const deploymentStrategy = envConfig.deployment?.imageTagStrategy || 'mutable';
     
     if (deploymentStrategy === 'immutable' || deploymentStrategy === 'git-hash') {
@@ -97,18 +102,36 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   
   // For frontend, set build-time environment variables
   if (service.name === 'frontend') {
-    const domain = service.config?.domain || 
+    // Use domain from environment config or fall back to defaults
+    const domain = envConfig.site?.domain || 
+                  service.config?.domain || 
                   (service.environment === 'production' ? 'semiont.com' : `${service.environment}.semiont.com`);
     const apiUrl = `https://${domain}`;
     
+    // Set all NEXT_PUBLIC_ variables that frontend needs
     buildEnv.NEXT_PUBLIC_API_URL = apiUrl;
-    buildEnv.NEXT_PUBLIC_APP_NAME = 'Semiont';
+    buildEnv.NEXT_PUBLIC_APP_NAME = envConfig.site?.siteName || 'Semiont';
+    buildEnv.NEXT_PUBLIC_SITE_NAME = envConfig.site?.siteName || 'Semiont';
+    buildEnv.NEXT_PUBLIC_DOMAIN = domain;
     buildEnv.NEXT_PUBLIC_APP_VERSION = '1.0.0';
+    
+    // Critical: OAuth allowed domains must be set at build time for Next.js
+    if (envConfig.site?.oauthAllowedDomains) {
+      buildEnv.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = envConfig.site.oauthAllowedDomains.join(',');
+    }
+    
+    // Note: Google OAuth client ID and secret should be set via environment variables
+    // during deployment, not in the build configuration
+    
     buildEnv.NODE_ENV = 'production';
     buildEnv.NEXT_TELEMETRY_DISABLED = '1';
     
-    if (!service.quiet) {
-      printInfo(`Using API URL for frontend: ${apiUrl}`);
+    if (!service.quiet && service.verbose) {
+      printInfo(`Frontend build configuration:`);
+      printInfo(`  API URL: ${apiUrl}`);
+      printInfo(`  Domain: ${domain}`);
+      printInfo(`  Site Name: ${buildEnv.NEXT_PUBLIC_SITE_NAME}`);
+      printInfo(`  OAuth Domains: ${buildEnv.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '(none)'}`);
     }
   }
   
