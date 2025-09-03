@@ -267,13 +267,41 @@ For detailed instructions on adding new commands, see the [Adding Commands Guide
 - `restore` - Restore from backups
 
 **Development & Deployment**  
-- `publish` - Build and publish artifacts
-- `update` - Update running services
+- `publish` - Build and publish artifacts (creates new versions, does not deploy)
+- `update` - Deploy new versions to running services (deploys what publish created)
 - `test` - Run test suites
 - `exec` - Execute commands in service context
 - `init` - Initialize new Semiont project
 
 Each command automatically detects the platform for each service and executes the appropriate implementation. See the documentation links above for detailed guides on extending the CLI.
+
+### Publish and Update Workflow
+
+The `publish` and `update` commands work together to deploy new versions:
+
+**Publish** - Prepares artifacts for deployment:
+- Builds applications and Docker images
+- Pushes images to registries (ECR, Docker Hub, etc.)
+- Creates new task definitions (for ECS) or deployment manifests
+- Does NOT deploy to running services
+- Respects `imageTagStrategy` configuration (mutable vs immutable tags)
+
+**Update** - Deploys prepared artifacts:
+- Checks for newer versions created by `publish`
+- Updates running services to use new versions
+- For mutable tags (`:latest`), can force redeployment to pull updated images
+- Monitors deployment progress and reports success/failure
+
+**Typical workflow:**
+```bash
+# 1. Build and publish new version
+semiont publish --service frontend --environment production
+
+# 2. Deploy the new version
+semiont update --service frontend --environment production
+```
+
+For services using immutable tags (e.g., git hashes), `update` will only deploy if a newer version exists. For mutable tags (e.g., `:latest`), `update` can force a redeployment even without version changes.
 
 ## MCP (Model Context Protocol) Server
 

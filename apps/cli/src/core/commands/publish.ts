@@ -1,8 +1,17 @@
 /**
  * Publish Command - Unified Executor Implementation
  * 
- * Publishes services to their respective registries (Docker Hub, ECR, npm, etc.)
+ * Builds and publishes service artifacts to their respective registries (Docker Hub, ECR, npm, etc.)
  * using the UnifiedExecutor architecture.
+ * 
+ * For containerized services (e.g., ECS):
+ * - Builds the application/container
+ * - Pushes the image to the registry with appropriate tags (mutable or immutable based on config)
+ * - Creates a new task definition revision (for ECS) or equivalent metadata
+ * - Does NOT deploy or update running services - that's the job of the 'update' command
+ * 
+ * The publish command prepares artifacts for deployment but does not perform the deployment itself.
+ * Use 'semiont update' after publishing to deploy the new version to running services.
  */
 
 import { z } from 'zod';

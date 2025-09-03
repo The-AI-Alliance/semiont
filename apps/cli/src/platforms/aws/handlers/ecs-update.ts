@@ -30,16 +30,41 @@ const updateECSService = async (context: AWSUpdateHandlerContext): Promise<Updat
   }
   
   try {
-    // Get current task definition revision
-    const previousVersion = await getCurrentTaskDefinition(clusterName, serviceName, region);
+    // Get current task definition revision being used by the service
+    const currentRevision = await getCurrentTaskDefinition(clusterName, serviceName, region);
     
-    // Force a new deployment with the current task definition
-    // This will cause ECS to pull the image again, getting any updates if the tag is mutable (like 'latest')
-    // For immutable tags (like git hashes), this will just restart the tasks
-    const updateResult = execSync(
-      `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    // Check if there's a newer task definition available
+    const latestRevision = await getLatestTaskDefinitionRevision(clusterName, serviceName, region);
+    
+    if (service.verbose) {
+      console.log(`[DEBUG] Current revision: ${currentRevision}`);
+      console.log(`[DEBUG] Latest revision: ${latestRevision}`);
+    }
+    
+    let updateCommand: string;
+    let updateMode: string;
+    
+    if (latestRevision && latestRevision !== currentRevision) {
+      // There's a newer task definition - update to it
+      const taskFamily = await getTaskDefinitionFamily(clusterName, serviceName, region);
+      updateCommand = `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --task-definition ${taskFamily}:${latestRevision} --region ${region} --output json`;
+      updateMode = `new task definition (revision ${currentRevision} → ${latestRevision})`;
+      
+      if (!service.quiet) {
+        printInfo(`Updating service to use newer task definition revision ${latestRevision} (current: ${currentRevision})`);
+      }
+    } else {
+      // No newer task definition - force redeployment of current one
+      // This is useful for mutable tags like 'latest' where the image may have changed
+      updateCommand = `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region} --output json`;
+      updateMode = `forced redeployment of revision ${currentRevision}`;
+      
+      if (!service.quiet) {
+        printInfo(`No newer task definition found. Forcing redeployment of current revision ${currentRevision}`);
+      }
+    }
+    
+    const updateResult = execSync(updateCommand, { encoding: 'utf-8' });
     
     if (service.verbose) {
       // Get current task definition to show what image is being used
@@ -87,20 +112,20 @@ const updateECSService = async (context: AWSUpdateHandlerContext): Promise<Updat
       await waitForECSDeployment(clusterName, serviceName, deploymentId, region, timeout, service.verbose);
     }
     
-    // Get new task definition revision
-    const newVersion = await getCurrentTaskDefinition(clusterName, serviceName, region);
+    // No need to check again - we know what we deployed
     
     return {
       success: true,
-      previousVersion,
-      newVersion,
+      previousVersion: currentRevision,
+      newVersion: latestRevision || currentRevision,
       strategy: 'rolling',
       metadata: {
         serviceType: 'ecs-fargate',
         clusterName,
         serviceName,
         deploymentId,
-        region
+        region,
+        updateMode
       }
     };
     
@@ -132,6 +157,52 @@ async function getCurrentTaskDefinition(cluster: string, service: string, region
 }
 
 /**
+ * Get the task definition family name
+ */
+async function getTaskDefinitionFamily(cluster: string, service: string, region: string): Promise<string> {
+  try {
+    const taskDefArn = execSync(
+      `aws ecs describe-services --cluster ${cluster} --services ${service} --query 'services[0].taskDefinition' --output text --region ${region}`,
+      { encoding: 'utf-8' }
+    ).trim();
+    // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
+    const parts = taskDefArn.split('/');
+    if (parts.length > 1) {
+      return parts[1].split(':')[0];
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Get the latest task definition revision for the service's task family
+ */
+async function getLatestTaskDefinitionRevision(cluster: string, service: string, region: string): Promise<string> {
+  try {
+    const family = await getTaskDefinitionFamily(cluster, service, region);
+    if (!family) return '';
+    
+    // List task definitions for this family and get the latest
+    // Use query to get just the first ARN instead of --max-items to avoid pagination token
+    const taskDefArn = execSync(
+      `aws ecs list-task-definitions --family-prefix ${family} --sort DESC --region ${region} --query 'taskDefinitionArns[0]' --output text`,
+      { encoding: 'utf-8' }
+    ).trim();
+    
+    if (taskDefArn && taskDefArn !== 'None' && taskDefArn.includes(':')) {
+      // Extract just the revision number from the ARN
+      const revision = taskDefArn.split(':').pop();
+      return revision || '';
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Wait for ECS deployment to complete with enhanced monitoring
  */
 async function waitForECSDeployment(
@@ -149,6 +220,12 @@ async function waitForECSDeployment(
   
   // Extend timeout if we detect image pulling
   let effectiveTimeout = timeout;
+  let recentStoppedTasks = new Set<string>();
+  let consecutiveFailures = 0;
+  
+  // Initialize task tracking variables outside loop
+  let taskDetails = { new: { total: 0, running: 0, healthy: 0, pending: 0 }, old: { total: 0, running: 0, healthy: 0, pending: 0 } };
+  let failedTaskInfo: any[] = [];
   
   while ((Date.now() - startTime) < (effectiveTimeout * 1000)) {
     try {
@@ -172,7 +249,7 @@ async function waitForECSDeployment(
         throw new Error(`Deployment ${deploymentId} no longer exists - likely failed or was rolled back`);
       }
       
-      // Check for image pull events
+      // Check for image pull events and other significant events
       if (events.length > lastEventCount) {
         const newEvents = events.slice(0, events.length - lastEventCount);
         const pullEvents = newEvents.filter((e: any) => 
@@ -189,12 +266,110 @@ async function waitForECSDeployment(
           printInfo('Image pull detected, extending timeout by 5 minutes...');
         }
         
+        // Display other significant events in verbose mode
+        if (verbose) {
+          for (const event of newEvents.slice(0, 5)) { // Show last 5 events
+            const eventTime = new Date(event.createdAt).toLocaleTimeString();
+            console.log(`[${eventTime}] ${event.message}`);
+          }
+        }
+        
         lastEventCount = events.length;
       }
       
       // Get detailed task counts by deployment version
-      let taskDetails = { new: { total: 0, running: 0, healthy: 0, pending: 0 }, old: { total: 0, running: 0, healthy: 0, pending: 0 } };
+      taskDetails = { new: { total: 0, running: 0, healthy: 0, pending: 0 }, old: { total: 0, running: 0, healthy: 0, pending: 0 } };
       let taskHealthStatus = 'UNKNOWN'; // Track overall health status
+      failedTaskInfo = [];
+      
+      // Extract revision numbers from task definitions
+      const ourRevision = ourDeployment.taskDefinition?.split(':').pop() || 'unknown';
+      const oldRevisions = new Set<string>();
+      
+      // Check for recently stopped tasks (failures)
+      try {
+        const stoppedTasksData = execSync(
+          `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status STOPPED --region ${region} --output json`,
+          { encoding: 'utf-8' }
+        );
+        const stoppedTaskArns = JSON.parse(stoppedTasksData).taskArns || [];
+        
+        // Get details for stopped tasks from the new deployment
+        if (stoppedTaskArns.length > 0) {
+          const stoppedTasksJson = execSync(
+            `aws ecs describe-tasks --cluster ${clusterName} --tasks ${stoppedTaskArns.slice(0, 10).join(' ')} --region ${region} --output json`,
+            { encoding: 'utf-8' }
+          );
+          const stoppedTasks = JSON.parse(stoppedTasksJson).tasks || [];
+          
+          for (const task of stoppedTasks) {
+            // Only check tasks from our deployment that we haven't seen before
+            if (task.taskDefinitionArn === ourDeployment.taskDefinition && !recentStoppedTasks.has(task.taskArn)) {
+              recentStoppedTasks.add(task.taskArn);
+              
+              // Collect failure information
+              const stopInfo: any = {
+                taskArn: task.taskArn.split('/').pop(),
+                stopCode: task.stopCode,
+                stoppedReason: task.stoppedReason,
+                stoppedAt: task.stoppedAt
+              };
+              
+              // Get container stop reasons
+              if (task.containers && task.containers.length > 0) {
+                stopInfo.containers = task.containers.map((c: any) => ({
+                  name: c.name,
+                  exitCode: c.exitCode,
+                  reason: c.reason
+                }));
+              }
+              
+              failedTaskInfo.push(stopInfo);
+              consecutiveFailures++;
+              
+              // Display failure reason immediately
+              if (stopInfo.stoppedReason) {
+                if (!verbose) {
+                  process.stdout.write('\n');
+                }
+                console.log(`\n⚠️  Task ${stopInfo.taskArn} failed:`);
+                console.log(`   Stop reason: ${stopInfo.stoppedReason}`);
+                if (stopInfo.stopCode) {
+                  console.log(`   Stop code: ${stopInfo.stopCode}`);
+                }
+                if (stopInfo.containers) {
+                  for (const container of stopInfo.containers) {
+                    if (container.exitCode !== undefined && container.exitCode !== 0) {
+                      console.log(`   Container ${container.name}: exit code ${container.exitCode}${container.reason ? ` - ${container.reason}` : ''}`);
+                    }
+                  }
+                }
+                
+                // Suggest debugging steps based on failure reason
+                if (stopInfo.stoppedReason?.includes('Essential container')) {
+                  console.log('\n   💡 Suggestion: Check container logs with:');
+                  console.log(`      aws logs tail /ecs/${clusterName}/${serviceName} --follow`);
+                } else if (stopInfo.stoppedReason?.includes('OutOfMemory')) {
+                  console.log('\n   💡 Suggestion: Increase task memory in your task definition');
+                } else if (stopInfo.stoppedReason?.includes('CannotPullContainer')) {
+                  console.log('\n   💡 Suggestion: Check ECR permissions and image availability');
+                }
+                
+                if (!verbose) {
+                  // Resume progress bar on next line
+                  process.stdout.write('\n');
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Ignore errors fetching stopped tasks
+        if (verbose) {
+          console.log(`Could not fetch stopped tasks: ${error}`);
+        }
+      }
+      
       try {
         const tasksData = execSync(
           `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status RUNNING --region ${region} --output json`,
@@ -213,6 +388,12 @@ async function waitForECSDeployment(
           for (const task of allTasks) {
             const isNewDeployment = task.taskDefinitionArn === ourDeployment.taskDefinition;
             const details = isNewDeployment ? taskDetails.new : taskDetails.old;
+            
+            // Track old revision numbers
+            if (!isNewDeployment && task.taskDefinitionArn) {
+              const oldRev = task.taskDefinitionArn.split(':').pop();
+              if (oldRev) oldRevisions.add(oldRev);
+            }
             
             details.total++;
             
@@ -253,7 +434,29 @@ async function waitForECSDeployment(
             d.id !== deploymentId && d.status !== 'INACTIVE'
           );
           
-          if (otherActiveDeployments.length === 0 && taskHealthStatus !== 'STARTING') {
+          // Special case: If all deployments are using the same task definition revision,
+          // this is a force-redeploy of the same version. ECS will cycle tasks but there's
+          // no "old" version to drain.
+          const allSameRevision = otherActiveDeployments.every((d: any) => 
+            d.taskDefinition === ourDeployment.taskDefinition
+          );
+          
+          if (allSameRevision && otherActiveDeployments.length > 0) {
+            // Check if service events indicate completion
+            const recentEvents = events.slice(0, 2);
+            const hasCompletedEvent = recentEvents.some((e: any) => 
+              e.message?.includes('has reached a steady state') ||
+              e.message?.includes('deployment completed')
+            );
+            
+            if (hasCompletedEvent || (running === desired && taskHealthStatus === 'HEALTHY')) {
+              if (!verbose) {
+                process.stdout.write('\n');
+              }
+              printSuccess(`Deployment ${deploymentId} completed - tasks restarted with same revision ${ourRevision} (${running}/${desired} tasks running)`);
+              return;
+            }
+          } else if (otherActiveDeployments.length === 0 && taskHealthStatus !== 'STARTING') {
             // Only our deployment is active and tasks are ready
             if (!verbose) {
               process.stdout.write('\n');
@@ -264,7 +467,16 @@ async function waitForECSDeployment(
             // Still draining old tasks or waiting for health
             if (verbose) {
               if (otherActiveDeployments.length > 0) {
-                console.log(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain...`);
+                const oldDeploymentRevs = otherActiveDeployments.map((d: any) => {
+                  const rev = d.taskDefinition?.split(':').pop();
+                  return rev || 'unknown';
+                }).join(', ');
+                
+                if (allSameRevision) {
+                  console.log(`Restarting tasks with same revision (${oldDeploymentRevs})...`);
+                } else {
+                  console.log(`Waiting for ${otherActiveDeployments.length} old deployment(s) to drain (rev: ${oldDeploymentRevs})...`);
+                }
               }
               if (taskHealthStatus === 'STARTING') {
                 console.log('Waiting for tasks to pass health checks...');
@@ -281,20 +493,37 @@ async function waitForECSDeployment(
           const filledLength = Math.round((progress / 100) * barLength);
           const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
           
-          // Build detailed status text
-          const newStatus = `new: ${taskDetails.new.healthy}h/${taskDetails.new.running}r/${taskDetails.new.total}t`;
-          const oldStatus = taskDetails.old.total > 0 ? ` | old: ${taskDetails.old.healthy}h/${taskDetails.old.running}r/${taskDetails.old.total}t` : '';
+          // Build detailed status text with revision numbers
+          const newStatus = `rev:${ourRevision} ${taskDetails.new.healthy}h/${taskDetails.new.running}r/${taskDetails.new.total}t`;
+          const oldRevStr = oldRevisions.size > 0 ? `rev:${Array.from(oldRevisions).join(',')} ` : '';
+          const oldStatus = taskDetails.old.total > 0 ? ` | ${oldRevStr}${taskDetails.old.healthy}h/${taskDetails.old.running}r/${taskDetails.old.total}t` : '';
           
           process.stdout.write(`\r  Deployment: [${bar}] ${progress}% (${running}/${desired}) [${newStatus}${oldStatus}]  `);
         } else {
-          // Verbose mode - show raw counts
-          const newStatus = `new: ${taskDetails.new.healthy}h/${taskDetails.new.running}r/${taskDetails.new.total}t`;
-          const oldStatus = `old: ${taskDetails.old.healthy}h/${taskDetails.old.running}r/${taskDetails.old.total}t`;
+          // Verbose mode - show raw counts with revision numbers
+          const newStatus = `rev:${ourRevision} ${taskDetails.new.healthy}h/${taskDetails.new.running}r/${taskDetails.new.total}t`;
+          const oldRevStr = oldRevisions.size > 0 ? `rev:${Array.from(oldRevisions).join(',')} ` : '';
+          const oldStatus = `${oldRevStr}${taskDetails.old.healthy}h/${taskDetails.old.running}r/${taskDetails.old.total}t`;
           console.log(`Deployment progress: ${running}/${desired} tasks [${ourDeployment.status}] [${newStatus} | ${oldStatus}]`);
         }
       } else if (ourDeployment.status === 'INACTIVE') {
         // Deployment was replaced or rolled back
         throw new Error(`Deployment ${deploymentId} failed - status is INACTIVE`);
+      }
+      
+      // Check if we have too many consecutive failures
+      if (consecutiveFailures >= 3) {
+        if (!verbose) {
+          process.stdout.write('\n');
+        }
+        throw new Error(`Deployment ${deploymentId} failed - tasks repeatedly failing to start. Check CloudWatch logs for details.\n` +
+          `   Run with --verbose flag for detailed failure information.\n` +
+          `   Check logs: aws logs tail /ecs/${clusterName}/${serviceName} --follow`);
+      }
+      
+      // Reset failure counter if we have running tasks
+      if (taskDetails.new.running > 0) {
+        consecutiveFailures = 0;
       }
       
       // Wait before checking again
@@ -318,7 +547,11 @@ async function waitForECSDeployment(
     process.stdout.write('\n');
   }
   
-  throw new Error(`Deployment ${deploymentId} timed out after ${effectiveTimeout} seconds`);
+  throw new Error(`Deployment ${deploymentId} timed out after ${effectiveTimeout} seconds\n` +
+    `   Last status: ${taskDetails.new.running}/${taskDetails.new.total} new tasks running\n` +
+    `   Failed tasks: ${failedTaskInfo.length}\n` +
+    `   Run with --verbose flag for detailed progress information\n` +
+    `   Check logs: aws logs tail /ecs/${clusterName}/${serviceName} --follow`);
 }
 
 /**

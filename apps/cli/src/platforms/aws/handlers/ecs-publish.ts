@@ -59,7 +59,8 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   const rollback: PublishHandlerResult['rollback'] = { supported: true };
   
   // Build and push container to ECR
-  const ecrRepo = `${resourceName}`;
+  // Use simple service name for ECR repo to maintain compatibility with existing infrastructure
+  const ecrRepo = `semiont-${service.name}`;
   const imageUri = `${accountId}.dkr.ecr.${region}.amazonaws.com/${ecrRepo}:${version}`;
   
   // Create ECR repository if needed
@@ -167,10 +168,17 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     artifacts.imageTag = version;
     artifacts.imageUrl = imageUri;
     
-    // Update task definition with new image
-    await updateTaskDefinition(service, imageUri, region, accountId, cfnDiscoveredResources, resourceName);
+    // Create new task definition with the new image
+    const newTaskDefRevision = await createNewTaskDefinition(service, imageUri, region, accountId, cfnDiscoveredResources, resourceName);
     
-    rollback.command = `aws ecs update-service --cluster semiont-${service.environment} --service ${resourceName} --task-definition ${resourceName}-task:PREVIOUS`;
+    if (newTaskDefRevision) {
+      artifacts.taskDefinitionRevision = newTaskDefRevision;
+      
+      if (!service.quiet) {
+        printInfo(`   📋 Created new task definition revision: ${newTaskDefRevision}`);
+        console.log(`   💡 Run 'semiont update --service ${service.name}' to deploy this new version`);
+      }
+    }
     
     if (!service.quiet) {
       printSuccess(`✅ ${service.name} published successfully`);
@@ -209,17 +217,18 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
 };
 
 /**
- * Update ECS task definition with new image
+ * Create a new ECS task definition revision with the new image
+ * Does NOT update the service - that's the job of the update command
  */
-async function updateTaskDefinition(
+async function createNewTaskDefinition(
   service: any,
   imageUri: string,
   region: string,
   _accountId: string,
   cfnDiscoveredResources: any,
   resourceName: string
-): Promise<void> {
-  if (!service || !imageUri) return;
+): Promise<string> {
+  if (!service || !imageUri) return '';
   
   try {
     // Get the actual ECS service name from CloudFormation discovery
@@ -228,7 +237,7 @@ async function updateTaskDefinition(
     
     if (!serviceName) {
       console.warn(`   ⚠️  Could not find ECS service name for ${service.name}`);
-      return;
+      return '';
     }
     
     // Get the current service to find its task definition
@@ -241,7 +250,7 @@ async function updateTaskDefinition(
     
     if (!currentTaskDefArn) {
       console.warn(`   ⚠️  Could not find task definition for ${serviceName}`);
-      return;
+      return '';
     }
     
     // Get the current task definition
@@ -284,19 +293,15 @@ async function updateTaskDefinition(
     const newTaskDefData = JSON.parse(registerOutput);
     const newTaskDefArn = newTaskDefData.taskDefinition.taskDefinitionArn;
     
-    if (!service.quiet) {
-      printInfo(`   📝 Registered new task definition: ${newTaskDefArn.split('/').pop()}`);
-    }
-    
-    // Update the service to use the new task definition
-    execSync(
-      `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --task-definition ${newTaskDefArn} --region ${region}`,
-      { stdio: 'pipe' }
-    );
+    // Extract just the revision number from the ARN
+    const revision = newTaskDefArn.split(':').pop();
     
     if (!service.quiet) {
-      printSuccess(`   🚀 Service ${serviceName} updated with new image`);
+      printSuccess(`   📝 Registered new task definition revision: ${revision}`);
     }
+    
+    // Return just the revision number
+    return revision || '';
   } catch (error) {
     console.error(`   ❌ Failed to update task definition: ${error}`);
     throw error;
