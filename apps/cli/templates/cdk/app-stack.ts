@@ -265,7 +265,7 @@ export class SemiontAppStack extends cdk.Stack {
     
     // Backend container - use ECR image or default
     const backendImageUri = this.node.tryGetContext('backendImageUri');
-    const backendRepoName = `semiont-backend-${environment}`;
+    const backendRepoName = `semiont-backend`;
     const backendImage = backendImageUri 
       ? ecs.ContainerImage.fromEcrRepository(
           ecr.Repository.fromRepositoryName(this, 'BackendEcrRepo', backendRepoName),
@@ -307,7 +307,7 @@ export class SemiontAppStack extends cdk.Stack {
         logGroup,
       }),
       healthCheck: {
-        command: ['CMD-SHELL', 'node -e "require(\'http\').get(\'http://localhost:4000/api/health\', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"'],
+        command: ['CMD-SHELL', 'curl -f http://localhost:4000/api/health || exit 1'],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
@@ -329,7 +329,7 @@ export class SemiontAppStack extends cdk.Stack {
 
     // Frontend container - use ECR image or default  
     const frontendImageUri = this.node.tryGetContext('frontendImageUri');
-    const frontendRepoName = `semiont-frontend-${environment}`;
+    const frontendRepoName = `semiont-frontend`;
     const frontendImage = frontendImageUri
       ? ecs.ContainerImage.fromEcrRepository(
           ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepo', frontendRepoName),
@@ -367,7 +367,7 @@ export class SemiontAppStack extends cdk.Stack {
         logGroup,
       }),
       healthCheck: {
-        command: ['CMD-SHELL', 'node -e "require(\'http\').get(\'http://localhost:3000\', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"'],
+        command: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
