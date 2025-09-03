@@ -120,15 +120,6 @@ export type {
 export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<AWSPlatformStrategy> | CoreStartHandlerContext<AWSPlatformStrategy> | CoreProvisionHandlerContext<AWSPlatformStrategy> | CorePublishHandlerContext<AWSPlatformStrategy> | CoreUpdateHandlerContext<AWSPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | PublishHandlerResult | UpdateHandlerResult> = CoreHandlerDescriptor<AWSPlatformStrategy, TContext, TResult>;
 
 /**
- * Backward compatibility aliases for context types
- */
-export type CheckHandlerContext = AWSCheckHandlerContext;
-export type StartHandlerContext = AWSStartHandlerContext;
-export type ProvisionHandlerContext = AWSProvisionHandlerContext;
-export type PublishHandlerContext = AWSPublishHandlerContext;
-export type UpdateHandlerContext = AWSUpdateHandlerContext;
-
-/**
  * Registry of check handlers by service type
  */
 export interface CheckHandlerRegistry {

@@ -1,12 +1,12 @@
 import { execSync } from 'child_process';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for database services in containers
  */
-const startDatabaseContainer = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startDatabaseContainer = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   const image = service.getImage();
@@ -224,7 +224,7 @@ async function waitForDatabase(runtime: string, containerName: string, image: st
 /**
  * Descriptor for database container start handler
  */
-export const databaseStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const databaseStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'database',

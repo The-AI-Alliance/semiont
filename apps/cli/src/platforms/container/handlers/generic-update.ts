@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { UpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor, ContainerStartHandlerContext, StartHandlerResult } from './types.js';
+import { ContainerUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor, ContainerStartHandlerContext, StartHandlerResult } from './types.js';
 import type { ContainerPlatformStrategy } from '../platform.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../../core/handlers/registry.js';
@@ -13,7 +13,7 @@ import { HandlerRegistry } from '../../../core/handlers/registry.js';
  * - Preserves Docker/Podman compatibility
  * - Maintains zero downtime when possible
  */
-const updateGenericService = async (context: UpdateHandlerContext): Promise<UpdateHandlerResult> => {
+const updateGenericService = async (context: ContainerUpdateHandlerContext): Promise<UpdateHandlerResult> => {
   const { service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   const oldContainerId = await getContainerId(runtime, containerName);
@@ -236,7 +236,7 @@ async function waitForContainer(runtime: string, containerName: string, requirem
 /**
  * Descriptor for generic container update handler
  */
-export const genericUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
+export const genericUpdateDescriptor: HandlerDescriptor<ContainerUpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
   platform: 'container',
   serviceType: 'generic',

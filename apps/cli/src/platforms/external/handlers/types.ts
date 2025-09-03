@@ -42,12 +42,6 @@ export type {
 };
 
 /**
- * Backward compatibility aliases for context types
- */
-export type CheckHandlerContext = ExternalCheckHandlerContext;
-export type StartHandlerContext = ExternalStartHandlerContext;
-
-/**
  * Re-export HandlerDescriptor for convenience
  */
 export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ExternalPlatformStrategy> | CoreStartHandlerContext<ExternalPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult> = CoreHandlerDescriptor<ExternalPlatformStrategy, TContext, TResult>;

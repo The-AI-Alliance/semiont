@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { PublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
 
@@ -17,7 +17,7 @@ import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
  * 3. Pushes the image to ECR
  * 4. Updates the ECS task definition with the new image
  */
-const publishECSService = async (context: PublishHandlerContext): Promise<PublishHandlerResult> => {
+const publishECSService = async (context: AWSPublishHandlerContext): Promise<PublishHandlerResult> => {
   const { service, awsConfig, resourceName, cfnDiscoveredResources } = context as any;
   const { region, accountId } = awsConfig;
   const requirements = service.getRequirements();
@@ -306,7 +306,7 @@ async function updateTaskDefinition(
 /**
  * Descriptor for ECS publish handler
  */
-export const ecsPublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
+export const ecsPublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
   serviceType: 'ecs',
@@ -315,7 +315,7 @@ export const ecsPublishDescriptor: HandlerDescriptor<PublishHandlerContext, Publ
 };
 
 // Also export for ecs-fargate (alias)
-export const ecsFargatePublishDescriptor: HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> = {
+export const ecsFargatePublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
   serviceType: 'ecs-fargate',

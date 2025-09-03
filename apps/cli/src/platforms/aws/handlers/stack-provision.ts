@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printError, printSuccess, printInfo, printWarning } from '../../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
 
@@ -16,7 +16,7 @@ import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
  * - 'app': Application resources (ECS, ALB, services)
  * - 'all': Both stacks in dependency order
  */
-const provisionStackService = async (context: ProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
+const provisionStackService = async (context: AWSProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, awsConfig } = context;
   
   // Extract stack configuration from service
@@ -199,7 +199,7 @@ const provisionStackService = async (context: ProvisionHandlerContext): Promise<
 /**
  * Descriptor for AWS stack provision handler
  */
-export const stackProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
+export const stackProvisionDescriptor: HandlerDescriptor<AWSProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'aws',
   serviceType: 'stack',

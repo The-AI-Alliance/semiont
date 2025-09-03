@@ -1,11 +1,11 @@
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { ExternalStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for API services on External platform
  */
-const startAPIService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startAPIService = async (context: ExternalStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const requirements = service.getRequirements();
   
@@ -78,7 +78,7 @@ const startAPIService = async (context: StartHandlerContext): Promise<StartHandl
 /**
  * Descriptor for API service start handler
  */
-export const apiStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const apiStartDescriptor: HandlerDescriptor<ExternalStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'external',
   serviceType: 'api',

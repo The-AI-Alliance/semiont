@@ -1,4 +1,4 @@
-import { HandlerDescriptor, CheckHandlerContext, CheckHandlerResult, StartHandlerContext, StartHandlerResult, ProvisionHandlerContext, ProvisionHandlerResult, PublishHandlerContext, PublishHandlerResult, UpdateHandlerContext, UpdateHandlerResult } from './types.js';
+import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 import { lambdaCheckDescriptor } from './lambda-check.js';
 import { ecsCheckDescriptor } from './ecs-check.js';
@@ -16,13 +16,7 @@ import { ecsUpdateDescriptor, ecsFargateUpdateDescriptor } from './ecs-update.js
  * Each descriptor explicitly declares its command and service type
  */
 // Platform-specific handlers with typed contexts
-const awsHandlers: Array<
-  HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> | 
-  HandlerDescriptor<StartHandlerContext, StartHandlerResult> |
-  HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> |
-  HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> |
-  HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult>
-> = [
+const awsHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
   lambdaCheckDescriptor,
   ecsCheckDescriptor,

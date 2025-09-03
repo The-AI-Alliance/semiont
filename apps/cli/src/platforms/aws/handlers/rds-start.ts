@@ -1,12 +1,12 @@
 import { execSync } from 'child_process';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for RDS database instances
  */
-const startRDSInstance = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, region } = context;
   const resourceName = `semiont-${service.name}-${service.environment}`;
   const instanceId = `${resourceName}-db`;
@@ -68,7 +68,7 @@ const startRDSInstance = async (context: StartHandlerContext): Promise<StartHand
 /**
  * Descriptor for RDS start handler
  */
-export const rdsStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const rdsStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'aws',
   serviceType: 'rds',

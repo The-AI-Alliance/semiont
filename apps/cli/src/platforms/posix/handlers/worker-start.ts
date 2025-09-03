@@ -1,11 +1,11 @@
 import { spawn } from 'child_process';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 
 /**
  * Start handler for worker services on POSIX systems
  */
-const startWorkerService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startWorkerService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const requirements = service.getRequirements();
   const command = service.getCommand();
@@ -116,7 +116,7 @@ const startWorkerService = async (context: StartHandlerContext): Promise<StartHa
 /**
  * Descriptor for worker service start handler
  */
-export const workerStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const workerStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'worker',

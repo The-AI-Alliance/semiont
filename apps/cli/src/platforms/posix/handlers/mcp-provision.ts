@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { ProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
 
@@ -15,7 +15,7 @@ import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
  * 2. Opening browser for user authentication
  * 3. Saving refresh token for future use
  */
-const provisionMCPService = async (context: ProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
+const provisionMCPService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
   
   if (!service.environment) {
@@ -178,7 +178,7 @@ const provisionMCPService = async (context: ProvisionHandlerContext): Promise<Pr
 /**
  * Descriptor for MCP service provision handler
  */
-export const mcpProvisionDescriptor: HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> = {
+export const mcpProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'posix',
   serviceType: 'mcp',

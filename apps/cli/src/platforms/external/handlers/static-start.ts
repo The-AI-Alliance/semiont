@@ -1,11 +1,11 @@
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { ExternalStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for static services on External platform
  */
-const startStaticService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startStaticService = async (context: ExternalStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const requirements = service.getRequirements();
   
@@ -97,7 +97,7 @@ const startStaticService = async (context: StartHandlerContext): Promise<StartHa
 /**
  * Descriptor for static service start handler
  */
-export const staticStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const staticStartDescriptor: HandlerDescriptor<ExternalStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'external',
   serviceType: 'static',

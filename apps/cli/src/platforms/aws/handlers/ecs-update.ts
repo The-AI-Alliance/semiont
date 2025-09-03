@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { UpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor } from './types.js';
+import { AWSUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 
 /**
@@ -11,7 +11,7 @@ import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
  * - Support rolling updates with zero downtime
  * - Wait for deployment completion if requested
  */
-const updateECSService = async (context: UpdateHandlerContext): Promise<UpdateHandlerResult> => {
+const updateECSService = async (context: AWSUpdateHandlerContext): Promise<UpdateHandlerResult> => {
   const { service, cfnDiscoveredResources, region, resourceName } = context;
   
   // Get cluster and service names from discovered resources
@@ -324,7 +324,7 @@ async function waitForECSDeployment(
 /**
  * Descriptor for ECS update handler
  */
-export const ecsUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
+export const ecsUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
   platform: 'aws',
   serviceType: 'ecs',
@@ -333,7 +333,7 @@ export const ecsUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, Update
 };
 
 // Also export for ecs-fargate (alias)
-export const ecsFargateUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult> = {
+export const ecsFargateUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
   platform: 'aws',
   serviceType: 'ecs-fargate',

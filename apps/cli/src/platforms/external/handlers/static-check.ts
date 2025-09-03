@@ -1,9 +1,9 @@
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for external static sites/CDNs
  */
-const checkExternalStatic = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
+const checkExternalStatic = async (context: ExternalCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { endpoint } = context;
   
   let status: 'running' | 'stopped' | 'unhealthy' | 'unknown' = 'unknown';
@@ -62,7 +62,7 @@ const checkExternalStatic = async (context: CheckHandlerContext): Promise<CheckH
 /**
  * Descriptor for external static check handler
  */
-export const staticCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const staticCheckDescriptor: HandlerDescriptor<ExternalCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'external',
   serviceType: 'static',

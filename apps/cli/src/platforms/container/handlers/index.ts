@@ -7,27 +7,14 @@ import { genericStartDescriptor } from './generic-start.js';
 import { genericProvisionDescriptor } from './generic-provision.js';
 import { genericPublishDescriptor } from './generic-publish.js';
 import { genericUpdateDescriptor } from './generic-update.js';
-import { 
-  CheckHandlerContext, CheckHandlerResult, 
-  StartHandlerContext, StartHandlerResult,
-  ProvisionHandlerContext, ProvisionHandlerResult,
-  PublishHandlerContext, PublishHandlerResult,
-  UpdateHandlerContext, UpdateHandlerResult,
-  HandlerDescriptor 
-} from './types.js';
+import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
 /**
  * All Container platform handler descriptors
  */
 // Platform-specific handlers with typed contexts
-const containerHandlers: Array<
-  HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> | 
-  HandlerDescriptor<StartHandlerContext, StartHandlerResult> |
-  HandlerDescriptor<ProvisionHandlerContext, ProvisionHandlerResult> |
-  HandlerDescriptor<PublishHandlerContext, PublishHandlerResult> |
-  HandlerDescriptor<UpdateHandlerContext, UpdateHandlerResult>
-> = [
+const containerHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
   webCheckDescriptor,
   databaseCheckDescriptor,

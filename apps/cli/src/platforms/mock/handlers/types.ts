@@ -43,12 +43,6 @@ export type {
 };
 
 /**
- * Backward compatibility aliases for context types
- */
-export type CheckHandlerContext = MockCheckHandlerContext;
-export type StartHandlerContext = MockStartHandlerContext;
-
-/**
  * Re-export HandlerDescriptor for convenience
  */
 export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<MockPlatformStrategy> | CoreStartHandlerContext<MockPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult> = CoreHandlerDescriptor<MockPlatformStrategy, TContext, TResult>;

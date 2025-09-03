@@ -1,11 +1,11 @@
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { MockStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for default services on Mock platform
  */
-const startMockService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startMockService = async (context: MockStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, mockData, mockState } = context;
   const requirements = service.getRequirements();
   
@@ -120,7 +120,7 @@ const startMockService = async (context: StartHandlerContext): Promise<StartHand
 /**
  * Descriptor for default mock service start handler
  */
-export const defaultStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const defaultStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'mock',
   serviceType: 'default',

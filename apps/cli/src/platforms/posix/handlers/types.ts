@@ -59,13 +59,6 @@ export type {
 };
 
 /**
- * Backward compatibility aliases for context types
- */
-export type CheckHandlerContext = PosixCheckHandlerContext;
-export type StartHandlerContext = PosixStartHandlerContext;
-export type ProvisionHandlerContext = PosixProvisionHandlerContext;
-
-/**
  * Re-export HandlerDescriptor for convenience
  */
 export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<PosixPlatformStrategy> | CoreStartHandlerContext<PosixPlatformStrategy> | CoreProvisionHandlerContext<PosixPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult> = CoreHandlerDescriptor<PosixPlatformStrategy, TContext, TResult>;

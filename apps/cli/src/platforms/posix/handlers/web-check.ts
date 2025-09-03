@@ -1,12 +1,12 @@
 import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execSync } from 'child_process';
-import { CheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
  * Check handler for POSIX web services
  */
-const checkWebProcess = async (context: CheckHandlerContext): Promise<CheckHandlerResult> => {
+const checkWebProcess = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service } = context;
   const requirements = service.getRequirements();
   
@@ -119,7 +119,7 @@ const checkWebProcess = async (context: CheckHandlerContext): Promise<CheckHandl
 /**
  * Descriptor for POSIX web check handler
  */
-export const webCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHandlerResult> = {
+export const webCheckDescriptor: HandlerDescriptor<PosixCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'posix',
   serviceType: 'web',

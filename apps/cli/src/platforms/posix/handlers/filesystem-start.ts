@@ -1,14 +1,14 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 
 /**
  * Start handler for filesystem services on POSIX systems
  */
-const startFilesystemService = async (context: StartHandlerContext): Promise<StartHandlerResult> => {
+const startFilesystemService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const requirements = service.getRequirements();
   const command = service.getCommand();
@@ -161,7 +161,7 @@ const startFilesystemService = async (context: StartHandlerContext): Promise<Sta
 /**
  * Descriptor for filesystem service start handler
  */
-export const filesystemStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
+export const filesystemStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'filesystem',

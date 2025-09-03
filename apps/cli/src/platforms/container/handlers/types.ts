@@ -94,15 +94,6 @@ export type {
 };
 
 /**
- * Backward compatibility aliases for context types
- */
-export type CheckHandlerContext = ContainerCheckHandlerContext;
-export type StartHandlerContext = ContainerStartHandlerContext;
-export type ProvisionHandlerContext = ContainerProvisionHandlerContext;
-export type PublishHandlerContext = ContainerPublishHandlerContext;
-export type UpdateHandlerContext = ContainerUpdateHandlerContext;
-
-/**
  * Re-export HandlerDescriptor for convenience
  */
 export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ContainerPlatformStrategy> | CoreStartHandlerContext<ContainerPlatformStrategy> | CoreProvisionHandlerContext<ContainerPlatformStrategy> | CorePublishHandlerContext<ContainerPlatformStrategy> | CoreUpdateHandlerContext<ContainerPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | PublishHandlerResult | UpdateHandlerResult> = CoreHandlerDescriptor<ContainerPlatformStrategy, TContext, TResult>;
