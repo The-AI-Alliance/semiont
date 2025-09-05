@@ -7,13 +7,14 @@
 
 import { describe, it, expect } from 'vitest';
 import { 
-  createBaseResult, 
-  createErrorResult, 
-  type CommandResults,
-  type StartResult,
-  type CheckResult,
-  type UpdateResult
-} from '../lib/command-results.js';
+  createBaseResult,
+  createErrorResult,
+  type CommandResults 
+} from '../core/command-results.js';
+import { CommandResult } from '../core/command-result.js';
+import { ServiceName } from '../core/service-discovery.js';
+import { Platform } from '../core/platform-resolver.js';
+import { PlatformResources } from '../platforms/platform-resources.js';
 
 describe('Command Result Type System', () => {
   const startTime = Date.now();
@@ -25,7 +26,7 @@ describe('Command Result Type System', () => {
       expect(baseResult).toMatchObject({
         command: 'start',
         service: 'frontend',
-        deploymentType: 'container',
+        platform: 'container',
         environment: 'local',
         success: true,
         timestamp: expect.any(Date),
@@ -48,7 +49,7 @@ describe('Command Result Type System', () => {
 
   describe('createErrorResult()', () => {
     it('should create an error result from base result', () => {
-      const baseResult = createBaseResult('stop', 'backend', 'process', 'staging', startTime);
+      const baseResult = createBaseResult('stop', 'backend', 'posix', 'staging', startTime);
       const error = new Error('Service not running');
       const errorResult = createErrorResult(baseResult, error);
       
@@ -78,85 +79,102 @@ describe('Command Result Type System', () => {
   });
 
   describe('Command Result Interfaces', () => {
-    it('should support StartResult structure', () => {
-      const startResult: StartResult = {
-        ...createBaseResult('start', 'frontend', 'container', 'local', startTime),
-        startTime: new Date(),
-        endpoint: 'http://localhost:3000',
-        resourceId: {
-          container: {
-            id: 'abc123',
-            name: 'semiont-frontend-local'
-          }
-        },
-        status: 'running',
+    it('should support CommandResult structure for start', () => {
+      const startResult: CommandResult = {
+        entity: 'frontend' as ServiceName,
+        platform: 'container' as Platform,
+        success: true,
+        timestamp: new Date(),
         metadata: {
           containerName: 'semiont-frontend-local',
           image: 'semiont-frontend:latest'
+        },
+        extensions: {
+          endpoint: 'http://localhost:3000',
+          resources: {
+            type: 'container',
+            container: {
+              id: 'abc123',
+              name: 'semiont-frontend-local'
+            }
+          } as PlatformResources
         }
       };
 
-      expect(startResult.startTime).toBeInstanceOf(Date);
-      expect(startResult.endpoint).toBe('http://localhost:3000');
-      expect(startResult.resourceId.container?.id).toBe('abc123');
+      expect(startResult.timestamp).toBeInstanceOf(Date);
+      expect(startResult.extensions?.endpoint).toBe('http://localhost:3000');
+      expect((startResult.extensions?.resources as any)?.container?.id).toBe('abc123');
     });
 
-    it('should support CheckResult structure', () => {
-      const checkResult: CheckResult = {
-        ...createBaseResult('check', 'database', 'aws', 'production', startTime),
-        lastCheck: new Date(),
-        healthStatus: 'healthy',
-        checks: [
-          { name: 'connection', status: 'pass', message: 'Database accessible' },
-          { name: 'disk_space', status: 'pass', message: '85% used' }
-        ],
-        resourceId: {
-          aws: {
-            arn: 'arn:aws:rds:us-east-1:123456789012:db:prod-db',
-            id: 'prod-db',
-            name: 'production-database'
-          }
-        },
-        status: 'healthy',
+    it('should support CommandResult structure for check', () => {
+      const checkResult: CommandResult = {
+        entity: 'database' as ServiceName,
+        platform: 'aws' as Platform,
+        success: true,
+        timestamp: new Date(),
         metadata: {
           region: 'us-east-1',
           instanceClass: 'db.t3.micro'
+        },
+        extensions: {
+          status: 'running',
+          health: {
+            healthy: true,
+            details: {
+              checks: [
+                { name: 'connection', status: 'pass', message: 'Database accessible' },
+                { name: 'disk_space', status: 'pass', message: '85% used' }
+              ]
+            }
+          },
+          resources: {
+            type: 'aws',
+            aws: {
+              arn: 'arn:aws:rds:us-east-1:123456789012:db:prod-db',
+              id: 'prod-db',
+              name: 'production-database'
+            }
+          } as PlatformResources
         }
       };
 
-      expect(checkResult.healthStatus).toBe('healthy');
-      expect(checkResult.checks).toHaveLength(2);
-      expect(checkResult.checks[0]!.status).toBe('pass');
+      expect(checkResult.extensions?.health?.healthy).toBe(true);
+      expect((checkResult.extensions?.health?.details as any)?.checks).toHaveLength(2);
+      expect((checkResult.extensions?.health?.details as any)?.checks[0].status).toBe('pass');
     });
 
-    it('should support UpdateResult structure', () => {
-      const updateResult: UpdateResult = {
-        ...createBaseResult('update', 'backend', 'aws', 'staging', startTime),
-        updateTime: new Date(),
-        previousVersion: 'v1.2.3',
-        newVersion: 'v1.2.4',
-        rollbackAvailable: true,
-        changesApplied: [
-          { type: 'infrastructure', description: 'ECS service updated' },
-          { type: 'config', description: 'Environment variables updated' }
-        ],
-        resourceId: {
-          aws: {
-            arn: 'arn:aws:ecs:us-east-1:123456789012:service/staging/backend',
-            id: 'semiont-staging-backend',
-            name: 'semiont-staging-backend'
-          }
-        },
-        status: 'updated',
+    it('should support CommandResult structure for update', () => {
+      const updateResult: CommandResult = {
+        entity: 'backend' as ServiceName,
+        platform: 'aws' as Platform,
+        success: true,
+        timestamp: new Date(),
         metadata: {
           deploymentId: 'deploy-123456',
-          forceNewDeployment: true
+          forceNewDeployment: true,
+          changesApplied: [
+            { type: 'infrastructure', description: 'ECS service updated' },
+            { type: 'config', description: 'Environment variables updated' }
+          ]
+        },
+        extensions: {
+          previousVersion: 'v1.2.3',
+          newVersion: 'v1.2.4',
+          strategy: 'rolling',
+          resources: {
+            type: 'aws',
+            aws: {
+              arn: 'arn:aws:ecs:us-east-1:123456789012:service/staging/backend',
+              id: 'semiont-staging-backend',
+              name: 'semiont-staging-backend'
+            }
+          } as PlatformResources
         }
       };
 
-      expect(updateResult.rollbackAvailable).toBe(true);
-      expect(updateResult.changesApplied).toHaveLength(2);
-      expect(updateResult.changesApplied[0]!.type).toBe('infrastructure');
+      expect(updateResult.extensions?.strategy).toBe('rolling');
+      expect((updateResult.metadata as any)?.changesApplied).toHaveLength(2);
+      expect((updateResult.metadata as any)?.changesApplied[0].type).toBe('infrastructure');
     });
   });
 
@@ -207,18 +225,18 @@ describe('Command Result Type System', () => {
     it('should handle mixed success/failure results', () => {
       const services = [
         {
-          ...createBaseResult('restart', 'frontend', 'process', 'local', startTime),
-          restartTime: new Date(),
+          ...createBaseResult('start', 'frontend', 'posix', 'local', startTime),
+          startTime: new Date(),
           resourceId: { process: { pid: 12345, port: 3000 } },
           status: 'running',
           metadata: {}
         },
         {
           ...createErrorResult(
-            createBaseResult('restart', 'backend', 'process', 'local', startTime), 
+            createBaseResult('start', 'backend', 'posix', 'local', startTime), 
             'Port already in use'
           ),
-          restartTime: new Date(),
+          startTime: new Date(),
           resourceId: { process: { pid: 0, port: 3001 } },
           status: 'failed',
           metadata: {}
@@ -226,7 +244,7 @@ describe('Command Result Type System', () => {
       ];
 
       const commandResults: CommandResults = {
-        command: 'restart',
+        command: 'start',
         environment: 'local',
         timestamp: new Date(),
         duration: 2100,

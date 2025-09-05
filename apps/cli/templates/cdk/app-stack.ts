@@ -32,6 +32,9 @@ export class SemiontAppStack extends cdk.Stack {
     
     // Import VPC - we need to use fromVpcAttributes since fromLookup doesn't work with tokens
     // We're using 2 AZs, so explicitly specify them
+    // Note: CDK will show warnings about missing routeTableIds. These warnings can be ignored
+    // as we're importing an existing VPC and not modifying routes. The warnings are due to
+    // CDK's limitation when importing VPCs via CloudFormation exports.
     const vpc = ec2.Vpc.fromVpcAttributes(this, 'ImportedVpc', {
       vpcId: cdk.Fn.importValue(`${dataStackName}-VpcId`),
       availabilityZones: ['us-east-2a', 'us-east-2b'],  // First 2 AZs in us-east-2
@@ -157,7 +160,8 @@ export class SemiontAppStack extends cdk.Stack {
 
     // Backend Task Definition
     // Note: CDK may show warnings about deprecated inferenceAccelerators property.
-    // This is a known issue in CDK's internal implementation and can be safely ignored.
+    // This is a known CDK bug (https://github.com/aws/aws-cdk/issues/11339) where CDK internally
+    // uses a deprecated CloudFormation property. The warning can be safely ignored.
     const backendTaskDefinition = new ecs.FargateTaskDefinition(this, 'SemiontBackendTaskDef', {
       memoryLimitMiB: 512,
       cpu: 256,
@@ -256,15 +260,19 @@ export class SemiontAppStack extends cdk.Stack {
       })
     );
 
+    // Get environment from context
+    const environment = this.node.tryGetContext('environment') || 'production';
+    
     // Backend container - use ECR image or default
     const backendImageUri = this.node.tryGetContext('backendImageUri');
+    const backendRepoName = `semiont-backend`;
     const backendImage = backendImageUri 
       ? ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepo', 'semiont-backend'),
+          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepo', backendRepoName),
           backendImageUri.split(':')[1] || 'latest'
         )
       : ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepoDefault', 'semiont-backend'),
+          ecr.Repository.fromRepositoryName(this, 'BackendEcrRepoDefault', backendRepoName),
           'latest'
         );
     
@@ -285,6 +293,7 @@ export class SemiontAppStack extends cdk.Stack {
         SITE_NAME: siteName,
         DOMAIN: domainName,
         OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
+        SITE_DOMAIN: domainName,
       }, 
       secrets: {
         DB_USER: ecs.Secret.fromSecretsManager(dbCredentials, 'username'),
@@ -299,7 +308,7 @@ export class SemiontAppStack extends cdk.Stack {
         logGroup,
       }),
       healthCheck: {
-        command: ['CMD-SHELL', 'node -e "require(\'http\').get(\'http://localhost:4000/api/health\', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"'],
+        command: ['CMD-SHELL', 'curl -f http://localhost:4000/api/health || exit 1'],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
@@ -321,13 +330,14 @@ export class SemiontAppStack extends cdk.Stack {
 
     // Frontend container - use ECR image or default  
     const frontendImageUri = this.node.tryGetContext('frontendImageUri');
+    const frontendRepoName = `semiont-frontend`;
     const frontendImage = frontendImageUri
       ? ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepo', 'semiont-frontend'),
+          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepo', frontendRepoName),
           frontendImageUri.split(':')[1] || 'latest'
         )
       : ecs.ContainerImage.fromEcrRepository(
-          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepoDefault', 'semiont-frontend'),
+          ecr.Repository.fromRepositoryName(this, 'FrontendEcrRepoDefault', frontendRepoName),
           'latest'
         );
     
@@ -342,7 +352,8 @@ export class SemiontAppStack extends cdk.Stack {
         NEXT_PUBLIC_API_URL: `https://${domainName}`,
         NEXT_PUBLIC_SITE_NAME: siteName,
         NEXT_PUBLIC_DOMAIN: domainName,
-        NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
+        // OAuth domains for server-side NextAuth validation
+        OAUTH_ALLOWED_DOMAINS: Array.isArray(oauthAllowedDomains) ? oauthAllowedDomains.join(',') : oauthAllowedDomains,
         // NextAuth configuration
         NEXTAUTH_URL: `https://${domainName}`,
         // Backend URL for server-side authentication calls
@@ -358,7 +369,7 @@ export class SemiontAppStack extends cdk.Stack {
         logGroup,
       }),
       healthCheck: {
-        command: ['CMD-SHELL', 'node -e "require(\'http\').get(\'http://localhost:3000\', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"'],
+        command: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,

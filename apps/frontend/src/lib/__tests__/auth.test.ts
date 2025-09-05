@@ -41,7 +41,7 @@ describe('Auth Configuration', () => {
     // Set up environment variables before importing
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
-    process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
+    process.env.OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
     process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
     
     // Import after setting environment variables
@@ -60,7 +60,7 @@ describe('Auth Configuration', () => {
     // Ensure environment variables are set for each test
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
-    process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
+    process.env.OAUTH_ALLOWED_DOMAINS = 'example.com,test.org';
     process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
 
     mockUser = {
@@ -222,7 +222,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle empty allowed domains environment variable', async () => {
-      process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = '';
+      process.env.OAUTH_ALLOWED_DOMAINS = '';
 
       const result = await authOptions.callbacks!.signIn!({
         user: mockUser,
@@ -234,7 +234,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle whitespace-only allowed domains', async () => {
-      process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = '  ,  ';
+      process.env.OAUTH_ALLOWED_DOMAINS = '  ,  ';
 
       const result = await authOptions.callbacks!.signIn!({
         user: mockUser,
@@ -352,7 +352,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle multiple allowed domains', async () => {
-      process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'domain1.com, domain2.org ,domain3.net';
+      process.env.OAUTH_ALLOWED_DOMAINS = 'domain1.com, domain2.org ,domain3.net';
 
       const testCases = [
         { email: 'user@domain1.com', shouldPass: true },
@@ -705,7 +705,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle missing allowed domains environment variable', async () => {
-      delete process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS;
+      delete process.env.OAUTH_ALLOWED_DOMAINS;
 
       const result = await authOptions.callbacks!.signIn!({
         user: mockUser,

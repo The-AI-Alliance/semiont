@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../lib/deployment-resolver.js';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../core/platform-resolver.js';
 
 describe('Dynamic Environment Validation', () => {
   let testDir: string;
@@ -45,9 +45,9 @@ describe('Dynamic Environment Validation', () => {
     it('should discover environments from filesystem', () => {
       // Create test environment files
       const testConfigs = {
-        'local.json': { services: {}, deployment: { default: 'container' } },
-        'staging.json': { services: {}, deployment: { default: 'aws' } },
-        'custom.json': { services: {}, deployment: { default: 'process' } }
+        'local.json': { services: {}, platform: { default: 'container' } },
+        'staging.json': { services: {}, platform: { default: 'aws' } },
+        'custom.json': { services: {}, platform: { default: 'posix' } }
       };
       
       for (const [filename, config] of Object.entries(testConfigs)) {
@@ -132,11 +132,11 @@ describe('Dynamic Environment Validation', () => {
   describe('loadEnvironmentConfig()', () => {
     it('should load custom environment configurations', () => {
       const customConfig = {
-        deployment: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'custom.example.com' },
         services: {
-          backend: { deployment: { type: 'process' }, port: 8080 },
-          frontend: { deployment: { type: 'process' }, port: 3000 }
+          backend: { platform: { type: 'posix' }, port: 8080 },
+          frontend: { platform: { type: 'posix' }, port: 3000 }
         }
       };
       
@@ -147,7 +147,7 @@ describe('Dynamic Environment Validation', () => {
       
       const loaded = loadEnvironmentConfig('custom');
       
-      expect(loaded.deployment?.default).toBe('process');
+      expect(loaded.platform?.default).toBe('posix');
       expect(loaded.site?.domain).toBe('custom.example.com');
       expect(loaded.services?.backend?.port).toBe(8080);
       expect(loaded.services?.frontend?.port).toBe(3000);
@@ -155,7 +155,7 @@ describe('Dynamic Environment Validation', () => {
     
     it('should handle environments with no services defined', () => {
       const configWithoutServices = {
-        deployment: { default: 'aws' },
+        platform: { default: 'aws' },
         site: { domain: 'example.com' }
       };
       
@@ -167,7 +167,7 @@ describe('Dynamic Environment Validation', () => {
       const loaded = loadEnvironmentConfig('minimal');
       
       expect(loaded.services).toEqual({});
-      expect(loaded.deployment?.default).toBe('aws');
+      expect(loaded.platform?.default).toBe('aws');
     });
     
     it('should throw helpful error for missing config file', () => {
@@ -223,11 +223,11 @@ describe('Environment Discovery Integration', () => {
     
     for (const env of customEnvironments) {
       const config = {
-        deployment: { default: 'container' },
+        platform: { default: 'container' },
         site: { domain: `${env}.example.com` },
         services: {
-          backend: { deployment: { type: 'container' }, port: 3001 },
-          frontend: { deployment: { type: 'container' }, port: 3000 }
+          backend: { platform: { type: 'container' }, port: 3001 },
+          frontend: { platform: { type: 'container' }, port: 3000 }
         }
       };
       
@@ -266,7 +266,7 @@ describe('Environment Discovery Integration', () => {
       fs.writeFileSync(
         path.join(configDir, `${env}.json`),
         JSON.stringify({ 
-          deployment: { default: 'process' },
+          platform: { default: 'posix' },
           services: {} 
         })
       );

@@ -48,7 +48,7 @@ describe('CLI Environment Validation Logic', () => {
       // Remove environments directory entirely
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../lib/deployment-resolver.js');
+      const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
       const environments = getAvailableEnvironments();
       
       expect(environments).toEqual([]);
@@ -71,7 +71,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments, isValidEnvironment } = await import('../lib/deployment-resolver.js');
+      const { getAvailableEnvironments, isValidEnvironment } = await import('../core/platform-resolver.js');
       
       const environments = getAvailableEnvironments();
       const isValid = isValidEnvironment('nonexistent');
@@ -95,13 +95,13 @@ describe('CLI Environment Validation Logic', () => {
         fs.writeFileSync(
           path.join(configDir, `${env}.json`),
           JSON.stringify({ 
-            deployment: { default: 'process' },
+            platform: { default: 'posix' },
             services: {} 
           })
         );
       }
       
-      const { getAvailableEnvironments } = await import('../lib/deployment-resolver.js');
+      const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
       const environments = getAvailableEnvironments();
       
       // This simulates the help text generation
@@ -113,7 +113,7 @@ describe('CLI Environment Validation Logic', () => {
     it('should show "none found" when no environments exist', async () => {
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../lib/deployment-resolver.js');
+      const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
       const environments = getAvailableEnvironments();
       
       const helpText = `Environment (${environments.join(', ') || 'none found'})`;
@@ -125,24 +125,24 @@ describe('CLI Environment Validation Logic', () => {
   describe('Service Discovery with Custom Environments', () => {
     it('should load services from custom environment configs', async () => {
       const customConfig = {
-        deployment: { default: 'container' },
+        platform: { default: 'container' },
         site: {
           domain: 'demo.example.com',
           adminEmail: 'admin@demo.example.com'
         },
         services: {
           api: {
-            deployment: { type: 'container' },
+            platform: { type: 'container' },
             port: 8080,
             image: 'my-api:latest'
           },
           web: {
-            deployment: { type: 'container' },
+            platform: { type: 'container' },
             port: 3000,
             image: 'my-web:latest'
           },
           cache: {
-            deployment: { type: 'container' },
+            platform: { type: 'container' },
             port: 6379,
             image: 'redis:7'
           }
@@ -154,7 +154,7 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(customConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../lib/deployment-resolver.js');
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/platform-resolver.js');
       
       expect(isValidEnvironment('demo')).toBe(true);
       
@@ -170,7 +170,7 @@ describe('CLI Environment Validation Logic', () => {
   describe('Configuration Validation', () => {
     it('should validate complete environment configurations', async () => {
       const validConfig = {
-        deployment: { default: 'process' },
+        platform: { default: 'posix' },
         site: {
           domain: 'test.local',
           adminEmail: 'admin@test.local',
@@ -188,12 +188,12 @@ describe('CLI Environment Validation Logic', () => {
         },
         services: {
           backend: {
-            deployment: { type: 'process' },
+            platform: { type: 'posix' },
             port: 4001,
             command: 'npm start'
           },
           frontend: {
-            deployment: { type: 'process' },
+            platform: { type: 'posix' },
             port: 4000,
             command: 'npm start'
           }
@@ -205,14 +205,14 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(validConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../lib/deployment-resolver.js');
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/platform-resolver.js');
       
       expect(isValidEnvironment('test')).toBe(true);
       
       const loaded = loadEnvironmentConfig('test');
       
       // Verify all sections are present
-      expect(loaded.deployment).toBeDefined();
+      expect(loaded.platform).toBeDefined();
       expect(loaded.site).toBeDefined();
       expect(loaded.app).toBeDefined();
       expect(loaded.services).toBeDefined();

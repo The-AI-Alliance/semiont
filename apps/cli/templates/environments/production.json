@@ -1,7 +1,10 @@
 {
   "name": "production",
-  "deployment": {
+  "platform": {
     "default": "aws"
+  },
+  "deployment": {
+    "imageTagStrategy": "immutable"
   },
   "env": {
     "NODE_ENV": "production"
@@ -25,20 +28,20 @@
       "image": "YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/semiont-frontend:latest"
     },
     "database": {
-      "deployment": {
+      "platform": {
         "type": "aws"
       },
       "comment": "Provisioned via CDK data stack (RDS PostgreSQL)"
     },
     "filesystem": {
-      "deployment": {
+      "platform": {
         "type": "aws"
       },
       "comment": "Provisioned via CDK data stack (EFS)"
     },
     "mcp": {
-      "deployment": {
-        "type": "process"
+      "platform": {
+        "type": "posix"
       },
       "dependsOn": ["backend"]
     }
