@@ -1,28 +1,31 @@
 {
   "name": "local",
-  "deployment": {
+  "platform": {
     "default": "container"
+  },
+  "deployment": {
+    "imageTagStrategy": "mutable"
   },
   "env": {
     "NODE_ENV": "development"
   },
   "services": {
     "backend": {
-      "deployment": {
-        "type": "process"
+      "platform": {
+        "type": "posix"
       },
       "command": "npm run dev",
       "port": 4000
     },
     "frontend": {
-      "deployment": {
-        "type": "process"
+      "platform": {
+        "type": "posix"
       },
       "command": "npm run dev",
       "port": 3000
     },
     "database": {
-      "deployment": {
+      "platform": {
         "type": "container"
       },
       "image": "postgres:15-alpine",
@@ -35,8 +38,8 @@
       }
     },
     "mcp": {
-      "deployment": {
-        "type": "process"
+      "platform": {
+        "type": "posix"
       },
       "dependsOn": ["backend"]
     }

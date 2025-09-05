@@ -1,6 +1,6 @@
 {
   "name": "test",
-  "deployment": {
+  "platform": {
     "default": "container"
   },
   "env": {
@@ -8,21 +8,21 @@
   },
   "services": {
     "backend": {
-      "deployment": {
+      "platform": {
         "type": "container"
       },
       "image": "semiont-backend:test",
       "port": 4000
     },
     "frontend": {
-      "deployment": {
+      "platform": {
         "type": "container"
       },
       "image": "semiont-frontend:test",
       "port": 3000
     },
     "database": {
-      "deployment": {
+      "platform": {
         "type": "container"
       },
       "image": "postgres:15-alpine",
@@ -35,8 +35,8 @@
       }
     },
     "mcp": {
-      "deployment": {
-        "type": "process"
+      "platform": {
+        "type": "posix"
       },
       "dependsOn": ["backend"]
     }

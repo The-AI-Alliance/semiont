@@ -88,6 +88,10 @@ Each environment configuration file follows this structure:
       "infra": "SemiontInfraStack",
       "app": "SemiontAppStack"
     }
+  },
+  
+  "deployment": {
+    "imageTagStrategy": "mutable"  // or "immutable" for production
   }
 }
 ```
@@ -179,6 +183,74 @@ Used for third-party or existing services:
 - References external endpoints
 - No lifecycle management
 - Configuration only
+
+## Deployment Configuration
+
+### Image Tagging Strategy
+
+The `deployment.imageTagStrategy` setting controls how Docker images are tagged during the publish process:
+
+```json
+{
+  "deployment": {
+    "imageTagStrategy": "mutable"    // Development/staging
+    // or
+    "imageTagStrategy": "immutable"  // Production
+  }
+}
+```
+
+#### Strategy Options
+
+**1. Mutable Tags (`"mutable"`)**
+- Images are tagged as `latest`
+- Same tag is reused for each deployment
+- `semiont update` re-pulls the latest image
+- Best for development and staging environments
+- Allows quick iterations without version tracking
+
+**2. Immutable Tags (`"immutable"` or `"git-hash"`)**
+- Images are tagged with git commit hash (e.g., `abc123f`)
+- Each deployment has a unique, traceable tag
+- `semiont update` performs rolling restart with specific version
+- Best for production environments
+- Enables precise rollbacks and audit trails
+
+#### Configuration Examples
+
+**Development Environment** (`environments/dev.json`):
+```json
+{
+  "deployment": {
+    "imageTagStrategy": "mutable"
+  }
+}
+```
+
+**Production Environment** (`environments/production.json`):
+```json
+{
+  "deployment": {
+    "imageTagStrategy": "immutable"
+  }
+}
+```
+
+#### Override with CLI
+
+You can override the configured strategy:
+```bash
+# Force specific tag regardless of config
+semiont publish --tag v2.0.0 --environment production --semiont-repo /path/to/semiont
+```
+
+### Benefits of Configuration-Based Tagging
+
+1. **No Magic Strings**: Behavior controlled by config files, not hardcoded environment names
+2. **Environment Flexibility**: Each environment can choose its strategy
+3. **Clear Separation**: `publish` creates images, `update` deploys them
+4. **Audit Trail**: Production deployments are fully traceable to git commits
+5. **Easy Rollback**: Immutable tags allow rolling back to any previous version
 
 ## Environment Variables
 

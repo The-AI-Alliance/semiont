@@ -21,7 +21,7 @@
       "port": 5432
     },
     "mcp": {
-      "deployment": {
+      "platform": {
         "type": "process"
       },
       "port": 8585,

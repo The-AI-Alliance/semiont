@@ -1,8 +1,17 @@
 /** @type {import('next').NextConfig} */
 
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+// Only load bundle analyzer in development or when explicitly analyzing
+let withBundleAnalyzer = (config) => config;
+if (process.env.NODE_ENV !== 'production' || process.env.ANALYZE === 'true') {
+  try {
+    withBundleAnalyzer = require('@next/bundle-analyzer')({
+      enabled: process.env.ANALYZE === 'true',
+    });
+  } catch (e) {
+    // Bundle analyzer not available, continue without it
+    console.log('Note: @next/bundle-analyzer not available, skipping bundle analysis');
+  }
+}
 
 // Security headers configuration
 const securityHeaders = [

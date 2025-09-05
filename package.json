@@ -8,12 +8,14 @@
     "packages/*"
   ],
   "scripts": {
-    "install:cli": "cd apps/cli && npm run build && npm link",
+    "install:cli": "npm run build -w @semiont/mcp-server && cd apps/cli && npm run build && npm link",
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:apps",
     "build:packages": "npm run build -w @semiont/api-types && npm run build -w @semiont/test-utils",
     "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w semiont-cli",
     "build:all": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
     "frontend:dev": "npm run dev -w semiont-frontend",
     "backend:dev": "npm run dev -w semiont-backend",
     "types:build": "npm run build -w @semiont/api-types",

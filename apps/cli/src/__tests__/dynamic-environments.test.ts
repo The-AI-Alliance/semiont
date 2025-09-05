@@ -43,19 +43,19 @@ describe('Dynamic Environment Discovery', () => {
     // Create custom environment files that would NOT be in hardcoded lists
     const customEnvironments = {
       'demo.json': {
-        deployment: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'demo.local' },
-        services: { backend: { deployment: { type: 'process' } } }
+        services: { backend: { platform: { type: 'posix' } } }
       },
       'feature-branch.json': {
-        deployment: { default: 'container' },
+        platform: { default: 'container' },
         site: { domain: 'feature.local' },
-        services: { api: { deployment: { type: 'container' } } }
+        services: { api: { platform: { type: 'container' } } }
       },
       'user-test.json': {
-        deployment: { default: 'aws' },
+        platform: { default: 'aws' },
         site: { domain: 'usertest.com' },
-        services: { web: { deployment: { type: 'aws' } } }
+        services: { web: { platform: { type: 'aws' } } }
       }
     };
     
@@ -69,7 +69,7 @@ describe('Dynamic Environment Discovery', () => {
     
     // Import the modules after setting up the filesystem
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../lib/deployment-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -98,19 +98,19 @@ describe('Dynamic Environment Discovery', () => {
   it('should handle mixed standard and custom environments', async () => {
     const mixedEnvironments = {
       'local.json': {
-        deployment: { default: 'container' },
+        platform: { default: 'container' },
         site: { domain: 'localhost' },
-        services: { backend: { deployment: { type: 'container' } } }
+        services: { backend: { platform: { type: 'container' } } }
       },
       'production.json': {
-        deployment: { default: 'aws' },
+        platform: { default: 'aws' },
         site: { domain: 'prod.example.com' },
-        services: { backend: { deployment: { type: 'aws' } } }
+        services: { backend: { platform: { type: 'aws' } } }
       },
       'my-custom-env.json': {
-        deployment: { default: 'process' },
+        platform: { default: 'posix' },
         site: { domain: 'custom.local' },
-        services: { backend: { deployment: { type: 'process' } } }
+        services: { backend: { platform: { type: 'posix' } } }
       }
     };
     
@@ -122,7 +122,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../lib/deployment-resolver.js');
+      await import('../core/platform-resolver.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -143,7 +143,7 @@ describe('Dynamic Environment Discovery', () => {
     // Remove config directory entirely
     fs.rmSync(configDir, { recursive: true, force: true });
     
-    const { getAvailableEnvironments } = await import('../lib/deployment-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
@@ -155,7 +155,7 @@ describe('Dynamic Environment Discovery', () => {
     fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
     fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
     
-    const { getAvailableEnvironments } = await import('../lib/deployment-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual(['valid']);
@@ -167,19 +167,19 @@ describe('Dynamic Environment Discovery', () => {
     
     const newEnvironments = {
       'sandbox.json': {
-        deployment: { default: 'container' },
+        platform: { default: 'container' },
         site: { domain: 'sandbox.example.com' },
         services: { 
-          api: { deployment: { type: 'container' }, port: 8080 },
-          web: { deployment: { type: 'container' }, port: 3000 }
+          api: { platform: { type: 'container' }, port: 8080 },
+          web: { platform: { type: 'container' }, port: 3000 }
         }
       },
       'integration-testing.json': {
-        deployment: { default: 'aws' },
+        platform: { default: 'aws' },
         site: { domain: 'integration.example.com' },
         services: {
-          backend: { deployment: { type: 'aws' } },
-          database: { deployment: { type: 'aws' } }
+          backend: { platform: { type: 'aws' } },
+          database: { platform: { type: 'aws' } }
         }
       }
     };
@@ -192,7 +192,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../lib/deployment-resolver.js');
+      await import('../core/platform-resolver.js');
     
     // These would have been rejected by hardcoded validation
     expect(isValidEnvironment('sandbox')).toBe(true);
@@ -209,7 +209,7 @@ describe('Dynamic Environment Discovery', () => {
     expect(sandboxConfig.services?.web?.port).toBe(3000);
     
     const integrationConfig = loadEnvironmentConfig('integration-testing');
-    expect(integrationConfig.deployment?.default).toBe('aws');
+    expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });
 });
