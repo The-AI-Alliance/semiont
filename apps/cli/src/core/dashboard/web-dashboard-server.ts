@@ -2,13 +2,25 @@
  * Web Dashboard Server for Semiont Watch
  * 
  * Serves a React-based dashboard in the browser with real-time updates
+ * Now using the unified React component bundle to eliminate duplication
  */
 
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { DashboardDataSource } from '../dashboard/dashboard-data.js';
-import type { DashboardData as _DashboardData } from '../dashboard/dashboard-layouts.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import fs from 'fs';
+import { embeddedDashboardJS, embeddedDashboardCSS, dashboardAssetsEmbedded } from './embedded-assets.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Use the embedded assets if they're available
+const embeddedJS = dashboardAssetsEmbedded ? embeddedDashboardJS : undefined;
+const embeddedCSS = dashboardAssetsEmbedded ? embeddedDashboardCSS : undefined;
+
 
 export class WebDashboardServer {
   private app: express.Application;
@@ -43,9 +55,51 @@ export class WebDashboardServer {
   }
   
   private setupRoutes(): void {
-    // Serve static HTML page
+    // Check if we have embedded assets first
+    const hasEmbedded = !!(embeddedJS && embeddedCSS);
+    
+    let bundleExists = hasEmbedded;
+    
+    if (hasEmbedded) {
+      // Serve embedded assets
+      this.app.get('/static/dashboard.js', (_req, res) => {
+        res.type('application/javascript');
+        res.send(embeddedJS);
+      });
+      
+      this.app.get('/static/dashboard.css', (_req, res) => {
+        res.type('text/css');
+        res.send(embeddedCSS);
+      });
+    } else {
+      // Fallback: try to find dashboard files on disk
+      const possibleDirs = [
+        join(__dirname, '..', '..', '..', 'dist', 'dashboard'),
+        join(__dirname, 'dashboard'),
+        join(__dirname, '..', 'dashboard'),
+        join(process.cwd(), 'dist', 'dashboard'),
+        join(process.cwd(), 'apps', 'cli', 'dist', 'dashboard'),
+      ];
+      
+      let distDir: string | null = null;
+      
+      for (const dir of possibleDirs) {
+        if (fs.existsSync(join(dir, 'dashboard.js'))) {
+          distDir = dir;
+          bundleExists = true;
+          console.log(`Found dashboard bundle at: ${dir}`);
+          break;
+        }
+      }
+      
+      if (bundleExists && distDir) {
+        this.app.use('/static', express.static(distDir));
+      }
+    }
+    
+    // Serve the main HTML page
     this.app.get('/', (_req, res) => {
-      res.send(this.getHtmlPage());
+      res.send(this.getHtmlPage(bundleExists));
     });
     
     // API endpoint for initial data
@@ -127,8 +181,10 @@ export class WebDashboardServer {
     this.server.close();
   }
   
-  private getHtmlPage(): string {
-    return `
+  private getHtmlPage(useBundle: boolean): string {
+    // If we have the React bundle, use it
+    if (useBundle) {
+      return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -138,702 +194,162 @@ export class WebDashboardServer {
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="/static/dashboard.js"></script>
+  <script>
+    // Initialize dashboard when DOM is ready
+    window.addEventListener('DOMContentLoaded', () => {
+      // Give the dashboard script a moment to initialize
+      setTimeout(() => {
+        if (window.SemiontDashboard && window.SemiontDashboard.WebDashboardApp) {
+          const { WebDashboardApp } = window.SemiontDashboard;
+          ReactDOM.render(
+            React.createElement(WebDashboardApp, {
+              environment: '${this.environment}',
+              refreshInterval: ${this.refreshInterval}
+            }),
+            document.getElementById('root')
+          );
+        } else {
+          document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">Dashboard initialization failed. Please rebuild the CLI.</div>';
+        }
+      }, 100);
+    });
+  </script>
+</body>
+</html>`;
     }
     
+    // Fallback: Inline HTML (simplified version for when bundle isn't built)
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semiont Dashboard - ${this.environment}</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
       padding: 20px;
+      margin: 0;
     }
-    
-    .dashboard-container {
-      max-width: 1400px;
+    .container {
+      max-width: 1200px;
       margin: 0 auto;
-    }
-    
-    .dashboard-header {
       background: white;
       border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .dashboard-title {
-      font-size: 24px;
-      font-weight: bold;
-      color: #2d3748;
-    }
-    
-    .dashboard-subtitle {
-      color: #718096;
-      margin-top: 4px;
-    }
-    
-    .refresh-info {
-      text-align: right;
-      color: #718096;
-      font-size: 14px;
-    }
-    
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-    
-    .dashboard-panel {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
+      padding: 30px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    
-    .panel-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #2d3748;
-      margin-bottom: 16px;
-      padding-bottom: 8px;
+    .header {
       border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
     }
-    
-    .service-item {
-      display: flex;
-      align-items: center;
-      padding: 12px;
-      margin-bottom: 8px;
-      border-radius: 8px;
-      background: #f7fafc;
-      transition: all 0.2s;
-    }
-    
-    .service-item:hover {
-      background: #edf2f7;
-      transform: translateX(4px);
-    }
-    
-    .status-indicator {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      margin-right: 12px;
-      animation: pulse 2s infinite;
-    }
-    
-    .status-healthy {
-      background: #48bb78;
-    }
-    
-    .status-warning {
-      background: #ed8936;
-    }
-    
-    .status-unhealthy {
-      background: #f56565;
-    }
-    
-    .status-unknown {
-      background: #a0aec0;
-    }
-    
-    @keyframes pulse {
-      0% {
-        box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7);
-      }
-      70% {
-        box-shadow: 0 0 0 10px rgba(72, 187, 120, 0);
-      }
-      100% {
-        box-shadow: 0 0 0 0 rgba(72, 187, 120, 0);
-      }
-    }
-    
-    .service-name {
-      font-weight: 500;
+    h1 {
+      margin: 0;
       color: #2d3748;
-      flex: 1;
+      font-size: 28px;
     }
-    
-    .service-status {
+    .subtitle {
       color: #718096;
-      font-size: 14px;
-      margin-right: 8px;
-    }
-    
-    .service-details {
-      color: #a0aec0;
-      font-size: 12px;
-      margin-top: 4px;
-    }
-    
-    .metric-item {
-      padding: 12px;
-      margin-bottom: 12px;
-      background: #f7fafc;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .metric-name {
-      color: #718096;
-      font-size: 14px;
-    }
-    
-    .metric-value {
-      font-size: 20px;
-      font-weight: bold;
-      color: #2d3748;
-    }
-    
-    .metric-trend {
-      margin-left: 8px;
+      margin-top: 8px;
       font-size: 16px;
     }
-    
-    .trend-up {
+    .info-message {
+      background: #fef5e7;
+      border: 2px solid #f39c12;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      color: #8b6914;
+    }
+    .info-message h2 {
+      margin-top: 0;
+      color: #f39c12;
+    }
+    .code {
+      background: #2d3748;
       color: #48bb78;
-    }
-    
-    .trend-down {
-      color: #f56565;
-    }
-    
-    .trend-stable {
-      color: #a0aec0;
-    }
-    
-    .logs-panel {
-      grid-column: 1 / -1;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    
-    .log-entry {
+      padding: 12px 16px;
+      border-radius: 6px;
       font-family: 'Courier New', monospace;
-      font-size: 13px;
-      padding: 8px;
-      border-bottom: 1px solid #e2e8f0;
-      display: flex;
-      gap: 12px;
+      margin: 10px 0;
     }
-    
-    .log-timestamp {
-      color: #718096;
-      min-width: 80px;
+    .status {
+      margin-top: 30px;
+      padding: 15px;
+      background: #f7fafc;
+      border-radius: 8px;
+      color: #4a5568;
     }
-    
-    .log-service {
-      color: #4299e1;
-      min-width: 80px;
-    }
-    
-    .log-level {
-      min-width: 50px;
-      font-weight: 600;
-    }
-    
-    .log-level-error {
-      color: #f56565;
-    }
-    
-    .log-level-warn {
-      color: #ed8936;
-    }
-    
-    .log-level-info {
-      color: #4299e1;
-    }
-    
-    .log-level-debug {
-      color: #a0aec0;
-    }
-    
-    .log-message {
-      flex: 1;
-      color: #2d3748;
-    }
-    
     .connection-status {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      padding: 8px 16px;
+      display: inline-block;
+      padding: 6px 12px;
       border-radius: 20px;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 500;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-left: 10px;
     }
-    
     .connected {
       background: #48bb78;
       color: white;
     }
-    
     .disconnected {
       background: #f56565;
       color: white;
     }
-    
-    .action-buttons {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-    
-    .action-button {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      text-decoration: none;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      transition: all 0.2s;
-      border: 1px solid rgba(0, 0, 0, 0.1);
-    }
-    
-    .action-button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-    
-    .action-button.console {
-      background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-    }
-    
-    .action-button.logs {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    }
-    
-    .action-button.metrics {
-      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-    }
-    
-    .loading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 200px;
-      color: #718096;
-    }
-    
-    .spinner {
-      border: 3px solid #e2e8f0;
-      border-top: 3px solid #4299e1;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div class="container">
+    <div class="header">
+      <h1>Semiont Dashboard</h1>
+      <div class="subtitle">Environment: ${this.environment}</div>
+    </div>
+    
+    <div class="info-message">
+      <h2>⚠️ Dashboard Bundle Not Built</h2>
+      <p>The React dashboard bundle hasn't been compiled yet. To see the full dashboard, please run:</p>
+      <div class="code">npm run build:dashboard</div>
+      <p>Then refresh this page to see the complete dashboard with real-time updates.</p>
+    </div>
+    
+    <div class="status">
+      <strong>Connection Status:</strong>
+      <span id="status" class="connection-status disconnected">Disconnected</span>
+      <div id="data" style="margin-top: 20px;"></div>
+    </div>
+  </div>
   
-  <script type="text/babel">
-    const { useState, useEffect } = React;
+  <script>
+    const socket = io();
+    const statusEl = document.getElementById('status');
+    const dataEl = document.getElementById('data');
     
-    function Dashboard() {
-      const [data, setData] = useState(null);
-      const [connected, setConnected] = useState(false);
-      const [lastUpdate, setLastUpdate] = useState(null);
-      
-      useEffect(() => {
-        const socket = io();
-        
-        socket.on('connect', () => {
-          setConnected(true);
-        });
-        
-        socket.on('disconnect', () => {
-          setConnected(false);
-        });
-        
-        socket.on('dashboard-update', (newData) => {
-          setData(newData);
-          setLastUpdate(new Date());
-        });
-        
-        socket.on('dashboard-error', (error) => {
-          console.error('Dashboard error:', error);
-        });
-        
-        return () => {
-          socket.disconnect();
-        };
-      }, []);
-      
-      const formatTime = (date) => {
-        if (!date) return 'Never';
-        return date.toLocaleTimeString();
-      };
-      
-      const getStatusClass = (status) => {
-        return 'status-' + status;
-      };
-      
-      const getTrendIcon = (trend) => {
-        if (trend === 'up') return '↑';
-        if (trend === 'down') return '↓';
-        return '→';
-      };
-      
-      const getTrendClass = (trend) => {
-        return 'trend-' + trend;
-      };
-      
-      const formatBytes = (bytes) => {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
-      };
-      
-      const getConsoleLinks = (service) => {
-        const links = [];
-        const region = service.awsRegion || 'us-east-1';
-        
-        // ECS Service links
-        if (service.ecsServiceName && service.ecsClusterName) {
-          links.push({
-            label: '📊 Console',
-            url: \`https://console.aws.amazon.com/ecs/home?region=\${region}#/clusters/\${service.ecsClusterName}/services/\${service.ecsServiceName}/details\`,
-            className: 'console'
-          });
-          // Only add logs link if we have a verified log group name
-          if (service.logGroupName) {
-            links.push({
-              label: '📝 Logs',
-              url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#logsV2:log-groups/log-group/\${encodeURIComponent(service.logGroupName)}\`,
-              className: 'logs'
-            });
-          }
-          links.push({
-            label: '📈 Metrics',
-            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fECS*2cClusterName*2cServiceName*7d*20\${service.ecsClusterName}*20\${service.ecsServiceName}\`,
-            className: 'metrics'
-          });
-        }
-        
-        // RDS Database link
-        if (service.rdsInstanceId) {
-          links.push({
-            label: '📊 Console',
-            url: \`https://console.aws.amazon.com/rds/home?region=\${region}#database:id=\${service.rdsInstanceId};is-cluster=false\`,
-            className: 'console'
-          });
-          links.push({
-            label: '📈 Metrics',
-            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fRDS*2cDBInstanceIdentifier*7d*20\${service.rdsInstanceId}\`,
-            className: 'metrics'
-          });
-        }
-        
-        // EFS Filesystem link
-        if (service.efsFileSystemId) {
-          links.push({
-            label: '📊 Console',
-            url: \`https://console.aws.amazon.com/efs/home?region=\${region}#/file-systems/\${service.efsFileSystemId}\`,
-            className: 'console'
-          });
-          links.push({
-            label: '📈 Metrics',
-            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fEFS*2cFileSystemId*7d*20\${service.efsFileSystemId}\`,
-            className: 'metrics'
-          });
-        }
-        
-        // Load Balancer link
-        if (service.albArn) {
-          // Extract the load balancer name from ARN for console URL
-          // ARN format: arn:aws:elasticloadbalancing:region:account:loadbalancer/app/name/id
-          const arnParts = service.albArn.split('/');
-          if (arnParts.length >= 3) {
-            const loadBalancerName = arnParts[arnParts.length - 2]; // Get the name part
-            links.push({
-              label: '📊 Console',
-              url: \`https://console.aws.amazon.com/ec2/v2/home?region=\${region}#LoadBalancers:search=\${loadBalancerName};sort=loadBalancerName\`,
-              className: 'console'
-            });
-          }
-          links.push({
-            label: '📈 Metrics',
-            url: \`https://console.aws.amazon.com/cloudwatch/home?region=\${region}#metricsV2:graph=~();query=~'*7bAWS*2fApplicationELB*2cLoadBalancer*7d\`,
-            className: 'metrics'
-          });
-        }
-        
-        return links;
-      };
-      
-      if (!data) {
-        return (
-          <div className="dashboard-container">
-            <div className="dashboard-panel">
-              <div className="loading">
-                <div className="spinner"></div>
-              </div>
-            </div>
-          </div>
-        );
-      }
-      
-      return (
-        <div className="dashboard-container">
-          <div className="dashboard-header">
-            <div>
-              <div className="dashboard-title">Semiont System Dashboard</div>
-              <div className="dashboard-subtitle">Environment: ${this.environment}</div>
-            </div>
-            <div className="refresh-info">
-              <div>Last updated: {formatTime(lastUpdate)}</div>
-              <div>Auto-refresh: every ${this.refreshInterval}s</div>
-            </div>
-          </div>
-          
-          <div className="dashboard-grid">
-            <div className="dashboard-panel">
-              <div className="panel-title">App Services</div>
-            {data.services.filter(s => 
-              ['Frontend', 'Backend', 'Load Balancer', 'WAF', 'DNS (Route 53)'].includes(s.name)
-            ).map((service, index) => (
-              <div key={index} className="service-item" style={{ marginBottom: '12px' }}>
-                <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
-                <div style={{ flex: 1 }}>
-                  <div className="service-name">
-                    {service.name}
-                    {service.revision && (
-                      <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
-                        rev:{service.revision}
-                      </span>
-                    )}
-                    {service.runningCount !== undefined && service.desiredCount !== undefined && (
-                      <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
-                        [{service.runningCount}/{service.desiredCount}]
-                      </span>
-                    )}
-                  </div>
-                  {service.details && (
-                    <div className="service-details">{service.details}</div>
-                  )}
-                  {(service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
-                    <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
-                      {service.cpuUtilization !== undefined && (
-                        <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
-                      )}
-                      {service.cpuUtilization !== undefined && service.memoryUtilization !== undefined && (
-                        <span style={{ margin: '0 8px' }}>•</span>
-                      )}
-                      {service.memoryUtilization !== undefined && (
-                        <span>Memory: {service.memoryUtilization.toFixed(1)}%</span>
-                      )}
-                    </div>
-                  )}
-                  {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
-                    <div className="service-details" style={{ color: '#ff9800' }}>
-                      Deployment: {service.deploymentStatus}
-                    </div>
-                  )}
-                  {service.loadBalancerDns && (
-                    <div className="service-details" style={{ color: '#00bcd4', fontSize: '0.9em' }}>
-                      ALB: {service.loadBalancerDns}
-                    </div>
-                  )}
-                  {service.wafWebAclId && (
-                    <div className="service-details" style={{ color: '#4caf50', fontSize: '0.9em' }}>
-                      WAF: Protected ✓
-                    </div>
-                  )}
-                  {/* Action Buttons */}
-                  {getConsoleLinks(service).length > 0 && (
-                    <div className="action-buttons">
-                      {getConsoleLinks(service).map((link, linkIndex) => (
-                        <a 
-                          key={linkIndex}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={\`action-button \${link.className}\`}
-                        >
-                          {link.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            </div>
-            
-            <div className="dashboard-panel">
-              <div className="panel-title">Data</div>
-            {data.services.filter(s => 
-              ['Database', 'Filesystem'].includes(s.name)
-            ).map((service, index) => (
-              <div key={index} className="service-item" style={{ marginBottom: '12px' }}>
-                <div className={\`status-indicator \${getStatusClass(service.status)}\`}></div>
-                <div style={{ flex: 1 }}>
-                  <div className="service-name">
-                    {service.name}
-                    {service.revision && (
-                      <span style={{ color: '#00bcd4', marginLeft: '8px', fontSize: '0.9em' }}>
-                        rev:{service.revision}
-                      </span>
-                    )}
-                    {service.runningCount !== undefined && service.desiredCount !== undefined && (
-                      <span style={{ color: '#999', marginLeft: '8px', fontSize: '0.9em' }}>
-                        [{service.runningCount}/{service.desiredCount}]
-                      </span>
-                    )}
-                  </div>
-                  {service.details && (
-                    <div className="service-details">{service.details}</div>
-                  )}
-                  {/* EFS Storage Metrics */}
-                  {service.name === 'Filesystem' && service.storageTotalBytes && (
-                    <>
-                      <div className="service-details" style={{ color: '#2563eb', fontSize: '0.9em', marginTop: '8px' }}>
-                        <strong>Storage:</strong>
-                      </div>
-                      {service.storageUsedBytes !== undefined && service.storageTotalBytes && (
-                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
-                          Used: {formatBytes(service.storageUsedBytes)} / {formatBytes(service.storageTotalBytes)}
-                          {service.storageUsedPercent !== undefined && (
-                            <span style={{ 
-                              marginLeft: '8px',
-                              color: service.storageUsedPercent > 90 ? '#ef4444' : 
-                                     service.storageUsedPercent > 70 ? '#f59e0b' : '#10b981'
-                            }}>
-                              ({service.storageUsedPercent.toFixed(1)}%)
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {service.storageAvailableBytes !== undefined && (
-                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
-                          Available: {formatBytes(service.storageAvailableBytes)}
-                        </div>
-                      )}
-                      {service.throughputUtilization !== undefined && (
-                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
-                          Throughput: {service.throughputUtilization.toFixed(1)}%
-                        </div>
-                      )}
-                      {service.clientConnections !== undefined && (
-                        <div className="service-details" style={{ color: '#718096', fontSize: '0.9em', paddingLeft: '16px' }}>
-                          Connections: {service.clientConnections}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {/* Regular metrics for other services */}
-                  {service.name !== 'Filesystem' && (service.cpuUtilization !== undefined || service.memoryUtilization !== undefined) && (
-                    <div className="service-details" style={{ color: '#718096', fontSize: '0.9em' }}>
-                      {service.cpuUtilization !== undefined && (
-                        <span>CPU: {service.cpuUtilization.toFixed(1)}%</span>
-                      )}
-                      {service.cpuUtilization !== undefined && service.memoryUtilization !== undefined && (
-                        <span style={{ margin: '0 8px' }}>•</span>
-                      )}
-                      {service.memoryUtilization !== undefined && (
-                        <span>Memory: {service.memoryUtilization.toFixed(1)}%</span>
-                      )}
-                    </div>
-                  )}
-                  {service.deploymentStatus && service.deploymentStatus !== 'PRIMARY' && (
-                    <div className="service-details" style={{ color: '#ff9800' }}>
-                      Deployment: {service.deploymentStatus}
-                    </div>
-                  )}
-                  {service.loadBalancerDns && (
-                    <div className="service-details" style={{ color: '#00bcd4', fontSize: '0.9em' }}>
-                      ALB: {service.loadBalancerDns}
-                    </div>
-                  )}
-                  {service.wafWebAclId && (
-                    <div className="service-details" style={{ color: '#4caf50', fontSize: '0.9em' }}>
-                      WAF: Protected ✓
-                    </div>
-                  )}
-                  {/* Action Buttons */}
-                  {getConsoleLinks(service).length > 0 && (
-                    <div className="action-buttons">
-                      {getConsoleLinks(service).map((link, linkIndex) => (
-                        <a 
-                          key={linkIndex}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={\`action-button \${link.className}\`}
-                        >
-                          {link.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            </div>
-          </div>
-          
-          <div className="dashboard-panel logs-panel">
-            <div className="panel-title">Recent Logs</div>
-            {data.logs.length === 0 ? (
-              <div style={{ padding: '20px', color: '#718096', textAlign: 'center' }}>
-                No recent logs
-              </div>
-            ) : (
-              data.logs.slice(0, 50).map((log, index) => (
-                <div key={index} className="log-entry">
-                  <span className="log-timestamp">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span className="log-service">{log.service}</span>
-                  <span className={\`log-level log-level-\${log.level}\`}>
-                    {log.level.toUpperCase()}
-                  </span>
-                  <span className="log-message">{log.message}</span>
-                </div>
-              ))
-            )}
-          </div>
-          
-          <div className={\`connection-status \${connected ? 'connected' : 'disconnected'}\`}>
-            {connected ? '🟢 Connected' : '🔴 Disconnected'}
-          </div>
-        </div>
-      );
-    }
+    socket.on('connect', () => {
+      statusEl.className = 'connection-status connected';
+      statusEl.textContent = 'Connected';
+    });
     
-    ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    socket.on('disconnect', () => {
+      statusEl.className = 'connection-status disconnected';
+      statusEl.textContent = 'Disconnected';
+    });
+    
+    socket.on('dashboard-update', (data) => {
+      dataEl.innerHTML = '<p>✅ Receiving data updates. Build the dashboard bundle to see the full interface.</p>';
+      console.log('Dashboard data:', data);
+    });
   </script>
 </body>
-</html>
-    `;
+</html>`;
   }
 }
