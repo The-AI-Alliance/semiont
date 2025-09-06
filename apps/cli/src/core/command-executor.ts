@@ -34,6 +34,10 @@ import {
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
 import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
+import { extractCLIBehaviors, CLIBehaviors } from './service-cli-behaviors.js';
+import { ServiceFactory } from '../services/service-factory.js';
+import { ServiceName } from './service-discovery.js';
+import { parseEnvironment } from './environment-validator.js';
 
 /**
  * Get the CLI version from package.json
@@ -88,9 +92,50 @@ export async function executeCommand(
     const parser = createArgParser(command);
     const options = parser(argv);
     
-    // Suppress preamble for MCP service to ensure clean JSON-RPC communication
-    if (commandName === 'start' && options.service === 'mcp') {
-      options.quiet = true;
+    // Check if service requires special CLI behaviors
+    let cliBehaviors: CLIBehaviors = {};
+    if (command.requiresServices && options.service && options.service !== 'all') {
+      // For single service commands, check if it needs special handling
+      // We need to peek at the service requirements to determine behaviors
+      if (options.environment || process.env.SEMIONT_ENV) {
+        try {
+          const env = options.environment || process.env.SEMIONT_ENV;
+          const resolvedServices = await resolveServiceSelector(
+            options.service as string, 
+            commandName,
+            env
+          );
+          const serviceDeployments = resolveServiceDeployments(resolvedServices, env);
+          
+          if (serviceDeployments.length > 0) {
+            const deployment = serviceDeployments[0];
+            const service = ServiceFactory.create(
+              deployment.name as ServiceName,
+              deployment.platform,
+              {
+                projectRoot: process.env.SEMIONT_ROOT || process.cwd(),
+                environment: parseEnvironment(env),
+                verbose: false,
+                quiet: true,
+                dryRun: false
+              },
+              {
+                ...deployment.config,
+                platform: deployment.platform
+              }
+            );
+            const requirements = service.getRequirements();
+            cliBehaviors = extractCLIBehaviors(requirements.annotations);
+            
+            // Apply force quiet mode if requested
+            if (cliBehaviors.forceQuietMode) {
+              options.quiet = true;
+            }
+          }
+        } catch {
+          // If we can't determine behaviors, continue with defaults
+        }
+      }
     }
     
     // Print preamble for summary output (before any command output)
@@ -146,16 +191,16 @@ export async function executeCommand(
       results = await setupHandler(options);
     }
     
-    // Skip output for MCP to avoid corrupting JSON-RPC stream
-    if (!(commandName === 'start' && options.service === 'mcp')) {
+    // Skip output if service requires it (e.g., to avoid corrupting stdio streams)
+    if (!cliBehaviors.skipResultFormatting) {
       // Format and output results
       const formatted = formatResults(results, options.output, options.verbose);
       console.log(formatted);
     }
     
-    // For MCP, don't exit - let the process keep running
-    if (commandName === 'start' && options.service === 'mcp') {
-      // MCP process will handle its own lifecycle
+    // Keep process alive if service requires it (e.g., for long-running connections)
+    if (cliBehaviors.keepProcessAlive) {
+      // Service process will handle its own lifecycle
       return;
     }
     
