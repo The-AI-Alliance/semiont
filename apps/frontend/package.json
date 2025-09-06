@@ -33,6 +33,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@semiont/api-types": "*",
+    "@semiont/config-loader": "*",
     "@tanstack/react-query": "^4.36.1",
     "@types/node": "^20",
     "@types/react": "^18",
@@ -43,7 +44,7 @@
     "next-auth": "^4.24.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "@semiont/config-loader": "*",
+    "sharp": "^0.34.3",
     "typescript": "^5",
     "zod": "^3.22.4"
   },
