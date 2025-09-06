@@ -117,6 +117,18 @@ if (existsSync('templates')) {
   }
 }
 
+// Copy dashboard bundle to dist
+if (existsSync('dist/dashboard')) {
+  try {
+    // Dashboard is already in dist, but we need to ensure it's preserved
+    console.log('✅ Dashboard bundle found in dist/dashboard')
+  } catch (error) {
+    console.error('❌ Failed to verify dashboard:', error.message)
+  }
+} else {
+  console.log('⚠️  Dashboard bundle not found. Run "npm run build:dashboard" to build it.')
+}
+
 // Copy MCP server to dist
 const mcpServerSrc = '../../packages/mcp-server/dist'
 if (existsSync(mcpServerSrc)) {
