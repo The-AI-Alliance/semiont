@@ -35,6 +35,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { loadEnvironmentConfig } from '../core/platform-resolver.js';
 import * as path from 'path';
@@ -47,8 +48,22 @@ export class MCPService extends BaseService {
   // =====================================================================
   
   override getRequirements(): ServiceRequirements {
-    // MCP service acts like a background worker/API
-    return RequirementPresets.backgroundWorker();
+    // MCP service acts like a background worker/API with special CLI behaviors
+    const baseRequirements = RequirementPresets.backgroundWorker();
+    
+    return {
+      ...baseRequirements,
+      annotations: {
+        ...baseRequirements.annotations,
+        // MCP needs clean stdio for JSON-RPC communication
+        [CLI_BEHAVIOR_ANNOTATIONS.FORCE_QUIET]: 'true',
+        [CLI_BEHAVIOR_ANNOTATIONS.SKIP_FORMATTING]: 'true',
+        [CLI_BEHAVIOR_ANNOTATIONS.KEEP_ALIVE]: 'true',
+        [CLI_BEHAVIOR_ANNOTATIONS.INTERACTIVE]: 'true',
+        // Service type for handler selection
+        'service/type': 'mcp'
+      }
+    };
   }
   
   // =====================================================================
