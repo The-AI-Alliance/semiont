@@ -10,7 +10,7 @@
   "scripts": {
     "build": "npm run typecheck && npm run build:dashboard && node scripts/embed-dashboard.mjs && node build.mjs",
     "build:only": "node build.mjs",
-    "build:dashboard": "node scripts/build-web-dashboard.js",
+    "build:dashboard": "node scripts/build-web-dashboard.mjs",
     "embed:dashboard": "node scripts/embed-dashboard.mjs",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
