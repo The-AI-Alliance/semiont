@@ -2,14 +2,14 @@
  * Provision Command - Unified Executor Implementation
  * 
  * Provisions infrastructure and resources for services
- * using the UnifiedExecutor architecture.
+ * using the MultiServiceExecutor architecture.
  */
 
 import { z } from 'zod';
 import { ServicePlatformInfo } from '../platform-resolver.js';
 import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
-import { UnifiedExecutor } from '../unified-executor.js';
+import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { PlatformStrategy } from '../platform-strategy.js';
@@ -100,7 +100,7 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   },
   
   validateOptions: (options) => {
-    // Environment validation is handled by UnifiedExecutor
+    // Environment validation is handled by MultiServiceExecutor
     if (options.stack && options.service) {
       throw new Error('Cannot specify both --stack and --service');
     }
@@ -117,7 +117,7 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
 // EXECUTOR INSTANCE
 // =====================================================================
 
-const provisionExecutor = new UnifiedExecutor(provisionDescriptor);
+const provisionExecutor = new MultiServiceExecutor(provisionDescriptor);
 
 // =====================================================================
 // COMMAND EXPORT

@@ -1,9 +1,9 @@
 /**
- * Unified Command Executor
+ * Multi-Service Executor
  * 
- * Provides a single, consistent execution path for all commands.
- * This eliminates duplication across command implementations and ensures
- * consistent behavior for error handling, service resolution, and result aggregation.
+ * Executes a single command across multiple service deployments.
+ * Provides consistent execution patterns including error handling,
+ * service instantiation, handler resolution, and result aggregation.
  */
 
 import { ServicePlatformInfo, Platform } from './platform-resolver.js';
@@ -38,9 +38,9 @@ interface BaseOptions {
 }
 
 /**
- * Unified executor for all commands
+ * Executor that runs a command across multiple services
  */
-export class UnifiedExecutor<TOptions extends BaseOptions> {
+export class MultiServiceExecutor<TOptions extends BaseOptions> {
   constructor(
     private descriptor: CommandDescriptor<TOptions>
   ) {}
@@ -238,8 +238,8 @@ export class UnifiedExecutor<TOptions extends BaseOptions> {
   static createSimple<TOptions extends BaseOptions>(
     commandName: string,
     resultBuilder: (result: HandlerResult, service: Service, platform: PlatformStrategy) => CommandResult
-  ): UnifiedExecutor<TOptions> {
-    return new UnifiedExecutor<TOptions>({
+  ): MultiServiceExecutor<TOptions> {
+    return new MultiServiceExecutor<TOptions>({
       name: commandName,
       buildResult: resultBuilder,
       buildServiceConfig: (options, serviceInfo) => ({

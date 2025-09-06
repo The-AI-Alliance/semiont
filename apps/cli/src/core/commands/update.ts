@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { ServicePlatformInfo } from '../platform-resolver.js';
 import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
-import { UnifiedExecutor } from '../unified-executor.js';
+import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { PlatformStrategy } from '../platform-strategy.js';
@@ -100,7 +100,7 @@ const updateDescriptor: CommandDescriptor<UpdateOptions> = createCommandDescript
   },
   
   validateOptions: (options) => {
-    // Environment validation is handled by UnifiedExecutor
+    // Environment validation is handled by MultiServiceExecutor
     if (options.timeout && options.timeout < 0) {
       throw new Error('Timeout must be a positive number');
     }
@@ -117,7 +117,7 @@ const updateDescriptor: CommandDescriptor<UpdateOptions> = createCommandDescript
 // EXECUTOR INSTANCE
 // =====================================================================
 
-const updateExecutor = new UnifiedExecutor(updateDescriptor);
+const updateExecutor = new MultiServiceExecutor(updateDescriptor);
 
 // =====================================================================
 // COMMAND EXPORT

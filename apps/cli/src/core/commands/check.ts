@@ -2,14 +2,14 @@
  * Check Command - Unified Executor Implementation
  * 
  * Performs health checks and status verification for running services
- * using the new UnifiedExecutor architecture.
+ * using the new MultiServiceExecutor architecture.
  */
 
 import { z } from 'zod';
 import { ServicePlatformInfo } from '../platform-resolver.js';
 import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
-import { UnifiedExecutor } from '../unified-executor.js';
+import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { PlatformStrategy } from '../platform-strategy.js';
@@ -82,7 +82,7 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
     });
   },
   
-  // Environment validation is handled by UnifiedExecutor
+  // Environment validation is handled by MultiServiceExecutor
   
   continueOnError: true,  // Continue checking all services even if one fails
   supportsAll: true,
@@ -92,7 +92,7 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
 // EXECUTOR INSTANCE
 // =====================================================================
 
-const checkExecutor = new UnifiedExecutor(checkDescriptor);
+const checkExecutor = new MultiServiceExecutor(checkDescriptor);
 
 // =====================================================================
 // COMMAND EXPORT
