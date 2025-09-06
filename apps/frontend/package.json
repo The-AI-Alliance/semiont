@@ -35,7 +35,7 @@
     "@heroicons/react": "^2.2.0",
     "@semiont/api-types": "*",
     "@semiont/config-loader": "*",
-    "@tanstack/react-query": "^4.36.1",
+    "@tanstack/react-query": "^5.87.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
