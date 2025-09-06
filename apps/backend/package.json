@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && npm run typecheck && tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "pretest": "npm run build --workspace=@semiont/api-types",
     "test": "SEMIONT_ENV=unit vitest run",

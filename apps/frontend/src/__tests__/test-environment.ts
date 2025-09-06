@@ -193,7 +193,7 @@ export class FrontendTestEnvironment {
     }
 
     // Mock next/navigation
-    vi.doMock('next/navigation', () => this.navigationMocks);
+    vi.doMock('next/navigation', () => this.navigationMocks || {});
   }
 
   /**
