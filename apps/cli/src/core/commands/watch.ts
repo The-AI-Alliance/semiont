@@ -32,7 +32,7 @@ import { z } from 'zod';
 import { printInfo, printError, setSuppressOutput } from '../io/cli-logger.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
 import { type PlatformType } from '../platform-types.js';
-import { CommandResults, createBaseResult } from '../command-results.js';
+import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 
@@ -302,10 +302,9 @@ export async function watch(
       const errorResults: WatchResult[] = [];
       for (const failure of failedPlatforms) {
         for (const serviceInfo of failure.services) {
-          const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.platform, environment, startTime);
           errorResults.push({
-            ...baseResult,
-            entity: baseResult.service,
+            entity: serviceInfo.name,
+            platform: serviceInfo.platform,
             success: false,
             watchType: 'events' as const,
             error: `Cannot start watch: ${failure.error}`,
@@ -379,11 +378,10 @@ export async function watch(
     
     // Create watch results for each monitored service
     const serviceResults: WatchResult[] = serviceDeployments.map(serviceInfo => {
-      const baseResult = createBaseResult('watch', serviceInfo.name, serviceInfo.platform, environment, startTime);
-      
       return {
-        ...baseResult,
-        entity: baseResult.service,
+        entity: serviceInfo.name,
+        platform: serviceInfo.platform,
+        success: true,
         watchType: options.target === 'logs' ? 'logs' as const : 
                    options.target === 'metrics' ? 'metrics' as const : 
                    'events' as const,

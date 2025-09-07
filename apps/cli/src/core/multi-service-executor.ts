@@ -14,7 +14,7 @@ import { ServiceFactory } from '../services/service-factory.js';
 import { Platform } from './platform.js';
 import { CommandDescriptor } from './command-descriptor.js';
 import { CommandResult, createCommandResult } from './command-result.js';
-import { CommandResults } from './command-results.js';
+import { CommandResults } from './command-types.js';
 import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
 import { HandlerResult } from './handlers/types.js';
