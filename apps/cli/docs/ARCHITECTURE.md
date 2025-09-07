@@ -35,7 +35,7 @@ Environments represent different deployment contexts (dev, staging, production) 
 ### 2. Commands
 **Location:** `src/core/commands/`  
 **Purpose:** Define CLI operations that users can execute  
-**Pattern:** Commands use the UnifiedExecutor with CommandDescriptor configuration
+**Pattern:** Commands use the MultiServiceExecutor with CommandDescriptor configuration
 
 Commands are responsible for:
 - Defining their schema and argument specifications
@@ -43,11 +43,11 @@ Commands are responsible for:
 - Defining how handler results are transformed to CommandResult
 - Optional pre-execution hooks for special cases
 
-The command execution is orchestrated by the UnifiedExecutor pattern:
+The command execution is orchestrated by the MultiServiceExecutor pattern:
 
 #### Core Command Modules
 
-**Unified Executor** (`src/core/unified-executor.ts`) → Single execution path
+**Multi-Service Executor** (`src/core/multi-service-executor.ts`) → Single execution path
 - Orchestrates all command execution with consistent behavior
 - Resolves environment (--environment flag or SEMIONT_ENV)
 - Executes pre-execution hooks from CommandDescriptor
@@ -55,7 +55,7 @@ The command execution is orchestrated by the UnifiedExecutor pattern:
 - Aggregates results with consistent error handling
 
 **Command Descriptor** (`src/core/command-descriptor.ts`) → Command configuration
-- Defines how commands are executed within UnifiedExecutor
+- Defines how commands are executed within MultiServiceExecutor
 - `buildResult`: Transforms handler results to CommandResult
 - `buildServiceConfig`: Merges options with service configuration
 - `extractHandlerOptions`: Extracts handler-specific options
@@ -74,13 +74,13 @@ The command execution is orchestrated by the UnifiedExecutor pattern:
 **Command-Service Matcher** (`src/core/command-service-matcher.ts`) → Which work together?
 - Determines which commands can operate on which services
 - Resolves "all" to the list of applicable services
-- Contains business rules for service capabilities
+- Checks service-declared command capabilities via annotations
 
 Example flow:
 ```typescript
-CLI entry → UnifiedExecutor → resolve environment (--env or SEMIONT_ENV) →
+CLI entry → MultiServiceExecutor → resolve environment (--env or SEMIONT_ENV) →
 load environment config → resolve services → preExecute hook →
-for each service: determine platform → determine serviceType → 
+for each service: check service type declaration → determine platform → 
 find handler → execute handler → transform result → aggregate results
 ```
 
@@ -90,8 +90,10 @@ find handler → execute handler → transform result → aggregate results
 Environment
     ↓ defines
 Services + Platform Assignments
+    ↓ services declare
+Service Type (via annotations)
     ↓ resolved by
-UnifiedExecutor
+MultiServiceExecutor
     ↓ executes
 Commands
     ↓ finds
@@ -110,14 +112,17 @@ Infrastructure
 2. **Services** declare what they need:
    - Business logic and requirements
    - Platform-agnostic implementation
+   - Service type declaration via annotations
+   - Command capability declarations
 
 3. **Service Types** categorize services:
-   - Platform-specific categorization
-   - Determines handler selection
+   - High-level service categories (frontend, backend, database, etc.)
+   - Declared by services themselves via `service/type` annotation
+   - Platform may map to specific implementations
 
 4. **Commands** define operations:
    - User-facing CLI operations
-   - Use UnifiedExecutor for consistency
+   - Use MultiServiceExecutor for consistency
 
 5. **Platforms** provide infrastructure:
    - Implement handlers for each service type
@@ -140,33 +145,40 @@ Example:
 class BackendService extends BaseService {
   getRequirements() {
     return {
-      compute: { memory: 512, cpu: 1 },
-      network: { ports: [{ port: 3000 }] }
+      annotations: {
+        'service/type': SERVICE_TYPES.BACKEND,
+        'command/supports-publish': 'true',
+        'command/supports-update': 'true'
+      },
+      resources: { memory: '512Mi', cpu: '1' },
+      network: { ports: [3000] }
     };
   }
 }
 ```
 
 ### 4. Service Types
-**Purpose:** Categorize services for platform-specific handling  
-**Pattern:** Determined at runtime based on service characteristics
+**Location:** `src/core/service-types.ts`  
+**Purpose:** High-level service categorization  
+**Pattern:** Services declare their type, platforms map to implementations
 
-Service types are platform-specific categorizations that determine which handler to use:
-- **Common Types**: web, database, worker, filesystem, mcp
-- **Platform-Specific**: lambda (AWS), ecs (AWS), rds (AWS)
-- **Determination**: Services are mapped to types based on their requirements
+Service types are high-level categories declared by services:
+- **Core Types**: frontend, backend, database, filesystem, worker, mcp, inference
+- **Declaration**: Services use `service/type` annotation in requirements
+- **Platform Mapping**: Platforms may map types to specific implementations (e.g., AWS maps frontend → s3-cloudfront)
 - **Handler Resolution**: Platform + ServiceType + Command = Specific Handler
 
 ### 5. Platforms
 **Location:** `src/platforms/`  
 **Purpose:** Implement infrastructure-specific operations  
-**Pattern:** Platforms interpret service requirements and manage resources
+**Pattern:** Platforms extend the abstract Platform class and provide handlers
 
-Platforms handle:
-- Resource provisioning based on requirements
-- Service lifecycle management (start, stop, update)
-- Platform-specific operations (backups, logs, exec)
-- State management and resource tracking
+Platforms (extending `src/core/platform.ts`):
+- Interpret service requirements and provision resources
+- Map service types to platform-specific implementations
+- Provide handlers for each service type and command combination
+- Manage platform-specific state and resource tracking
+- Implement credential validation and log collection
 
 #### Platform Handlers Architecture
 
@@ -208,7 +220,7 @@ Benefits of unified handler architecture:
 - **Extensibility**: New handlers added without modifying platform class
 - **Self-contained**: Each handler manages its own concerns
 - **Auto-discovery**: Handlers self-register with platform, command, and serviceType
-- **Consistent execution**: UnifiedExecutor ensures uniform behavior across all commands
+- **Consistent execution**: MultiServiceExecutor ensures uniform behavior across all commands
 - **Type safety**: CommandDescriptor and HandlerDescriptor provide strong typing
 
 ### 4. Libraries
@@ -223,14 +235,15 @@ Benefits of unified handler architecture:
 
 ## Key Design Patterns
 
-### Strategy Pattern (Platforms)
-Each platform implements the `PlatformStrategy` interface, allowing services to work with any infrastructure:
+### Abstract Class Pattern (Platforms)
+Each platform extends the abstract `Platform` class, providing consistent behavior:
 
 ```typescript
-interface PlatformStrategy {
-  start(context: ServiceContext): Promise<StartResult>;
-  stop(context: ServiceContext): Promise<StopResult>;
-  // ... other operations
+abstract class Platform {
+  abstract buildHandlerContextExtensions(service, requiresDiscovery): Promise<any>;
+  abstract collectLogs(service, options): Promise<LogEntry[]>;
+  determineServiceType(service): string { /* uses service declarations */ }
+  // ... other operations with default implementations
 }
 ```
 
@@ -243,7 +256,7 @@ PlatformFactory.getPlatform(type)
 ```
 
 ### Command Descriptor Pattern
-Commands use CommandDescriptor with UnifiedExecutor:
+Commands use CommandDescriptor with MultiServiceExecutor:
 
 ```typescript
 const startDescriptor: CommandDescriptor<StartOptions> = {
@@ -272,18 +285,19 @@ const startDescriptor: CommandDescriptor<StartOptions> = {
   })
 };
 
-// Command uses UnifiedExecutor
+// Command uses MultiServiceExecutor
 export const startCommand = async (options: StartOptions) => {
-  return executeUnifiedCommand(startDescriptor, options);
+  const executor = new MultiServiceExecutor(startDescriptor);
+  return executor.execute(options);
 };
 ```
 
 ### Requirements Pattern
-Services declare requirements; platforms fulfill them:
+Services declare requirements and capabilities; platforms fulfill them:
 
 ```typescript
-Service: "I need 512MB RAM and port 3000"
-Platform: "I'll provide that using [platform-specific method]"
+Service: "I am a backend service (service/type), I need 512MB RAM and port 3000"
+Platform: "I'll map your type to my implementation and provide resources"
 ```
 
 ### Publish and Update Contract
@@ -353,41 +367,42 @@ class BackendService extends BaseService {
 Platforms interpret these requirements and provision resources accordingly:
 
 ```typescript
-class ContainerPlatform implements PlatformStrategy {
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.service.getRequirements();
-    
-    // Translate requirements into Docker configuration
-    const dockerConfig = {
-      Image: context.service.getDockerImage(),
-      HostConfig: {
-        Memory: requirements.compute.memory * 1024 * 1024, // Convert MB to bytes
-        CpuShares: requirements.compute.cpu * 1024,
-        PortBindings: this.mapPorts(requirements.network.ports)
-      },
-      Env: this.formatEnvironment(requirements.environment)
+class ContainerPlatform extends Platform {
+  // Platform determines service type from service declarations
+  determineServiceType(service: Service): string {
+    const requirements = service.getRequirements();
+    const declaredType = requirements.annotations['service/type'];
+    // Platform can map types if needed (but usually uses as-is)
+    return declaredType;
+  }
+  
+  // Handler manages the actual start logic
+  async buildHandlerContextExtensions(service: Service): Promise<any> {
+    return {
+      runtime: this.detectContainerRuntime(),
+      containerName: this.getResourceName(service)
     };
-    
-    // Start container with translated configuration
-    const container = await docker.createContainer(dockerConfig);
-    await container.start();
   }
 }
 
-class ProcessPlatform implements PlatformStrategy {
-  async start(context: ServiceContext): Promise<StartResult> {
-    const requirements = context.service.getRequirements();
-    
-    // For processes, requirements guide resource limits
-    const processOptions = {
-      env: requirements.environment,
-      // Process platform may use ulimit or cgroups for memory/CPU limits
-      maxMemory: requirements.compute.memory,
-      port: requirements.network.ports[0]?.port
-    };
-    
-    // Start process with configuration
-    const child = spawn(context.service.getStartCommand(), processOptions);
+// Handler for backend services on container platform
+const backendStartHandler = async (context) => {
+  const requirements = context.service.getRequirements();
+  
+  // Translate requirements into Docker configuration
+  const dockerConfig = {
+    Image: context.service.config.image,
+    HostConfig: {
+      Memory: parseMemory(requirements.resources?.memory),
+      CpuShares: parseCpu(requirements.resources?.cpu),
+      PortBindings: mapPorts(requirements.network?.ports)
+    },
+    Env: formatEnvironment(requirements.environment)
+  };
+  
+  // Start container with translated configuration
+  const container = await docker.createContainer(dockerConfig);
+  await container.start();
   }
 }
 ```
@@ -521,7 +536,7 @@ src/
 
 ```typescript
 // Platform types
-type Platform = 'posix' | 'container' | 'aws' | 'external' | 'mock';
+type PlatformType = 'posix' | 'container' | 'aws' | 'external' | 'mock';
 
 // Service types  
 type ServiceName = 'backend' | 'frontend' | 'database' | 'filesystem' | 'mcp';
@@ -538,7 +553,7 @@ interface Config {
 // Results types
 interface CommandResult {
   entity: ServiceName;
-  platform: Platform;
+  platform: PlatformType;
   success: boolean;
   timestamp: Date;
   error?: string;
@@ -654,12 +669,20 @@ See [ADDING_SERVICES.md](./ADDING_SERVICES.md)
 3. Define requirements and capabilities
 4. Register in ServiceFactory
 
+### Adding New Service Types
+See [ADDING_SERVICE_TYPES.md](./ADDING_SERVICE_TYPES.md)
+
+1. Add type to SERVICE_TYPES constant
+2. Create services that declare the type
+3. Implement handlers for each platform
+4. Optional: Add type-specific commands
+
 ### Adding New Platforms
 See [ADDING_PLATFORMS.md](./ADDING_PLATFORMS.md)
 
 1. Create platform file in `src/platforms/`
-2. Implement PlatformStrategy interface
-3. Handle resource provisioning
+2. Extend the abstract Platform class
+3. Implement handlers for each service type
 4. Register in PlatformFactory
 
 ## State Management
@@ -760,7 +783,7 @@ All operations return success/failure with details:
 
 The architecture supports:
 - New service types (just extend BaseService)
-- New platforms (implement PlatformStrategy)
+- New platforms (extend Platform class)
 - New commands (use CommandBuilder)
 - Custom requirements (extend ServiceRequirements)
 - Plugin system (via service/platform factories)

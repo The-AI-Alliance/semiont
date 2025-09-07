@@ -17,10 +17,11 @@ Services encapsulate business logic and requirements independent of deployment p
 ## Architecture
 
 ```
-Command → Service → Platform Strategy
+Command → Service → Platform
             ↓           ↓
       Business Logic  Infrastructure
       Requirements    Implementation
+      Type Declaration Handler Selection
 ```
 
 ## Step-by-Step Guide
@@ -42,19 +43,23 @@ touch src/services/my-service.ts
  * Handles [describe what your service does]
  */
 
-import { BaseService } from './base-service.js';
+import { BaseService } from '../core/base-service.js';
 import { 
   ServiceRequirements,
-  ComputeRequirement,
-  NetworkRequirement,
   StorageRequirement,
+  NetworkRequirement,
+  ResourceRequirement,
   SecurityRequirement,
-  BuildRequirement
-} from './service-requirements.js';
-import { ServiceCapability } from './services.js';
-import { ServiceName } from './service-interface.js';
-import { Config, ServiceConfig } from '../lib/cli-config.js';
-import { Platform } from '../platforms/platform-resolver.js';
+  BuildRequirement,
+  RequirementPresets
+} from '../core/service-requirements.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
+import { SERVICE_TYPE_ANNOTATION } from '../core/service-types.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
+import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
+import { ServiceName } from '../core/service-discovery.js';
+import { Config, ServiceConfig } from '../core/cli-config.js';
+import { PlatformType } from '../core/platform-resolver.js';
 ```
 
 ### 3. Implement the Service Class
@@ -64,11 +69,11 @@ export class MyService extends BaseService {
   
   constructor(
     name: ServiceName,
-    platform: Platform,
-    config: Config,
+    platform: PlatformType,
+    systemConfig: Config,
     serviceConfig: ServiceConfig
   ) {
-    super(name, platform, config, serviceConfig);
+    super(name, platform, systemConfig, serviceConfig);
   }
   
   /**
@@ -78,95 +83,94 @@ export class MyService extends BaseService {
   getRequirements(): ServiceRequirements {
     const baseRequirements = super.getRequirements();
     
-    // Define compute requirements
-    const compute: ComputeRequirement = {
-      memory: 1024,  // MB
-      cpu: 1.0,      // vCPU units
-      gpu: false,    // GPU required?
+    // REQUIRED: Declare service type
+    const annotations = {
+      // Service type declaration (required)
+      [SERVICE_TYPE_ANNOTATION]: SERVICE_TYPES.BACKEND, // or FRONTEND, DATABASE, etc.
+      
+      // Command capability declarations (optional)
+      [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
+      [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
+      [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
+      
+      // CLI behavior declarations (optional)
+      [CLI_BEHAVIOR_ANNOTATIONS.KEEP_ALIVE]: 'false',
+      [CLI_BEHAVIOR_ANNOTATIONS.SUPPRESS_OUTPUT]: 'false',
+    };
+    
+    // Define resource requirements
+    const resources: ResourceRequirement = {
+      memory: '1Gi',     // Kubernetes-style notation
+      cpu: '1000m',       // 1 CPU core (1000 millicores)
+      gpus: 0,
     };
     
     // Define network requirements
     const network: NetworkRequirement = {
-      ports: [
-        { 
-          port: this.serviceConfig.port || 8080, 
-          protocol: 'tcp',
-          public: true 
-        }
-      ],
-      domains: this.serviceConfig.domain ? [this.serviceConfig.domain] : undefined,
-      healthCheck: {
-        path: '/health',
-        interval: 30,
-        timeout: 5,
-        retries: 3,
-      },
+      ports: [this.serviceConfig.port || 8080],
+      protocol: 'tcp',
+      needsLoadBalancer: true,
+      customDomains: this.serviceConfig.domain ? [this.serviceConfig.domain] : undefined,
+      healthCheckPath: '/health',
+      healthCheckPort: this.serviceConfig.port || 8080,
     };
     
     // Define storage requirements
-    const storage: StorageRequirement = {
-      persistent: 10240,  // MB for persistent storage
-      ephemeral: 5120,    // MB for temporary storage
+    const storage: StorageRequirement[] = [{
+      persistent: true,
+      size: '10Gi',
+      mountPath: '/data',
+      type: 'volume',
       backupEnabled: true,
-    };
+    }];
     
     // Define security requirements
     const security: SecurityRequirement = {
       secrets: ['API_KEY', 'DATABASE_URL'],
-      certificates: this.serviceConfig.domain ? ['ssl-cert'] : undefined,
-      iamRole: 'my-service-role',
+      readOnlyRootFilesystem: false,
+      allowPrivilegeEscalation: false,
     };
     
     // Define build requirements (if applicable)
     const build: BuildRequirement = {
       dockerfile: './Dockerfile.my-service',
-      context: '.',
-      args: {
+      buildContext: '.',
+      buildArgs: {
         NODE_VERSION: '18',
       },
-      cache: true,
+      prebuilt: false,
     };
     
     return {
       ...baseRequirements,
-      compute,
+      annotations,  // Include annotations with service type
+      resources,
       network,
       storage,
       security,
       build,
       
       // Service dependencies
-      dependencies: ['database', 'cache'],
+      dependencies: {
+        services: ['database' as ServiceName],
+      },
       
       // Environment variables
       environment: {
-        SERVICE_TYPE: 'my-service',
+        SERVICE_NAME: this.name,
         PORT: String(this.serviceConfig.port || 8080),
-        NODE_ENV: this.config.environment,
+        NODE_ENV: this.systemConfig.environment,
         ...this.serviceConfig.env,
       },
     };
   }
   
   /**
-   * Define service capabilities
-   * These determine which commands the service supports
+   * Note: Service capabilities are now declared via annotations
+   * in the getRequirements() method above, not through a separate
+   * getCapabilities() method. This allows platforms to understand
+   * service capabilities at the requirements level.
    */
-  getCapabilities(): ServiceCapability[] {
-    return [
-      'start',    // Can be started
-      'stop',     // Can be stopped
-      'restart',  // Can be restarted
-      'check',    // Supports health checks
-      'backup',   // Supports backups
-      'restore',  // Supports restoration
-      'publish',  // Can be published/deployed
-      'update',   // Supports updates
-      'test',     // Has tests
-      'exec',     // Supports command execution
-      'logs',     // Provides logs
-    ];
-  }
   
   /**
    * Get environment-specific configuration
@@ -302,7 +306,8 @@ export class MyService extends BaseService {
     console.log(`Preparing ${this.name} for startup...`);
     
     // Validate dependencies are running
-    for (const dep of this.getRequirements().dependencies || []) {
+    const deps = this.getRequirements().dependencies?.services || [];
+    for (const dep of deps) {
       // Check if dependency is available
       // This is handled by the platform, but you can add extra checks
     }
@@ -350,28 +355,49 @@ import { MyService } from './my-service.js';
 export class ServiceFactory {
   static create(
     name: ServiceName,
-    platform: Platform,
-    config: Config,
+    platform: PlatformType,
+    systemConfig: Config,
     serviceConfig: ServiceConfig
   ): Service {
     switch (name) {
       case 'backend':
-        return new BackendService(name, platform, config, serviceConfig);
+        return new BackendService(name, platform, systemConfig, serviceConfig);
       case 'frontend':
-        return new FrontendService(name, platform, config, serviceConfig);
+        return new FrontendService(name, platform, systemConfig, serviceConfig);
       case 'my-service':
-        return new MyService(name, platform, config, serviceConfig);
+        return new MyService(name, platform, systemConfig, serviceConfig);
       default:
         // GenericService handles unknown types
-        return new GenericService(name as any, platform, config, serviceConfig);
+        return new GenericService(name as any, platform, systemConfig, serviceConfig);
     }
   }
 }
 ```
 
-### 5. Update Service Types
+### 5. Important: Service Type Declaration
 
-Add your service to the ServiceName type in `src/services/service-interface.ts`:
+Every service MUST declare its type via the `service/type` annotation. This is how platforms determine which handlers to use:
+
+```typescript
+const annotations = {
+  [SERVICE_TYPE_ANNOTATION]: SERVICE_TYPES.BACKEND,  // Required!
+  // ... other annotations
+};
+```
+
+Available service types:
+- `SERVICE_TYPES.FRONTEND` - User-facing web applications
+- `SERVICE_TYPES.BACKEND` - API servers and application logic
+- `SERVICE_TYPES.DATABASE` - Data persistence layers
+- `SERVICE_TYPES.FILESYSTEM` - File storage services
+- `SERVICE_TYPES.WORKER` - Background job processors
+- `SERVICE_TYPES.MCP` - Model Context Protocol services
+- `SERVICE_TYPES.INFERENCE` - AI/ML model serving
+- `SERVICE_TYPES.GENERIC` - General-purpose services
+
+### 6. Update Service Registry
+
+Add your service to the ServiceName type in `src/core/service-discovery.ts`:
 
 ```typescript
 export type ServiceName = 
