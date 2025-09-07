@@ -31,6 +31,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 import { CommandExtensions } from '../core/command-result.js';
 import * as path from 'path';
 
@@ -42,7 +43,21 @@ export class FilesystemService extends BaseService {
   
   override getRequirements(): ServiceRequirements {
     // Filesystem service needs persistent storage
-    return RequirementPresets.statefulDatabase(); // Similar storage needs
+    const base = RequirementPresets.statefulDatabase(); // Similar storage needs
+    return {
+      ...base,
+      annotations: {
+        ...base.annotations,
+        // Filesystem supports backup and restore
+        [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'true',
+        // Filesystem doesn't support publish/update/test
+        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'false'
+      }
+    };
   }
   
   // =====================================================================

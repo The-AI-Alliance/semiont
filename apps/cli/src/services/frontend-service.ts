@@ -34,6 +34,7 @@ import { getNodeEnvForEnvironment } from '../core/platform-resolver.js';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 
 export class FrontendService extends BaseService {
   
@@ -52,6 +53,17 @@ export class FrontendService extends BaseService {
         ...base.network,
         ports: [this.getPort()], // Use configured port instead of preset's [80, 443]
         healthCheckPort: this.getPort()
+      },
+      annotations: {
+        ...base.annotations,
+        // Frontend can be built and published as container or static assets
+        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'true',
+        // Frontend doesn't support these data operations
+        [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'false'
       }
     };
     

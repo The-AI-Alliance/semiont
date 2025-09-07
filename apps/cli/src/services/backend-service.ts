@@ -35,6 +35,7 @@ import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platfor
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 
 export class BackendService extends BaseService {
   
@@ -95,7 +96,17 @@ export class BackendService extends BaseService {
         runAsUser: 1000,  // node user
         runAsGroup: 1000
       },
-      environment: this.buildEnvironment()
+      environment: this.buildEnvironment(),
+      annotations: {
+        // Backend can be built and published as container
+        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true',
+        // Backend doesn't support backup/restore directly (database does)
+        [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'false'
+      }
     };
     
     // Merge preset with specific requirements
