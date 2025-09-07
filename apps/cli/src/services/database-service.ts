@@ -35,6 +35,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class DatabaseService extends BaseService {
   
@@ -78,6 +79,8 @@ export class DatabaseService extends BaseService {
         PGDATA: '/var/lib/postgresql/data'
       },
       annotations: {
+        // Service type declaration
+        'service/type': SERVICE_TYPES.DATABASE,
         // Database supports backup and restore
         [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'true',

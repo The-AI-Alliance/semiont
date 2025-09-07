@@ -44,42 +44,20 @@ export class PosixPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Determine service type for handler selection
+   * Map service types to POSIX handler types
    */
-  determineServiceType(service: Service): string {
-    const requirements = service.getRequirements();
-    const serviceName = service.name.toLowerCase();
-    
-    // Check for MCP services
-    if (service.name === 'mcp' || 
-        requirements.annotations?.['service/type'] === 'mcp') {
-      return 'mcp';
-    }
-    
-    // Check for database services
-    if (requirements.annotations?.['service/type'] === 'database' ||
-        serviceName.includes('postgres') || 
-        serviceName.includes('mysql') || 
-        serviceName.includes('mongodb') ||
-        serviceName.includes('redis')) {
-      return 'database';
-    }
-    
-    // Check for web services
-    if (requirements.network?.healthCheckPath ||
-        requirements.annotations?.['service/type'] === 'web') {
+  protected override mapServiceType(declaredType: string): string {
+    // POSIX uses 'web' handler for frontend/backend services
+    if (declaredType === 'frontend' || declaredType === 'backend') {
       return 'web';
     }
     
-    // Check for filesystem services
-    if (requirements.annotations?.['service/type'] === 'filesystem' ||
-        serviceName.includes('nfs') ||
-        serviceName.includes('samba') ||
-        serviceName.includes('webdav')) {
-      return 'filesystem';
-    }
+    // Direct mappings
+    if (declaredType === 'database') return 'database';
+    if (declaredType === 'filesystem') return 'filesystem';
+    if (declaredType === 'mcp') return 'mcp';
     
-    // Default to worker for everything else
+    // Everything else uses worker handler
     return 'worker';
   }
   

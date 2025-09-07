@@ -32,8 +32,36 @@
 import { BaseService } from './base-service.js';
 import { ServiceRequirements, StorageRequirement } from './service-requirements.js';
 import { ServiceName } from './service-discovery.js';
+import { SERVICE_TYPES, ServiceType } from './service-types.js';
 
 export class GenericService extends BaseService {
+  
+  /**
+   * Determine service type from config or use default
+   */
+  private determineServiceType(): ServiceType {
+    // Check explicit service type in config
+    if (this.config.serviceType && Object.values(SERVICE_TYPES).includes(this.config.serviceType as ServiceType)) {
+      return this.config.serviceType as ServiceType;
+    }
+    
+    // Check annotations in config
+    if (this.config.annotations?.['service/type'] && 
+        Object.values(SERVICE_TYPES).includes(this.config.annotations['service/type'] as ServiceType)) {
+      return this.config.annotations['service/type'] as ServiceType;
+    }
+    
+    // Try to infer from service name
+    const name = this.name.toLowerCase();
+    if (name.includes('frontend') || name.includes('ui')) return SERVICE_TYPES.FRONTEND;
+    if (name.includes('backend') || name.includes('api')) return SERVICE_TYPES.BACKEND;
+    if (name.includes('database') || name.includes('db')) return SERVICE_TYPES.DATABASE;
+    if (name.includes('worker') || name.includes('job')) return SERVICE_TYPES.WORKER;
+    if (name.includes('inference') || name.includes('ml')) return SERVICE_TYPES.INFERENCE;
+    
+    // Default to generic
+    return SERVICE_TYPES.GENERIC;
+  }
   
   // =====================================================================
   // Service Requirements - Derived from Configuration
@@ -138,10 +166,12 @@ export class GenericService extends BaseService {
       requirements.labels = this.config.labels;
     }
     
-    // Annotations (platform-specific hints)
-    if (this.config.annotations) {
-      requirements.annotations = this.config.annotations;
-    }
+    // Annotations - MUST include service/type
+    const serviceType = this.determineServiceType();
+    requirements.annotations = {
+      ...this.config.annotations,
+      'service/type': serviceType
+    };
     
     return requirements;
   }

@@ -331,12 +331,40 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
   
   
   /**
-   * Determine the AWS service type based on service name and requirements
+   * Map service types to AWS-specific handler types
    */
-  public determineServiceType(service: Service): string {
+  protected override mapServiceType(declaredType: string): string {
+    // Map high-level types to AWS services
+    switch (declaredType) {
+      case 'frontend':
+        // Frontend defaults to ECS Fargate (can be overridden with aws/service annotation)
+        return 'ecs-fargate';
+      case 'backend':
+        // Backend defaults to ECS Fargate
+        return 'ecs-fargate';
+      case 'database':
+        return 'rds';
+      case 'filesystem':
+        return 'efs';
+      case 'worker':
+        return 'ecs-fargate';
+      case 'inference':
+        return 'sagemaker';  // Future support
+      case 'stack':
+        return 'stack';
+      default:
+        // Pass through unknown types
+        return declaredType;
+    }
+  }
+  
+  /**
+   * Override base determineServiceType to handle special AWS cases
+   */
+  public override determineServiceType(service: Service): string {
     const requirements = service.getRequirements();
     
-    // Check for stack provisioning (special case)
+    // Special case for AWS stack provisioning
     if (service.name === '__aws_stack__') {
       return 'stack';
     }
@@ -346,53 +374,8 @@ export class AWSPlatformStrategy extends BasePlatformStrategy {
       return requirements.annotations['aws/service'];
     }
     
-    // Service-specific mappings based on name
-    switch (service.name) {
-      case 'database':
-        // Database is always RDS PostgreSQL in production
-        return 'rds';
-      
-      case 'filesystem':
-        // Filesystem is always EFS
-        return 'efs';
-      
-      case 'frontend':
-      case 'backend':
-        // Frontend and backend are containerized services on ECS Fargate
-        return 'ecs-fargate';
-      
-      default:
-        // Check other annotations and requirements
-        
-        // Static content with CDN needs → S3 + CloudFront
-        if (requirements.annotations?.['service/type'] === 'static' ||
-            (requirements.network?.needsLoadBalancer && !requirements.resources?.cpu)) {
-          return 's3-cloudfront';
-        }
-        
-        // Database requirements → RDS
-        if (requirements.annotations?.['service/type'] === 'database') {
-          return requirements.annotations?.['aws/nosql'] === 'true' ? 'dynamodb' : 'rds';
-        }
-        
-        // Serverless function → Lambda
-        if (requirements.annotations?.['serverless'] === 'true') {
-          return 'lambda';
-        }
-        
-        // File storage → EFS
-        if (requirements.annotations?.['service/type'] === 'filesystem') {
-          return 'efs';
-        }
-        
-        // Container with resources → ECS Fargate
-        if (requirements.build?.dockerfile || requirements.resources?.cpu || requirements.resources?.memory) {
-          return 'ecs-fargate';
-        }
-        
-        // Default to ECS Fargate for services
-        return 'ecs-fargate';
-    }
+    // Use base implementation which calls mapServiceType
+    return super.determineServiceType(service);
   }
   
   // Helper methods

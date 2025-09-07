@@ -36,6 +36,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class BackendService extends BaseService {
   
@@ -98,6 +99,8 @@ export class BackendService extends BaseService {
       },
       environment: this.buildEnvironment(),
       annotations: {
+        // Service type declaration
+        'service/type': SERVICE_TYPES.BACKEND,
         // Backend can be built and published as container
         [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',

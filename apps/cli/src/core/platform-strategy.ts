@@ -8,6 +8,7 @@
 
 // Command result types are now under core/commands
 import { Service } from '../services/types.js';
+import { getServiceTypeFromAnnotations, SERVICE_TYPES } from './service-types.js';
 
 /**
  * Options for collecting logs
@@ -84,7 +85,47 @@ export interface PlatformStrategy {
  */
 export abstract class BasePlatformStrategy implements PlatformStrategy {
 
-  abstract determineServiceType(service: Service): string;
+  /**
+   * Determine service type from service requirements
+   * Concrete platforms should override mapServiceType if they need to map generic types
+   */
+  determineServiceType(service: Service): string {
+    const requirements = service.getRequirements();
+    const declaredType = getServiceTypeFromAnnotations(requirements.annotations);
+    
+    if (declaredType) {
+      // Let platform map the type if needed (e.g., frontend -> s3-cloudfront)
+      return this.mapServiceType(declaredType);
+    }
+    
+    // Fallback for services without type declaration
+    console.warn(`Service ${service.name} does not declare service/type annotation`);
+    return this.inferServiceTypeFallback(service);
+  }
+  
+  /**
+   * Map generic service type to platform-specific handler type
+   * Override in platform implementations if needed
+   */
+  protected mapServiceType(declaredType: string): string {
+    return declaredType;
+  }
+  
+  /**
+   * Fallback for services without type declaration
+   * Will be removed once all services declare their type
+   */
+  protected inferServiceTypeFallback(service: Service): string {
+    // Default fallback based on service name
+    const name = service.name.toLowerCase();
+    if (name === 'frontend') return SERVICE_TYPES.FRONTEND;
+    if (name === 'backend') return SERVICE_TYPES.BACKEND;
+    if (name === 'database') return SERVICE_TYPES.DATABASE;
+    if (name === 'filesystem') return SERVICE_TYPES.FILESYSTEM;
+    if (name === 'mcp') return SERVICE_TYPES.MCP;
+    return SERVICE_TYPES.GENERIC;
+  }
+  
   abstract buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>>;
   
   abstract getPlatformName(): string;

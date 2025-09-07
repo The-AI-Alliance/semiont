@@ -80,20 +80,15 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Determine service type for handler selection
+   * Map service types to external handler types
    */
-  determineServiceType(service: Service): string {
-    const requirements = service.getRequirements();
-    const serviceName = service.name.toLowerCase();
-    
-    // Check for static sites/CDNs
-    if (requirements.annotations?.['service/type'] === 'static' ||
-        serviceName.includes('cdn') ||
-        serviceName.includes('static')) {
+  protected override mapServiceType(declaredType: string): string {
+    // External platform only has static and api handlers
+    if (declaredType === 'frontend') {
       return 'static';
     }
     
-    // Default to API for external services
+    // Everything else is treated as an API
     return 'api';
   }
   

@@ -62,9 +62,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
 
 
   /**
-   * Determine service type for handler selection
+   * Map service types to mock handler types
    */
-  determineServiceType(_service: Service): string {
+  protected override mapServiceType(_declaredType: string): string {
     // Mock platform uses default handler for all services
     return 'default';
   }

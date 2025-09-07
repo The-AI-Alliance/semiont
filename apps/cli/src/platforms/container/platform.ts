@@ -100,28 +100,18 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Determine service type for handler selection
+   * Map service types to container handler types
    */
-  determineServiceType(service: Service): string {
-    const requirements = service.getRequirements();
-    const serviceName = service.name.toLowerCase();
-    
-    // Check for database services
-    if (requirements.annotations?.['service/type'] === 'database' ||
-        serviceName.includes('postgres') || 
-        serviceName.includes('mysql') || 
-        serviceName.includes('mongodb') ||
-        serviceName.includes('redis')) {
-      return 'database';
-    }
-    
-    // Check for web services
-    if (requirements.network?.healthCheckPath ||
-        requirements.annotations?.['service/type'] === 'web') {
+  protected override mapServiceType(declaredType: string): string {
+    // Container uses 'web' handler for frontend/backend services
+    if (declaredType === 'frontend' || declaredType === 'backend') {
       return 'web';
     }
     
-    // Default to generic
+    // Database gets special handler
+    if (declaredType === 'database') return 'database';
+    
+    // Everything else uses generic handler
     return 'generic';
   }
   

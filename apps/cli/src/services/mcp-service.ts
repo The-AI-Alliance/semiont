@@ -36,6 +36,7 @@
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
 import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { loadEnvironmentConfig } from '../core/platform-resolver.js';
 import * as path from 'path';
@@ -55,13 +56,13 @@ export class MCPService extends BaseService {
       ...baseRequirements,
       annotations: {
         ...baseRequirements.annotations,
+        // Service type declaration
+        'service/type': SERVICE_TYPES.MCP,
         // MCP needs clean stdio for JSON-RPC communication
         [CLI_BEHAVIOR_ANNOTATIONS.FORCE_QUIET]: 'true',
         [CLI_BEHAVIOR_ANNOTATIONS.SKIP_FORMATTING]: 'true',
         [CLI_BEHAVIOR_ANNOTATIONS.KEEP_ALIVE]: 'true',
-        [CLI_BEHAVIOR_ANNOTATIONS.INTERACTIVE]: 'true',
-        // Service type for handler selection
-        'service/type': 'mcp'
+        [CLI_BEHAVIOR_ANNOTATIONS.INTERACTIVE]: 'true'
       }
     };
   }

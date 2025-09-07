@@ -35,6 +35,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class FrontendService extends BaseService {
   
@@ -56,6 +57,8 @@ export class FrontendService extends BaseService {
       },
       annotations: {
         ...base.annotations,
+        // Service type declaration
+        'service/type': SERVICE_TYPES.FRONTEND,
         // Frontend can be built and published as container or static assets
         [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
