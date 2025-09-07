@@ -23,7 +23,7 @@
 
 import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { handlers } from './handlers/index.js';
-import { BasePlatformStrategy, LogOptions, LogEntry, CredentialValidationResult } from '../../core/platform-strategy.js';
+import { Platform, LogOptions, LogEntry, CredentialValidationResult } from '../../core/platform.js';
 import { Service } from '../../services/types.js';
 import { StateManager } from '../../core/state-manager.js';
 
@@ -39,7 +39,7 @@ import {
   type OutputLogEvent 
 } from '@aws-sdk/client-cloudwatch-logs';
 
-export class AWSPlatformStrategy extends BasePlatformStrategy {
+export class AWSPlatform extends Platform {
   private ecsClient?: ECSClient;
   private rdsClient?: RDSClient;
   private efsClient?: EFSClient;

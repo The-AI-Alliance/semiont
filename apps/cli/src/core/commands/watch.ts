@@ -30,7 +30,7 @@
 
 import { z } from 'zod';
 import { printInfo, printError, setSuppressOutput } from '../io/cli-logger.js';
-import { type ServicePlatformInfo, type Platform } from '../platform-resolver.js';
+import { type ServicePlatformInfo, type PlatformType } from '../platform-resolver.js';
 import { CommandResults, createBaseResult } from '../command-results.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
@@ -40,10 +40,10 @@ import { ServiceName } from '../service-discovery.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import { Config } from '../cli-config.js';
 import { parseEnvironment } from '../environment-validator.js';
-import { PlatformStrategy } from '../platform-strategy.js';
-import { AWSPlatformStrategy } from '../../platforms/aws/platform.js';
-import { ContainerPlatformStrategy } from '../../platforms/container/platform.js';
-import { PosixPlatformStrategy } from '../../platforms/posix/platform.js';
+import { Platform } from '../platform.js';
+import { AWSPlatform } from '../../platforms/aws/platform.js';
+import { ContainerPlatform } from '../../platforms/container/platform.js';
+import { PosixPlatform } from '../../platforms/posix/platform.js';
 
 import { colors } from '../io/cli-colors.js';
 import React from 'react';
@@ -59,7 +59,7 @@ import { DashboardDataSource } from '../dashboard/dashboard-data.js';
  */
 export interface WatchResult {
   entity: ServiceName | string;
-  platform: Platform;
+  platform: PlatformType;
   success: boolean;
   status?: string;  // Optional status for legacy commands
   watchType: 'logs' | 'metrics' | 'events';
@@ -241,7 +241,7 @@ export async function watch(
   
   try {
     // Group services by platform for credential validation
-    const servicesByPlatform = new Map<Platform, ServicePlatformInfo[]>();
+    const servicesByPlatform = new Map<PlatformType, ServicePlatformInfo[]>();
     for (const service of serviceDeployments) {
       const existing = servicesByPlatform.get(service.platform) || [];
       existing.push(service);
@@ -249,20 +249,20 @@ export async function watch(
     }
     
     // Validate credentials for each platform
-    const failedPlatforms: { platform: Platform; error: string; action?: string; services: ServicePlatformInfo[] }[] = [];
+    const failedPlatforms: { platform: PlatformType; error: string; action?: string; services: ServicePlatformInfo[] }[] = [];
     
     for (const [platform, services] of servicesByPlatform) {
       // Get strategy for the platform
-      let strategy: PlatformStrategy;
+      let strategy: Platform;
       switch (platform) {
         case 'aws':
-          strategy = new AWSPlatformStrategy();
+          strategy = new AWSPlatform();
           break;
         case 'container':
-          strategy = new ContainerPlatformStrategy();
+          strategy = new ContainerPlatform();
           break;
         case 'posix':
-          strategy = new PosixPlatformStrategy();
+          strategy = new PosixPlatform();
           break;
         default:
           // Skip validation for unknown platforms

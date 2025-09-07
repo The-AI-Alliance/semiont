@@ -8,7 +8,7 @@
 import { Service } from './types.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
-import { Platform } from '../core/platform-resolver.js';
+import { PlatformType } from '../core/platform-resolver.js';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';
@@ -22,7 +22,7 @@ export class ServiceFactory {
    */
   static create(
     name: ServiceName,
-    platform: Platform,
+    platform: PlatformType,
     config: Config,
     serviceConfig: ServiceConfig
   ): Service {

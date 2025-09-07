@@ -8,17 +8,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export type Platform = 'aws' | 'container' | 'posix' | 'external' | 'mock';
+export type PlatformType = 'aws' | 'container' | 'posix' | 'external' | 'mock';
 
 export interface ServicePlatformInfo {
   name: string;
-  platform: Platform;
+  platform: PlatformType;
   config: ServiceConfig;
 }
 
 export interface ServiceConfig {
   platform?: {
-    type: Platform;
+    type: PlatformType;
   };
   // Container/Process fields
   image?: string;
@@ -97,7 +97,7 @@ export interface AppConfig {
 export interface EnvironmentConfig {
   _comment?: string;  // Optional comment for documentation in config files
   platform?: {
-    default: Platform;
+    default: PlatformType;
   };
   services: Record<string, ServiceConfig>;  // Dynamic access - the key fix!
   aws?: AWSConfig;
@@ -351,7 +351,7 @@ export class ConfigurationError extends Error {
 export function getServicePlatform(
   serviceName: string, 
   environment: string
-): Platform {
+): PlatformType {
   const config = loadEnvironmentConfig(environment);
   const serviceConfig = config.services?.[serviceName];
   
@@ -425,7 +425,7 @@ export function resolveServiceDeployments(
  * Get all services of a specific platform type in an environment
  */
 export function getServicesByPlatform(
-  platform: Platform,
+  platform: PlatformType,
   environment: string
 ): ServicePlatformInfo[] {
   const config = loadEnvironmentConfig(environment);
@@ -450,7 +450,7 @@ export function getServicesByPlatform(
  * Check if a service supports a specific capability based on its platform type
  */
 export function serviceSupportsCapability(
-  platform: Platform,
+  platform: PlatformType,
   capability: 'publish' | 'start' | 'stop' | 'restart' | 'test' | 'backup' | 'exec' | 'watch'
 ): boolean {
   switch (capability) {

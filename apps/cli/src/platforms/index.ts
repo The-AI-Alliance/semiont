@@ -2,36 +2,36 @@
  * Platform Strategy exports and factory
  */
 
-export { BasePlatformStrategy } from '../core/platform-strategy.js';
-export type { PlatformStrategy } from '../core/platform-strategy.js';
+export { Platform } from '../core/platform.js';
+export type { PlatformType } from '../core/platform.js';
 
 
-export { PosixPlatformStrategy } from './posix/platform.js';
-export { ContainerPlatformStrategy } from './container/platform.js';
-export { AWSPlatformStrategy } from './aws/platform.js';
-export { ExternalPlatformStrategy } from './external/platform.js';
-export { MockPlatformStrategy } from './mock/platform.js';
+export { PosixPlatform } from './posix/platform.js';
+export { ContainerPlatform } from './container/platform.js';
+export { AWSPlatform } from './aws/platform.js';
+export { ExternalPlatform } from './external/platform.js';
+export { MockPlatform } from './mock/platform.js';
 
 
-import { PlatformStrategy } from '../core/platform-strategy.js';
-import { Platform } from '../core/platform-resolver.js';
-import { PosixPlatformStrategy } from './posix/platform.js';
-import { ContainerPlatformStrategy } from './container/platform.js';
-import { AWSPlatformStrategy } from './aws/platform.js';
-import { ExternalPlatformStrategy } from './external/platform.js';
-import { MockPlatformStrategy } from './mock/platform.js';
+import { Platform } from '../core/platform.js';
+import { PlatformType } from '../core/platform-resolver.js';
+import { PosixPlatform } from './posix/platform.js';
+import { ContainerPlatform } from './container/platform.js';
+import { AWSPlatform } from './aws/platform.js';
+import { ExternalPlatform } from './external/platform.js';
+import { MockPlatform } from './mock/platform.js';
 
 /**
  * Factory for creating platform strategy instances
  * Now uses the refactored strategies that work with requirements
  */
 export class PlatformFactory {
-  private static instances = new Map<Platform, PlatformStrategy>();
+  private static instances = new Map<PlatformType, Platform>();
   
   /**
    * Get a platform strategy instance (singleton per type)
    */
-  static getPlatform(type: Platform): PlatformStrategy {
+  static getPlatform(type: PlatformType): Platform {
     if (!this.instances.has(type)) {
       this.instances.set(type, this.createPlatform(type));
     }
@@ -41,18 +41,18 @@ export class PlatformFactory {
   /**
    * Create a new platform strategy instance
    */
-  private static createPlatform(type: Platform): PlatformStrategy {
+  private static createPlatform(type: PlatformType): Platform {
     switch (type) {
       case 'posix':
-        return new PosixPlatformStrategy();
+        return new PosixPlatform();
       case 'container':
-        return new ContainerPlatformStrategy();
+        return new ContainerPlatform();
       case 'aws':
-        return new AWSPlatformStrategy();
+        return new AWSPlatform();
       case 'external':
-        return new ExternalPlatformStrategy();
+        return new ExternalPlatform();
       case 'mock':
-        return new MockPlatformStrategy();
+        return new MockPlatform();
       default:
         throw new Error(`Unknown platform type: ${type}`);
     }

@@ -1,14 +1,18 @@
 /**
- * Platform Strategy Interface
+ * Platform Abstract Class
  * 
- * Defines how services are managed across different deployment platforms.
- * Each platform (process, container, AWS, external) implements this interface
- * to provide platform-specific behavior for common operations.
+ * Base class for all platform implementations.
+ * Each platform (AWS, Container, POSIX, etc.) extends this class
+ * to provide platform-specific behavior for service operations.
  */
 
-// Command result types are now under core/commands
 import { Service } from '../services/types.js';
 import { getServiceTypeFromAnnotations, SERVICE_TYPES } from './service-types.js';
+
+/**
+ * Platform type identifier
+ */
+export type PlatformType = 'aws' | 'container' | 'posix' | 'external' | 'mock';
 
 /**
  * Options for collecting logs
@@ -30,7 +34,6 @@ export interface LogEntry {
   source?: string;      // Container ID, process name, etc.
 }
 
-
 /**
  * Result of credential validation
  */
@@ -42,49 +45,37 @@ export interface CredentialValidationResult {
 }
 
 /**
- * Platform strategy interface
- * Implemented by each deployment platform (process, container, AWS, external)
+ * Abstract base class for all platform implementations
  */
-export interface PlatformStrategy {
-
-  getResourceName(service: Service): string;
-
-  determineServiceType(service: Service): string;
-
+export abstract class Platform {
+  
+  /**
+   * Get the platform name for logging and identification
+   */
+  abstract getPlatformName(): string;
+  
   /**
    * Build platform-specific context extensions for handlers
    * Including resource discovery if needed
    */
-  buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>>;
-  
-  /**
-   * Get the platform name for logging
-   */
-  getPlatformName(): string;
-  
-  /**
-   * Quick check if a service is running without full context
-   */
-  quickCheckRunning?(state: import('./state-manager.js').ServiceState): Promise<boolean>;
+  abstract buildHandlerContextExtensions(
+    service: Service, 
+    requiresDiscovery: boolean
+  ): Promise<Record<string, any>>;
   
   /**
    * Collect logs for a service
    * Platform determines how to collect based on service type
    */
-  collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
+  abstract collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
   
   /**
-   * Validate credentials/prerequisites for this platform
-   * Returns validation result with helpful error messages if invalid
+   * Get standardized resource name for the service
    */
-  validateCredentials(environment: string): Promise<CredentialValidationResult>;
-}
-
-/**
- * Base platform strategy with common functionality
- */
-export abstract class BasePlatformStrategy implements PlatformStrategy {
-
+  getResourceName(service: Service): string {
+    return `semiont-${service.name}-${service.environment}`;
+  }
+  
   /**
    * Determine service type from service requirements
    * Concrete platforms should override mapServiceType if they need to map generic types
@@ -126,11 +117,6 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
     return SERVICE_TYPES.GENERIC;
   }
   
-  abstract buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>>;
-  
-  abstract getPlatformName(): string;
-  
-  
   /**
    * Quick check if a service is running without full context
    * Default implementation returns false
@@ -140,22 +126,10 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   }
   
   /**
-   * Collect logs for a service - must be implemented by each platform
-   */
-  abstract collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined>;
-  
-  /**
-   * Validate credentials/prerequisites for this platform
-   * Default implementation always returns valid
+   * Validate platform credentials
+   * Default implementation returns valid (no credentials needed)
    */
   async validateCredentials(_environment: string): Promise<CredentialValidationResult> {
     return { valid: true };
-  }
-  
-  /**
-   * Helper to generate container/instance names
-   */
-  public getResourceName(service: Service): string {
-    return `semiont-${service.name}-${service.environment}`;
   }
 }

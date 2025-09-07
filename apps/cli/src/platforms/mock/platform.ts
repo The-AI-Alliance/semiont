@@ -28,12 +28,12 @@
  * - Documentation and demo scenarios
  */
 
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../services/types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
-export class MockPlatformStrategy extends BasePlatformStrategy {
+export class MockPlatform extends Platform {
   private mockState: Map<string, any> = new Map();
   
   constructor() {

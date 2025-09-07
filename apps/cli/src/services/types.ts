@@ -5,7 +5,7 @@
  * They do NOT implement commands - platforms handle all command operations.
  */
 
-import type { Platform } from '../core/platform-resolver.js';
+import type { PlatformType } from '../core/platform-resolver.js';
 import type { ServiceConfig } from '../core/cli-config.js';
 import type { Environment } from '../core/environment-validator.js';
 import type { ServiceName } from '../core/service-discovery.js';
@@ -24,7 +24,7 @@ import type {
  */
 export interface Service {
   readonly name: ServiceName;
-  readonly platform: Platform;
+  readonly platform: PlatformType;
   readonly config: ServiceConfig;
   readonly environment: Environment;
   readonly projectRoot: string;

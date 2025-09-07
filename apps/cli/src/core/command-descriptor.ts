@@ -8,7 +8,7 @@
 
 import { ServicePlatformInfo } from './platform-resolver.js';
 import { Service } from '../services/types.js';
-import { PlatformStrategy } from './platform-strategy.js';
+import { Platform } from './platform.js';
 import { HandlerResult } from './handlers/types.js';
 import { CommandResult } from './command-result.js';
 
@@ -27,7 +27,7 @@ export interface CommandDescriptor<TOptions> {
   buildResult: (
     handlerResult: HandlerResult,
     service: Service,
-    platform: PlatformStrategy,
+    platform: Platform,
     serviceType: string
   ) => CommandResult;
   

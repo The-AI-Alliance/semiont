@@ -26,12 +26,12 @@
  * - Legacy systems that can't be migrated
  */
 
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../services/types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
-export class ExternalPlatformStrategy extends BasePlatformStrategy {
+export class ExternalPlatform extends Platform {
   constructor() {
     super();
     this.registerHandlers();

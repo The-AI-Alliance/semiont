@@ -21,13 +21,13 @@
  */
 
 import { execSync } from 'child_process';
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../services/types.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 import { StateManager } from '../../core/state-manager.js';
 
-export class ContainerPlatformStrategy extends BasePlatformStrategy {
+export class ContainerPlatform extends Platform {
 
   private runtime: 'docker' | 'podman';
   

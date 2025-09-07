@@ -26,7 +26,7 @@ import { CommandDescriptor, createCommandDescriptor } from '../command-descripto
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
-import { PlatformStrategy } from '../platform-strategy.js';
+import { Platform } from '../platform.js';
 import { Service } from '../../services/types.js';
 import { HandlerResult } from '../handlers/types.js';
 
@@ -77,7 +77,7 @@ const updateDescriptor: CommandDescriptor<UpdateOptions> = createCommandDescript
     dryRun: options.dryRun,
   }),
   
-  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
     // Type guard for update-specific results
     const updateResult = handlerResult as any; // UpdateHandlerResult
     

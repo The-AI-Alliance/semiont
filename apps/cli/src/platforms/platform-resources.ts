@@ -6,7 +6,7 @@
  * get persisted in state for later reference.
  */
 
-import type { Platform } from '../core/platform-resolver.js';
+import type { PlatformType } from '../core/platform-resolver.js';
 import type { PosixResources } from './posix/types.js';
 import type { ContainerResources } from './container/types.js';
 import type { AWSResources } from './aws/types.js';

@@ -19,7 +19,7 @@
  */
 
 
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../services/types.js';
 import { StateManager } from '../../core/state-manager.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
@@ -28,7 +28,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export class PosixPlatformStrategy extends BasePlatformStrategy {
+export class PosixPlatform extends Platform {
   constructor() {
     super();
     this.registerHandlers();

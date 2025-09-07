@@ -10,44 +10,44 @@ import {
   ProvisionHandler as CoreProvisionHandler,
   HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
-import type { PosixPlatformStrategy } from '../platform.js';
+import type { PosixPlatform } from '../platform.js';
 import type { ServiceState } from '../../../core/state-manager.js';
 
 /**
  * POSIX-specific check handler context
  */
-export interface PosixCheckHandlerContext extends CoreCheckHandlerContext<PosixPlatformStrategy> {
+export interface PosixCheckHandlerContext extends CoreCheckHandlerContext<PosixPlatform> {
   savedState?: ServiceState;
 }
 
 /**
  * POSIX-specific start handler context
  */
-export interface PosixStartHandlerContext extends CoreStartHandlerContext<PosixPlatformStrategy> {
+export interface PosixStartHandlerContext extends CoreStartHandlerContext<PosixPlatform> {
   savedState?: ServiceState;
 }
 
 /**
  * POSIX-specific provision handler context
  */
-export interface PosixProvisionHandlerContext extends CoreProvisionHandlerContext<PosixPlatformStrategy> {
+export interface PosixProvisionHandlerContext extends CoreProvisionHandlerContext<PosixPlatform> {
   savedState?: ServiceState;
 }
 
 /**
  * Function signature for POSIX check handlers
  */
-export type CheckHandler = CoreCheckHandler<PosixPlatformStrategy, PosixCheckHandlerContext>;
+export type CheckHandler = CoreCheckHandler<PosixPlatform, PosixCheckHandlerContext>;
 
 /**
  * Function signature for POSIX start handlers
  */
-export type StartHandler = CoreStartHandler<PosixPlatformStrategy, PosixStartHandlerContext>;
+export type StartHandler = CoreStartHandler<PosixPlatform, PosixStartHandlerContext>;
 
 /**
  * Function signature for POSIX provision handlers
  */
-export type ProvisionHandler = CoreProvisionHandler<PosixPlatformStrategy, PosixProvisionHandlerContext>;
+export type ProvisionHandler = CoreProvisionHandler<PosixPlatform, PosixProvisionHandlerContext>;
 
 /**
  * Re-export result types for convenience
@@ -61,4 +61,4 @@ export type {
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<PosixPlatformStrategy> | CoreStartHandlerContext<PosixPlatformStrategy> | CoreProvisionHandlerContext<PosixPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult> = CoreHandlerDescriptor<PosixPlatformStrategy, TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<PosixPlatform> | CoreStartHandlerContext<PosixPlatform> | CoreProvisionHandlerContext<PosixPlatform>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult> = CoreHandlerDescriptor<PosixPlatform, TContext, TResult>;

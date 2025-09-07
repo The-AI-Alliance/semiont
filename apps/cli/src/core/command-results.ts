@@ -5,14 +5,14 @@
  * commands operate on multiple services or need to track overall execution.
  */
 
-import type { Platform } from './platform-resolver.js';
+import type { PlatformType } from './platform-resolver.js';
 
 // Base result interface that all command results extend (for testing/mocking)
 export interface BaseCommandResult {
   command: string;
   entity: string;  // The entity this result applies to (service, resource, etc.)
   service: string;
-  platform: Platform;
+  platform: PlatformType;
   environment: string;
   timestamp: Date;
   success: boolean;
@@ -64,7 +64,7 @@ export interface CommandResults<TResult = BaseResult> {
 export function createBaseResult(
   command: string,
   service: string,
-  platform: Platform,
+  platform: PlatformType,
   environment: string,
   startTime: number
 ): BaseCommandResult {

@@ -6,11 +6,11 @@
  * service instantiation, handler resolution, and result aggregation.
  */
 
-import { ServicePlatformInfo, Platform } from './platform-resolver.js';
+import { ServicePlatformInfo, PlatformType } from './platform-resolver.js';
 import { Service } from '../services/types.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { PlatformStrategy } from './platform-strategy.js';
+import { Platform } from './platform.js';
 import { CommandDescriptor } from './command-descriptor.js';
 import { CommandResult, createCommandResult } from './command-result.js';
 import { CommandResults } from './command-results.js';
@@ -103,7 +103,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
           finalOptions
         ) || createCommandResult({
           entity: serviceInfo.name as ServiceName,
-          platform: serviceInfo.platform as Platform,
+          platform: serviceInfo.platform as PlatformType,
           success: false,
           error: (error as Error).message,
           metadata: { 
@@ -237,7 +237,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    */
   static createSimple<TOptions extends BaseOptions>(
     commandName: string,
-    resultBuilder: (result: HandlerResult, service: Service, platform: PlatformStrategy) => CommandResult
+    resultBuilder: (result: HandlerResult, service: Service, platform: Platform) => CommandResult
   ): MultiServiceExecutor<TOptions> {
     return new MultiServiceExecutor<TOptions>({
       name: commandName,

@@ -27,7 +27,7 @@
 import { Service } from '../services/types.js';
 import { ServiceName } from './service-discovery.js';
 import { Config, ServiceConfig } from './cli-config.js';
-import { Platform } from './platform-resolver.js';
+import { PlatformType } from './platform-resolver.js';
 import { 
   ServiceRequirements,
   StorageRequirement,
@@ -44,7 +44,7 @@ export abstract class BaseService implements Service {
   
   constructor(
     public readonly name: ServiceName,
-    public readonly platform: Platform,
+    public readonly platform: PlatformType,
     systemConfig: Config,
     serviceConfig: ServiceConfig
   ) {
