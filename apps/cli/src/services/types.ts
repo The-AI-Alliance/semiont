@@ -5,7 +5,7 @@
  * They do NOT implement commands - platforms handle all command operations.
  */
 
-import type { PlatformType } from '../core/platform-resolver.js';
+import type { PlatformType } from '../core/platform-types.js';
 import type { ServiceConfig } from '../core/cli-config.js';
 import type { Environment } from '../core/environment-validator.js';
 import type { ServiceName } from '../core/service-discovery.js';

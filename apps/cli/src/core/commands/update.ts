@@ -20,7 +20,7 @@
  */
 
 import { z } from 'zod';
-import { ServicePlatformInfo } from '../platform-resolver.js';
+import { ServicePlatformInfo } from '../service-resolver.js';
 import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';

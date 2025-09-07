@@ -6,7 +6,8 @@
  * service instantiation, handler resolution, and result aggregation.
  */
 
-import { ServicePlatformInfo, PlatformType } from './platform-resolver.js';
+import { ServicePlatformInfo } from './service-resolver.js';
+import { PlatformType } from './platform-types.js';
 import { Service } from '../services/types.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';

@@ -6,7 +6,7 @@
  * get persisted in state for later reference.
  */
 
-import type { PlatformType } from '../core/platform-resolver.js';
+import type { PlatformType } from '../core/platform-types.js';
 import type { PosixResources } from './posix/types.js';
 import type { ContainerResources } from './container/types.js';
 import type { AWSResources } from './aws/types.js';
@@ -31,7 +31,7 @@ export type PlatformResources =
 /**
  * Type guard to check if resources match a specific platform
  */
-export function isPlatformResources<P extends Platform>(
+export function isPlatformResources<P extends PlatformType>(
   resources: PlatformResources | undefined,
   platform: P
 ): resources is Extract<PlatformResources, { platform: P }> {
@@ -41,7 +41,7 @@ export function isPlatformResources<P extends Platform>(
 /**
  * Helper to create platform resources with proper typing
  */
-export function createPlatformResources<P extends Platform>(
+export function createPlatformResources<P extends PlatformType>(
   platform: P,
   data: P extends 'posix' ? PosixResources :
         P extends 'container' ? ContainerResources :

@@ -27,7 +27,7 @@
 import { Service } from '../services/types.js';
 import { ServiceName } from './service-discovery.js';
 import { Config, ServiceConfig } from './cli-config.js';
-import { PlatformType } from './platform-resolver.js';
+import { PlatformType } from './platform-types.js';
 import { 
   ServiceRequirements,
   StorageRequirement,

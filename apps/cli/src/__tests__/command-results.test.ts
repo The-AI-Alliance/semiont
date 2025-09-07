@@ -13,7 +13,7 @@ import {
 } from '../core/command-results.js';
 import { CommandResult } from '../core/command-result.js';
 import { ServiceName } from '../core/service-discovery.js';
-import { Platform } from '../core/platform-resolver.js';
+import { Platform } from '../core/platform.js';
 import { PlatformResources } from '../platforms/platform-resources.js';
 
 describe('Command Result Type System', () => {

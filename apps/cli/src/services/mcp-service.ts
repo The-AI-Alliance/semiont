@@ -38,7 +38,7 @@ import { ServiceRequirements, RequirementPresets } from '../core/service-require
 import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
 import { SERVICE_TYPES } from '../core/service-types.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { loadEnvironmentConfig } from '../core/platform-resolver.js';
+import { loadEnvironmentConfig } from '../core/environment-loader.js';
 import * as path from 'path';
 import * as fs from 'fs';
 

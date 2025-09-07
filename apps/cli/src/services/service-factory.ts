@@ -8,7 +8,7 @@
 import { Service } from './types.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
-import { PlatformType } from '../core/platform-resolver.js';
+import { PlatformType } from '../core/platform-types.js';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';

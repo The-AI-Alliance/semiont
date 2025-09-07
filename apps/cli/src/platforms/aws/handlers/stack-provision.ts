@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printError, printSuccess, printInfo, printWarning } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/platform-resolver.js';
+import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
 
 /**
  * Provision handler for AWS CDK stacks

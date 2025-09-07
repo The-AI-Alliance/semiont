@@ -2,7 +2,7 @@
  * Environment validation utilities
  */
 
-import { getAvailableEnvironments } from './platform-resolver.js';
+import { getAvailableEnvironments } from './environment-loader.js';
 
 export type Environment = string; // Allow any environment name discovered from filesystem
 

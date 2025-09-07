@@ -6,7 +6,7 @@
  * how to transform options, build results, and handle special cases.
  */
 
-import { ServicePlatformInfo } from './platform-resolver.js';
+import { ServicePlatformInfo } from './service-resolver.js';
 import { Service } from '../services/types.js';
 import { Platform } from './platform.js';
 import { HandlerResult } from './handlers/types.js';

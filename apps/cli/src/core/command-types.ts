@@ -19,7 +19,7 @@
  * (except other pure type modules like command-results.ts)
  */
 
-import type { ServicePlatformInfo } from './platform-resolver.js';
+import type { ServicePlatformInfo } from './service-resolver.js';
 import type { CommandResults } from './command-results.js';
 
 /**

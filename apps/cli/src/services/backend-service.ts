@@ -31,7 +31,7 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platform-resolver.js';
+import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/environment-loader.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';

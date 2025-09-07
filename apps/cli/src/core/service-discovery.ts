@@ -21,7 +21,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { findProjectRoot } from './platform-resolver.js';
+import { findProjectRoot } from './project-discovery.js';
 
 /**
  * Built-in services that are always available

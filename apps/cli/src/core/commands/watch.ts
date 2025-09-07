@@ -30,7 +30,8 @@
 
 import { z } from 'zod';
 import { printInfo, printError, setSuppressOutput } from '../io/cli-logger.js';
-import { type ServicePlatformInfo, type PlatformType } from '../platform-resolver.js';
+import { type ServicePlatformInfo } from '../service-resolver.js';
+import { type PlatformType } from '../platform-types.js';
 import { CommandResults, createBaseResult } from '../command-results.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';

@@ -22,15 +22,12 @@
  * to deliver the complete command execution experience.
  */
 
-import type { ServicePlatformInfo } from './platform-resolver.js';
+import type { ServicePlatformInfo } from './service-resolver.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { 
-  getAvailableEnvironments, 
-  isValidEnvironment,
-  resolveServiceDeployments 
-} from './platform-resolver.js';
+import { getAvailableEnvironments, isValidEnvironment } from './environment-loader.js';
+import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
 import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';

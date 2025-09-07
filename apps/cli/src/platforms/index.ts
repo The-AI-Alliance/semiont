@@ -14,7 +14,7 @@ export { MockPlatform } from './mock/platform.js';
 
 
 import { Platform } from '../core/platform.js';
-import { PlatformType } from '../core/platform-resolver.js';
+import { PlatformType } from '../core/platform-types.js';
 import { PosixPlatform } from './posix/platform.js';
 import { ContainerPlatform } from './container/platform.js';
 import { AWSPlatform } from './aws/platform.js';
