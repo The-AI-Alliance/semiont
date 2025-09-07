@@ -140,6 +140,7 @@ src/
 │   ├── command-descriptor.ts # Command configuration
 │   ├── command-result.ts    # Unified result type
 │   ├── platform.ts          # Abstract Platform class
+│   ├── service-interface.ts # Service contracts
 │   ├── service-types.ts     # Service type definitions
 │   ├── service-cli-behaviors.ts # CLI behavior capabilities
 │   ├── service-command-capabilities.ts # Command support declarations
@@ -151,8 +152,7 @@ src/
 │   ├── stop.ts              # Stop services
 │   ├── check.ts             # Health checks
 │   └── ...                  # Other commands
-├── services/                 # Service definitions
-│   ├── service-interface.ts # Service contracts
+├── services/                 # Service implementations
 │   ├── base-service.ts      # Base service class
 │   └── ...                  # Service implementations
 ├── platforms/                # Platform implementations

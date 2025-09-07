@@ -59,7 +59,7 @@ import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabili
 import { CLI_BEHAVIOR_ANNOTATIONS } from '../core/service-cli-behaviors.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
-import { PlatformType } from '../core/platform-resolver.js';
+import { PlatformType } from '../core/platform-types.js';
 ```
 
 ### 3. Implement the Service Class

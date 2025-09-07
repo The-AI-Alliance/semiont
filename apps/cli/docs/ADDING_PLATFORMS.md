@@ -39,7 +39,7 @@ Create your platform class extending the abstract Platform class in `src/platfor
 
 ```typescript
 import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
-import { Service } from '../../services/types.js';
+import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
@@ -94,7 +94,7 @@ Create handler type definitions in `src/platforms/my-platform/handlers/types.ts`
 
 ```typescript
 import type { MyPlatform } from '../platform.js';
-import type { Service } from '../../../services/types.js';
+import type { Service } from '../../../core/service-interface.js';
 import type { PlatformResources } from '../../platform-resources.js';
 
 // Base context for all handlers
@@ -321,7 +321,7 @@ export type PlatformResources =
 
 ### 7. Update Platform Type
 
-Add your platform to the PlatformType in `src/core/platform-resolver.ts`:
+Add your platform to the PlatformType in `src/core/platform-types.ts`:
 
 ```typescript
 export type PlatformType = 'aws' | 'container' | 'posix' | 'external' | 'mock' | 'my-platform';

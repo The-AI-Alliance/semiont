@@ -504,20 +504,25 @@ File System (state/<env>/<service>.json)
 
 ```
 src/
+├── core/                  # Core engine and types
+│   ├── platform.ts        # Abstract Platform class
+│   ├── platform-types.ts  # PlatformType enum
+│   ├── service-interface.ts # Service contracts
+│   ├── multi-service-executor.ts
+│   └── ...
 ├── commands/              # CLI commands
 │   ├── start.ts
 │   ├── stop.ts
 │   ├── check.ts
 │   └── ...
-├── services/              # Service definitions
-│   ├── service-interface.ts
+├── services/              # Service implementations
 │   ├── base-service.ts
 │   ├── backend-service.ts
 │   └── ...
 ├── platforms/             # Platform implementations
-│   ├── platform-strategy.ts
-│   ├── process-platform.ts
-│   ├── container-platform.ts
+│   ├── posix/
+│   ├── container/
+│   ├── aws/
 │   └── ...
 ├── lib/                   # Shared utilities
 │   ├── cli-logger.ts
