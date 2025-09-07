@@ -117,12 +117,4 @@ export abstract class BasePlatformStrategy implements PlatformStrategy {
   public getResourceName(service: Service): string {
     return `semiont-${service.name}-${service.environment}`;
   }
-  
-  /**
-   * Helper to detect container runtime
-   */
-  protected detectContainerRuntime(): 'docker' | 'podman' {
-    const fs = require('fs');
-    return fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
-  }
 }

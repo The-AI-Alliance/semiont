@@ -50,7 +50,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Helper method to detect container runtime
    */
-  protected override detectContainerRuntime(): 'docker' | 'podman' {
+  private detectContainerRuntime(): 'docker' | 'podman' {
     try {
       execSync('docker version', { stdio: 'ignore' });
       return 'docker';
