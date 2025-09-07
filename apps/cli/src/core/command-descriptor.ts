@@ -7,7 +7,7 @@
  */
 
 import { ServicePlatformInfo } from './service-resolver.js';
-import { Service } from '../services/types.js';
+import { Service } from './service-interface.js';
 import { Platform } from './platform.js';
 import { HandlerResult } from './handlers/types.js';
 import { CommandResult } from './command-result.js';

@@ -5,7 +5,7 @@
  * Uses GenericService for unknown service types.
  */
 
-import { Service } from './types.js';
+import { Service } from '../core/service-interface.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
 import { PlatformType } from '../core/platform-types.js';

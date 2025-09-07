@@ -24,7 +24,7 @@
 import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { handlers } from './handlers/index.js';
 import { Platform, LogOptions, LogEntry, CredentialValidationResult } from '../../core/platform.js';
-import { Service } from '../../services/types.js';
+import { Service } from '../../core/service-interface.js';
 import { StateManager } from '../../core/state-manager.js';
 
 import { ECSClient } from '@aws-sdk/client-ecs';
@@ -306,9 +306,10 @@ export class AWSPlatform extends Platform {
     if (Object.keys(serviceResources).length > 0) {
       const currentState = existingState || {
         entity: service.name,
-        platform: 'aws',
+        platform: 'aws' as const,
         environment: service.environment,
-        startTime: new Date().toISOString()
+        startTime: new Date().toISOString(),
+        metadata: {}
       };
       
       await StateManager.save(
@@ -318,7 +319,7 @@ export class AWSPlatform extends Platform {
         {
           ...currentState,
           metadata: {
-            ...currentState.metadata,
+            ...(currentState.metadata || {}),
             cfnResources: serviceResources,
             cfnDiscoveredAt: Date.now()
           }

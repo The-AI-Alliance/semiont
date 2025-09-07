@@ -20,7 +20,7 @@
 
 
 import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
-import { Service } from '../../services/types.js';
+import { Service } from '../../core/service-interface.js';
 import { StateManager } from '../../core/state-manager.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';

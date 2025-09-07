@@ -3,12 +3,15 @@
  * 
  * Services provide capabilities and configuration to platforms.
  * They do NOT implement commands - platforms handle all command operations.
+ * 
+ * This interface defines the contract that all services must implement,
+ * whether they extend BaseService or provide a custom implementation.
  */
 
-import type { PlatformType } from '../core/platform-types.js';
-import type { ServiceConfig } from '../core/cli-config.js';
-import type { Environment } from '../core/environment-validator.js';
-import type { ServiceName } from '../core/service-discovery.js';
+import type { PlatformType } from './platform-types.js';
+import type { ServiceConfig } from './cli-config.js';
+import type { Environment } from './environment-validator.js';
+import type { ServiceName } from './service-discovery.js';
 import type { 
   ServiceRequirements,
   StorageRequirement,
@@ -16,7 +19,7 @@ import type {
   ResourceRequirement,
   BuildRequirement,
   SecurityRequirement
-} from '../core/service-requirements.js';
+} from './service-requirements.js';
 
 /**
  * Core service interface that all services implement
@@ -53,6 +56,3 @@ export interface Service {
   getSecurityRequirements(): SecurityRequirement | undefined;
   getRequiredSecrets(): string[];
 }
-
-// Re-export ServiceName for convenience
-export type { ServiceName } from '../core/service-discovery.js';

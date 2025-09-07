@@ -22,7 +22,7 @@ import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
-import { Service } from '../../services/types.js';
+import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================

@@ -6,7 +6,7 @@
  * to provide platform-specific behavior for service operations.
  */
 
-import { Service } from '../services/types.js';
+import { Service } from './service-interface.js';
 import { getServiceTypeFromAnnotations, SERVICE_TYPES } from './service-types.js';
 
 /**

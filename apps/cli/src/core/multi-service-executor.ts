@@ -8,7 +8,7 @@
 
 import { ServicePlatformInfo } from './service-resolver.js';
 import { PlatformType } from './platform-types.js';
-import { Service } from '../services/types.js';
+import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { Platform } from './platform.js';
