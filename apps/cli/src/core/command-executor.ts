@@ -244,12 +244,13 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('');
   
   lines.push('PROJECT RESOLUTION:');
-  lines.push('  Semiont looks for configuration in the following order:');
-  lines.push('  1. SEMIONT_ROOT/environments/<env>.json (if set)');
-  lines.push('  2. Current directory: ./environments/<env>.json');
-  lines.push('  3. Parent directories (walks up looking for semiont.json)');
-  lines.push('  4. Environment files: ./environments/<env>.json');
-  lines.push('  5. For build commands: use --semiont-repo to specify the repository path');
+  lines.push('  Semiont identifies the project root using:');
+  lines.push('  1. SEMIONT_ROOT environment variable (if set) - must point to valid project');
+  lines.push('  2. Current working directory - must contain semiont.json or environments/');
+  lines.push('  ');
+  lines.push('  Note: Project root validation requires either:');
+  lines.push('  - semiont.json file in the root directory');
+  lines.push('  - environments/ directory with environment configs');
   lines.push('');
   
   lines.push('COMMANDS:');
