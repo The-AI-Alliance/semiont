@@ -3,7 +3,7 @@ import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-clo
 import { StackOutput, AWSError } from './types.js';
 import { validateAwsResourceName, assertValid } from '../../core/validators.js';
 import { logger } from '../../core/io/logger.js';
-import { loadEnvironmentConfig, type EnvironmentConfig } from '../../core/platform-resolver.js';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '../../core/environment-loader.js';
 
 export interface SemiontConfig {
   region: string;

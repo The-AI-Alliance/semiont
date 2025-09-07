@@ -22,15 +22,12 @@
  * to deliver the complete command execution experience.
  */
 
-import type { ServicePlatformInfo } from './platform-resolver.js';
+import type { ServicePlatformInfo } from './service-resolver.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { 
-  getAvailableEnvironments, 
-  isValidEnvironment,
-  resolveServiceDeployments 
-} from './platform-resolver.js';
+import { getAvailableEnvironments, isValidEnvironment } from './environment-loader.js';
+import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
 import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
@@ -247,12 +244,13 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('');
   
   lines.push('PROJECT RESOLUTION:');
-  lines.push('  Semiont looks for configuration in the following order:');
-  lines.push('  1. SEMIONT_ROOT/environments/<env>.json (if set)');
-  lines.push('  2. Current directory: ./environments/<env>.json');
-  lines.push('  3. Parent directories (walks up looking for semiont.json)');
-  lines.push('  4. Environment files: ./environments/<env>.json');
-  lines.push('  5. For build commands: use --semiont-repo to specify the repository path');
+  lines.push('  Semiont identifies the project root using:');
+  lines.push('  1. SEMIONT_ROOT environment variable (if set) - must point to valid project');
+  lines.push('  2. Current working directory - must contain semiont.json or environments/');
+  lines.push('  ');
+  lines.push('  Note: Project root validation requires either:');
+  lines.push('  - semiont.json file in the root directory');
+  lines.push('  - environments/ directory with environment configs');
   lines.push('');
   
   lines.push('COMMANDS:');

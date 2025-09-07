@@ -20,22 +20,64 @@
  */
 
 import { commandRequiresServices } from './command-discovery.js';
-import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability } from './service-discovery.js';
-import { findProjectRoot } from './platform-resolver.js';
+import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
+import { findProjectRoot } from './project-discovery.js';
+import { resolveServiceDeployments } from './service-resolver.js';
+import { ServiceFactory } from '../services/service-factory.js';
+import { parseEnvironment } from './environment-validator.js';
+import { serviceSupportsCommand } from './service-command-capabilities.js';
 import * as path from 'path';
 
 /**
- * Service capability rules
+ * Check if a service supports a command by examining its requirements
  * 
- * This defines which services support which command capabilities.
- * Eventually this should be moved to service definitions themselves.
+ * @param serviceName - The service name
+ * @param command - The command to check
+ * @param environment - The environment
+ * @returns Whether the service supports the command
  */
-const SERVICE_CAPABILITY_RULES: Record<string, (service: string) => boolean> = {
-  'publish': (service) => service === 'frontend' || service === 'backend',
-  'backup': (service) => service === 'database' || service === 'filesystem',
-  'restore': (service) => service === 'database' || service === 'filesystem',
-  // Most commands work with all services by default
-};
+async function checkServiceSupportsCommand(
+  serviceName: string,
+  command: string,
+  environment: string
+): Promise<boolean> {
+  try {
+    // Get service deployment info
+    const deployments = resolveServiceDeployments(
+      [serviceName],
+      environment
+    );
+    
+    if (deployments.length === 0) {
+      return false;
+    }
+    
+    // Create service instance to check its requirements
+    const deployment = deployments[0];
+    const service = ServiceFactory.create(
+      serviceName as ServiceName,
+      deployment.platform,
+      {
+        projectRoot: process.env.SEMIONT_ROOT || process.cwd(),
+        environment: parseEnvironment(environment),
+        verbose: false,
+        quiet: true,
+        dryRun: false
+      },
+      {
+        ...deployment.config,
+        platform: deployment.platform
+      }
+    );
+    
+    // Check if service declares support for this command
+    const requirements = service.getRequirements();
+    return serviceSupportsCommand(requirements.annotations, command);
+  } catch {
+    // If we can't create the service, assume it doesn't support the command
+    return false;
+  }
+}
 
 /**
  * Get services that support a specific capability
@@ -58,14 +100,22 @@ export async function getServicesWithCapability(
     return [];
   }
   
-  // Apply capability rules if defined
-  const rule = SERVICE_CAPABILITY_RULES[capability];
-  if (rule) {
-    return allServices.filter(rule);
+  // Filter services based on their declared capabilities
+  const supportedServices: string[] = [];
+  
+  for (const serviceName of allServices) {
+    const supportsCommand = await checkServiceSupportsCommand(
+      serviceName,
+      capability,
+      environment || 'development'
+    );
+    
+    if (supportsCommand) {
+      supportedServices.push(serviceName);
+    }
   }
   
-  // Default: all services support the capability
-  return allServices;
+  return supportedServices;
 }
 
 /**

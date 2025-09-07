@@ -28,12 +28,12 @@
  * - Documentation and demo scenarios
  */
 
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
-import { Service } from '../../services/types.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
+import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
-export class MockPlatformStrategy extends BasePlatformStrategy {
+export class MockPlatform extends Platform {
   private mockState: Map<string, any> = new Map();
   
   constructor() {
@@ -62,9 +62,9 @@ export class MockPlatformStrategy extends BasePlatformStrategy {
 
 
   /**
-   * Determine service type for handler selection
+   * Map service types to mock handler types
    */
-  determineServiceType(_service: Service): string {
+  protected override mapServiceType(_declaredType: string): string {
     // Mock platform uses default handler for all services
     return 'default';
   }

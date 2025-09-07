@@ -21,13 +21,13 @@
  */
 
 import { execSync } from 'child_process';
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
-import { Service } from '../../services/types.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
+import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 import { StateManager } from '../../core/state-manager.js';
 
-export class ContainerPlatformStrategy extends BasePlatformStrategy {
+export class ContainerPlatform extends Platform {
 
   private runtime: 'docker' | 'podman';
   
@@ -50,7 +50,7 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   /**
    * Helper method to detect container runtime
    */
-  protected override detectContainerRuntime(): 'docker' | 'podman' {
+  private detectContainerRuntime(): 'docker' | 'podman' {
     try {
       execSync('docker version', { stdio: 'ignore' });
       return 'docker';
@@ -100,28 +100,18 @@ export class ContainerPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Determine service type for handler selection
+   * Map service types to container handler types
    */
-  determineServiceType(service: Service): string {
-    const requirements = service.getRequirements();
-    const serviceName = service.name.toLowerCase();
-    
-    // Check for database services
-    if (requirements.annotations?.['service/type'] === 'database' ||
-        serviceName.includes('postgres') || 
-        serviceName.includes('mysql') || 
-        serviceName.includes('mongodb') ||
-        serviceName.includes('redis')) {
-      return 'database';
-    }
-    
-    // Check for web services
-    if (requirements.network?.healthCheckPath ||
-        requirements.annotations?.['service/type'] === 'web') {
+  protected override mapServiceType(declaredType: string): string {
+    // Container uses 'web' handler for frontend/backend services
+    if (declaredType === 'frontend' || declaredType === 'backend') {
       return 'web';
     }
     
-    // Default to generic
+    // Database gets special handler
+    if (declaredType === 'database') return 'database';
+    
+    // Everything else uses generic handler
     return 'generic';
   }
   

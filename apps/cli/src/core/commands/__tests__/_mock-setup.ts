@@ -3,16 +3,16 @@
  */
 
 import { vi } from 'vitest';
-import { MockPlatformStrategy } from '../../../platforms/mock/platform.js';
+import { MockPlatform } from '../../../platforms/mock/platform.js';
 import { PlatformFactory } from '../../../platforms/index.js';
 
-// Get the singleton MockPlatformStrategy instance from PlatformFactory
+// Get the singleton MockPlatform instance from PlatformFactory
 // This ensures we're using the same instance that the commands will use
-export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockPlatformStrategy;
+export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockPlatform;
 
 // No need to mock PlatformFactory - it already supports 'mock' platform
 // Just ensure we have a shared instance for test state management
-// Note: PlatformFactory.getPlatform('mock') will return the singleton MockPlatformStrategy
+// Note: PlatformFactory.getPlatform('mock') will return the singleton MockPlatform
 
 // Mock platform-resolver for environment config
 vi.mock('../../platform-resolver.js', () => ({

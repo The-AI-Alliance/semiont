@@ -10,9 +10,9 @@ The Semiont CLI provides a consistent interface for managing services across dif
 
 1. **Environment** - The primary configuration context (dev, staging, production)
 2. **Service** - Business entities managed by the CLI (backend, frontend, database)
-3. **Service Type** - Platform-specific categorizations (web, worker, lambda, ecs)
+3. **Service Type** - High-level service categories declared by services (frontend, backend, database, filesystem, worker, mcp, etc.)
 4. **Command** - Operations you can perform (start, stop, check, deploy)
-5. **Platform** - Infrastructure targets (posix, container, aws, external)
+5. **Platform Type** - Infrastructure targets where services run (posix, container, aws, external, mock)
 
 ### Key Capabilities
 
@@ -28,7 +28,8 @@ The Semiont CLI provides a consistent interface for managing services across dif
 - [**Managing Environments**](./docs/ADDING_ENVIRONMENTS.md) - Guide for configuring and managing environments
 - [**Adding New Commands**](./docs/ADDING_COMMANDS.md) - Step-by-step guide for adding new CLI commands
 - [**Adding New Platforms**](./docs/ADDING_PLATFORMS.md) - Guide for implementing new platform strategies
-- [**Adding New Services**](./docs/ADDING_SERVICES.md) - Guide for adding new service types
+- [**Adding New Services**](./docs/ADDING_SERVICES.md) - Guide for adding new service implementations
+- [**Adding New Service Types**](./docs/ADDING_SERVICE_TYPES.md) - Guide for adding new service type categories
 
 ## Installation
 
@@ -114,10 +115,10 @@ The CLI follows a unified architecture built on five core concepts:
 Environment (configuration context)
     ↓ defines
 Services (what exists)
-    ↓ assigns to
-Platforms (where they run)
-    ↓ categorized as
-Service Types (how they're handled)
+    ↓ declare their
+Service Type (what they are: frontend, backend, database, etc.)
+    ↓ deployed to
+Platform (where they run: aws, container, posix, etc.)
     ↓ operated via
 Commands (what you can do)
 ```
@@ -135,9 +136,14 @@ environments/                 # Environment configurations (primary config)
 src/
 ├── cli.ts                    # CLI entry point
 ├── core/                     # Core execution engine
-│   ├── unified-executor.ts  # Unified command execution
+│   ├── multi-service-executor.ts # Multi-service command execution
 │   ├── command-descriptor.ts # Command configuration
 │   ├── command-result.ts    # Unified result type
+│   ├── platform.ts          # Abstract Platform class
+│   ├── service-interface.ts # Service contracts
+│   ├── service-types.ts     # Service type definitions
+│   ├── service-cli-behaviors.ts # CLI behavior capabilities
+│   ├── service-command-capabilities.ts # Command support declarations
 │   └── handlers/            # Handler management
 │       ├── registry.ts      # Handler registration
 │       └── types.ts         # Handler types
@@ -146,8 +152,7 @@ src/
 │   ├── stop.ts              # Stop services
 │   ├── check.ts             # Health checks
 │   └── ...                  # Other commands
-├── services/                 # Service definitions
-│   ├── service-interface.ts # Service contracts
+├── services/                 # Service implementations
 │   ├── base-service.ts      # Base service class
 │   └── ...                  # Service implementations
 ├── platforms/                # Platform implementations
@@ -161,7 +166,8 @@ src/
     ├── ADDING_ENVIRONMENTS.md # Environment guide
     ├── ADDING_COMMANDS.md    # Commands guide
     ├── ADDING_PLATFORMS.md   # Platforms guide
-    └── ADDING_SERVICES.md    # Services guide
+    ├── ADDING_SERVICES.md    # Services guide
+    └── ADDING_SERVICE_TYPES.md # Service types guide
 ```
 
 ### Environment Configuration
@@ -190,7 +196,6 @@ Environments are JSON files that define:
     },
     "database": {
       "platform": "aws",
-      "serviceType": "rds",
       "instanceClass": "db.t3.medium"
     }
   }
@@ -218,17 +223,34 @@ semiont start backend
 # Error: Environment is required
 ```
 
+## Service Types and Capabilities
+
+Services declare their type and capabilities through annotations in their requirements:
+
+### Service Types
+Each service declares what it is (not where it runs):
+- **frontend** - User-facing web applications
+- **backend** - API servers and application logic
+- **database** - Data persistence layers
+- **filesystem** - File storage and management
+- **worker** - Background job processors
+- **mcp** - Model Context Protocol services
+- **inference** - AI/ML model serving
+- **generic** - General-purpose services
+
+### Service Capabilities
+Services can declare special behaviors and command support:
+- **CLI behaviors** - Output suppression, process lifecycle, interactive mode
+- **Command support** - Which commands the service supports (publish, update, backup, etc.)
+
 ## Platform Support
 
-Platforms are determined by environment configuration, not hardcoded:
+Platforms determine where services run, configured per environment:
 
 - **POSIX** (`posix`): Services running as local OS processes
 - **Container** (`container`): Services in Docker/Podman containers  
-- **AWS** (`aws`): Services on AWS with various service types:
-  - ECS (Fargate containers)
-  - Lambda (serverless functions)
-  - RDS (managed databases)
-  - S3/CloudFront (static hosting)
+- **AWS** (`aws`): Services on AWS infrastructure
+  - Maps service types to AWS services (frontend → S3+CloudFront, backend → ECS, database → RDS)
 - **External** (`external`): Third-party or existing services
 - **Mock** (`mock`): Simulated services for testing
 
@@ -237,7 +259,7 @@ Each service's platform is specified in the environment configuration file.
 ## Key Design Principles
 
 1. **Environment-First Configuration** - All configuration flows from environment files
-2. **Unified Execution Pattern** - All commands use UnifiedExecutor for consistency
+2. **Unified Execution Pattern** - All commands use MultiServiceExecutor for consistency
 3. **Handler-Based Architecture** - Platform-specific logic in self-contained handlers
 4. **Service Requirements Pattern** - Services declare needs, platforms provide resources
 5. **Comprehensive Dry-Run Support** - All commands support `--dry-run` with detailed previews

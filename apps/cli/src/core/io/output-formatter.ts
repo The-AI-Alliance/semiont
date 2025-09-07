@@ -5,8 +5,16 @@
  * output formats while maintaining backward compatibility with human-readable output.
  */
 
-import { CommandResults, BaseResult } from '../command-results.js';
+import { CommandResults } from '../command-types.js';
 import { createStringTable } from './string-utils.js';
+
+// Base result interface for formatting
+interface BaseResult {
+  entity: string;
+  success: boolean;
+  error?: string;
+  [key: string]: any;
+}
 
 export type OutputFormat = 'summary' | 'table' | 'json' | 'yaml';
 

@@ -6,7 +6,7 @@
 
 import { check } from '../commands/check.js';
 import { CommandResult } from '../command-result.js';
-import { type ServicePlatformInfo } from '../platform-resolver.js';
+import { type ServicePlatformInfo } from '../service-resolver.js';
 import { Config } from '../cli-config.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
 

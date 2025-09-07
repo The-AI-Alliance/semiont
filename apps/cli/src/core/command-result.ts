@@ -7,7 +7,7 @@
  */
 
 import { ServiceName } from './service-discovery.js';
-import { Platform } from './platform-resolver.js';
+import { PlatformType } from './platform-types.js';
 import { PlatformResources } from '../platforms/platform-resources.js';
 
 /**
@@ -16,7 +16,7 @@ import { PlatformResources } from '../platforms/platform-resources.js';
 export interface CommandResult {
   // Core fields present in all results
   entity: ServiceName;
-  platform: Platform;
+  platform: PlatformType;
   success: boolean;
   timestamp: Date;
   error?: string;

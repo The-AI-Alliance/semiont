@@ -6,6 +6,7 @@
  */
 
 import { ServiceName } from './service-discovery.js';
+import { ServiceType, SERVICE_TYPE_ANNOTATION, SERVICE_TYPES } from './service-types.js';
 
 /**
  * Storage requirements for persistent data
@@ -152,6 +153,13 @@ export interface ExternalRequirement {
 }
 
 /**
+ * Required annotations that all services must provide
+ */
+export interface RequiredAnnotations {
+  [SERVICE_TYPE_ANNOTATION]: ServiceType;
+}
+
+/**
  * Complete service requirements specification
  */
 export interface ServiceRequirements {
@@ -163,7 +171,7 @@ export interface ServiceRequirements {
   security?: SecurityRequirement;
   environment?: Record<string, string>;
   labels?: Record<string, string>;  // For metadata/organization
-  annotations?: Record<string, string>;  // Platform-specific hints
+  annotations?: RequiredAnnotations & Record<string, string>;  // Must include service/type
   
   // Platform-specific requirements
   database?: DatabaseRequirement;
@@ -297,6 +305,7 @@ export const RequirementPresets = {
       replicas: 0  // Scale to zero when not in use
     },
     annotations: {
+      'service/type': SERVICE_TYPES.WORKER as ServiceType,  // Serverless functions are workers
       'serverless': 'true',
       'scaling/min': '0',
       'scaling/max': '100',

@@ -1,19 +1,20 @@
 /**
- * Unified Command Executor
+ * Multi-Service Executor
  * 
- * Provides a single, consistent execution path for all commands.
- * This eliminates duplication across command implementations and ensures
- * consistent behavior for error handling, service resolution, and result aggregation.
+ * Executes a single command across multiple service deployments.
+ * Provides consistent execution patterns including error handling,
+ * service instantiation, handler resolution, and result aggregation.
  */
 
-import { ServicePlatformInfo, Platform } from './platform-resolver.js';
-import { Service } from '../services/types.js';
+import { ServicePlatformInfo } from './service-resolver.js';
+import { PlatformType } from './platform-types.js';
+import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
-import { PlatformStrategy } from './platform-strategy.js';
+import { Platform } from './platform.js';
 import { CommandDescriptor } from './command-descriptor.js';
 import { CommandResult, createCommandResult } from './command-result.js';
-import { CommandResults } from './command-results.js';
+import { CommandResults } from './command-types.js';
 import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
 import { HandlerResult } from './handlers/types.js';
@@ -38,9 +39,9 @@ interface BaseOptions {
 }
 
 /**
- * Unified executor for all commands
+ * Executor that runs a command across multiple services
  */
-export class UnifiedExecutor<TOptions extends BaseOptions> {
+export class MultiServiceExecutor<TOptions extends BaseOptions> {
   constructor(
     private descriptor: CommandDescriptor<TOptions>
   ) {}
@@ -103,7 +104,7 @@ export class UnifiedExecutor<TOptions extends BaseOptions> {
           finalOptions
         ) || createCommandResult({
           entity: serviceInfo.name as ServiceName,
-          platform: serviceInfo.platform as Platform,
+          platform: serviceInfo.platform as PlatformType,
           success: false,
           error: (error as Error).message,
           metadata: { 
@@ -237,9 +238,9 @@ export class UnifiedExecutor<TOptions extends BaseOptions> {
    */
   static createSimple<TOptions extends BaseOptions>(
     commandName: string,
-    resultBuilder: (result: HandlerResult, service: Service, platform: PlatformStrategy) => CommandResult
-  ): UnifiedExecutor<TOptions> {
-    return new UnifiedExecutor<TOptions>({
+    resultBuilder: (result: HandlerResult, service: Service, platform: Platform) => CommandResult
+  ): MultiServiceExecutor<TOptions> {
+    return new MultiServiceExecutor<TOptions>({
       name: commandName,
       buildResult: resultBuilder,
       buildServiceConfig: (options, serviceInfo) => ({

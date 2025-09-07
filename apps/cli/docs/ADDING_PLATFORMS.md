@@ -16,9 +16,9 @@ Each platform uses handlers to implement command-specific logic for different se
 ## Architecture
 
 ```
-UnifiedExecutor → Platform/ServiceType → Handler → Result
-                           ↓                ↓
-                  Handler Resolution   Command Logic
+MultiServiceExecutor → Platform/ServiceType → Handler → Result
+                              ↓                   ↓
+                     Handler Resolution    Command Logic
 ```
 
 ## Step-by-Step Guide
@@ -33,16 +33,68 @@ touch src/platforms/my-platform/index.ts
 touch src/platforms/my-platform/platform.ts
 ```
 
-### 2. Define Handler Types
+### 2. Create Platform Class
+
+Create your platform class extending the abstract Platform class in `src/platforms/my-platform/platform.ts`:
+
+```typescript
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
+import { Service } from '../../core/service-interface.js';
+import { HandlerRegistry } from '../../core/handlers/registry.js';
+import { handlers } from './handlers/index.js';
+
+export class MyPlatform extends Platform {
+  constructor() {
+    super();
+    this.registerHandlers();
+  }
+  
+  private registerHandlers(): void {
+    const registry = HandlerRegistry.getInstance();
+    registry.registerHandlers('my-platform', handlers);
+  }
+  
+  getPlatformName(): string {
+    return 'my-platform';
+  }
+  
+  // Map service types to platform-specific implementations if needed
+  protected override mapServiceType(declaredType: string): string {
+    // Example: map frontend to a specific handler type
+    if (declaredType === 'frontend') {
+      return 'static-site';  // Platform-specific type
+    }
+    return declaredType;  // Use as-is for others
+  }
+  
+  async buildHandlerContextExtensions(service: Service, requiresDiscovery: boolean): Promise<Record<string, any>> {
+    // Return platform-specific context that handlers need
+    return {
+      platformConfig: this.loadPlatformConfig(),
+      resourcePrefix: `my-platform-${service.name}`
+    };
+  }
+  
+  async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
+    // Implement log collection for your platform
+    // Return undefined if logs aren't available
+    return undefined;
+  }
+  
+  async validateCredentials(environment: string): Promise<CredentialValidationResult> {
+    // Validate platform-specific credentials
+    return { valid: true };
+  }
+}
+```
+
+### 3. Define Handler Types
 
 Create handler type definitions in `src/platforms/my-platform/handlers/types.ts`:
 
 ```typescript
-/**
- * Handler types for my-platform
- */
-
-import type { Service } from '../../../services/service-interface.js';
+import type { MyPlatform } from '../platform.js';
+import type { Service } from '../../../core/service-interface.js';
 import type { PlatformResources } from '../../platform-resources.js';
 
 // Base context for all handlers
@@ -201,7 +253,7 @@ export const webPublishDescriptor: HandlerDescriptor<PublishHandlerContext, Publ
 // Continue for other commands: provision, etc.
 ```
 
-### 5. Register All Handlers
+### 4. Register All Handlers
 
 Create an index file to export all handlers:
 
@@ -224,26 +276,26 @@ export * from './worker-check.js';
 // Add more as needed
 ```
 
-### 6. Create Platform Strategy (Optional)
+### 5. Export Handlers Collection
 
-For backward compatibility or complex platforms, you can still create a platform strategy:
+Create a collection of all handlers for registration:
 
 ```typescript
-// src/platforms/my-platform/platform.ts
-import { BasePlatformStrategy, ServiceContext } from '../platform-strategy.js';
-import { HandlerRegistry } from '../../core/handlers/registry.js';
+// src/platforms/my-platform/handlers/index.ts
+import { webStartDescriptor } from './web-start.js';
+import { webCheckDescriptor } from './web-check.js';
+import { databaseStartDescriptor } from './database-start.js';
+// ... other imports
 
-export class MyPlatformStrategy extends BasePlatformStrategy {
-  getPlatformName(): string {
-    return 'my-platform';
-  }
-  
-  // Override methods if needed for special cases
-  // Most logic should be in handlers
-}
+export const handlers = [
+  webStartDescriptor,
+  webCheckDescriptor,
+  databaseStartDescriptor,
+  // ... all other handlers
+];
 ```
 
-### 7. Update Platform Resources Type
+### 6. Update Platform Resources Type
 
 Add your platform's resource type to `src/platforms/platform-resources.ts`:
 
@@ -267,24 +319,33 @@ export type PlatformResources =
   | MyPlatformResources;
 ```
 
-### 8. Update Platform Type
+### 7. Update Platform Type
 
-Add your platform to the Platform type in `src/platforms/platform-resolver.ts`:
-
-```typescript
-export type Platform = 'aws' | 'container' | 'posix' | 'external' | 'mock' | 'my-platform';
-```
-
-### 9. Import Handlers for Registration
-
-Ensure your handlers are imported so they self-register:
+Add your platform to the PlatformType in `src/core/platform-types.ts`:
 
 ```typescript
-// src/platforms/index.ts or main entry point
-import './my-platform/handlers/index.js';
+export type PlatformType = 'aws' | 'container' | 'posix' | 'external' | 'mock' | 'my-platform';
 ```
 
-### 10. Add Tests
+### 8. Register Platform in Factory
+
+Add your platform to the PlatformFactory in `src/platforms/index.ts`:
+
+```typescript
+import { MyPlatform } from './my-platform/platform.js';
+
+export class PlatformFactory {
+  private static createPlatform(type: PlatformType): Platform {
+    switch (type) {
+      case 'my-platform':
+        return new MyPlatform();
+      // ... other cases
+    }
+  }
+}
+```
+
+### 9. Add Tests
 
 Create tests for your handlers:
 
@@ -501,14 +562,16 @@ Test platform-specific behavior:
 // Test resource creation, networking, etc.
 ```
 
-## Migration from PlatformStrategy
+## Platform Best Practices
 
-If migrating from the old PlatformStrategy pattern:
+When creating a new platform:
 
-1. **Extract logic** from platform methods into handlers
-2. **Create handlers** for each command/serviceType combination
-3. **Remove** platform method implementations
-4. **Update tests** to test handlers directly
+1. **Service Type Mapping** - Decide if your platform needs to map service types
+2. **Handler Granularity** - Create specific handlers for each service type
+3. **Context Extensions** - Provide platform-specific context in buildHandlerContextExtensions
+4. **Resource Tracking** - Define clear resource types for state management
+5. **Credential Validation** - Implement proper credential checking
+6. **Log Collection** - Provide log access if your platform supports it
 
 ## Checklist
 

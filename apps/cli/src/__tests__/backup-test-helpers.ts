@@ -1,4 +1,4 @@
-import { ServicePlatformInfo } from '../core/platform-resolver.js';
+import { ServicePlatformInfo } from '../core/service-resolver.js';
 
 /**
  * Helper functions for backup tests

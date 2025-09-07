@@ -8,12 +8,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ServiceName } from './service-discovery.js';
-import { Platform } from './platform-resolver.js';
+import { PlatformType } from './platform-types.js';
 import { PlatformResources } from '../platforms/platform-resources.js';
 
 export interface ServiceState {
   entity: ServiceName;
-  platform: Platform;
+  platform: PlatformType;
   environment: string;
   startTime: string;
   resources?: PlatformResources;

@@ -1,4 +1,4 @@
-import { Service } from '../../services/types.js';
+import { Service } from '../service-interface.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 
 /**

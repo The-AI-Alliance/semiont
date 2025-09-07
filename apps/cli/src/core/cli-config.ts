@@ -6,7 +6,7 @@
  */
 
 import type { Environment } from './environment-validator.js';
-import type { Platform } from './platform-resolver.js';
+import type { PlatformType } from './platform-types.js';
 
 /**
  * Global CLI configuration passed to all commands and services
@@ -24,7 +24,7 @@ export interface Config {
  * Service-specific configuration
  */
 export interface ServiceConfig {
-  platform: Platform;
+  platform: PlatformType;
   port?: number;
   command?: string;
   image?: string;

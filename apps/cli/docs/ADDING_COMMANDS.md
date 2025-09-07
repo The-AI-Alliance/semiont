@@ -6,7 +6,7 @@ This guide walks you through adding a new command to the Semiont CLI using the n
 
 Semiont CLI commands follow a unified pattern using:
 - **Environment** as the primary configuration context
-- **UnifiedExecutor** for consistent command execution
+- **MultiServiceExecutor** for consistent command execution
 - **CommandDescriptor** for configuring command behavior
 - **Handler-based architecture** for platform-specific logic
 - **Zod schemas** for runtime validation
@@ -15,7 +15,7 @@ Semiont CLI commands follow a unified pattern using:
 ## Architecture Quick Reference
 
 ```
-Command → UnifiedExecutor → Environment Resolution → Service Discovery
+Command → MultiServiceExecutor → Environment Resolution → Service Discovery
                 ↓                    ↓                       ↓
         CommandDescriptor    Load Config from         Platform/ServiceType
                             environments/*.json        Handler Resolution
@@ -51,7 +51,7 @@ Start by defining your command's descriptor and extensions:
 import { z } from 'zod';
 import { CommandDescriptor } from '../core/command-descriptor.js';
 import { CommandResult } from '../core/command-result.js';
-import { executeUnifiedCommand } from '../core/unified-executor.js';
+import { MultiServiceExecutor } from '../core/multi-service-executor.js';
 import { BaseOptionsSchema } from '../commands/base-options-schema.js';
 
 // Define command-specific extensions
@@ -127,7 +127,7 @@ const myCommandDescriptor: CommandDescriptor<MyCommandOptions> = {
 };
 
 /**
- * Execute my-command using UnifiedExecutor
+ * Execute my-command using MultiServiceExecutor
  * 
  * Environment is resolved from:
  * 1. options.environment (if provided)
@@ -135,7 +135,8 @@ const myCommandDescriptor: CommandDescriptor<MyCommandOptions> = {
  * 3. Error if neither is set
  */
 export async function myCommand(options: MyCommandOptions) {
-  return executeUnifiedCommand(myCommandDescriptor, options);
+  const executor = new MultiServiceExecutor(myCommandDescriptor);
+  return executor.execute(options);
 }
 ```
 
@@ -230,7 +231,7 @@ export const myCommandCommand = {
   schema: MyCommandOptionsSchema,
   handler: myCommand,
   requiresServices: true,  // or false if services are optional
-  requiresEnvironment: true  // Always true for UnifiedExecutor commands
+  requiresEnvironment: true  // Always true for MultiServiceExecutor commands
 };
 
 // For backward compatibility
@@ -334,14 +335,15 @@ describe('my-command', () => {
 
 ## Best Practices
 
-### 1. Use UnifiedExecutor for Consistency
+### 1. Use MultiServiceExecutor for Consistency
 
-All commands should use UnifiedExecutor for consistent behavior:
+All commands should use MultiServiceExecutor for consistent behavior:
 
 ```typescript
-// ✅ Good - Use UnifiedExecutor
+// ✅ Good - Use MultiServiceExecutor
 export async function myCommand(options: MyCommandOptions) {
-  return executeUnifiedCommand(myCommandDescriptor, options);
+  const executor = new MultiServiceExecutor(myCommandDescriptor);
+  return executor.execute(options);
 }
 
 // ❌ Bad - Custom implementation
@@ -402,11 +404,11 @@ interface MyCustomResult {
 
 ### 4. Handle Missing Handlers Gracefully
 
-UnifiedExecutor will handle missing handlers, but provide clear messages:
+MultiServiceExecutor will handle missing handlers, but provide clear messages:
 
 ```typescript
 // Handler not found for a platform/serviceType combination
-// UnifiedExecutor will return an error result:
+// MultiServiceExecutor will return an error result:
 {
   success: false,
   error: 'No handler found for command "my-command" on platform "external" with service type "api"'
@@ -424,7 +426,7 @@ Leverage TypeScript and Zod for type safety:
 // Define clear interfaces
 export interface MyCommandResult {
   entity: string;
-  platform: Platform;
+  platform: PlatformType;
   success: boolean;
   // ...
 }
@@ -546,4 +548,4 @@ Command execution:
       → Returns CommandResult
 ```
 
-Remember: Environment defines context, Commands use UnifiedExecutor, Handlers implement platform-specific logic, CommandDescriptor configures behavior.
+Remember: Environment defines context, Commands use MultiServiceExecutor, Handlers implement platform-specific logic, CommandDescriptor configures behavior.

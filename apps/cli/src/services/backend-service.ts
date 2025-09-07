@@ -31,10 +31,12 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/platform-resolver.js';
+import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/environment-loader.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class BackendService extends BaseService {
   
@@ -95,7 +97,19 @@ export class BackendService extends BaseService {
         runAsUser: 1000,  // node user
         runAsGroup: 1000
       },
-      environment: this.buildEnvironment()
+      environment: this.buildEnvironment(),
+      annotations: {
+        // Service type declaration
+        'service/type': SERVICE_TYPES.BACKEND,
+        // Backend can be built and published as container
+        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true',
+        // Backend doesn't support backup/restore directly (database does)
+        [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'false'
+      }
     };
     
     // Merge preset with specific requirements

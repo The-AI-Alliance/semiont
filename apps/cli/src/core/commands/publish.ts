@@ -2,7 +2,7 @@
  * Publish Command - Unified Executor Implementation
  * 
  * Builds and publishes service artifacts to their respective registries (Docker Hub, ECR, npm, etc.)
- * using the UnifiedExecutor architecture.
+ * using the MultiServiceExecutor architecture.
  * 
  * For containerized services (e.g., ECS):
  * - Builds the application/container
@@ -15,14 +15,14 @@
  */
 
 import { z } from 'zod';
-import { ServicePlatformInfo } from '../platform-resolver.js';
+import { ServicePlatformInfo } from '../service-resolver.js';
 import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
-import { UnifiedExecutor } from '../unified-executor.js';
+import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
-import { PlatformStrategy } from '../platform-strategy.js';
-import { Service } from '../../services/types.js';
+import { Platform } from '../platform.js';
+import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================
@@ -67,7 +67,7 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
     dryRun: options.dryRun,
   }),
   
-  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
     // Type guard for publish-specific results
     const publishResult = handlerResult as any; // PublishHandlerResult
     
@@ -90,7 +90,7 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
   },
   
   validateOptions: (options) => {
-    // Environment validation is handled by UnifiedExecutor
+    // Environment validation is handled by MultiServiceExecutor
     if (options.tag && !/^[\w.-]+$/.test(options.tag)) {
       throw new Error('Tag must contain only alphanumeric characters, dots, underscores, and hyphens');
     }
@@ -104,7 +104,7 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
 // EXECUTOR INSTANCE
 // =====================================================================
 
-const publishExecutor = new UnifiedExecutor(publishDescriptor);
+const publishExecutor = new MultiServiceExecutor(publishDescriptor);
 
 // =====================================================================
 // COMMAND EXPORT

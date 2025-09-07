@@ -1,18 +1,18 @@
 /**
  * Start Command - Unified Executor Implementation
  * 
- * Starts services across all platforms using the UnifiedExecutor architecture.
+ * Starts services across all platforms using the MultiServiceExecutor architecture.
  */
 
 import { z } from 'zod';
-import { ServicePlatformInfo } from '../platform-resolver.js';
+import { ServicePlatformInfo } from '../service-resolver.js';
 import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
-import { UnifiedExecutor } from '../unified-executor.js';
+import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
-import { PlatformStrategy } from '../platform-strategy.js';
-import { Service } from '../../services/types.js';
+import { Platform } from '../platform.js';
+import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
 
 // =====================================================================
@@ -45,7 +45,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
     dryRun: options.dryRun,
   }),
   
-  buildResult: (handlerResult: HandlerResult, service: Service, platform: PlatformStrategy, serviceType: string): CommandResult => {
+  buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
     // Type guard for start-specific results
     const startResult = handlerResult as any; // StartHandlerResult
     
@@ -65,7 +65,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
     });
   },
   
-  // Environment validation is handled by UnifiedExecutor
+  // Environment validation is handled by MultiServiceExecutor
   
   continueOnError: true,  // Continue starting all services even if one fails
   supportsAll: true,
@@ -75,7 +75,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
 // EXECUTOR INSTANCE
 // =====================================================================
 
-const startExecutor = new UnifiedExecutor(startDescriptor);
+const startExecutor = new MultiServiceExecutor(startDescriptor);
 
 // =====================================================================
 // COMMAND EXPORT

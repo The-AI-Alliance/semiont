@@ -1,6 +1,6 @@
 import { execSync } from 'child_process';
 import { ContainerUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor, ContainerStartHandlerContext, StartHandlerResult } from './types.js';
-import type { ContainerPlatformStrategy } from '../platform.js';
+import type { ContainerPlatform } from '../platform.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 import { HandlerRegistry } from '../../../core/handlers/registry.js';
 
@@ -29,7 +29,7 @@ const updateGenericService = async (context: ContainerUpdateHandlerContext): Pro
     try {
       // Start new container alongside old one using the start handler
       const registry = HandlerRegistry.getInstance();
-      const startDescriptor = registry.getHandlerForCommand<ContainerPlatformStrategy, ContainerStartHandlerContext, StartHandlerResult>(
+      const startDescriptor = registry.getHandlerForCommand<ContainerPlatform, ContainerStartHandlerContext, StartHandlerResult>(
         'start',
         'container',
         'generic'
@@ -118,7 +118,7 @@ const updateGenericService = async (context: ContainerUpdateHandlerContext): Pro
       
       // Start new container using the start handler
       const registry = HandlerRegistry.getInstance();
-      const startDescriptor = registry.getHandlerForCommand<ContainerPlatformStrategy, ContainerStartHandlerContext, StartHandlerResult>(
+      const startDescriptor = registry.getHandlerForCommand<ContainerPlatform, ContainerStartHandlerContext, StartHandlerResult>(
         'start',
         'container',
         'generic'

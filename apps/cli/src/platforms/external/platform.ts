@@ -26,12 +26,12 @@
  * - Legacy systems that can't be migrated
  */
 
-import { BasePlatformStrategy, LogOptions, LogEntry } from '../../core/platform-strategy.js';
-import { Service } from '../../services/types.js';
+import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
+import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
 
-export class ExternalPlatformStrategy extends BasePlatformStrategy {
+export class ExternalPlatform extends Platform {
   constructor() {
     super();
     this.registerHandlers();
@@ -80,20 +80,15 @@ export class ExternalPlatformStrategy extends BasePlatformStrategy {
   }
   
   /**
-   * Determine service type for handler selection
+   * Map service types to external handler types
    */
-  determineServiceType(service: Service): string {
-    const requirements = service.getRequirements();
-    const serviceName = service.name.toLowerCase();
-    
-    // Check for static sites/CDNs
-    if (requirements.annotations?.['service/type'] === 'static' ||
-        serviceName.includes('cdn') ||
-        serviceName.includes('static')) {
+  protected override mapServiceType(declaredType: string): string {
+    // External platform only has static and api handlers
+    if (declaredType === 'frontend') {
       return 'static';
     }
     
-    // Default to API for external services
+    // Everything else is treated as an API
     return 'api';
   }
   

@@ -7,31 +7,31 @@ import {
   StartHandler as CoreStartHandler,
   HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
-import type { ExternalPlatformStrategy } from '../platform.js';
+import type { ExternalPlatform } from '../platform.js';
 
 /**
  * External-specific check handler context
  */
-export interface ExternalCheckHandlerContext extends CoreCheckHandlerContext<ExternalPlatformStrategy> {
+export interface ExternalCheckHandlerContext extends CoreCheckHandlerContext<ExternalPlatform> {
   endpoint?: string;
 }
 
 /**
  * External-specific start handler context
  */
-export interface ExternalStartHandlerContext extends CoreStartHandlerContext<ExternalPlatformStrategy> {
+export interface ExternalStartHandlerContext extends CoreStartHandlerContext<ExternalPlatform> {
   endpoint?: string;
 }
 
 /**
  * Function signature for External check handlers
  */
-export type CheckHandler = CoreCheckHandler<ExternalPlatformStrategy, ExternalCheckHandlerContext>;
+export type CheckHandler = CoreCheckHandler<ExternalPlatform, ExternalCheckHandlerContext>;
 
 /**
  * Function signature for External start handlers
  */
-export type StartHandler = CoreStartHandler<ExternalPlatformStrategy, ExternalStartHandlerContext>;
+export type StartHandler = CoreStartHandler<ExternalPlatform, ExternalStartHandlerContext>;
 
 /**
  * Re-export result types for convenience
@@ -44,4 +44,4 @@ export type {
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ExternalPlatformStrategy> | CoreStartHandlerContext<ExternalPlatformStrategy>, TResult extends CheckHandlerResult | StartHandlerResult> = CoreHandlerDescriptor<ExternalPlatformStrategy, TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ExternalPlatform> | CoreStartHandlerContext<ExternalPlatform>, TResult extends CheckHandlerResult | StartHandlerResult> = CoreHandlerDescriptor<ExternalPlatform, TContext, TResult>;

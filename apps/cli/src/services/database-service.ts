@@ -34,6 +34,8 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
+import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class DatabaseService extends BaseService {
   
@@ -75,6 +77,18 @@ export class DatabaseService extends BaseService {
         POSTGRES_DB: this.config.database || 'semiont',
         POSTGRES_USER: this.config.user || 'postgres',
         PGDATA: '/var/lib/postgresql/data'
+      },
+      annotations: {
+        // Service type declaration
+        'service/type': SERVICE_TYPES.DATABASE,
+        // Database supports backup and restore
+        [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
+        [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'true',
+        // Database doesn't support publish/update (not containerized)
+        [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true'
       }
     };
     
