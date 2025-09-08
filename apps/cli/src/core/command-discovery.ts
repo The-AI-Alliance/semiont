@@ -19,6 +19,7 @@ import type { CommandDefinition } from './command-definition.js';
 // Import all command modules statically for bundling
 import { initCommand } from './commands/init.js';
 import { startCommand } from './commands/start.js';
+import { stopCommand } from './commands/stop.js';
 import { checkCommand } from './commands/check.js';
 import { provisionCommand } from './commands/provision.js';
 import { publishCommand } from './commands/publish.js';
@@ -37,6 +38,7 @@ const commandCache = new Map<string, CommandDefinition<any>>();
 const COMMANDS: Record<string, CommandDefinition<any>> = {
   'init': initCommand,
   'start': startCommand,
+  'stop': stopCommand,
   'check': checkCommand,
   'provision': provisionCommand,
   'publish': publishCommand,

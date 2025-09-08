@@ -402,6 +402,54 @@ describe('Cache Service Type', () => {
 });
 ```
 
+## Critical Lesson: Service Type vs Implementation Type
+
+One of the most important patterns to understand is the distinction between service types and implementation types:
+
+- **Service Type**: The high-level category (e.g., `graph`, `cache`, `database`)
+- **Implementation Type**: The specific technology (e.g., `janusgraph`, `redis`, `postgres`)
+
+### Configuration Pattern
+
+Services should declare both in their configuration:
+
+```json
+{
+  "graph": {
+    "platform": { "type": "container" },
+    "type": "janusgraph",  // CRITICAL: Implementation type
+    "port": 8182,
+    // ... other config
+  }
+}
+```
+
+### Handler Pattern
+
+Handlers should read the implementation type from `service.config.type` WITHOUT fallbacks:
+
+```typescript
+// CORRECT - No fallbacks
+const implementationType = service.config.type;
+
+if (implementationType !== 'janusgraph') {
+  return {
+    success: false,
+    error: `Unsupported graph database: ${implementationType}`
+  };
+}
+
+// INCORRECT - Never use fallbacks
+const implementationType = service.config.type || service.config.name || 'default';
+```
+
+### Why This Matters
+
+1. **Explicit Configuration**: Forces users to specify exactly what they want
+2. **Clear Errors**: When type is missing, error immediately rather than assuming defaults
+3. **Future Flexibility**: Easy to add new implementations without breaking existing ones
+4. **Platform Routing**: Platforms can route to correct handlers based on implementation type
+
 ## Best Practices
 
 ### 1. Keep Types High-Level
@@ -435,7 +483,22 @@ export const cacheStartDescriptor: HandlerDescriptor = {
 };
 ```
 
-### 5. Documentation
+### 5. Handler Naming Conventions
+Use generic names for handlers and descriptors:
+
+```typescript
+// CORRECT - Generic name for the service type
+export const graphProvisionDescriptor = { ... };
+const provisionGraphService = async (context) => { ... };
+
+// INCORRECT - Don't use implementation-specific names
+export const janusgraphProvisionDescriptor = { ... };
+const provisionJanusgraphService = async (context) => { ... };
+```
+
+This keeps the abstraction clean and allows multiple implementations within the same handler.
+
+### 6. Documentation
 Always document:
 - When to use the new service type
 - What makes it different from existing types

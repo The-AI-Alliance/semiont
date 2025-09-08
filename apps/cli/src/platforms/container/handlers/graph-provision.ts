@@ -6,15 +6,23 @@ import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger
 import * as yaml from 'js-yaml';
 
 /**
- * Provision handler for JanusGraph database using Docker
- * 
- * Creates docker-compose configuration for JanusGraph with optional backends:
- * - Storage: BerkeleyDB (default) or Cassandra
- * - Index: None (default) or Elasticsearch
+ * Provision handler for graph database services using Docker
+ * Currently supports JanusGraph
  */
-const provisionJanusgraphService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
+const provisionGraphService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
   const args = options.args || [];
+  
+  // Determine which graph database to provision from service config
+  const graphType = service.config.type;
+  
+  if (graphType !== 'janusgraph') {
+    return {
+      success: false,
+      error: `Unsupported graph database for provisioning: ${graphType}`,
+      metadata: { serviceType: 'graph', serviceName: graphType }
+    };
+  }
   
   if (!service.quiet) {
     printInfo('🐳 Provisioning JanusGraph using Docker...');
@@ -182,11 +190,11 @@ const provisionJanusgraphService = async (context: ContainerProvisionHandlerCont
 };
 
 /**
- * Handler descriptor for JanusGraph provisioning
+ * Handler descriptor for graph database provisioning
  */
-export const janusgraphProvisionDescriptor: HandlerDescriptor<ContainerProvisionHandlerContext, ProvisionHandlerResult> = {
+export const graphProvisionDescriptor: HandlerDescriptor<ContainerProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'container',
   serviceType: 'graph',
-  handler: provisionJanusgraphService
+  handler: provisionGraphService
 };

@@ -38,10 +38,10 @@ model User {
   @@map("users")
 }
 
+// Documents, References, and their relationships are stored in the graph database
+// PostgreSQL is used only for user management and authentication
+
 // Future models will be added here as we implement features:
-// - Document
-// - Entity
-// - Relationship
-// - Permission
-// - Role
-// - Asset
+// - Permission (may be in graph or SQL depending on requirements)
+// - Role (likely in SQL for user roles)
+// - Asset metadata (graph for relationships, filesystem for content)

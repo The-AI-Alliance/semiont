@@ -35,6 +35,12 @@ export interface CommandExtensions {
   endpoint?: string;
   resources?: PlatformResources;
   
+  // stop command extensions
+  stop?: {
+    stopTime?: Date;
+    graceful?: boolean;
+  };
+  
   // update command extensions
   previousVersion?: string;
   newVersion?: string;

@@ -111,6 +111,9 @@ export class ContainerPlatform extends Platform {
     // Database gets special handler
     if (declaredType === 'database') return 'database';
     
+    // Graph databases get graph handler
+    if (declaredType === 'graph') return 'graph';
+    
     // Everything else uses generic handler
     return 'generic';
   }

@@ -2,12 +2,15 @@ import {
   CheckHandlerContext as CoreCheckHandlerContext,
   StartHandlerContext as CoreStartHandlerContext,
   ProvisionHandlerContext as CoreProvisionHandlerContext,
+  StopHandlerContext as CoreStopHandlerContext,
   CheckHandlerResult,
   StartHandlerResult,
   ProvisionHandlerResult,
+  StopHandlerResult,
   CheckHandler as CoreCheckHandler,
   StartHandler as CoreStartHandler,
   ProvisionHandler as CoreProvisionHandler,
+  StopHandler as CoreStopHandler,
   HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
 import type { PosixPlatform } from '../platform.js';
@@ -35,6 +38,13 @@ export interface PosixProvisionHandlerContext extends CoreProvisionHandlerContex
 }
 
 /**
+ * POSIX-specific stop handler context
+ */
+export interface PosixStopHandlerContext extends CoreStopHandlerContext<PosixPlatform> {
+  savedState?: ServiceState;
+}
+
+/**
  * Function signature for POSIX check handlers
  */
 export type CheckHandler = CoreCheckHandler<PosixPlatform, PosixCheckHandlerContext>;
@@ -50,15 +60,21 @@ export type StartHandler = CoreStartHandler<PosixPlatform, PosixStartHandlerCont
 export type ProvisionHandler = CoreProvisionHandler<PosixPlatform, PosixProvisionHandlerContext>;
 
 /**
+ * Function signature for POSIX stop handlers
+ */
+export type StopHandler = CoreStopHandler<PosixPlatform, PosixStopHandlerContext>;
+
+/**
  * Re-export result types for convenience
  */
 export type { 
   CheckHandlerResult,
   StartHandlerResult,
-  ProvisionHandlerResult
+  ProvisionHandlerResult,
+  StopHandlerResult
 };
 
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<PosixPlatform> | CoreStartHandlerContext<PosixPlatform> | CoreProvisionHandlerContext<PosixPlatform>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult> = CoreHandlerDescriptor<PosixPlatform, TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<PosixPlatform> | CoreStartHandlerContext<PosixPlatform> | CoreProvisionHandlerContext<PosixPlatform> | CoreStopHandlerContext<PosixPlatform>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | StopHandlerResult> = CoreHandlerDescriptor<PosixPlatform, TContext, TResult>;

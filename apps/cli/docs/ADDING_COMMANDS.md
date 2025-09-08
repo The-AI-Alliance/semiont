@@ -168,6 +168,17 @@ export interface MyCommandHandlerResult {
 const myCommandHandler = async (context: MyCommandHandlerContext): Promise<MyCommandHandlerResult> => {
   const { service, options } = context;
   
+  // Check implementation type if service supports multiple implementations
+  const implementationType = service.config.type;
+  
+  // IMPORTANT: No fallbacks when checking implementation types
+  if (implementationType && implementationType !== 'expected-implementation') {
+    return {
+      success: false,
+      error: `Unsupported implementation: ${implementationType}`
+    };
+  }
+  
   // Platform-specific implementation
   const startTime = Date.now();
   
@@ -201,20 +212,27 @@ export const myCommandDescriptor: HandlerDescriptor<MyCommandHandlerContext, MyC
 
 ### 6. Register Handlers
 
-Handlers self-register when imported. Ensure your handlers are imported:
+Handlers must be properly registered in the platform's handler index file:
 
 ```typescript
 // In src/platforms/posix/handlers/index.ts
-export * from './my-command.js';
+import { myCommandDescriptor } from './serviceType-my-command.js';
 
-// In src/platforms/container/handlers/index.ts
-export * from './my-command.js';
+const posixHandlers = [
+  // ... existing handlers
+  myCommandDescriptor,  // Add your handler to the array
+];
 
-// In src/platforms/aws/handlers/index.ts
-export * from './my-command.js';
+export const handlers = posixHandlers;
 ```
 
-The HandlerRegistry will automatically discover handlers based on:
+**Important Lessons Learned:**
+1. **Handler File Naming**: Use pattern `{serviceType}-{command}.ts` (e.g., `graph-stop.ts`)
+2. **Descriptor Naming**: Use generic names (e.g., `graphStopDescriptor` not `janusgraphStopDescriptor`)
+3. **Import and Array**: Handlers must be both imported AND added to the handlers array
+4. **No Self-Registration**: Despite old documentation, handlers do NOT self-register
+
+The HandlerRegistry will discover handlers based on:
 - Platform (posix, container, aws, etc.)
 - Command (my-command)
 - ServiceType (web, database, worker, etc.)

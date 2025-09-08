@@ -11,8 +11,8 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
 const startGraphService = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   
-  // Determine which graph database to start based on service name
-  const graphType = service.name || 'janusgraph';
+  // Determine which graph database to start from service config
+  const graphType = service.config.type;
   
   if (!service.quiet) {
     printInfo(`🐳 Starting ${graphType} graph database container...`);

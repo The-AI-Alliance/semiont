@@ -55,6 +55,7 @@ export class PosixPlatform extends Platform {
     // Direct mappings
     if (declaredType === 'database') return 'database';
     if (declaredType === 'filesystem') return 'filesystem';
+    if (declaredType === 'graph') return 'graph';
     if (declaredType === 'mcp') return 'mcp';
     
     // Everything else uses worker handler

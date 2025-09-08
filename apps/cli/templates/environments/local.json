@@ -41,6 +41,7 @@
       "platform": {
         "type": "container"
       },
+      "type": "janusgraph",
       "name": "janusgraph",
       "port": 8182,
       "host": "localhost",

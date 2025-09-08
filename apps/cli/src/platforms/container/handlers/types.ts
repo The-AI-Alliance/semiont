@@ -4,16 +4,19 @@ import {
   ProvisionHandlerContext as CoreProvisionHandlerContext,
   PublishHandlerContext as CorePublishHandlerContext,
   UpdateHandlerContext as CoreUpdateHandlerContext,
+  StopHandlerContext as CoreStopHandlerContext,
   CheckHandlerResult,
   StartHandlerResult,
   ProvisionHandlerResult,
   PublishHandlerResult,
   UpdateHandlerResult,
+  StopHandlerResult,
   CheckHandler as CoreCheckHandler,
   StartHandler as CoreStartHandler,
   ProvisionHandler as CoreProvisionHandler,
   PublishHandler as CorePublishHandler,
   UpdateHandler as CoreUpdateHandler,
+  StopHandler as CoreStopHandler,
   HandlerDescriptor as CoreHandlerDescriptor
 } from '../../../core/handlers/types.js';
 import type { ContainerPlatform } from '../platform.js';
@@ -58,6 +61,14 @@ export interface ContainerUpdateHandlerContext extends CoreUpdateHandlerContext<
 }
 
 /**
+ * Container-specific stop handler context
+ */
+export interface ContainerStopHandlerContext extends CoreStopHandlerContext<ContainerPlatform> {
+  runtime: 'docker' | 'podman';
+  containerName: string;
+}
+
+/**
  * Function signature for Container check handlers
  */
 export type CheckHandler = CoreCheckHandler<ContainerPlatform, ContainerCheckHandlerContext>;
@@ -83,6 +94,11 @@ export type PublishHandler = CorePublishHandler<ContainerPlatform, ContainerPubl
 export type UpdateHandler = CoreUpdateHandler<ContainerPlatform, ContainerUpdateHandlerContext>;
 
 /**
+ * Function signature for Container stop handlers
+ */
+export type StopHandler = CoreStopHandler<ContainerPlatform, ContainerStopHandlerContext>;
+
+/**
  * Re-export result types for convenience
  */
 export type { 
@@ -90,10 +106,11 @@ export type {
   StartHandlerResult,
   ProvisionHandlerResult,
   PublishHandlerResult,
-  UpdateHandlerResult
+  UpdateHandlerResult,
+  StopHandlerResult
 };
 
 /**
  * Re-export HandlerDescriptor for convenience
  */
-export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ContainerPlatform> | CoreStartHandlerContext<ContainerPlatform> | CoreProvisionHandlerContext<ContainerPlatform> | CorePublishHandlerContext<ContainerPlatform> | CoreUpdateHandlerContext<ContainerPlatform>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | PublishHandlerResult | UpdateHandlerResult> = CoreHandlerDescriptor<ContainerPlatform, TContext, TResult>;
+export type HandlerDescriptor<TContext extends CoreCheckHandlerContext<ContainerPlatform> | CoreStartHandlerContext<ContainerPlatform> | CoreProvisionHandlerContext<ContainerPlatform> | CorePublishHandlerContext<ContainerPlatform> | CoreUpdateHandlerContext<ContainerPlatform> | CoreStopHandlerContext<ContainerPlatform>, TResult extends CheckHandlerResult | StartHandlerResult | ProvisionHandlerResult | PublishHandlerResult | UpdateHandlerResult | StopHandlerResult> = CoreHandlerDescriptor<ContainerPlatform, TContext, TResult>;

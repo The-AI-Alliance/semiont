@@ -4,6 +4,7 @@ import { GraphDatabase } from './interface';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
+import { getGraphConfig } from '../config/environment-loader';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 
@@ -68,11 +69,30 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
 
 export async function getGraphDatabase(): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
-    // Load config from environment
+    // Load config from environment JSON file or environment variables
+    const graphConfig = getGraphConfig();
+    
     const config: GraphDatabaseConfig = {
-      type: (process.env.GRAPH_DB_TYPE as GraphDatabaseType) || 'memory',
+      type: graphConfig.type,
     };
     
+    // Apply configuration based on type
+    if (graphConfig.type === 'janusgraph') {
+      if (graphConfig.host) {
+        config.janusHost = graphConfig.host;
+      }
+      if (graphConfig.port) {
+        config.janusPort = graphConfig.port;
+      }
+      if (graphConfig.storage) {
+        config.janusStorageBackend = graphConfig.storage as any;
+      }
+      if (graphConfig.index && graphConfig.index !== 'none') {
+        config.janusIndexBackend = graphConfig.index as any;
+      }
+    }
+    
+    // Support for other graph databases via environment variables (backwards compatibility)
     // Neptune config
     if (process.env.NEPTUNE_ENDPOINT) config.neptuneEndpoint = process.env.NEPTUNE_ENDPOINT;
     if (process.env.NEPTUNE_PORT) config.neptunePort = parseInt(process.env.NEPTUNE_PORT);
@@ -85,16 +105,6 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
     if (process.env.NEO4J_URI) config.neo4jUri = process.env.NEO4J_URI;
     if (process.env.NEO4J_USERNAME) config.neo4jUsername = process.env.NEO4J_USERNAME;
     if (process.env.NEO4J_PASSWORD) config.neo4jPassword = process.env.NEO4J_PASSWORD;
-    
-    // JanusGraph config
-    if (process.env.JANUSGRAPH_HOST) config.janusHost = process.env.JANUSGRAPH_HOST;
-    if (process.env.JANUSGRAPH_PORT) config.janusPort = parseInt(process.env.JANUSGRAPH_PORT);
-    if (process.env.JANUSGRAPH_STORAGE) {
-      config.janusStorageBackend = process.env.JANUSGRAPH_STORAGE as any;
-    }
-    if (process.env.JANUSGRAPH_INDEX) {
-      config.janusIndexBackend = process.env.JANUSGRAPH_INDEX as any;
-    }
     
     graphDatabaseInstance = createGraphDatabase(config);
     await graphDatabaseInstance.connect();

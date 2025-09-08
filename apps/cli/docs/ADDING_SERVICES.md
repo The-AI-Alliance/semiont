@@ -364,10 +364,14 @@ export class ServiceFactory {
         return new BackendService(name, platform, systemConfig, serviceConfig);
       case 'frontend':
         return new FrontendService(name, platform, systemConfig, serviceConfig);
+      case 'graph':
+        // Note: Some services might have a fixed name
+        return new GraphService('graph', platform, systemConfig, serviceConfig);
       case 'my-service':
         return new MyService(name, platform, systemConfig, serviceConfig);
       default:
         // GenericService handles unknown types
+        // IMPORTANT: Avoid using GenericService for known service types
         return new GenericService(name as any, platform, systemConfig, serviceConfig);
     }
   }
@@ -395,7 +399,40 @@ Available service types:
 - `SERVICE_TYPES.INFERENCE` - AI/ML model serving
 - `SERVICE_TYPES.GENERIC` - General-purpose services
 
-### 6. Update Service Registry
+### 6. Configure Implementation Types
+
+For services that support multiple implementations (like graph databases), ensure your configuration includes the implementation type:
+
+```json
+// environments/local.json
+{
+  "services": {
+    "graph": {
+      "platform": { "type": "container" },
+      "type": "janusgraph",  // CRITICAL: Implementation type
+      "port": 8182,
+      "storage": "berkeleydb"
+    }
+  }
+}
+```
+
+Your handlers should check this implementation type:
+
+```typescript
+const implementationType = service.config.type;
+
+if (implementationType !== 'expected-type') {
+  return {
+    success: false,
+    error: `Unsupported implementation: ${implementationType}`
+  };
+}
+```
+
+**Important**: Never use fallbacks when reading implementation types. This ensures explicit configuration and clear error messages.
+
+### 7. Update Service Registry
 
 Add your service to the ServiceName type in `src/core/service-discovery.ts`:
 

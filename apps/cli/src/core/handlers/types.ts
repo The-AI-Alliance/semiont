@@ -53,6 +53,13 @@ export interface UpdateHandlerContext<TPlatform = any> extends BaseHandlerContex
 }
 
 /**
+ * Generic stop handler context
+ */
+export interface StopHandlerContext<TPlatform = any> extends BaseHandlerContext<TPlatform> {
+  // Platform-specific fields will be added in platform-specific types
+}
+
+/**
  * Result that handlers must return
  */
 export interface HandlerResult {
@@ -126,6 +133,15 @@ export interface UpdateHandlerResult extends HandlerResult {
 }
 
 /**
+ * Stop handler specific result
+ */
+export interface StopHandlerResult extends HandlerResult {
+  stopTime?: Date;
+  graceful?: boolean;
+  metadata?: Record<string, any>;
+}
+
+/**
  * Generic handler function signature
  * TPlatform is the platform strategy type
  */
@@ -161,6 +177,12 @@ export type PublishHandler<TPlatform, TContext extends PublishHandlerContext<TPl
  */
 export type UpdateHandler<TPlatform, TContext extends UpdateHandlerContext<TPlatform> = UpdateHandlerContext<TPlatform>> = 
   Handler<TPlatform, TContext, UpdateHandlerResult>;
+
+/**
+ * Stop handler function signature
+ */
+export type StopHandler<TPlatform, TContext extends StopHandlerContext<TPlatform> = StopHandlerContext<TPlatform>> = 
+  Handler<TPlatform, TContext, StopHandlerResult>;
 
 /**
  * Handler descriptor that explicitly declares what command and service type it handles

@@ -5,15 +5,23 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 
 /**
- * Provision handler for JanusGraph database on POSIX systems
- * 
- * Downloads and configures JanusGraph with optional backends:
- * - Storage: BerkeleyDB (default) or Cassandra
- * - Index: None (default) or Elasticsearch
+ * Provision handler for graph database services on POSIX systems
+ * Currently supports JanusGraph
  */
-const provisionJanusgraphService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
+const provisionGraphService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
   const args = options.args || [];
+  
+  // Determine which graph database to provision from service config
+  const graphType = service.config.type;
+  
+  if (graphType !== 'janusgraph') {
+    return {
+      success: false,
+      error: `Unsupported graph database for provisioning: ${graphType}`,
+      metadata: { serviceType: 'graph', serviceName: graphType }
+    };
+  }
   
   if (!service.quiet) {
     printInfo('🔧 Provisioning JanusGraph for posix platform...');
@@ -188,11 +196,11 @@ async function fileExists(path: string): Promise<boolean> {
 }
 
 /**
- * Handler descriptor for JanusGraph provisioning
+ * Handler descriptor for graph database provisioning
  */
-export const janusgraphProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerContext, ProvisionHandlerResult> = {
+export const graphProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'posix',
   serviceType: 'graph',
-  handler: provisionJanusgraphService
+  handler: provisionGraphService
 };
