@@ -567,65 +567,151 @@ function formatSelection(sel: Selection): any {
 }
 
 
-// Stub for detecting selections in document
+// Dummy implementation for detecting selections in document
 async function detectSelectionsInDocument(
   document: any,
   _types: string[],
   _confidence: number
 ): Promise<any[]> {
-  // Stub implementation
-  // In real implementation, this would:
-  // 1. Parse document content based on contentType
-  // 2. Use NLP/ML to detect potential selections
-  // 3. Search for matching documents in the database
-  // 4. Return selections with suggested resolutions
+  // Dummy implementation that detects:
+  // 1. [[wiki-style]] references
+  // 2. "lorem ipsum" (case insensitive)
+  // 3. "John Doe" (case insensitive)
 
-  const stubReferences = [];
+  const detectedSelections = [];
 
-  // Example: detect simple [[wiki-style]] references in text
+  // Only process text content
   if (document.contentType === 'text/plain' || document.contentType === 'text/markdown') {
+    const content = document.content;
+    
+    // Pattern 1: Detect [[wiki-style]] references
     const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
     let match;
     
-    while ((match = wikiLinkPattern.exec(document.content)) !== null) {
-      const referenceText = match[1];
+    while ((match = wikiLinkPattern.exec(content)) !== null) {
+      const selectionText = match[1];
       const offset = match.index;
       const length = match[0].length;
 
-      // Create a reference
-      const reference = {
-        reference: {
-          id: `ref_stub_${Math.random().toString(36).substring(2, 11)}`,
+      const selection = {
+        selection: {
+          id: `sel_wiki_${Math.random().toString(36).substring(2, 11)}`,
           documentId: document.id,
-          referenceType: 'text_span',
-          referenceData: {
+          selectionType: 'text_span',
+          selectionData: {
             type: 'text_span',
             offset,
             length,
-            text: referenceText,
+            text: selectionText,
           },
-          resolvedDocumentId: null,
-          provisional: false,
-          confidence: null,
-          metadata: {},
+          saved: false,
+          provisional: true,
+          confidence: 0.9,
+          metadata: {
+            detectionType: 'wiki_link',
+            pattern: '[[...]]'
+          },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
         suggestedResolutions: [
           {
             documentId: 'doc_suggested_' + Math.random().toString(36).substring(2, 11),
-            documentName: referenceText,
+            documentName: selectionText,
             entityTypes: ['Topic'],
             confidence: 0.75,
-            reason: 'Name similarity match',
+            reason: 'Wiki-style link detected',
           }
         ],
       };
+      detectedSelections.push(selection);
+    }
 
-      // Always include the selection for now
-      stubReferences.push(reference);
+    // Pattern 2: Detect "lorem ipsum" (case insensitive)
+    const loremPattern = /lorem\s+ipsum/gi;
+    while ((match = loremPattern.exec(content)) !== null) {
+      const offset = match.index;
+      const length = match[0].length;
+      const text = match[0];
+
+      const selection = {
+        selection: {
+          id: `sel_lorem_${Math.random().toString(36).substring(2, 11)}`,
+          documentId: document.id,
+          selectionType: 'text_span',
+          selectionData: {
+            type: 'text_span',
+            offset,
+            length,
+            text,
+          },
+          saved: false,
+          provisional: true,
+          confidence: 1.0,
+          entityTypes: ['Placeholder'],
+          metadata: {
+            detectionType: 'dummy_text',
+            pattern: 'lorem ipsum'
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        suggestedResolutions: [
+          {
+            documentId: 'doc_placeholder_text',
+            documentName: 'Placeholder Text',
+            entityTypes: ['Placeholder', 'Template'],
+            confidence: 1.0,
+            reason: 'Lorem ipsum placeholder text detected',
+          }
+        ],
+      };
+      detectedSelections.push(selection);
+    }
+
+    // Pattern 3: Detect "John Doe" (case insensitive)
+    const johnDoePattern = /john\s+doe/gi;
+    while ((match = johnDoePattern.exec(content)) !== null) {
+      const offset = match.index;
+      const length = match[0].length;
+      const text = match[0];
+
+      const selection = {
+        selection: {
+          id: `sel_person_${Math.random().toString(36).substring(2, 11)}`,
+          documentId: document.id,
+          selectionType: 'text_span',
+          selectionData: {
+            type: 'text_span',
+            offset,
+            length,
+            text,
+          },
+          saved: false,
+          provisional: true,
+          confidence: 0.95,
+          entityTypes: ['Person'],
+          metadata: {
+            detectionType: 'named_entity',
+            pattern: 'john doe',
+            entityType: 'person'
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        suggestedResolutions: [
+          {
+            documentId: 'doc_person_johndoe',
+            documentName: 'John Doe (Example Person)',
+            entityTypes: ['Person', 'Example'],
+            confidence: 0.95,
+            reason: 'Common placeholder name detected',
+          }
+        ],
+      };
+      detectedSelections.push(selection);
     }
   }
 
-  return stubReferences;
+  return detectedSelections;
 }
