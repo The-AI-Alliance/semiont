@@ -610,9 +610,13 @@ selectionsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
 
     // const sourceContent = await storage.getDocument(sourceDoc.id);
 
-    // TODO: Call AI service to generate content based on selection
-    // For now, create a placeholder
-    const generatedContent = `Generated content for selection from "${sourceDoc.name}".\n\nContext: ${JSON.stringify(selection.selectionData)}\n\nPrompt: ${body.prompt || 'No prompt provided'}`;
+    // Dummy implementation: Generate Lorem ipsum content
+    const generatedContent = generateDummyContent(
+      selection,
+      sourceDoc,
+      body.prompt,
+      body.name
+    );
 
     // Create the new document
     const document = await graphDb.createDocument({
@@ -1220,4 +1224,99 @@ function formatSelection(sel: Selection): any {
     createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
     updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
   };
+}
+
+// Dummy content generation function
+function generateDummyContent(
+  selection: Selection,
+  sourceDoc: Document,
+  prompt?: string,
+  requestedName?: string
+): string {
+  // Lorem ipsum word pool for random generation
+  const loremWords = [
+    'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit',
+    'sed', 'do', 'eiusmod', 'tempor', 'incididunt', 'ut', 'labore', 'et', 'dolore',
+    'magna', 'aliqua', 'enim', 'ad', 'minim', 'veniam', 'quis', 'nostrud',
+    'exercitation', 'ullamco', 'laboris', 'nisi', 'aliquip', 'ex', 'ea', 'commodo',
+    'consequat', 'duis', 'aute', 'irure', 'in', 'reprehenderit', 'voluptate',
+    'velit', 'esse', 'cillum', 'fugiat', 'nulla', 'pariatur', 'excepteur', 'sint',
+    'occaecat', 'cupidatat', 'non', 'proident', 'sunt', 'culpa', 'qui', 'officia',
+    'deserunt', 'mollit', 'anim', 'id', 'est', 'laborum'
+  ];
+
+  // Generate random sentences
+  const generateSentence = (minWords: number = 5, maxWords: number = 15): string => {
+    const wordCount = Math.floor(Math.random() * (maxWords - minWords + 1)) + minWords;
+    const words: string[] = [];
+    
+    for (let i = 0; i < wordCount; i++) {
+      const randomIndex = Math.floor(Math.random() * loremWords.length);
+      const randomWord = loremWords[randomIndex] || 'lorem';
+      if (i === 0) {
+        // Capitalize first word
+        words.push(randomWord.charAt(0).toUpperCase() + randomWord.slice(1));
+      } else {
+        words.push(randomWord);
+      }
+    }
+    
+    return words.join(' ') + '.';
+  };
+
+  // Generate paragraphs
+  const generateParagraph = (sentences: number = 4): string => {
+    const paragraph: string[] = [];
+    for (let i = 0; i < sentences; i++) {
+      paragraph.push(generateSentence());
+    }
+    return paragraph.join(' ');
+  };
+
+  // Build the content
+  const content: string[] = [];
+  
+  // Title/Header
+  const title = requestedName || `Generated Document for "${(selection.selectionData as any).text || 'Selection'}"`;
+  content.push(`# ${title}`);
+  content.push('');
+  
+  // Metadata section
+  content.push('## Document Information');
+  content.push(`- Generated from: ${sourceDoc.name}`);
+  content.push(`- Selection type: ${selection.selectionType}`);
+  if (selection.entityTypes && selection.entityTypes.length > 0) {
+    content.push(`- Entity types: ${selection.entityTypes.join(', ')}`);
+  }
+  if (prompt) {
+    content.push(`- Generation prompt: "${prompt}"`);
+  }
+  content.push('');
+  
+  // Context section
+  content.push('## Context');
+  const selectionText = (selection.selectionData as any).text;
+  if (selectionText) {
+    content.push(`The selected text was: "${selectionText}"`);
+    content.push('');
+  }
+  
+  // Main content (Lorem ipsum)
+  content.push('## Generated Content');
+  content.push('');
+  
+  // Generate 3-5 paragraphs of Lorem ipsum
+  const paragraphCount = Math.floor(Math.random() * 3) + 3;
+  for (let i = 0; i < paragraphCount; i++) {
+    const sentenceCount = Math.floor(Math.random() * 3) + 3; // 3-5 sentences per paragraph
+    content.push(generateParagraph(sentenceCount));
+    content.push('');
+  }
+  
+  // Footer note
+  content.push('---');
+  content.push('*Note: This is dummy content generated for testing purposes. ' +
+    'In production, this would be replaced with AI-generated content based on the selection context.*');
+  
+  return content.join('\n');
 }
