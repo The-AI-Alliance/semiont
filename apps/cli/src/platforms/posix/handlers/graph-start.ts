@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for graph database services on POSIX systems
@@ -55,10 +55,10 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
       }
       return {
         success: true,
-        pid: parseInt(pid),
         metadata: { 
           serviceType: 'graph', 
           serviceName: 'janusgraph',
+          pid: parseInt(pid),
           alreadyRunning: true
         }
       };
@@ -152,10 +152,10 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
   
   return {
     success: true,
-    pid: child.pid!,
     metadata: {
       serviceType: 'graph',
       serviceName: 'janusgraph',
+      pid: child.pid!,
       url: 'ws://localhost:8182/gremlin',
       storage: storageBackend,
       index: indexBackend
@@ -176,7 +176,8 @@ async function fileExists(path: string): Promise<boolean> {
  * Handler descriptor for graph database start
  */
 export const graphStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
-  type: 'start',
+  command: 'start',
+  platform: 'posix',
   serviceType: 'graph',
   handler: startGraphService
 };

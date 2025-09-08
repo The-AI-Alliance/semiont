@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 
 /**
  * Provision handler for JanusGraph database on POSIX systems
@@ -12,7 +12,8 @@ import { printInfo, printSuccess, printWarning, printError } from '../../../core
  * - Index: None (default) or Elasticsearch
  */
 const provisionJanusgraphService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, args = [] } = context;
+  const { service, options } = context;
+  const args = options.args || [];
   
   if (!service.quiet) {
     printInfo('🔧 Provisioning JanusGraph for posix platform...');
@@ -142,19 +143,6 @@ ssl: {
       
       await fs.writeFile(configPath, serverConfig);
       
-      // Create env file for backend
-      const envContent = `
-# JanusGraph configuration
-GRAPH_DB_TYPE=janusgraph
-JANUSGRAPH_HOST=localhost
-JANUSGRAPH_PORT=8182
-${withCassandra ? 'JANUSGRAPH_STORAGE=cassandra' : 'JANUSGRAPH_STORAGE=berkeleydb'}
-${withElasticsearch ? 'JANUSGRAPH_INDEX=elasticsearch' : ''}
-`.trim();
-      
-    const envPath = path.join(service.projectRoot, '.env.janusgraph');
-    await fs.writeFile(envPath, envContent);
-      
     if (!service.quiet) {
       printSuccess('✅ JanusGraph provisioned successfully!');
       printInfo(`Data directory: ${dataDir}`);
@@ -163,8 +151,6 @@ ${withElasticsearch ? 'JANUSGRAPH_INDEX=elasticsearch' : ''}
       printInfo('');
       printInfo('To start JanusGraph:');
       printInfo('  semiont start --service janusgraph');
-      printInfo('');
-      printInfo('Environment configuration saved to: .env.janusgraph');
     }
     
     return {
@@ -175,7 +161,6 @@ ${withElasticsearch ? 'JANUSGRAPH_INDEX=elasticsearch' : ''}
         dataDir,
         configPath,
         graphConfig,
-        envFile: envPath,
         storage: withCassandra ? 'cassandra' : 'berkeleydb',
         index: withElasticsearch ? 'elasticsearch' : 'none'
       }
@@ -206,7 +191,8 @@ async function fileExists(path: string): Promise<boolean> {
  * Handler descriptor for JanusGraph provisioning
  */
 export const janusgraphProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerContext, ProvisionHandlerResult> = {
-  type: 'provision',
+  command: 'provision',
+  platform: 'posix',
   serviceType: 'graph',
   handler: provisionJanusgraphService
 };

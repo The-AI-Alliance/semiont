@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for graph database services using Docker
@@ -51,10 +51,10 @@ async function startJanusGraph(context: ContainerStartHandlerContext): Promise<S
       }
       return {
         success: true,
-        containerId: 'semiont-janusgraph',
         metadata: {
           serviceType: 'graph',
           serviceName: 'janusgraph',
+          containerId: 'semiont-janusgraph',
           alreadyRunning: true
         }
       };
@@ -133,10 +133,10 @@ async function startJanusGraph(context: ContainerStartHandlerContext): Promise<S
     
     return {
       success: true,
-      containerId: 'semiont-janusgraph',
       metadata: {
         serviceType: 'graph',
         serviceName: 'janusgraph',
+        containerId: 'semiont-janusgraph',
         url: 'ws://localhost:8182/gremlin',
         storage: hasCassandra ? 'cassandra' : 'berkeleydb',
         index: hasElasticsearch ? 'elasticsearch' : 'none',
@@ -170,7 +170,8 @@ async function fileExists(path: string): Promise<boolean> {
  * Handler descriptor for graph database start
  */
 export const graphStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
-  type: 'start',
+  command: 'start',
+  platform: 'container',
   serviceType: 'graph',
   handler: startGraphService
 };
