@@ -606,6 +606,313 @@ documentsRouter.openapi(describeGraphSchemaRoute, async (c) => {
 });
 
 // ==========================================
+// LLM CONTEXT GENERATION
+// ==========================================
+
+const getLLMContextRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/{id}/llm-context',
+  summary: 'Get LLM Context',
+  description: 'Get context suitable for LLM processing for a document and optional selection',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'doc_abc123' }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            selectionId: z.string().optional().openapi({ 
+              example: 'sel_xyz789',
+              description: 'Optional selection ID for focused context' 
+            }),
+            includeReferences: z.boolean().default(true).openapi({
+              description: 'Include referenced documents in context'
+            }),
+            includeSelections: z.boolean().default(true).openapi({
+              description: 'Include other selections from this document'
+            }),
+            maxReferencedDocuments: z.number().default(5).openapi({
+              description: 'Maximum number of referenced documents to include'
+            }),
+            contextWindow: z.number().default(1000).openapi({
+              description: 'Characters of surrounding context for selections'
+            }),
+          }).optional(),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            document: z.object({
+              id: z.string(),
+              name: z.string(),
+              entityTypes: z.array(z.string()),
+              contentSnippet: z.string(),
+              metadata: z.record(z.any()),
+            }),
+            selection: z.object({
+              id: z.string(),
+              text: z.string(),
+              type: z.string(),
+              context: z.object({
+                before: z.string(),
+                after: z.string(),
+              }),
+              entityTypes: z.array(z.string()).optional(),
+              resolvedDocument: z.object({
+                id: z.string(),
+                name: z.string(),
+                entityTypes: z.array(z.string()),
+                snippet: z.string(),
+              }).optional(),
+            }).optional(),
+            relatedDocuments: z.array(z.object({
+              id: z.string(),
+              name: z.string(),
+              entityTypes: z.array(z.string()),
+              relationship: z.string(),
+              relevanceScore: z.number(),
+              snippet: z.string(),
+            })),
+            graphContext: z.object({
+              totalDocuments: z.number(),
+              documentConnections: z.number(),
+              commonEntityTypes: z.array(z.string()),
+              selectionStats: z.object({
+                totalInDocument: z.number(),
+                highlights: z.number(),
+                references: z.number(),
+              }),
+            }),
+            suggestedPrompt: z.string().optional(),
+          }),
+        },
+      },
+      description: 'LLM context retrieved successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Document or selection not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+documentsRouter.openapi(getLLMContextRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  
+  try {
+    const graphDb = await getGraphDatabase();
+    const storage = getStorageService();
+    
+    // Get the main document
+    const document = await graphDb.getDocument(id);
+    if (!document) {
+      return c.json({ error: 'Document not found' }, 404);
+    }
+    
+    // Get document content
+    const content = await storage.getDocument(id);
+    const contentStr = content.toString('utf-8');
+    
+    // Get optional selection
+    let selection = null;
+    if (body?.selectionId) {
+      selection = await graphDb.getSelection(body.selectionId);
+      if (!selection) {
+        return c.json({ error: 'Selection not found' }, 404);
+      }
+    }
+    
+    // Generate LLM context (dummy implementation)
+    const llmContext = await generateLLMContext(
+      document,
+      contentStr,
+      selection,
+      {
+        includeReferences: body?.includeReferences !== false,
+        includeSelections: body?.includeSelections !== false,
+        maxReferencedDocuments: body?.maxReferencedDocuments || 5,
+        contextWindow: body?.contextWindow || 1000,
+      },
+      graphDb
+    );
+    
+    return c.json(llmContext, 200);
+  } catch (error) {
+    console.error('Error generating LLM context:', error);
+    return c.json({ error: 'Failed to generate LLM context' }, 500);
+  }
+});
+
+// ==========================================
+// TEXT CONTEXT DISCOVERY
+// ==========================================
+
+const discoverContextRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/discover-context',
+  summary: 'Discover Context from Text',
+  description: 'Find relevant context from the graph database for a given text block',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            text: z.string().min(1).max(10000).openapi({ 
+              example: 'John Doe wrote about quantum computing in 2023.',
+              description: 'Text to analyze for context discovery' 
+            }),
+            maxResults: z.number().default(10).openapi({
+              description: 'Maximum number of relevant documents to return'
+            }),
+            includeSelections: z.boolean().default(true).openapi({
+              description: 'Include relevant selections from documents'
+            }),
+            entityTypeFilter: z.array(z.string()).optional().openapi({
+              example: ['Person', 'Topic'],
+              description: 'Filter results by entity types'
+            }),
+            confidenceThreshold: z.number().min(0).max(1).default(0.5).openapi({
+              description: 'Minimum confidence score for results'
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            query: z.object({
+              text: z.string(),
+              detectedEntities: z.array(z.object({
+                text: z.string(),
+                type: z.string(),
+                confidence: z.number(),
+              })),
+              detectedTopics: z.array(z.string()),
+            }),
+            relevantDocuments: z.array(z.object({
+              id: z.string(),
+              name: z.string(),
+              entityTypes: z.array(z.string()),
+              relevanceScore: z.number(),
+              matchType: z.string().openapi({
+                description: 'How this document matches (entity_match, topic_match, text_similarity, etc.)'
+              }),
+              snippet: z.string(),
+              matchedPhrases: z.array(z.string()),
+            })),
+            relevantSelections: z.array(z.object({
+              id: z.string(),
+              documentId: z.string(),
+              documentName: z.string(),
+              text: z.string(),
+              selectionType: z.string(),
+              relevanceScore: z.number(),
+              matchReason: z.string(),
+              resolvedDocument: z.object({
+                id: z.string(),
+                name: z.string(),
+                entityTypes: z.array(z.string()),
+              }).optional(),
+            })),
+            suggestedConnections: z.array(z.object({
+              type: z.string().openapi({
+                description: 'Type of connection (create_reference, link_entity, merge_topic, etc.)'
+              }),
+              confidence: z.number(),
+              description: z.string(),
+              targetDocumentId: z.string().optional(),
+              targetEntityType: z.string().optional(),
+            })),
+            graphInsights: z.object({
+              relatedEntityTypes: z.array(z.string()),
+              commonPatterns: z.array(z.string()),
+              potentialDuplicates: z.array(z.object({
+                text: z.string(),
+                existingDocumentId: z.string(),
+                similarity: z.number(),
+              })),
+            }),
+          }),
+        },
+      },
+      description: 'Context discovered successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+documentsRouter.openapi(discoverContextRoute, async (c) => {
+  const body = c.req.valid('json');
+  
+  try {
+    const graphDb = await getGraphDatabase();
+    
+    // Discover context from text (dummy implementation)
+    const contextOptions: any = {
+      maxResults: body.maxResults,
+      includeSelections: body.includeSelections,
+      confidenceThreshold: body.confidenceThreshold,
+    };
+    if (body.entityTypeFilter) {
+      contextOptions.entityTypeFilter = body.entityTypeFilter;
+    }
+    
+    const context = await discoverContextFromText(
+      body.text,
+      contextOptions,
+      graphDb
+    );
+    
+    return c.json(context, 200);
+  } catch (error) {
+    console.error('Error discovering context:', error);
+    return c.json({ error: 'Failed to discover context' }, 500);
+  }
+});
+
+// ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 
@@ -903,4 +1210,329 @@ function describeEntityType(entityType: string, count: number): string {
     : `Currently ${count} documents of this type.`;
   
   return `${baseDescription} ${countInfo}`;
+}
+
+// Discover context from text (dummy implementation)
+async function discoverContextFromText(
+  text: string,
+  options: {
+    maxResults: number;
+    includeSelections: boolean;
+    entityTypeFilter?: string[];
+    confidenceThreshold: number;
+  },
+  graphDb: any
+): Promise<any> {
+  // Dummy entity detection
+  const detectedEntities = [];
+  const detectedTopics = [];
+  
+  // Simple pattern matching for dummy entities
+  const lowerText = text.toLowerCase();
+  
+  // Check for "John Doe" or similar names
+  if (lowerText.includes('john doe') || lowerText.includes('jane doe')) {
+    detectedEntities.push({
+      text: 'John Doe',
+      type: 'Person',
+      confidence: 0.95,
+    });
+  }
+  
+  // Check for Lorem ipsum
+  if (lowerText.includes('lorem ipsum')) {
+    detectedEntities.push({
+      text: 'Lorem Ipsum',
+      type: 'Placeholder',
+      confidence: 1.0,
+    });
+  }
+  
+  // Detect some dummy topics based on keywords
+  const topicKeywords = {
+    'quantum': 'Quantum Computing',
+    'computing': 'Computing',
+    'artificial intelligence': 'AI',
+    'machine learning': 'Machine Learning',
+    'blockchain': 'Blockchain',
+    'climate': 'Climate Change',
+    'technology': 'Technology',
+    'science': 'Science',
+  };
+  
+  for (const [keyword, topic] of Object.entries(topicKeywords)) {
+    if (lowerText.includes(keyword)) {
+      detectedTopics.push(topic);
+    }
+  }
+  
+  // Generate dummy relevant documents
+  const relevantDocuments = [];
+  const numDocs = Math.min(options.maxResults, 5);
+  
+  for (let i = 0; i < numDocs; i++) {
+    const matchTypes = ['entity_match', 'topic_match', 'text_similarity', 'semantic_similarity'];
+    const matchType = matchTypes[i % matchTypes.length];
+    
+    // Skip if doesn't match entity type filter
+    const docEntityTypes = ['Person', 'Topic', 'Concept', 'Technology'];
+    const entityTypes = options.entityTypeFilter 
+      ? docEntityTypes.filter(t => options.entityTypeFilter!.includes(t))
+      : docEntityTypes.slice(i % 2, (i % 2) + 2);
+    
+    if (entityTypes.length === 0) continue;
+    
+    const relevanceScore = 0.95 - (i * 0.1);
+    
+    if (relevanceScore >= options.confidenceThreshold) {
+      relevantDocuments.push({
+        id: `doc_match_${i}`,
+        name: `${detectedTopics[0] || 'Related Topic'} - Document ${i + 1}`,
+        entityTypes,
+        relevanceScore,
+        matchType,
+        snippet: `This document discusses ${detectedTopics[0] || 'various topics'} in detail. Lorem ipsum dolor sit amet...`,
+        matchedPhrases: detectedTopics.slice(0, 2).concat(detectedEntities.slice(0, 1).map(e => e.text)),
+      });
+    }
+  }
+  
+  // Generate dummy relevant selections
+  const relevantSelections = [];
+  
+  if (options.includeSelections) {
+    for (let i = 0; i < 3; i++) {
+      const relevanceScore = 0.85 - (i * 0.15);
+      
+      if (relevanceScore >= options.confidenceThreshold) {
+        const selection = {
+          id: `sel_match_${i}`,
+          documentId: relevantDocuments[i]?.id || `doc_${i}`,
+          documentName: relevantDocuments[i]?.name || `Document ${i + 1}`,
+          text: detectedEntities[0]?.text || detectedTopics[0] || 'Relevant text snippet',
+          selectionType: 'text_span',
+          relevanceScore,
+          matchReason: i === 0 ? 'exact_text_match' : i === 1 ? 'entity_co_occurrence' : 'topic_similarity',
+          resolvedDocument: undefined as any,
+        };
+        
+        // Add resolved document for some selections
+        if (i === 0 && detectedEntities.length > 0 && detectedEntities[0]) {
+          selection.resolvedDocument = {
+            id: 'doc_resolved_entity',
+            name: detectedEntities[0].text,
+            entityTypes: [detectedEntities[0].type],
+          };
+        }
+        
+        relevantSelections.push(selection);
+      }
+    }
+  }
+  
+  // Generate suggested connections
+  const suggestedConnections = [];
+  
+  if (detectedEntities.length > 0 && detectedEntities[0]) {
+    suggestedConnections.push({
+      type: 'create_reference',
+      confidence: 0.8,
+      description: `Create a reference to "${detectedEntities[0].text}" entity`,
+      targetDocumentId: 'doc_person_johndoe',
+      targetEntityType: detectedEntities[0].type,
+    });
+  }
+  
+  if (detectedTopics.length > 1) {
+    suggestedConnections.push({
+      type: 'link_topics',
+      confidence: 0.7,
+      description: `Link related topics: ${detectedTopics.slice(0, 2).join(' and ')}`,
+      targetEntityType: 'Topic',
+    });
+  }
+  
+  if (relevantDocuments.length > 0 && relevantDocuments[0] && relevantDocuments[0].relevanceScore > 0.9) {
+    suggestedConnections.push({
+      type: 'potential_duplicate',
+      confidence: relevantDocuments[0].relevanceScore,
+      description: `This text may be duplicate content of "${relevantDocuments[0].name}"`,
+      targetDocumentId: relevantDocuments[0].id,
+    });
+  }
+  
+  // Generate graph insights
+  const stats = await graphDb.getStats();
+  const relatedEntityTypes = Object.keys(stats.entityTypes)
+    .filter(type => !options.entityTypeFilter || options.entityTypeFilter.includes(type))
+    .slice(0, 5);
+  
+  const commonPatterns = [];
+  if (detectedEntities.some(e => e.type === 'Person')) {
+    commonPatterns.push('Person entities often link to Author or Organization documents');
+  }
+  if (detectedTopics.includes('Technology') || detectedTopics.includes('Computing')) {
+    commonPatterns.push('Technology topics frequently reference Product and Tool entities');
+  }
+  if (text.includes('[[') && text.includes(']]')) {
+    commonPatterns.push('Wiki-style links detected - these can be auto-resolved to existing documents');
+  }
+  
+  // Check for potential duplicates (dummy)
+  const potentialDuplicates = [];
+  if (text.length > 100) {
+    const firstWords = text.split(' ').slice(0, 5).join(' ').toLowerCase();
+    if (firstWords.includes('lorem ipsum')) {
+      potentialDuplicates.push({
+        text: 'Lorem ipsum dolor sit amet',
+        existingDocumentId: 'doc_placeholder_text',
+        similarity: 0.92,
+      });
+    }
+  }
+  
+  return {
+    query: {
+      text: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+      detectedEntities,
+      detectedTopics,
+    },
+    relevantDocuments,
+    relevantSelections,
+    suggestedConnections,
+    graphInsights: {
+      relatedEntityTypes,
+      commonPatterns,
+      potentialDuplicates,
+    },
+  };
+}
+
+// Generate LLM context for a document and optional selection (dummy implementation)
+async function generateLLMContext(
+  document: Document,
+  content: string,
+  selection: Selection | null,
+  options: {
+    includeReferences: boolean;
+    includeSelections: boolean;
+    maxReferencedDocuments: number;
+    contextWindow: number;
+  },
+  graphDb: any
+): Promise<any> {
+  // Extract content snippet
+  const contentSnippet = content.length > 500 
+    ? content.substring(0, 500) + '...' 
+    : content;
+  
+  // Prepare selection context if provided
+  let selectionContext = null;
+  if (selection) {
+    const selData = selection.selectionData as any;
+    const offset = selData.offset || 0;
+    const length = selData.length || 0;
+    const selectionText = selData.text || content.substring(offset, offset + length);
+    
+    // Get surrounding context
+    const beforeStart = Math.max(0, offset - options.contextWindow);
+    const beforeText = content.substring(beforeStart, offset);
+    const afterEnd = Math.min(content.length, offset + length + options.contextWindow);
+    const afterText = content.substring(offset + length, afterEnd);
+    
+    selectionContext = {
+      id: selection.id,
+      text: selectionText,
+      type: selection.selectionType,
+      context: {
+        before: beforeStart > 0 ? '...' + beforeText : beforeText,
+        after: afterEnd < content.length ? afterText + '...' : afterText,
+      },
+      entityTypes: selection.entityTypes,
+      resolvedDocument: undefined as any,
+    };
+    
+    // Add resolved document info if available
+    if (selection.resolvedDocumentId) {
+      const resolvedDoc = await graphDb.getDocument(selection.resolvedDocumentId);
+      if (resolvedDoc) {
+        selectionContext.resolvedDocument = {
+          id: resolvedDoc.id,
+          name: resolvedDoc.name,
+          entityTypes: resolvedDoc.entityTypes,
+          snippet: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit...',
+        };
+      }
+    }
+  }
+  
+  // Generate dummy related documents
+  const relatedDocuments = [];
+  if (options.includeReferences) {
+    // Add some dummy related documents
+    for (let i = 0; i < Math.min(3, options.maxReferencedDocuments); i++) {
+      relatedDocuments.push({
+        id: `doc_related_${i}`,
+        name: `Related Document ${i + 1}`,
+        entityTypes: ['Topic', 'Concept'],
+        relationship: i === 0 ? 'directly_references' : 'shares_entity_type',
+        relevanceScore: 0.95 - (i * 0.1),
+        snippet: `This is a snippet from related document ${i + 1}. Lorem ipsum dolor sit amet...`,
+      });
+    }
+  }
+  
+  // Get selection statistics for the document
+  let selectionStats = {
+    totalInDocument: 0,
+    highlights: 0,
+    references: 0,
+  };
+  
+  if (options.includeSelections) {
+    const docSelections = await graphDb.getDocumentSelections(document.id);
+    selectionStats.totalInDocument = docSelections.length;
+    selectionStats.highlights = docSelections.filter((s: Selection) => s.saved && !s.resolvedDocumentId).length;
+    selectionStats.references = docSelections.filter((s: Selection) => s.resolvedDocumentId).length;
+  }
+  
+  // Get graph statistics
+  const stats = await graphDb.getStats();
+  
+  // Generate suggested prompt based on context
+  let suggestedPrompt = null;
+  if (selection) {
+    if (selection.resolvedDocumentId) {
+      suggestedPrompt = `Explain the relationship between "${(selection.selectionData as any).text}" and the referenced document.`;
+    } else if (selection.entityTypes && selection.entityTypes.length > 0) {
+      suggestedPrompt = `Provide more information about this ${selection.entityTypes[0]?.toLowerCase() || 'entity'}: "${(selection.selectionData as any).text}"`;
+    } else {
+      suggestedPrompt = `Analyze the selected text and suggest relevant connections or entity types.`;
+    }
+  } else {
+    suggestedPrompt = `Summarize the key concepts in this document and suggest potential connections to other topics.`;
+  }
+  
+  // Build the final context object
+  return {
+    document: {
+      id: document.id,
+      name: document.name,
+      entityTypes: document.entityTypes,
+      contentSnippet,
+      metadata: document.metadata,
+    },
+    selection: selectionContext,
+    relatedDocuments,
+    graphContext: {
+      totalDocuments: stats.documentCount,
+      documentConnections: stats.referenceCount,
+      commonEntityTypes: Object.entries(stats.entityTypes)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 5)
+        .map(([type]) => type),
+      selectionStats,
+    },
+    suggestedPrompt,
+  };
 }
