@@ -526,6 +526,86 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
 });
 
 // ==========================================
+// GRAPH SCHEMA DESCRIPTION
+// ==========================================
+
+const describeGraphSchemaRoute = createRoute({
+  method: 'get',
+  path: '/api/documents/schema-description',
+  summary: 'Describe Graph Schema',
+  description: 'Get a natural language description of the document graph schema and statistics',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            description: z.string(),
+            statistics: z.object({
+              documentCount: z.number(),
+              selectionCount: z.number(),
+              highlightCount: z.number(),
+              referenceCount: z.number(),
+              entityTypes: z.record(z.number()),
+            }),
+            entityTypeDescriptions: z.array(z.object({
+              type: z.string(),
+              count: z.number(),
+              description: z.string(),
+            })),
+          }),
+        },
+      },
+      description: 'Schema description retrieved successfully',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+documentsRouter.openapi(describeGraphSchemaRoute, async (c) => {
+  try {
+    const graphDb = await getGraphDatabase();
+    
+    // Get statistics from the graph database
+    const stats = await graphDb.getStats();
+    const entityStats = await graphDb.getEntityTypeStats();
+    
+    // Generate natural language description
+    const description = generateSchemaDescription(stats, entityStats);
+    
+    // Generate entity type descriptions
+    const entityTypeDescriptions = entityStats.map(stat => ({
+      type: stat.type,
+      count: stat.count,
+      description: describeEntityType(stat.type, stat.count),
+    }));
+    
+    return c.json({
+      description,
+      statistics: {
+        documentCount: stats.documentCount,
+        selectionCount: stats.selectionCount,
+        highlightCount: stats.highlightCount,
+        referenceCount: stats.referenceCount,
+        entityTypes: stats.entityTypes,
+      },
+      entityTypeDescriptions,
+    }, 200);
+  } catch (error) {
+    console.error('Error describing graph schema:', error);
+    return c.json({ error: 'Failed to describe graph schema' }, 500);
+  }
+});
+
+// ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 
@@ -714,4 +794,113 @@ async function detectSelectionsInDocument(
   }
 
   return detectedSelections;
+}
+
+// Generate natural language description of the graph schema
+function generateSchemaDescription(
+  stats: {
+    documentCount: number;
+    selectionCount: number;
+    highlightCount: number;
+    referenceCount: number;
+    entityReferenceCount: number;
+    entityTypes: Record<string, number>;
+    contentTypes: Record<string, number>;
+  },
+  entityStats: Array<{ type: string; count: number }>
+): string {
+  const lines: string[] = [];
+  
+  // Overview
+  lines.push(`The knowledge graph currently contains ${stats.documentCount} document${stats.documentCount !== 1 ? 's' : ''}.`);
+  
+  // Document types
+  if (Object.keys(stats.contentTypes).length > 0) {
+    const contentTypeList = Object.entries(stats.contentTypes)
+      .map(([type, count]) => `${count} ${type}`)
+      .join(', ');
+    lines.push(`Document formats include: ${contentTypeList}.`);
+  }
+  
+  // Selections
+  if (stats.selectionCount > 0) {
+    lines.push(`\nThere are ${stats.selectionCount} total selection${stats.selectionCount !== 1 ? 's' : ''} in the system:`);
+    
+    if (stats.highlightCount > 0) {
+      lines.push(`- ${stats.highlightCount} saved highlight${stats.highlightCount !== 1 ? 's' : ''} (important text marked for later reference)`);
+    }
+    
+    if (stats.referenceCount > 0) {
+      lines.push(`- ${stats.referenceCount} resolved reference${stats.referenceCount !== 1 ? 's' : ''} (text linked to specific documents)`);
+    }
+    
+    const provisionalCount = stats.selectionCount - stats.highlightCount - stats.referenceCount;
+    if (provisionalCount > 0) {
+      lines.push(`- ${provisionalCount} provisional selection${provisionalCount !== 1 ? 's' : ''} (detected but not yet confirmed)`);
+    }
+  } else {
+    lines.push(`\nNo selections have been made yet. Selections allow you to highlight important text, create references between documents, and build connections in your knowledge graph.`);
+  }
+  
+  // Entity types
+  if (entityStats.length > 0) {
+    lines.push(`\nThe graph organizes content using ${entityStats.length} entity type${entityStats.length !== 1 ? 's' : ''}:`);
+    
+    // Sort by count descending
+    const sortedTypes = [...entityStats].sort((a, b) => b.count - a.count);
+    const topTypes = sortedTypes.slice(0, 5);
+    
+    topTypes.forEach(stat => {
+      const percentage = stats.documentCount > 0 
+        ? Math.round((stat.count / stats.documentCount) * 100)
+        : 0;
+      lines.push(`- ${stat.type}: ${stat.count} document${stat.count !== 1 ? 's' : ''} (${percentage}%)`);
+    });
+    
+    if (sortedTypes.length > 5) {
+      lines.push(`- ... and ${sortedTypes.length - 5} more type${sortedTypes.length - 5 !== 1 ? 's' : ''}`);
+    }
+  } else {
+    lines.push(`\nNo entity types have been defined yet. Entity types help categorize and organize documents (e.g., Person, Topic, Concept, etc.).`);
+  }
+  
+  // Relationships
+  if (stats.referenceCount > 0) {
+    lines.push(`\nThe graph contains ${stats.referenceCount} connection${stats.referenceCount !== 1 ? 's' : ''} between documents through resolved references, creating a web of related information.`);
+  }
+  
+  // Summary
+  lines.push(`\nThis structure allows for semantic navigation, where you can traverse from one concept to related concepts through selections and references.`);
+  
+  return lines.join('\n');
+}
+
+// Describe what an entity type represents
+function describeEntityType(entityType: string, count: number): string {
+  // Common entity type descriptions
+  const descriptions: Record<string, string> = {
+    'Person': 'Represents individuals, including authors, historical figures, or any named person referenced in documents.',
+    'Topic': 'Represents subject areas, themes, or general topics of discussion.',
+    'Concept': 'Represents abstract ideas, theories, or conceptual frameworks.',
+    'Place': 'Represents geographical locations, from specific addresses to countries or regions.',
+    'Organization': 'Represents companies, institutions, groups, or any organized body.',
+    'Event': 'Represents historical events, meetings, conferences, or any time-bound occurrence.',
+    'Technology': 'Represents tools, software, hardware, or technological concepts.',
+    'Product': 'Represents physical or digital products, services, or offerings.',
+    'Author': 'Represents content creators, writers, or contributors to documents.',
+    'Reference': 'Represents bibliographic references, citations, or source materials.',
+    'Definition': 'Represents formal definitions or explanations of terms.',
+    'Example': 'Represents illustrative examples or case studies.',
+    'Placeholder': 'Represents template content or placeholder text (like Lorem ipsum).',
+    'Template': 'Represents document templates or reusable content structures.',
+  };
+  
+  const baseDescription = descriptions[entityType] || 
+    `Represents ${entityType.toLowerCase()} entities within the knowledge graph.`;
+  
+  const countInfo = count === 1 
+    ? 'Currently 1 document of this type.'
+    : `Currently ${count} documents of this type.`;
+  
+  return `${baseDescription} ${countInfo}`;
 }
