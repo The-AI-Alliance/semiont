@@ -750,5 +750,17 @@ export const openApiConfig = {
       name: 'Admin',
       description: 'Admin-only endpoints for user management',
     },
+    {
+      name: 'Documents',
+      description: 'Document management endpoints',
+    },
+    {
+      name: 'References',
+      description: 'Reference management and Wiki-style operations',
+    },
+    {
+      name: 'Graph',
+      description: 'Graph navigation and connections',
+    },
   ],
 };
