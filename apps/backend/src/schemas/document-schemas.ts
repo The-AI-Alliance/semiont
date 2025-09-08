@@ -1,45 +1,47 @@
 import { z } from '@hono/zod-openapi';
 
 // ==========================================
-// DOCUMENT SCHEMAS
+// SELECTION TYPE SCHEMAS
 // ==========================================
 
-// Reference type schemas
-export const TextSpanReferenceSchema = z.object({
+export const TextSpanSelectionSchema = z.object({
   type: z.literal('text_span'),
   offset: z.number().int().min(0).openapi({ example: 100, description: 'Character offset in document' }),
   length: z.number().int().min(0).openapi({ example: 20, description: 'Length in characters' }),
   text: z.string().optional().openapi({ example: 'quantum computing', description: 'The actual text (for convenience)' }),
-}).openapi('TextSpanReference');
+}).openapi('TextSpanSelection');
 
-export const ASTNodeReferenceSchema = z.object({
+export const ASTNodeSelectionSchema = z.object({
   type: z.literal('ast_node'),
   language: z.string().openapi({ example: 'typescript', description: 'Programming language' }),
   nodePath: z.array(z.string()).openapi({ example: ['Program', 'FunctionDeclaration', 'Identifier'], description: 'Path through AST to node' }),
   offset: z.number().int().min(0).optional().openapi({ description: 'Offset within node text' }),
   length: z.number().int().min(0).optional().openapi({ description: 'Length within node text' }),
-}).openapi('ASTNodeReference');
+}).openapi('ASTNodeSelection');
 
-export const ImageRegionReferenceSchema = z.object({
+export const ImageRegionSelectionSchema = z.object({
   type: z.literal('image_region'),
   shape: z.enum(['rectangle', 'circle', 'polygon']).openapi({ example: 'rectangle' }),
   coordinates: z.array(z.number()).openapi({ example: [10, 20, 100, 150], description: 'Shape-specific coordinates' }),
-}).openapi('ImageRegionReference');
+}).openapi('ImageRegionSelection');
 
-export const AudioSegmentReferenceSchema = z.object({
+export const AudioSegmentSelectionSchema = z.object({
   type: z.literal('audio_segment'),
   startTime: z.number().min(0).openapi({ example: 1000, description: 'Start time in milliseconds' }),
   duration: z.number().min(0).openapi({ example: 5000, description: 'Duration in milliseconds' }),
-}).openapi('AudioSegmentReference');
+}).openapi('AudioSegmentSelection');
 
-export const ReferenceTypeSchema = z.discriminatedUnion('type', [
-  TextSpanReferenceSchema,
-  ASTNodeReferenceSchema,
-  ImageRegionReferenceSchema,
-  AudioSegmentReferenceSchema,
-]).openapi('ReferenceType');
+export const SelectionTypeSchema = z.discriminatedUnion('type', [
+  TextSpanSelectionSchema,
+  ASTNodeSelectionSchema,
+  ImageRegionSelectionSchema,
+  AudioSegmentSelectionSchema,
+]).openapi('SelectionType');
 
-// Document schema
+// ==========================================
+// DOCUMENT SCHEMA
+// ==========================================
+
 export const DocumentSchema = z.object({
   id: z.string().openapi({ example: 'doc_abc123' }),
   name: z.string().openapi({ example: 'Introduction to Quantum Computing' }),
@@ -54,36 +56,66 @@ export const DocumentSchema = z.object({
   updatedAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
 }).openapi('Document');
 
-// Reference schema
-export const ReferenceSchema = z.object({
-  id: z.string().openapi({ example: 'ref_xyz789' }),
+// ==========================================
+// SELECTION SCHEMA
+// ==========================================
+
+export const SelectionSchema = z.object({
+  id: z.string().openapi({ example: 'sel_xyz789' }),
   documentId: z.string().openapi({ example: 'doc_abc123' }),
-  referenceType: z.string().openapi({ example: 'text_span' }),
-  referenceData: z.any().openapi({ description: 'Type-specific reference data' }),
-  resolvedDocumentId: z.string().optional().openapi({ example: 'doc_def456' }),
+  selectionType: z.string().openapi({ example: 'text_span' }),
+  selectionData: z.any().openapi({ description: 'Type-specific selection data' }),
+  
+  // Highlight properties (saved selection)
+  saved: z.boolean().openapi({ example: false, description: 'Whether this selection is saved (highlight)' }),
+  savedAt: z.string().optional().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  savedBy: z.string().optional(),
+  
+  // Reference properties (resolved selection)
+  resolvedDocumentId: z.string().optional().openapi({ example: 'doc_def456', description: 'Target document if resolved (reference)' }),
+  resolvedAt: z.string().optional().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  resolvedBy: z.string().optional(),
+  
+  // Reference tags - semantic relationship types
+  referenceTags: z.array(z.string()).optional().openapi({ 
+    example: ['defines', 'cites'], 
+    description: 'Semantic relationship tags (e.g., defines, cites, supports, refutes)' 
+  }),
+  
+  // Entity reference properties
+  entityTypes: z.array(z.string()).optional().openapi({ 
+    example: ['Person', 'Author'], 
+    description: 'Entity types being referenced (entity reference)' 
+  }),
+  
   provisional: z.boolean().default(false).openapi({ example: false }),
   confidence: z.number().min(0).max(1).optional().openapi({ example: 0.85 }),
   metadata: z.record(z.any()).optional(),
-  resolvedBy: z.string().optional(),
-  resolvedAt: z.string().optional(),
+  
   createdAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
   updatedAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-}).openapi('Reference');
+}).openapi('Selection');
 
-// Request schemas
+// ==========================================
+// REQUEST SCHEMAS
+// ==========================================
+
 export const CreateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(255).openapi({ example: 'My Document' }),
   entityTypes: z.array(z.string()).optional().openapi({ example: ['Person', 'Author'] }),
   content: z.string().openapi({ example: 'Document content here...' }),
   contentType: z.string().default('text/plain').openapi({ example: 'text/plain' }),
   metadata: z.record(z.any()).optional(),
-  references: z.array(z.object({
-    referenceType: ReferenceTypeSchema,
+  selections: z.array(z.object({
+    selectionType: SelectionTypeSchema,
+    saved: z.boolean().optional().default(false),
     resolvedDocumentId: z.string().optional(),
+    referenceTags: z.array(z.string()).optional(),
+    entityTypes: z.array(z.string()).optional(),
     provisional: z.boolean().optional(),
     confidence: z.number().min(0).max(1).optional(),
     metadata: z.record(z.any()).optional(),
-  })).optional(),
+  })).optional().openapi({ description: 'Initial selections within the document' }),
 }).openapi('CreateDocumentRequest');
 
 export const UpdateDocumentRequestSchema = z.object({
@@ -92,155 +124,120 @@ export const UpdateDocumentRequestSchema = z.object({
   metadata: z.record(z.any()).optional(),
 }).openapi('UpdateDocumentRequest');
 
-export const CreateReferenceRequestSchema = z.object({
+export const CreateSelectionRequestSchema = z.object({
   documentId: z.string().openapi({ example: 'doc_abc123' }),
-  referenceType: ReferenceTypeSchema,
-  resolvedDocumentId: z.string().optional(),
+  selectionType: SelectionTypeSchema,
+  saved: z.boolean().optional().default(false).openapi({ description: 'Save as highlight' }),
+  resolvedDocumentId: z.string().optional().openapi({ description: 'Resolve to document (reference)' }),
+  referenceTags: z.array(z.string()).optional().openapi({ 
+    example: ['defines', 'mentions'], 
+    description: 'Semantic relationship tags' 
+  }),
+  entityTypes: z.array(z.string()).optional().openapi({ description: 'Entity types being referenced' }),
   metadata: z.record(z.any()).optional(),
-}).openapi('CreateReferenceRequest');
+}).openapi('CreateSelectionRequest');
 
-export const DetectReferencesRequestSchema = z.object({
-  includeProvisional: z.boolean().optional().default(true),
-  confidenceThreshold: z.number().min(0).max(1).optional().default(0.5),
-}).openapi('DetectReferencesRequest');
+export const SaveSelectionRequestSchema = z.object({
+  metadata: z.record(z.any()).optional(),
+}).openapi('SaveSelectionRequest');
 
-export const ResolveReferenceRequestSchema = z.object({
-  metadata: z.object({
-    resolvedBy: z.string().optional(),
-    reason: z.string().optional(),
-    confidence: z.number().min(0).max(1).optional(),
-  }).optional(),
-}).openapi('ResolveReferenceRequest');
+export const ResolveSelectionRequestSchema = z.object({
+  documentId: z.string().openapi({ example: 'doc_def456' }),
+  referenceTags: z.array(z.string()).optional().openapi({ 
+    example: ['cites', 'supports'], 
+    description: 'Semantic relationship tags (e.g., defines, cites, supports, refutes)' 
+  }),
+  entityTypes: z.array(z.string()).optional().openapi({ 
+    example: ['Person'], 
+    description: 'Specify which entity types are being referenced' 
+  }),
+  provisional: z.boolean().optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  metadata: z.record(z.any()).optional(),
+}).openapi('ResolveSelectionRequest');
 
-export const CreateDocumentFromReferenceRequestSchema = z.object({
-  name: z.string().min(1).max(255).openapi({ example: 'New Document' }),
+export const CreateDocumentFromSelectionRequestSchema = z.object({
+  name: z.string().min(1).max(255),
   entityTypes: z.array(z.string()).optional(),
   content: z.string().optional(),
-  contentType: z.string().optional().default('text/plain'),
+  contentType: z.string().default('text/plain'),
   metadata: z.record(z.any()).optional(),
-  autoResolve: z.boolean().optional().default(true),
-}).openapi('CreateDocumentFromReferenceRequest');
+}).openapi('CreateDocumentFromSelectionRequest');
 
-export const GenerateDocumentFromReferenceRequestSchema = z.object({
-  name: z.string().optional(),
+export const GenerateDocumentFromSelectionRequestSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
   entityTypes: z.array(z.string()).optional(),
-  contextWindow: z.object({
-    before: z.number().int().min(0).optional().default(500),
-    after: z.number().int().min(0).optional().default(500),
-  }).optional(),
-  autoResolve: z.boolean().optional().default(true),
-}).openapi('GenerateDocumentFromReferenceRequest');
+  prompt: z.string().optional().openapi({ 
+    example: 'Generate a detailed explanation of this concept',
+    description: 'Optional prompt for AI generation' 
+  }),
+}).openapi('GenerateDocumentFromSelectionRequest');
 
-// Response schemas
+export const DetectSelectionsRequestSchema = z.object({
+  types: z.array(z.enum(['entities', 'concepts', 'definitions', 'references'])).optional(),
+  confidence: z.number().min(0).max(1).default(0.7),
+}).openapi('DetectSelectionsRequest');
+
+// ==========================================
+// RESPONSE SCHEMAS
+// ==========================================
+
 export const CreateDocumentResponseSchema = z.object({
   document: DocumentSchema,
-  references: z.array(ReferenceSchema),
+  selections: z.array(SelectionSchema),
 }).openapi('CreateDocumentResponse');
 
 export const GetDocumentResponseSchema = z.object({
   document: DocumentSchema,
-  references: z.array(ReferenceSchema),
-  referencedBy: z.array(ReferenceSchema),
+  selections: z.array(SelectionSchema),
+  highlights: z.array(SelectionSchema).openapi({ description: 'Saved selections' }),
+  references: z.array(SelectionSchema).openapi({ description: 'Resolved selections' }),
+  entityReferences: z.array(SelectionSchema).openapi({ description: 'Entity references' }),
 }).openapi('GetDocumentResponse');
 
 export const ListDocumentsResponseSchema = z.object({
   documents: z.array(DocumentSchema),
   total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
 }).openapi('ListDocumentsResponse');
 
-export const DetectReferencesResponseSchema = z.object({
-  references: z.array(z.object({
-    reference: ReferenceSchema,
-    suggestedResolutions: z.array(z.object({
-      documentId: z.string(),
-      documentName: z.string(),
-      entityTypes: z.array(z.string()),
-      confidence: z.number().min(0).max(1),
-      reason: z.string(),
-    })).optional(),
-  })),
-}).openapi('DetectReferencesResponse');
-
-export const CreateDocumentFromReferenceResponseSchema = z.object({
-  document: DocumentSchema,
-  reference: ReferenceSchema,
-  sourceContext: z.object({
-    document: DocumentSchema,
-    contextWindow: z.string(),
-  }).optional(),
-}).openapi('CreateDocumentFromReferenceResponse');
-
-export const GenerateDocumentFromReferenceResponseSchema = z.object({
-  document: DocumentSchema,
-  reference: ReferenceSchema,
-  generationMetadata: z.object({
-    contextUsed: z.string(),
-    confidence: z.number().min(0).max(1),
-    suggestedLinks: z.array(z.object({
-      documentId: z.string(),
-      documentName: z.string(),
-      relevance: z.number().min(0).max(1),
-    })),
+export const DetectSelectionsResponseSchema = z.object({
+  selections: z.array(SelectionSchema),
+  stats: z.object({
+    total: z.number(),
+    byType: z.record(z.number()),
+    averageConfidence: z.number(),
   }),
-}).openapi('GenerateDocumentFromReferenceResponse');
+}).openapi('DetectSelectionsResponse');
+
+export const CreateDocumentFromSelectionResponseSchema = z.object({
+  document: DocumentSchema,
+  selection: SelectionSchema.openapi({ description: 'Updated selection now resolved to new document' }),
+}).openapi('CreateDocumentFromSelectionResponse');
+
+export const GenerateDocumentFromSelectionResponseSchema = z.object({
+  document: DocumentSchema,
+  selection: SelectionSchema.openapi({ description: 'Updated selection now resolved to generated document' }),
+  generated: z.boolean().openapi({ example: true }),
+}).openapi('GenerateDocumentFromSelectionResponse');
 
 export const ContextualSummaryResponseSchema = z.object({
-  summary: z.object({
-    title: z.string(),
-    briefDescription: z.string(),
-    fields: z.record(z.any()),
-    relevantSections: z.array(z.object({
-      heading: z.string(),
-      content: z.string(),
-      relevance: z.number().min(0).max(1),
-    })),
-    relatedDocuments: z.array(z.object({
-      documentId: z.string(),
-      name: z.string(),
-      relationship: z.string(),
-    })),
-  }),
-  metadata: z.object({
-    documentId: z.string(),
-    referenceId: z.string(),
-    referenceContext: z.object({
-      sourceDocument: DocumentSchema,
-      contextWindow: z.string(),
-    }),
-    generatedAt: z.string(),
+  summary: z.string(),
+  relevantFields: z.record(z.any()),
+  context: z.object({
+    before: z.string().optional(),
+    selected: z.string(),
+    after: z.string().optional(),
   }),
 }).openapi('ContextualSummaryResponse');
 
-export const ReferenceContextResponseSchema = z.object({
-  reference: ReferenceSchema,
-  sourceDocument: DocumentSchema,
+export const SelectionContextResponseSchema = z.object({
+  selection: SelectionSchema,
   context: z.object({
-    before: z.string(),
-    referenceContent: z.string(),
-    after: z.string(),
-    section: z.string().optional(),
-    paragraph: z.number().optional(),
-    nearbyReferences: z.array(z.object({
-      reference: ReferenceSchema,
-      distance: z.number(),
-    })).optional(),
+    before: z.string().optional(),
+    selected: z.string(),
+    after: z.string().optional(),
   }),
-}).openapi('ReferenceContextResponse');
-
-export const GraphConnectionsResponseSchema = z.object({
   document: DocumentSchema,
-  connections: z.array(z.object({
-    targetDocument: DocumentSchema,
-    references: z.array(ReferenceSchema),
-    relationshipType: z.string().optional(),
-    bidirectional: z.boolean(),
-  })),
-}).openapi('GraphConnectionsResponse');
-
-export const StatsResponseSchema = z.object({
-  documentCount: z.number(),
-  referenceCount: z.number(),
-  resolvedReferenceCount: z.number(),
-  entityTypes: z.record(z.number()),
-  contentTypes: z.record(z.number()),
-}).openapi('StatsResponse');
+}).openapi('SelectionContextResponse');

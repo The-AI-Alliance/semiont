@@ -36,7 +36,7 @@ import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
 import { documentsRouter } from './routes/documents';
-import { referencesRouter } from './routes/references';
+import { selectionsRouter } from './routes/selections';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
@@ -74,7 +74,7 @@ app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
 app.route('/', documentsRouter);
-app.route('/', referencesRouter);
+app.route('/', selectionsRouter);
 
 
 

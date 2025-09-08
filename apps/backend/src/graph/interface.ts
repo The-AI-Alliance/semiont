@@ -2,16 +2,17 @@
 
 import {
   Document,
-  Reference,
+  Selection,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  ReferenceFilter,
+  SelectionFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateReferenceInput,
-  ResolveReferenceInput,
+  CreateSelectionInput,
+  SaveSelectionInput,
+  ResolveSelectionInput,
 } from './types';
 
 export interface GraphDatabase {
@@ -28,16 +29,25 @@ export interface GraphDatabase {
   listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }>;
   searchDocuments(query: string, limit?: number): Promise<Document[]>;
   
-  // Reference operations
-  createReference(input: CreateReferenceInput): Promise<Reference>;
-  getReference(id: string): Promise<Reference | null>;
-  resolveReference(input: ResolveReferenceInput): Promise<Reference>;
-  deleteReference(id: string): Promise<void>;
-  listReferences(filter: ReferenceFilter): Promise<{ references: Reference[]; total: number }>;
+  // Selection operations (ephemeral or saved)
+  createSelection(input: CreateSelectionInput): Promise<Selection>;
+  getSelection(id: string): Promise<Selection | null>;
+  updateSelection(id: string, updates: Partial<Selection>): Promise<Selection>;
+  deleteSelection(id: string): Promise<void>;
+  listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }>;
+  
+  // Highlight operations (saved selections)
+  saveSelection(input: SaveSelectionInput): Promise<Selection>;
+  getHighlights(documentId: string): Promise<Selection[]>;
+  
+  // Reference operations (resolved selections)
+  resolveSelection(input: ResolveSelectionInput): Promise<Selection>;
+  getReferences(documentId: string): Promise<Selection[]>;
+  getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]>;
   
   // Relationship queries
-  getDocumentReferences(documentId: string): Promise<Reference[]>;
-  getDocumentReferencedBy(documentId: string): Promise<Reference[]>;
+  getDocumentSelections(documentId: string): Promise<Selection[]>;
+  getDocumentReferencedBy(documentId: string): Promise<Selection[]>;
   
   // Graph traversal
   getDocumentConnections(documentId: string): Promise<GraphConnection[]>;
@@ -47,15 +57,21 @@ export interface GraphDatabase {
   getEntityTypeStats(): Promise<EntityTypeStats[]>;
   getStats(): Promise<{
     documentCount: number;
+    selectionCount: number;
+    highlightCount: number;
     referenceCount: number;
-    resolvedReferenceCount: number;
+    entityReferenceCount: number;
     entityTypes: Record<string, number>;
     contentTypes: Record<string, number>;
   }>;
   
   // Bulk operations
-  createReferences(inputs: CreateReferenceInput[]): Promise<Reference[]>;
-  resolveReferences(inputs: ResolveReferenceInput[]): Promise<Reference[]>;
+  createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]>;
+  saveSelections(inputs: SaveSelectionInput[]): Promise<Selection[]>;
+  resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]>;
+  
+  // Auto-detection
+  detectSelections(documentId: string): Promise<Selection[]>;
   
   // Utility
   generateId(): string;

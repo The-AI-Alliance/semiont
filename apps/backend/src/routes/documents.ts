@@ -10,12 +10,12 @@ import {
   GetDocumentResponseSchema,
   ListDocumentsResponseSchema,
   UpdateDocumentRequestSchema,
-  DetectReferencesRequestSchema,
-  DetectReferencesResponseSchema,
+  DetectSelectionsRequestSchema,
+  DetectSelectionsResponseSchema,
 } from '../schemas/document-schemas';
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
-import type { Document, Reference } from '../graph/types';
+import type { Document, Selection } from '../graph/types';
 
 // Create documents router
 export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -31,7 +31,7 @@ const createDocumentRoute = createRoute({
   method: 'post',
   path: '/api/documents',
   summary: 'Create Document',
-  description: 'Create a new document with optional initial references',
+  description: 'Create a new document with optional initial selections',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -68,6 +68,14 @@ const createDocumentRoute = createRoute({
       },
       description: 'Unauthorized',
     },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
   },
 });
 
@@ -98,28 +106,34 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
       updatedBy: user.id,
     });
 
-    // Create initial references if provided
-    const references: Reference[] = [];
-    if (body.references && body.references.length > 0) {
-      for (const refData of body.references) {
-        const refInput: any = {
+    // Create initial selections if provided
+    const selections: Selection[] = [];
+    if (body.selections && body.selections.length > 0) {
+      for (const selData of body.selections) {
+        const selInput: any = {
           documentId: document.id,
-          referenceType: refData.referenceType.type,
-          referenceData: refData.referenceType,
-          provisional: refData.provisional || false,
+          selectionType: selData.selectionType.type,
+          selectionData: selData.selectionType,
+          saved: selData.saved || false,
+          provisional: selData.provisional || false,
         };
-        if (refData.resolvedDocumentId) refInput.resolvedDocumentId = refData.resolvedDocumentId;
-        if (refData.confidence !== undefined) refInput.confidence = refData.confidence;
-        if (refData.metadata) refInput.metadata = refData.metadata;
-        if (refData.resolvedDocumentId) refInput.resolvedBy = user.id;
-        const reference = await graphDb.createReference(refInput);
-        references.push(reference);
+        if (selData.saved) selInput.savedBy = user.id;
+        if (selData.resolvedDocumentId) {
+          selInput.resolvedDocumentId = selData.resolvedDocumentId;
+          selInput.resolvedBy = user.id;
+        }
+        if (selData.referenceTags) selInput.referenceTags = selData.referenceTags;
+        if (selData.entityTypes) selInput.entityTypes = selData.entityTypes;
+        if (selData.confidence !== undefined) selInput.confidence = selData.confidence;
+        if (selData.metadata) selInput.metadata = selData.metadata;
+        const selection = await graphDb.createSelection(selInput);
+        selections.push(selection);
       }
     }
 
     return c.json({
       document: formatDocument(updatedDocument),
-      references: references.map(formatReference),
+      selections: selections.map(formatSelection),
     }, 201);
   } catch (error) {
     console.error('Error creating document:', error);
@@ -135,7 +149,7 @@ const getDocumentRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}',
   summary: 'Get Document',
-  description: 'Retrieve a document by ID with its references',
+  description: 'Retrieve a document by ID with its selections',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -168,6 +182,14 @@ const getDocumentRoute = createRoute({
       },
       description: 'Unauthorized',
     },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
   },
 });
 
@@ -181,13 +203,18 @@ documentsRouter.openapi(getDocumentRoute, async (c) => {
     return c.json({ error: 'Document not found' }, 404);
   }
 
-  const references = await graphDb.getDocumentReferences(id);
-  const referencedBy = await graphDb.getDocumentReferencedBy(id);
+  const selections = await graphDb.getDocumentSelections(id);
+  const highlights = await graphDb.getHighlights(id);
+  const references = await graphDb.getReferences(id);
+  const entityReferences = await graphDb.getEntityReferences(id);
+  // const referencedBy = await graphDb.getDocumentReferencedBy(id);
 
   return c.json({
     document: formatDocument(document),
-    references: references.map(formatReference),
-    referencedBy: referencedBy.map(formatReference),
+    selections: selections.map(formatSelection),
+    highlights: highlights.map(formatSelection),
+    references: references.map(formatSelection),
+    entityReferences: entityReferences.map(formatSelection),
   }, 200);
 });
 
@@ -227,6 +254,14 @@ const listDocumentsRoute = createRoute({
       },
       description: 'Unauthorized',
     },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
   },
 });
 
@@ -238,18 +273,20 @@ documentsRouter.openapi(listDocumentsRoute, async (c) => {
   const graphDb = await getGraphDatabase();
 
   // Build filter for graph database
-  const filter = {
-    entityTypes: query.entityTypes ? query.entityTypes.split(',').map(t => t.trim()) : undefined,
-    search: query.search,
+  const filter: any = {
     limit,
     offset,
   };
+  if (query.entityTypes) filter.entityTypes = query.entityTypes.split(',').map(t => t.trim());
+  if (query.search) filter.search = query.search;
 
   const result = await graphDb.listDocuments(filter);
 
   return c.json({
     documents: result.documents.map(formatDocument),
     total: result.total,
+    offset: offset,
+    limit: limit,
   }, 200);
 });
 
@@ -301,21 +338,31 @@ const updateDocumentRoute = createRoute({
       },
       description: 'Unauthorized',
     },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
   },
 });
 
 documentsRouter.openapi(updateDocumentRoute, async (c) => {
   const user = c.get('user');
   const { id } = c.req.valid('param');
-  const body = c.req.valid('body');
+  const body = c.req.valid('json');
 
   const graphDb = await getGraphDatabase();
-  const document = await graphDb.updateDocument(id, {
-    name: body.name,
-    entityTypes: body.entityTypes,
-    metadata: body.metadata,
+  const updateInput: any = {
     updatedBy: user.id,
-  });
+  };
+  if (body.name !== undefined) updateInput.name = body.name;
+  if (body.entityTypes !== undefined) updateInput.entityTypes = body.entityTypes;
+  if (body.metadata !== undefined) updateInput.metadata = body.metadata;
+  
+  const document = await graphDb.updateDocument(id, updateInput);
 
   return c.json(formatDocument(document), 200);
 });
@@ -328,7 +375,7 @@ const deleteDocumentRoute = createRoute({
   method: 'delete',
   path: '/api/documents/{id}',
   summary: 'Delete Document',
-  description: 'Delete a document and all its references',
+  description: 'Delete a document and all its selections',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -356,6 +403,14 @@ const deleteDocumentRoute = createRoute({
       },
       description: 'Unauthorized',
     },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
   },
 });
 
@@ -375,14 +430,14 @@ documentsRouter.openapi(deleteDocumentRoute, async (c) => {
 });
 
 // ==========================================
-// DETECT REFERENCES
+// DETECT SELECTIONS
 // ==========================================
 
-const detectReferencesRoute = createRoute({
+const detectSelectionsRoute = createRoute({
   method: 'post',
-  path: '/api/documents/{id}/detect-references',
-  summary: 'Detect References',
-  description: 'Trigger reference detection for a document',
+  path: '/api/documents/{id}/detect-selections',
+  summary: 'Detect Selections',
+  description: 'Trigger AI-based selection detection for a document',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -392,7 +447,7 @@ const detectReferencesRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: DetectReferencesRequestSchema,
+          schema: DetectSelectionsRequestSchema,
         },
       },
     },
@@ -401,10 +456,10 @@ const detectReferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DetectReferencesResponseSchema,
+          schema: DetectSelectionsResponseSchema,
         },
       },
-      description: 'References detected successfully',
+      description: 'Selections detected successfully',
     },
     404: {
       content: {
@@ -422,12 +477,20 @@ const detectReferencesRoute = createRoute({
       },
       description: 'Unauthorized',
     },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
   },
 });
 
-documentsRouter.openapi(detectReferencesRoute, async (c) => {
+documentsRouter.openapi(detectSelectionsRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const body = c.req.valid('body');
+  const body = c.req.valid('json');
 
   const graphDb = await getGraphDatabase();
   const storage = getStorageService();
@@ -442,18 +505,23 @@ documentsRouter.openapi(detectReferencesRoute, async (c) => {
   const contentStr = content.toString('utf-8');
 
   // Stub implementation - in real implementation, this would:
-  // 1. Use NLP/ML to detect references in the document
+  // 1. Use NLP/ML to detect selections in the document
   // 2. Find potential resolutions from existing documents
-  // 3. Return detected references with confidence scores
+  // 3. Return detected selections with confidence scores
 
-  const detectedReferences = await detectReferencesInDocument(
+  const detectedSelections = await detectSelectionsInDocument(
     { ...document, content: contentStr },
-    body.includeProvisional || true,
-    body.confidenceThreshold || 0.5
+    (body as any).types || ['entities', 'concepts'],
+    (body as any).confidence || 0.7
   );
 
   return c.json({
-    references: detectedReferences,
+    selections: detectedSelections,
+    stats: {
+      total: detectedSelections.length,
+      byType: {},
+      averageConfidence: 0.5,
+    },
   }, 200);
 });
 
@@ -476,36 +544,41 @@ function formatDocument(doc: Document): any {
   };
 }
 
-function formatReference(ref: Reference): any {
+function formatSelection(sel: Selection): any {
   return {
-    id: ref.id,
-    documentId: ref.documentId,
-    referenceType: ref.referenceType,
-    referenceData: ref.referenceData,
-    resolvedDocumentId: ref.resolvedDocumentId,
-    provisional: ref.provisional,
-    confidence: ref.confidence,
-    metadata: ref.metadata,
-    resolvedBy: ref.resolvedBy,
-    resolvedAt: ref.resolvedAt instanceof Date ? ref.resolvedAt.toISOString() : ref.resolvedAt,
-    createdAt: ref.createdAt instanceof Date ? ref.createdAt.toISOString() : ref.createdAt,
-    updatedAt: ref.updatedAt instanceof Date ? ref.updatedAt.toISOString() : ref.updatedAt,
+    id: sel.id,
+    documentId: sel.documentId,
+    selectionType: sel.selectionType,
+    selectionData: sel.selectionData,
+    saved: sel.saved,
+    savedAt: sel.savedAt instanceof Date ? sel.savedAt.toISOString() : sel.savedAt,
+    savedBy: sel.savedBy,
+    resolvedDocumentId: sel.resolvedDocumentId,
+    resolvedAt: sel.resolvedAt instanceof Date ? sel.resolvedAt.toISOString() : sel.resolvedAt,
+    resolvedBy: sel.resolvedBy,
+    referenceTags: sel.referenceTags,
+    entityTypes: sel.entityTypes,
+    provisional: sel.provisional,
+    confidence: sel.confidence,
+    metadata: sel.metadata,
+    createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
+    updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
   };
 }
 
 
-// Stub for detecting references in document
-async function detectReferencesInDocument(
+// Stub for detecting selections in document
+async function detectSelectionsInDocument(
   document: any,
-  includeProvisional: boolean,
-  confidenceThreshold: number
+  _types: string[],
+  _confidence: number
 ): Promise<any[]> {
   // Stub implementation
   // In real implementation, this would:
   // 1. Parse document content based on contentType
-  // 2. Use NLP/ML to detect potential references
+  // 2. Use NLP/ML to detect potential selections
   // 3. Search for matching documents in the database
-  // 4. Return references with suggested resolutions
+  // 4. Return selections with suggested resolutions
 
   const stubReferences = [];
 
@@ -522,7 +595,7 @@ async function detectReferencesInDocument(
       // Create a reference
       const reference = {
         reference: {
-          id: `ref_stub_${Math.random().toString(36).substr(2, 9)}`,
+          id: `ref_stub_${Math.random().toString(36).substring(2, 11)}`,
           documentId: document.id,
           referenceType: 'text_span',
           referenceData: {
@@ -538,20 +611,19 @@ async function detectReferencesInDocument(
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
-        suggestedResolutions: includeProvisional ? [
+        suggestedResolutions: [
           {
-            documentId: 'doc_suggested_' + Math.random().toString(36).substr(2, 9),
+            documentId: 'doc_suggested_' + Math.random().toString(36).substring(2, 11),
             documentName: referenceText,
             entityTypes: ['Topic'],
             confidence: 0.75,
             reason: 'Name similarity match',
           }
-        ] : undefined,
+        ],
       };
 
-      if (!includeProvisional || (reference.suggestedResolutions && reference.suggestedResolutions[0].confidence >= confidenceThreshold)) {
-        stubReferences.push(reference);
-      }
+      // Always include the selection for now
+      stubReferences.push(reference);
     }
   }
 

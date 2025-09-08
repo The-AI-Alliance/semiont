@@ -13,31 +13,112 @@ export interface Document {
   updatedAt: Date;
 }
 
-export interface Reference {
+// Base selection type - represents any selection within a document
+export interface Selection {
   id: string;
   documentId: string;
-  referenceType: string;  // 'text_span', 'ast_node', 'image_region', 'audio_segment'
-  referenceData: any;     // Type-specific data
+  selectionType: string;  // 'text_span', 'ast_node', 'image_region', 'audio_segment'
+  selectionData: any;     // Type-specific data (offset, length, coordinates, etc.)
+  
+  // If saved, it becomes a highlight
+  saved: boolean;
+  savedAt?: Date;
+  savedBy?: string;
+  
+  // If resolved to a document, it becomes a reference
   resolvedDocumentId?: string;
+  resolvedAt?: Date;
+  resolvedBy?: string;
+  
+  // Reference tags - semantic relationship types
+  referenceTags?: string[];  // e.g., ['defines', 'mentions', 'cites', 'refutes', 'supports']
+  
+  // If resolved document has entity types and selection specifies them
+  entityTypes?: string[];  // Specific entity types this selection references
+  
+  // Provisional selections are auto-detected
   provisional: boolean;
   confidence?: number;
+  
   metadata?: Record<string, any>;
-  resolvedBy?: string;
-  resolvedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
+// Common reference tag types (can be extended)
+export const REFERENCE_TAGS = {
+  // Definitional
+  DEFINES: 'defines',
+  DEFINED_BY: 'defined-by',
+  
+  // Citation
+  CITES: 'cites',
+  CITED_BY: 'cited-by',
+  
+  // Support/Opposition
+  SUPPORTS: 'supports',
+  REFUTES: 'refutes',
+  CONTRADICTS: 'contradicts',
+  
+  // Relationship
+  MENTIONS: 'mentions',
+  DESCRIBES: 'describes',
+  EXPLAINS: 'explains',
+  SUMMARIZES: 'summarizes',
+  ELABORATES: 'elaborates',
+  
+  // Structural
+  CONTAINS: 'contains',
+  PART_OF: 'part-of',
+  FOLLOWS: 'follows',
+  PRECEDES: 'precedes',
+  
+  // Comparison
+  COMPARES_TO: 'compares-to',
+  CONTRASTS_WITH: 'contrasts-with',
+  SIMILAR_TO: 'similar-to',
+  
+  // Dependency
+  DEPENDS_ON: 'depends-on',
+  REQUIRED_BY: 'required-by',
+  IMPORTS: 'imports',
+  EXPORTS: 'exports',
+  
+  // Versioning
+  UPDATES: 'updates',
+  REPLACES: 'replaces',
+  DEPRECATED_BY: 'deprecated-by',
+} as const;
+
+export type ReferenceTag = typeof REFERENCE_TAGS[keyof typeof REFERENCE_TAGS] | string;
+
+// Type guards and computed properties
+export function isHighlight(selection: Selection): boolean {
+  return selection.saved;
+}
+
+export function isReference(selection: Selection): boolean {
+  return !!selection.resolvedDocumentId;
+}
+
+export function isEntityReference(selection: Selection): boolean {
+  return !!selection.resolvedDocumentId && !!selection.entityTypes && selection.entityTypes.length > 0;
+}
+
+export function hasReferenceTags(selection: Selection): boolean {
+  return !!selection.referenceTags && selection.referenceTags.length > 0;
+}
+
 export interface GraphConnection {
   targetDocument: Document;
-  references: Reference[];
+  selections: Selection[];
   relationshipType?: string;
   bidirectional: boolean;
 }
 
 export interface GraphPath {
   documents: Document[];
-  references: Reference[];
+  selections: Selection[];
 }
 
 export interface EntityTypeStats {
@@ -52,10 +133,14 @@ export interface DocumentFilter {
   offset?: number;
 }
 
-export interface ReferenceFilter {
+export interface SelectionFilter {
   documentId?: string;
   resolvedDocumentId?: string;
   provisional?: boolean;
+  saved?: boolean;  // Filter for highlights
+  resolved?: boolean;  // Filter for references
+  hasEntityTypes?: boolean;  // Filter for entity references
+  referenceTags?: string[];  // Filter by reference tags
   limit?: number;
   offset?: number;
 }
@@ -76,20 +161,41 @@ export interface UpdateDocumentInput {
   updatedBy?: string;
 }
 
-export interface CreateReferenceInput {
+export interface CreateSelectionInput {
   documentId: string;
-  referenceType: string;
-  referenceData: any;
+  selectionType: string;
+  selectionData: any;
+  
+  // Optional - makes it a highlight
+  saved?: boolean;
+  savedBy?: string;
+  
+  // Optional - makes it a reference
   resolvedDocumentId?: string;
+  resolvedBy?: string;
+  
+  // Optional - semantic relationship tags
+  referenceTags?: string[];
+  
+  // Optional - makes it an entity reference
+  entityTypes?: string[];
+  
   provisional?: boolean;
   confidence?: number;
   metadata?: Record<string, any>;
-  resolvedBy?: string;
 }
 
-export interface ResolveReferenceInput {
-  referenceId: string;
+export interface SaveSelectionInput {
+  selectionId: string;
+  savedBy?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ResolveSelectionInput {
+  selectionId: string;
   documentId: string;
+  referenceTags?: string[];  // Semantic relationship tags
+  entityTypes?: string[];  // Optionally specify which entity types are being referenced
   provisional?: boolean;
   confidence?: number;
   resolvedBy?: string;

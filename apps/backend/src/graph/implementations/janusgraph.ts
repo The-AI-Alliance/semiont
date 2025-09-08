@@ -4,16 +4,20 @@
 import { GraphDatabase } from '../interface';
 import {
   Document,
-  Reference,
+  Selection,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  ReferenceFilter,
+  SelectionFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateReferenceInput,
-  ResolveReferenceInput,
+  CreateSelectionInput,
+  SaveSelectionInput,
+  ResolveSelectionInput,
+  isHighlight,
+  isReference,
+  isEntityReference,
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,7 +30,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   
   // In-memory storage for development/testing (same as Neptune/Neo4j for now)
   private documents: Map<string, Document> = new Map();
-  private references: Map<string, Reference> = new Map();
+  private selections: Map<string, Selection> = new Map();
   
   constructor(config: {
     host?: string;
@@ -183,10 +187,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     
     this.documents.delete(id);
     
-    // Delete references
-    for (const [refId, ref] of this.references) {
-      if (ref.documentId === id || ref.resolvedDocumentId === id) {
-        this.references.delete(refId);
+    // Delete selections
+    for (const [selId, sel] of this.selections) {
+      if (sel.documentId === id || sel.resolvedDocumentId === id) {
+        this.selections.delete(selId);
       }
     }
   }
@@ -229,25 +233,36 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
   
-  async createReference(input: CreateReferenceInput): Promise<Reference> {
+  async createSelection(input: CreateSelectionInput): Promise<Selection> {
     const id = this.generateId();
     const now = new Date();
     
-    const reference: Reference = {
+    const selection: Selection = {
       id,
       documentId: input.documentId,
-      referenceType: input.referenceType,
-      referenceData: input.referenceData,
+      selectionType: input.selectionType,
+      selectionData: input.selectionData,
+      saved: input.saved || false,
       provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
     };
     
-    if (input.resolvedDocumentId) reference.resolvedDocumentId = input.resolvedDocumentId;
-    if (input.confidence !== undefined) reference.confidence = input.confidence;
-    if (input.metadata) reference.metadata = input.metadata;
-    if (input.resolvedBy) reference.resolvedBy = input.resolvedBy;
-    if (input.resolvedDocumentId) reference.resolvedAt = now;
+    if (input.savedBy) {
+      selection.savedBy = input.savedBy;
+      selection.savedAt = now;
+    }
+    
+    if (input.resolvedDocumentId) {
+      selection.resolvedDocumentId = input.resolvedDocumentId;
+      selection.resolvedAt = now;
+      if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
+    }
+    
+    if (input.referenceTags) selection.referenceTags = input.referenceTags;
+    if (input.entityTypes) selection.entityTypes = input.entityTypes;
+    if (input.confidence !== undefined) selection.confidence = input.confidence;
+    if (input.metadata) selection.metadata = input.metadata;
     
     // In production: Create edge in graph with properties
     // await this.client.submit(`
@@ -256,77 +271,158 @@ export class JanusGraphDatabase implements GraphDatabase {
     //     .V().has('id', resolvedDocumentId).as('to')
     //     .addE('REFERENCES').from('from').to('to')
     //     .property('id', id)
-    //     .property('referenceType', referenceType)
+    //     .property('selectionType', selectionType)
+    //     .property('saved', saved)
     //     .property('provisional', provisional)
     //     .property('confidence', confidence)
     //   graph.tx().commit()
     // `, { documentId, resolvedDocumentId, ... });
     
-    this.references.set(id, reference);
-    return reference;
+    this.selections.set(id, selection);
+    return selection;
   }
   
-  async getReference(id: string): Promise<Reference | null> {
-    return this.references.get(id) || null;
+  async getSelection(id: string): Promise<Selection | null> {
+    return this.selections.get(id) || null;
   }
   
-  async resolveReference(input: ResolveReferenceInput): Promise<Reference> {
-    const ref = this.references.get(input.referenceId);
-    if (!ref) throw new Error('Reference not found');
+  async updateSelection(id: string, updates: Partial<Selection>): Promise<Selection> {
+    const sel = this.selections.get(id);
+    if (!sel) throw new Error('Selection not found');
     
-    const updated: Reference = {
-      ...ref,
+    const updated: Selection = {
+      ...sel,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    
+    this.selections.set(id, updated);
+    return updated;
+  }
+  
+  async deleteSelection(id: string): Promise<void> {
+    this.selections.delete(id);
+  }
+  
+  async listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }> {
+    let sels = Array.from(this.selections.values());
+    
+    if (filter.documentId) {
+      sels = sels.filter(sel => sel.documentId === filter.documentId);
+    }
+    
+    if (filter.resolvedDocumentId) {
+      sels = sels.filter(sel => sel.resolvedDocumentId === filter.resolvedDocumentId);
+    }
+    
+    if (filter.provisional !== undefined) {
+      sels = sels.filter(sel => sel.provisional === filter.provisional);
+    }
+    
+    if (filter.saved !== undefined) {
+      sels = sels.filter(sel => sel.saved === filter.saved);
+    }
+    
+    if (filter.resolved !== undefined) {
+      sels = sels.filter(sel => filter.resolved ? !!sel.resolvedDocumentId : !sel.resolvedDocumentId);
+    }
+    
+    if (filter.hasEntityTypes !== undefined) {
+      sels = sels.filter(sel => filter.hasEntityTypes ? 
+        (sel.entityTypes && sel.entityTypes.length > 0) : 
+        (!sel.entityTypes || sel.entityTypes.length === 0)
+      );
+    }
+    
+    if (filter.referenceTags && filter.referenceTags.length > 0) {
+      sels = sels.filter(sel => 
+        sel.referenceTags && sel.referenceTags.some(tag => filter.referenceTags!.includes(tag))
+      );
+    }
+    
+    const total = sels.length;
+    const offset = filter.offset || 0;
+    const limit = filter.limit || 20;
+    sels = sels.slice(offset, offset + limit);
+    
+    return { selections: sels, total };
+  }
+  
+  async saveSelection(input: SaveSelectionInput): Promise<Selection> {
+    const sel = this.selections.get(input.selectionId);
+    if (!sel) throw new Error('Selection not found');
+    
+    const updated: Selection = {
+      ...sel,
+      saved: true,
+      savedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    if (input.savedBy) updated.savedBy = input.savedBy;
+    if (input.metadata || sel.metadata) {
+      updated.metadata = { ...sel.metadata, ...input.metadata };
+    }
+    
+    this.selections.set(input.selectionId, updated);
+    return updated;
+  }
+  
+  async getHighlights(documentId: string): Promise<Selection[]> {
+    return Array.from(this.selections.values())
+      .filter(sel => sel.documentId === documentId && sel.saved);
+  }
+  
+  async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
+    const sel = this.selections.get(input.selectionId);
+    if (!sel) throw new Error('Selection not found');
+    
+    const updated: Selection = {
+      ...sel,
       resolvedDocumentId: input.documentId,
       provisional: input.provisional || false,
       resolvedAt: new Date(),
       updatedAt: new Date(),
     };
     
+    if (input.referenceTags) updated.referenceTags = input.referenceTags;
+    if (input.entityTypes) updated.entityTypes = input.entityTypes;
     if (input.confidence !== undefined) updated.confidence = input.confidence;
     if (input.resolvedBy) updated.resolvedBy = input.resolvedBy;
-    if (input.metadata || ref.metadata) {
-      updated.metadata = { ...ref.metadata, ...input.metadata };
+    if (input.metadata || sel.metadata) {
+      updated.metadata = { ...sel.metadata, ...input.metadata };
     }
     
-    this.references.set(input.referenceId, updated);
+    this.selections.set(input.selectionId, updated);
     return updated;
   }
   
-  async deleteReference(id: string): Promise<void> {
-    this.references.delete(id);
+  async getReferences(documentId: string): Promise<Selection[]> {
+    return Array.from(this.selections.values())
+      .filter(sel => sel.documentId === documentId && !!sel.resolvedDocumentId);
   }
   
-  async listReferences(filter: ReferenceFilter): Promise<{ references: Reference[]; total: number }> {
-    let refs = Array.from(this.references.values());
+  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
+    let refs = Array.from(this.selections.values())
+      .filter(sel => sel.documentId === documentId && isEntityReference(sel));
     
-    if (filter.documentId) {
-      refs = refs.filter(ref => ref.documentId === filter.documentId);
+    if (entityTypes && entityTypes.length > 0) {
+      refs = refs.filter(sel => 
+        sel.entityTypes && sel.entityTypes.some(type => entityTypes.includes(type))
+      );
     }
     
-    if (filter.resolvedDocumentId) {
-      refs = refs.filter(ref => ref.resolvedDocumentId === filter.resolvedDocumentId);
-    }
-    
-    if (filter.provisional !== undefined) {
-      refs = refs.filter(ref => ref.provisional === filter.provisional);
-    }
-    
-    const total = refs.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 20;
-    refs = refs.slice(offset, offset + limit);
-    
-    return { references: refs, total };
+    return refs;
   }
   
-  async getDocumentReferences(documentId: string): Promise<Reference[]> {
-    return Array.from(this.references.values())
-      .filter(ref => ref.documentId === documentId);
+  async getDocumentSelections(documentId: string): Promise<Selection[]> {
+    return Array.from(this.selections.values())
+      .filter(sel => sel.documentId === documentId);
   }
   
-  async getDocumentReferencedBy(documentId: string): Promise<Reference[]> {
-    return Array.from(this.references.values())
-      .filter(ref => ref.resolvedDocumentId === documentId);
+  async getDocumentReferencedBy(documentId: string): Promise<Selection[]> {
+    return Array.from(this.selections.values())
+      .filter(sel => sel.resolvedDocumentId === documentId);
   }
   
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
@@ -339,18 +435,18 @@ export class JanusGraphDatabase implements GraphDatabase {
     // `, { documentId });
     
     const connections: GraphConnection[] = [];
-    const refs = await this.getDocumentReferences(documentId);
+    const refs = await this.getReferences(documentId);
     
     for (const ref of refs) {
       if (ref.resolvedDocumentId) {
         const targetDoc = await this.getDocument(ref.resolvedDocumentId);
         if (targetDoc) {
-          const reverseRefs = await this.getDocumentReferences(ref.resolvedDocumentId);
+          const reverseRefs = await this.getReferences(ref.resolvedDocumentId);
           const bidirectional = reverseRefs.some(r => r.resolvedDocumentId === documentId);
           
           connections.push({
             targetDocument: targetDoc,
-            references: [ref],
+            selections: [ref],
             bidirectional,
           });
         }
@@ -373,23 +469,23 @@ export class JanusGraphDatabase implements GraphDatabase {
     
     // Using BFS implementation for stub
     const visited = new Set<string>();
-    const queue: { docId: string; path: Document[]; refs: Reference[] }[] = [];
+    const queue: { docId: string; path: Document[]; sels: Selection[] }[] = [];
     const fromDoc = await this.getDocument(fromDocumentId);
     
     if (!fromDoc) return [];
     
-    queue.push({ docId: fromDocumentId, path: [fromDoc], refs: [] });
+    queue.push({ docId: fromDocumentId, path: [fromDoc], sels: [] });
     visited.add(fromDocumentId);
     
     const paths: GraphPath[] = [];
     
     while (queue.length > 0 && paths.length < 10) {
-      const { docId, path, refs } = queue.shift()!;
+      const { docId, path, sels } = queue.shift()!;
       
       if (path.length > maxDepth) continue;
       
       if (docId === toDocumentId) {
-        paths.push({ documents: path, references: refs });
+        paths.push({ documents: path, selections: sels });
         continue;
       }
       
@@ -401,7 +497,7 @@ export class JanusGraphDatabase implements GraphDatabase {
           queue.push({
             docId: conn.targetDocument.id,
             path: [...path, conn.targetDocument],
-            refs: [...refs, ...conn.references],
+            sels: [...sels, ...conn.selections],
           });
         }
       }
@@ -434,8 +530,10 @@ export class JanusGraphDatabase implements GraphDatabase {
   
   async getStats(): Promise<{
     documentCount: number;
+    selectionCount: number;
+    highlightCount: number;
     referenceCount: number;
-    resolvedReferenceCount: number;
+    entityReferenceCount: number;
     entityTypes: Record<string, number>;
     contentTypes: Record<string, number>;
   }> {
@@ -449,38 +547,56 @@ export class JanusGraphDatabase implements GraphDatabase {
       contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
     }
     
-    const resolvedCount = Array.from(this.references.values())
-      .filter(ref => ref.resolvedDocumentId && !ref.provisional).length;
+    const selections = Array.from(this.selections.values());
+    const highlightCount = selections.filter(isHighlight).length;
+    const referenceCount = selections.filter(isReference).length;
+    const entityReferenceCount = selections.filter(isEntityReference).length;
     
     return {
       documentCount: this.documents.size,
-      referenceCount: this.references.size,
-      resolvedReferenceCount: resolvedCount,
+      selectionCount: this.selections.size,
+      highlightCount,
+      referenceCount,
+      entityReferenceCount,
       entityTypes,
       contentTypes,
     };
   }
   
-  async createReferences(inputs: CreateReferenceInput[]): Promise<Reference[]> {
+  async createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]> {
     // In production: Use batch operations for better performance
     // const tx = graph.tx()
     // tx.rollback()
     // ... batch operations ...
     // tx.commit()
     
-    const results: Reference[] = [];
+    const results: Selection[] = [];
     for (const input of inputs) {
-      results.push(await this.createReference(input));
+      results.push(await this.createSelection(input));
     }
     return results;
   }
   
-  async resolveReferences(inputs: ResolveReferenceInput[]): Promise<Reference[]> {
-    const results: Reference[] = [];
+  async saveSelections(inputs: SaveSelectionInput[]): Promise<Selection[]> {
+    const results: Selection[] = [];
     for (const input of inputs) {
-      results.push(await this.resolveReference(input));
+      results.push(await this.saveSelection(input));
     }
     return results;
+  }
+  
+  async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
+    const results: Selection[] = [];
+    for (const input of inputs) {
+      results.push(await this.resolveSelection(input));
+    }
+    return results;
+  }
+  
+  async detectSelections(_documentId: string): Promise<Selection[]> {
+    // This would use AI/ML to detect selections in a document
+    // For now, return empty array as a placeholder
+    return [];
   }
   
   generateId(): string {
@@ -491,6 +607,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     // In production: CAREFUL! This would clear the entire graph
     // await this.client.submit(`g.V().drop()`);
     this.documents.clear();
-    this.references.clear();
+    this.selections.clear();
   }
 }
