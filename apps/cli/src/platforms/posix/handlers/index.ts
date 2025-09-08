@@ -8,7 +8,9 @@ import { databaseStartDescriptor } from './database-start.js';
 import { workerStartDescriptor } from './worker-start.js';
 import { filesystemStartDescriptor } from './filesystem-start.js';
 import { mcpStartDescriptor } from './mcp-start.js';
+import { graphStartDescriptor } from './graph-start.js';
 import { mcpProvisionDescriptor } from './mcp-provision.js';
+import { janusgraphProvisionDescriptor } from './graph-provision.js';
 import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
@@ -29,8 +31,10 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   workerStartDescriptor,
   filesystemStartDescriptor,
   mcpStartDescriptor,
+  graphStartDescriptor,
   // Provision handlers
-  mcpProvisionDescriptor
+  mcpProvisionDescriptor,
+  janusgraphProvisionDescriptor
 ];
 
 // Export as base handler type for registry compatibility
