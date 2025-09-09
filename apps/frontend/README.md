@@ -1,6 +1,6 @@
 # Semiont Frontend
 
-A modern, type-safe React frontend built with Next.js 14, featuring comprehensive authentication, performance optimization, and robust error handling.
+A modern, type-safe React frontend built with Next.js 14, featuring comprehensive authentication, document management with advanced selection and reference capabilities, markdown rendering with wiki-style links, and robust error handling.
 
 ## Quick Start
 
@@ -234,6 +234,7 @@ See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 - **State Management**: [TanStack Query](https://tanstack.com/query) (React Query) for server state
 - **API Client**: Type-safe API client with automatic error handling
 - **Validation**: [Zod](https://zod.dev/) for runtime type validation
+- **Markdown**: [react-markdown](https://github.com/remarkjs/react-markdown) with remark/rehype plugins
 - **Performance**: Bundle analysis, Lighthouse CI, and performance monitoring
 
 ## Project Structure
@@ -246,16 +247,22 @@ src/
 │   │   ├── mcp-setup/     # MCP client authentication bridge
 │   │   ├── error/         # OAuth error handling
 │   │   └── signin/        # Custom sign-in page
+│   ├── documents/         # Document management routes
+│   │   └── [id]/          # Individual document viewer
+│   │       └── page.tsx   # Document display with selections
 │   ├── globals.css        # Global styles and Tailwind imports
 │   ├── layout.tsx         # Root layout with providers
-│   ├── page.tsx           # Home page with error boundaries
+│   ├── page.tsx           # Home page with auth-aware content
 │   ├── error.tsx          # Global error boundary
 │   └── providers.tsx      # Client-side providers (Auth, Query)
 ├── components/             # Reusable UI components
+│   ├── AuthenticatedHome.tsx # Document search and creation UI
 │   ├── ErrorBoundary.tsx  # Async error boundary component
 │   ├── FeatureCards.tsx   # Feature showcase component
 │   ├── GreetingSection.tsx # Interactive greeting with API
 │   ├── Header.tsx         # Main navigation header
+│   ├── MarkdownRenderer.tsx # Markdown with wiki links
+│   ├── SelectionPopup.tsx # Selection creation interface
 │   ├── StatusDisplay.tsx  # System status component
 │   └── UserMenu.tsx       # User authentication menu
 ├── hooks/                  # Custom React hooks
@@ -278,6 +285,76 @@ Performance & Analysis:
 ├── lighthouserc.json     # Lighthouse CI configuration
 └── performance.config.js # Performance monitoring config
 ```
+
+## Document Management Features
+
+### For Authenticated Users
+
+The frontend provides comprehensive document management capabilities:
+
+#### Document Operations
+- **Search**: Full-text search for documents by name with real-time results
+- **Create**: Create new markdown documents with initial content
+- **View**: Render markdown with syntax highlighting and wiki-style links
+- **Navigate**: Click wiki links (`[[page name]]`) to navigate between documents
+
+#### Selection System
+
+Users can select any text within a document to create three types of selections:
+
+##### 1. Highlights
+- Mark important text passages for later reference
+- Saved highlights appear in the document sidebar
+- Visual indication with yellow background
+- Persistent across sessions
+
+##### 2. Document References
+- Link selected text to other documents in the system
+- Search for existing documents or create new ones on the fly
+- Specify reference types:
+  - **Citation**: Reference to source material
+  - **Definition**: Link to defining document
+  - **Elaboration**: Extended explanation
+  - **Example**: Illustrative example
+  - **Related**: Related concept or topic
+- Referenced documents are accessible via the sidebar
+
+##### 3. Entity References
+- Mark text as referring to specific entities in your knowledge graph
+- Pre-defined entity types:
+  - Person, Organization, Location, Event
+  - Concept, Product, Technology, Date
+  - Custom entity types via "Other" option
+- Build semantic relationships between documents
+
+### Markdown Support
+
+Full markdown rendering with extended features:
+- **GitHub Flavored Markdown**: Tables, task lists, strikethrough
+- **Wiki-style Links**: `[[page name]]` syntax for internal navigation
+- **Syntax Highlighting**: Code blocks with language-specific highlighting
+- **Interactive Elements**: Links open in new tabs, wiki links navigate internally
+
+### User Interface Components
+
+#### AuthenticatedHome
+- Document search bar with live results
+- Create new document button with modal
+- Search results with content preview
+- Personalized welcome message
+
+#### Document Viewer
+- Split-view layout: content area and sidebar
+- Real-time display of highlights and references
+- Text selection detection for creating new selections
+- Navigation breadcrumbs and metadata
+
+#### Selection Popup
+- Multi-tab interface for different selection types
+- Inline document search
+- Entity type selection grid
+- Reference type dropdown
+- Create new documents from references
 
 ## Core Design Decisions
 
@@ -338,6 +415,40 @@ const envSchema = z.object({
   // Fail fast if misconfigured
 });
 ```
+
+## API Integration
+
+The frontend integrates with a comprehensive set of backend APIs:
+
+### Document APIs
+- `POST /api/documents` - Create new documents
+- `GET /api/documents/:id` - Retrieve document by ID
+- `PATCH /api/documents/:id` - Update document content/metadata
+- `DELETE /api/documents/:id` - Delete document
+- `GET /api/documents` - List all documents (paginated)
+- `GET /api/documents/search?q=query` - Search documents by name
+- `GET /api/documents/schema-description` - Natural language schema description
+- `POST /api/documents/:id/llm-context` - Get LLM-suitable context for document
+- `POST /api/documents/discover-context` - Discover graph context from text
+
+### Selection APIs
+- `POST /api/selections` - Create provisional selection
+- `GET /api/selections/:id` - Get selection by ID
+- `PATCH /api/selections/:id` - Update selection
+- `DELETE /api/selections/:id` - Delete selection
+- `GET /api/selections` - List selections (filtered)
+- `POST /api/selections/highlight` - Save selection as highlight
+- `POST /api/selections/resolve` - Link selection to document
+- `POST /api/selections/create-document` - Create new document from selection
+- `POST /api/selections/generate-document` - Generate document content (AI)
+- `GET /api/selections/highlights/:documentId` - Get document's highlights
+- `GET /api/selections/references/:documentId` - Get document's references
+
+### Authentication APIs
+- `POST /api/tokens/google` - Exchange Google OAuth token for JWT
+- `GET /api/users/me` - Get current user info
+- `POST /api/users/logout` - Logout user
+- `GET /api/auth/session` - Get session status
 
 ## Common Development Tasks
 

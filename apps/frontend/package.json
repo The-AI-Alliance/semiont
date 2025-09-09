@@ -45,6 +45,10 @@
     "next-auth": "^4.24.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "remark-wiki-link": "^2.0.1",
     "sharp": "^0.34.3",
     "typescript": "^5",
     "zod": "^3.22.4"

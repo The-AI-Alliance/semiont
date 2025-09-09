@@ -63,6 +63,71 @@ interface OAuthConfigResponse {
   allowedDomains: string[];
 }
 
+// Document and Selection types
+interface Document {
+  id: string;
+  name: string;
+  content: string;
+  contentType: string;
+  createdAt: string;
+  updatedAt: string;
+  highlights?: Selection[];
+  references?: Selection[];
+}
+
+interface Selection {
+  id: string;
+  documentId: string;
+  text: string;
+  position: {
+    start: number;
+    end: number;
+  };
+  type: 'provisional' | 'highlight' | 'reference';
+  referencedDocumentId?: string;
+  entityType?: string;
+  referenceType?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DocumentsResponse {
+  success: boolean;
+  documents: Document[];
+  total: number;
+}
+
+interface DocumentResponse {
+  success: boolean;
+  document: Document;
+}
+
+interface SelectionsResponse {
+  success: boolean;
+  selections: Selection[];
+  total: number;
+}
+
+interface SelectionResponse {
+  success: boolean;
+  selection: Selection;
+}
+
+interface SchemaDescriptionResponse {
+  success: boolean;
+  description: string;
+}
+
+interface LLMContextResponse {
+  success: boolean;
+  context: any;
+}
+
+interface DiscoverContextResponse {
+  success: boolean;
+  context: any;
+}
+
 // API Error class
 export class APIError extends Error {
   constructor(
@@ -256,6 +321,111 @@ export const apiService = {
   health: (): Promise<HealthResponse> =>
     apiClient.get('/api/health'),
 
+  // Document endpoints
+  documents: {
+    create: (data: { name: string; content: string; contentType?: string }): Promise<DocumentResponse> =>
+      apiClient.post('/api/documents', { body: data }),
+    
+    get: (id: string): Promise<DocumentResponse> =>
+      apiClient.get('/api/documents/:id', { params: { id } }),
+    
+    update: (id: string, data: { name?: string; content?: string; contentType?: string }): Promise<DocumentResponse> =>
+      apiClient.patch('/api/documents/:id', { params: { id }, body: data }),
+    
+    delete: (id: string): Promise<{ success: boolean }> =>
+      apiClient.delete('/api/documents/:id', { params: { id } }),
+    
+    list: (params?: { limit?: number; offset?: number; contentType?: string }): Promise<DocumentsResponse> => {
+      if (params) {
+        return apiClient.get('/api/documents', { params });
+      }
+      return apiClient.get('/api/documents');
+    },
+    
+    search: (query: string, limit?: number): Promise<DocumentsResponse> =>
+      apiClient.get('/api/documents/search', { params: { q: query, limit } }),
+    
+    schemaDescription: (): Promise<SchemaDescriptionResponse> =>
+      apiClient.get('/api/documents/schema-description'),
+    
+    llmContext: (id: string, selectionId?: string): Promise<LLMContextResponse> =>
+      apiClient.post('/api/documents/:id/llm-context', { 
+        params: { id }, 
+        body: { selectionId } 
+      }),
+    
+    discoverContext: (text: string): Promise<DiscoverContextResponse> =>
+      apiClient.post('/api/documents/discover-context', { body: { text } }),
+  },
+
+  // Selection endpoints
+  selections: {
+    create: (data: { 
+      documentId: string; 
+      text: string; 
+      position: { start: number; end: number };
+      type?: 'provisional' | 'highlight' | 'reference';
+    }): Promise<SelectionResponse> =>
+      apiClient.post('/api/selections', { body: data }),
+    
+    get: (id: string): Promise<SelectionResponse> =>
+      apiClient.get('/api/selections/:id', { params: { id } }),
+    
+    update: (id: string, data: Partial<Selection>): Promise<SelectionResponse> =>
+      apiClient.patch('/api/selections/:id', { params: { id }, body: data }),
+    
+    delete: (id: string): Promise<{ success: boolean }> =>
+      apiClient.delete('/api/selections/:id', { params: { id } }),
+    
+    list: (params?: { 
+      documentId?: string; 
+      type?: string; 
+      limit?: number; 
+      offset?: number; 
+    }): Promise<SelectionsResponse> => {
+      if (params) {
+        return apiClient.get('/api/selections', { params });
+      }
+      return apiClient.get('/api/selections');
+    },
+    
+    saveAsHighlight: (data: {
+      documentId: string;
+      text: string;
+      position: { start: number; end: number };
+    }): Promise<SelectionResponse> =>
+      apiClient.post('/api/selections/highlight', { body: data }),
+    
+    resolveToDocument: (data: {
+      selectionId: string;
+      targetDocumentId: string;
+      referenceType?: string;
+    }): Promise<SelectionResponse> =>
+      apiClient.post('/api/selections/resolve', { body: data }),
+    
+    createDocument: (data: {
+      selectionId: string;
+      name: string;
+      content: string;
+      referenceType?: string;
+    }): Promise<DocumentResponse> =>
+      apiClient.post('/api/selections/create-document', { body: data }),
+    
+    generateDocument: (data: {
+      selectionId: string;
+      prompt?: string;
+      name?: string;
+      referenceType?: string;
+    }): Promise<DocumentResponse> =>
+      apiClient.post('/api/selections/generate-document', { body: data }),
+    
+    getHighlights: (documentId: string): Promise<SelectionsResponse> =>
+      apiClient.get('/api/selections/highlights/:documentId', { params: { documentId } }),
+    
+    getReferences: (documentId: string): Promise<SelectionsResponse> =>
+      apiClient.get('/api/selections/references/:documentId', { params: { documentId } }),
+  },
+
   // Admin endpoints
   admin: {
     users: {
@@ -441,4 +611,19 @@ export const api = {
 export const client = apiService;
 
 // Export types for use in components
-export type { AdminUser, AdminUsersResponse, AdminUserStatsResponse, OAuthProvider, OAuthConfigResponse };
+export type { 
+  AdminUser, 
+  AdminUsersResponse, 
+  AdminUserStatsResponse, 
+  OAuthProvider, 
+  OAuthConfigResponse,
+  Document,
+  Selection,
+  DocumentsResponse,
+  DocumentResponse,
+  SelectionsResponse,
+  SelectionResponse,
+  SchemaDescriptionResponse,
+  LLMContextResponse,
+  DiscoverContextResponse
+};
