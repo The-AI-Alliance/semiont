@@ -32,10 +32,9 @@ type StartOptions = z.output<typeof StartOptionsSchema>;
 const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
   name: 'start',
   
-  buildServiceConfig: (options, serviceInfo) => ({
+  buildServiceConfig: (_options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
-    environment: options.environment,
   }),
   
   extractHandlerOptions: (options) => ({

@@ -20,12 +20,20 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
     // Container might not exist
   }
   
+  // Create network if it doesn't exist
+  const networkName = `semiont-${service.environment}`;
+  try {
+    execSync(`${runtime} network create ${networkName}`, { stdio: 'ignore' });
+  } catch {
+    // Network might already exist
+  }
+  
   // Build run command from requirements
   const runArgs: string[] = [
     'run',
     '-d',
     '--name', containerName,
-    '--network', `semiont-${service.environment}`
+    '--network', networkName
   ];
   
   // Add port mappings for web service

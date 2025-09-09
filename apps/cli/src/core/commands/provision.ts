@@ -62,7 +62,6 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   buildServiceConfig: (options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
-    environment: options.environment,
     stackType: options.stack,
     force: options.force,
     skipValidation: options.skipValidation,

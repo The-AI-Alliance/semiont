@@ -34,10 +34,9 @@ type StopOptions = z.output<typeof StopOptionsSchema>;
 const stopDescriptor: CommandDescriptor<StopOptions> = createCommandDescriptor({
   name: 'stop',
   
-  buildServiceConfig: (options, serviceInfo) => ({
+  buildServiceConfig: (_options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
-    environment: options.environment,
   }),
   
   extractHandlerOptions: (options) => ({

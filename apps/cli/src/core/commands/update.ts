@@ -56,7 +56,6 @@ const updateDescriptor: CommandDescriptor<UpdateOptions> = createCommandDescript
   buildServiceConfig: (options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
-    environment: options.environment,
     force: options.force,
     wait: options.wait,
     timeout: options.timeout,

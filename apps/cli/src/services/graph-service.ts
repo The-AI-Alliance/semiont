@@ -60,7 +60,7 @@ export class GraphService extends BaseService {
         healthCheckPort: this.getPort()
       },
       resources: {
-        memory: this.config.memory || '2Gi',  // Graph operations need more memory
+        memory: this.config.memory || '2g',  // Graph operations need more memory
         cpu: this.config.cpu || '1.0',
         replicas: 1  // Graph databases are typically single instance
       },
