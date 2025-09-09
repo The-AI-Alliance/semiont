@@ -4,7 +4,7 @@ import { GraphDatabase } from './interface';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
-import { getGraphConfig } from '../config/environment-loader';
+import { getGraphConfig, loadEnvironmentConfig } from '../config/environment-loader';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 
@@ -90,15 +90,17 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
       if (graphConfig.index && graphConfig.index !== 'none') {
         config.janusIndexBackend = graphConfig.index as any;
       }
-    }
-    
-    // Support for other graph databases via environment variables (backwards compatibility)
-    // Neptune config
-    if (process.env.NEPTUNE_ENDPOINT) config.neptuneEndpoint = process.env.NEPTUNE_ENDPOINT;
-    if (process.env.NEPTUNE_PORT) config.neptunePort = parseInt(process.env.NEPTUNE_PORT);
-    const region = process.env.NEPTUNE_REGION || process.env.AWS_REGION;
-    if (region) {
-      config.neptuneRegion = region;
+    } else if (graphConfig.type === 'neptune') {
+      // Neptune will discover its own endpoint using AWS SDK
+      // Only pass the port from config
+      if (graphConfig.port) {
+        config.neptunePort = graphConfig.port;
+      }
+      // Get AWS region from environment config
+      const envConfig = loadEnvironmentConfig();
+      if (envConfig?.aws?.region) {
+        config.neptuneRegion = envConfig.aws.region;
+      }
     }
     
     // Neo4j config  

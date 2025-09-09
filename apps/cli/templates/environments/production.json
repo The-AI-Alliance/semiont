@@ -39,6 +39,14 @@
       },
       "comment": "Provisioned via CDK data stack (EFS)"
     },
+    "graph": {
+      "platform": {
+        "type": "aws"
+      },
+      "type": "neptune",
+      "port": 8182,
+      "comment": "Provisioned via CDK data stack (Amazon Neptune)"
+    },
     "mcp": {
       "platform": {
         "type": "posix"

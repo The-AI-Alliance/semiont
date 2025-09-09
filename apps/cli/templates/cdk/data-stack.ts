@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as efs from 'aws-cdk-lib/aws-efs';
+import * as neptune from 'aws-cdk-lib/aws-neptune';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
@@ -10,6 +11,8 @@ export class SemiontDataStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
   public readonly fileSystem: efs.FileSystem;
   public readonly database: rds.DatabaseInstance;
+  public readonly neptuneCluster: neptune.CfnDBCluster;
+  public readonly neptuneInstance: neptune.CfnDBInstance;
   public readonly dbCredentials: secretsmanager.Secret;
   public readonly appSecrets: secretsmanager.Secret;
   public readonly jwtSecret: secretsmanager.Secret;
@@ -18,6 +21,7 @@ export class SemiontDataStack extends cdk.Stack {
   public readonly githubOAuth: secretsmanager.Secret;
   public readonly adminEmails: secretsmanager.Secret;
   public readonly dbSecurityGroup: ec2.SecurityGroup;
+  public readonly neptuneSecurityGroup: ec2.SecurityGroup;
   public readonly ecsSecurityGroup: ec2.SecurityGroup;
   public readonly albSecurityGroup: ec2.SecurityGroup;
 
@@ -187,6 +191,95 @@ export class SemiontDataStack extends cdk.Stack {
 
     // Allow ECS to access EFS
     this.fileSystem.connections.allowDefaultPortFrom(this.ecsSecurityGroup, 'Allow ECS to EFS');
+
+    // Neptune Graph Database (required for document relationships)
+    // Neptune subnet group
+    const neptuneSubnetGroup = new neptune.CfnDBSubnetGroup(this, 'NeptuneSubnetGroup', {
+      dbSubnetGroupDescription: 'Subnet group for Neptune graph database',
+      subnetIds: this.vpc.privateSubnets.map(subnet => subnet.subnetId),
+      dbSubnetGroupName: `${this.stackName}-neptune-subnet-group`,
+    });
+
+    // Neptune security group
+    this.neptuneSecurityGroup = new ec2.SecurityGroup(this, 'NeptuneSecurityGroup', {
+      vpc: this.vpc,
+      description: 'Security group for Neptune graph database',
+      allowAllOutbound: false,
+    });
+
+    // Allow ECS to access Neptune
+    this.neptuneSecurityGroup.addIngressRule(
+      this.ecsSecurityGroup,
+      ec2.Port.tcp(8182),
+      'Allow ECS to access Neptune'
+    );
+
+    // Neptune parameter group for optimal performance
+    const neptuneParameterGroup = new neptune.CfnDBParameterGroup(this, 'NeptuneParameterGroup', {
+      family: 'neptune1.3',
+      parameters: {
+        'neptune_enable_audit_log': '0',
+        'neptune_query_timeout': '120000',
+      },
+      description: 'Neptune parameter group for Semiont',
+    });
+
+    // Neptune cluster
+    this.neptuneCluster = new neptune.CfnDBCluster(this, 'NeptuneCluster', {
+      dbSubnetGroupName: neptuneSubnetGroup.dbSubnetGroupName,
+      vpcSecurityGroupIds: [this.neptuneSecurityGroup.securityGroupId],
+      dbClusterParameterGroupName: neptuneParameterGroup.ref,
+      engineVersion: '1.3.0.0',
+      storageEncrypted: true,
+      backupRetentionPeriod: 7,
+      preferredBackupWindow: '03:00-04:00',
+      preferredMaintenanceWindow: 'sun:04:00-sun:05:00',
+      deletionProtection: true,
+      iamDatabaseAuthenticationEnabled: true,
+      tags: [
+        { key: 'Application', value: 'Semiont' },
+        { key: 'Component', value: 'GraphDatabase' },
+        { key: 'Environment', value: this.node.tryGetContext('environment') || 'production' },
+      ],
+    });
+
+    // Neptune instance
+    this.neptuneInstance = new neptune.CfnDBInstance(this, 'NeptuneInstance', {
+      dbInstanceClass: 'db.t3.medium',
+      dbClusterIdentifier: this.neptuneCluster.ref,
+      dbSubnetGroupName: neptuneSubnetGroup.dbSubnetGroupName,
+    });
+
+    // Outputs for Neptune
+    new cdk.CfnOutput(this, 'NeptuneClusterEndpoint', {
+      value: this.neptuneCluster.attrEndpoint,
+      description: 'Neptune Cluster Endpoint',
+      exportName: `${this.stackName}-NeptuneClusterEndpoint`,
+    });
+
+    new cdk.CfnOutput(this, 'NeptuneClusterId', {
+      value: this.neptuneCluster.attrClusterResourceId,
+      description: 'Neptune Cluster ID',
+      exportName: `${this.stackName}-NeptuneClusterId`,
+    });
+
+    new cdk.CfnOutput(this, 'NeptuneReadEndpoint', {
+      value: this.neptuneCluster.attrReadEndpoint,
+      description: 'Neptune Read Endpoint',
+      exportName: `${this.stackName}-NeptuneReadEndpoint`,
+    });
+
+    new cdk.CfnOutput(this, 'NeptunePort', {
+      value: this.neptuneCluster.attrPort,
+      description: 'Neptune Port',
+      exportName: `${this.stackName}-NeptunePort`,
+    });
+
+    new cdk.CfnOutput(this, 'NeptuneSecurityGroupId', {
+      value: this.neptuneSecurityGroup.securityGroupId,
+      description: 'Neptune Security Group ID',
+      exportName: `${this.stackName}-NeptuneSecurityGroupId`,
+    });
 
     // Add explicit EFS filesystem policy to allow access
     this.fileSystem.addToResourcePolicy(

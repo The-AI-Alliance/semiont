@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 interface GraphServiceConfig {
-  name?: string;
+  type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';  // Required field
   port?: number;
   host?: string;
   storage?: 'cassandra' | 'berkeleydb';
@@ -18,7 +18,6 @@ interface GraphServiceConfig {
 interface EnvironmentConfig {
   services?: {
     graph?: GraphServiceConfig;
-    janusgraph?: GraphServiceConfig;
     [key: string]: any;
   };
   [key: string]: any;
@@ -72,34 +71,38 @@ export function getGraphConfig(): {
   // First try to load from environment JSON
   const envConfig = loadEnvironmentConfig();
   
-  if (envConfig?.services?.graph || envConfig?.services?.janusgraph) {
-    const graphService = envConfig.services.graph || envConfig.services.janusgraph;
+  if (envConfig?.services?.graph) {
+    const graphService = envConfig.services.graph;
     
-    if (graphService) {
-      // Determine graph type from service name or default to janusgraph
-      const graphType = graphService.name || 'janusgraph';
-      
-      const result: {
-        type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
-        host?: string;
-        port?: number;
-        storage?: string;
-        index?: string;
-      } = {
-        type: graphType as any,
-        host: graphService.host || 'localhost',
-        port: graphService.port || 8182
-      };
-      
-      if (graphService.storage) {
-        result.storage = graphService.storage;
-      }
-      if (graphService.index) {
-        result.index = graphService.index;
-      }
-      
-      return result;
+    if (!graphService.type) {
+      throw new Error('Graph service configuration must specify a "type" field (janusgraph, neptune, neo4j, or memory)');
     }
+    
+    const validTypes = ['janusgraph', 'neptune', 'neo4j', 'memory'];
+    if (!validTypes.includes(graphService.type)) {
+      throw new Error(`Invalid graph service type: ${graphService.type}. Must be one of: ${validTypes.join(', ')}`);
+    }
+    
+    const result: {
+      type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
+      host?: string;
+      port?: number;
+      storage?: string;
+      index?: string;
+    } = {
+      type: graphService.type,
+      host: graphService.host || 'localhost',
+      port: graphService.port || 8182
+    };
+    
+    if (graphService.storage) {
+      result.storage = graphService.storage;
+    }
+    if (graphService.index) {
+      result.index = graphService.index;
+    }
+    
+    return result;
   }
   
   // Fall back to environment variables for backwards compatibility
