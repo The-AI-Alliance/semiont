@@ -243,9 +243,9 @@ export class SemiontDataStack extends cdk.Stack {
       ],
     });
 
-    // Neptune instance
+    // Neptune instance (t4g.medium is ARM-based and ~7% cheaper than t3.medium)
     this.neptuneInstance = new neptune.CfnDBInstance(this, 'NeptuneInstance', {
-      dbInstanceClass: 'db.t3.medium',
+      dbInstanceClass: 'db.t4g.medium',
       dbClusterIdentifier: this.neptuneCluster.ref,
       dbSubnetGroupName: neptuneSubnetGroup.dbSubnetGroupName,
     });
