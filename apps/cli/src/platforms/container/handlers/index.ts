@@ -1,6 +1,7 @@
 import { webCheckDescriptor } from './web-check.js';
 import { databaseCheckDescriptor } from './database-check.js';
 import { genericCheckDescriptor } from './generic-check.js';
+import { graphCheckDescriptor } from './graph-check.js';
 import { webStartDescriptor } from './web-start.js';
 import { databaseStartDescriptor } from './database-start.js';
 import { genericStartDescriptor } from './generic-start.js';
@@ -23,6 +24,7 @@ const containerHandlers: Array<HandlerDescriptor<any, any>> = [
   webCheckDescriptor,
   databaseCheckDescriptor,
   genericCheckDescriptor,
+  graphCheckDescriptor,
   // Start handlers
   webStartDescriptor,
   databaseStartDescriptor,

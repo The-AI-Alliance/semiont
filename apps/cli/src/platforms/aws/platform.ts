@@ -347,6 +347,9 @@ export class AWSPlatform extends Platform {
         return 'rds';
       case 'filesystem':
         return 'efs';
+      case 'graph':
+        // Graph databases on AWS use Neptune
+        return 'neptune';
       case 'worker':
         return 'ecs-fargate';
       case 'inference':

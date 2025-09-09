@@ -3,6 +3,7 @@ import { databaseCheckDescriptor } from './database-check.js';
 import { workerCheckDescriptor } from './worker-check.js';
 import { filesystemCheckDescriptor } from './filesystem-check.js';
 import { mcpCheckDescriptor } from './mcp-check.js';
+import { graphCheckDescriptor } from './graph-check.js';
 import { webStartDescriptor } from './web-start.js';
 import { databaseStartDescriptor } from './database-start.js';
 import { workerStartDescriptor } from './worker-start.js';
@@ -26,6 +27,7 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   workerCheckDescriptor,
   filesystemCheckDescriptor,
   mcpCheckDescriptor,
+  graphCheckDescriptor,
   // Start handlers
   webStartDescriptor,
   databaseStartDescriptor,
