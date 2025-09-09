@@ -394,6 +394,7 @@ Available service types:
 - `SERVICE_TYPES.BACKEND` - API servers and application logic
 - `SERVICE_TYPES.DATABASE` - Data persistence layers
 - `SERVICE_TYPES.FILESYSTEM` - File storage services
+- `SERVICE_TYPES.GRAPH` - Graph databases and knowledge graphs (JanusGraph, Neptune, Neo4j)
 - `SERVICE_TYPES.WORKER` - Background job processors
 - `SERVICE_TYPES.MCP` - Model Context Protocol services
 - `SERVICE_TYPES.INFERENCE` - AI/ML model serving
@@ -404,7 +405,7 @@ Available service types:
 For services that support multiple implementations (like graph databases), ensure your configuration includes the implementation type:
 
 ```json
-// environments/local.json
+// environments/local.json - JanusGraph example
 {
   "services": {
     "graph": {
@@ -412,6 +413,21 @@ For services that support multiple implementations (like graph databases), ensur
       "type": "janusgraph",  // CRITICAL: Implementation type
       "port": 8182,
       "storage": "berkeleydb"
+    }
+  }
+}
+
+// environments/production.json - Neptune example
+{
+  "aws": {
+    "region": "us-east-1"  // CRITICAL: Required for Neptune discovery
+  },
+  "services": {
+    "graph": {
+      "platform": { "type": "aws" },
+      "type": "neptune",  // CRITICAL: Implementation type
+      "port": 8182,
+      "comment": "Provisioned via CDK data stack (Amazon Neptune)"
     }
   }
 }
@@ -430,7 +446,9 @@ if (implementationType !== 'expected-type') {
 }
 ```
 
-**Important**: Never use fallbacks when reading implementation types. This ensures explicit configuration and clear error messages.
+**Important**: 
+- Never use fallbacks when reading implementation types. This ensures explicit configuration and clear error messages.
+- For AWS services like Neptune, ensure the AWS region is configured in the environment JSON file under `aws.region`, not as an environment variable.
 
 ### 7. Update Service Registry
 
@@ -799,5 +817,6 @@ Look at existing services for examples:
 - `frontend-service.ts` - Static web service
 - `database-service.ts` - Stateful service with backups
 - `filesystem-service.ts` - Storage service
+- `graph-service.ts` - Graph databases (JanusGraph, Neptune, Neo4j, ArangoDB)
 - `mcp-service.ts` - Model Context Protocol server
 - `generic-service.ts` - Fallback for unknown services
