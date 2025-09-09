@@ -28,10 +28,14 @@ This starts all services defined in `apps/cli/templates/environments/local.json`
 
 If you prefer to start services individually or need more control:
 
-### Step 1: Start PostgreSQL Database
+### Step 1: Provision and Start PostgreSQL Database
 
 ```bash
 # Option A: Using Semiont CLI (recommended)
+# First provision the database (creates volume, pulls image, runs init scripts)
+semiont provision --service database --environment local
+
+# Then start the database
 semiont start --service database --environment local
 
 # Option B: Using Docker/Podman directly
@@ -46,12 +50,22 @@ docker run -d \
 # For Podman users: The exact same command works with 'podman' instead of 'docker'
 ```
 
-### Step 2: Start JanusGraph (Optional)
+> **Note**: The provision step creates persistent volumes and prepares the database. If you have initialization scripts in `db/init/`, they will run on first start. Migration scripts in `db/migrations/` and seed data in `db/seed/` can be run by your application.
+
+### Step 2: Provision and Start JanusGraph (Optional)
 
 Required only if you're working with graph database features:
 
 ```bash
 # Option A: Using Semiont CLI
+# First provision JanusGraph (creates docker-compose configuration)
+semiont provision --service graph --environment local
+
+# Optionally provision with Elasticsearch and/or Cassandra backends
+# semiont provision --service graph --environment local -- --with-elasticsearch
+# semiont provision --service graph --environment local -- --with-cassandra
+
+# Then start the graph database
 semiont start --service graph --environment local
 
 # Option B: Using Docker/Podman directly
