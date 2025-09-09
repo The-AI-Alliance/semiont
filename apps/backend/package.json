@@ -35,7 +35,7 @@
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^9.0.1",
-    "zod": "^3.22.4"
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",
