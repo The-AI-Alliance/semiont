@@ -437,8 +437,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'semiont_list_documents': {
         const params = new URLSearchParams();
-        if (args?.entityTypes) params.set('entityTypes', args.entityTypes);
-        if (args?.search) params.set('search', args.search);
+        if (args?.entityTypes) params.set('entityTypes', args.entityTypes as string);
+        if (args?.search) params.set('search', args.search as string);
         if (args?.limit) params.set('limit', args.limit.toString());
         if (args?.offset) params.set('offset', args.offset.toString());
         
