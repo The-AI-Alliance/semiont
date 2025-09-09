@@ -4,7 +4,7 @@ import { GraphDatabase } from './interface';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
-import { getGraphConfig } from '../config/environment-loader';
+import { getGraphConfig, loadEnvironmentConfig } from '../config/environment-loader';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 
@@ -96,10 +96,10 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
       if (graphConfig.port) {
         config.neptunePort = graphConfig.port;
       }
-      // Region from AWS_REGION environment variable (needed for AWS SDK)
-      const region = process.env.AWS_REGION;
-      if (region) {
-        config.neptuneRegion = region;
+      // Get AWS region from environment config
+      const envConfig = loadEnvironmentConfig();
+      if (envConfig?.aws?.region) {
+        config.neptuneRegion = envConfig.aws.region;
       }
     }
     

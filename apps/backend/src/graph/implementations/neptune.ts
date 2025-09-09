@@ -144,7 +144,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   } = {}) {
     if (config.endpoint) this.neptuneEndpoint = config.endpoint;
     this.neptunePort = config.port || 8182;
-    this.region = config.region || process.env.AWS_REGION;
+    if (config.region) this.region = config.region;
   }
   
   private async discoverNeptuneEndpoint(): Promise<void> {
@@ -155,7 +155,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     
     // In AWS environment, discover Neptune cluster endpoint
     if (!this.region) {
-      throw new Error('AWS_REGION must be set for Neptune endpoint discovery');
+      throw new Error('AWS region must be configured in environment JSON file (aws.region) for Neptune endpoint discovery');
     }
 
     try {
