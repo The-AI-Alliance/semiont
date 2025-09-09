@@ -1,4 +1,4 @@
-import { DockerUtils } from '../docker-utils.js';
+import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
@@ -6,117 +6,181 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
  * Supports JanusGraph, Neo4j, Neptune (for local testing), and other graph databases
  */
 const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service } = context;
-  const docker = await DockerUtils.getInstance();
+  const { service, runtime, containerName } = context;
   const requirements = service.getRequirements();
   const graphType = service.config.type || 'janusgraph';
   
-  // Container naming
-  const containerName = `${service.environment}_graph`;
-  const container = docker.getContainer(containerName);
-  
-  let status: 'running' | 'stopped' | 'unhealthy' = 'stopped';
-  let health: any = { healthy: false };
-  let logs: { recent: string[]; errors: string[] } | undefined;
-  let platformResources: any = undefined;
-  
   try {
-    const containerInfo = await container.inspect();
-    const isRunning = containerInfo.State.Running;
+    // Check container status
+    const containerStatus = execSync(
+      `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+      { encoding: 'utf-8' }
+    ).trim();
     
-    if (isRunning) {
-      status = 'running';
-      
-      // Get container health status if available
-      if (containerInfo.State.Health) {
-        const healthStatus = containerInfo.State.Health.Status;
-        health = {
-          healthy: healthStatus === 'healthy',
-          details: {
-            status: healthStatus,
-            checks: containerInfo.State.Health.Log?.slice(-1)[0],
-            graphType,
-            endpoint: getGraphEndpoint(graphType, requirements.network?.ports?.[0])
-          }
-        };
-        
-        if (healthStatus === 'unhealthy') {
-          status = 'unhealthy';
-        }
-      } else {
-        // No health check configured, just check if running
-        health = {
-          healthy: true,
-          details: {
-            status: 'running',
-            graphType,
-            endpoint: getGraphEndpoint(graphType, requirements.network?.ports?.[0])
-          }
-        };
-      }
-      
-      // Get container resource info
-      platformResources = {
-        platform: 'container' as const,
-        data: {
-          containerId: containerInfo.Id,
-          containerName,
-          image: containerInfo.Config.Image,
-          ports: containerInfo.NetworkSettings?.Ports,
-          graphType
-        }
-      };
-      
-      // Get recent logs
-      try {
-        const logStream = await container.logs({
-          stdout: true,
-          stderr: true,
-          tail: 20,
-          timestamps: true
-        });
-        
-        const logLines = logStream.toString().split('\n').filter(Boolean);
-        logs = {
-          recent: logLines.slice(-10),
-          errors: logLines.filter(line => 
-            line.toLowerCase().includes('error') || 
-            line.toLowerCase().includes('exception') ||
-            line.toLowerCase().includes('failed')
-          ).slice(-5)
-        };
-      } catch (logError) {
-        // Log collection is best-effort
-      }
-    }
-  } catch (error: any) {
-    // Container doesn't exist or other Docker error
-    if (error.statusCode !== 404) {
+    if (containerStatus !== 'running') {
       return {
-        success: false,
-        error: `Failed to check graph container: ${error.message}`,
+        success: true,
         status: 'stopped',
-        metadata: {
+        health: {
+          healthy: false,
+          details: { containerStatus, graphType }
+        },
+        metadata: { 
+          containerStatus,
           serviceType: 'graph',
           graphType
         }
       };
     }
-  }
-  
-  return {
-    success: true,
-    status,
-    platformResources,
-    health,
-    logs,
-    metadata: {
-      serviceType: 'graph',
-      graphType,
-      containerName,
-      stateVerified: true
+    
+    // Get container ID
+    const containerId = execSync(
+      `${runtime} inspect ${containerName} --format '{{.Id}}'`,
+      { encoding: 'utf-8' }
+    ).trim();
+    
+    // Get port mappings
+    const portsOutput = execSync(
+      `${runtime} port ${containerName}`,
+      { encoding: 'utf-8' }
+    ).trim();
+    
+    // Parse ports into a Record<string, string>
+    const ports: Record<string, string> = {};
+    if (portsOutput) {
+      portsOutput.split('\n').forEach(line => {
+        const match = line.match(/(\d+\/\w+)\s+->\s+([\d.:]+)/);
+        if (match) {
+          ports[match[1]] = match[2];
+        }
+      });
     }
-  };
+    
+    // Check if the graph service is responding
+    const port = requirements.network?.ports?.[0] || getDefaultPort(graphType);
+    let isHealthy = false;
+    let healthDetails: any = {
+      status: 'running',
+      graphType,
+      endpoint: getGraphEndpoint(graphType, port)
+    };
+    
+    // Try to verify the service is actually responding
+    try {
+      switch (graphType) {
+        case 'janusgraph':
+        case 'neptune':
+          // Check Gremlin server
+          execSync(`curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/gremlin`, {
+            encoding: 'utf-8',
+            timeout: 5000
+          });
+          isHealthy = true;
+          break;
+        case 'neo4j':
+          // Neo4j bolt protocol check would require specific client
+          // For now, just check if port is listening
+          execSync(`nc -z localhost ${port}`, { timeout: 5000 });
+          isHealthy = true;
+          break;
+        case 'arangodb':
+          // Check ArangoDB HTTP API
+          const httpCode = execSync(
+            `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/_api/version`,
+            { encoding: 'utf-8', timeout: 5000 }
+          ).trim();
+          isHealthy = httpCode === '200';
+          break;
+        default:
+          // Generic port check
+          execSync(`nc -z localhost ${port}`, { timeout: 5000 });
+          isHealthy = true;
+      }
+    } catch (healthCheckError) {
+      // Service not responding
+      isHealthy = false;
+      healthDetails.error = 'Service not responding on expected port';
+    }
+    
+    // Get recent logs
+    let logs: { recent: string[]; errors: string[] } | undefined;
+    try {
+      const logOutput = execSync(
+        `${runtime} logs ${containerName} --tail 20`,
+        { encoding: 'utf-8', maxBuffer: 1024 * 1024 }
+      );
+      
+      const logLines = logOutput.split('\n').filter(Boolean);
+      logs = {
+        recent: logLines.slice(-10),
+        errors: logLines.filter((line: string) => 
+          line.toLowerCase().includes('error') || 
+          line.toLowerCase().includes('exception') ||
+          line.toLowerCase().includes('failed')
+        ).slice(-5)
+      };
+    } catch (logError) {
+      // Log collection is best-effort
+    }
+    
+    // Get container image info
+    const image = execSync(
+      `${runtime} inspect ${containerName} --format '{{.Config.Image}}'`,
+      { encoding: 'utf-8' }
+    ).trim();
+    
+    return {
+      success: true,
+      status: isHealthy ? 'running' : 'unhealthy',
+      platformResources: {
+        platform: 'container' as const,
+        data: {
+          containerId,
+          containerName,
+          image,
+          ports
+        }
+      },
+      health: {
+        healthy: isHealthy,
+        details: healthDetails
+      },
+      logs,
+      metadata: {
+        serviceType: 'graph',
+        graphType,
+        containerName,
+        stateVerified: true
+      }
+    };
+  } catch (error: any) {
+    // Container doesn't exist or other Docker/Podman error
+    if (error.message?.includes('No such container') || error.message?.includes('no such container')) {
+      return {
+        success: true,
+        status: 'stopped',
+        health: {
+          healthy: false,
+          details: { error: 'Container does not exist' }
+        },
+        metadata: {
+          serviceType: 'graph',
+          graphType,
+          containerName
+        }
+      };
+    }
+    
+    return {
+      success: false,
+      error: `Failed to check graph container: ${error.message}`,
+      status: 'stopped',
+      metadata: {
+        serviceType: 'graph',
+        graphType
+      }
+    };
+  }
 };
 
 /**
