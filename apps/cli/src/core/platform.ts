@@ -113,6 +113,7 @@ export abstract class Platform {
     if (name === 'backend') return SERVICE_TYPES.BACKEND;
     if (name === 'database') return SERVICE_TYPES.DATABASE;
     if (name === 'filesystem') return SERVICE_TYPES.FILESYSTEM;
+    if (name === 'graph') return SERVICE_TYPES.GRAPH;
     if (name === 'mcp') return SERVICE_TYPES.MCP;
     return SERVICE_TYPES.GENERIC;
   }

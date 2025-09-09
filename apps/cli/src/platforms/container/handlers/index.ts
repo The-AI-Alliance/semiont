@@ -4,9 +4,13 @@ import { genericCheckDescriptor } from './generic-check.js';
 import { webStartDescriptor } from './web-start.js';
 import { databaseStartDescriptor } from './database-start.js';
 import { genericStartDescriptor } from './generic-start.js';
+import { graphStartDescriptor } from './graph-start.js';
 import { genericProvisionDescriptor } from './generic-provision.js';
+import { graphProvisionDescriptor } from './graph-provision.js';
 import { genericPublishDescriptor } from './generic-publish.js';
 import { genericUpdateDescriptor } from './generic-update.js';
+import { graphStopDescriptor } from './graph-stop.js';
+import { genericStopDescriptor } from './generic-stop.js';
 import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
@@ -23,8 +27,13 @@ const containerHandlers: Array<HandlerDescriptor<any, any>> = [
   webStartDescriptor,
   databaseStartDescriptor,
   genericStartDescriptor,
+  graphStartDescriptor,
+  // Stop handlers
+  graphStopDescriptor,
+  genericStopDescriptor,
   // Provision handlers
   genericProvisionDescriptor,
+  graphProvisionDescriptor,
   // Publish handlers
   genericPublishDescriptor,
   // Update handlers

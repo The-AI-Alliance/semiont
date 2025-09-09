@@ -13,6 +13,7 @@ import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';
 import { FilesystemService } from './filesystem-service.js';
+import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { GenericService } from '../core/generic-service.js';
 
@@ -38,6 +39,9 @@ export class ServiceFactory {
         
       case 'filesystem':
         return new FilesystemService(name, platform, config, serviceConfig);
+        
+      case 'graph':
+        return new GraphService('graph', platform, config, serviceConfig);
         
       case 'mcp':
         return new MCPService(name, platform, config, serviceConfig);

@@ -1,6 +1,6 @@
 # Semiont Backend
 
-A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, optimized for the Next.js frontend with modern development practices and comprehensive validation.
+A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, providing comprehensive document management, text selection capabilities, and graph-based knowledge organization. Built with Hono framework, featuring automatic OpenAPI documentation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
 
 ## Quick Start
 
@@ -477,10 +477,13 @@ See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 - **Runtime**: Node.js with TypeScript
 - **Web Framework**: [OpenAPIHono](https://hono.dev/) - Hono with integrated OpenAPI documentation
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
+- **Graph Database**: Neptune (AWS production) / In-memory (local development) for document relationships
 - **Authentication**: JWT with OAuth 2.0 (Google)
 - **Validation**: [Zod](https://zod.dev/) for runtime type validation
 - **API Documentation**: Automatic OpenAPI/Swagger generation from route definitions
 - **Environment**: Strict environment variable validation
+- **Document Processing**: Markdown parsing with automatic wiki-link and entity detection
+- **MCP Integration**: Model Context Protocol server for AI assistant access
 
 ## Project Structure
 
@@ -639,6 +642,181 @@ export interface APIRoutes {
   };
 }
 ```
+
+## API Endpoints
+
+The backend provides a comprehensive REST API for document management, text selections, and graph operations.
+
+### Document Management
+
+#### `POST /api/documents`
+Create a new document
+- **Auth**: Required
+- **Body**: `{ name: string, content: string, contentType?: string }`
+- **Response**: `{ success: true, document: Document }`
+
+#### `GET /api/documents/:id`
+Get document by ID
+- **Auth**: Required
+- **Response**: `{ success: true, document: Document }`
+
+#### `PATCH /api/documents/:id`
+Update document
+- **Auth**: Required
+- **Body**: `{ name?: string, content?: string, contentType?: string }`
+- **Response**: `{ success: true, document: Document }`
+
+#### `DELETE /api/documents/:id`
+Delete document
+- **Auth**: Required
+- **Response**: `{ success: true }`
+
+#### `GET /api/documents`
+List all documents with pagination
+- **Auth**: Required
+- **Query**: `?limit=20&offset=0&contentType=text/markdown`
+- **Response**: `{ success: true, documents: Document[], total: number }`
+
+#### `GET /api/documents/search`
+Search documents by name
+- **Auth**: Required
+- **Query**: `?q=searchterm&limit=10`
+- **Response**: `{ success: true, documents: Document[], total: number }`
+
+#### `GET /api/documents/schema-description`
+Get natural language description of graph schema
+- **Auth**: Required
+- **Response**: `{ success: true, description: string }`
+
+#### `POST /api/documents/:id/llm-context`
+Get LLM-suitable context for a document
+- **Auth**: Required
+- **Body**: `{ selectionId?: string }`
+- **Response**: `{ success: true, context: object }`
+
+#### `POST /api/documents/discover-context`
+Discover graph context from arbitrary text
+- **Auth**: Required
+- **Body**: `{ text: string }`
+- **Response**: `{ success: true, context: object }`
+
+### Selection Management
+
+Selections represent highlighted text, references to other documents, or entity references.
+
+#### `POST /api/selections`
+Create a provisional selection
+- **Auth**: Required
+- **Body**: `{ documentId: string, text: string, position: { start: number, end: number }, type?: 'provisional' | 'highlight' | 'reference' }`
+- **Response**: `{ success: true, selection: Selection }`
+
+#### `GET /api/selections/:id`
+Get selection by ID
+- **Auth**: Required
+- **Response**: `{ success: true, selection: Selection }`
+
+#### `PATCH /api/selections/:id`
+Update selection
+- **Auth**: Required
+- **Body**: Partial selection object
+- **Response**: `{ success: true, selection: Selection }`
+
+#### `DELETE /api/selections/:id`
+Delete selection
+- **Auth**: Required
+- **Response**: `{ success: true }`
+
+#### `GET /api/selections`
+List selections with filtering
+- **Auth**: Required
+- **Query**: `?documentId=abc&type=highlight&limit=20&offset=0`
+- **Response**: `{ success: true, selections: Selection[], total: number }`
+
+#### `POST /api/selections/highlight`
+Save selection as a highlight
+- **Auth**: Required
+- **Body**: `{ documentId: string, text: string, position: { start: number, end: number } }`
+- **Response**: `{ success: true, selection: Selection }`
+
+#### `POST /api/selections/resolve`
+Resolve selection to reference a document
+- **Auth**: Required
+- **Body**: `{ selectionId: string, targetDocumentId: string, referenceType?: string }`
+- **Response**: `{ success: true, selection: Selection }`
+
+#### `POST /api/selections/create-document`
+Create new document from selection
+- **Auth**: Required
+- **Body**: `{ selectionId: string, name: string, content: string, referenceType?: string }`
+- **Response**: `{ success: true, document: Document }`
+
+#### `POST /api/selections/generate-document`
+Generate document content from selection (AI-powered)
+- **Auth**: Required
+- **Body**: `{ selectionId: string, prompt?: string, name?: string, referenceType?: string }`
+- **Response**: `{ success: true, document: Document }`
+
+#### `GET /api/selections/highlights/:documentId`
+Get all highlights for a document
+- **Auth**: Required
+- **Response**: `{ success: true, selections: Selection[] }`
+
+#### `GET /api/selections/references/:documentId`
+Get all references for a document
+- **Auth**: Required
+- **Response**: `{ success: true, selections: Selection[] }`
+
+### Authentication & Authorization
+
+#### `POST /api/tokens/google`
+Exchange Google OAuth token for JWT
+- **Auth**: None
+- **Body**: `{ access_token: string }`
+- **Response**: `{ success: true, token: string, user: User, isNewUser: boolean }`
+
+#### `GET /api/users/me`
+Get current user information
+- **Auth**: Required
+- **Response**: `{ success: true, user: User }`
+
+#### `POST /api/users/logout`
+Logout current user
+- **Auth**: Required
+- **Response**: `{ success: true, message: string }`
+
+### Health & Status
+
+#### `GET /api/health`
+Health check endpoint (used by load balancers)
+- **Auth**: None
+- **Response**: `{ status: 'healthy', timestamp: string }`
+
+#### `GET /api/status`
+Detailed system status
+- **Auth**: Required
+- **Response**: `{ status: 'operational', version: string, environment: string, services: object }`
+
+#### `GET /api`
+API documentation and available endpoints
+- **Auth**: None
+- **Response**: HTML documentation page
+
+### Graph Operations
+
+The backend integrates with a graph database (Neptune in production) to manage relationships between documents and selections.
+
+#### Key Concepts:
+- **Documents**: Text documents with markdown content
+- **Selections**: Text ranges within documents
+- **Highlights**: Saved selections for important passages
+- **References**: Selections that link to other documents
+- **Entity References**: Selections marking entities (Person, Organization, etc.)
+
+#### Automatic Selection Detection
+When documents are created or updated, the system automatically detects:
+- Wiki-style links: `[[page name]]`
+- Common patterns: "lorem ipsum", "John Doe"
+- Entity mentions based on configured patterns
 
 ## Common Development Tasks
 

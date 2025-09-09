@@ -37,6 +37,17 @@
         "POSTGRES_PASSWORD": "localpass"
       }
     },
+    "graph": {
+      "platform": {
+        "type": "container"
+      },
+      "type": "janusgraph",
+      "name": "janusgraph",
+      "port": 8182,
+      "host": "localhost",
+      "storage": "berkeleydb",
+      "index": "none"
+    },
     "mcp": {
       "platform": {
         "type": "posix"
