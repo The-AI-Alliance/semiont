@@ -21,14 +21,31 @@ import {
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Note: In production, you would use gremlin libraries with Neptune endpoint
-// Neptune is fully managed and handles storage/scaling automatically
+// Dynamic imports for AWS SDK and Gremlin
+let NeptuneClient: any;
+let DescribeDBClustersCommand: any;
+let gremlin: any;
+
+async function loadDependencies() {
+  if (!NeptuneClient) {
+    const neptuneModule = await import('@aws-sdk/client-neptune');
+    NeptuneClient = neptuneModule.NeptuneClient;
+    DescribeDBClustersCommand = neptuneModule.DescribeDBClustersCommand;
+  }
+  if (!gremlin) {
+    gremlin = await import('gremlin');
+  }
+}
 
 export class NeptuneGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
-  // private client: any; // Would be Gremlin client in production
+  private neptuneEndpoint?: string;
+  private neptunePort: number = 8182;
+  private region?: string;
+  private client: any; // Gremlin client
+  private g: any; // Gremlin graph traversal source
   
-  // In-memory storage for development/testing (same as Neptune/Neo4j for now)
+  // In-memory storage for development/testing (will be replaced with Neptune queries)
   private documents: Map<string, Document> = new Map();
   private selections: Map<string, Selection> = new Map();
   
@@ -37,28 +54,144 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     port?: number;
     region?: string;
   } = {}) {
-    // Config will be used when implementing actual JanusGraph connection
-    void config;
+    this.neptuneEndpoint = config.endpoint;
+    this.neptunePort = config.port || 8182;
+    this.region = config.region || process.env.AWS_REGION;
+  }
+  
+  private async discoverNeptuneEndpoint(): Promise<void> {
+    // If endpoint is already provided, use it
+    if (this.neptuneEndpoint) {
+      return;
+    }
+    
+    // In AWS environment, discover Neptune cluster endpoint
+    if (!this.region) {
+      throw new Error('AWS_REGION must be set for Neptune endpoint discovery');
+    }
+
+    try {
+      // Load AWS SDK dynamically
+      await loadDependencies();
+      
+      // Create Neptune client
+      const client = new NeptuneClient({ region: this.region });
+      
+      // List all Neptune clusters
+      const command = new DescribeDBClustersCommand({});
+      const response = await client.send(command);
+      
+      if (!response.DBClusters || response.DBClusters.length === 0) {
+        throw new Error('No Neptune clusters found in region ' + this.region);
+      }
+      
+      // Find the Semiont cluster by tags
+      let cluster = null;
+      for (const dbCluster of response.DBClusters) {
+        // Check if this cluster has our application tag
+        const tagsCommand = new DescribeDBClustersCommand({
+          DBClusterIdentifier: dbCluster.DBClusterIdentifier
+        });
+        const clusterDetails = await client.send(tagsCommand);
+        
+        if (clusterDetails.DBClusters && clusterDetails.DBClusters[0]) {
+          const clusterInfo = clusterDetails.DBClusters[0];
+          // Check for Semiont tag or name pattern
+          if (clusterInfo.DBClusterIdentifier?.includes('Semiont') || 
+              clusterInfo.DBClusterIdentifier?.includes('semiont')) {
+            cluster = clusterInfo;
+            break;
+          }
+        }
+      }
+      
+      if (!cluster) {
+        throw new Error('No Semiont Neptune cluster found in region ' + this.region);
+      }
+      
+      // Set the endpoint and port
+      this.neptuneEndpoint = cluster.Endpoint;
+      this.neptunePort = cluster.Port || 8182;
+      
+      console.log(`Discovered Neptune endpoint: ${this.neptuneEndpoint}:${this.neptunePort}`);
+    } catch (error: any) {
+      console.error('Failed to discover Neptune endpoint:', error);
+      // If discovery fails but we're in development, continue with in-memory
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Neptune discovery failed in development, using in-memory graph database');
+        this.neptuneEndpoint = 'memory';
+      } else {
+        throw error;
+      }
+    }
   }
   
   async connect(): Promise<void> {
-    // In production: connect to Neptune endpoint using Gremlin
-    // const gremlin = require('gremlin');
-    // this.client = new gremlin.driver.Client(
-    //   `ws://${this.config.host || 'localhost'}:${this.config.port || 8182}/gremlin`,
-    //   { traversalSource: 'g' }
-    // );
-    // 
-    // Neptune doesn't require explicit schema initialization
+    // Discover Neptune endpoint if needed
+    await this.discoverNeptuneEndpoint();
     
-    console.log('Connecting to Neptune (simulated)...');
-    this.connected = true;
+    // If using in-memory fallback, skip Gremlin connection
+    if (this.neptuneEndpoint === 'memory') {
+      console.log('Using in-memory graph database');
+      this.connected = true;
+      return;
+    }
+    
+    try {
+      // Load Gremlin dynamically
+      await loadDependencies();
+      
+      // Create Gremlin connection
+      const traversal = gremlin.process.AnonymousTraversalSource.traversal;
+      const DriverRemoteConnection = gremlin.driver.DriverRemoteConnection;
+      
+      // Neptune requires WebSocket Secure (wss) protocol
+      const connectionUrl = `wss://${this.neptuneEndpoint}:${this.neptunePort}/gremlin`;
+      console.log(`Connecting to Neptune at ${connectionUrl}`);
+      
+      // Create the connection
+      const connection = new DriverRemoteConnection(connectionUrl, {
+        authenticator: null, // Neptune uses IAM authentication via task role
+        rejectUnauthorized: true,
+        traversalSource: 'g'
+      });
+      
+      // Create the graph traversal source
+      this.g = traversal().withRemote(connection);
+      
+      // Test the connection
+      const count = await this.g.V().limit(1).count().next();
+      console.log(`Connected to Neptune. Vertex count test: ${count.value}`);
+      
+      this.connected = true;
+    } catch (error: any) {
+      console.error('Failed to connect to Neptune:', error);
+      // If connection fails but we're in development, continue with in-memory
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Neptune connection failed in development, using in-memory graph database');
+        this.neptuneEndpoint = 'memory';
+        this.connected = true;
+      } else {
+        throw error;
+      }
+    }
   }
   
   async disconnect(): Promise<void> {
-    // In production: close Gremlin connection
-    // if (this.client) await this.client.close();
+    // Close Gremlin connection if it exists
+    if (this.g && this.neptuneEndpoint !== 'memory') {
+      try {
+        const connection = this.g.getConnection();
+        if (connection) {
+          await connection.close();
+        }
+      } catch (error) {
+        console.error('Error closing Neptune connection:', error);
+      }
+    }
+    
     this.connected = false;
+    console.log('Disconnected from Neptune');
   }
   
   isConnected(): boolean {
@@ -84,18 +217,30 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     if (input.createdBy) document.createdBy = input.createdBy;
     if (input.createdBy) document.updatedBy = input.createdBy;
     
-    // In production: Use Gremlin to create vertex
-    // await this.client.submit(`
-    //   g.addV('Document')
-    //     .property('id', id)
-    //     .property('name', name)
-    //     .property('entityTypes', entityTypes)
-    //     .property('contentType', contentType)
-    //     .property('storageUrl', storageUrl)
-    //     .property('createdAt', createdAt)
-    //     .property('updatedAt', updatedAt)
-    // `, { id, name, entityTypes, ... });
+    // If connected to Neptune, create vertex in graph
+    if (this.g && this.neptuneEndpoint !== 'memory') {
+      try {
+        await this.g.addV('Document')
+          .property('id', document.id)
+          .property('name', document.name)
+          .property('contentType', document.contentType)
+          .property('storageUrl', document.storageUrl)
+          .property('createdAt', document.createdAt.toISOString())
+          .property('updatedAt', document.updatedAt.toISOString())
+          .property('createdBy', document.createdBy || '')
+          .property('updatedBy', document.updatedBy || '')
+          .property('entityTypes', JSON.stringify(document.entityTypes))
+          .property('metadata', JSON.stringify(document.metadata))
+          .next();
+        
+        console.log(`Created document vertex in Neptune: ${document.id}`);
+      } catch (error) {
+        console.error('Failed to create document in Neptune:', error);
+        // Fall back to in-memory storage
+      }
+    }
     
+    // Also store in memory for now (hybrid approach during migration)
     this.documents.set(id, document);
     return document;
   }

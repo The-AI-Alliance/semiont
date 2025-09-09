@@ -245,6 +245,19 @@ export class SemiontAppStack extends cdk.Stack {
         resources: ['*'],
       })
     );
+
+    // Add Neptune permissions for graph database access
+    backendTaskDefinition.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'neptune-db:*',
+          'rds:DescribeDBClusters',
+          'rds:DescribeDBInstances',
+        ],
+        resources: ['*'],
+      })
+    );
     
     // Add ECS Exec permissions to frontend task role
     frontendTaskDefinition.taskRole.addToPrincipalPolicy(

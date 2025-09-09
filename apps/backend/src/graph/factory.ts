@@ -90,15 +90,17 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
       if (graphConfig.index && graphConfig.index !== 'none') {
         config.janusIndexBackend = graphConfig.index as any;
       }
-    }
-    
-    // Support for other graph databases via environment variables (backwards compatibility)
-    // Neptune config
-    if (process.env.NEPTUNE_ENDPOINT) config.neptuneEndpoint = process.env.NEPTUNE_ENDPOINT;
-    if (process.env.NEPTUNE_PORT) config.neptunePort = parseInt(process.env.NEPTUNE_PORT);
-    const region = process.env.NEPTUNE_REGION || process.env.AWS_REGION;
-    if (region) {
-      config.neptuneRegion = region;
+    } else if (graphConfig.type === 'neptune') {
+      // Neptune will discover its own endpoint using AWS SDK
+      // Only pass the port from config
+      if (graphConfig.port) {
+        config.neptunePort = graphConfig.port;
+      }
+      // Region from AWS_REGION environment variable (needed for AWS SDK)
+      const region = process.env.AWS_REGION;
+      if (region) {
+        config.neptuneRegion = region;
+      }
     }
     
     // Neo4j config  
