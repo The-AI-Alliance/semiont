@@ -11,8 +11,10 @@ import { filesystemStartDescriptor } from './filesystem-start.js';
 import { mcpStartDescriptor } from './mcp-start.js';
 import { graphStartDescriptor } from './graph-start.js';
 import { mcpProvisionDescriptor } from './mcp-provision.js';
+import { filesystemProvisionDescriptor } from './filesystem-provision.js';
 import { graphProvisionDescriptor } from './graph-provision.js';
 import { graphStopDescriptor } from './graph-stop.js';
+import { filesystemStopDescriptor } from './filesystem-stop.js';
 import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
@@ -37,8 +39,10 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   graphStartDescriptor,
   // Stop handlers
   graphStopDescriptor,
+  filesystemStopDescriptor,
   // Provision handlers
   mcpProvisionDescriptor,
+  filesystemProvisionDescriptor,
   graphProvisionDescriptor
 ];
 

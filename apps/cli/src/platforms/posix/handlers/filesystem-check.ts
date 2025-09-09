@@ -1,74 +1,122 @@
-import { StateManager } from '../../../core/state-manager.js';
-import { isPortInUse } from '../../../core/io/network-utils.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 
 /**
- * Check handler for POSIX filesystem services (NFS, Samba, etc.)
+ * Check handler for POSIX filesystem services
+ * 
+ * For filesystem services, we check if the directory exists and is accessible,
+ * not whether a process is running (since it's passive storage).
  */
-const checkFilesystemProcess = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { platform, service, savedState } = context;
-  const requirements = service.getRequirements();
+const checkFilesystemService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
+  const { service } = context;
   
-  let status: 'running' | 'stopped' = 'stopped';
-  let pid: number | undefined;
+  // Get the configured path
+  const basePath = service.config.path || path.join(process.cwd(), 'data', service.name);
+  const absolutePath = path.isAbsolute(basePath) ? basePath : path.join(service.projectRoot, basePath);
   
-  // Check if saved process is running
-  if (savedState?.resources?.platform === 'posix' && 
-      savedState.resources.data.pid && 
-      StateManager.isProcessRunning(savedState.resources.data.pid)) {
-    pid = savedState.resources.data.pid;
-    status = 'running';
+  let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'unknown';
+  let healthy = false;
+  let details: any = {
+    path: absolutePath
+  };
+  
+  // Check if the filesystem directory exists
+  if (!fs.existsSync(absolutePath)) {
+    status = 'stopped';
+    details.message = 'Filesystem directory does not exist';
   } else {
-    // Check standard filesystem service ports
-    const fsPorts: Record<string, number[]> = {
-      nfs: [2049, 111], // NFS and portmapper
-      samba: [445, 139],
-      webdav: [80, 443]
-    };
-    
-    const serviceName = service.name.toLowerCase();
-    const defaultPorts = fsPorts[serviceName] || [];
-    const port = requirements.network?.ports?.[0] || defaultPorts[0];
-    
-    if (port && await isPortInUse(port)) {
-      status = 'running';
+    // Check if it's accessible for reading and writing
+    try {
+      fs.accessSync(absolutePath, fs.constants.R_OK | fs.constants.W_OK);
+      status = 'running';  // For filesystem, "running" means accessible
+      healthy = true;
+      details.message = 'Filesystem is accessible and ready';
+      details.accessible = 'read/write';
+      
+      // Get directory stats
+      const stats = fs.statSync(absolutePath);
+      details.created = stats.birthtime;
+      details.modified = stats.mtime;
+      
+      // Count files and subdirectories
+      try {
+        const entries = fs.readdirSync(absolutePath);
+        details.entries = entries.length;
+        
+        // Check standard subdirectories
+        const standardDirs = ['uploads', 'temp', 'cache', 'logs'];
+        const existingDirs = standardDirs.filter(dir => 
+          fs.existsSync(path.join(absolutePath, dir))
+        );
+        details.subdirectories = existingDirs;
+      } catch {
+        // Can't read directory contents
+      }
+      
+      // Check disk usage
+      try {
+        const dfOutput = execSync(`df -h "${absolutePath}"`, { encoding: 'utf-8' });
+        const lines = dfOutput.split('\n');
+        if (lines.length > 1) {
+          const stats = lines[1].split(/\s+/);
+          if (stats.length >= 4) {
+            details.diskSpace = {
+              available: stats[3],
+              total: stats[1],
+              used: stats[2],
+              usagePercent: stats[4]
+            };
+            
+            // Warn if disk usage is high
+            const usagePercent = parseInt(stats[4]);
+            if (usagePercent > 90) {
+              healthy = false;
+              details.warning = `High disk usage: ${stats[4]}`;
+            } else if (usagePercent > 80) {
+              details.warning = `Disk usage at ${stats[4]}`;
+            }
+          }
+        }
+      } catch {
+        // df command might not be available
+      }
+      
+    } catch (error) {
+      status = 'unhealthy';
+      details.message = `Filesystem exists but is not accessible: ${error}`;
+      
+      // Check if it's readable at least
+      try {
+        fs.accessSync(absolutePath, fs.constants.R_OK);
+        details.accessible = 'read-only';
+      } catch {
+        details.accessible = 'none';
+      }
     }
   }
   
-  const platformResources = pid ? {
+  // Build platform resources
+  const platformResources = status === 'running' ? {
     platform: 'posix' as const,
     data: {
-      pid,
-      port: requirements.network?.ports?.[0]
+      path: absolutePath,
+      workingDirectory: absolutePath
     }
   } : undefined;
-  
-  // Collect logs if running
-  let logs: { recent: string[]; errors: string[] } | undefined = undefined;
-  if (status === 'running' && platform && typeof platform.collectLogs === 'function') {
-    const logEntries = await platform.collectLogs(service, { tail: 10 });
-    if (logEntries) {
-      logs = {
-        recent: logEntries.map(entry => entry.message),
-        errors: logEntries.filter(entry => entry.level === 'error').map(entry => entry.message)
-      };
-    }
-  }
   
   return {
     success: true,
     status,
     platformResources,
     health: {
-      healthy: status === 'running',
-      details: {
-        message: status === 'running' ? 'Filesystem service is running' : 'Filesystem service is stopped'
-      }
+      healthy,
+      details
     },
-    logs,
     metadata: {
       serviceType: 'filesystem',
-      stateVerified: true
+      path: absolutePath
     }
   };
 };
@@ -80,5 +128,5 @@ export const filesystemCheckDescriptor: HandlerDescriptor<PosixCheckHandlerConte
   command: 'check',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: checkFilesystemProcess
+  handler: checkFilesystemService
 };
