@@ -70,12 +70,25 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
       switch (graphType) {
         case 'janusgraph':
         case 'neptune':
-          // Check Gremlin server
-          execSync(`curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/gremlin`, {
-            encoding: 'utf-8',
-            timeout: 5000
-          });
-          isHealthy = true;
+          // Check if Gremlin server port is accessible
+          // JanusGraph doesn't have a simple HTTP endpoint, so we just check if the port is open
+          try {
+            // Check if port is listening using a simple TCP connection test
+            execSync(`${runtime} exec ${containerName} sh -c "echo 'test' | nc -w 1 localhost ${port}"`, {
+              encoding: 'utf-8',
+              timeout: 5000,
+              stdio: 'pipe'
+            });
+            isHealthy = true;
+          } catch {
+            // If nc fails, try checking if the java process is running
+            const processes = execSync(`${runtime} exec ${containerName} ps aux`, {
+              encoding: 'utf-8',
+              stdio: 'pipe'
+            });
+            // If JanusGraph java process is running, consider it healthy
+            isHealthy = processes.includes('java') && processes.includes('janusgraph');
+          }
           break;
         case 'neo4j':
           // Neo4j bolt protocol check would require specific client
