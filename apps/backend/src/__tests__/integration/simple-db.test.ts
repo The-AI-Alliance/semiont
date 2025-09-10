@@ -55,21 +55,6 @@ describe('Simple Database Integration Test', () => {
     expect(result).toEqual([{ test: 1 }]);
   });
 
-  it('should create and query HelloWorld record', async () => {
-    const created = await prisma.helloWorld.create({
-      data: { message: 'Test message' }
-    });
-    
-    expect(created.id).toBeDefined();
-    expect(created.message).toBe('Test message');
-    
-    const found = await prisma.helloWorld.findUnique({
-      where: { id: created.id }
-    });
-    
-    expect(found?.message).toBe('Test message');
-  });
-
   it('should create and query User record', async () => {
     const userData = {
       email: 'test@example.com',

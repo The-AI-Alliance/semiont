@@ -34,6 +34,7 @@ semiont/
 ├── bin/                  # Executable scripts
 │   └── semiont          # Main management CLI tool
 └── docs/                 # Comprehensive documentation
+    ├── LOCAL-DEVELOPMENT.md # Local development setup guide
     ├── DEPLOYMENT.md     # Step-by-step deployment guide
     ├── ARCHITECTURE.md   # System architecture overview
     ├── CONFIGURATION.md  # Configuration management guide
@@ -74,104 +75,23 @@ semiont init --name "my-project" --environments "local,staging,production"
 # ✅ environments/*.json - Environment-specific configs
 ```
 
-### 3. Instant Local Development 🎉
+### 3. Local Development
 
-#### 🚀 Complete Development Environment (Recommended)
+For detailed local development setup, including running the frontend and backend, see [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md).
+
+Quick options:
 ```bash
-# Set default environment to avoid repetition
-export SEMIONT_ENV=local
+# Complete development environment (recommended)
+semiont start --all --environment local
 
-# One command starts everything!
-semiont start
-
-# This automatically:
-# ✅ Starts PostgreSQL container with schema
-# ✅ Starts backend API with proper database connection
-# ✅ Starts frontend with real API integration
-# 🎉 Ready to develop in ~30 seconds!
-```
-
-**Your services are running at:**
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3001
-- **Database**: PostgreSQL in Docker container
-
-#### 🎨 Frontend-Only Development (UI/UX Work)
-```bash
-# With SEMIONT_ENV=local already set:
-semiont start --service frontend
-
-# Perfect for:
-# - Component development and styling
-# - UI/UX iteration 
-# - Design system work
-```
-
-#### ⚡ Service-Specific Development
-```bash
-# Backend only (auto-starts database)
-semiont start --service backend
-
-# Check what's running with interactive dashboard
-semiont watch
-
-# Check specific service logs
-semiont watch logs frontend
-
-# Stop everything
-semiont stop
-```
-
-#### 📊 Real-time Monitoring (New!)
-```bash
-# Interactive dashboard with services, logs, and metrics
-semiont watch
-
-# Focus on log streaming
-semiont watch logs
-
-# Focus on performance metrics  
-semiont watch metrics
-
-# Filter to specific service
-semiont watch logs frontend
-```
-
-### 4. Alternative Manual Setup
-
-If you prefer manual environment setup:
-
-#### Quick Start (No Backend Required)
-```bash
 # Frontend only with mock API
-cd apps/frontend
-npm run dev:mock  # Frontend on :3000 with mock API
+cd apps/frontend && npm run dev:mock
+
+# Manual setup for specific services
+# See LOCAL-DEVELOPMENT.md for detailed instructions
 ```
 
-#### Full Stack Development (Manual)
-```bash
-# Configure local secrets (first time only)
-semiont configure local set database-password  # Enter: localpassword
-semiont configure local set jwt-secret         # Generate with: openssl rand -base64 32
-
-# Start PostgreSQL (Docker or Podman)
-docker run --name semiont-postgres \
-  -e POSTGRES_PASSWORD=localpassword \
-  -e POSTGRES_DB=semiont \
-  -p 5432:5432 \
-  -d postgres:15-alpine
-
-# Backend setup
-cd apps/backend
-npx prisma db push
-npm run dev  # Backend on :3001
-
-# Frontend setup (in new terminal)
-cd apps/frontend
-npm run dev  # Frontend on :3000
-```
-
-### 5. Configuration Setup
+### 4. Configuration Setup
 
 ```bash
 # View current configuration
@@ -188,7 +108,7 @@ semiont configure show
 semiont configure validate
 ```
 
-### 6. Test Your Code
+### 5. Test Your Code
 
 ```bash
 # Run comprehensive test suite before deployment
@@ -204,7 +124,7 @@ semiont test --suite security                     # Security-focused validation
 semiont test --environment staging --suite integration  # Custom environment testing
 ```
 
-### 7. Deploy to AWS
+### 6. Deploy to AWS
 
 ```bash
 # Set production environment
@@ -229,7 +149,7 @@ semiont watch
 - `aws configure` for access keys
 - `aws sso login` for AWS SSO
 
-### 8. Service Management
+### 7. Service Management
 
 ```bash
 # Deploy code changes (with SEMIONT_ENV=production)
@@ -253,7 +173,7 @@ semiont stop --environment staging --service frontend
 semiont test  # Required - deploy will fail if tests don't pass
 ```
 
-### 9. Monitor & Verify Deployment
+### 8. Monitor & Verify Deployment
 ```bash
 # Interactive real-time dashboard (recommended)
 semiont watch
@@ -272,6 +192,7 @@ semiont check
 
 | Document | Description |
 |----------|-------------|
+| [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Complete local development setup guide |
 | [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
 | [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
 | [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
@@ -345,31 +266,12 @@ No more `.env` files - everything is type-safe, centralized, and inheritable!
 
 ## 🛠️ Development
 
-### Local Development Options
+For complete local development setup and options, see [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md).
 
-#### 🎨 Frontend-Only Development (Fastest)
-```bash
-cd apps/frontend
-npm run dev:mock  # Includes mock API server
-```
-Perfect for UI/UX work, component development, and styling changes.
-
-#### 🔧 Full-Stack Development
-```bash
-# Terminal 1: Backend
-cd apps/backend && npm run dev
-
-# Terminal 2: Frontend
-cd apps/frontend && npm run dev
-```
-Required for API development, database changes, and integration work.
-
-#### 🚀 Turbo Mode (Experimental)
-```bash
-cd apps/frontend
-npm run dev:fast  # Uses Next.js Turbopack
-```
-Faster builds for large codebases (requires backend running).
+Quick start options:
+- **Frontend-only**: `cd apps/frontend && npm run dev:mock`
+- **Full-stack**: `semiont start --all --environment local`
+- **Turbo mode**: `cd apps/frontend && npm run dev:fast`
 
 ### Development Guides
 
@@ -388,7 +290,7 @@ Start with the [Backend README](apps/backend/README.md) to understand:
 - Type-safe database operations with Prisma
 - JWT authentication and validation
 - Request/response validation with Zod
-- **Docker PostgreSQL setup for local development**
+- **Docker/Podman PostgreSQL setup for local development**
 - **Prisma Studio for database visualization**
 
 #### For Infrastructure & DevOps

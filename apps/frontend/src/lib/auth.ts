@@ -1,18 +1,85 @@
 import GoogleProvider from 'next-auth/providers/google';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { JWTTokenSchema, OAuthUserSchema, validateData } from '@/lib/validation';
 import type { NextAuthOptions } from 'next-auth';
 
-export const authOptions: NextAuthOptions = {
-  providers: [
+// Build providers array based on environment
+const providers: any[] = [];
+
+// Add Google provider if credentials are configured
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
     GoogleProvider({
-      // TODO: Fetch these from AWS Secrets Manager (semiont/oauth/google)
-      // For local dev, these can be set as environment variables
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    })
+  );
+}
+
+// Add local development provider if enabled
+if (process.env.ENABLE_LOCAL_AUTH === 'true' && process.env.NODE_ENV === 'development') {
+  providers.push(
+    CredentialsProvider({
+      name: 'Local Development',
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "admin@example.com" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email) {
+          return null;
+        }
+
+        // Call backend local auth endpoint
+        const apiUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
+        if (!apiUrl) {
+          throw new Error('Backend API URL is required for authentication');
+        }
+
+        try {
+          const response = await fetch(`${apiUrl}/api/tokens/local`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error('Local authentication failed:', await response.text());
+            return null;
+          }
+
+          const data = await response.json();
+          
+          // Return user object with backend token
+          return {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name || 'Local User',
+            image: data.user.image,
+            backendToken: data.token,
+            backendUser: data.user,
+          };
+        } catch (error) {
+          console.error('Local authentication error:', error);
+          return null;
+        }
+      }
+    })
+  );
+}
+
+export const authOptions: NextAuthOptions = {
+  providers,
   callbacks: {
     async signIn({ user, account, profile }) {
+      // Local development auth - already validated
+      if (account?.provider === 'credentials') {
+        return true;
+      }
+      
       if (account?.provider === 'google') {
         // Frontend domain validation for better UX (fail fast)
         // Security principle: No configured domains = reject all (closed system)

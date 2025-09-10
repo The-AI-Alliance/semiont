@@ -33,7 +33,7 @@
       "port": 5432,
       "environment": {
         "POSTGRES_DB": "semiont",
-        "POSTGRES_USER": "semiont",
+        "POSTGRES_USER": "postgres",
         "POSTGRES_PASSWORD": "localpass"
       }
     },
@@ -53,6 +53,13 @@
         "type": "posix"
       },
       "dependsOn": ["backend"]
+    },
+    "filesystem": {
+      "platform": {
+        "type": "posix"
+      },
+      "path": "./data/uploads",
+      "description": "Local filesystem storage for uploads and assets"
     }
   }
 }

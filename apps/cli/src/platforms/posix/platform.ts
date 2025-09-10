@@ -47,16 +47,16 @@ export class PosixPlatform extends Platform {
    * Map service types to POSIX handler types
    */
   protected override mapServiceType(declaredType: string): string {
-    // POSIX uses 'web' handler for frontend/backend services
-    if (declaredType === 'frontend' || declaredType === 'backend') {
-      return 'web';
-    }
-    
-    // Direct mappings
+    // Direct mappings for services with their own handlers
+    if (declaredType === 'frontend') return 'frontend';
+    if (declaredType === 'backend') return 'backend';
     if (declaredType === 'database') return 'database';
     if (declaredType === 'filesystem') return 'filesystem';
     if (declaredType === 'graph') return 'graph';
     if (declaredType === 'mcp') return 'mcp';
+    
+    // Web services use 'web' handler
+    if (declaredType === 'web') return 'web';
     
     // Everything else uses worker handler
     return 'worker';
@@ -94,6 +94,8 @@ export class PosixPlatform extends Platform {
     switch (serviceType) {
       case 'web':
       case 'worker':
+      case 'backend':
+      case 'frontend':
         return this.collectProcessLogs(service, state, options);
       
       case 'database':

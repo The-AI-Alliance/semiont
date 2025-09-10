@@ -125,41 +125,6 @@ describe('Database Module (db.ts) Integration Tests', () => {
       await DatabaseTestSetup.cleanDatabase();
     });
 
-    it('should perform CRUD operations on HelloWorld model', async () => {
-      const { prisma } = await import('../../db');
-      
-      // Create
-      const created = await prisma.helloWorld.create({
-        data: { message: 'Test from db.ts' }
-      });
-      expect(created.id).toBeDefined();
-      expect(created.message).toBe('Test from db.ts');
-
-      // Read
-      const found = await prisma.helloWorld.findUnique({
-        where: { id: created.id }
-      });
-      expect(found).toBeDefined();
-      expect(found?.message).toBe('Test from db.ts');
-
-      // Update
-      const updated = await prisma.helloWorld.update({
-        where: { id: created.id },
-        data: { message: 'Updated from db.ts' }
-      });
-      expect(updated.message).toBe('Updated from db.ts');
-
-      // Delete
-      await prisma.helloWorld.delete({
-        where: { id: created.id }
-      });
-
-      const deleted = await prisma.helloWorld.findUnique({
-        where: { id: created.id }
-      });
-      expect(deleted).toBeNull();
-    });
-
     it('should perform CRUD operations on User model', async () => {
       const { prisma } = await import('../../db');
       

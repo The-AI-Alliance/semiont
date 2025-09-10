@@ -45,90 +45,9 @@ describe('Database Integration Tests', () => {
       `;
       
       const tableNames = tables.map(t => t.table_name);
-      expect(tableNames).toContain('HelloWorld');
       expect(tableNames).toContain('users');
       // Note: _prisma_migrations table is only created by 'prisma migrate dev', 
       // not by 'prisma db push' which we use in tests
-    });
-  });
-
-  describe('HelloWorld Model Operations', () => {
-    it('should create and retrieve HelloWorld records', async () => {
-      const testMessage = 'Hello from integration test!';
-      
-      const created = await testPrisma.helloWorld.create({
-        data: { message: testMessage }
-      });
-
-      expect(created.id).toBeDefined();
-      expect(created.message).toBe(testMessage);
-      expect(created.createdAt).toBeInstanceOf(Date);
-      expect(created.updatedAt).toBeInstanceOf(Date);
-
-      const found = await testPrisma.helloWorld.findUnique({
-        where: { id: created.id }
-      });
-      
-      expect(found).toMatchObject({
-        id: created.id,
-        message: testMessage
-      });
-    });
-
-    it('should update HelloWorld records', async () => {
-      const created = await testPrisma.helloWorld.create({
-        data: { message: 'Original message' }
-      });
-
-      // Wait a small amount to ensure updatedAt timestamp differs
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      const updatedMessage = 'Updated message';
-      const updated = await testPrisma.helloWorld.update({
-        where: { id: created.id },
-        data: { message: updatedMessage }
-      });
-
-      expect(updated.message).toBe(updatedMessage);
-      expect(updated.updatedAt.getTime()).toBeGreaterThan(created.updatedAt.getTime());
-    });
-
-    it('should delete HelloWorld records', async () => {
-      const created = await testPrisma.helloWorld.create({
-        data: { message: 'To be deleted' }
-      });
-
-      await testPrisma.helloWorld.delete({
-        where: { id: created.id }
-      });
-
-      const found = await testPrisma.helloWorld.findUnique({
-        where: { id: created.id }
-      });
-
-      expect(found).toBeNull();
-    });
-
-    it('should handle multiple HelloWorld records', async () => {
-      const messages = ['Message 1', 'Message 2', 'Message 3'];
-      
-      // Create records sequentially to ensure consistent ordering
-      const created = [];
-      for (const message of messages) {
-        const record = await testPrisma.helloWorld.create({ data: { message } });
-        created.push(record);
-        // Small delay to ensure different timestamps
-        await new Promise(resolve => setTimeout(resolve, 5));
-      }
-
-      expect(created).toHaveLength(3);
-
-      const all = await testPrisma.helloWorld.findMany({
-        orderBy: { createdAt: 'asc' }
-      });
-
-      expect(all).toHaveLength(3);
-      expect(all.map(h => h.message)).toEqual(messages);
     });
   });
 
@@ -340,12 +259,15 @@ describe('Database Integration Tests', () => {
     it('should handle bulk operations efficiently', async () => {
       const startTime = Date.now();
       
-      // Create 100 HelloWorld records
+      // Create 100 User records
       const data = Array.from({ length: 100 }, (_, i) => ({
-        message: `Bulk message ${i + 1}`
+        email: `bulkuser${i + 1}@example.com`,
+        provider: 'test',
+        providerId: `test_bulk_${i + 1}`,
+        domain: 'example.com'
       }));
 
-      await testPrisma.helloWorld.createMany({ data });
+      await testPrisma.user.createMany({ data });
 
       const endTime = Date.now();
       const duration = endTime - startTime;
@@ -354,7 +276,7 @@ describe('Database Integration Tests', () => {
       expect(duration).toBeLessThan(5000);
 
       // Verify all records were created
-      const count = await testPrisma.helloWorld.count();
+      const count = await testPrisma.user.count();
       expect(count).toBe(100);
     });
 

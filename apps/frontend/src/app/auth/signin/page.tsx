@@ -9,9 +9,24 @@ import Link from 'next/link';
 function SignInContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [showLocalAuth, setShowLocalAuth] = useState(false);
   const callbackUrl = searchParams?.get('callbackUrl') || '/';
 
   useEffect(() => {
+    // Check if local auth is enabled
+    if (process.env.NEXT_PUBLIC_ENABLE_LOCAL_AUTH === 'true' || process.env.NODE_ENV === 'development') {
+      // Check providers to see if credentials provider is available
+      fetch('/api/auth/providers')
+        .then(res => res.json())
+        .then(providers => {
+          if (providers.credentials) {
+            setShowLocalAuth(true);
+          }
+        })
+        .catch(() => {});
+    }
+    
     const errorParam = searchParams?.get('error');
     if (errorParam) {
       switch (errorParam) {
@@ -41,6 +56,30 @@ function SignInContent() {
     }
   };
 
+  const handleLocalSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+    
+    try {
+      const result = await signIn('credentials', {
+        email,
+        redirect: false,
+        callbackUrl
+      });
+      
+      if (result?.error) {
+        setError('Failed to sign in. Please check your email and try again.');
+      } else if (result?.ok) {
+        window.location.href = callbackUrl;
+      }
+    } catch (error) {
+      setError('Failed to sign in. Please try again.');
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="max-w-md w-full space-y-8">
@@ -62,6 +101,42 @@ function SignInContent() {
         )}
 
         <div className="mt-8 space-y-6">
+          {showLocalAuth && (
+            <>
+              <form onSubmit={handleLocalSignIn} className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email Address (Local Development)
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm bg-white dark:bg-gray-800"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                >
+                  Sign in with Local Development
+                </button>
+              </form>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500">Or</span>
+                </div>
+              </div>
+            </>
+          )}
+          
           <button
             onClick={handleGoogleSignIn}
             className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -76,7 +151,7 @@ function SignInContent() {
           </button>
           
           <div className="text-xs text-center text-gray-500 dark:text-gray-400">
-            Only users with approved email domains can sign in
+            {showLocalAuth ? 'Local authentication enabled for development' : 'Only users with approved email domains can sign in'}
           </div>
 
           <div className="text-center">

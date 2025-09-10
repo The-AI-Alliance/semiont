@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import * as yaml from 'js-yaml';
 
 /**
@@ -52,11 +52,48 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
         // Network might already exist, that's fine
       }
       
+      // Pull required images
+      if (!service.quiet) {
+        printInfo('Pulling required Docker images...');
+      }
+      
+      // Pull JanusGraph image
+      try {
+        execSync('docker pull janusgraph/janusgraph:1.0.0', {
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+      } catch (error) {
+        printWarning('Failed to pull JanusGraph image, will try to use local');
+      }
+      
+      // Pull Cassandra if requested
+      if (withCassandra) {
+        try {
+          execSync('docker pull cassandra:4', {
+            stdio: service.verbose ? 'inherit' : 'pipe'
+          });
+        } catch (error) {
+          printWarning('Failed to pull Cassandra image, will try to use local');
+        }
+      }
+      
+      // Pull Elasticsearch if requested
+      if (withElasticsearch) {
+        try {
+          execSync('docker pull docker.elastic.co/elasticsearch/elasticsearch:7.17.10', {
+            stdio: service.verbose ? 'inherit' : 'pipe'
+          });
+        } catch (error) {
+          printWarning('Failed to pull Elasticsearch image, will try to use local');
+        }
+      }
+      
       // Generate docker-compose configuration
+      const containerName = `semiont-${service.name}-${service.environment}`;
       const services: any = {
         janusgraph: {
           image: 'janusgraph/janusgraph:1.0.0',
-          container_name: 'semiont-janusgraph',
+          container_name: containerName,
           networks: [networkName],
           ports: ['8182:8182'],
           environment: {
@@ -145,17 +182,22 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
     );
       
     if (!service.quiet) {
-      printSuccess('✅ JanusGraph Docker stack configured successfully!');
-      printInfo(`Storage backend: ${withCassandra ? 'Cassandra' : 'BerkeleyDB'}`);
-      printInfo(`Index backend: ${withElasticsearch ? 'Elasticsearch' : 'None'}`);
+      printSuccess('✅ JanusGraph Docker stack provisioned successfully!');
       printInfo('');
-      printInfo('Files created:');
+      printInfo('Images pulled:');
+      printInfo('  JanusGraph: janusgraph/janusgraph:1.0.0');
+      if (withCassandra) printInfo('  Cassandra: cassandra:4');
+      if (withElasticsearch) printInfo('  Elasticsearch: docker.elastic.co/elasticsearch/elasticsearch:7.17.10');
+      printInfo('');
+      printInfo('Configuration:');
+      printInfo(`  Storage backend: ${withCassandra ? 'Cassandra' : 'BerkeleyDB'}`);
+      printInfo(`  Index backend: ${withElasticsearch ? 'Elasticsearch' : 'None'}`);
       printInfo(`  Docker Compose: ${composePath}`);
       printInfo('');
       printInfo('To start JanusGraph:');
-      printInfo('  semiont start --service janusgraph');
+      printInfo('  semiont start --service graph --environment local');
       printInfo('');
-      printInfo('Service URLs:');
+      printInfo('Service URLs (after starting):');
       printInfo('  Gremlin Server: ws://localhost:8182/gremlin');
       if (withCassandra) printInfo('  Cassandra: localhost:9042');
       if (withElasticsearch) printInfo('  Elasticsearch: http://localhost:9200');

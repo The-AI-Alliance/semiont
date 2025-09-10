@@ -50,7 +50,6 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
   buildServiceConfig: (options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
-    environment: options.environment,
     tag: options.tag,
     registry: options.registry,
     semiontRepo: options.semiontRepo,

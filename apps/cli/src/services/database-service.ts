@@ -52,7 +52,7 @@ export class DatabaseService extends BaseService {
       storage: [{
         persistent: true,
         volumeName: `postgres-data-${this.systemConfig.environment}`,
-        size: this.config.storageSize || '10Gi',
+        size: this.config.storageSize,  // Must be configured if needed
         mountPath: '/var/lib/postgresql/data',
         type: 'volume',
         backupEnabled: true
@@ -63,21 +63,18 @@ export class DatabaseService extends BaseService {
         healthCheckPort: this.getPort()
       },
       resources: {
-        memory: this.config.memory || '1Gi',
-        cpu: this.config.cpu || '0.5',
+        memory: this.config.memory,
+        cpu: this.config.cpu,
         replicas: 1  // Databases are typically single instance
       },
       security: {
         secrets: ['POSTGRES_PASSWORD'],
-        runAsUser: 999,  // postgres user
-        runAsGroup: 999,
+        // Don't hardcode user IDs - let the container image decide
+        // postgres:15-alpine runs as uid 70, not 999
         allowPrivilegeEscalation: false
       },
-      environment: {
-        POSTGRES_DB: this.config.database || 'semiont',
-        POSTGRES_USER: this.config.user || 'postgres',
-        PGDATA: '/var/lib/postgresql/data'
-      },
+      // Pass through environment variables exactly as configured
+      environment: this.config.environment || {},
       annotations: {
         // Service type declaration
         'service/type': SERVICE_TYPES.DATABASE,
@@ -101,7 +98,11 @@ export class DatabaseService extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.config.port || 5432;
+    // Port must be explicitly configured - no defaults
+    if (!this.config.port) {
+      throw new Error(`Database service '${this.name}' has no port configured`);
+    }
+    return this.config.port;
   }
   
   override getHealthEndpoint(): string {
@@ -113,20 +114,16 @@ export class DatabaseService extends BaseService {
   }
   
   override getImage(): string {
-    return this.config.image || 'postgres:latest';
+    // Image must be explicitly configured - no defaults
+    if (!this.config.image) {
+      throw new Error(`Database service '${this.name}' has no image configured`);
+    }
+    return this.config.image;
   }
   
   override getEnvironmentVariables(): Record<string, string> {
-    const baseEnv = super.getEnvironmentVariables();
-    const requirements = this.getRequirements();
-    
-    // Merge base env with requirements env
-    return {
-      ...baseEnv,
-      ...(requirements.environment || {}),
-      // Add password from environment if available
-      POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || this.config.password || 'localpassword'
-    };
+    // Just return what's configured - no magic, no defaults, no process.env
+    return this.config.environment || {};
   }
   
   // =====================================================================

@@ -30,7 +30,7 @@ const stopGraphService = async (context: ContainerStopHandlerContext): Promise<S
 };
 
 async function stopJanusGraph(context: ContainerStopHandlerContext): Promise<StopHandlerResult> {
-  const { service, options } = context;
+  const { service, options, containerName } = context;
   const composePath = path.join(service.projectRoot, 'docker-compose.janusgraph.yml');
   
   // Check if docker-compose file exists
@@ -52,7 +52,8 @@ async function stopJanusGraph(context: ContainerStopHandlerContext): Promise<Sto
   let runningContainers: string[] = [];
   try {
     const output = execSync('docker ps --format "{{.Names}}"', { encoding: 'utf-8' });
-    const containerNames = ['semiont-janusgraph', 'semiont-cassandra', 'semiont-elasticsearch'];
+    // Check for the main graph container and any additional backend containers
+    const containerNames = [containerName, 'semiont-cassandra', 'semiont-elasticsearch'];
     runningContainers = containerNames.filter(name => output.includes(name));
     
     if (runningContainers.length === 0) {

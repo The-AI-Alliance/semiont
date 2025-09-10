@@ -10,14 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Initial "Hello World" model to verify database connectivity
-model HelloWorld {
-  id        String   @id @default(cuid())
-  message   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 // User model for OAuth authentication
 model User {
   id        String   @id @default(cuid())

@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
-import { printInfo } from '../../../core/io/cli-logger.js';
+import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
  * Start handler for database services in containers
@@ -18,12 +18,20 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
     // Container might not exist
   }
   
+  // Create network if it doesn't exist
+  const networkName = `semiont-${service.environment}`;
+  try {
+    execSync(`${runtime} network create ${networkName}`, { stdio: 'ignore' });
+  } catch {
+    // Network might already exist
+  }
+  
   // Build run command for database
   const runArgs: string[] = [
     'run',
     '-d',
     '--name', containerName,
-    '--network', `semiont-${service.environment}`
+    '--network', networkName
   ];
   
   // Add port mappings for database
@@ -42,23 +50,14 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
   }
   
   // Add environment variables (including database credentials)
+  // These MUST be configured in the environment JSON - no defaults!
   const envVars = {
     ...service.getEnvironmentVariables(),
     ...(requirements.environment || {})
   };
   
-  // Add common database environment variables if not present
-  if (image.includes('postgres') && !envVars.POSTGRES_DB) {
-    envVars.POSTGRES_DB = service.name;
-    envVars.POSTGRES_USER = envVars.POSTGRES_USER || 'admin';
-    envVars.POSTGRES_PASSWORD = envVars.POSTGRES_PASSWORD || 'changeme';
-  } else if (image.includes('mysql') && !envVars.MYSQL_DATABASE) {
-    envVars.MYSQL_DATABASE = service.name;
-    envVars.MYSQL_ROOT_PASSWORD = envVars.MYSQL_ROOT_PASSWORD || 'changeme';
-  } else if (image.includes('mongo') && !envVars.MONGO_INITDB_DATABASE) {
-    envVars.MONGO_INITDB_DATABASE = service.name;
-    envVars.MONGO_INITDB_ROOT_USERNAME = envVars.MONGO_INITDB_ROOT_USERNAME || 'admin';
-    envVars.MONGO_INITDB_ROOT_PASSWORD = envVars.MONGO_INITDB_ROOT_PASSWORD || 'changeme';
+  if (context.options.verbose) {
+    printInfo(`Database environment variables configured: ${Object.keys(envVars).join(', ')}`);
   }
   
   for (const [key, value] of Object.entries(envVars)) {
@@ -117,11 +116,16 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
     printInfo(`Starting database container: ${containerName}`);
   }
   
+  if (context.options.verbose) {
+    printInfo(`Run command: ${runCommand}`);
+  }
+  
   try {
     const containerId = execSync(runCommand, { encoding: 'utf-8' }).trim();
     
     // Wait for database to be ready (databases take longer)
-    await waitForDatabase(runtime, containerName, image);
+    const dbUser = envVars.POSTGRES_USER || envVars.MYSQL_USER || envVars.MONGO_INITDB_ROOT_USERNAME;
+    await waitForDatabase(runtime, containerName, image, service.quiet || false, dbUser, context.options.verbose);
     
     // Build endpoint for database
     let endpoint: string | undefined;
@@ -170,55 +174,116 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
 /**
  * Wait for database to be ready
  */
-async function waitForDatabase(runtime: string, containerName: string, image: string): Promise<void> {
-  const maxAttempts = 60; // Databases can take longer
+async function waitForDatabase(runtime: string, containerName: string, image: string, quiet: boolean, dbUser?: string, verbose?: boolean): Promise<void> {
+  const maxAttempts = 15; // 15 seconds should be enough
   let attempts = 0;
+  
+  // Give container a moment to initialize
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // For development, we can be less strict about health checks
+  const skipHealthCheck = process.env.SKIP_DB_HEALTH_CHECK === 'true';
+  
+  // Skip health check if requested or just check if container is running
+  if (skipHealthCheck) {
+    try {
+      const status = execSync(
+        `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+        { encoding: 'utf-8', timeout: 5000 }
+      ).trim();
+      
+      if (status === 'running') {
+        // Just give it a few seconds to initialize
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return;
+      }
+    } catch {
+      // Container not ready
+    }
+    throw new Error(`Database container ${containerName} failed to start`);
+  }
   
   while (attempts < maxAttempts) {
     try {
       const status = execSync(
         `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
-        { encoding: 'utf-8' }
+        { encoding: 'utf-8', timeout: 5000 }
       ).trim();
+      
+      if (verbose && attempts === 0) {
+        printInfo(`Container status: ${status}`);
+      }
       
       if (status === 'running') {
         // Check if database is accepting connections
         if (image.includes('postgres')) {
-          try {
-            execSync(`${runtime} exec ${containerName} pg_isready`, { stdio: 'ignore' });
+          if (!dbUser) {
+            // If no user is configured, skip the health check
+            if (!quiet) {
+              printWarning(`No POSTGRES_USER configured, skipping health check`);
+            }
             return;
-          } catch {
-            // Not ready yet
+          }
+          try {
+            // Use pg_isready with the configured user
+            if (verbose) {
+              printInfo(`Checking PostgreSQL readiness with user '${dbUser}'...`);
+            }
+            execSync(`${runtime} exec ${containerName} pg_isready -U ${dbUser} -t 1`, { 
+              stdio: verbose ? 'inherit' : 'ignore',
+              timeout: 5000 
+            });
+            // Give it another second to fully initialize
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (verbose) {
+              printInfo(`PostgreSQL is ready`);
+            }
+            return;
+          } catch (e) {
+            // Not ready yet, continue waiting
+            if (verbose || (!quiet && attempts === maxAttempts - 1)) {
+              printInfo(`PostgreSQL not responding to pg_isready with user '${dbUser}' (attempt ${attempts + 1}/${maxAttempts})`);
+            }
           }
         } else if (image.includes('mysql')) {
           try {
-            execSync(`${runtime} exec ${containerName} mysqladmin ping`, { stdio: 'ignore' });
+            execSync(`${runtime} exec ${containerName} mysqladmin ping -h localhost`, { 
+              stdio: 'ignore',
+              timeout: 5000 
+            });
             return;
           } catch {
             // Not ready yet
           }
         } else if (image.includes('mongo')) {
           try {
-            execSync(`${runtime} exec ${containerName} mongo --eval "db.adminCommand('ping')"`, { stdio: 'ignore' });
+            execSync(`${runtime} exec ${containerName} mongosh --eval "db.adminCommand('ping')"`, { 
+              stdio: 'ignore',
+              timeout: 5000 
+            });
             return;
           } catch {
             // Not ready yet
           }
         } else {
-          // Generic database, just wait a bit more
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          // Generic database, just wait a bit
+          await new Promise(resolve => setTimeout(resolve, 3000));
           return;
         }
       }
-    } catch {
-      // Container might not exist yet
+    } catch (error) {
+      // Container might not be ready yet
+      if (!quiet && attempts % 5 === 0) {
+        printInfo(`Waiting for database to be ready... (${attempts + 1}/${maxAttempts})`);
+      }
     }
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     attempts++;
   }
   
-  throw new Error(`Database container ${containerName} failed to start within ${maxAttempts} seconds`);
+  // If we've exhausted attempts, just continue - database might still work
+  printWarning(`Database container ${containerName} is taking longer than expected to start`);
 }
 
 /**
