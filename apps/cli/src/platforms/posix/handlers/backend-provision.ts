@@ -295,16 +295,32 @@ main()
   });
 `;
           
-          // Write seed script to temp file
-          const seedScriptPath = path.join(tmpDir, 'seed-admin.js');
+          // Write seed script to backend source temp directory
+          const seedScriptPath = path.join(backendSourceDir, 'seed-admin-temp.js');
           fs.writeFileSync(seedScriptPath, seedScript);
           
-          // Execute seed script
-          execSync(`node ${seedScriptPath}`, {
-            cwd: backendSourceDir,
-            env: { ...process.env, ...envVars },
-            stdio: service.verbose ? 'inherit' : 'pipe'
-          });
+          // Execute seed script using npx to ensure node_modules are available
+          if (!service.quiet) {
+            printInfo(`Seeding admin user ${adminEmail}...`);
+          }
+          
+          try {
+            const output = execSync(`npx tsx ${seedScriptPath}`, {
+              cwd: backendSourceDir,
+              env: { ...process.env, ...envVars },
+              stdio: service.verbose ? 'inherit' : 'pipe'
+            });
+            
+            if (!service.quiet && !service.verbose && output) {
+              printInfo(output.toString().trim());
+            }
+          } catch (seedError) {
+            printError(`Failed to seed admin user: ${seedError}`);
+            printInfo('You can manually create an admin user later by running:');
+            printInfo(`  cd ${backendSourceDir}`);
+            printInfo(`  npx tsx -e "const {PrismaClient} = require('@prisma/client'); const p = new PrismaClient(); p.user.create({data:{email:'${adminEmail}',name:'Admin',provider:'seeded',providerId:'admin-'+Date.now(),domain:'${domain}',isAdmin:true,isActive:true}}).then(()=>p.$disconnect())"`)
+            throw seedError;
+          }
           
           // Clean up temp script
           fs.unlinkSync(seedScriptPath);
