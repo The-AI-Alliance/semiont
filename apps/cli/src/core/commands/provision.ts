@@ -26,7 +26,12 @@ const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   stack: z.enum(['data', 'app', 'all']).optional(),  // AWS-specific stack provisioning
   force: z.boolean().default(false),
   skipValidation: z.boolean().default(false),
+  skipDependencies: z.boolean().default(false),
   destroy: z.boolean().default(false),
+  // Backend-specific options
+  seedAdmin: z.boolean().default(false),
+  adminEmail: z.string().optional(),
+  semiontRepo: z.string().optional(),
 });
 
 type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
@@ -69,13 +74,8 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   }),
   
   extractHandlerOptions: (options) => ({
-    stack: options.stack,
-    force: options.force,
-    skipValidation: options.skipValidation,
-    destroy: options.destroy,
-    verbose: options.verbose,
-    quiet: options.quiet,
-    dryRun: options.dryRun,
+    // Pass through all options (including those from after --)
+    ...options,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
@@ -177,6 +177,19 @@ export const provisionCommand = new CommandBuilder()
         type: 'boolean',
         description: 'Skip provisioning service dependencies',
         default: false,
+      },
+      '--seed-admin': {
+        type: 'boolean',
+        description: 'Create initial admin user (backend only)',
+        default: false,
+      },
+      '--admin-email': {
+        type: 'string',
+        description: 'Email address for initial admin user',
+      },
+      '--semiont-repo': {
+        type: 'string',
+        description: 'Path to semiont repository (for local development)',
       },
     },
     aliases: {
