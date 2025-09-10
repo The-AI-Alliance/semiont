@@ -24,6 +24,22 @@ semiont start --all --environment local
 
 This starts all services defined in `apps/cli/templates/environments/local.json`.
 
+## Local Development Authentication
+
+For local development, authentication is simplified:
+
+1. **No Google OAuth Required**: By default, local development uses email-only authentication
+2. **Seed an Admin User**: During backend provisioning, create an admin account:
+   ```bash
+   semiont provision --service backend --environment local \
+     --semiont-repo /path/to/semiont \
+     -- --seed-admin --admin-email your-email@example.com
+   ```
+3. **Sign In**: Visit http://localhost:3000, click "Sign In", and enter the seeded email
+4. **No Password**: Just enter the email address - no password or Google account needed
+
+> **Security Note**: Local authentication (`ENABLE_LOCAL_AUTH=true`) is only available when `NODE_ENV=development`. Never use this in production!
+
 ## Manual Setup
 
 If you prefer to start services individually or need more control:
@@ -100,6 +116,26 @@ semiont check --service filesystem --environment local
 ### Step 4: Setup and Run Backend
 
 ```bash
+# Option A: Using Semiont CLI (recommended)
+# Set the path to your semiont repository
+export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
+
+# Provision the backend (creates runtime directory, installs dependencies, runs migrations)
+semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO
+
+# Optionally seed an admin user during provisioning
+# semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO -- --seed-admin --admin-email your-email@example.com
+
+# Start the backend service
+semiont start --service backend --environment local --semiont-repo $SEMIONT_REPO
+
+# Check backend status
+semiont check --service backend --environment local
+
+# When done, stop the backend
+semiont stop --service backend --environment local
+
+# Option B: Manual setup
 cd apps/backend
 
 # Install dependencies
@@ -118,6 +154,13 @@ npx prisma generate
 npm run dev
 ```
 
+> **Note**: The provision step creates a `backend/` directory in your SEMIONT_ROOT with:
+> - `.env.local` for environment configuration
+> - `logs/` for application logs
+> - `tmp/` for temporary files
+> - Runs `npm install`, `npx prisma generate`, and `npx prisma migrate deploy` automatically
+> - Optionally seeds an admin user with `--seed-admin --admin-email` flags
+
 The backend API will be available at **http://localhost:4000**
 
 Backend endpoints:
@@ -127,9 +170,24 @@ Backend endpoints:
 
 ### Step 5: Setup and Run Frontend
 
-Open a new terminal window:
-
 ```bash
+# Option A: Using Semiont CLI (recommended)
+# Set the path to your semiont repository (if not already set)
+export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
+
+# Provision the frontend (creates runtime directory, installs dependencies)
+semiont provision --service frontend --environment local --semiont-repo $SEMIONT_REPO
+
+# Start the frontend service
+semiont start --service frontend --environment local --semiont-repo $SEMIONT_REPO
+
+# Check frontend status
+semiont check --service frontend --environment local
+
+# When done, stop the frontend
+semiont stop --service frontend --environment local
+
+# Option B: Manual setup
 cd apps/frontend
 
 # Install dependencies
@@ -152,6 +210,12 @@ npm run dev
 # npm run dev:mock
 ```
 
+> **Note**: The provision step creates a `frontend/` directory in your SEMIONT_ROOT with:
+> - `.env.local` for environment configuration (automatically generates secure NEXTAUTH_SECRET)
+> - `logs/` for application logs
+> - `tmp/` for temporary files
+> - Runs `npm install` and optionally `npm run build` for production
+
 The frontend will be available at **http://localhost:3000**
 
 ## Available Features
@@ -173,8 +237,23 @@ Once running, you can access the following features:
 
 ### Authentication
 - Google OAuth integration (requires configuration)
-- Session-based authentication
+- Session-based authentication  
 - Admin user management
+
+> **How Authentication Works**:
+> 1. NEXTAUTH_SECRET (auto-generated during frontend provision) secures browser sessions
+> 2. For local development, two authentication methods are available:
+>    - **Local Auth** (default): Sign in with just an email address (no Google OAuth needed)
+>    - **Google OAuth**: Configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+> 3. First-time users are created in the database with `isAdmin: false`
+> 4. To create an admin user, use `--seed-admin` flag during backend provisioning:
+>    ```bash
+>    semiont provision --service backend --environment local \
+>      --semiont-repo $SEMIONT_REPO \
+>      -- --seed-admin --admin-email admin@example.com
+>    ```
+> 5. With local auth enabled (default), sign in using the seeded email - no password required
+> 6. The provision step automatically sets `ENABLE_LOCAL_AUTH=true` for development
 
 ## Default Service Ports
 

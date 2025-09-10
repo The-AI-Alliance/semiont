@@ -82,7 +82,7 @@ export class OAuthService {
           provider: 'google',
           providerId: googleUser.id,
           domain: domain || '',
-          isAdmin: false, // Default to non-admin, use CLI command to grant admin
+          isAdmin: false, // Default to non-admin for security
           lastLogin: new Date(),
         }
       });
