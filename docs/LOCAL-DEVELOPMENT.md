@@ -77,7 +77,27 @@ docker run -d \
 # For Podman users: Same command with 'podman' instead of 'docker'
 ```
 
-### Step 3: Setup and Run Backend
+### Step 3: Provision and Start Filesystem Storage
+
+The filesystem service provides shared storage for uploads, caching, and temporary files:
+
+```bash
+# Provision the filesystem (creates directory structure)
+semiont provision --service filesystem --environment local
+
+# Start the filesystem service (ensures it's accessible and ready)
+semiont start --service filesystem --environment local
+
+# Check filesystem status
+semiont check --service filesystem --environment local
+
+# When done, stop and optionally clean temporary files
+# semiont stop --service filesystem --environment local --clean
+```
+
+> **Note**: The filesystem service is passive storage (not a running process). The "start" command simply ensures the directories exist and are accessible. Other services can mount this filesystem for shared storage needs.
+
+### Step 4: Setup and Run Backend
 
 ```bash
 cd apps/backend
@@ -105,7 +125,7 @@ Backend endpoints:
 - Health Check: http://localhost:4000/health
 - OpenAPI Spec: http://localhost:4000/doc
 
-### Step 4: Setup and Run Frontend
+### Step 5: Setup and Run Frontend
 
 Open a new terminal window:
 
@@ -158,12 +178,13 @@ Once running, you can access the following features:
 
 ## Default Service Ports
 
-| Service | Port | URL |
-|---------|------|-----|
+| Service | Port | URL/Path |
+|---------|------|----------|
 | Frontend | 3000 | http://localhost:3000 |
 | Backend | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 | JanusGraph | 8182 | ws://localhost:8182/gremlin |
+| Filesystem | - | ./data/uploads (local path) |
 
 ## Environment Configuration
 
@@ -173,6 +194,7 @@ The local environment is configured in `apps/cli/templates/environments/local.js
 - **Backend**: Runs as native process (POSIX platform)
 - **Database**: Runs in Docker/Podman container
 - **Graph**: Runs in Docker/Podman container (JanusGraph)
+- **Filesystem**: Local directory storage (POSIX platform)
 
 ## Development Commands
 
