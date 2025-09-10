@@ -205,6 +205,20 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       fs.unlinkSync(pidFile);
     }
     
+    // Clean up .env.local symlink in source directory
+    const semiontRepo = process.env.SEMIONT_REPO || path.resolve(service.projectRoot, '..', 'github.com', 'The-AI-Alliance', 'semiont');
+    const sourceEnvFile = path.join(semiontRepo, 'apps', 'frontend', '.env.local');
+    if (fs.existsSync(sourceEnvFile)) {
+      try {
+        const stats = fs.lstatSync(sourceEnvFile);
+        if (stats.isSymbolicLink()) {
+          fs.unlinkSync(sourceEnvFile);
+        }
+      } catch {
+        // Ignore errors cleaning up symlink
+      }
+    }
+    
     // Write final log entry
     const finalMessage = `\n=== Frontend Stopped at ${new Date().toISOString()} ===\n`;
     try {

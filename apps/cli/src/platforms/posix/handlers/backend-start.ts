@@ -90,9 +90,16 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     printWarning(`.env.local not found, using defaults`);
   }
   
-  // Merge environment variables
-  const env = {
-    ...process.env,
+  // Merge environment variables - ensure all values are strings
+  const processEnvStrings: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      processEnvStrings[key] = value;
+    }
+  }
+  
+  const env: Record<string, string> = {
+    ...processEnvStrings,
     ...envVars,
     NODE_ENV: envVars.NODE_ENV || 'development',
     PORT: port.toString(),
@@ -123,17 +130,16 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     printInfo(`Port: ${port}`);
   }
   
-  // Determine the command to run
-  const command = service.config.command || 'npm run dev';
-  const [cmd, ...args] = command.split(' ');
+  // Run node directly instead of through npm to ensure environment variables are passed
+  const distPath = path.join(backendSourceDir, 'dist', 'index.js');
   
   try {
     // Open log files for writing (process will write directly)
     const appLogFd = fs.openSync(appLogPath, 'a');
     const errorLogFd = fs.openSync(errorLogPath, 'a');
     
-    // Spawn the backend process with stdio redirected to files
-    const proc = spawn(cmd, args, {
+    // Spawn the backend process directly with node
+    const proc = spawn('node', [distPath], {
       cwd: backendSourceDir,  // Run from source directory
       env,
       detached: true,
@@ -184,7 +190,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
       data: {
         pid: proc.pid,
         port,
-        command,
+        command: `node ${distPath}`,
         workingDirectory: backendSourceDir,
         path: backendDir,
         logFile: appLogPath
@@ -219,7 +225,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         port,
         backendDir,
         logsDir,
-        command
+        command: `node dist/index.js`
       }
     };
     

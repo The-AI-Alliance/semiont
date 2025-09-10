@@ -86,6 +86,15 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         envVars[key.trim()] = valueParts.join('=').trim();
       }
     });
+    
+    // Create symlink so Next.js can find .env.local in its working directory
+    const sourceEnvFile = path.join(frontendSourceDir, '.env.local');
+    if (fs.existsSync(sourceEnvFile)) {
+      // Remove existing file/symlink
+      fs.unlinkSync(sourceEnvFile);
+    }
+    // Create symlink from source to runtime .env.local
+    fs.symlinkSync(envFile, sourceEnvFile);
   } else {
     printWarning(`.env.local not found, using defaults`);
   }

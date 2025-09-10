@@ -79,9 +79,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
   
-  // Setup .env.local file
-  const envExamplePath = path.join(backendSourceDir, '.env.example');
-  
   // Check if .env.local already exists and backup if it does
   if (fs.existsSync(envFile)) {
     const backupPath = `${envFile}.backup.${Date.now()}`;
@@ -92,7 +89,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
   
-  // Always create/overwrite .env.local with correct configuration
+  // Define all environment variables in one place
   const envUpdates: Record<string, string> = {
     'NODE_ENV': 'development',
     'PORT': (service.config.port || 4000).toString(),
@@ -102,56 +99,21 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     'JWT_SECRET': 'local-development-secret-change-in-production',
     'FRONTEND_URL': 'http://localhost:3000',
     'BACKEND_URL': `http://localhost:${service.config.port || 4000}`,
-    'ENABLE_LOCAL_AUTH': 'true'  // Enable local development authentication
+    'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
+    'SITE_DOMAIN': 'localhost',  // Required for JWT issuer
+    'OAUTH_ALLOWED_DOMAINS': 'localhost'  // Allowed domains for OAuth authentication
   };
   
-  if (fs.existsSync(envExamplePath)) {
-    // Use .env.example as template
-    let envContent = fs.readFileSync(envExamplePath, 'utf-8');
-    
-    // Parse and update env file
-    const lines = envContent.split('\n');
-    const updatedLines = lines.map(line => {
-      if (line.startsWith('#') || !line.includes('=')) {
-        return line;
-      }
-      const [key] = line.split('=');
-      if (envUpdates[key]) {
-        return `${key}=${envUpdates[key]}`;
-      }
-      return line;
-    });
-    
-    // Add any missing keys
-    for (const [key, value] of Object.entries(envUpdates)) {
-      if (!updatedLines.some(line => line.startsWith(`${key}=`))) {
-        updatedLines.push(`${key}=${value}`);
-      }
-    }
-    
-    fs.writeFileSync(envFile, updatedLines.join('\n'));
-    
-    if (!service.quiet) {
-      printSuccess('Created .env.local with configuration from environment file');
-    }
-  } else {
-    // Create a basic .env.local
-    const basicEnv = `# Backend Environment Configuration
-NODE_ENV=development
-PORT=${service.config.port || 4000}
-DATABASE_URL=${databaseUrl}
-LOG_DIR=${logsDir}
-TMP_DIR=${tmpDir}
-JWT_SECRET=local-development-secret-change-in-production
-FRONTEND_URL=http://localhost:3000
-BACKEND_URL=http://localhost:${service.config.port || 4000}
-ENABLE_LOCAL_AUTH=true
-`;
-    fs.writeFileSync(envFile, basicEnv);
-    
-    if (!service.quiet) {
-      printSuccess('Created .env.local with configuration from environment file');
-    }
+  // Create .env.local from the single source of truth
+  let envContent = '# Backend Environment Configuration\n';
+  for (const [key, value] of Object.entries(envUpdates)) {
+    envContent += `${key}=${value}\n`;
+  }
+  
+  fs.writeFileSync(envFile, envContent);
+  
+  if (!service.quiet) {
+    printSuccess('Created .env.local with configuration from environment file');
   }
   
   // Install npm dependencies
