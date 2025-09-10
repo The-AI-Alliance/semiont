@@ -34,7 +34,6 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@semiont/api-types": "*",
-    "@semiont/config-loader": "*",
     "@tanstack/react-query": "^4.36.1",
     "@types/node": "^20",
     "@types/react": "^18",

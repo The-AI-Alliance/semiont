@@ -24,6 +24,36 @@ semiont start --all --environment local
 
 This starts all services defined in `apps/cli/templates/environments/local.json`.
 
+### Recommended Development Workflow
+
+For a complete local development setup with proper credentials and configuration:
+
+```bash
+# 1. Start database container
+semiont start --service database --environment local
+
+# 2. Provision and start backend with admin user
+export SEMIONT_REPO=/path/to/semiont
+semiont provision --service backend --environment local -- \
+  --semiont-repo $SEMIONT_REPO \
+  --seed-admin --admin-email your-email@example.com
+semiont start --service backend --environment local -- --semiont-repo $SEMIONT_REPO
+
+# 3. Provision and start frontend
+semiont provision --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont start --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
+
+# 4. Check all services
+semiont check --service database --environment local
+semiont check --service backend --environment local
+semiont check --service frontend --environment local
+```
+
+After this, you can:
+- Access the frontend at http://localhost:3000
+- Sign in with the admin email (no password required in local auth mode)
+- Access API docs at http://localhost:4000/api
+
 ## Local Development Authentication
 
 For local development, authentication is simplified:
@@ -200,6 +230,7 @@ cat > .env.local << EOF
 NEXT_PUBLIC_API_URL=http://localhost:4000
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key-at-least-32-chars-long-change-this
+ENABLE_LOCAL_AUTH=true
 EOF
 
 # Start frontend in development mode (with hot reload)
@@ -214,9 +245,12 @@ npm run dev
 
 > **Note**: The provision step creates a `frontend/` directory in your SEMIONT_ROOT with:
 > - `.env.local` for environment configuration (automatically generates secure NEXTAUTH_SECRET)
-> - `logs/` for application logs
+> - `logs/` for application logs (app.log and error.log)
 > - `tmp/` for temporary files
+> - `.pid` file when running (for process management)
 > - Runs `npm install` and optionally `npm run build` for production
+> - Sets `ENABLE_LOCAL_AUTH=true` for development authentication
+> - If `.env.local` exists, it will be backed up and recreated with latest configuration
 
 The frontend will be available at **http://localhost:3000**
 

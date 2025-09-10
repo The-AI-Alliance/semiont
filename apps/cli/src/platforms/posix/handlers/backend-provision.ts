@@ -160,10 +160,33 @@ ENABLE_LOCAL_AUTH=true
   }
   
   try {
-    execSync('npm install', {
-      cwd: backendSourceDir,
-      stdio: service.verbose ? 'inherit' : 'pipe'
-    });
+    // For monorepo, install from the root
+    const monorepoRoot = path.resolve(semiontRepo);
+    const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
+    
+    if (fs.existsSync(rootPackageJsonPath)) {
+      // Check if this is a monorepo with workspaces
+      const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
+      if (rootPackageJson.workspaces) {
+        // Install from monorepo root
+        execSync('npm install', {
+          cwd: monorepoRoot,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+      } else {
+        // Install in backend directory
+        execSync('npm install', {
+          cwd: backendSourceDir,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+      }
+    } else {
+      // Fallback to backend directory
+      execSync('npm install', {
+        cwd: backendSourceDir,
+        stdio: service.verbose ? 'inherit' : 'pipe'
+      });
+    }
     
     if (!service.quiet) {
       printSuccess('Dependencies installed successfully');
