@@ -176,7 +176,7 @@ semiont check --service filesystem
 
 ```bash
 # Option A: Using Semiont CLI (recommended)
-# Make sure SEMIONT_REPO and SEMIONT_ENV are set from initial setup
+# The CLI uses SEMIONT_REPO and SEMIONT_ENV set during initial setup
 
 # Provision the backend (creates runtime directory, installs dependencies, runs migrations)
 semiont provision --service backend
@@ -232,7 +232,7 @@ Backend endpoints:
 
 ```bash
 # Option A: Using Semiont CLI (recommended)
-# Make sure SEMIONT_REPO and SEMIONT_ENV are set from initial setup
+# The CLI uses SEMIONT_REPO and SEMIONT_ENV set during initial setup
 
 # Provision the frontend (creates runtime directory, installs dependencies)
 semiont provision --service frontend

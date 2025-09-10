@@ -241,41 +241,25 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('ENVIRONMENT VARIABLES:');
   lines.push('  SEMIONT_ENV                 Environment to use when --environment flag is not provided');
   lines.push('  SEMIONT_ROOT                Project root directory (parent of environments/)');
+  lines.push('  SEMIONT_REPO                Path to Semiont repository (fallback for --semiont-repo)');
   lines.push('');
   
   lines.push('PROJECT RESOLUTION:');
   lines.push('  Semiont identifies the project root using:');
   lines.push('  1. SEMIONT_ROOT environment variable (if set) - must point to valid project');
   lines.push('  2. Current working directory - must contain semiont.json or environments/');
-  lines.push('  ');
-  lines.push('  Note: Project root validation requires either:');
-  lines.push('  - semiont.json file in the root directory');
-  lines.push('  - environments/ directory with environment configs');
   lines.push('');
   
   lines.push('COMMANDS:');
   
-  // Group commands by category
-  const categories = {
-    'Infrastructure': ['init', 'provision', 'configure'],
-    'Service Lifecycle': ['start', 'stop', 'restart'],
-    'Deployment': ['publish', 'update'],
-    'Monitoring': ['check', 'watch', 'test'],
-    'Utilities': ['backup', 'exec'],
-  };
+  // List all commands alphabetically without categories
+  const sortedCommands = Array.from(commands.entries()).sort(([a], [b]) => a.localeCompare(b));
   
-  for (const [category, commandNames] of Object.entries(categories)) {
-    lines.push(`  ${category}:`);
-    
-    for (const name of commandNames) {
-      const command = commands.get(name);
-      if (command) {
-        const envFlag = command.requiresEnvironment ? ' (requires -e)' : '';
-        lines.push(`    ${name.padEnd(12)} ${command.description}${envFlag}`);
-      }
-    }
-    lines.push('');
+  for (const [name, command] of sortedCommands) {
+    const envFlag = command.requiresEnvironment ? ' (requires -e)' : '';
+    lines.push(`  ${name.padEnd(12)} ${command.description}${envFlag}`);
   }
+  lines.push('');
   
   lines.push('EXAMPLES:');
   lines.push('  # Initialize a new project');
