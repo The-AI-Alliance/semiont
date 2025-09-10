@@ -13,16 +13,48 @@ Before starting, ensure you have the following installed:
 
 > **Note**: This guide uses `docker` commands, but Podman is fully compatible. Simply replace `docker` with `podman` in all commands, or create an alias: `alias docker=podman`
 
-## Quick Start
+## Initial Setup
 
-The fastest way to start all services:
-
+### 1. Clone and Build Semiont Repository
 ```bash
-# From project root
-semiont start --all --environment local
+git clone https://github.com/The-AI-Alliance/semiont.git
+cd semiont
+export SEMIONT_REPO=$(pwd)      # Set repository path
+npm install                     # Install all workspace dependencies
+npm run build                   # Build packages and CLI
+npm run install:cli             # Install the semiont CLI globally
 ```
 
-This starts all services defined in `apps/cli/templates/environments/local.json`.
+### 2. Create Your Project Directory
+```bash
+# Create your project directory (separate from the semiont repository)
+cd ..
+mkdir my_semiont_project
+cd my_semiont_project
+export SEMIONT_ROOT=$(pwd)      # Set project root path
+export SEMIONT_ENV=local        # Set environment for local development
+
+# Initialize the project with configuration files
+semiont init --name "my-project" --environments "local,staging,production"
+
+# This creates:
+# ✅ semiont.json - Main project configuration
+# ✅ environments/*.json - Environment-specific configs
+```
+
+> **Important**: Always work from your project directory (`SEMIONT_ROOT`), not the semiont repository directory (`SEMIONT_REPO`). The CLI will automatically find your semiont repository using the `SEMIONT_REPO` environment variable.
+
+## Quick Start
+
+The fastest way to start all services (after initial setup):
+
+```bash
+# From your project directory (where semiont.json exists)
+# The CLI uses SEMIONT_ENV=local set during initial setup
+semiont start --all
+```
+
+This starts all services defined in `environments/local.json`.
 
 ### Recommended Development Workflow
 
@@ -30,23 +62,20 @@ For a complete local development setup with proper credentials and configuration
 
 ```bash
 # 1. Start database container
-semiont start --service database --environment local
+semiont start --service database
 
 # 2. Provision and start backend with admin user
-export SEMIONT_REPO=/path/to/semiont
-semiont provision --service backend --environment local \
-  --semiont-repo $SEMIONT_REPO \
-  --seed-admin --admin-email your-email@example.com
-semiont start --service backend --environment local --semiont-repo $SEMIONT_REPO
+semiont provision --service backend --seed-admin --admin-email your-email@example.com
+semiont start --service backend
 
 # 3. Provision and start frontend
-semiont provision --service frontend --environment local --semiont-repo $SEMIONT_REPO
-semiont start --service frontend --environment local --semiont-repo $SEMIONT_REPO
+semiont provision --service frontend
+semiont start --service frontend
 
 # 4. Check all services
-semiont check --service database --environment local
-semiont check --service backend --environment local
-semiont check --service frontend --environment local
+semiont check --service database
+semiont check --service backend
+semiont check --service frontend
 ```
 
 After this, you can:
@@ -79,10 +108,10 @@ If you prefer to start services individually or need more control:
 ```bash
 # Option A: Using Semiont CLI (recommended)
 # First provision the database (creates volume, pulls image, runs init scripts)
-semiont provision --service database --environment local
+semiont provision --service database
 
 # Then start the database
-semiont start --service database --environment local
+semiont start --service database
 
 # Option B: Using Docker/Podman directly
 docker run -d \
@@ -105,14 +134,14 @@ Required only if you're working with graph database features:
 ```bash
 # Option A: Using Semiont CLI
 # First provision JanusGraph (creates docker-compose configuration)
-semiont provision --service graph --environment local
+semiont provision --service graph
 
 # Optionally provision with Elasticsearch and/or Cassandra backends
-# semiont provision --service graph --environment local -- --with-elasticsearch
-# semiont provision --service graph --environment local -- --with-cassandra
+# semiont provision --service graph -- --with-elasticsearch
+# semiont provision --service graph -- --with-cassandra
 
 # Then start the graph database
-semiont start --service graph --environment local
+semiont start --service graph
 
 # Option B: Using Docker/Podman directly
 docker run -d \
@@ -129,16 +158,16 @@ The filesystem service provides shared storage for uploads, caching, and tempora
 
 ```bash
 # Provision the filesystem (creates directory structure)
-semiont provision --service filesystem --environment local
+semiont provision --service filesystem
 
 # Start the filesystem service (ensures it's accessible and ready)
-semiont start --service filesystem --environment local
+semiont start --service filesystem
 
 # Check filesystem status
-semiont check --service filesystem --environment local
+semiont check --service filesystem
 
 # When done, stop and optionally clean temporary files
-# semiont stop --service filesystem --environment local --clean
+# semiont stop --service filesystem --clean
 ```
 
 > **Note**: The filesystem service is passive storage (not a running process). The "start" command simply ensures the directories exist and are accessible. Other services can mount this filesystem for shared storage needs.
@@ -147,23 +176,22 @@ semiont check --service filesystem --environment local
 
 ```bash
 # Option A: Using Semiont CLI (recommended)
-# Set the path to your semiont repository
-export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
+# The CLI uses SEMIONT_REPO and SEMIONT_ENV set during initial setup
 
 # Provision the backend (creates runtime directory, installs dependencies, runs migrations)
-semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO
+semiont provision --service backend
 
 # Optionally seed an admin user during provisioning
-# semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO --seed-admin --admin-email your-email@example.com
+# semiont provision --service backend --seed-admin --admin-email your-email@example.com
 
 # Start the backend service
-semiont start --service backend --environment local --semiont-repo $SEMIONT_REPO
+semiont start --service backend
 
 # Check backend status
-semiont check --service backend --environment local
+semiont check --service backend
 
 # When done, stop the backend
-semiont stop --service backend --environment local
+semiont stop --service backend
 
 # Option B: Manual setup
 cd apps/backend
@@ -204,20 +232,19 @@ Backend endpoints:
 
 ```bash
 # Option A: Using Semiont CLI (recommended)
-# Set the path to your semiont repository (if not already set)
-export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
+# The CLI uses SEMIONT_REPO and SEMIONT_ENV set during initial setup
 
 # Provision the frontend (creates runtime directory, installs dependencies)
-semiont provision --service frontend --environment local --semiont-repo $SEMIONT_REPO
+semiont provision --service frontend
 
 # Start the frontend service
-semiont start --service frontend --environment local --semiont-repo $SEMIONT_REPO
+semiont start --service frontend
 
 # Check frontend status
-semiont check --service frontend --environment local
+semiont check --service frontend
 
 # When done, stop the frontend
-semiont stop --service frontend --environment local
+semiont stop --service frontend
 
 # Option B: Manual setup
 cd apps/frontend
