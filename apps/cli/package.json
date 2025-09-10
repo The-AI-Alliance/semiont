@@ -21,7 +21,7 @@
     "test:watch:unit": "vitest --watch --config vitest.config.unit.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-cloudformation": "^3.600.0",
+    "@aws-sdk/client-cloudformation": "^3.886.0",
     "@aws-sdk/client-cloudwatch": "^3.600.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.600.0",
     "@aws-sdk/client-cost-explorer": "^3.600.0",
