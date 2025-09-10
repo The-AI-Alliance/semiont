@@ -430,7 +430,7 @@ export async function watch(
 // =====================================================================
 
 export const watchCommand = new CommandBuilder()
-  .name('watch-new')
+  .name('watch')
   .description('Monitor services using new architecture')
   .schema(WatchOptionsSchema)
   .requiresEnvironment(true)
@@ -441,7 +441,6 @@ export const watchCommand = new CommandBuilder()
     '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },
     '--interval': { type: 'number', description: 'Refresh interval in seconds' },
     '--terminal': { type: 'boolean', description: 'Use terminal-based dashboard instead of web' },
-    '--term': { type: 'boolean', description: 'Alias for --terminal' },
     '--port': { type: 'number', description: 'Port for web dashboard (default: 3333)' },
   }, {
     '-t': '--target',
@@ -449,10 +448,10 @@ export const watchCommand = new CommandBuilder()
     '-s': '--service'
   }))
   .examples(
-    'semiont watch-new -e production',
-    'semiont watch-new -e staging --terminal',
-    'semiont watch-new -e dev --target logs',
-    'semiont watch-new -e local --interval 10 --port 4444'
+    'semiont watch -e production',
+    'semiont watch -e staging --terminal',
+    'semiont watch -e dev --target logs',
+    'semiont watch -e local --interval 10 --port 4444'
   )
   .handler(watch)
   .build();

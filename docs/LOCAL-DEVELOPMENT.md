@@ -34,14 +34,14 @@ semiont start --service database --environment local
 
 # 2. Provision and start backend with admin user
 export SEMIONT_REPO=/path/to/semiont
-semiont provision --service backend --environment local -- \
+semiont provision --service backend --environment local \
   --semiont-repo $SEMIONT_REPO \
   --seed-admin --admin-email your-email@example.com
-semiont start --service backend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont start --service backend --environment local --semiont-repo $SEMIONT_REPO
 
 # 3. Provision and start frontend
-semiont provision --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
-semiont start --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont provision --service frontend --environment local --semiont-repo $SEMIONT_REPO
+semiont start --service frontend --environment local --semiont-repo $SEMIONT_REPO
 
 # 4. Check all services
 semiont check --service database --environment local
@@ -61,7 +61,7 @@ For local development, authentication is simplified:
 1. **No Google OAuth Required**: By default, local development uses email-only authentication
 2. **Seed an Admin User**: During backend provisioning, create an admin account:
    ```bash
-   semiont provision --service backend --environment local -- \
+   semiont provision --service backend --environment local \
      --semiont-repo /path/to/semiont \
      --seed-admin --admin-email your-email@example.com
    ```
@@ -151,13 +151,13 @@ semiont check --service filesystem --environment local
 export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
 
 # Provision the backend (creates runtime directory, installs dependencies, runs migrations)
-semiont provision --service backend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO
 
 # Optionally seed an admin user during provisioning
-# semiont provision --service backend --environment local -- --semiont-repo $SEMIONT_REPO --seed-admin --admin-email your-email@example.com
+# semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO --seed-admin --admin-email your-email@example.com
 
 # Start the backend service
-semiont start --service backend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont start --service backend --environment local --semiont-repo $SEMIONT_REPO
 
 # Check backend status
 semiont check --service backend --environment local
@@ -208,10 +208,10 @@ Backend endpoints:
 export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
 
 # Provision the frontend (creates runtime directory, installs dependencies)
-semiont provision --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont provision --service frontend --environment local --semiont-repo $SEMIONT_REPO
 
 # Start the frontend service
-semiont start --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
+semiont start --service frontend --environment local --semiont-repo $SEMIONT_REPO
 
 # Check frontend status
 semiont check --service frontend --environment local
@@ -284,7 +284,7 @@ Once running, you can access the following features:
 > 3. First-time users are created in the database with `isAdmin: false`
 > 4. To create an admin user, use `--seed-admin` flag during backend provisioning:
 >    ```bash
->    semiont provision --service backend --environment local -- \
+>    semiont provision --service backend --environment local \
 >      --semiont-repo $SEMIONT_REPO \
 >      --seed-admin --admin-email admin@example.com
 >    ```
