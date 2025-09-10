@@ -128,55 +128,36 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const [cmd, ...args] = command.split(' ');
   
   try {
-    // Spawn the backend process
+    // Open log files for writing (process will write directly)
+    const appLogFd = fs.openSync(appLogPath, 'a');
+    const errorLogFd = fs.openSync(errorLogPath, 'a');
+    
+    // Spawn the backend process with stdio redirected to files
     const proc = spawn(cmd, args, {
       cwd: backendSourceDir,  // Run from source directory
       env,
       detached: true,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
     });
     
     if (!proc.pid) {
+      fs.closeSync(appLogFd);
+      fs.closeSync(errorLogFd);
       throw new Error('Failed to start backend process');
     }
     
     // Save PID
     fs.writeFileSync(pidFile, proc.pid.toString());
     
-    // Pipe stdout to app log
-    proc.stdout?.on('data', (data) => {
-      appLogStream.write(data);
-      if (service.verbose) {
-        process.stdout.write(`[backend] ${data}`);
-      }
-    });
+    // Close file descriptors - the child process has its own references
+    fs.closeSync(appLogFd);
+    fs.closeSync(errorLogFd);
     
-    // Pipe stderr to error log
-    proc.stderr?.on('data', (data) => {
-      errorLogStream.write(data);
-      appLogStream.write(data); // Also write errors to app log
-      if (service.verbose || data.toString().includes('ERROR')) {
-        process.stderr.write(`[backend] ${data}`);
-      }
-    });
+    // Close the log streams we opened for the startup message
+    appLogStream.end();
+    errorLogStream.end();
     
-    // Handle process exit
-    proc.on('exit', (code, signal) => {
-      const exitMessage = `\n=== Backend Exited at ${new Date().toISOString()} (code: ${code}, signal: ${signal}) ===\n`;
-      appLogStream.write(exitMessage);
-      errorLogStream.write(exitMessage);
-      
-      // Clean up PID file
-      if (fs.existsSync(pidFile)) {
-        fs.unlinkSync(pidFile);
-      }
-      
-      // Close log streams
-      appLogStream.end();
-      errorLogStream.end();
-    });
-    
-    // Detach the process so it continues after parent exits
+    // Completely detach from the child process
     proc.unref();
     
     // Wait a moment to check if process started successfully

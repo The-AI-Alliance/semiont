@@ -31,9 +31,9 @@ For local development, authentication is simplified:
 1. **No Google OAuth Required**: By default, local development uses email-only authentication
 2. **Seed an Admin User**: During backend provisioning, create an admin account:
    ```bash
-   semiont provision --service backend --environment local \
+   semiont provision --service backend --environment local -- \
      --semiont-repo /path/to/semiont \
-     -- --seed-admin --admin-email your-email@example.com
+     --seed-admin --admin-email your-email@example.com
    ```
 3. **Sign In**: Visit http://localhost:3000, click "Sign In", and enter the seeded email
 4. **No Password**: Just enter the email address - no password or Google account needed
@@ -121,13 +121,13 @@ semiont check --service filesystem --environment local
 export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
 
 # Provision the backend (creates runtime directory, installs dependencies, runs migrations)
-semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO
+semiont provision --service backend --environment local -- --semiont-repo $SEMIONT_REPO
 
 # Optionally seed an admin user during provisioning
-# semiont provision --service backend --environment local --semiont-repo $SEMIONT_REPO -- --seed-admin --admin-email your-email@example.com
+# semiont provision --service backend --environment local -- --semiont-repo $SEMIONT_REPO --seed-admin --admin-email your-email@example.com
 
 # Start the backend service
-semiont start --service backend --environment local --semiont-repo $SEMIONT_REPO
+semiont start --service backend --environment local -- --semiont-repo $SEMIONT_REPO
 
 # Check backend status
 semiont check --service backend --environment local
@@ -141,8 +141,8 @@ cd apps/backend
 # Install dependencies
 npm install
 
-# Set database connection
-export DATABASE_URL="postgresql://semiont:localpass@localhost:5432/semiont"
+# Set database connection (use credentials from your local.json)
+export DATABASE_URL="postgresql://postgres:localpass@localhost:5432/semiont"
 
 # Run database migrations
 npx prisma migrate dev
@@ -155,17 +155,19 @@ npm run dev
 ```
 
 > **Note**: The provision step creates a `backend/` directory in your SEMIONT_ROOT with:
-> - `.env.local` for environment configuration
-> - `logs/` for application logs
+> - `.env.local` for environment configuration (automatically reads database credentials from local.json)
+> - `logs/` for application logs (app.log and error.log)
 > - `tmp/` for temporary files
+> - `.pid` file when running (for process management)
 > - Runs `npm install`, `npx prisma generate`, and `npx prisma migrate deploy` automatically
 > - Optionally seeds an admin user with `--seed-admin --admin-email` flags
+> - If `.env.local` exists, it will be backed up and recreated with latest configuration
 
 The backend API will be available at **http://localhost:4000**
 
 Backend endpoints:
 - API Documentation: http://localhost:4000/api
-- Health Check: http://localhost:4000/health
+- Health Check: http://localhost:4000/api/health
 - OpenAPI Spec: http://localhost:4000/doc
 
 ### Step 5: Setup and Run Frontend
@@ -176,10 +178,10 @@ Backend endpoints:
 export SEMIONT_REPO=/path/to/semiont  # or use --semiont-repo flag
 
 # Provision the frontend (creates runtime directory, installs dependencies)
-semiont provision --service frontend --environment local --semiont-repo $SEMIONT_REPO
+semiont provision --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
 
 # Start the frontend service
-semiont start --service frontend --environment local --semiont-repo $SEMIONT_REPO
+semiont start --service frontend --environment local -- --semiont-repo $SEMIONT_REPO
 
 # Check frontend status
 semiont check --service frontend --environment local
@@ -248,9 +250,9 @@ Once running, you can access the following features:
 > 3. First-time users are created in the database with `isAdmin: false`
 > 4. To create an admin user, use `--seed-admin` flag during backend provisioning:
 >    ```bash
->    semiont provision --service backend --environment local \
+>    semiont provision --service backend --environment local -- \
 >      --semiont-repo $SEMIONT_REPO \
->      -- --seed-admin --admin-email admin@example.com
+>      --seed-admin --admin-email admin@example.com
 >    ```
 > 5. With local auth enabled (default), sign in using the seeded email - no password required
 > 6. The provision step automatically sets `ENABLE_LOCAL_AUTH=true` for development

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
+import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
 
 /**
  * Provision handler for backend services on POSIX systems
@@ -53,58 +54,92 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo(`Created backend directory: ${backendDir}`);
   }
   
+  // Load environment configuration to get database credentials
+  const envConfig = loadEnvironmentConfig(service.environment);
+  const dbConfig = envConfig.services?.database;
+  
+  // Build database URL from environment config
+  let databaseUrl = 'postgresql://semiont:localpass@localhost:5432/semiont'; // fallback
+  if (dbConfig?.environment) {
+    const dbUser = dbConfig.environment.POSTGRES_USER || 'postgres';
+    const dbPassword = dbConfig.environment.POSTGRES_PASSWORD || 'localpass';
+    const dbName = dbConfig.environment.POSTGRES_DB || 'semiont';
+    const dbPort = dbConfig.port || 5432;
+    const dbHost = 'localhost'; // For local development, always use localhost
+    databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+    
+    if (!service.quiet) {
+      printInfo(`Using database configuration from ${service.environment}.json:`);
+      printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
+      printInfo(`  User: ${dbUser}`);
+    }
+  } else {
+    if (!service.quiet) {
+      printWarning('No database configuration found in environment file, using defaults');
+    }
+  }
+  
   // Setup .env.local file
   const envExamplePath = path.join(backendSourceDir, '.env.example');
-  if (!fs.existsSync(envFile)) {
-    if (fs.existsSync(envExamplePath)) {
-      // Copy .env.example to .env.local
-      let envContent = fs.readFileSync(envExamplePath, 'utf-8');
-      
-      // Update with local defaults
-      const envUpdates: Record<string, string> = {
-        'NODE_ENV': 'development',
-        'PORT': (service.config.port || 4000).toString(),
-        'DATABASE_URL': 'postgresql://semiont:localpass@localhost:5432/semiont',
-        'LOG_DIR': logsDir,
-        'TMP_DIR': tmpDir,
-        'JWT_SECRET': 'local-development-secret-change-in-production',
-        'FRONTEND_URL': 'http://localhost:3000',
-        'BACKEND_URL': `http://localhost:${service.config.port || 4000}`,
-        'ENABLE_LOCAL_AUTH': 'true'  // Enable local development authentication
-      };
-      
-      // Parse and update env file
-      const lines = envContent.split('\n');
-      const updatedLines = lines.map(line => {
-        if (line.startsWith('#') || !line.includes('=')) {
-          return line;
-        }
-        const [key] = line.split('=');
-        if (envUpdates[key]) {
-          return `${key}=${envUpdates[key]}`;
-        }
+  
+  // Check if .env.local already exists and backup if it does
+  if (fs.existsSync(envFile)) {
+    const backupPath = `${envFile}.backup.${Date.now()}`;
+    fs.copyFileSync(envFile, backupPath);
+    if (!service.quiet) {
+      printWarning(`.env.local already exists, backing up to: ${path.basename(backupPath)}`);
+      printInfo('Creating new .env.local with updated configuration...');
+    }
+  }
+  
+  // Always create/overwrite .env.local with correct configuration
+  const envUpdates: Record<string, string> = {
+    'NODE_ENV': 'development',
+    'PORT': (service.config.port || 4000).toString(),
+    'DATABASE_URL': databaseUrl,
+    'LOG_DIR': logsDir,
+    'TMP_DIR': tmpDir,
+    'JWT_SECRET': 'local-development-secret-change-in-production',
+    'FRONTEND_URL': 'http://localhost:3000',
+    'BACKEND_URL': `http://localhost:${service.config.port || 4000}`,
+    'ENABLE_LOCAL_AUTH': 'true'  // Enable local development authentication
+  };
+  
+  if (fs.existsSync(envExamplePath)) {
+    // Use .env.example as template
+    let envContent = fs.readFileSync(envExamplePath, 'utf-8');
+    
+    // Parse and update env file
+    const lines = envContent.split('\n');
+    const updatedLines = lines.map(line => {
+      if (line.startsWith('#') || !line.includes('=')) {
         return line;
-      });
-      
-      // Add any missing keys
-      for (const [key, value] of Object.entries(envUpdates)) {
-        if (!updatedLines.some(line => line.startsWith(`${key}=`))) {
-          updatedLines.push(`${key}=${value}`);
-        }
       }
-      
-      fs.writeFileSync(envFile, updatedLines.join('\n'));
-      
-      if (!service.quiet) {
-        printInfo('Created .env.local with default configuration');
-        printWarning('Please review and update .env.local with your specific settings');
+      const [key] = line.split('=');
+      if (envUpdates[key]) {
+        return `${key}=${envUpdates[key]}`;
       }
-    } else {
-      // Create a basic .env.local
-      const basicEnv = `# Backend Environment Configuration
+      return line;
+    });
+    
+    // Add any missing keys
+    for (const [key, value] of Object.entries(envUpdates)) {
+      if (!updatedLines.some(line => line.startsWith(`${key}=`))) {
+        updatedLines.push(`${key}=${value}`);
+      }
+    }
+    
+    fs.writeFileSync(envFile, updatedLines.join('\n'));
+    
+    if (!service.quiet) {
+      printSuccess('Created .env.local with configuration from environment file');
+    }
+  } else {
+    // Create a basic .env.local
+    const basicEnv = `# Backend Environment Configuration
 NODE_ENV=development
 PORT=${service.config.port || 4000}
-DATABASE_URL=postgresql://semiont:localpass@localhost:5432/semiont
+DATABASE_URL=${databaseUrl}
 LOG_DIR=${logsDir}
 TMP_DIR=${tmpDir}
 JWT_SECRET=local-development-secret-change-in-production
@@ -112,15 +147,10 @@ FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:${service.config.port || 4000}
 ENABLE_LOCAL_AUTH=true
 `;
-      fs.writeFileSync(envFile, basicEnv);
-      
-      if (!service.quiet) {
-        printInfo('Created basic .env.local file');
-      }
-    }
-  } else {
+    fs.writeFileSync(envFile, basicEnv);
+    
     if (!service.quiet) {
-      printInfo('.env.local already exists, skipping');
+      printSuccess('Created .env.local with configuration from environment file');
     }
   }
   

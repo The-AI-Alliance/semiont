@@ -56,57 +56,66 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   
   // Setup .env.local file
   const envExamplePath = path.join(frontendSourceDir, '.env.example');
-  if (!fs.existsSync(envFile)) {
-    // Generate a secure NEXTAUTH_SECRET
-    const nextAuthSecret = crypto.randomBytes(32).toString('base64');
+  
+  // Check if .env.local already exists and backup if it does
+  if (fs.existsSync(envFile)) {
+    const backupPath = `${envFile}.backup.${Date.now()}`;
+    fs.copyFileSync(envFile, backupPath);
+    if (!service.quiet) {
+      printWarning(`.env.local already exists, backing up to: ${path.basename(backupPath)}`);
+      printInfo('Creating new .env.local with updated configuration...');
+    }
+  }
+  
+  // Always generate a new secure NEXTAUTH_SECRET
+  const nextAuthSecret = crypto.randomBytes(32).toString('base64');
+  
+  // Always create/overwrite .env.local with correct configuration
+  const envUpdates: Record<string, string> = {
+    'NODE_ENV': 'development',
+    'PORT': (service.config.port || 3000).toString(),
+    'NEXT_PUBLIC_API_URL': `http://localhost:${service.config.backendPort || 4000}`,
+    'NEXT_PUBLIC_FRONTEND_URL': `http://localhost:${service.config.port || 3000}`,
+    'NEXTAUTH_URL': `http://localhost:${service.config.port || 3000}`,
+    'NEXTAUTH_SECRET': nextAuthSecret,
+    'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
+    'LOG_DIR': logsDir,
+    'TMP_DIR': tmpDir
+  };
+  
+  if (fs.existsSync(envExamplePath)) {
+    // Use .env.example as template
+    let envContent = fs.readFileSync(envExamplePath, 'utf-8');
     
-    if (fs.existsSync(envExamplePath)) {
-      // Copy .env.example to .env.local
-      let envContent = fs.readFileSync(envExamplePath, 'utf-8');
-      
-      // Update with local defaults
-      const envUpdates: Record<string, string> = {
-        'NODE_ENV': 'development',
-        'PORT': (service.config.port || 3000).toString(),
-        'NEXT_PUBLIC_API_URL': `http://localhost:${service.config.backendPort || 4000}`,
-        'NEXT_PUBLIC_FRONTEND_URL': `http://localhost:${service.config.port || 3000}`,
-        'NEXTAUTH_URL': `http://localhost:${service.config.port || 3000}`,
-        'NEXTAUTH_SECRET': nextAuthSecret,
-        'ENABLE_LOCAL_AUTH': 'true',  // Enable local development authentication
-        'LOG_DIR': logsDir,
-        'TMP_DIR': tmpDir
-      };
-      
-      // Parse and update env file
-      const lines = envContent.split('\n');
-      const updatedLines = lines.map(line => {
-        if (line.startsWith('#') || !line.includes('=')) {
-          return line;
-        }
-        const [key] = line.split('=');
-        if (envUpdates[key]) {
-          return `${key}=${envUpdates[key]}`;
-        }
+    // Parse and update env file
+    const lines = envContent.split('\n');
+    const updatedLines = lines.map(line => {
+      if (line.startsWith('#') || !line.includes('=')) {
         return line;
-      });
-      
-      // Add any missing keys
-      for (const [key, value] of Object.entries(envUpdates)) {
-        if (!updatedLines.some(line => line.startsWith(`${key}=`))) {
-          updatedLines.push(`${key}=${value}`);
-        }
       }
-      
-      fs.writeFileSync(envFile, updatedLines.join('\n'));
-      
-      if (!service.quiet) {
-        printInfo('Created .env.local with default configuration');
-        printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
-        printWarning('Please review and update .env.local with your specific settings');
+      const [key] = line.split('=');
+      if (envUpdates[key]) {
+        return `${key}=${envUpdates[key]}`;
       }
-    } else {
-      // Create a basic .env.local
-      const basicEnv = `# Frontend Environment Configuration
+      return line;
+    });
+    
+    // Add any missing keys
+    for (const [key, value] of Object.entries(envUpdates)) {
+      if (!updatedLines.some(line => line.startsWith(`${key}=`))) {
+        updatedLines.push(`${key}=${value}`);
+      }
+    }
+    
+    fs.writeFileSync(envFile, updatedLines.join('\n'));
+    
+    if (!service.quiet) {
+      printSuccess('Created .env.local with updated configuration');
+      printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
+    }
+  } else {
+    // Create a basic .env.local
+    const basicEnv = `# Frontend Environment Configuration
 NODE_ENV=development
 PORT=${service.config.port || 3000}
 NEXT_PUBLIC_API_URL=http://localhost:${service.config.backendPort || 4000}
@@ -117,16 +126,11 @@ ENABLE_LOCAL_AUTH=true
 LOG_DIR=${logsDir}
 TMP_DIR=${tmpDir}
 `;
-      fs.writeFileSync(envFile, basicEnv);
-      
-      if (!service.quiet) {
-        printInfo('Created basic .env.local file');
-        printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
-      }
-    }
-  } else {
+    fs.writeFileSync(envFile, basicEnv);
+    
     if (!service.quiet) {
-      printInfo('.env.local already exists, skipping');
+      printSuccess('Created .env.local with updated configuration');
+      printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
     }
   }
   

@@ -96,7 +96,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   // If running, check health endpoint
   if (status === 'running' || status === 'unknown') {
     const port = service.config.port || 4000;
-    const healthUrl = `http://localhost:${port}/health`;
+    const healthUrl = `http://localhost:${port}/api/health`;
     
     try {
       const response = await fetch(healthUrl, {
