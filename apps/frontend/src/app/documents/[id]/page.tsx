@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { AnnotatedMarkdownRenderer } from '@/components/AnnotatedMarkdownRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
+import { AnnotationContextMenu } from '@/components/AnnotationContextMenu';
 import { PageLayout } from '@/components/PageLayout';
 import type { Document, Selection } from '@/lib/api-client';
 import { 
@@ -31,6 +32,15 @@ export default function DocumentPage() {
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{ start: number; end: number } | null>(null);
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
+  
+  // Context menu state
+  interface ContextMenuAnnotation {
+    id: string;
+    type: 'highlight' | 'reference';
+    referencedDocumentId?: string;
+  }
+  const [contextMenuAnnotation, setContextMenuAnnotation] = useState<ContextMenuAnnotation | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
   // Load document and its selections
   useEffect(() => {
@@ -83,6 +93,54 @@ export default function DocumentPage() {
     setSelectionPosition(position);
     setShowSelectionPopup(true);
   };
+  
+  // Handle keyboard shortcuts for quick actions
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Ctrl+H or Cmd+H for quick highlight
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        
+        // Get current selection
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) return;
+        
+        const text = selection.toString().trim();
+        if (!text) return;
+        
+        // Get selection range
+        const range = selection.getRangeAt(0);
+        const container = window.document.querySelector('[data-markdown-container]');
+        if (!container) return;
+        
+        // Calculate position
+        const preSelectionRange = window.document.createRange();
+        preSelectionRange.selectNodeContents(container);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        
+        const start = preSelectionRange.toString().length;
+        const end = start + text.length;
+        
+        // Create highlight directly without popup
+        try {
+          await apiService.selections.saveAsHighlight({
+            documentId,
+            text,
+            position: { start, end }
+          });
+          await loadSelections();
+          
+          // Clear the selection
+          selection.removeAllRanges();
+        } catch (err) {
+          console.error('Failed to create highlight:', err);
+        }
+      }
+    };
+    
+    window.document.addEventListener('keydown', handleKeyDown);
+    return () => window.document.removeEventListener('keydown', handleKeyDown);
+  }, [documentId]);
 
   const handleWikiLinkClick = async (pageName: string) => {
     // Search for a document with this name
@@ -133,7 +191,7 @@ export default function DocumentPage() {
     if (!selectionPosition) return;
 
     try {
-      // First create the selection
+      // First create the selection - returns BackendSelection directly
       const response = await apiService.selections.create({
         documentId,
         text: selectedText,
@@ -141,29 +199,16 @@ export default function DocumentPage() {
         type: 'reference'
       });
 
-      console.log('Full selection create response:', response);
-      console.log('Response keys:', Object.keys(response));
-      console.log('Response type:', typeof response);
-
-      // The response should be the selection directly with an id property
-      // But let's check all possible structures
-      let selectionId: string | undefined;
+      // The response is a BackendSelection object
+      const backendSelection = response as unknown as import('@/lib/api-types').BackendSelection;
       
-      if (typeof response === 'object' && response !== null) {
-        // Check various possible response structures
-        selectionId = (response as any).id || 
-                     (response as any).selectionId || 
-                     (response as any).selection?.id ||
-                     (response as any).data?.id ||
-                     (response as any).data?.selection?.id;
-      }
-      
-      if (!selectionId) {
-        console.error('Could not extract selection ID from response:', response);
+      if (!backendSelection.id) {
+        console.error('Selection response missing ID:', backendSelection);
         throw new Error('Failed to get selection ID from response');
       }
 
-      console.log('Extracted selection ID:', selectionId);
+      const selectionId = backendSelection.id;
+      console.log('Created selection with ID:', selectionId);
 
       // If we have a target document, resolve it
       if (targetDocId) {
@@ -212,7 +257,7 @@ export default function DocumentPage() {
           <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Document not found'}</p>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-offset-gray-900 transition-colors"
           >
             Go Home
           </button>
@@ -248,8 +293,7 @@ export default function DocumentPage() {
             onWikiLinkClick={handleWikiLinkClick}
             onTextSelect={handleTextSelection}
             onHighlightClick={(highlight) => {
-              // Optional: Show tooltip or info about the highlight
-              console.log('Highlight clicked:', highlight);
+              // Do nothing on regular click
             }}
             onReferenceClick={(reference) => {
               // Navigate to referenced document if available
@@ -259,14 +303,28 @@ export default function DocumentPage() {
                 console.log('Reference clicked:', reference);
               }
             }}
+            onAnnotationRightClick={(annotation, x, y) => {
+              if (annotation.type === 'highlight' || annotation.type === 'reference') {
+                const menuAnnotation: ContextMenuAnnotation = {
+                  id: annotation.id,
+                  type: annotation.type
+                };
+                if (annotation.referencedDocumentId) {
+                  menuAnnotation.referencedDocumentId = annotation.referencedDocumentId;
+                }
+                setContextMenuAnnotation(menuAnnotation);
+                setContextMenuPosition({ x, y });
+              }
+            }}
           />
         </div>
 
-        {/* Annotation Legend */}
-        {(highlights.length > 0 || references.length > 0) && (
-          <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Annotations</h3>
-            <div className="flex gap-4 text-xs">
+        {/* Annotation Legend & Tips */}
+        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          {(highlights.length > 0 || references.length > 0) && (
+            <>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Annotations</h3>
+              <div className="flex gap-4 text-xs mb-3">
               {highlights.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="inline-block w-4 h-4 bg-yellow-200 dark:bg-yellow-900/40 rounded"></span>
@@ -280,9 +338,90 @@ export default function DocumentPage() {
                 </div>
               )}
             </div>
+            </>
+          )}
+          <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+            <strong>Quick tips:</strong> Select text and press <kbd className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">Ctrl+H</kbd> (or <kbd className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">⌘+H</kbd>) to highlight instantly • Right-click annotations for more options
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenuAnnotation && contextMenuPosition && (() => {
+        const menuProps: React.ComponentProps<typeof AnnotationContextMenu> = {
+          x: contextMenuPosition.x,
+          y: contextMenuPosition.y,
+          annotation: contextMenuAnnotation,
+          onClose: () => {
+            setContextMenuAnnotation(null);
+            setContextMenuPosition(null);
+          },
+          onDelete: async () => {
+            try {
+              await apiService.selections.delete(contextMenuAnnotation.id);
+              await loadSelections();
+            } catch (err) {
+              console.error('Failed to delete annotation:', err);
+              alert('Failed to delete annotation');
+            }
+          }
+        };
+        
+        if (contextMenuAnnotation.type === 'highlight') {
+          menuProps.onConvertToReference = () => {
+            // Show the reference creation popup to allow choosing a target document
+            setShowSelectionPopup(true);
+            // Find the highlight to get its text and position
+            const highlight = highlights.find(h => h.id === contextMenuAnnotation.id);
+            if (highlight) {
+              setSelectedText(highlight.text || highlight.selectionData.text);
+              setSelectionPosition({
+                start: highlight.selectionData.offset,
+                end: highlight.selectionData.offset + highlight.selectionData.length
+              });
+            }
+            setContextMenuAnnotation(null);
+            setContextMenuPosition(null);
+          };
+        }
+        
+        if (contextMenuAnnotation.type === 'reference') {
+          menuProps.onConvertToHighlight = async () => {
+            try {
+              // To convert reference to highlight, we need to:
+              // 1. Get the reference details
+              // 2. Delete the reference
+              // 3. Create a new highlight with the same text/position
+              const reference = references.find(r => r.id === contextMenuAnnotation.id);
+              if (!reference) {
+                throw new Error('Reference not found');
+              }
+              
+              // Delete the reference
+              await apiService.selections.delete(contextMenuAnnotation.id);
+              
+              // Create a new highlight
+              await apiService.selections.saveAsHighlight({
+                documentId,
+                text: reference.text || reference.selectionData.text,
+                position: {
+                  start: reference.selectionData.offset,
+                  end: reference.selectionData.offset + reference.selectionData.length
+                }
+              });
+              
+              await loadSelections();
+              setContextMenuAnnotation(null);
+              setContextMenuPosition(null);
+            } catch (err) {
+              console.error('Failed to convert to highlight:', err);
+              alert('Failed to convert to highlight');
+            }
+          };
+        }
+        
+        return <AnnotationContextMenu {...menuProps} />;
+      })()}
 
       {/* Selection Popup */}
       {showSelectionPopup && (
