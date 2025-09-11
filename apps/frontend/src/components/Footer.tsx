@@ -43,6 +43,14 @@ export function Footer() {
               >
                 API Docs
               </a>
+              <a 
+                href="https://github.com/The-AI-Alliance/semiont"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Source Code
+              </a>
             </div>
           </div>
         </div>
