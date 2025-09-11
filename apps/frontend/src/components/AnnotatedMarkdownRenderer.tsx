@@ -53,7 +53,7 @@ export function AnnotatedMarkdownRenderer({
     // Small delay to ensure markdown is fully rendered
     const timer = setTimeout(() => {
 
-    const container = containerRef.current;
+    const container = containerRef.current!;
     
     // Collect all text nodes in document order
     const textNodes: Text[] = [];

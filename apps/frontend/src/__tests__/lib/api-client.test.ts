@@ -456,29 +456,7 @@ describe('apiService', () => {
     process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: getBackendUrl() };
   });
 
-  describe('hello endpoints', () => {
-    it('should call greeting endpoint without name parameter', async () => {
-      await apiService.hello.greeting();
-
-      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/hello`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-    });
-
-    it('should call greeting endpoint with name parameter', async () => {
-      await apiService.hello.greeting('world');
-
-      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/hello/world`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-    });
-  });
+  // Removed hello endpoints tests - these endpoints no longer exist
 
   describe('status endpoint', () => {
     it('should call status endpoint', async () => {

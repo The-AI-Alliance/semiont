@@ -56,11 +56,11 @@ export default function DocumentPage() {
     try {
       // Load highlights
       const highlightsResponse = await apiService.selections.getHighlights(documentId);
-      setHighlights(highlightsResponse.highlights || highlightsResponse.selections || []);
+      setHighlights((highlightsResponse as any).highlights || highlightsResponse.selections || []);
 
       // Load references
       const referencesResponse = await apiService.selections.getReferences(documentId);
-      setReferences(referencesResponse.references || referencesResponse.selections || []);
+      setReferences((referencesResponse as any).references || referencesResponse.selections || []);
     } catch (err) {
       console.error('Failed to load selections:', err);
     }
