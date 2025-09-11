@@ -222,6 +222,17 @@ export class TypedAPIClient {
       throw new APIError(response.status, errorData);
     }
 
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return { success: true };
+    }
+
+    // Handle empty responses
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0') {
+      return { success: true };
+    }
+
     return response.json();
   }
 
@@ -293,7 +304,7 @@ export class LazyTypedAPIClient {
 export const apiClient = new Proxy({} as TypedAPIClient, {
   get(target, prop: string | symbol) {
     const instance = LazyTypedAPIClient.getInstance();
-    return (instance as any)[prop];
+    return instance[prop as keyof TypedAPIClient];
   },
 });
 
@@ -520,7 +531,7 @@ export const api = {
   admin: {
     users: {
       list: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.users.list'],
             queryFn: () => apiService.admin.users.list(),
@@ -529,7 +540,7 @@ export const api = {
         }
       },
       stats: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.users.stats'],
             queryFn: () => apiService.admin.users.stats(),
@@ -557,7 +568,7 @@ export const api = {
     
     oauth: {
       config: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.oauth.config'],
             queryFn: () => apiService.admin.oauth.config(),

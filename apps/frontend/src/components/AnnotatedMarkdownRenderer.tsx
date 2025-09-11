@@ -350,6 +350,7 @@ export function AnnotatedMarkdownRenderer({
   return (
     <div 
       ref={containerRef}
+      data-markdown-container
       className="prose prose-lg dark:prose-invert max-w-none selection:bg-blue-200 dark:selection:bg-blue-800"
     >
       <ReactMarkdown

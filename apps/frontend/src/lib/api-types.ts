@@ -61,20 +61,27 @@ export interface FrontendSelection {
 
 // Mapper function to convert backend to frontend format
 export function mapBackendToFrontendSelection(backend: BackendSelection): FrontendSelection {
-  return {
+  const mapped: FrontendSelection = {
     id: backend.id,
     documentId: backend.documentId,
     text: backend.selectionData.text,
     selectionData: backend.selectionData,
-    
-    // Map the field names
-    referencedDocumentId: backend.resolvedDocumentId,
-    entityType: backend.entityTypes?.[0],
-    referenceType: backend.referenceTags?.[0],
-    
     createdAt: backend.createdAt,
     updatedAt: backend.updatedAt,
   };
+  
+  // Only add optional fields if they have values
+  if (backend.resolvedDocumentId !== undefined) {
+    mapped.referencedDocumentId = backend.resolvedDocumentId;
+  }
+  if (backend.entityTypes?.[0] !== undefined) {
+    mapped.entityType = backend.entityTypes[0];
+  }
+  if (backend.referenceTags?.[0] !== undefined) {
+    mapped.referenceType = backend.referenceTags[0];
+  }
+  
+  return mapped;
 }
 
 // API response types
