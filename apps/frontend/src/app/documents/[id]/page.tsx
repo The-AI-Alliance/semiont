@@ -230,7 +230,7 @@ export default function DocumentPage() {
                     className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
                   >
                     <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                      "{highlight.text}"
+                      "{highlight.selectionData.text}"
                     </p>
                   </div>
                 ))
@@ -253,7 +253,7 @@ export default function DocumentPage() {
                     className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800"
                   >
                     <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                      "{reference.text}"
+                      "{reference.selectionData.text}"
                     </p>
                     {reference.referencedDocumentId && (
                       <button
