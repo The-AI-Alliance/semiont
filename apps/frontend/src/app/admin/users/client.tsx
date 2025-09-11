@@ -177,7 +177,7 @@ export default function AdminUsers() {
   });
 
   return (
-    <div className="space-y-6">
+      <div className="space-y-6">
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -382,6 +382,6 @@ export default function AdminUsers() {
           </div>
         )}
       </div>
-    </div>
+      </div>
   );
 }

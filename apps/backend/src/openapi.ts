@@ -1,13 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
 // Re-export our existing schemas but with OpenAPI metadata
-export const HelloResponseSchema = z.object({
-  message: z.string().openapi({ example: 'Hello, World! Welcome to Semiont.' }),
-  timestamp: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-  platform: z.string().openapi({ example: 'Semiont Semantic Knowledge Platform' }),
-  user: z.string().optional().openapi({ example: 'user@example.com' }),
-}).openapi('HelloResponse');
-
 export const StatusResponseSchema = z.object({
   status: z.string().openapi({ example: 'operational' }),
   version: z.string().openapi({ example: '0.1.0' }),
@@ -119,7 +112,6 @@ export const UpdateUserRequestSchema = z.object({
 
 // Old routes object removed - routes are now defined in:
 // - src/routes/health.ts
-// - src/routes/hello.ts  
 // - src/routes/auth.ts
 // - src/routes/admin.ts
 // - src/routes/status.ts

@@ -1,6 +1,8 @@
-import { notFound } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+'use client';
+
+import { notFound, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { 
   UsersIcon, 
@@ -10,14 +12,35 @@ import {
   CommandLineIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
+import { StatusDisplay } from '@/components/StatusDisplay';
 
-export default async function AdminPage() {
-  const session = await getServerSession(authOptions);
+export default function AdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   
-  // Show 404 for non-admin users or unauthenticated users
-  // This hides the existence of admin routes for security
+  // Check authentication and admin status
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
+      notFound();
+    }
+    if (!session?.backendUser?.isAdmin) {
+      notFound();
+    }
+  }, [status, session]);
+
+  // Show loading while checking session
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+      </div>
+    );
+  }
+
+  // Show nothing if not admin (will be handled by notFound)
   if (!session?.backendUser?.isAdmin) {
-    notFound();
+    return null;
   }
 
   const quickLinks = [
@@ -59,14 +82,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Welcome back, {session.user?.name || session.user?.email}
-        </p>
-      </div>
+    <div className="px-4 py-8">
 
       {/* Quick Actions */}
       <div className="mb-8">
@@ -107,7 +123,13 @@ export default async function AdminPage() {
 
       {/* Suggested Features */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">DevOps Features</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">DevOps</h2>
+        
+        {/* System Status */}
+        <div className="mb-6">
+          <StatusDisplay />
+        </div>
+        
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           These operations are available through the Semiont CLI for enhanced control and automation.
         </p>

@@ -75,105 +75,7 @@ describe('React Query API hooks', () => {
     process.env.NEXT_PUBLIC_API_URL = getBackendUrl();
   });
 
-  describe('hello.greeting hook', () => {
-    it('should make query when name is provided', async () => {
-      mockFetch.mockResolvedValue(createMockResponse({ message: 'Hello, world!' }));
-
-      const { result } = renderHook(
-        () => api.hello.greeting.useQuery({ name: 'world' }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/hello/world', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      expect(result.current.data).toEqual({ message: 'Hello, world!' });
-    });
-
-    it('should not make query when name is not provided (disabled)', async () => {
-      const { result } = renderHook(
-        () => api.hello.greeting.useQuery({ name: undefined }),
-        { wrapper: createWrapper() }
-      );
-
-      // Should be disabled and not fetch - React Query v5 uses 'loading' for disabled queries
-      expect(result.current.status).toBe('loading');
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('should handle query errors', async () => {
-      mockFetch.mockResolvedValue(createMockResponse({ error: 'Not found' }, false, 404));
-
-      const { result } = renderHook(
-        () => api.hello.greeting.useQuery({ name: 'world' }),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
-
-      expect(result.current.error).toBeDefined();
-    });
-
-    it('should use correct query key', () => {
-      const { result } = renderHook(
-        () => api.hello.greeting.useQuery({ name: 'test' }),
-        { wrapper: createWrapper() }
-      );
-
-      // In React Query v5, we verify query key by checking if the query was configured correctly
-      // by verifying that the hook instance was created successfully
-      expect(result.current).toHaveProperty('data');
-      expect(result.current).toHaveProperty('status');
-      expect(result.current).toHaveProperty('isLoading');
-    });
-  });
-
-  describe('hello.getStatus hook', () => {
-    it('should make status query', async () => {
-      mockFetch.mockResolvedValue(createMockResponse({ status: 'healthy' }));
-
-      const { result } = renderHook(
-        () => api.hello.getStatus.useQuery(),
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      const expectedUrl = getBackendUrl() + '/api/status';
-      expect(mockFetch).toHaveBeenCalledWith(expectedUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      expect(result.current.data).toEqual({ status: 'healthy' });
-    });
-
-    it('should use correct query key for status', () => {
-      const { result } = renderHook(
-        () => api.hello.getStatus.useQuery(),
-        { wrapper: createWrapper() }
-      );
-
-      // Verify the query hook is properly configured
-      expect(result.current).toHaveProperty('data');
-      expect(result.current).toHaveProperty('status');
-      expect(result.current).toHaveProperty('isLoading');
-    });
-  });
+  // Removed hello.greeting and hello.getStatus hook tests - these endpoints no longer exist
 
   describe('auth.google mutation', () => {
     it('should make Google auth mutation', async () => {
@@ -545,7 +447,7 @@ describe('React Query API hooks', () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(
-        () => api.hello.getStatus.useQuery(),
+        () => api.health.useQuery(),
         { wrapper: createWrapper() }
       );
 
@@ -581,12 +483,12 @@ describe('React Query API hooks', () => {
       });
 
       // Create a mock response that delays the JSON parsing
-      const mockResponse = createMockResponse({ status: 'healthy' });
+      const mockResponse = createMockResponse({ healthy: true });
       mockResponse.json = vi.fn().mockReturnValue(promise);
       mockFetch.mockResolvedValue(mockResponse);
 
       const { result } = renderHook(
-        () => api.hello.getStatus.useQuery(),
+        () => api.health.useQuery(),
         { wrapper: createWrapper() }
       );
 
@@ -595,14 +497,14 @@ describe('React Query API hooks', () => {
       expect(result.current.isSuccess).toBe(false);
 
       // Resolve the promise
-      resolvePromise!({ status: 'healthy' });
+      resolvePromise!({ healthy: true });
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
       });
 
       expect(result.current.isLoading).toBe(false);
-      expect(result.current.data).toEqual({ status: 'healthy' });
+      expect(result.current.data).toEqual({ healthy: true });
     });
 
     it('should track loading states correctly for mutations', async () => {

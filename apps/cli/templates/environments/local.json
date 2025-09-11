@@ -45,8 +45,8 @@
       "name": "janusgraph",
       "port": 8182,
       "host": "localhost",
-      "storage": "berkeleydb",
-      "index": "none"
+      "storage": "cassandra",
+      "index": "elasticsearch"
     },
     "mcp": {
       "platform": {
@@ -59,7 +59,7 @@
         "type": "posix"
       },
       "path": "./data/uploads",
-      "description": "Local filesystem storage for uploads and assets"
+      "description": "Local filesystem storage for document content"
     }
   }
 }

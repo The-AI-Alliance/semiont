@@ -63,11 +63,20 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
     
     // Try to check if database is accepting connections
     try {
-      // Check if port is listening inside container
-      execSync(
-        `${runtime} exec ${containerName} sh -c 'echo > /dev/tcp/localhost/${port}'`,
-        { encoding: 'utf-8' }
-      );
+      // Check if port is listening inside container using netstat or nc
+      try {
+        // First try with netstat (most reliable)
+        execSync(
+          `${runtime} exec ${containerName} sh -c 'netstat -ln | grep :${port}'`,
+          { encoding: 'utf-8' }
+        );
+      } catch {
+        // Fallback to nc (netcat) if netstat is not available
+        execSync(
+          `${runtime} exec ${containerName} sh -c 'nc -z localhost ${port}'`,
+          { encoding: 'utf-8' }
+        );
+      }
       health.healthy = true;
       health.details = { 
         database: 'accepting connections',

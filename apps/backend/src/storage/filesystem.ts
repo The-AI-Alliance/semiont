@@ -4,6 +4,7 @@ import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
+import { getFilesystemConfig } from '../config/environment-loader';
 
 export interface StorageService {
   saveDocument(documentId: string, content: string | Buffer): Promise<string>;
@@ -17,8 +18,12 @@ export class FilesystemStorage implements StorageService {
   private basePath: string;
   
   constructor(basePath?: string) {
-    // Use EFS mount path in production, local storage in development
-    this.basePath = basePath || process.env.EFS_MOUNT_PATH || '/tmp/semiont/documents';
+    if (basePath) {
+      this.basePath = basePath;
+    } else {
+      const config = getFilesystemConfig();
+      this.basePath = config.path;
+    }
   }
   
   async ensureDirectoryExists(): Promise<void> {

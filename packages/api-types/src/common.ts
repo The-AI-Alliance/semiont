@@ -38,14 +38,6 @@ export interface HealthResponse {
 }
 
 
-// Hello endpoint response (example/demo endpoint)
-export interface HelloResponse {
-  message: string;
-  timestamp: string;
-  platform: string;
-  user?: string; // Email of authenticated user
-}
-
 // Common validation schemas
 export const EmailSchema = z.string().email('Invalid email format');
 export const CuidSchema = z.string().cuid('Invalid ID format');
@@ -54,11 +46,3 @@ export const CuidSchema = z.string().cuid('Invalid ID format');
 export type ValidationResult<T> = 
   | { success: true; data: T }
   | { success: false; error: string; details?: any };
-
-// Common parameter schemas
-export const HelloParamsSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-});
-
-// Type inference from schemas
-export type HelloParams = z.infer<typeof HelloParamsSchema>;

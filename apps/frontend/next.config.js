@@ -24,7 +24,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",
-      "connect-src 'self' https://accounts.google.com https://www.googleapis.com",
+      // Allow localhost:4000 only in development
+      `connect-src 'self' ${process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : ''} https://accounts.google.com https://www.googleapis.com`,
       "frame-src 'self' https://accounts.google.com",
       "form-action 'self'",
       "base-uri 'self'",

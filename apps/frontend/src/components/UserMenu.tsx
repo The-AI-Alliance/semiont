@@ -72,7 +72,7 @@ export function UserMenu() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex gap-3">
+      <div className="flex gap-3 font-sans">
         <Link
           href="/auth/signup"
           className="text-sm text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 rounded px-3 py-2"

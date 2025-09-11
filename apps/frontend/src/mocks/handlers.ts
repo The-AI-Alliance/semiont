@@ -37,11 +37,6 @@ const mockAdminUser: User = {
 
 // Define handlers for all API routes
 const handlers = [
-  // Health check endpoint
-  http.get('*/api/hello', () => {
-    return HttpResponse.json({ message: 'Hello from API' })
-  }),
-
   // Authentication endpoints
   http.post('*/api/tokens/google', () => {
     return HttpResponse.json({

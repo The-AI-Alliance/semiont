@@ -132,7 +132,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     }
 
     return c.json({
-      document: formatDocument(updatedDocument),
+      document: formatDocument(updatedDocument, body.content),
       selections: selections.map(formatSelection),
     }, 201);
   } catch (error) {
@@ -197,10 +197,21 @@ documentsRouter.openapi(getDocumentRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   const document = await graphDb.getDocument(id);
 
   if (!document) {
     return c.json({ error: 'Document not found' }, 404);
+  }
+
+  // Get document content from filesystem
+  let content = '';
+  try {
+    const contentBuffer = await storage.getDocument(id);
+    content = contentBuffer.toString('utf-8');
+  } catch (error) {
+    console.error(`Failed to load content for document ${id}:`, error);
+    // Continue without content rather than failing the entire request
   }
 
   const selections = await graphDb.getDocumentSelections(id);
@@ -210,7 +221,7 @@ documentsRouter.openapi(getDocumentRoute, async (c) => {
   // const referencedBy = await graphDb.getDocumentReferencedBy(id);
 
   return c.json({
-    document: formatDocument(document),
+    document: formatDocument(document, content),
     selections: selections.map(formatSelection),
     highlights: highlights.map(formatSelection),
     references: references.map(formatSelection),
@@ -283,7 +294,7 @@ documentsRouter.openapi(listDocumentsRoute, async (c) => {
   const result = await graphDb.listDocuments(filter);
 
   return c.json({
-    documents: result.documents.map(formatDocument),
+    documents: result.documents.map(doc => formatDocument(doc)),
     total: result.total,
     offset: offset,
     limit: limit,
@@ -916,11 +927,12 @@ documentsRouter.openapi(discoverContextRoute, async (c) => {
 // HELPER FUNCTIONS
 // ==========================================
 
-function formatDocument(doc: Document): any {
+function formatDocument(doc: Document, content?: string): any {
   return {
     id: doc.id,
     name: doc.name,
     entityTypes: doc.entityTypes,
+    content: content || '',
     contentType: doc.contentType,
     metadata: doc.metadata,
     storageUrl: doc.storageUrl,

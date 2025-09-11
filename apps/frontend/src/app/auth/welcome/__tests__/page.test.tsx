@@ -11,6 +11,8 @@ import Welcome from '../page';
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
   signOut: vi.fn(),
+  signIn: vi.fn(),
+  SessionProvider: ({ children }: any) => children,
 }));
 
 // Mock next/navigation
@@ -63,7 +65,8 @@ describe('Welcome Page', () => {
 
       render(<Welcome />);
 
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      const loadingElements = screen.getAllByText('Loading...');
+      expect(loadingElements.length).toBeGreaterThan(0);
       expect(mockRouter.push).not.toHaveBeenCalled();
     });
 
@@ -176,8 +179,12 @@ describe('Welcome Page', () => {
     it('links to full terms and privacy policy', () => {
       render(<Welcome />);
 
-      const termsLink = screen.getByRole('link', { name: 'Terms of Service' });
-      const privacyLink = screen.getByRole('link', { name: 'Privacy Policy' });
+      const termsLinks = screen.getAllByRole('link', { name: 'Terms of Service' });
+      const privacyLinks = screen.getAllByRole('link', { name: 'Privacy Policy' });
+      
+      // Get the first of each (might have duplicates from PageLayout)
+      const termsLink = termsLinks[0];
+      const privacyLink = privacyLinks[0];
       
       expect(termsLink).toHaveAttribute('href', '/terms');
       expect(termsLink).toHaveAttribute('target', '_blank');

@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 // Import shared API types
 import type {
-  HelloResponse,
   StatusResponse,
   AuthResponse,
   UserResponse,
@@ -296,12 +295,6 @@ export const apiClient = new Proxy({} as TypedAPIClient, {
 
 // Type-safe convenience methods
 export const apiService = {
-  // Hello endpoints
-  hello: {
-    greeting: (name?: string): Promise<HelloResponse> => 
-      apiClient.get('/api/hello/:name?', { params: { name } }),
-  },
-
   status: (): Promise<StatusResponse> => 
     apiClient.get('/api/status'),
 
@@ -366,7 +359,17 @@ export const apiService = {
       position: { start: number; end: number };
       type?: 'provisional' | 'highlight' | 'reference';
     }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections', { body: data }),
+      apiClient.post('/api/selections', { 
+        body: {
+          documentId: data.documentId,
+          selectionType: {
+            type: 'text_span',
+            offset: data.position.start,
+            length: data.position.end - data.position.start,
+            text: data.text
+          }
+        }
+      }),
     
     get: (id: string): Promise<SelectionResponse> =>
       apiClient.get('/api/selections/:id', { params: { id } }),
@@ -389,12 +392,27 @@ export const apiService = {
       return apiClient.get('/api/selections');
     },
     
-    saveAsHighlight: (data: {
+    saveAsHighlight: async (data: {
       documentId: string;
       text: string;
       position: { start: number; end: number };
-    }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections/highlight', { body: data }),
+    }): Promise<SelectionResponse> => {
+      // First create the selection
+      const selection = await apiClient.post('/api/selections', { 
+        body: { 
+          documentId: data.documentId,
+          selectionType: {
+            type: 'text_span',
+            offset: data.position.start,
+            length: data.position.end - data.position.start,
+            text: data.text
+          },
+          saved: true
+        } 
+      });
+      
+      return selection;
+    },
     
     resolveToDocument: (data: {
       selectionId: string;
@@ -420,10 +438,10 @@ export const apiService = {
       apiClient.post('/api/selections/generate-document', { body: data }),
     
     getHighlights: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections/highlights/:documentId', { params: { documentId } }),
+      apiClient.get('/api/documents/:id/highlights', { params: { id: documentId } }),
     
     getReferences: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections/references/:documentId', { params: { documentId } }),
+      apiClient.get('/api/documents/:id/references', { params: { id: documentId } }),
   },
 
   // Admin endpoints
@@ -454,72 +472,6 @@ export const apiService = {
 
 // React Query hooks with type safety
 export const api = {
-  hello: {
-    greeting: {
-      useQuery: (input: { name?: string; token?: string; enabled?: boolean }) => {
-        return useQuery({
-          queryKey: ['hello.greeting', input.name],
-          queryFn: async () => {
-            // If token is provided, use an authenticated request
-            if (input.token) {
-              const instance = LazyTypedAPIClient.getInstance();
-              const originalAuth = instance.getAuthToken();
-              try {
-                instance.setAuthToken(input.token);
-                return await apiService.hello.greeting(input.name);
-              } finally {
-                // Restore original auth state
-                if (originalAuth) {
-                  instance.setAuthHeader(originalAuth);
-                } else {
-                  instance.clearAuthToken();
-                }
-              }
-            }
-            // Otherwise make unauthenticated request (will fail since /api/hello requires auth)
-            return apiService.hello.greeting(input.name);
-          },
-          enabled: input.enabled !== false && !!input.name,
-        });
-      }
-    },
-    getStatus: {
-      useQuery: (options?: { 
-        token?: string; 
-        enabled?: boolean;
-        pollingInterval?: number;
-      }) => {
-        return useQuery(
-          ['hello.getStatus'],
-          async () => {
-            // If token is provided, use an authenticated request
-            if (options?.token) {
-              const instance = LazyTypedAPIClient.getInstance();
-              const originalAuth = instance.getAuthToken();
-              try {
-                instance.setAuthToken(options.token);
-                return await apiService.status();
-              } finally {
-                // Restore original auth state
-                if (originalAuth) {
-                  instance.setAuthHeader(originalAuth);
-                } else {
-                  instance.clearAuthToken();
-                }
-              }
-            }
-            // Otherwise make unauthenticated request (will likely fail)
-            return apiService.status();
-          },
-          {
-            enabled: options?.enabled !== false,
-            ...(options?.pollingInterval !== undefined ? { refetchInterval: options.pollingInterval } : {}),
-          }
-        );
-      }
-    }
-  },
-  
   auth: {
     google: {
       useMutation: () => {

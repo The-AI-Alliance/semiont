@@ -41,7 +41,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
     >
       <h3 
         id={`feature-${feature.title.toLowerCase().replace(/\s+/g, '-')}-title`}
-        className="font-bold mb-2 flex items-center"
+        className="font-bold mb-2 flex items-center font-sans"
       >
         <span className="mr-2 text-lg" role="img" aria-label={`${feature.title} icon`}>
           {feature.icon}
@@ -70,7 +70,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
 
 export function FeatureCards() {
   return (
-    <section className="mt-8" aria-labelledby="features-heading">
+    <section className="mt-8 font-sans" aria-labelledby="features-heading">
       <h2 id="features-heading" className="sr-only">Upcoming Features</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4" role="list">
         {features.map((feature, index) => (

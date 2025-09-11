@@ -23,7 +23,7 @@ export default function AdminSecurity() {
   const providers = (oauthConfig as any)?.providers || [];
 
   return (
-    <div className="space-y-6">
+      <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">OAuth Configuration</h1>
@@ -121,6 +121,6 @@ export default function AdminSecurity() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
   );
 }

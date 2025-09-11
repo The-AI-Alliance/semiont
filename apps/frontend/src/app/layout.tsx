@@ -1,12 +1,16 @@
 import React from 'react';
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Orbitron } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { env } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
 
 const inter = Inter({ subsets: ["latin"] });
+const orbitron = Orbitron({ 
+  subsets: ["latin"],
+  variable: '--font-orbitron',
+});
 
 export const metadata: Metadata = {
   title: `${env.NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
@@ -20,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${orbitron.variable}`}>
         <Providers>
           {children}
           <CookieBanner />
