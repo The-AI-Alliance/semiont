@@ -471,6 +471,12 @@ export const apiService = {
       apiClient.get('/api/entity-types'),
   },
 
+  // Reference types endpoint
+  referenceTypes: {
+    list: (): Promise<{ referenceTypes: string[] }> =>
+      apiClient.get('/api/reference-types'),
+  },
+
   // Admin endpoints
   admin: {
     users: {
@@ -591,6 +597,18 @@ export const api = {
         return useQuery({
           queryKey: ['entityTypes.list'],
           queryFn: () => apiService.entityTypes.list(),
+          ...options,
+        });
+      }
+    }
+  },
+
+  referenceTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => {
+        return useQuery({
+          queryKey: ['referenceTypes.list'],
+          queryFn: () => apiService.referenceTypes.list(),
           ...options,
         });
       }

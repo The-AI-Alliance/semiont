@@ -41,6 +41,17 @@ export function SelectionPopup({
     'Other'
   ];
 
+  // Fetch reference types from backend
+  const { data: referenceTypesData, isLoading: referenceTypesLoading } = api.referenceTypes.list.useQuery();
+  const referenceTypes = referenceTypesData?.referenceTypes || [
+    // Fallback to hardcoded if API fails
+    'citation',
+    'definition',
+    'elaboration',
+    'example',
+    'related'
+  ];
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
 
@@ -158,12 +169,13 @@ export function SelectionPopup({
                   value={referenceType}
                   onChange={(e) => setReferenceType(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  disabled={referenceTypesLoading}
                 >
-                  <option value="citation">Citation</option>
-                  <option value="definition">Definition</option>
-                  <option value="elaboration">Elaboration</option>
-                  <option value="example">Example</option>
-                  <option value="related">Related</option>
+                  {referenceTypes.map(type => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -1221,6 +1221,44 @@ selectionsRouter.openapi(getEntityTypesRoute, async (c) => {
 });
 
 // ==========================================
+// GET REFERENCE TYPES
+// ==========================================
+
+const getReferenceTypesRoute = createRoute({
+  method: 'get',
+  path: '/api/reference-types',
+  summary: 'Get Reference Types',
+  description: 'Get list of available reference types',
+  tags: ['Selections'],
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            referenceTypes: z.array(z.string()),
+          }),
+        },
+      },
+      description: 'Reference types retrieved successfully',
+    },
+  },
+});
+
+selectionsRouter.openapi(getReferenceTypesRoute, async (c) => {
+  // Hardcoded reference types for now
+  // In the future, these could be configurable or stored in database
+  const referenceTypes = [
+    'citation',
+    'definition',
+    'elaboration',
+    'example',
+    'related'
+  ];
+
+  return c.json({ referenceTypes }, 200);
+});
+
+// ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 
