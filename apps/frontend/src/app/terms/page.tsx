@@ -19,14 +19,14 @@ export default function TermsOfService() {
           </div>
 
           <div className="prose dark:prose-invert max-w-none">
-            <h2>Acceptable Use Policy</h2>
+            <h2 className="font-sans">Acceptable Use Policy</h2>
             
             <p>
               By using Semiont, you agree to use our platform responsibly and in accordance with these terms. 
               We are committed to maintaining a safe, respectful, and productive environment for all users.
             </p>
 
-            <h3>Prohibited Content</h3>
+            <h3 className="font-sans">Prohibited Content</h3>
             <p>You may not upload, share, or create content that includes:</p>
             <ul>
               <li><strong>Illegal Content:</strong> Any content that violates local, state, national, or international laws</li>
@@ -41,7 +41,7 @@ export default function TermsOfService() {
               <li><strong>Spam and Manipulation:</strong> Unsolicited bulk content, manipulation of platform features, or automated abuse</li>
             </ul>
 
-            <h3>AI Alliance Code of Conduct</h3>
+            <h3 className="font-sans">AI Alliance Code of Conduct</h3>
             <p>
               Semiont is committed to the principles outlined in the{' '}
               <a 
@@ -62,7 +62,7 @@ export default function TermsOfService() {
               <li>Encouraging ethical considerations in all AI-related activities</li>
             </ul>
 
-            <h3>User Responsibilities</h3>
+            <h3 className="font-sans">User Responsibilities</h3>
             <p>As a user of Semiont, you agree to:</p>
             <ul>
               <li>Use the platform only for lawful and constructive purposes</li>
@@ -73,14 +73,14 @@ export default function TermsOfService() {
               <li>Comply with all applicable laws and regulations</li>
             </ul>
 
-            <h3>Content Moderation</h3>
+            <h3 className="font-sans">Content Moderation</h3>
             <p>
               We reserve the right to review, moderate, and remove content that violates these terms. 
               We may also suspend or terminate accounts that repeatedly violate our policies. 
               Content moderation decisions will be made in accordance with these terms and applicable law.
             </p>
 
-            <h3>Privacy and Data Protection</h3>
+            <h3 className="font-sans">Privacy and Data Protection</h3>
             <p>
               Your privacy is important to us. Please review our{' '}
               <Link href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
@@ -89,25 +89,25 @@ export default function TermsOfService() {
               {' '}to understand how we collect, use, and protect your information.
             </p>
 
-            <h3>Intellectual Property</h3>
+            <h3 className="font-sans">Intellectual Property</h3>
             <p>
               Users retain ownership of their original content while granting Semiont necessary rights to provide our services. 
               All platform technology, including AI models and algorithms, remain the property of Semiont and its licensors.
             </p>
 
-            <h3>Limitation of Liability</h3>
+            <h3 className="font-sans">Limitation of Liability</h3>
             <p>
               Semiont is provided "as is" without warranties. We strive to provide reliable service but cannot guarantee 
               uninterrupted access or error-free operation. Users are responsible for their own content and activities on the platform.
             </p>
 
-            <h3>Changes to Terms</h3>
+            <h3 className="font-sans">Changes to Terms</h3>
             <p>
               We may update these terms periodically. Users will be notified of significant changes, and continued use 
               of the platform constitutes acceptance of updated terms.
             </p>
 
-            <h3>Contact</h3>
+            <h3 className="font-sans">Contact</h3>
             <p>
               If you have questions about these terms or need to report violations, please contact our support team 
               through the platform or at the contact information provided in our Privacy Policy.

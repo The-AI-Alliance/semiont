@@ -15,7 +15,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
-        <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm">
+        <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
           <AsyncErrorBoundary>
             <Header />
           </AsyncErrorBoundary>
@@ -39,7 +39,7 @@ export default function Home() {
             <div className="text-center space-y-6">
               <section aria-labelledby="hero-heading">
                 <h1 id="hero-heading" className="sr-only">Semiont - AI-Powered Research Platform</h1>
-                <p className="text-xl text-gray-600 dark:text-gray-300">
+                <p className="text-xl text-gray-600 dark:text-gray-300 font-sans">
                   The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.
                 </p>
               </section>

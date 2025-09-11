@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
+import { StatusDisplay } from '@/components/StatusDisplay';
+import { AsyncErrorBoundary } from '@/components/ErrorBoundary';
 
 interface AuthenticatedHomeProps {
   userName?: string;
@@ -68,13 +70,13 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
         <h1 className="text-3xl font-bold font-orbitron text-gray-900 dark:text-white">
           make meaning
         </h1>
-        <p className="text-lg text-gray-600 dark:text-gray-300">
+        <p className="text-lg text-gray-600 dark:text-gray-300 font-sans">
           Search existing documents or create a new one to get started
         </p>
       </div>
 
       {/* Search Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 font-sans">
         <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
           Search Documents
         </h2>
@@ -128,7 +130,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
       </div>
 
       {/* Create Document Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 font-sans">
         <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
           Create New Document
         </h2>
@@ -142,7 +144,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
 
       {/* Create Document Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 font-sans">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg">
             <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
               Create New Document
@@ -202,6 +204,13 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
           </div>
         </div>
       )}
+
+      {/* Status Display */}
+      <div className="mt-8 text-center">
+        <AsyncErrorBoundary>
+          <StatusDisplay />
+        </AsyncErrorBoundary>
+      </div>
     </div>
   );
 }
