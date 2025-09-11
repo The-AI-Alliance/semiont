@@ -8,6 +8,7 @@ interface SemiontBrandingProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showTagline?: boolean;
   animated?: boolean;
+  compactTagline?: boolean;
 }
 
 export function SemiontBranding({ 
@@ -15,7 +16,8 @@ export function SemiontBranding({
   className = "",
   size = 'lg',
   showTagline = true,
-  animated = true
+  animated = true,
+  compactTagline = false
 }: SemiontBrandingProps) {
   const sizeClasses = {
     sm: 'text-2xl sm:text-3xl md:text-4xl',
@@ -31,6 +33,13 @@ export function SemiontBranding({
     xl: 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl'
   };
 
+  const compactTaglineSizes = {
+    sm: 'text-sm tracking-widest',
+    md: 'text-base tracking-widest',
+    lg: 'text-base tracking-widest',
+    xl: 'text-lg tracking-widest'
+  };
+
   const gradientStyle = isDark 
     ? 'linear-gradient(135deg, #ffffff 0%, #00f5ff 50%, #ffffff 100%)'
     : 'linear-gradient(135deg, #1f2937 0%, #0891b2 50%, #1f2937 100%)';
@@ -39,7 +48,7 @@ export function SemiontBranding({
     <div className={`flex flex-col items-center justify-center text-center ${className}`}>
       {/* Main heading */}
       <h1 
-        className={`${sizeClasses[size]} font-bold tracking-tight mb-6 sm:mb-8 uppercase font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000 ease-out' : ''}`}
+        className={`${sizeClasses[size]} font-bold tracking-tight ${compactTagline && showTagline ? 'mb-1' : 'mb-6 sm:mb-8'} uppercase font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000 ease-out' : ''}`}
       >
         <span
           className="bg-clip-text text-transparent"
@@ -54,7 +63,7 @@ export function SemiontBranding({
       {/* Tagline */}
       {showTagline && (
         <h2 
-          className={`${taglineSizes[size]} ${isDark ? 'text-cyan-400' : 'text-cyan-600'} tracking-wide font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-2 duration-1000 ease-out delay-300' : ''}`}
+          className={`${compactTagline ? compactTaglineSizes[size] : taglineSizes[size]} ${isDark ? 'text-cyan-400' : 'text-cyan-600'} ${compactTagline ? '' : 'tracking-wide'} font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-2 duration-1000 ease-out delay-300' : ''}`}
         >
           make meaning
         </h2>

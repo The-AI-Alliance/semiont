@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { env } from '@/lib/env';
 import { UserMenu } from '../UserMenu';
+import { SemiontBranding } from '../SemiontBranding';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -42,9 +43,15 @@ export function AdminHeader() {
           <div className="flex items-center">
             <Link 
               href="/" 
-              className="text-2xl font-bold font-orbitron text-sky-blue hover:opacity-80 transition-opacity"
+              className="hover:opacity-80 transition-opacity"
             >
-              SEMIONT
+              <SemiontBranding 
+                size="sm" 
+                showTagline={true} 
+                animated={false}
+                compactTagline={true}
+                className="py-1"
+              />
             </Link>
           </div>
           
