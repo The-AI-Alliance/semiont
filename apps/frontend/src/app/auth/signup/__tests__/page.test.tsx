@@ -9,6 +9,12 @@ import SignUp from '../page';
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
   signIn: vi.fn(),
+  signOut: vi.fn(),
+  useSession: vi.fn(() => ({
+    data: null,
+    status: 'unauthenticated',
+  })),
+  SessionProvider: ({ children }: any) => children,
 }));
 
 // Mock next/navigation
