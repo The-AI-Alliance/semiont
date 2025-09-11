@@ -59,7 +59,7 @@
         "type": "posix"
       },
       "path": "./data/uploads",
-      "description": "Local filesystem storage for uploads and assets"
+      "description": "Local filesystem storage for document content"
     }
   }
 }
