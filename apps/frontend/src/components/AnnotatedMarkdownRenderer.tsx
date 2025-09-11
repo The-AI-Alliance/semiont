@@ -34,6 +34,7 @@ interface AnnotatedMarkdownRendererProps {
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
   onHighlightClick?: (highlight: ExtendedSelection) => void;
   onReferenceClick?: (reference: ExtendedSelection) => void;
+  onAnnotationRightClick?: (annotation: ExtendedSelection, x: number, y: number) => void;
 }
 
 export function AnnotatedMarkdownRenderer({ 
@@ -43,7 +44,8 @@ export function AnnotatedMarkdownRenderer({
   onWikiLinkClick,
   onTextSelect,
   onHighlightClick,
-  onReferenceClick
+  onReferenceClick,
+  onAnnotationRightClick
 }: AnnotatedMarkdownRendererProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   // Apply annotations after markdown is rendered
@@ -191,6 +193,14 @@ export function AnnotatedMarkdownRenderer({
                 onReferenceClick(annotation);
               }
             });
+
+            // Add right-click handler for context menu
+            wrapper.addEventListener('contextmenu', (e) => {
+              e.preventDefault();
+              if (onAnnotationRightClick) {
+                onAnnotationRightClick(annotation, e.clientX, e.clientY);
+              }
+            });
             
             fragment.appendChild(wrapper);
           } else {
@@ -204,7 +214,7 @@ export function AnnotatedMarkdownRenderer({
     }, 100); // 100ms delay to ensure DOM is ready
 
     return () => clearTimeout(timer);
-  }, [highlights, references, onHighlightClick, onReferenceClick, content]);
+  }, [highlights, references, onHighlightClick, onReferenceClick, onAnnotationRightClick, content]);
 
   const handleTextSelection = () => {
     const selection = window.getSelection();

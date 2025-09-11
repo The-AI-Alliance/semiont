@@ -8,6 +8,12 @@ import { AnnotatedMarkdownRenderer } from '@/components/AnnotatedMarkdownRendere
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { PageLayout } from '@/components/PageLayout';
 import type { Document, Selection } from '@/lib/api-client';
+import { 
+  mapBackendToFrontendSelection, 
+  type HighlightsApiResponse, 
+  type ReferencesApiResponse,
+  type SelectionsApiResponse
+} from '@/lib/api-types';
 
 export default function DocumentPage() {
   const params = useParams();
@@ -54,13 +60,19 @@ export default function DocumentPage() {
 
   const loadSelections = async () => {
     try {
-      // Load highlights
-      const highlightsResponse = await apiService.selections.getHighlights(documentId);
-      setHighlights((highlightsResponse as any).highlights || highlightsResponse.selections || []);
+      // Load highlights with proper typing
+      const highlightsResponse = await apiService.selections.getHighlights(documentId) as unknown as HighlightsApiResponse | SelectionsApiResponse;
+      const highlightData = 'highlights' in highlightsResponse ? highlightsResponse.highlights : highlightsResponse.selections;
+      const mappedHighlights = highlightData.map(mapBackendToFrontendSelection);
+      setHighlights(mappedHighlights);
 
-      // Load references
-      const referencesResponse = await apiService.selections.getReferences(documentId);
-      setReferences((referencesResponse as any).references || referencesResponse.selections || []);
+      // Load references with proper typing
+      const referencesResponse = await apiService.selections.getReferences(documentId) as unknown as ReferencesApiResponse | SelectionsApiResponse;
+      const referenceData = 'references' in referencesResponse ? referencesResponse.references : referencesResponse.selections;
+      const mappedReferences = referenceData.map(mapBackendToFrontendSelection);
+      
+      console.log('Loaded references with proper types:', mappedReferences);
+      setReferences(mappedReferences);
     } catch (err) {
       console.error('Failed to load selections:', err);
     }
