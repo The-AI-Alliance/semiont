@@ -1179,6 +1179,48 @@ selectionsRouter.openapi(getDocumentReferencedByRoute, async (c) => {
 });
 
 // ==========================================
+// GET ENTITY TYPES
+// ==========================================
+
+const getEntityTypesRoute = createRoute({
+  method: 'get',
+  path: '/api/entity-types',
+  summary: 'Get Entity Types',
+  description: 'Get list of available entity types for references',
+  tags: ['Selections'],
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            entityTypes: z.array(z.string()),
+          }),
+        },
+      },
+      description: 'Entity types retrieved successfully',
+    },
+  },
+});
+
+selectionsRouter.openapi(getEntityTypesRoute, async (c) => {
+  // Hardcoded entity types for now
+  // In the future, these could be configurable or stored in database
+  const entityTypes = [
+    'Person',
+    'Organization',
+    'Location',
+    'Event',
+    'Concept',
+    'Product',
+    'Technology',
+    'Date',
+    'Other'
+  ];
+
+  return c.json({ entityTypes }, 200);
+});
+
+// ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 

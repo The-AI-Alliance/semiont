@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { apiService } from '@/lib/api-client';
+import React, { useState, useEffect } from 'react';
+import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 
 interface SelectionPopupProps {
@@ -25,6 +25,21 @@ export function SelectionPopup({
   const [referenceType, setReferenceType] = useState('citation');
   const [entityType, setEntityType] = useState('');
   const [customEntityType, setCustomEntityType] = useState('');
+
+  // Fetch entity types from backend
+  const { data: entityTypesData, isLoading: entityTypesLoading } = api.entityTypes.list.useQuery();
+  const commonEntityTypes = entityTypesData?.entityTypes || [
+    // Fallback to hardcoded if API fails
+    'Person',
+    'Organization',
+    'Location',
+    'Event',
+    'Concept',
+    'Product',
+    'Technology',
+    'Date',
+    'Other'
+  ];
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -56,18 +71,6 @@ export function SelectionPopup({
       alert('Failed to create new document');
     }
   };
-
-  const commonEntityTypes = [
-    'Person',
-    'Organization',
-    'Location',
-    'Event',
-    'Concept',
-    'Product',
-    'Technology',
-    'Date',
-    'Other'
-  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
