@@ -45,8 +45,8 @@
       "name": "janusgraph",
       "port": 8182,
       "host": "localhost",
-      "storage": "berkeleydb",
-      "index": "none"
+      "storage": "cassandra",
+      "index": "elasticsearch"
     },
     "mcp": {
       "platform": {

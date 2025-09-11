@@ -136,10 +136,6 @@ Required only if you're working with graph database features:
 # First provision JanusGraph (creates docker-compose configuration)
 semiont provision --service graph
 
-# Optionally provision with Elasticsearch and/or Cassandra backends
-# semiont provision --service graph -- --with-elasticsearch
-# semiont provision --service graph -- --with-cassandra
-
 # Then start the graph database
 semiont start --service graph
 
