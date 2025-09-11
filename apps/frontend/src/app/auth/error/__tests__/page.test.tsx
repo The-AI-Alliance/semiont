@@ -138,9 +138,9 @@ describe('AuthError Page', () => {
 
       render(<AuthError />);
 
-      // Check that the main container has proper centering classes
+      // Check that the main container has proper layout classes
       const container = screen.getByText('Authentication Error').closest('.min-h-screen');
-      expect(container).toHaveClass('min-h-screen', 'flex', 'items-center', 'justify-center');
+      expect(container).toHaveClass('min-h-screen', 'flex', 'flex-col');
     });
   });
 

@@ -447,7 +447,7 @@ describe('React Query API hooks', () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(
-        () => api.hello.getStatus.useQuery(),
+        () => api.health.useQuery(),
         { wrapper: createWrapper() }
       );
 
@@ -483,12 +483,12 @@ describe('React Query API hooks', () => {
       });
 
       // Create a mock response that delays the JSON parsing
-      const mockResponse = createMockResponse({ status: 'healthy' });
+      const mockResponse = createMockResponse({ healthy: true });
       mockResponse.json = vi.fn().mockReturnValue(promise);
       mockFetch.mockResolvedValue(mockResponse);
 
       const { result } = renderHook(
-        () => api.hello.getStatus.useQuery(),
+        () => api.health.useQuery(),
         { wrapper: createWrapper() }
       );
 
@@ -497,14 +497,14 @@ describe('React Query API hooks', () => {
       expect(result.current.isSuccess).toBe(false);
 
       // Resolve the promise
-      resolvePromise!({ status: 'healthy' });
+      resolvePromise!({ healthy: true });
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
       });
 
       expect(result.current.isLoading).toBe(false);
-      expect(result.current.data).toEqual({ status: 'healthy' });
+      expect(result.current.data).toEqual({ healthy: true });
     });
 
     it('should track loading states correctly for mutations', async () => {

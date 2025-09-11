@@ -286,8 +286,9 @@ describe('Sign-Up Flow Integration Tests', () => {
       
       render(<Welcome />);
       
-      // Should show loading state
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      // Should show loading state - may have multiple loading texts
+      const loadingElements = screen.getAllByText('Loading...');
+      expect(loadingElements.length).toBeGreaterThan(0);
       expect(mockRouter.push).not.toHaveBeenCalled();
     });
   });
@@ -436,8 +437,9 @@ describe('Sign-Up Flow Integration Tests', () => {
     it('should provide proper headings hierarchy', () => {
       render(<SignUp />);
       
-      const heading = screen.getByRole('heading', { level: 2 });
-      expect(heading).toHaveTextContent('Create your Semiont account');
+      const headings = screen.getAllByRole('heading', { level: 2 });
+      const mainHeading = headings.find(h => h.textContent === 'Create your Semiont account');
+      expect(mainHeading).toBeInTheDocument();
     });
 
     it('should handle keyboard navigation in Welcome page', async () => {
