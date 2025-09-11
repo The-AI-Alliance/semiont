@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
-import { StatusDisplay } from '@/components/StatusDisplay';
 import { AsyncErrorBoundary } from '@/components/ErrorBoundary';
 
 interface AuthenticatedHomeProps {
@@ -66,10 +65,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8">
       {/* Welcome Section */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold font-orbitron text-gray-900 dark:text-white">
-          make meaning
-        </h1>
+      <div className="text-center">
         <p className="text-lg text-gray-600 dark:text-gray-300 font-sans">
           Manage your knowledge documents
         </p>
@@ -231,12 +227,6 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
         </div>
       </div>
 
-      {/* Status Display */}
-      <div className="mt-8 text-center">
-        <AsyncErrorBoundary>
-          <StatusDisplay />
-        </AsyncErrorBoundary>
-      </div>
     </div>
   );
 }
