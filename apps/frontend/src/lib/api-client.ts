@@ -359,7 +359,17 @@ export const apiService = {
       position: { start: number; end: number };
       type?: 'provisional' | 'highlight' | 'reference';
     }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections', { body: data }),
+      apiClient.post('/api/selections', { 
+        body: {
+          documentId: data.documentId,
+          selectionType: {
+            type: 'text_span',
+            offset: data.position.start,
+            length: data.position.end - data.position.start,
+            text: data.text
+          }
+        }
+      }),
     
     get: (id: string): Promise<SelectionResponse> =>
       apiClient.get('/api/selections/:id', { params: { id } }),
@@ -382,12 +392,27 @@ export const apiService = {
       return apiClient.get('/api/selections');
     },
     
-    saveAsHighlight: (data: {
+    saveAsHighlight: async (data: {
       documentId: string;
       text: string;
       position: { start: number; end: number };
-    }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections/highlight', { body: data }),
+    }): Promise<SelectionResponse> => {
+      // First create the selection
+      const selection = await apiClient.post('/api/selections', { 
+        body: { 
+          documentId: data.documentId,
+          selectionType: {
+            type: 'text_span',
+            offset: data.position.start,
+            length: data.position.end - data.position.start,
+            text: data.text
+          },
+          saved: true
+        } 
+      });
+      
+      return selection;
+    },
     
     resolveToDocument: (data: {
       selectionId: string;
@@ -413,10 +438,10 @@ export const apiService = {
       apiClient.post('/api/selections/generate-document', { body: data }),
     
     getHighlights: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections/highlights/:documentId', { params: { documentId } }),
+      apiClient.get('/api/documents/:id/highlights', { params: { id: documentId } }),
     
     getReferences: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections/references/:documentId', { params: { documentId } }),
+      apiClient.get('/api/documents/:id/references', { params: { id: documentId } }),
   },
 
   // Admin endpoints

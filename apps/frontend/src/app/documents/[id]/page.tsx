@@ -56,11 +56,11 @@ export default function DocumentPage() {
     try {
       // Load highlights
       const highlightsResponse = await apiService.selections.getHighlights(documentId);
-      setHighlights(highlightsResponse.selections);
+      setHighlights(highlightsResponse.highlights);
 
       // Load references
       const referencesResponse = await apiService.selections.getReferences(documentId);
-      setReferences(referencesResponse.selections);
+      setReferences(referencesResponse.references);
     } catch (err) {
       console.error('Failed to load selections:', err);
     }
