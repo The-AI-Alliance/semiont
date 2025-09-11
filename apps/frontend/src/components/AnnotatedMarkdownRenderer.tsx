@@ -104,24 +104,73 @@ export function AnnotatedMarkdownRenderer({
       })) || []
     ];
 
-    // Apply annotations to text nodes
-    allAnnotations.forEach(annotation => {
-      const start = annotation.selectionData.offset;
-      const end = start + annotation.selectionData.length;
+    // Sort annotations by offset (process from start to end)
+    allAnnotations.sort((a, b) => a.selectionData.offset - b.selectionData.offset);
 
-      // Find text nodes that overlap with this annotation
-      nodeMap.forEach(({ node, start: nodeStart, end: nodeEnd }) => {
-        if (start < nodeEnd && end > nodeStart) {
-          // Calculate relative positions within this text node
-          const relativeStart = Math.max(0, start - nodeStart);
-          const relativeEnd = Math.min(node.textContent!.length, end - nodeStart);
+    // Process each text node and apply all relevant annotations
+    nodeMap.forEach(({ node, start: nodeStart, end: nodeEnd }) => {
+      // Find all annotations that affect this text node
+      const nodeAnnotations = allAnnotations.filter(annotation => {
+        const annotationStart = annotation.selectionData.offset;
+        const annotationEnd = annotationStart + annotation.selectionData.length;
+        return annotationStart < nodeEnd && annotationEnd > nodeStart;
+      });
+
+      if (nodeAnnotations.length === 0) return;
+
+      // Calculate split points for this text node
+      const splits: Array<{ start: number; end: number; annotation?: typeof allAnnotations[0] }> = [];
+      const text = node.textContent || '';
+      
+      // Convert annotation positions to relative positions within this node
+      const relativeBoundaries = new Set<number>([0, text.length]);
+      
+      nodeAnnotations.forEach(annotation => {
+        const annotationStart = annotation.selectionData.offset;
+        const annotationEnd = annotationStart + annotation.selectionData.length;
+        
+        const relativeStart = Math.max(0, annotationStart - nodeStart);
+        const relativeEnd = Math.min(text.length, annotationEnd - nodeStart);
+        
+        if (relativeStart < text.length) relativeBoundaries.add(relativeStart);
+        if (relativeEnd > 0) relativeBoundaries.add(relativeEnd);
+      });
+
+      // Convert boundaries to sorted array
+      const boundaries = Array.from(relativeBoundaries).sort((a, b) => a - b);
+      
+      // Create segments between boundaries
+      for (let i = 0; i < boundaries.length - 1; i++) {
+        const segmentStart = boundaries[i];
+        const segmentEnd = boundaries[i + 1];
+        
+        // Find which annotation(s) apply to this segment
+        const segmentAnnotation = nodeAnnotations.find(annotation => {
+          const annotationStart = annotation.selectionData.offset;
+          const annotationEnd = annotationStart + annotation.selectionData.length;
           
-          if (relativeStart < relativeEnd) {
-            // Split the text node and wrap the middle part
-            const beforeText = node.textContent!.substring(0, relativeStart);
-            const annotatedText = node.textContent!.substring(relativeStart, relativeEnd);
-            const afterText = node.textContent!.substring(relativeEnd);
+          const relativeStart = Math.max(0, annotationStart - nodeStart);
+          const relativeEnd = Math.min(text.length, annotationEnd - nodeStart);
+          
+          return relativeStart <= segmentStart && relativeEnd >= segmentEnd;
+        });
+        
+        splits.push({ 
+          start: segmentStart, 
+          end: segmentEnd, 
+          annotation: segmentAnnotation 
+        });
+      }
 
+      // Build the replacement fragment
+      const parent = node.parentNode;
+      if (parent && splits.length > 0) {
+        const fragment = document.createDocumentFragment();
+        
+        splits.forEach(({ start, end, annotation }) => {
+          const segmentText = text.substring(start, end);
+          
+          if (annotation) {
             // Create wrapper span
             const wrapper = document.createElement('span');
             wrapper.className = annotation.type === 'highlight' 
@@ -129,7 +178,7 @@ export function AnnotatedMarkdownRenderer({
               : 'bg-gradient-to-r from-cyan-200 to-blue-200 dark:from-cyan-900/40 dark:to-blue-900/40 px-1 py-0.5 rounded-md cursor-pointer hover:from-cyan-300 hover:to-blue-300 dark:hover:from-cyan-800/50 dark:hover:to-blue-800/50 transition-all border border-cyan-400/30 dark:border-cyan-600/30';
             wrapper.dataset.annotationType = annotation.type;
             wrapper.dataset.annotationId = annotation.id;
-            wrapper.textContent = annotatedText;
+            wrapper.textContent = segmentText;
 
             // Add click handler
             wrapper.addEventListener('click', () => {
@@ -139,25 +188,15 @@ export function AnnotatedMarkdownRenderer({
                 onReferenceClick(annotation);
               }
             });
-
-            // Replace the text node with the new structure
-            const parent = node.parentNode;
-            if (parent) {
-              const fragment = document.createDocumentFragment();
-              
-              if (beforeText) {
-                fragment.appendChild(document.createTextNode(beforeText));
-              }
-              fragment.appendChild(wrapper);
-              if (afterText) {
-                fragment.appendChild(document.createTextNode(afterText));
-              }
-              
-              parent.replaceChild(fragment, node);
-            }
+            
+            fragment.appendChild(wrapper);
+          } else {
+            fragment.appendChild(document.createTextNode(segmentText));
           }
-        }
-      });
+        });
+        
+        parent.replaceChild(fragment, node);
+      }
     });
     }, 100); // 100ms delay to ensure DOM is ready
 
