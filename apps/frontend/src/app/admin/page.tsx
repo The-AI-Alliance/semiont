@@ -12,7 +12,6 @@ import {
   CommandLineIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
-import { PageLayout } from '@/components/PageLayout';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -32,11 +31,9 @@ export default function AdminPage() {
   // Show loading while checking session
   if (status === 'loading') {
     return (
-      <PageLayout className="bg-gray-50">
-        <div className="flex items-center justify-center py-20">
-          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
-        </div>
-      </PageLayout>
+      <div className="flex items-center justify-center py-20">
+        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+      </div>
     );
   }
 
@@ -84,15 +81,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <PageLayout className="bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Welcome back, {session.user?.name || session.user?.email}
-        </p>
-      </div>
+    <div className="px-4 py-8">
 
       {/* Quick Actions */}
       <div className="mb-8">
@@ -185,7 +174,6 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
-      </div>
-    </PageLayout>
+    </div>
   );
 }
