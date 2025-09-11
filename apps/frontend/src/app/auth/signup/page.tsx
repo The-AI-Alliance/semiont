@@ -6,6 +6,7 @@ import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
+import { buttonStyles } from '@/lib/button-styles';
 
 function SignUpContent() {
   const searchParams = useSearchParams();
@@ -42,7 +43,7 @@ function SignUpContent() {
             <button
               onClick={handleGoogleSignUp}
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonStyles.primary.large}
             >
             {isLoading ? (
               <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent"></div>

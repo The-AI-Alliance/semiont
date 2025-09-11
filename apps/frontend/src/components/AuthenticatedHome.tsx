@@ -64,12 +64,6 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8">
-      {/* Welcome Section */}
-      <div className="text-center">
-        <p className="text-lg text-gray-600 dark:text-gray-300 font-sans">
-          Manage your knowledge documents
-        </p>
-      </div>
 
       {/* Search Documents Section */}
       <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-6 font-sans">
@@ -138,7 +132,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
         </h2>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="w-full py-3 bg-green-600/90 hover:bg-green-700 text-white rounded-lg transition-all duration-300 transform hover:scale-[1.02] font-medium flex items-center justify-center gap-2"
+          className="w-full py-3 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-600 hover:to-blue-600 dark:from-cyan-600/20 dark:to-blue-600/20 dark:hover:from-cyan-500 dark:hover:to-blue-500 text-cyan-700 hover:text-white dark:text-cyan-400 dark:hover:text-white border border-cyan-400/30 hover:border-cyan-600 dark:border-cyan-500/30 dark:hover:border-cyan-400 rounded-lg transition-all duration-300 transform hover:scale-[1.02] font-medium flex items-center justify-center gap-2 backdrop-blur-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -200,7 +194,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
                 <button
                   type="submit"
                   disabled={isCreating || !newDocName.trim()}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-6 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-600 hover:to-blue-600 dark:from-cyan-600/20 dark:to-blue-600/20 dark:hover:from-cyan-500 dark:hover:to-blue-500 text-cyan-700 hover:text-white dark:text-cyan-400 dark:hover:text-white border border-cyan-400/30 hover:border-cyan-600 dark:border-cyan-500/30 dark:hover:border-cyan-400 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all backdrop-blur-sm"
                 >
                   {isCreating ? 'Creating...' : 'Create Document'}
                 </button>
