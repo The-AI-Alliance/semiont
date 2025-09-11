@@ -122,17 +122,42 @@ export default function DocumentPage() {
 
     try {
       // First create the selection
-      const selection = await apiService.selections.create({
+      const response = await apiService.selections.create({
         documentId,
         text: selectedText,
         position: selectionPosition,
         type: 'reference'
       });
 
+      console.log('Full selection create response:', response);
+      console.log('Response keys:', Object.keys(response));
+      console.log('Response type:', typeof response);
+
+      // The response should be the selection directly with an id property
+      // But let's check all possible structures
+      let selectionId: string | undefined;
+      
+      if (typeof response === 'object' && response !== null) {
+        // Check various possible response structures
+        selectionId = (response as any).id || 
+                     (response as any).selectionId || 
+                     (response as any).selection?.id ||
+                     (response as any).data?.id ||
+                     (response as any).data?.selection?.id;
+      }
+      
+      if (!selectionId) {
+        console.error('Could not extract selection ID from response:', response);
+        throw new Error('Failed to get selection ID from response');
+      }
+
+      console.log('Extracted selection ID:', selectionId);
+
       // If we have a target document, resolve it
       if (targetDocId) {
+        console.log('Resolving to document:', targetDocId, 'with selection:', selectionId);
         const resolveData: { selectionId: string; targetDocumentId: string; referenceType?: string } = {
-          selectionId: selection.selection.id,
+          selectionId: selectionId,
           targetDocumentId: targetDocId
         };
         if (referenceType) {
@@ -149,8 +174,12 @@ export default function DocumentPage() {
       setSelectedText('');
       setSelectionPosition(null);
     } catch (err) {
-      console.error('Failed to create reference:', err);
-      alert('Failed to create reference');
+      console.error('Failed to create reference - Full error:', err);
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+      }
+      alert(`Failed to create reference: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 

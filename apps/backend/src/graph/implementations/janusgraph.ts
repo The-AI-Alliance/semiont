@@ -234,7 +234,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async createSelection(input: CreateSelectionInput): Promise<Selection> {
-    const id = this.generateId();
+    const id = this.generateId('sel');
     const now = new Date();
     
     const selection: Selection = {
@@ -599,8 +599,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     return [];
   }
   
-  generateId(): string {
-    return `doc_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+  generateId(prefix: string = 'doc'): string {
+    return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
   }
   
   async clearDatabase(): Promise<void> {

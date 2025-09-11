@@ -238,6 +238,10 @@ export class TypedAPIClient {
     return this.call(route, 'PATCH', options);
   }
 
+  async put(route: string, options: RequestOptions = {}): Promise<any> {
+    return this.call(route, 'PUT', options);
+  }
+
   async delete(route: string, options: RequestOptions = {}): Promise<any> {
     return this.call(route, 'DELETE', options);
   }
@@ -419,7 +423,13 @@ export const apiService = {
       targetDocumentId: string;
       referenceType?: string;
     }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections/resolve', { body: data }),
+      apiClient.put('/api/selections/:id/resolve', { 
+        params: { id: data.selectionId },
+        body: { 
+          documentId: data.targetDocumentId,
+          referenceType: data.referenceType 
+        }
+      }),
     
     createDocument: (data: {
       selectionId: string;
