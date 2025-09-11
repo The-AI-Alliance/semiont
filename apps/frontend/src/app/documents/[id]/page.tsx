@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
-import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { AnnotatedMarkdownRenderer } from '@/components/AnnotatedMarkdownRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { PageLayout } from '@/components/PageLayout';
 import type { Document, Selection } from '@/lib/api-client';
@@ -16,8 +16,8 @@ export default function DocumentPage() {
   const documentId = params?.id as string;
 
   const [document, setDocument] = useState<Document | null>(null);
-  const [highlights, setHighlights] = useState<Selection[]>([]);
-  const [references, setReferences] = useState<Selection[]>([]);
+  const [highlights, setHighlights] = useState<any[]>([]);
+  const [references, setReferences] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -56,11 +56,11 @@ export default function DocumentPage() {
     try {
       // Load highlights
       const highlightsResponse = await apiService.selections.getHighlights(documentId);
-      setHighlights(highlightsResponse.highlights);
+      setHighlights(highlightsResponse.highlights || highlightsResponse.selections || []);
 
       // Load references
       const referencesResponse = await apiService.selections.getReferences(documentId);
-      setReferences(referencesResponse.references);
+      setReferences(referencesResponse.references || referencesResponse.selections || []);
     } catch (err) {
       console.error('Failed to load selections:', err);
     }
@@ -197,77 +197,50 @@ export default function DocumentPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Document Content */}
-        <div className="lg:col-span-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
-          <MarkdownRenderer
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+          <AnnotatedMarkdownRenderer
             content={document.content}
+            highlights={highlights}
+            references={references}
             onWikiLinkClick={handleWikiLinkClick}
             onTextSelect={handleTextSelection}
+            onHighlightClick={(highlight) => {
+              // Optional: Show tooltip or info about the highlight
+              console.log('Highlight clicked:', highlight);
+            }}
+            onReferenceClick={(reference) => {
+              // Navigate to referenced document if available
+              if (reference.referencedDocumentId) {
+                router.push(`/documents/${reference.referencedDocumentId}`);
+              } else {
+                console.log('Reference clicked:', reference);
+              }
+            }}
           />
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Highlights */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
-            <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
-              Highlights ({highlights.length})
-            </h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {highlights.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No highlights yet</p>
-              ) : (
-                highlights.map((highlight) => (
-                  <div
-                    key={highlight.id}
-                    className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
-                  >
-                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                      "{highlight.selectionData.text}"
-                    </p>
-                  </div>
-                ))
+        {/* Annotation Legend */}
+        {(highlights.length > 0 || references.length > 0) && (
+          <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Annotations</h3>
+            <div className="flex gap-4 text-xs">
+              {highlights.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4 bg-yellow-200 dark:bg-yellow-900/40 rounded"></span>
+                  <span className="text-gray-600 dark:text-gray-400">{highlights.length} Highlight{highlights.length !== 1 ? 's' : ''}</span>
+                </div>
+              )}
+              {references.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4 bg-gradient-to-r from-cyan-200 to-blue-200 dark:from-cyan-900/40 dark:to-blue-900/40 rounded-md border border-cyan-400/30 dark:border-cyan-600/30"></span>
+                  <span className="text-gray-600 dark:text-gray-400">{references.length} Reference{references.length !== 1 ? 's' : ''}</span>
+                </div>
               )}
             </div>
           </div>
-
-          {/* References */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
-            <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
-              References ({references.length})
-            </h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {references.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No references yet</p>
-              ) : (
-                references.map((reference) => (
-                  <div
-                    key={reference.id}
-                    className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800"
-                  >
-                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                      "{reference.selectionData.text}"
-                    </p>
-                    {reference.referencedDocumentId && (
-                      <button
-                        onClick={() => router.push(`/documents/${reference.referencedDocumentId}`)}
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mt-1"
-                      >
-                        → View referenced document
-                      </button>
-                    )}
-                    {reference.entityType && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Entity: {reference.entityType}
-                      </p>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Selection Popup */}
