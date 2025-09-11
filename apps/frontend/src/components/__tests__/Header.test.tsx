@@ -9,6 +9,18 @@ vi.mock('../UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu Mock</div>
 }))
 
+// Mock the SemiontBranding component
+vi.mock('../SemiontBranding', () => ({
+  SemiontBranding: ({ size, showTagline, animated, compactTagline, className }: any) => (
+    <div className={className} data-testid="semiont-branding">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-1 uppercase font-orbitron">
+        Semiont
+      </h1>
+      {showTagline && <div>tagline</div>}
+    </div>
+  )
+}))
+
 // Mock the env module
 vi.mock('@/lib/env', () => ({
   env: {
@@ -29,7 +41,7 @@ describe('Header Component', () => {
     it('should render header with correct structure', () => {
       render(<Header />)
 
-      const container = screen.getByText('Test Semiont').closest('div')
+      const container = screen.getByTestId('semiont-branding').closest('div')?.parentElement?.parentElement
       expect(container).toBeInTheDocument()
       expect(container).toHaveClass('flex', 'justify-between', 'items-center', 'w-full', 'mb-8')
     })
@@ -39,7 +51,7 @@ describe('Header Component', () => {
 
       const heading = screen.getByRole('heading', { level: 1 })
       expect(heading).toBeInTheDocument()
-      expect(heading).toHaveTextContent('Test Semiont')
+      expect(heading).toHaveTextContent('Semiont')
     })
 
     it('should render UserMenu component', () => {
@@ -54,7 +66,7 @@ describe('Header Component', () => {
       render(<Header />)
 
       const heading = screen.getByRole('heading', { level: 1 })
-      expect(heading).toHaveClass('text-4xl', 'font-bold', 'text-gray-900', 'dark:text-white')
+      expect(heading).toHaveClass('text-2xl', 'sm:text-3xl', 'md:text-4xl', 'font-bold')
     })
 
     it('should position UserMenu on the right', () => {
@@ -67,21 +79,21 @@ describe('Header Component', () => {
     it('should use flexbox layout with proper alignment', () => {
       render(<Header />)
 
-      const headerContainer = screen.getByText('Test Semiont').closest('div')
+      const headerContainer = screen.getByTestId('semiont-branding').closest('div')?.parentElement?.parentElement
       expect(headerContainer).toHaveClass('flex', 'justify-between', 'items-center')
     })
 
     it('should have full width', () => {
       render(<Header />)
 
-      const headerContainer = screen.getByText('Test Semiont').closest('div')
+      const headerContainer = screen.getByTestId('semiont-branding').closest('div')?.parentElement?.parentElement
       expect(headerContainer).toHaveClass('w-full')
     })
 
     it('should have bottom margin', () => {
       render(<Header />)
 
-      const headerContainer = screen.getByText('Test Semiont').closest('div')
+      const headerContainer = screen.getByTestId('semiont-branding').closest('div')?.parentElement?.parentElement
       expect(headerContainer).toHaveClass('mb-8')
     })
   })
@@ -91,7 +103,7 @@ describe('Header Component', () => {
     // In the future, we could implement per-test mocking if needed
     it('should handle the default site name', () => {
       render(<Header />)
-      expect(screen.getByText('Test Semiont')).toBeInTheDocument()
+      expect(screen.getByText('Semiont')).toBeInTheDocument()
     })
   })
 
@@ -118,9 +130,9 @@ describe('Header Component', () => {
       const mainContainer = container.firstChild
       expect(mainContainer).toBeInTheDocument()
       
-      // First child should be the heading
+      // First child should be a link containing the branding
       const firstChild = mainContainer?.firstChild
-      expect(firstChild?.nodeName).toBe('H1')
+      expect(firstChild?.nodeName).toBe('A')
       
       // Second child should be the user menu container
       const secondChild = mainContainer?.lastChild
@@ -133,7 +145,8 @@ describe('Header Component', () => {
       render(<Header />)
 
       const heading = screen.getByRole('heading', { level: 1 })
-      expect(heading).toHaveClass('text-gray-900', 'dark:text-white')
+      // The actual styling is handled by SemiontBranding component
+      expect(heading).toHaveClass('font-bold')
     })
   })
 
@@ -159,7 +172,7 @@ describe('Header Component', () => {
       rerender(<Header />)
       
       // Layout should remain stable
-      const headerContainer = screen.getByText('Test Semiont').closest('div')
+      const headerContainer = screen.getByTestId('semiont-branding').closest('div')?.parentElement?.parentElement
       expect(headerContainer).toHaveClass('flex', 'justify-between', 'items-center')
     })
   })
@@ -168,7 +181,7 @@ describe('Header Component', () => {
     it('should maintain flex layout at all screen sizes', () => {
       render(<Header />)
 
-      const headerContainer = screen.getByText('Test Semiont').closest('div')
+      const headerContainer = screen.getByTestId('semiont-branding').closest('div')?.parentElement?.parentElement
       expect(headerContainer).toHaveClass('flex', 'justify-between', 'items-center', 'w-full')
       
       // These classes don't have responsive modifiers, so layout should be consistent
@@ -179,10 +192,11 @@ describe('Header Component', () => {
       render(<Header />)
 
       const heading = screen.getByRole('heading', { level: 1 })
-      expect(heading).toHaveClass('text-4xl')
+      // SemiontBranding uses responsive text sizing
+      expect(heading).toHaveClass('md:text-4xl')
       
-      // No responsive text size modifiers
-      expect(heading.className).not.toMatch(/sm:text-|md:text-|lg:text-|xl:text-/)
+      // Has responsive text size modifiers
+      expect(heading.className).toMatch(/sm:text-|md:text-/)
     })
   })
 
@@ -194,7 +208,7 @@ describe('Header Component', () => {
       // Should not throw an error and should have proper structure
       const heading = screen.getByRole('heading', { level: 1 })
       expect(heading).toBeInTheDocument()
-      expect(heading).toHaveTextContent('Test Semiont')
+      expect(heading).toHaveTextContent('Semiont')
     })
   })
 
