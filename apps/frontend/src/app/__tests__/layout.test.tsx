@@ -23,10 +23,14 @@ vi.mock('@/lib/env', () => ({
   }
 }));
 
-// Mock Inter font
+// Mock Inter and Orbitron fonts
 vi.mock('next/font/google', () => ({
   Inter: vi.fn(() => ({
     className: 'inter-font-class'
+  })),
+  Orbitron: vi.fn(() => ({
+    className: 'orbitron-font-class',
+    variable: '--font-orbitron'
   }))
 }));
 
