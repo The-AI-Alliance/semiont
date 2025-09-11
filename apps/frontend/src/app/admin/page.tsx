@@ -12,6 +12,7 @@ import {
   CommandLineIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
+import { StatusDisplay } from '@/components/StatusDisplay';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -122,7 +123,13 @@ export default function AdminPage() {
 
       {/* Suggested Features */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">DevOps Features</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">DevOps</h2>
+        
+        {/* System Status */}
+        <div className="mb-6">
+          <StatusDisplay />
+        </div>
+        
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           These operations are available through the Semiont CLI for enhanced control and automation.
         </p>

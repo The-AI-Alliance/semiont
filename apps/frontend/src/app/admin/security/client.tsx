@@ -9,7 +9,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api-client';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
-import { PageLayout } from '@/components/PageLayout';
 
 export default function AdminSecurity() {
   // Ensure API client has authentication token
@@ -24,8 +23,7 @@ export default function AdminSecurity() {
   const providers = (oauthConfig as any)?.providers || [];
 
   return (
-    <PageLayout className="bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+      <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">OAuth Configuration</h1>
@@ -124,6 +122,5 @@ export default function AdminSecurity() {
         </div>
       </div>
       </div>
-    </PageLayout>
   );
 }
