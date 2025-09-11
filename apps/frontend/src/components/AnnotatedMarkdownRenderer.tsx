@@ -119,7 +119,7 @@ export function AnnotatedMarkdownRenderer({
       if (nodeAnnotations.length === 0) return;
 
       // Calculate split points for this text node
-      const splits: Array<{ start: number; end: number; annotation?: typeof allAnnotations[0] }> = [];
+      const splits: Array<{ start: number; end: number; annotation: typeof allAnnotations[0] | undefined }> = [];
       const text = node.textContent || '';
       
       // Convert annotation positions to relative positions within this node
@@ -143,6 +143,9 @@ export function AnnotatedMarkdownRenderer({
       for (let i = 0; i < boundaries.length - 1; i++) {
         const segmentStart = boundaries[i];
         const segmentEnd = boundaries[i + 1];
+        
+        // Skip if boundaries are undefined (shouldn't happen, but satisfies TypeScript)
+        if (segmentStart === undefined || segmentEnd === undefined) continue;
         
         // Find which annotation(s) apply to this segment
         const segmentAnnotation = nodeAnnotations.find(annotation => {
