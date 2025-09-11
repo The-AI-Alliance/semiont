@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { api, type AdminUser } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
+import { PageLayout } from '@/components/PageLayout';
 
 function UserTableRow({ 
   user, 
@@ -177,7 +178,8 @@ export default function AdminUsers() {
   });
 
   return (
-    <div className="space-y-6">
+    <PageLayout className="bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -382,6 +384,7 @@ export default function AdminUsers() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </PageLayout>
   );
 }

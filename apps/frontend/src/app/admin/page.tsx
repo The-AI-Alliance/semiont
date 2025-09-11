@@ -1,6 +1,8 @@
-import { notFound } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+'use client';
+
+import { notFound, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { 
   UsersIcon, 
@@ -10,14 +12,37 @@ import {
   CommandLineIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
+import { PageLayout } from '@/components/PageLayout';
 
-export default async function AdminPage() {
-  const session = await getServerSession(authOptions);
+export default function AdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   
-  // Show 404 for non-admin users or unauthenticated users
-  // This hides the existence of admin routes for security
+  // Check authentication and admin status
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
+      notFound();
+    }
+    if (!session?.backendUser?.isAdmin) {
+      notFound();
+    }
+  }, [status, session]);
+
+  // Show loading while checking session
+  if (status === 'loading') {
+    return (
+      <PageLayout className="bg-gray-50">
+        <div className="flex items-center justify-center py-20">
+          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  // Show nothing if not admin (will be handled by notFound)
   if (!session?.backendUser?.isAdmin) {
-    notFound();
+    return null;
   }
 
   const quickLinks = [
@@ -59,7 +84,8 @@ export default async function AdminPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <PageLayout className="bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
@@ -159,6 +185,7 @@ export default async function AdminPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </PageLayout>
   );
 }

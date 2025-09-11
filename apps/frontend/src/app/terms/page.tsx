@@ -2,11 +2,12 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { PageLayout } from '@/components/PageLayout';
 
 export default function TermsOfService() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <PageLayout className="bg-gray-50">
+      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -119,16 +120,8 @@ export default function TermsOfService() {
             </div>
           </div>
 
-          <div className="mt-8 flex justify-center">
-            <Link
-              href="/"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-            >
-              Return to Home
-            </Link>
-          </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

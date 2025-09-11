@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
+import { PageLayout } from '@/components/PageLayout';
 import type { Document, Selection } from '@/lib/api-client';
 
 export default function DocumentPage() {
@@ -155,30 +156,34 @@ export default function DocumentPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600 dark:text-gray-300">Loading document...</p>
-      </div>
+      <PageLayout>
+        <div className="flex items-center justify-center py-20">
+          <p className="text-gray-600 dark:text-gray-300">Loading document...</p>
+        </div>
+      </PageLayout>
     );
   }
 
   if (error || !document) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Document not found'}</p>
-        <button
-          onClick={() => router.push('/')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Go Home
-        </button>
-      </div>
+      <PageLayout>
+        <div className="flex flex-col items-center justify-center py-20">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Document not found'}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Go Home
+          </button>
+        </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+    <PageLayout className="bg-gray-50 dark:bg-gray-900">
+      {/* Document Header */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -187,15 +192,15 @@ export default function DocumentPage() {
             >
               ← Back
             </button>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {document.name}
-            </h1>
+            </h2>
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             Last updated: {new Date(document.updatedAt).toLocaleDateString()}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -284,6 +289,6 @@ export default function DocumentPage() {
           }}
         />
       )}
-    </div>
+    </PageLayout>
   );
 }

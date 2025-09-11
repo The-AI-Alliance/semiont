@@ -11,6 +11,10 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        'sky-blue': '#87CEEB',
+      },
+      fontFamily: {
+        'orbitron': ['var(--font-orbitron)', 'monospace'],
       },
     },
   },

@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react';
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { PageLayout } from '@/components/PageLayout';
 
 function SignUpContent() {
   const searchParams = useSearchParams();
@@ -25,23 +26,24 @@ function SignUpContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            Create your Semiont account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Sign up with your Google account to get started
-          </p>
-        </div>
+    <PageLayout className="bg-gray-50">
+      <div className="flex items-center justify-center py-12">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+              Create your Semiont account
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+              Sign up with your Google account to get started
+            </p>
+          </div>
 
-        <div className="mt-8 space-y-6">
-          <button
-            onClick={handleGoogleSignUp}
-            disabled={isLoading}
-            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <div className="mt-8 space-y-6">
+            <button
+              onClick={handleGoogleSignUp}
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
             {isLoading ? (
               <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
             ) : (
@@ -68,9 +70,10 @@ function SignUpContent() {
               Already have an account? Sign in instead
             </Link>
           </div>
+          </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 
