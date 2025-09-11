@@ -65,8 +65,8 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
     <div className="w-full max-w-4xl mx-auto space-y-8">
       {/* Welcome Section */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Welcome back{userName ? `, ${userName}` : ''}!
+        <h1 className="text-3xl font-bold font-orbitron text-gray-900 dark:text-white">
+          make meaning
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-300">
           Search existing documents or create a new one to get started

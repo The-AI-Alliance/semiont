@@ -40,7 +40,7 @@ export default function Home() {
               <section aria-labelledby="hero-heading">
                 <h1 id="hero-heading" className="sr-only">Semiont - AI-Powered Research Platform</h1>
                 <p className="text-xl text-gray-600 dark:text-gray-300">
-                  Make Meaning from Your Data with AI-Powered Research
+                  The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.
                 </p>
               </section>
               
