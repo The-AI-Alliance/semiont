@@ -10,41 +10,19 @@ An AI-powered semantic knowledge platform that automatically extracts knowledge 
 
 ## 📁 File Layout
 
-```
+```text
 semiont/
-├── apps/
-│   ├── frontend/          # Next.js 14 frontend with React Query & NextAuth
-│   │   ├── src/          # Source code with components, hooks, and API client
-│   │   └── README.md     # Frontend development guide and patterns
-│   ├── backend/          # Hono backend API with Prisma ORM
-│   │   ├── src/          # Type-safe API with JWT auth and validation
-│   │   └── README.md     # Backend development guide and patterns
+├── apps/                 # Application packages
+│   ├── frontend/         # Next.js 14 frontend
+│   ├── backend/          # Hono backend API
 │   └── cli/             # Semiont management CLI
-│       ├── src/          # Command implementations with React/Ink UI
-│       └── README.md     # CLI architecture and command reference
-├── packages/             # Shared workspace packages  
-│   ├── cloud/           # AWS CDK infrastructure (two-stack model)
+├── packages/             # Shared workspace packages
 │   ├── api-types/       # Shared TypeScript types
-│   ├── test-utils/      # Shared testing utilities and mocks
-│   ├── mcp-server/      # Model Context Protocol server for AI integration
-│   └── cloud/           # AWS CDK infrastructure (two-stack model)  
-│       └── lib/
-│           ├── infra-stack.ts # Infrastructure stack (VPC, RDS, EFS)
-│           └── app-stack.ts   # Application stack (ECS, ALB, CloudFront)
-├── bin/                  # Executable scripts
-│   └── semiont          # Main management CLI tool
-└── docs/                 # Comprehensive documentation
-    ├── LOCAL-DEVELOPMENT.md # Local development setup guide
-    ├── DEPLOYMENT.md     # Step-by-step deployment guide
-    ├── ARCHITECTURE.md   # System architecture overview
-    ├── CONFIGURATION.md  # Configuration management guide
-    ├── DATABASE.md       # Database setup and management
-    ├── SECURITY.md       # Security controls and best practices
-    ├── RBAC.md          # Role-based access control details
-    ├── SCALING.md       # Performance and cost scaling guide
-    ├── TESTING.md       # Testing strategy and guidelines
-    ├── MAINTENANCE.md   # Operational maintenance procedures
-    └── TROUBLESHOOTING.md # Common issues and solutions
+│   ├── cloud/           # AWS CDK infrastructure
+│   ├── mcp-server/      # Model Context Protocol server
+│   └── test-utils/      # Testing utilities
+├── docs/                 # Documentation
+└── scripts/              # Build and utility scripts
 ```
 
 ## 🚀 Quickstart
