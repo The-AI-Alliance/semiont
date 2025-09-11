@@ -6,28 +6,14 @@ import {
   AuthResponse,
   UserResponse,
   ErrorResponse,
-  HelloResponse,
   StatusResponse,
   HealthResponse,
   LogoutResponse
 } from './api';
 
 
-// Route parameter types
-export interface HelloParams {
-  name?: string;
-}
-
 // Complete API route registry
 export interface APIRoutes {
-  // Hello endpoints
-  '/api/hello/:name?': {
-    GET: {
-      params: HelloParams;
-      response: HelloResponse;
-    };
-  };
-  
   '/api/status': {
     GET: {
       response: StatusResponse;

@@ -3,7 +3,6 @@
 import React from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/Header";
-import { GreetingSection } from "@/components/GreetingSection";
 import { FeatureCards } from "@/components/FeatureCards";
 import { StatusDisplay } from "@/components/StatusDisplay";
 import { AsyncErrorBoundary } from "@/components/ErrorBoundary";
@@ -44,11 +43,6 @@ export default function Home() {
                   Make Meaning from Your Data with AI-Powered Research
                 </p>
               </section>
-              
-              {/* Interactive Greeting - Most likely to error due to API calls */}
-              <AsyncErrorBoundary>
-                <GreetingSection />
-              </AsyncErrorBoundary>
               
               {/* Feature Cards */}
               <AsyncErrorBoundary>

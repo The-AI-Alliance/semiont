@@ -1,28 +1,6 @@
 import { useQuery, useMutation, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
+import { api, apiService } from '@/lib/api-client';
 import { useAuth } from './useAuth';
-
-/**
- * Hook for greeting API with enhanced error handling
- */
-export function useGreeting(name?: string) {
-  const { session, isFullyAuthenticated } = useAuth();
-  
-  const queryParams: { name?: string; token?: string; enabled?: boolean } = {
-    enabled: isFullyAuthenticated && !!name
-  };
-  
-  // Only add properties if they have values (not undefined)
-  if (name) {
-    queryParams.name = name;
-  }
-  
-  if (session?.backendToken) {
-    queryParams.token = session.backendToken;
-  }
-  
-  return api.hello.greeting.useQuery(queryParams);
-}
 
 /**
  * Hook for backend status with automatic polling
@@ -33,10 +11,30 @@ export function useBackendStatus(options?: {
 }) {
   const { session, isFullyAuthenticated } = useAuth();
   
-  return api.hello.getStatus.useQuery({
-    ...(session?.backendToken ? { token: session.backendToken } : {}),
+  return useQuery({
+    queryKey: ['status'],
+    queryFn: async () => {
+      // If token is provided, use an authenticated request
+      if (session?.backendToken) {
+        const instance = (await import('@/lib/api-client')).LazyTypedAPIClient.getInstance();
+        const originalAuth = instance.getAuthToken();
+        try {
+          instance.setAuthToken(session.backendToken);
+          return await apiService.status();
+        } finally {
+          // Restore original auth state
+          if (originalAuth) {
+            instance.setAuthHeader(originalAuth);
+          } else {
+            instance.clearAuthToken();
+          }
+        }
+      }
+      // Otherwise make unauthenticated request
+      return apiService.status();
+    },
     enabled: options?.enabled !== false && isFullyAuthenticated,
-    ...(options?.pollingInterval !== undefined ? { pollingInterval: options.pollingInterval } : {}),
+    ...(options?.pollingInterval !== undefined ? { refetchInterval: options.pollingInterval } : {}),
   });
 }
 
