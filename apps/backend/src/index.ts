@@ -31,7 +31,6 @@ const CONFIG = {
 
 // Import route definitions
 import { healthRouter } from './routes/health';
-import { helloRouter } from './routes/hello';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
@@ -69,7 +68,6 @@ app.use('*', cors({
 
 // Mount route routers
 app.route('/', healthRouter);
-app.route('/', helloRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
