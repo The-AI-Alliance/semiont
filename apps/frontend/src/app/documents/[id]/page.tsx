@@ -302,11 +302,13 @@ export default function DocumentPage() {
         }
         await apiService.selections.resolveToDocument(resolveData);
       } else if (entityType) {
-        // Create a new document with the entity type
-        console.log('Creating new entity document with type:', entityType);
+        // Create a new document with the entity type(s)
+        // entityType may be a comma-separated list
+        const entityTypes = entityType.split(',').map(t => t.trim()).filter(t => t);
+        console.log('Creating new entity document with types:', entityTypes);
         const newDocResponse = await apiService.documents.create({
           name: selectedText,
-          content: `# ${selectedText}\n\nThis is an entity of type: ${entityType}`,
+          content: `# ${selectedText}\n\nThis is an entity${entityTypes.length > 1 ? ' with types' : ' of type'}: ${entityTypes.join(', ')}`,
           contentType: 'text/markdown'
         });
         

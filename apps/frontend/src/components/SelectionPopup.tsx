@@ -39,9 +39,11 @@ export function SelectionPopup({
   const [isSearching, setIsSearching] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [referenceType, setReferenceType] = useState(existingAnnotation?.referenceType || 'mentions');
-  const [entityType, setEntityType] = useState(existingAnnotation?.entityType || '');
-  const [customEntityType, setCustomEntityType] = useState('');
-  const [showEntityTypes, setShowEntityTypes] = useState(false);
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>(
+    existingAnnotation?.entityType ? [existingAnnotation.entityType] : []
+  );
+  const [createNewDoc, setCreateNewDoc] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
 
   // Fetch entity types from backend
   const { data: entityTypesData } = api.entityTypes.list.useQuery();
@@ -52,8 +54,7 @@ export function SelectionPopup({
     'Event',
     'Concept',
     'Product',
-    'Technology',
-    'Other'
+    'Technology'
   ];
 
   // Fetch reference types from backend
@@ -73,39 +74,33 @@ export function SelectionPopup({
     try {
       const response = await apiService.documents.search(searchQuery, 10);
       setSearchResults(response.documents);
-      // If no results, show entity type selection
-      if (response.documents.length === 0) {
-        setShowEntityTypes(true);
-      }
     } catch (error) {
       console.error('Search failed:', error);
       setSearchResults([]);
-      setShowEntityTypes(true);
     } finally {
       setIsSearching(false);
     }
   };
 
   const handleCreateNewDocument = async () => {
-    if (!searchQuery.trim()) return;
-    
-    const finalEntityType = entityType === 'Other' ? customEntityType : entityType;
+    const docName = newDocName.trim() || searchQuery.trim() || selectedText;
+    if (!docName) return;
     
     try {
-      // Create the reference with a new document
-      // The backend will create the document with the entity type
-      onCreateReference(undefined, finalEntityType, referenceType);
+      // Pass entity types if any are selected
+      const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+      onCreateReference(undefined, entityTypesStr, referenceType);
     } catch (error) {
       console.error('Failed to create document:', error);
     }
   };
 
   const handleCreateReference = () => {
-    if (selectedDoc) {
+    if (selectedDoc && !createNewDoc) {
       // Create reference to existing document
       onCreateReference(selectedDoc.id, undefined, referenceType);
-    } else if (showEntityTypes && entityType) {
-      // Create reference with new entity document
+    } else if (createNewDoc || (searchQuery && !selectedDoc)) {
+      // Create reference with new document
       handleCreateNewDocument();
     }
   };
@@ -200,7 +195,7 @@ export function SelectionPopup({
           {/* Document Search */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Search for Document
+              Target Document
             </label>
             <div className="flex gap-2">
               <input
@@ -208,11 +203,11 @@ export function SelectionPopup({
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setShowEntityTypes(false);
                   setSelectedDoc(null);
+                  setCreateNewDoc(false);
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Enter document name..."
+                placeholder="Search for existing document..."
                 className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               />
               <button
@@ -225,68 +220,104 @@ export function SelectionPopup({
             </div>
           </div>
 
-          {/* Search Results */}
-          {searchResults.length > 0 && (
+          {/* Search Results or Create New Options */}
+          {(searchResults.length > 0 || searchQuery) && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Select a document:
-              </p>
-              {searchResults.map((doc) => (
-                <div
-                  key={doc.id}
-                  onClick={() => {
-                    setSelectedDoc(doc);
-                    setShowEntityTypes(false);
-                  }}
-                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    selectedDoc?.id === doc.id
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <p className="font-medium text-gray-900 dark:text-white">{doc.name}</p>
-                  {doc.entityTypes && doc.entityTypes.length > 0 && (
-                    <div className="mt-1 flex gap-1 flex-wrap">
-                      {doc.entityTypes.map((type) => (
-                        <span
-                          key={type}
-                          className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded"
-                        >
-                          {type}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-1">
-                    {doc.content.substring(0, 100)}...
+              {searchResults.length > 0 && (
+                <>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Existing documents:
                   </p>
-                </div>
-              ))}
+                  {searchResults.map((doc) => (
+                    <div
+                      key={doc.id}
+                      onClick={() => {
+                        setSelectedDoc(doc);
+                        setCreateNewDoc(false);
+                      }}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedDoc?.id === doc.id && !createNewDoc
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <p className="font-medium text-gray-900 dark:text-white">{doc.name}</p>
+                      {doc.entityTypes && doc.entityTypes.length > 0 && (
+                        <div className="mt-1 flex gap-1 flex-wrap">
+                          {doc.entityTypes.map((type) => (
+                            <span
+                              key={type}
+                              className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded"
+                            >
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-1">
+                        {doc.content.substring(0, 100)}...
+                      </p>
+                    </div>
+                  ))}
+                </>
+              )}
+              
+              {/* Option to create new document */}
+              <div
+                onClick={() => {
+                  setCreateNewDoc(true);
+                  setSelectedDoc(null);
+                }}
+                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                  createNewDoc
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <p className="font-medium text-gray-900 dark:text-white">
+                  ✨ Create new document
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {searchQuery ? `Named: "${searchQuery}"` : `Named: "${selectedText}"`}
+                </p>
+              </div>
             </div>
           )}
 
-          {/* No results - show entity type selection */}
-          {showEntityTypes && searchQuery && (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                No matching document found. Create a new entity document:
-              </p>
+          {/* New Document Options - show when creating new */}
+          {createNewDoc && (
+            <div className="space-y-3 p-3 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Document Name
+                </label>
+                <input
+                  type="text"
+                  value={newDocName}
+                  onChange={(e) => setNewDocName(e.target.value)}
+                  placeholder={searchQuery || selectedText}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
               
               {/* Entity Type Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Entity Type
+                  Entity Types (optional)
                 </label>
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="grid grid-cols-3 gap-2">
                   {commonEntityTypes.map((type) => (
                     <button
                       key={type}
                       onClick={() => {
-                        setEntityType(type);
-                        setCustomEntityType('');
+                        setSelectedEntityTypes(prev => 
+                          prev.includes(type) 
+                            ? prev.filter(t => t !== type)
+                            : [...prev, type]
+                        );
                       }}
                       className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                        entityType === type
+                        selectedEntityTypes.includes(type)
                           ? 'border-purple-500 bg-purple-200 text-purple-900 dark:bg-purple-900/50 dark:text-purple-300'
                           : buttonStyles.tertiary.base + ' border border-gray-300 dark:border-gray-600'
                       }`}
@@ -296,15 +327,24 @@ export function SelectionPopup({
                   ))}
                 </div>
                 
-                {/* Custom Entity Type */}
-                {entityType === 'Other' && (
-                  <input
-                    type="text"
-                    value={customEntityType}
-                    onChange={(e) => setCustomEntityType(e.target.value)}
-                    placeholder="Enter custom entity type..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                  />
+                {/* Show selected entity types */}
+                {selectedEntityTypes.length > 0 && (
+                  <div className="mt-2 flex gap-1 flex-wrap">
+                    {selectedEntityTypes.map((type) => (
+                      <span
+                        key={type}
+                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded flex items-center gap-1"
+                      >
+                        {type}
+                        <button
+                          onClick={() => setSelectedEntityTypes(prev => prev.filter(t => t !== type))}
+                          className="hover:text-purple-900 dark:hover:text-purple-100"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -314,7 +354,7 @@ export function SelectionPopup({
           {(!isEditMode || existingAnnotation?.type === 'highlight' || existingAnnotation?.type === 'reference') && (
             <button
               onClick={handleCreateReference}
-              disabled={!selectedDoc && (!showEntityTypes || !entityType || (entityType === 'Other' && !customEntityType))}
+              disabled={!selectedDoc && !createNewDoc && !searchQuery}
               className={`w-full py-2 ${buttonStyles.primary.base}`}
             >
               {isEditMode ? (existingAnnotation?.type === 'highlight' ? 'Convert to Reference' : 'Update Reference') : 'Create Reference'}
