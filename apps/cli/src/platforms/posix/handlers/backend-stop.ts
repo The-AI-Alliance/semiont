@@ -1,81 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-
-/**
- * Helper function to kill process groups and related development processes
- */
-const killProcessGroupAndRelated = async (pid: number, verbose: boolean): Promise<boolean> => {
-  let killed = false;
-  
-  try {
-    // First, try to kill the process group (-pid kills the entire process group)
-    if (verbose) {
-      printInfo(`Killing process group for PID ${pid}...`);
-    }
-    process.kill(-pid, 'SIGTERM');
-    killed = true;
-    
-    // Wait a moment for graceful shutdown
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Check if main process still exists
-    try {
-      process.kill(pid, 0);
-      // Still exists, force kill the group
-      if (verbose) {
-        printWarning(`Process group didn't terminate gracefully, force killing...`);
-      }
-      process.kill(-pid, 'SIGKILL');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch {
-      // Main process is gone, good
-    }
-  } catch (error) {
-    if (verbose) {
-      printWarning(`Could not kill process group: ${error}`);
-    }
-    
-    // Fallback: kill just the main process
-    try {
-      process.kill(pid, 'SIGTERM');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      try {
-        process.kill(pid, 0);
-        // Still exists, force kill
-        process.kill(pid, 'SIGKILL');
-      } catch {
-        // Process is gone
-      }
-      killed = true;
-    } catch {
-      // Process already gone
-    }
-  }
-  
-  // Clean up any orphaned backend-related processes
-  try {
-    // Kill any remaining TypeScript watch processes
-    execSync('pkill -f "tsc.*watch" || true', { stdio: 'ignore' });
-    
-    // Kill any remaining Node.js processes watching dist/index.js
-    execSync('pkill -f "node.*watch.*dist/index" || true', { stdio: 'ignore' });
-    
-    // Kill any npm processes running in backend directories
-    execSync('pkill -f "npm.*dev.*backend" || true', { stdio: 'ignore' });
-    
-    if (verbose) {
-      printInfo('Cleaned up any orphaned development processes');
-    }
-  } catch {
-    // Cleanup is best-effort
-  }
-  
-  return killed;
-};
+import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
+import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 
 /**
  * Stop handler for backend services on POSIX systems
@@ -119,7 +46,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
         }
         
         // Use enhanced killing method
-        await killProcessGroupAndRelated(pid, service.verbose);
+        await killProcessGroupAndRelated(pid, 'backend', service.verbose);
         
         if (!service.quiet) {
           printSuccess(`✅ Backend service ${service.name} stopped successfully`);
@@ -205,7 +132,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
   
   try {
     // Use enhanced killing method
-    const killed = await killProcessGroupAndRelated(pid, service.verbose);
+    const killed = await killProcessGroupAndRelated(pid, 'backend', service.verbose);
     
     // Clean up PID file
     if (fs.existsSync(pidFile)) {
