@@ -140,14 +140,14 @@ export function UserMenu() {
             </div>
             <hr className="my-2 border-gray-200 dark:border-gray-600" />
             <Link
-              href="/"
+              href="/know"
               onClick={close}
               className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
               role="menuitem"
               tabIndex={0}
-              aria-label="Go to home page"
+              aria-label="Go to knowledge base"
             >
-              Home
+              Know
             </Link>
             <hr className="my-2 border-gray-200 dark:border-gray-600" />
             {(isModerator || isAdmin) && (

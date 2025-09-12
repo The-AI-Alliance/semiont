@@ -225,10 +225,14 @@ export const authOptions: NextAuthOptions = {
     },
     
     async redirect({ url, baseUrl }) {
-      // Default redirect behavior - we'll handle new user redirects differently
+      // If user is signing in and no specific URL was requested, go to know page
+      if (url === baseUrl || url === `${baseUrl}/`) {
+        return `${baseUrl}/know`;
+      }
+      // Default redirect behavior
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      return `${baseUrl}/know`;
     },
   },
   pages: {
