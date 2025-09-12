@@ -13,7 +13,7 @@ function SignInContent() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [showLocalAuth, setShowLocalAuth] = useState(false);
-  const callbackUrl = searchParams?.get('callbackUrl') || '/';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
   useEffect(() => {
     // Check if local auth is enabled

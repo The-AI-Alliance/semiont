@@ -58,7 +58,7 @@ export default function Home() {
                   Sign Up
                 </Link>
                 <button
-                  onClick={() => signIn()}
+                  onClick={() => signIn(undefined, { callbackUrl: '/know' })}
                   className={buttonStyles.primary.base}
                   type="button"
                 >

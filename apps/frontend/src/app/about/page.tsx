@@ -29,7 +29,7 @@ export default function AboutPage() {
             Sign Up
           </Link>
           <button
-            onClick={() => signIn()}
+            onClick={() => signIn(undefined, { callbackUrl: '/know' })}
             className={buttonStyles.primary.base}
             type="button"
           >

@@ -87,7 +87,7 @@ export function UserMenu({ showAuthLinks = true }: UserMenuProps) {
           Sign Up
         </Link>
         <button
-          onClick={() => signIn()}
+          onClick={() => signIn(undefined, { callbackUrl: '/know' })}
           className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded px-3 py-2"
           aria-label="Sign in to your account"
           type="button"
