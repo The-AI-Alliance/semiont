@@ -273,9 +273,9 @@ export default function DocumentPage() {
       const selectionId = backendSelection.id;
       console.log('Created selection with ID:', selectionId);
 
-      // If we have a target document, resolve it
+      // If we have a target document, resolve to it
       if (targetDocId) {
-        console.log('Resolving to document:', targetDocId, 'with selection:', selectionId);
+        console.log('Resolving to existing document:', targetDocId, 'with selection:', selectionId);
         const resolveData: { selectionId: string; targetDocumentId: string; referenceType?: string } = {
           selectionId: selectionId,
           targetDocumentId: targetDocId
@@ -284,6 +284,28 @@ export default function DocumentPage() {
           resolveData.referenceType = referenceType;
         }
         await apiService.selections.resolveToDocument(resolveData);
+      } else if (entityType) {
+        // Create a new document with the entity type
+        console.log('Creating new entity document with type:', entityType);
+        const newDocResponse = await apiService.documents.create({
+          name: selectedText,
+          content: `# ${selectedText}\n\nThis is an entity of type: ${entityType}`,
+          contentType: 'text/markdown',
+          entityTypes: [entityType]
+        });
+        
+        // Now resolve the selection to this new document
+        if (newDocResponse.document?.id) {
+          console.log('Resolving to new entity document:', newDocResponse.document.id);
+          const resolveData: { selectionId: string; targetDocumentId: string; referenceType?: string } = {
+            selectionId: selectionId,
+            targetDocumentId: newDocResponse.document.id
+          };
+          if (referenceType) {
+            resolveData.referenceType = referenceType;
+          }
+          await apiService.selections.resolveToDocument(resolveData);
+        }
       }
 
       // Reload selections
