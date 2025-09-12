@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { apiService } from '@/lib/api-client';
+import { apiService, api } from '@/lib/api-client';
 import { AnnotatedMarkdownRenderer } from '@/components/AnnotatedMarkdownRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { AnnotationContextMenu } from '@/components/AnnotationContextMenu';
@@ -41,6 +41,20 @@ export default function DocumentPage() {
   }
   const [contextMenuAnnotation, setContextMenuAnnotation] = useState<ContextMenuAnnotation | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  
+  // Entity type management state
+  const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const { data: entityTypesData, isLoading: entityTypesLoading, error: entityTypesError } = api.entityTypes.list.useQuery();
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('Entity types data:', entityTypesData);
+    console.log('Entity types loading:', entityTypesLoading);
+    console.log('Entity types error:', entityTypesError);
+  }, [entityTypesData, entityTypesLoading, entityTypesError]);
 
   // Load document and its selections
   useEffect(() => {
@@ -59,6 +73,7 @@ export default function DocumentPage() {
       setLoading(true);
       const response = await apiService.documents.get(documentId);
       setDocument(response.document);
+      setDocumentEntityTypes(response.document.entityTypes || []);
       setError(null);
     } catch (err) {
       console.error('Failed to load document:', err);
@@ -93,6 +108,54 @@ export default function DocumentPage() {
     setSelectionPosition(position);
     setShowSelectionPopup(true);
   };
+  
+  // Entity type tag management functions
+  const handleAddEntityType = async (entityType: string) => {
+    if (documentEntityTypes.includes(entityType)) return;
+    
+    const newEntityTypes = [...documentEntityTypes, entityType];
+    setDocumentEntityTypes(newEntityTypes);
+    
+    try {
+      await apiService.documents.update(documentId, {
+        entityTypes: newEntityTypes
+      });
+    } catch (err) {
+      console.error('Failed to update entity types:', err);
+      // Revert on error
+      setDocumentEntityTypes(documentEntityTypes);
+    }
+  };
+  
+  const handleRemoveEntityType = async (entityType: string) => {
+    const newEntityTypes = documentEntityTypes.filter(t => t !== entityType);
+    setDocumentEntityTypes(newEntityTypes);
+    
+    try {
+      await apiService.documents.update(documentId, {
+        entityTypes: newEntityTypes
+      });
+    } catch (err) {
+      console.error('Failed to update entity types:', err);
+      // Revert on error
+      setDocumentEntityTypes(documentEntityTypes);
+    }
+  };
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showTagDropdown) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.entity-type-dropdown')) {
+        setShowTagDropdown(false);
+      }
+    };
+    
+    window.document.addEventListener('click', handleClickOutside);
+    return () => window.document.removeEventListener('click', handleClickOutside);
+  }, [showTagDropdown]);
   
   // Handle keyboard shortcuts for quick actions
   useEffect(() => {
@@ -283,44 +346,47 @@ export default function DocumentPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Document Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
-          <AnnotatedMarkdownRenderer
-            content={document.content}
-            highlights={highlights}
-            references={references}
-            onWikiLinkClick={handleWikiLinkClick}
-            onTextSelect={handleTextSelection}
-            onHighlightClick={(highlight) => {
-              // Do nothing on regular click
-            }}
-            onReferenceClick={(reference) => {
-              // Navigate to referenced document if available
-              if (reference.referencedDocumentId) {
-                router.push(`/documents/${reference.referencedDocumentId}`);
-              } else {
-                console.log('Reference clicked:', reference);
-              }
-            }}
-            onAnnotationRightClick={(annotation, x, y) => {
-              if (annotation.type === 'highlight' || annotation.type === 'reference') {
-                const menuAnnotation: ContextMenuAnnotation = {
-                  id: annotation.id,
-                  type: annotation.type
-                };
-                if (annotation.referencedDocumentId) {
-                  menuAnnotation.referencedDocumentId = annotation.referencedDocumentId;
-                }
-                setContextMenuAnnotation(menuAnnotation);
-                setContextMenuPosition({ x, y });
-              }
-            }}
-          />
-        </div>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="flex gap-6">
+          {/* Document Content - Left Side */}
+          <div className="flex-1">
+            {/* Document Content */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+              <AnnotatedMarkdownRenderer
+                content={document.content}
+                highlights={highlights}
+                references={references}
+                onWikiLinkClick={handleWikiLinkClick}
+                onTextSelect={handleTextSelection}
+                onHighlightClick={(highlight) => {
+                  // Do nothing on regular click
+                }}
+                onReferenceClick={(reference) => {
+                  // Navigate to referenced document if available
+                  if (reference.referencedDocumentId) {
+                    router.push(`/documents/${reference.referencedDocumentId}`);
+                  } else {
+                    console.log('Reference clicked:', reference);
+                  }
+                }}
+                onAnnotationRightClick={(annotation, x, y) => {
+                  if (annotation.type === 'highlight' || annotation.type === 'reference') {
+                    const menuAnnotation: ContextMenuAnnotation = {
+                      id: annotation.id,
+                      type: annotation.type
+                    };
+                    if (annotation.referencedDocumentId) {
+                      menuAnnotation.referencedDocumentId = annotation.referencedDocumentId;
+                    }
+                    setContextMenuAnnotation(menuAnnotation);
+                    setContextMenuPosition({ x, y });
+                  }
+                }}
+              />
+            </div>
 
-        {/* Annotation Legend & Tips */}
-        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+            {/* Annotation Legend & Tips */}
+            <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
           {(highlights.length > 0 || references.length > 0) && (
             <>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Annotations</h3>
@@ -342,6 +408,140 @@ export default function DocumentPage() {
           )}
           <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
             <strong>Quick tips:</strong> Select text and press <kbd className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">Ctrl+H</kbd> (or <kbd className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">⌘+H</kbd>) to highlight instantly • Right-click annotations for more options
+          </div>
+        </div>
+          </div>
+
+          {/* Entity Types Sidebar - Right Side */}
+          <div className="w-64 flex-shrink-0">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sticky top-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Entity Types</h3>
+                <button
+                  onClick={() => setIsEditingTags(!isEditingTags)}
+                  className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                >
+                  {isEditingTags ? 'Done' : 'Edit'}
+                </button>
+              </div>
+              
+              <div className="space-y-2">
+                {/* Display current tags */}
+                {documentEntityTypes.map(entityType => (
+                  <div
+                    key={entityType}
+                    className="flex items-center justify-between px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-lg text-sm"
+                  >
+                    <span className="truncate">{entityType}</span>
+                    {isEditingTags && (
+                      <button
+                        onClick={() => handleRemoveEntityType(entityType)}
+                        className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 flex-shrink-0"
+                        title="Remove tag"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Add new tag button and dropdown */}
+                {isEditingTags && (
+                  <div className="relative entity-type-dropdown">
+                    <button
+                      onClick={() => setShowTagDropdown(!showTagDropdown)}
+                      className="w-full px-3 py-1.5 border border-dashed border-gray-400 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    >
+                      + Add type
+                    </button>
+                    
+                    {/* Dropdown menu */}
+                    {showTagDropdown && (
+                      <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
+                        {/* Search input */}
+                        <div className="px-3 py-2">
+                          <input
+                            type="text"
+                            placeholder="Search types..."
+                            value={tagSearchQuery}
+                            onChange={(e) => setTagSearchQuery(e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            autoFocus
+                          />
+                        </div>
+                        
+                        <div className="max-h-48 overflow-y-auto">
+                          {/* Show loading state */}
+                          {Boolean(entityTypesLoading) && (
+                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                              Loading entity types...
+                            </div>
+                          )}
+                          
+                          {/* Show error state */}
+                          {Boolean(entityTypesError) && (
+                            <div className="px-3 py-2 text-sm text-red-500 dark:text-red-400">
+                              Failed to load entity types
+                            </div>
+                          )}
+                          
+                          {/* Show available types */}
+                          {!entityTypesLoading && !entityTypesError && entityTypesData?.entityTypes && (
+                            <>
+                              {entityTypesData.entityTypes
+                                .filter(type => !documentEntityTypes.includes(type))
+                                .filter(type => 
+                                  tagSearchQuery === '' || 
+                                  type.toLowerCase().includes(tagSearchQuery.toLowerCase())
+                                )
+                                .map(type => (
+                                  <button
+                                    key={type}
+                                    onClick={() => {
+                                      handleAddEntityType(type);
+                                      setShowTagDropdown(false);
+                                      setTagSearchQuery('');
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                  >
+                                    {type}
+                                  </button>
+                                ))}
+                              
+                              {/* Show message if no types match filter */}
+                              {entityTypesData.entityTypes
+                                .filter(type => !documentEntityTypes.includes(type))
+                                .filter(type => 
+                                  tagSearchQuery === '' || 
+                                  type.toLowerCase().includes(tagSearchQuery.toLowerCase())
+                                ).length === 0 && (
+                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  {tagSearchQuery ? 'No matching types' : 'All types already added'}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          
+                          {/* Show if no data at all */}
+                          {!entityTypesLoading && !entityTypesError && !entityTypesData?.entityTypes && (
+                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                              No entity types available
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Show placeholder if no tags */}
+                {documentEntityTypes.length === 0 && !isEditingTags && (
+                  <span className="text-sm text-gray-500 dark:text-gray-400 italic">
+                    No entity types assigned
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

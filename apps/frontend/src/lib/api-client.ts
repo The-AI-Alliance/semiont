@@ -68,6 +68,7 @@ interface Document {
   name: string;
   content: string;
   contentType: string;
+  entityTypes?: string[];
   createdAt: string;
   updatedAt: string;
   highlights?: Selection[];
@@ -337,8 +338,8 @@ export const apiService = {
     get: (id: string): Promise<DocumentResponse> =>
       apiClient.get('/api/documents/:id', { params: { id } }),
     
-    update: (id: string, data: { name?: string; content?: string; contentType?: string }): Promise<DocumentResponse> =>
-      apiClient.patch('/api/documents/:id', { params: { id }, body: data }),
+    update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any }): Promise<DocumentResponse> =>
+      apiClient.put('/api/documents/:id', { params: { id }, body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>
       apiClient.delete('/api/documents/:id', { params: { id } }),
