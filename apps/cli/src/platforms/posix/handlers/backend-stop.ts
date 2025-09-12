@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
-import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
+import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 
 /**
  * Stop handler for backend services on POSIX systems
@@ -44,28 +45,8 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
           printInfo(`Stopping backend process (PID ${pid} from saved state)...`);
         }
         
-        // Send SIGTERM for graceful shutdown
-        process.kill(pid, 'SIGTERM');
-        
-        // Wait for process to terminate (up to 10 seconds)
-        let terminated = false;
-        for (let i = 0; i < 20; i++) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          try {
-            process.kill(pid, 0);
-          } catch {
-            terminated = true;
-            break;
-          }
-        }
-        
-        if (!terminated) {
-          // Force kill if not terminated
-          if (!service.quiet) {
-            printWarning('Process did not terminate gracefully, forcing...');
-          }
-          process.kill(pid, 'SIGKILL');
-        }
+        // Use enhanced killing method
+        await killProcessGroupAndRelated(pid, 'backend', service.verbose);
         
         if (!service.quiet) {
           printSuccess(`✅ Backend service ${service.name} stopped successfully`);
@@ -150,55 +131,8 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
   }
   
   try {
-    // Send SIGTERM for graceful shutdown
-    process.kill(pid, 'SIGTERM');
-    
-    // Wait for process to terminate (up to 10 seconds)
-    let terminated = false;
-    let waitTime = 0;
-    const maxWaitTime = 10000;
-    const checkInterval = 500;
-    
-    while (waitTime < maxWaitTime) {
-      await new Promise(resolve => setTimeout(resolve, checkInterval));
-      waitTime += checkInterval;
-      
-      try {
-        // Check if process still exists
-        process.kill(pid, 0);
-      } catch {
-        // Process no longer exists
-        terminated = true;
-        break;
-      }
-      
-      if (service.verbose && waitTime % 2000 === 0) {
-        printInfo(`Waiting for backend to shut down... (${waitTime / 1000}s)`);
-      }
-    }
-    
-    if (!terminated) {
-      // Force kill if not terminated gracefully
-      if (!service.quiet) {
-        printWarning('Backend did not terminate gracefully, forcing shutdown...');
-      }
-      
-      process.kill(pid, 'SIGKILL');
-      
-      // Wait a moment for force kill to take effect
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Verify it's really gone
-      try {
-        process.kill(pid, 0);
-        throw new Error('Process survived SIGKILL');
-      } catch (e) {
-        if ((e as Error).message === 'Process survived SIGKILL') {
-          throw e;
-        }
-        // Process is gone, good
-      }
-    }
+    // Use enhanced killing method
+    const killed = await killProcessGroupAndRelated(pid, 'backend', service.verbose);
     
     // Clean up PID file
     if (fs.existsSync(pidFile)) {
@@ -233,7 +167,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
         serviceType: 'backend',
         pid,
         backendDir,
-        graceful: terminated
+        graceful: killed
       }
     };
     
