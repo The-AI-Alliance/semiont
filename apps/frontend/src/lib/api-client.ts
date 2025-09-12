@@ -158,9 +158,11 @@ interface RequestOptions {
 const validateApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl || apiUrl === 'undefined') {
-    // During build time, return a placeholder URL
-    if (typeof window === 'undefined') {
-      console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
+    // During build time or testing, return a placeholder URL
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
+      }
       return 'http://localhost:4000';
     }
     throw new Error('NEXT_PUBLIC_API_URL environment variable is not set. This should be configured during Docker build.');
