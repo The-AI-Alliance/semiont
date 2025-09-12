@@ -384,6 +384,9 @@ describe('CookieBanner Component', () => {
         expect(screen.getByText('Cookie Notice')).toBeInTheDocument();
       });
       
+      // Wait for any pending promises to settle
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
       consoleError.mockRestore();
     });
 

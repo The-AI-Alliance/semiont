@@ -21,6 +21,7 @@ model User {
   domain    String   // Email domain for access control
   isActive  Boolean  @default(true)
   isAdmin   Boolean  @default(false) // Admin role for administrative access
+  isModerator Boolean @default(false) // Moderator role for content governance
   termsAcceptedAt DateTime? // When user accepted terms of service
   lastLogin DateTime?
   createdAt DateTime @default(now())

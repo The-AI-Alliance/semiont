@@ -410,11 +410,11 @@ export default function DocumentPage() {
         </div>
           </div>
 
-          {/* Entity Types Sidebar - Right Side */}
+          {/* Document Tags Sidebar - Right Side */}
           <div className="w-64 flex-shrink-0">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sticky top-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sticky top-1/2 transform -translate-y-1/2">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Entity Types</h3>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Document Tags</h3>
                 <button
                   onClick={() => setIsEditingTags(!isEditingTags)}
                   className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"

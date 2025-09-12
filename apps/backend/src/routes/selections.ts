@@ -25,6 +25,12 @@ export const selectionsRouter = new OpenAPIHono<{ Variables: { user: User } }>()
 // Apply auth middleware to all selection routes
 selectionsRouter.use('/api/selections/*', authMiddleware);
 
+// Apply auth middleware to tag management routes
+selectionsRouter.use('/api/entity-types', authMiddleware);
+selectionsRouter.use('/api/entity-types/*', authMiddleware);
+selectionsRouter.use('/api/reference-types', authMiddleware);
+selectionsRouter.use('/api/reference-types/*', authMiddleware);
+
 // ==========================================
 // CREATE SELECTION
 // ==========================================
@@ -1203,20 +1209,8 @@ const getEntityTypesRoute = createRoute({
 });
 
 selectionsRouter.openapi(getEntityTypesRoute, async (c) => {
-  // Hardcoded entity types for now
-  // In the future, these could be configurable or stored in database
-  const entityTypes = [
-    'Person',
-    'Organization',
-    'Location',
-    'Event',
-    'Concept',
-    'Product',
-    'Technology',
-    'Date',
-    'Other'
-  ];
-
+  const graphDb = await getGraphDatabase();
+  const entityTypes = await graphDb.getEntityTypes();
   return c.json({ entityTypes }, 200);
 });
 
@@ -1245,17 +1239,285 @@ const getReferenceTypesRoute = createRoute({
 });
 
 selectionsRouter.openapi(getReferenceTypesRoute, async (c) => {
-  // Hardcoded reference types for now
-  // In the future, these could be configurable or stored in database
-  const referenceTypes = [
-    'citation',
-    'definition',
-    'elaboration',
-    'example',
-    'related'
-  ];
-
+  const graphDb = await getGraphDatabase();
+  const referenceTypes = await graphDb.getReferenceTypes();
   return c.json({ referenceTypes }, 200);
+});
+
+// ==========================================
+// ADD ENTITY TYPE
+// ==========================================
+
+const addEntityTypeRoute = createRoute({
+  method: 'post',
+  path: '/api/entity-types',
+  summary: 'Add Entity Type',
+  description: 'Add a new entity type to the collection (append-only, requires moderator/admin)',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            tag: z.string().min(1).max(100),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            entityTypes: z.array(z.string()),
+          }),
+        },
+      },
+      description: 'Entity type added successfully',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    403: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Forbidden - Moderator or Admin access required',
+    },
+  },
+});
+
+selectionsRouter.openapi(addEntityTypeRoute, async (c) => {
+  // Check moderation permissions
+  const user = c.get('user');
+  if (!user.isModerator && !user.isAdmin) {
+    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
+  }
+  
+  const { tag } = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
+  
+  await graphDb.addEntityType(tag);
+  const entityTypes = await graphDb.getEntityTypes();
+  
+  return c.json({ success: true, entityTypes }, 200);
+});
+
+// ==========================================
+// ADD REFERENCE TYPE
+// ==========================================
+
+const addReferenceTypeRoute = createRoute({
+  method: 'post',
+  path: '/api/reference-types',
+  summary: 'Add Reference Type',
+  description: 'Add a new reference type to the collection (append-only, requires moderator/admin)',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            tag: z.string().min(1).max(100),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            referenceTypes: z.array(z.string()),
+          }),
+        },
+      },
+      description: 'Reference type added successfully',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    403: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Forbidden - Moderator or Admin access required',
+    },
+  },
+});
+
+selectionsRouter.openapi(addReferenceTypeRoute, async (c) => {
+  // Check moderation permissions
+  const user = c.get('user');
+  if (!user.isModerator && !user.isAdmin) {
+    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
+  }
+  
+  const { tag } = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
+  
+  await graphDb.addReferenceType(tag);
+  const referenceTypes = await graphDb.getReferenceTypes();
+  
+  return c.json({ success: true, referenceTypes }, 200);
+});
+
+// ==========================================
+// BULK ADD ENTITY TYPES
+// ==========================================
+
+const bulkAddEntityTypesRoute = createRoute({
+  method: 'post',
+  path: '/api/entity-types/bulk',
+  summary: 'Bulk Add Entity Types',
+  description: 'Add multiple entity types to the collection (append-only, requires moderator/admin)',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            tags: z.array(z.string().min(1).max(100)),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            entityTypes: z.array(z.string()),
+          }),
+        },
+      },
+      description: 'Entity types added successfully',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    403: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Forbidden - Moderator or Admin access required',
+    },
+  },
+});
+
+selectionsRouter.openapi(bulkAddEntityTypesRoute, async (c) => {
+  // Check moderation permissions
+  const user = c.get('user');
+  if (!user.isModerator && !user.isAdmin) {
+    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
+  }
+  
+  const { tags } = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
+  
+  await graphDb.addEntityTypes(tags);
+  const entityTypes = await graphDb.getEntityTypes();
+  
+  return c.json({ success: true, entityTypes }, 200);
+});
+
+// ==========================================
+// BULK ADD REFERENCE TYPES
+// ==========================================
+
+const bulkAddReferenceTypesRoute = createRoute({
+  method: 'post',
+  path: '/api/reference-types/bulk',
+  summary: 'Bulk Add Reference Types',
+  description: 'Add multiple reference types to the collection (append-only, requires moderator/admin)',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            tags: z.array(z.string().min(1).max(100)),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            referenceTypes: z.array(z.string()),
+          }),
+        },
+      },
+      description: 'Reference types added successfully',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    403: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Forbidden - Moderator or Admin access required',
+    },
+  },
+});
+
+selectionsRouter.openapi(bulkAddReferenceTypesRoute, async (c) => {
+  // Check moderation permissions
+  const user = c.get('user');
+  if (!user.isModerator && !user.isAdmin) {
+    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
+  }
+  
+  const { tags } = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
+  
+  await graphDb.addReferenceTypes(tags);
+  const referenceTypes = await graphDb.getReferenceTypes();
+  
+  return c.json({ success: true, referenceTypes }, 200);
 });
 
 // ==========================================

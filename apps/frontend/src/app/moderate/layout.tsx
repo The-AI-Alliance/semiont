@@ -1,24 +1,24 @@
 import React from 'react';
-import { AdminNavigation } from '@/components/admin/AdminNavigation';
 import { DashboardHeader } from '@/components/shared/DashboardHeader';
-import { AdminAuthWrapper } from '@/components/admin/AdminAuthWrapper';
+import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
+import { ModerationAuthWrapper } from '@/components/moderation/ModerationAuthWrapper';
 import { Footer } from '@/components/Footer';
 
-// Note: Metadata removed from layout to prevent leaking admin information
+// Note: Metadata removed from layout to prevent leaking moderation information
 // when pages return 404 for security. Metadata should be set in individual
 // page components after authentication check.
 
-export default function AdminLayout({
+export default function ModerateLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <AdminAuthWrapper>
+    <ModerationAuthWrapper>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <DashboardHeader requireAdmin={true} />
+        <DashboardHeader requireModerator={true} />
         <div className="flex flex-1">
-          <AdminNavigation />
+          <ModerationNavigation />
           <main className="flex-1 p-6">
             <div className="max-w-7xl mx-auto">
               {children}
@@ -27,6 +27,6 @@ export default function AdminLayout({
         </div>
         <Footer />
       </div>
-    </AdminAuthWrapper>
+    </ModerationAuthWrapper>
   );
 }

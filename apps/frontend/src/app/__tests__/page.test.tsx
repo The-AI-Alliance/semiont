@@ -4,8 +4,12 @@ import React from 'react';
 import Home from '@/app/page';
 
 // Mock all child components to isolate the Home page structure
-vi.mock('@/components/Header', () => ({
-  Header: () => <div data-testid="header">Header</div>
+vi.mock('@/components/shared/DashboardHeader', () => ({
+  DashboardHeader: () => <header data-testid="dashboard-header">Dashboard Header</header>
+}));
+
+vi.mock('@/components/UserMenu', () => ({
+  UserMenu: () => <div data-testid="user-menu">User Menu</div>
 }));
 
 vi.mock('@/components/FeatureCards', () => ({
@@ -67,7 +71,9 @@ describe('Home Page', () => {
     render(<Home />);
     
     // Check that main components are rendered (some are conditional based on auth state)
-    expect(screen.getByTestId('header')).toBeInTheDocument();
+    // Header is conditionally rendered based on auth state
+    const header = screen.queryByTestId('dashboard-header') || screen.queryByTestId('user-menu');
+    expect(header).toBeTruthy();
     expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
     expect(screen.getByTestId('feature-cards')).toBeInTheDocument();
     expect(screen.getByTestId('footer')).toBeInTheDocument();

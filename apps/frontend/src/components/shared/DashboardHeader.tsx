@@ -2,23 +2,40 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { env } from '@/lib/env';
 import { UserMenu } from '../UserMenu';
 import { SemiontBranding } from '../SemiontBranding';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export function AdminHeader() {
-  const { isAuthenticated, isLoading } = useAuth();
+interface DashboardHeaderProps {
+  requireAdmin?: boolean;
+  requireModerator?: boolean;
+}
+
+export function DashboardHeader({ requireAdmin = false, requireModerator = false }: DashboardHeaderProps) {
+  const { isAuthenticated, isLoading, isAdmin, isModerator } = useAuth();
   const router = useRouter();
 
-  // Redirect non-authenticated users
+  // Redirect non-authenticated or non-authorized users
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (isLoading) return;
+    
+    if (!isAuthenticated) {
       router.push('/auth/signin');
+      return;
     }
-  }, [isAuthenticated, isLoading, router]);
+    
+    if (requireAdmin && !isAdmin) {
+      router.push('/');
+      return;
+    }
+    
+    if (requireModerator && !isModerator && !isAdmin) {
+      router.push('/');
+      return;
+    }
+  }, [isAuthenticated, isAdmin, isModerator, isLoading, requireAdmin, requireModerator, router]);
 
   if (isLoading) {
     return (
@@ -33,6 +50,14 @@ export function AdminHeader() {
   }
 
   if (!isAuthenticated) {
+    return null;
+  }
+  
+  if (requireAdmin && !isAdmin) {
+    return null;
+  }
+  
+  if (requireModerator && !isModerator && !isAdmin) {
     return null;
   }
 

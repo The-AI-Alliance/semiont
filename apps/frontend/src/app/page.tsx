@@ -2,24 +2,47 @@
 
 import React from "react";
 import { useSession } from "next-auth/react";
-import { Header } from "@/components/Header";
+import { DashboardHeader } from "@/components/shared/DashboardHeader";
 import { FeatureCards } from "@/components/FeatureCards";
 import { StatusDisplay } from "@/components/StatusDisplay";
 import { AsyncErrorBoundary } from "@/components/ErrorBoundary";
 import { Footer } from "@/components/Footer";
 import { AuthenticatedHome } from "@/components/AuthenticatedHome";
 import { SemiontBranding } from "@/components/SemiontBranding";
+import { UserMenu } from "@/components/UserMenu";
 
 export default function Home() {
   const { data: session, status } = useSession();
 
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Use DashboardHeader for authenticated users */}
+      {session?.backendToken && <DashboardHeader />}
+      
+      {/* Header for unauthenticated users */}
+      {!session?.backendToken && status !== "loading" && (
+        <header className="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <SemiontBranding 
+                  size="sm" 
+                  showTagline={true} 
+                  animated={false}
+                  compactTagline={true}
+                  className="py-1"
+                />
+              </div>
+              <div className="flex items-center space-x-4">
+                <UserMenu />
+              </div>
+            </div>
+          </div>
+        </header>
+      )}
+      
       <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
         <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
-          <AsyncErrorBoundary>
-            <Header showBranding={session?.backendToken ? true : false} />
-          </AsyncErrorBoundary>
           
           {/* Show different content based on authentication status */}
           {status === "loading" ? (
@@ -41,11 +64,9 @@ export default function Home() {
               {/* Hero Branding Section */}
               <section aria-labelledby="hero-heading" className="py-8">
                 <h1 id="hero-heading" className="sr-only">Semiont - AI-Powered Research Platform</h1>
-                <SemiontBranding 
-                  size="xl"
-                  animated={true}
-                  className="mb-8"
-                />
+                <div className="mb-8">
+                  <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">Welcome to Semiont</h2>
+                </div>
                 <p className="text-xl text-gray-600 dark:text-gray-300 font-sans max-w-4xl mx-auto px-4">
                   The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.
                 </p>

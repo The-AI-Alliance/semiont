@@ -11,8 +11,8 @@ vi.mock('@/components/admin/AdminAuthWrapper', () => ({
   ),
 }));
 
-vi.mock('@/components/admin/AdminHeader', () => ({
-  AdminHeader: () => <header data-testid="admin-header">Admin Header</header>,
+vi.mock('@/components/shared/DashboardHeader', () => ({
+  DashboardHeader: () => <header data-testid="admin-header">Dashboard Header</header>,
 }));
 
 vi.mock('@/components/admin/AdminNavigation', () => ({

@@ -593,6 +593,79 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return [];
   }
   
+  // Tag Collections - stored as special documents in the graph
+  private entityTypesCollection: Set<string> | null = null;
+  private referenceTypesCollection: Set<string> | null = null;
+  
+  async getEntityTypes(): Promise<string[]> {
+    // Initialize if not already loaded
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    return Array.from(this.entityTypesCollection!).sort();
+  }
+  
+  async getReferenceTypes(): Promise<string[]> {
+    // Initialize if not already loaded
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    return Array.from(this.referenceTypesCollection!).sort();
+  }
+  
+  async addEntityType(tag: string): Promise<void> {
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    this.entityTypesCollection!.add(tag);
+    // In production: persist to Neo4j
+    // await session.run('MERGE (t:TagCollection {type: "entity-types"}) SET t.tags = $tags', 
+    //   { tags: Array.from(this.entityTypesCollection!) });
+  }
+  
+  async addReferenceType(tag: string): Promise<void> {
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    this.referenceTypesCollection!.add(tag);
+    // In production: persist to Neo4j
+    // await session.run('MERGE (t:TagCollection {type: "reference-types"}) SET t.tags = $tags',
+    //   { tags: Array.from(this.referenceTypesCollection!) });
+  }
+  
+  async addEntityTypes(tags: string[]): Promise<void> {
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    tags.forEach(tag => this.entityTypesCollection!.add(tag));
+    // In production: persist to Neo4j
+  }
+  
+  async addReferenceTypes(tags: string[]): Promise<void> {
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
+    // In production: persist to Neo4j
+  }
+  
+  private async initializeTagCollections(): Promise<void> {
+    // In production: check Neo4j for existing collections
+    // const session = this.driver.session();
+    // const result = await session.run('MATCH (t:TagCollection) RETURN t.type as type, t.tags as tags');
+    
+    // For now, initialize with defaults if not present
+    if (this.entityTypesCollection === null) {
+      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
+      this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
+    }
+    
+    if (this.referenceTypesCollection === null) {
+      const { DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+      this.referenceTypesCollection = new Set(DEFAULT_REFERENCE_TYPES);
+    }
+  }
+  
   generateId(prefix: string = 'doc'): string {
     return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
   }
@@ -604,5 +677,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     // await session.close();
     this.documents.clear();
     this.selections.clear();
+    this.entityTypesCollection = null;
+    this.referenceTypesCollection = null;
   }
 }
