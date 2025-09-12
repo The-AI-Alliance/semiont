@@ -34,17 +34,23 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
       if (shouldShowBanner()) {
         setIsVisible(true);
         
-        // Determine applicable regulation
-        const [isGDPR, isCCPA] = await Promise.all([
-          isGDPRApplicable(),
-          isCCPAApplicable()
-        ]);
-        
-        if (isGDPR) {
-          setRegion('GDPR');
-        } else if (isCCPA) {
-          setRegion('CCPA');
-        } else {
+        try {
+          // Determine applicable regulation
+          const [isGDPR, isCCPA] = await Promise.all([
+            isGDPRApplicable(),
+            isCCPAApplicable()
+          ]);
+          
+          if (isGDPR) {
+            setRegion('GDPR');
+          } else if (isCCPA) {
+            setRegion('CCPA');
+          } else {
+            setRegion('GENERAL');
+          }
+        } catch (error) {
+          // If region detection fails, default to GENERAL
+          console.error('Failed to detect region:', error);
           setRegion('GENERAL');
         }
       }
