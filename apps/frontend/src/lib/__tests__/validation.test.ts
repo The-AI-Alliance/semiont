@@ -301,6 +301,7 @@ describe('Validation Library', () => {
       image: 'https://example.com/avatar.jpg',
       domain: 'example.com',
       isAdmin: false,
+      isModerator: false,
     };
 
     it('should validate complete user objects', () => {

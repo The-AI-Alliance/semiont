@@ -375,7 +375,7 @@ describe('UserMenu Component', () => {
 
       render(<UserMenu />);
 
-      const adminLink = screen.getByText('Admin Dashboard');
+      const adminLink = screen.getByText('Administer');
       expect(adminLink).toBeInTheDocument();
       expect(adminLink).toHaveAttribute('href', '/admin');
       expect(adminLink).toHaveAttribute('role', 'menuitem');
@@ -388,7 +388,7 @@ describe('UserMenu Component', () => {
 
       render(<UserMenu />);
 
-      expect(screen.queryByText('Admin Dashboard')).not.toBeInTheDocument();
+      expect(screen.queryByText('Administer')).not.toBeInTheDocument();
     });
 
     it('should close dropdown when admin link is clicked', async () => {
@@ -397,7 +397,7 @@ describe('UserMenu Component', () => {
 
       render(<UserMenu />);
 
-      const adminLink = screen.getByText('Admin Dashboard');
+      const adminLink = screen.getByText('Administer');
       await userEvent.click(adminLink);
 
       expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
