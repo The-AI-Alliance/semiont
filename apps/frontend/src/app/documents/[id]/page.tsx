@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { apiService, api } from '@/lib/api-client';
-import { AnnotatedMarkdownRenderer } from '@/components/AnnotatedMarkdownRenderer';
+import { AnnotationRenderer } from '@/components/AnnotationRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { AnnotationContextMenu } from '@/components/AnnotationContextMenu';
 import { PageLayout } from '@/components/PageLayout';
@@ -352,8 +352,9 @@ export default function DocumentPage() {
           <div className="flex-1">
             {/* Document Content */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
-              <AnnotatedMarkdownRenderer
+              <AnnotationRenderer
                 content={document.content}
+                contentType="markdown"
                 highlights={highlights}
                 references={references}
                 onWikiLinkClick={handleWikiLinkClick}
@@ -406,9 +407,6 @@ export default function DocumentPage() {
             </div>
             </>
           )}
-          <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
-            <strong>Quick tips:</strong> Select text and press <kbd className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">Ctrl+H</kbd> (or <kbd className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">⌘+H</kbd>) to highlight instantly • Right-click annotations for more options
-          </div>
         </div>
           </div>
 

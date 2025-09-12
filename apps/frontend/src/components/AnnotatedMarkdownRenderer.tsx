@@ -48,14 +48,31 @@ export function AnnotatedMarkdownRenderer({
   onAnnotationRightClick
 }: AnnotatedMarkdownRendererProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const [sparklePosition, setSparklePosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [currentSelection, setCurrentSelection] = React.useState<{ text: string; position: { start: number; end: number } } | null>(null);
+  const [selectionRect, setSelectionRect] = React.useState<DOMRect | null>(null);
+  
+  // Store callbacks in refs to prevent re-renders
+  const highlightClickRef = React.useRef(onHighlightClick);
+  const referenceClickRef = React.useRef(onReferenceClick);
+  const annotationRightClickRef = React.useRef(onAnnotationRightClick);
+  
+  React.useEffect(() => {
+    highlightClickRef.current = onHighlightClick;
+    referenceClickRef.current = onReferenceClick;
+    annotationRightClickRef.current = onAnnotationRightClick;
+  }, [onHighlightClick, onReferenceClick, onAnnotationRightClick]);
   // Apply annotations after markdown is rendered
   React.useEffect(() => {
     if (!containerRef.current) return;
     
     // Small delay to ensure markdown is fully rendered
     const timer = setTimeout(() => {
+    
+    // Check if container still exists (component might have unmounted)
+    if (!containerRef.current) return;
 
-    const container = containerRef.current!;
+    const container = containerRef.current;
     
     // Collect all text nodes in document order
     const textNodes: Text[] = [];
@@ -187,18 +204,18 @@ export function AnnotatedMarkdownRenderer({
 
             // Add click handler
             wrapper.addEventListener('click', () => {
-              if (annotation.type === 'highlight' && onHighlightClick) {
-                onHighlightClick(annotation);
-              } else if (annotation.type === 'reference' && onReferenceClick) {
-                onReferenceClick(annotation);
+              if (annotation.type === 'highlight' && highlightClickRef.current) {
+                highlightClickRef.current(annotation);
+              } else if (annotation.type === 'reference' && referenceClickRef.current) {
+                referenceClickRef.current(annotation);
               }
             });
 
             // Add right-click handler for context menu
             wrapper.addEventListener('contextmenu', (e) => {
               e.preventDefault();
-              if (onAnnotationRightClick) {
-                onAnnotationRightClick(annotation, e.clientX, e.clientY);
+              if (annotationRightClickRef.current) {
+                annotationRightClickRef.current(annotation, e.clientX, e.clientY);
               }
             });
             
@@ -214,32 +231,143 @@ export function AnnotatedMarkdownRenderer({
     }, 100); // 100ms delay to ensure DOM is ready
 
     return () => clearTimeout(timer);
-  }, [highlights, references, onHighlightClick, onReferenceClick, onAnnotationRightClick, content]);
+  }, [highlights, references, content]); // Only depend on data, not callbacks
+
+  // Handle text selection to show sparkle - use mouseup instead of selectionchange
+  React.useEffect(() => {
+    const handleMouseUp = () => {
+      // Small delay to let selection settle
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed || !containerRef.current) {
+          setSparklePosition(null);
+          setCurrentSelection(null);
+          setSelectionRect(null);
+          return;
+        }
+
+        const selectedText = selection.toString();
+        if (!selectedText) {
+          setSparklePosition(null);
+          setCurrentSelection(null);
+          setSelectionRect(null);
+          return;
+        }
+
+        // Get the selection range
+        const range = selection.getRangeAt(0);
+        
+        // Get all client rects for the selection (handles multi-line)
+        const rects = range.getClientRects();
+        if (rects.length === 0) return;
+        
+        // Use the last rect for positioning the sparkle
+        const lastRect = rects[rects.length - 1];
+        if (!lastRect) return;
+        const containerRect = containerRef.current.getBoundingClientRect();
+        
+        // Save the full bounding rect for the outline
+        const boundingRect = range.getBoundingClientRect();
+        setSelectionRect(boundingRect);
+        
+        // Position sparkle at the end of the selection
+        setSparklePosition({
+          x: lastRect.right - containerRect.left + 5,
+          y: lastRect.top - containerRect.top + (lastRect.height / 2)
+        });
+
+        // Calculate position - get the actual text content without trimming
+        const textWalker = document.createTreeWalker(
+          containerRef.current,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode: (node) => {
+              // Skip text nodes that are inside code blocks or script tags
+              const parent = node.parentElement;
+              if (parent?.tagName === 'CODE' || parent?.tagName === 'SCRIPT' || parent?.tagName === 'STYLE') {
+                return NodeFilter.FILTER_REJECT;
+              }
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+        );
+        
+        let totalLength = 0;
+        let startOffset = -1;
+        let endOffset = -1;
+        let currentNode;
+        let foundStart = false;
+        let foundEnd = false;
+        
+        while (currentNode = textWalker.nextNode()) {
+          const textNode = currentNode as Text;
+          const nodeLength = textNode.textContent?.length || 0;
+          
+          if (textNode === range.startContainer && !foundStart) {
+            startOffset = totalLength + range.startOffset;
+            foundStart = true;
+          }
+          if (textNode === range.endContainer && !foundEnd) {
+            endOffset = totalLength + range.endOffset;
+            foundEnd = true;
+          }
+          
+          if (foundStart && foundEnd) {
+            break;
+          }
+          
+          totalLength += nodeLength;
+        }
+
+        if (startOffset >= 0 && endOffset >= 0) {
+          setCurrentSelection({ 
+            text: selectedText, 
+            position: { start: startOffset, end: endOffset } 
+          });
+        }
+      }, 10);
+    };
+
+    // Clear sparkle when clicking elsewhere
+    const handleMouseDown = (e: MouseEvent) => {
+      // If clicking on the sparkle itself, don't clear
+      if ((e.target as HTMLElement).closest('button')?.textContent === '✨') {
+        return;
+      }
+      // Only clear selection-related state, don't trigger re-renders that affect highlights
+      window.requestAnimationFrame(() => {
+        setSparklePosition(null);
+        setCurrentSelection(null);
+        setSelectionRect(null);
+      });
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mousedown', handleMouseDown);
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener('mouseup', handleMouseUp);
+      }
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, []);
+
+  // Handle sparkle click
+  const handleSparkleClick = () => {
+    if (currentSelection && onTextSelect) {
+      onTextSelect(currentSelection.text, currentSelection.position);
+    }
+  };
 
   // Only handle right-click for selections, don't interfere with normal selection
   const handleContextMenu = (e: React.MouseEvent) => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !containerRef.current) return;
-
-    const selectedText = selection.toString().trim();
-    if (!selectedText) return;
-
-    // Get the selection range
-    const range = selection.getRangeAt(0);
-    
-    // Calculate position relative to the original content
-    const preSelectionRange = document.createRange();
-    preSelectionRange.selectNodeContents(containerRef.current);
-    preSelectionRange.setEnd(range.startContainer, range.startOffset);
-    
-    // Get the text content and calculate actual position
-    const preSelectionText = preSelectionRange.toString();
-    const start = preSelectionText.length;
-    const end = start + selectedText.length;
-
-    if (onTextSelect) {
+    if (currentSelection && onTextSelect) {
       e.preventDefault(); // Prevent default context menu
-      onTextSelect(selectedText, { start, end });
+      onTextSelect(currentSelection.text, currentSelection.position);
     }
   };
 
@@ -340,9 +468,40 @@ export function AnnotatedMarkdownRenderer({
     <div 
       ref={containerRef}
       data-markdown-container
-      className="prose prose-lg dark:prose-invert max-w-none selection:bg-blue-200 dark:selection:bg-blue-800"
+      className="prose prose-lg dark:prose-invert max-w-none selection:bg-blue-200 dark:selection:bg-blue-800 relative"
       onContextMenu={handleContextMenu}
     >
+      {/* Selection highlight overlay */}
+      {selectionRect && currentSelection && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: `${selectionRect.left - containerRef.current!.getBoundingClientRect().left}px`,
+            top: `${selectionRect.top - containerRef.current!.getBoundingClientRect().top}px`,
+            width: `${selectionRect.width}px`,
+            height: `${selectionRect.height}px`,
+            border: '2px dashed rgba(250, 204, 21, 0.6)',
+            borderRadius: '3px',
+            backgroundColor: 'rgba(254, 240, 138, 0.2)',
+            animation: 'pulse 2s ease-in-out infinite',
+          }}
+        />
+      )}
+      {/* Sparkle indicator */}
+      {sparklePosition && (
+        <button
+          onClick={handleSparkleClick}
+          className="absolute z-50 text-xl hover:scale-125 transition-transform cursor-pointer animate-bounce"
+          style={{
+            left: `${sparklePosition.x}px`,
+            top: `${sparklePosition.y}px`,
+            transform: 'translateY(-50%)',
+          }}
+          title="Click to create annotation"
+        >
+          ✨
+        </button>
+      )}
       <ReactMarkdown
         remarkPlugins={[
           remarkGfm,
