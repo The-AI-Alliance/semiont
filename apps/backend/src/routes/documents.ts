@@ -16,6 +16,7 @@ import {
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection } from '../graph/types';
+import { calculateChecksum } from '../utils/checksum';
 
 // Create documents router
 export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -87,23 +88,43 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    // Create document in graph database
+    // Server-side calculated fields (never trust client for these)
+    const contentChecksum = calculateChecksum(body.content);
+    const createdBy = user.id;  // Always from authenticated user
+    const createdAt = new Date();  // Always server timestamp
+    
+    // Validate provenance fields
+    const creationMethod = body.creationMethod || 'api';
+    if (creationMethod === 'reference' && !body.sourceDocumentId) {
+      return c.json({ 
+        error: 'sourceDocumentId is required when creationMethod is "reference"' 
+      }, 400);
+    }
+    
+    // Create document in graph database with provenance tracking
     const document = await graphDb.createDocument({
       name: body.name,
       entityTypes: body.entityTypes || [],
       content: body.content,
       contentType: body.contentType || 'text/plain',
       metadata: body.metadata || {},
-      createdBy: user.id,
+      createdBy: createdBy,  // Server-controlled
+      creationMethod: creationMethod,  // Validated and defaulted
+      sourceSelectionId: body.sourceSelectionId,  // Optional context from client
+      sourceDocumentId: body.sourceDocumentId,  // Required for 'reference' method
     });
 
     // Save content to filesystem
     const storageUrl = await storage.saveDocument(document.id, body.content);
     
-    // Update document with storage URL
+    // Update document with storage URL and server-calculated checksum
     const updatedDocument = await graphDb.updateDocument(document.id, {
-      metadata: { ...document.metadata, storageUrl },
-      updatedBy: user.id,
+      metadata: { 
+        ...document.metadata, 
+        storageUrl, 
+        contentChecksum  // Always stored in metadata for integrity verification
+      },
+      updatedBy: createdBy,
     });
 
     // Create initial selections if provided
@@ -936,6 +957,13 @@ function formatDocument(doc: Document, content?: string): any {
     contentType: doc.contentType,
     metadata: doc.metadata,
     storageUrl: doc.storageUrl,
+    
+    // Provenance tracking
+    creationMethod: doc.creationMethod,
+    contentChecksum: doc.contentChecksum || doc.metadata?.contentChecksum,
+    sourceSelectionId: doc.sourceSelectionId,
+    sourceDocumentId: doc.sourceDocumentId,
+    
     createdBy: doc.createdBy,
     updatedBy: doc.updatedBy,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,

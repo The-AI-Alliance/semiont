@@ -73,6 +73,13 @@ interface Document {
   updatedAt: string;
   highlights?: Selection[];
   references?: Selection[];
+  
+  // Provenance tracking
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
+  contentChecksum?: string;
+  sourceSelectionId?: string;
+  sourceDocumentId?: string;
+  createdBy?: string;
 }
 
 interface Selection {
@@ -332,7 +339,15 @@ export const apiService = {
 
   // Document endpoints
   documents: {
-    create: (data: { name: string; content: string; contentType?: string }): Promise<DocumentResponse> =>
+    create: (data: { 
+      name: string; 
+      content: string; 
+      contentType?: string;
+      // Only context fields - backend calculates checksum, sets createdBy/createdAt
+      creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
+      sourceSelectionId?: string;  // For reference-created documents
+      sourceDocumentId?: string;  // For reference-created documents
+    }): Promise<DocumentResponse> =>
       apiClient.post('/api/documents', { body: data }),
     
     get: (id: string): Promise<DocumentResponse> =>

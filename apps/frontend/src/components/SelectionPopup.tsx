@@ -6,6 +6,7 @@ import type { Document } from '@/lib/api-client';
 
 interface SelectionPopupProps {
   selectedText: string;
+  sourceDocumentId?: string;
   onCreateHighlight: () => void;
   onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
   onClose: () => void;
@@ -13,6 +14,7 @@ interface SelectionPopupProps {
 
 export function SelectionPopup({
   selectedText,
+  sourceDocumentId,
   onCreateHighlight,
   onCreateReference,
   onClose
@@ -72,7 +74,9 @@ export function SelectionPopup({
       const response = await apiService.documents.create({
         name: searchQuery || selectedText.substring(0, 50),
         content: `# ${searchQuery || selectedText.substring(0, 50)}\n\nThis document was created from a reference to:\n\n> ${selectedText}`,
-        contentType: 'text/markdown'
+        contentType: 'text/markdown',
+        creationMethod: 'reference',
+        sourceDocumentId: sourceDocumentId
       });
       
       // Create reference to the new document

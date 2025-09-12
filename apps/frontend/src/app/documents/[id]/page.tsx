@@ -627,6 +627,7 @@ export default function DocumentPage() {
       {showSelectionPopup && (
         <SelectionPopup
           selectedText={selectedText}
+          sourceDocumentId={documentId}
           onCreateHighlight={handleCreateHighlight}
           onCreateReference={handleCreateReference}
           onClose={() => {

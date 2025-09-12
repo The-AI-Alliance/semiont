@@ -7,10 +7,18 @@ export interface Document {
   contentType: string;
   storageUrl: string;  // Path to content in filesystem
   metadata: Record<string, any>;
-  createdBy?: string;
-  updatedBy?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  
+  // Audit fields (backend-controlled)
+  createdBy?: string;  // Set from auth context by backend
+  updatedBy?: string;  // Set from auth context by backend
+  createdAt: Date;  // Set by backend on creation
+  updatedAt: Date;  // Set by backend on update
+  
+  // Provenance tracking (backend-controlled with optional client context)
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // How document was created (defaults to 'api')
+  contentChecksum?: string;  // SHA-256 hash calculated by backend for integrity
+  sourceSelectionId?: string;  // If created from reference, the selection that triggered it
+  sourceDocumentId?: string;  // If created from reference, the source document
 }
 
 // Base selection type - represents any selection within a document
@@ -151,8 +159,14 @@ export interface CreateDocumentInput {
   content: string;
   contentType: string;
   metadata?: Record<string, any>;
-  createdBy?: string;
-}
+  createdBy?: string;  // Should be set by backend from auth context
+  
+  // Provenance tracking (only context fields, not derived fields)
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' if not specified
+  sourceSelectionId?: string;  // For reference-created documents
+  sourceDocumentId?: string;  // For reference-created documents
+  // Note: contentChecksum is calculated by backend
+  // Note: createdAt is set by backend
 
 export interface UpdateDocumentInput {
   name?: string;
