@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { PageLayout } from '@/components/PageLayout';
-import { SemiontBranding } from '@/components/SemiontBranding';
 import { buttonStyles } from '@/lib/button-styles';
 import Link from 'next/link';
+import { signIn } from 'next-auth/react';
 
 export default function AboutPage() {
   return (
@@ -12,17 +12,29 @@ export default function AboutPage() {
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-12">
         {/* Header */}
         <div className="text-center space-y-6">
-          <SemiontBranding 
-            size="lg"
-            animated={true}
-            className="mb-4"
-          />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             About Semiont
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
             The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.
           </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-4 justify-center items-center flex-wrap">
+          <Link
+            href="/auth/signup"
+            className={buttonStyles.primary.base}
+          >
+            Sign Up
+          </Link>
+          <button
+            onClick={() => signIn()}
+            className={buttonStyles.primary.base}
+            type="button"
+          >
+            Sign In
+          </button>
         </div>
 
         {/* Mission Section */}
@@ -153,12 +165,6 @@ export default function AboutPage() {
             >
               View on GitHub
             </a>
-            <Link 
-              href="/auth/signup"
-              className={buttonStyles.secondary.base}
-            >
-              Get Started
-            </Link>
           </div>
         </section>
 
