@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 export default function AboutPage() {
   return (
-    <PageLayout>
+    <PageLayout showAuthLinks={false}>
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-12">
         {/* Header */}
         <div className="text-center space-y-6">

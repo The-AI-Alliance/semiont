@@ -27,7 +27,7 @@ function SignUpContent() {
   };
 
   return (
-    <PageLayout className="bg-gray-50">
+    <PageLayout className="bg-gray-50" showAuthLinks={false}>
       <div className="flex items-center justify-center py-12 font-sans">
         <div className="max-w-md w-full space-y-8">
           <div>
