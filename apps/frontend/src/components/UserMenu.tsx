@@ -129,7 +129,7 @@ export function UserMenu() {
           aria-orientation="vertical"
           aria-labelledby="user-menu-button"
         >
-          <div className="p-4">
+          <div className="p-3">
             <div className="text-sm">
               <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
                 {displayName}
@@ -138,31 +138,31 @@ export function UserMenu() {
                 {userDomain && `@${userDomain}`}
               </div>
             </div>
-            <hr className="my-3 border-gray-200 dark:border-gray-600" />
+            <hr className="my-2 border-gray-200 dark:border-gray-600" />
             <Link
               href="/"
               onClick={close}
-              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
               role="menuitem"
               tabIndex={0}
               aria-label="Go to home page"
             >
               Home
             </Link>
-            <hr className="my-3 border-gray-200 dark:border-gray-600" />
+            <hr className="my-2 border-gray-200 dark:border-gray-600" />
             {(isModerator || isAdmin) && (
               <>
                 <Link
                   href="/moderate"
                   onClick={close}
-                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
                   role="menuitem"
                   tabIndex={0}
                   aria-label="Access moderation dashboard"
                 >
                   Moderate
                 </Link>
-                <hr className="my-3 border-gray-200 dark:border-gray-600" />
+                <hr className="my-2 border-gray-200 dark:border-gray-600" />
               </>
             )}
             {isAdmin && (
@@ -170,14 +170,14 @@ export function UserMenu() {
                 <Link
                   href="/admin"
                   onClick={close}
-                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
                   role="menuitem"
                   tabIndex={0}
                   aria-label="Access admin dashboard"
                 >
                   Administer
                 </Link>
-                <hr className="my-3 border-gray-200 dark:border-gray-600" />
+                <hr className="my-2 border-gray-200 dark:border-gray-600" />
               </>
             )}
             <button
@@ -187,7 +187,7 @@ export function UserMenu() {
                 signOut({ callbackUrl: '/' });
               }}
               onKeyDown={handleKeyDown}
-              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
+              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
               role="menuitem"
               tabIndex={0}
               aria-label="Sign out of your account"
