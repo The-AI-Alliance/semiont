@@ -290,8 +290,7 @@ export default function DocumentPage() {
         const newDocResponse = await apiService.documents.create({
           name: selectedText,
           content: `# ${selectedText}\n\nThis is an entity of type: ${entityType}`,
-          contentType: 'text/markdown',
-          entityTypes: [entityType]
+          contentType: 'text/markdown'
         });
         
         // Now resolve the selection to this new document
