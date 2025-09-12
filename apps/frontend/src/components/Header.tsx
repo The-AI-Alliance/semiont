@@ -5,9 +5,10 @@ import { SemiontBranding } from './SemiontBranding';
 
 interface HeaderProps {
   showBranding?: boolean;
+  showAuthLinks?: boolean;
 }
 
-export function Header({ showBranding = true }: HeaderProps) {
+export function Header({ showBranding = true, showAuthLinks = true }: HeaderProps) {
   return (
     <div className="flex justify-between items-center w-full mb-8">
       {showBranding ? (
@@ -26,7 +27,7 @@ export function Header({ showBranding = true }: HeaderProps) {
       
       {/* Authentication Status */}
       <div className="text-right relative">
-        <UserMenu />
+        <UserMenu showAuthLinks={showAuthLinks} />
       </div>
     </div>
   );

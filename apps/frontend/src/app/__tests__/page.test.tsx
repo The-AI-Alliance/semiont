@@ -12,9 +12,7 @@ vi.mock('@/components/UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu</div>
 }));
 
-vi.mock('@/components/FeatureCards', () => ({
-  FeatureCards: () => <div data-testid="feature-cards">FeatureCards</div>
-}));
+// FeatureCards component was removed from the home page
 
 vi.mock('@/components/AuthenticatedHome', () => ({
   AuthenticatedHome: () => <div data-testid="authenticated-home">AuthenticatedHome</div>
@@ -67,26 +65,17 @@ describe('Home Page', () => {
     expect(subtitle).toHaveClass('text-xl', 'text-gray-600', 'dark:text-gray-300');
   });
 
-  it('should render all main components wrapped in error boundaries', () => {
+  it('should render all main components', () => {
     render(<Home />);
     
-    // Check that main components are rendered (some are conditional based on auth state)
-    // Header is conditionally rendered based on auth state
-    const header = screen.queryByTestId('dashboard-header') || screen.queryByTestId('user-menu');
-    expect(header).toBeTruthy();
+    // Check that main components are rendered
     expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
-    expect(screen.getByTestId('feature-cards')).toBeInTheDocument();
     expect(screen.getByTestId('footer')).toBeInTheDocument();
     
-    // StatusDisplay may be conditionally rendered
-    const statusDisplay = screen.queryByTestId('status-display');
-    if (statusDisplay) {
-      expect(statusDisplay).toBeInTheDocument();
-    }
-    
-    // Check that error boundaries are present
-    const errorBoundaries = screen.getAllByTestId('error-boundary');
-    expect(errorBoundaries.length).toBeGreaterThanOrEqual(1); // At least one for Header
+    // Check for action buttons
+    expect(screen.getByText('Learn More')).toBeInTheDocument();
+    expect(screen.getByText('Sign Up')).toBeInTheDocument();
+    expect(screen.getByText('Sign In')).toBeInTheDocument();
   });
 
   it('should have proper semantic HTML structure', () => {
@@ -117,7 +106,7 @@ describe('Home Page', () => {
     // Check for text center and spacing on content area
     const contentArea = screen.getByText(/open-source.*future-proof/i).closest('.text-center');
     expect(contentArea).toBeInTheDocument();
-    expect(contentArea).toHaveClass('text-center', 'space-y-12');
+    expect(contentArea).toHaveClass('text-center', 'space-y-8');
   });
 
   it('should render footer at the bottom', () => {

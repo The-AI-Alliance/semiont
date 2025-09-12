@@ -13,7 +13,7 @@ function SignInContent() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [showLocalAuth, setShowLocalAuth] = useState(false);
-  const callbackUrl = searchParams?.get('callbackUrl') || '/';
+  const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
   useEffect(() => {
     // Check if local auth is enabled
@@ -83,7 +83,7 @@ function SignInContent() {
   };
 
   return (
-    <PageLayout className="bg-gray-50">
+    <PageLayout className="bg-gray-50" showAuthLinks={false}>
       <div className="flex items-center justify-center py-12 font-sans">
         <div className="max-w-md w-full space-y-8">
           <div>

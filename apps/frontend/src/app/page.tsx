@@ -3,12 +3,11 @@
 import React, { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { FeatureCards } from "@/components/FeatureCards";
-import { StatusDisplay } from "@/components/StatusDisplay";
-import { AsyncErrorBoundary } from "@/components/ErrorBoundary";
+import { signIn } from "next-auth/react";
+import Link from "next/link";
 import { Footer } from "@/components/Footer";
 import { SemiontBranding } from "@/components/SemiontBranding";
-import { UserMenu } from "@/components/UserMenu";
+import { buttonStyles } from "@/lib/button-styles";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -23,26 +22,6 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header for unauthenticated users */}
-      <header className="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <SemiontBranding 
-                size="sm" 
-                showTagline={true} 
-                animated={false}
-                compactTagline={true}
-                className="py-1"
-              />
-            </div>
-            <div className="flex items-center space-x-4">
-              <UserMenu />
-            </div>
-          </div>
-        </div>
-      </header>
-      
       <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
         <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
           {status === "loading" ? (
@@ -50,22 +29,42 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300">Loading...</p>
             </div>
           ) : (
-            <div className="text-center space-y-12">
+            <div className="text-center space-y-8">
               {/* Hero Branding Section */}
               <section aria-labelledby="hero-heading" className="py-8">
                 <h1 id="hero-heading" className="sr-only">Semiont - AI-Powered Research Platform</h1>
-                <div className="mb-8">
-                  <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">Welcome to Semiont</h2>
-                </div>
+                <SemiontBranding 
+                  size="xl"
+                  animated={true}
+                  className="mb-8"
+                />
                 <p className="text-xl text-gray-600 dark:text-gray-300 font-sans max-w-4xl mx-auto px-4">
                   The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.
                 </p>
               </section>
               
-              {/* Feature Cards */}
-              <AsyncErrorBoundary>
-                <FeatureCards />
-              </AsyncErrorBoundary>
+              {/* Action Buttons */}
+              <div className="flex gap-4 justify-center items-center flex-wrap">
+                <Link
+                  href="/about"
+                  className={buttonStyles.secondary.base}
+                >
+                  Learn More
+                </Link>
+                <Link
+                  href="/auth/signup"
+                  className={buttonStyles.primary.base}
+                >
+                  Sign Up
+                </Link>
+                <button
+                  onClick={() => signIn(undefined, { callbackUrl: '/know' })}
+                  className={buttonStyles.primary.base}
+                  type="button"
+                >
+                  Sign In
+                </button>
+              </div>
             </div>
           )}
         </div>

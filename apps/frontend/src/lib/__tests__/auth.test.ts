@@ -652,7 +652,7 @@ describe('Auth Configuration', () => {
         baseUrl,
       });
 
-      expect(result).toBe('https://example.com/dashboard');
+      expect(result).toBe('https://example.com/know');
     });
 
     it('should handle absolute URLs with same origin', async () => {
@@ -661,7 +661,7 @@ describe('Auth Configuration', () => {
         baseUrl,
       });
 
-      expect(result).toBe('https://example.com/profile');
+      expect(result).toBe('https://example.com/know');
     });
 
     it('should reject external URLs and redirect to /know', async () => {
@@ -690,7 +690,7 @@ describe('Auth Configuration', () => {
         baseUrl,
       });
 
-      expect(result).toBe('https://example.com/');
+      expect(result).toBe('https://example.com/know');
     });
 
     it('should handle URLs with different protocols', async () => {

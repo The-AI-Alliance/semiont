@@ -140,7 +140,7 @@ describe('SignIn Page', () => {
       fireEvent.click(signInButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { callbackUrl: '/' });
+        expect(signIn).toHaveBeenCalledWith('google', { callbackUrl: '/know' });
       });
     });
 
@@ -167,7 +167,7 @@ describe('SignIn Page', () => {
       fireEvent.click(signInButton);
       
       await waitFor(() => {
-        expect(signIn).toHaveBeenCalledWith('google', { callbackUrl: '/' });
+        expect(signIn).toHaveBeenCalledWith('google', { callbackUrl: '/know' });
       });
     });
 

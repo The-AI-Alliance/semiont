@@ -17,6 +17,9 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ShieldCheckIcon: ({ className }: { className?: string }) => (
     <svg data-testid="shield-check-icon" className={className} />
   ),
+  CommandLineIcon: ({ className }: { className?: string }) => (
+    <svg data-testid="command-line-icon" className={className} />
+  ),
 }));
 
 describe('AdminNavigation', () => {
