@@ -4,33 +4,26 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  UsersIcon,
-  ShieldCheckIcon,
-  CommandLineIcon
+  MagnifyingGlassIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
 
 const navigation = [
   {
-    name: 'Users',
-    href: '/admin/users',
-    icon: UsersIcon,
-    description: 'User management and permissions'
+    name: 'Discover',
+    href: '/know/search',
+    icon: MagnifyingGlassIcon,
+    description: 'Search and browse documents'
   },
   {
-    name: 'OAuth Settings',
-    href: '/admin/security',
-    icon: ShieldCheckIcon,
-    description: 'View OAuth configuration'
-  },
-  {
-    name: 'DevOps',
-    href: '/admin/devops',
-    icon: CommandLineIcon,
-    description: 'System monitoring and management'
-  },
+    name: 'Create',
+    href: '/know/create',
+    icon: PlusIcon,
+    description: 'Create a new document'
+  }
 ];
 
-export function AdminNavigation() {
+export function KnowledgeNavigation() {
   const pathname = usePathname();
 
   return (
@@ -39,7 +32,7 @@ export function AdminNavigation() {
         <div className="space-y-1">
           <div>
             <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-              Administration
+              Knowledge
             </div>
             
             {navigation.map((item) => {
