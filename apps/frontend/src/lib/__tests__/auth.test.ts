@@ -628,6 +628,24 @@ describe('Auth Configuration', () => {
   describe('Redirect Callback', () => {
     const baseUrl = 'https://example.com';
 
+    it('should redirect to /know when URL is baseUrl', async () => {
+      const result = await authOptions.callbacks!.redirect!({
+        url: baseUrl,
+        baseUrl,
+      });
+
+      expect(result).toBe(`${baseUrl}/know`);
+    });
+
+    it('should redirect to /know when URL is baseUrl with trailing slash', async () => {
+      const result = await authOptions.callbacks!.redirect!({
+        url: `${baseUrl}/`,
+        baseUrl,
+      });
+
+      expect(result).toBe(`${baseUrl}/know`);
+    });
+
     it('should handle relative URLs', async () => {
       const result = await authOptions.callbacks!.redirect!({
         url: '/dashboard',
@@ -646,13 +664,13 @@ describe('Auth Configuration', () => {
       expect(result).toBe('https://example.com/profile');
     });
 
-    it('should reject external URLs and redirect to base', async () => {
+    it('should reject external URLs and redirect to /know', async () => {
       const result = await authOptions.callbacks!.redirect!({
         url: 'https://malicious.com/steal-data',
         baseUrl,
       });
 
-      expect(result).toBe(baseUrl);
+      expect(result).toBe(`${baseUrl}/know`);
     });
 
     it('should handle malformed URLs gracefully', async () => {
@@ -666,7 +684,7 @@ describe('Auth Configuration', () => {
       }).rejects.toThrow('Invalid URL');
     });
 
-    it('should handle empty relative URLs', async () => {
+    it('should handle root relative URL', async () => {
       const result = await authOptions.callbacks!.redirect!({
         url: '/',
         baseUrl,
@@ -681,7 +699,7 @@ describe('Auth Configuration', () => {
         baseUrl,
       });
 
-      expect(result).toBe(baseUrl);
+      expect(result).toBe(`${baseUrl}/know`);
     });
 
     it('should handle URLs with subdomains of same domain', async () => {
@@ -690,7 +708,7 @@ describe('Auth Configuration', () => {
         baseUrl,
       });
 
-      expect(result).toBe(baseUrl); // Different origin, should redirect to base
+      expect(result).toBe(`${baseUrl}/know`); // Different origin, should redirect to /know
     });
   });
 

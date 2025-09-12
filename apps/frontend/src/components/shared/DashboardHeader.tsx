@@ -67,7 +67,7 @@ export function DashboardHeader({ requireAdmin = false, requireModerator = false
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <Link 
-              href="/" 
+              href="/know" 
               className="hover:opacity-80 transition-opacity"
             >
               <SemiontBranding 

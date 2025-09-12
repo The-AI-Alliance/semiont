@@ -1,65 +1,55 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { DashboardHeader } from "@/components/shared/DashboardHeader";
+import { useRouter } from "next/navigation";
 import { FeatureCards } from "@/components/FeatureCards";
 import { StatusDisplay } from "@/components/StatusDisplay";
 import { AsyncErrorBoundary } from "@/components/ErrorBoundary";
 import { Footer } from "@/components/Footer";
-import { AuthenticatedHome } from "@/components/AuthenticatedHome";
 import { SemiontBranding } from "@/components/SemiontBranding";
 import { UserMenu } from "@/components/UserMenu";
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // Redirect authenticated users to know page
+  useEffect(() => {
+    if (session?.backendToken) {
+      router.push('/know');
+    }
+  }, [session, router]);
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Use DashboardHeader for authenticated users */}
-      {session?.backendToken && <DashboardHeader />}
-      
       {/* Header for unauthenticated users */}
-      {!session?.backendToken && status !== "loading" && (
-        <header className="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-700">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center">
-                <SemiontBranding 
-                  size="sm" 
-                  showTagline={true} 
-                  animated={false}
-                  compactTagline={true}
-                  className="py-1"
-                />
-              </div>
-              <div className="flex items-center space-x-4">
-                <UserMenu />
-              </div>
+      <header className="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <SemiontBranding 
+                size="sm" 
+                showTagline={true} 
+                animated={false}
+                compactTagline={true}
+                className="py-1"
+              />
+            </div>
+            <div className="flex items-center space-x-4">
+              <UserMenu />
             </div>
           </div>
-        </header>
-      )}
+        </div>
+      </header>
       
       <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
         <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
-          
-          {/* Show different content based on authentication status */}
           {status === "loading" ? (
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-300">Loading...</p>
             </div>
-          ) : session?.backendToken ? (
-            // Authenticated user - show document management interface
-            <AsyncErrorBoundary>
-              {session.user?.name ? (
-                <AuthenticatedHome userName={session.user.name} />
-              ) : (
-                <AuthenticatedHome />
-              )}
-            </AsyncErrorBoundary>
           ) : (
-            // Unauthenticated user - show landing page
             <div className="text-center space-y-12">
               {/* Hero Branding Section */}
               <section aria-labelledby="hero-heading" className="py-8">
@@ -76,7 +66,6 @@ export default function Home() {
               <AsyncErrorBoundary>
                 <FeatureCards />
               </AsyncErrorBoundary>
-              
             </div>
           )}
         </div>
