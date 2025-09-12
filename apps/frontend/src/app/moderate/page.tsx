@@ -211,14 +211,18 @@ export default function ModeratePage() {
 
   return (
     <div className="px-4 py-8">
-      {/* Tag Management */}
+      {/* Page Title */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Tag Management</h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tag Management</h1>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">
           Add new tags to expand the available options for document classification and reference relationships.
           Tags are append-only and cannot be deleted once created.
         </p>
+      </div>
         
+      {/* Tag Management Cards */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Manage Tags</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TagManager
             title="Document Tags"
@@ -237,31 +241,6 @@ export default function ModeratePage() {
             onTagsUpdate={setReferenceTypes}
             color="purple"
           />
-        </div>
-      </div>
-
-      {/* Future Features */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Coming Soon</h2>
-        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-          <ul className="space-y-3 text-gray-600 dark:text-gray-400">
-            <li className="flex items-start">
-              <span className="text-gray-400 dark:text-gray-500 mr-2">•</span>
-              <span>Content moderation queue for reviewing flagged items</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-gray-400 dark:text-gray-500 mr-2">•</span>
-              <span>Bulk tag operations and tag merging tools</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-gray-400 dark:text-gray-500 mr-2">•</span>
-              <span>Tag usage statistics and analytics</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-gray-400 dark:text-gray-500 mr-2">•</span>
-              <span>Automated content classification suggestions</span>
-            </li>
-          </ul>
         </div>
       </div>
     </div>

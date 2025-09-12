@@ -1,7 +1,8 @@
 import React from 'react';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
-import { AdminHeader } from '@/components/admin/AdminHeader';
+import { DashboardHeader } from '@/components/shared/DashboardHeader';
 import { AdminAuthWrapper } from '@/components/admin/AdminAuthWrapper';
+import { Footer } from '@/components/Footer';
 
 // Note: Metadata removed from layout to prevent leaking admin information
 // when pages return 404 for security. Metadata should be set in individual
@@ -14,9 +15,9 @@ export default function AdminLayout({
 }) {
   return (
     <AdminAuthWrapper>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <AdminHeader />
-        <div className="flex">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <DashboardHeader requireAdmin={true} />
+        <div className="flex flex-1">
           <AdminNavigation />
           <main className="flex-1 p-6">
             <div className="max-w-7xl mx-auto">
@@ -24,6 +25,7 @@ export default function AdminLayout({
             </div>
           </main>
         </div>
+        <Footer />
       </div>
     </AdminAuthWrapper>
   );

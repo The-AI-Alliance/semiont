@@ -139,12 +139,23 @@ export function UserMenu() {
               </div>
             </div>
             <hr className="my-3 border-gray-200 dark:border-gray-600" />
+            <Link
+              href="/"
+              onClick={close}
+              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+              role="menuitem"
+              tabIndex={0}
+              aria-label="Go to home page"
+            >
+              Home
+            </Link>
+            <hr className="my-3 border-gray-200 dark:border-gray-600" />
             {(isModerator || isAdmin) && (
               <>
                 <Link
                   href="/moderate"
                   onClick={close}
-                  className="w-full text-left text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
                   role="menuitem"
                   tabIndex={0}
                   aria-label="Access moderation dashboard"
@@ -159,7 +170,7 @@ export function UserMenu() {
                 <Link
                   href="/admin"
                   onClick={close}
-                  className="w-full text-left text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
                   role="menuitem"
                   tabIndex={0}
                   aria-label="Access admin dashboard"
@@ -173,10 +184,10 @@ export function UserMenu() {
               ref={signOutButtonRef}
               onClick={() => {
                 close();
-                signOut();
+                signOut({ callbackUrl: '/' });
               }}
               onKeyDown={handleKeyDown}
-              className="w-full text-left text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
+              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-2 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
               role="menuitem"
               tabIndex={0}
               aria-label="Sign out of your account"

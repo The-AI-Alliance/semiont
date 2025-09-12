@@ -1,9 +1,12 @@
-import { Metadata } from 'next';
+import React from 'react';
+import { DashboardHeader } from '@/components/shared/DashboardHeader';
+import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
+import { ModerationAuthWrapper } from '@/components/moderation/ModerationAuthWrapper';
+import { Footer } from '@/components/Footer';
 
-export const metadata: Metadata = {
-  title: 'Moderation Dashboard',
-  description: 'Content governance and tag management',
-};
+// Note: Metadata removed from layout to prevent leaking moderation information
+// when pages return 404 for security. Metadata should be set in individual
+// page components after authentication check.
 
 export default function ModerateLayout({
   children,
@@ -11,16 +14,19 @@ export default function ModerateLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="container mx-auto max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Moderation Dashboard
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-300">
-          Manage content tags and governance settings
-        </p>
+    <ModerationAuthWrapper>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <DashboardHeader requireModerator={true} />
+        <div className="flex flex-1">
+          <ModerationNavigation />
+          <main className="flex-1 p-6">
+            <div className="max-w-7xl mx-auto">
+              {children}
+            </div>
+          </main>
+        </div>
+        <Footer />
       </div>
-      {children}
-    </div>
+    </ModerationAuthWrapper>
   );
 }
