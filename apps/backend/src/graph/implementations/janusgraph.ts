@@ -606,6 +606,81 @@ export class JanusGraphDatabase implements GraphDatabase {
     return [];
   }
   
+  // Tag Collections - stored as special vertices in the graph
+  private entityTypesCollection: Set<string> | null = null;
+  private referenceTypesCollection: Set<string> | null = null;
+  
+  async getEntityTypes(): Promise<string[]> {
+    // Initialize if not already loaded
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    return Array.from(this.entityTypesCollection!).sort();
+  }
+  
+  async getReferenceTypes(): Promise<string[]> {
+    // Initialize if not already loaded
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    return Array.from(this.referenceTypesCollection!).sort();
+  }
+  
+  async addEntityType(tag: string): Promise<void> {
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    this.entityTypesCollection!.add(tag);
+    // In production: persist to JanusGraph
+    // await this.client.submit(`g.V().has('tagCollection', 'type', 'entity-types')
+    //   .property(set, 'tags', '${tag}')`, {});
+  }
+  
+  async addReferenceType(tag: string): Promise<void> {
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    this.referenceTypesCollection!.add(tag);
+    // In production: persist to JanusGraph
+    // await this.client.submit(`g.V().has('tagCollection', 'type', 'reference-types')
+    //   .property(set, 'tags', '${tag}')`, {});
+  }
+  
+  async addEntityTypes(tags: string[]): Promise<void> {
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    tags.forEach(tag => this.entityTypesCollection!.add(tag));
+    // In production: persist to JanusGraph
+  }
+  
+  async addReferenceTypes(tags: string[]): Promise<void> {
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
+    // In production: persist to JanusGraph
+  }
+  
+  private async initializeTagCollections(): Promise<void> {
+    // In production: check JanusGraph for existing collections
+    // const result = await this.client.submit(
+    //   `g.V().has('tagCollection', 'type', within('entity-types', 'reference-types'))
+    //    .project('type', 'tags').by('type').by('tags')`, {}
+    // );
+    
+    // For now, initialize with defaults if not present
+    if (this.entityTypesCollection === null) {
+      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
+      this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
+    }
+    
+    if (this.referenceTypesCollection === null) {
+      const { DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+      this.referenceTypesCollection = new Set(DEFAULT_REFERENCE_TYPES);
+    }
+  }
+  
   generateId(prefix: string = 'doc'): string {
     return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
   }
@@ -615,5 +690,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // await this.client.submit(`g.V().drop()`);
     this.documents.clear();
     this.selections.clear();
+    this.entityTypesCollection = null;
+    this.referenceTypesCollection = null;
   }
 }
