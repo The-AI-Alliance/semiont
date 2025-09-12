@@ -91,7 +91,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     // Server-side calculated fields (never trust client for these)
     const contentChecksum = calculateChecksum(body.content);
     const createdBy = user.id;  // Always from authenticated user
-    const createdAt = new Date();  // Always server timestamp
+    // Note: createdAt is set by the graph database layer
     
     // Validate provenance fields
     const creationMethod = body.creationMethod || 'api';
@@ -101,8 +101,8 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
       }, 400);
     }
     
-    // Create document in graph database with provenance tracking
-    const document = await graphDb.createDocument({
+    // Build create document input
+    const createInput: any = {
       name: body.name,
       entityTypes: body.entityTypes || [],
       content: body.content,
@@ -110,9 +110,18 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
       metadata: body.metadata || {},
       createdBy: createdBy,  // Server-controlled
       creationMethod: creationMethod,  // Validated and defaulted
-      sourceSelectionId: body.sourceSelectionId,  // Optional context from client
-      sourceDocumentId: body.sourceDocumentId,  // Required for 'reference' method
-    });
+    };
+    
+    // Add optional fields only if provided
+    if (body.sourceSelectionId) {
+      createInput.sourceSelectionId = body.sourceSelectionId;
+    }
+    if (body.sourceDocumentId) {
+      createInput.sourceDocumentId = body.sourceDocumentId;
+    }
+    
+    // Create document in graph database with provenance tracking
+    const document = await graphDb.createDocument(createInput);
 
     // Save content to filesystem
     const storageUrl = await storage.saveDocument(document.id, body.content);

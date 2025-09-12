@@ -167,6 +167,7 @@ export interface CreateDocumentInput {
   sourceDocumentId?: string;  // For reference-created documents
   // Note: contentChecksum is calculated by backend
   // Note: createdAt is set by backend
+}
 
 export interface UpdateDocumentInput {
   name?: string;
