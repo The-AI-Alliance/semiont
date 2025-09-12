@@ -4,18 +4,32 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
+  ClockIcon,
   TagIcon,
+  LinkIcon,
   FlagIcon,
   ChartBarIcon
 } from '@heroicons/react/24/outline';
 
 const navigation = [
   {
-    name: 'Tag Management',
-    href: '/moderate',
-    icon: TagIcon,
-    description: 'Manage document tags and reference types'
+    name: 'Recent Documents',
+    href: '/moderate/recent',
+    icon: ClockIcon,
+    description: 'View recently submitted and modified documents'
   },
+  {
+    name: 'Entity Tags',
+    href: '/moderate/entity-tags',
+    icon: TagIcon,
+    description: 'Manage document classification tags'
+  },
+  {
+    name: 'Reference Tags',
+    href: '/moderate/reference-tags',
+    icon: LinkIcon,
+    description: 'Manage document relationship types'
+  }
   // Future navigation items can be added here
   // {
   //   name: 'Content Review',
@@ -28,7 +42,7 @@ const navigation = [
   //   href: '/moderate/analytics',
   //   icon: ChartBarIcon,
   //   description: 'Tag usage and content statistics'
-  // },
+  // }
 ];
 
 export function ModerationNavigation() {
