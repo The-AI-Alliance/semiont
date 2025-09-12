@@ -216,7 +216,8 @@ export function AnnotatedMarkdownRenderer({
     return () => clearTimeout(timer);
   }, [highlights, references, onHighlightClick, onReferenceClick, onAnnotationRightClick, content]);
 
-  const handleTextSelection = () => {
+  // Only handle right-click for selections, don't interfere with normal selection
+  const handleContextMenu = (e: React.MouseEvent) => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !containerRef.current) return;
 
@@ -237,22 +238,10 @@ export function AnnotatedMarkdownRenderer({
     const end = start + selectedText.length;
 
     if (onTextSelect) {
+      e.preventDefault(); // Prevent default context menu
       onTextSelect(selectedText, { start, end });
     }
   };
-
-  React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    container.addEventListener('mouseup', handleTextSelection);
-    container.addEventListener('touchend', handleTextSelection);
-
-    return () => {
-      container.removeEventListener('mouseup', handleTextSelection);
-      container.removeEventListener('touchend', handleTextSelection);
-    };
-  }, [onTextSelect]);
 
   // Define markdown components
   const markdownComponents = {
@@ -352,6 +341,7 @@ export function AnnotatedMarkdownRenderer({
       ref={containerRef}
       data-markdown-container
       className="prose prose-lg dark:prose-invert max-w-none selection:bg-blue-200 dark:selection:bg-blue-800"
+      onContextMenu={handleContextMenu}
     >
       <ReactMarkdown
         remarkPlugins={[

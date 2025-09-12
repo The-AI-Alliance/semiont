@@ -37,6 +37,19 @@ Document references create explicit links between documents in the system.
 }
 ```
 
+### Document Provenance
+When documents are created from references, provenance information is tracked:
+```typescript
+{
+  creationMethod: 'reference',  // How the document was created
+  sourceDocumentId: 'doc-uuid-456',  // Original document containing the reference
+  sourceSelectionId: 'sel-uuid-789',  // The selection that triggered creation
+  contentChecksum: 'sha256-hash',  // Content integrity hash (backend-calculated)
+  createdAt: '2024-01-15T10:30:00Z',  // Timestamp (backend-set)
+  createdBy: 'user-uuid'  // User ID (backend-derived from auth)
+}
+```
+
 ## Entity References
 
 Entity references mark text as representing a specific type of entity for semantic annotation.
@@ -118,22 +131,47 @@ The UI provides clear visual differences between reference types:
 
 ## Creating References
 
+### Text Selection Workflow
+Semiont preserves the standard browser text selection behavior, allowing normal copy/paste operations while providing easy access to annotation features:
+
+1. **Select text normally** - Click and drag to select text as you would in any application
+2. **Copy/paste preserved** - Use `Ctrl+C`/`Cmd+C` to copy selected text without interference
+3. **Access "Create Selection" popup**:
+   - **Right-click** on selected text for immediate access
+   - **Hover for 2 seconds** over selected text to auto-show the popup
+   - Visual feedback: cursor changes to help icon and tooltip appears when hovering
+
 ### Via Selection Popup
-1. Select text in a document
-2. Choose reference type from popup tabs
-3. For document references: search and select target document
-4. For entity references: choose entity type
-5. Confirm creation
+Once the "Create Selection" popup appears:
+
+1. **Choose annotation type** from three tabs:
+   - **Highlight**: Simple yellow highlighting for important text
+   - **Reference Document**: Link to another document
+   - **Entity Reference**: Mark as semantic entity
+
+2. **For Document References**:
+   - Select reference type (citation, definition, elaboration, example, related)
+   - Search for existing documents by name
+   - Select from search results, or
+   - Create a new document with the selected text as context
+
+3. **For Entity References**:
+   - Choose from predefined entity types (Person, Organization, Location, etc.)
+   - Or select "Other" to enter a custom entity type
+   - Click "Create Entity Reference" to apply
 
 ### Via Keyboard Shortcuts
-- `Ctrl+H` / `Cmd+H`: Create highlight quickly
-- Right-click: Access context menu for existing annotations
+- `Ctrl+H` / `Cmd+H`: Create highlight quickly without popup
+- `Esc`: Cancel text selection and close any open popups
 
 ### Via Context Menu
-- Right-click existing annotations
-- Convert between types
-- Delete annotations
-- Navigate to referenced documents
+For existing annotations (highlights, references):
+- Right-click on the annotation to open context menu
+- Available actions:
+  - **Navigate** to referenced document (for document references)
+  - **Convert** highlight to reference
+  - **Delete** the annotation
+  - **Copy** referenced text
 
 ## API Endpoints
 
@@ -168,10 +206,39 @@ The UI provides clear visual differences between reference types:
    - Enabling document filtering
    - Providing document overviews
 
+## Recent Improvements
+
+### Selection Workflow (Latest)
+- Non-intrusive text selection that preserves copy/paste functionality
+- Right-click and long-hover triggers for selection popup
+- Visual feedback with cursor changes and tooltips
+- Improved user experience for creating annotations
+
+### Document Provenance Tracking
+- Automatic tracking of document creation source and method
+- Content integrity verification with SHA-256 checksums
+- Backend-controlled security fields (timestamps, user ID, checksums)
+- Full audit trail for document lineage
+
 ## Future Enhancements
 
+### Entity Management
 - Entity reference resolution to entity database
-- Automatic entity recognition
-- Entity relationship mapping
+- Automatic entity recognition using NLP
+- Entity relationship mapping and visualization
 - Cross-document entity analytics
 - Entity-based search and discovery
+
+### Reference Features
+- Bidirectional reference tracking
+- Reference strength/confidence scoring
+- Bulk reference management tools
+- Reference validation and broken link detection
+- Reference usage analytics
+
+### User Experience
+- Keyboard navigation between references
+- Reference preview on hover
+- Batch operations for multiple selections
+- Customizable reference colors and styles
+- Reference templates for common patterns
