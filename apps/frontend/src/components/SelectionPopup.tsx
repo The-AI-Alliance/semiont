@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
+import { buttonStyles } from '@/lib/button-styles';
 
 interface SelectionPopupProps {
   selectedText: string;
@@ -133,7 +134,7 @@ export function SelectionPopup({
           {/* Create Highlight button */}
           <button
             onClick={onCreateHighlight}
-            className="mt-3 w-full py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:focus:ring-offset-gray-800 transition-colors"
+            className="mt-3 w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50 border border-yellow-400/30 dark:border-yellow-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
           >
             Create Highlight
           </button>
@@ -179,7 +180,7 @@ export function SelectionPopup({
               <button
                 onClick={handleSearch}
                 disabled={isSearching || !searchQuery.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-offset-gray-800 disabled:opacity-50 transition-colors"
+                className={buttonStyles.secondary.base}
               >
                 {isSearching ? '...' : 'Search'}
               </button>
@@ -248,8 +249,8 @@ export function SelectionPopup({
                       }}
                       className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                         entityType === type
-                          ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
-                          : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          ? 'border-purple-500 bg-purple-200 text-purple-900 dark:bg-purple-900/50 dark:text-purple-300'
+                          : buttonStyles.tertiary.base + ' border border-gray-300 dark:border-gray-600'
                       }`}
                     >
                       {type}
@@ -275,7 +276,7 @@ export function SelectionPopup({
           <button
             onClick={handleCreateReference}
             disabled={!selectedDoc && (!showEntityTypes || !entityType || (entityType === 'Other' && !customEntityType))}
-            className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`w-full py-2 ${buttonStyles.primary.base}`}
           >
             Create Reference
           </button>
