@@ -71,13 +71,19 @@ export function SelectionPopup({
 
   const handleCreateNewDocument = async () => {
     try {
-      const response = await apiService.documents.create({
+      const createData: Parameters<typeof apiService.documents.create>[0] = {
         name: searchQuery || selectedText.substring(0, 50),
         content: `# ${searchQuery || selectedText.substring(0, 50)}\n\nThis document was created from a reference to:\n\n> ${selectedText}`,
         contentType: 'text/markdown',
-        creationMethod: 'reference',
-        sourceDocumentId: sourceDocumentId
-      });
+        creationMethod: 'reference'
+      };
+      
+      // Only add sourceDocumentId if it's defined
+      if (sourceDocumentId) {
+        createData.sourceDocumentId = sourceDocumentId;
+      }
+      
+      const response = await apiService.documents.create(createData);
       
       // Create reference to the new document
       onCreateReference(response.document.id, undefined, referenceType);
