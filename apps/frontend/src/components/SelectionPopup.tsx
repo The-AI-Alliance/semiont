@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
@@ -11,6 +11,16 @@ interface SelectionPopupProps {
   onCreateHighlight: () => void;
   onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
   onClose: () => void;
+  isEditMode?: boolean;
+  existingAnnotation?: {
+    id: string;
+    type: 'highlight' | 'reference';
+    referencedDocumentId?: string;
+    referenceType?: string;
+    entityType?: string;
+  };
+  onUpdate?: (annotationId: string, updates: any) => void;
+  onDelete?: (annotationId: string) => void;
 }
 
 export function SelectionPopup({
@@ -18,14 +28,18 @@ export function SelectionPopup({
   sourceDocumentId,
   onCreateHighlight,
   onCreateReference,
-  onClose
+  onClose,
+  isEditMode = false,
+  existingAnnotation,
+  onUpdate,
+  onDelete
 }: SelectionPopupProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Document[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
-  const [referenceType, setReferenceType] = useState('mentions');
-  const [entityType, setEntityType] = useState('');
+  const [referenceType, setReferenceType] = useState(existingAnnotation?.referenceType || 'mentions');
+  const [entityType, setEntityType] = useState(existingAnnotation?.entityType || '');
   const [customEntityType, setCustomEntityType] = useState('');
   const [showEntityTypes, setShowEntityTypes] = useState(false);
 
@@ -96,6 +110,18 @@ export function SelectionPopup({
     }
   };
 
+  // Handle Escape key to close the popup
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   // Prevent clicks inside the popup from closing it
   const handlePopupClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -113,7 +139,7 @@ export function SelectionPopup({
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Create Selection
+              {isEditMode ? 'Edit Selection' : 'Create Selection'}
             </h3>
             <button
               onClick={onClose}
@@ -131,13 +157,25 @@ export function SelectionPopup({
             </p>
           </div>
           
-          {/* Create Highlight button */}
-          <button
-            onClick={onCreateHighlight}
-            className="mt-3 w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50 border border-yellow-400/30 dark:border-yellow-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
-          >
-            Create Highlight
-          </button>
+          {/* Create/Convert to Highlight button */}
+          {(!isEditMode || existingAnnotation?.type === 'reference') && (
+            <button
+              onClick={onCreateHighlight}
+              className="mt-3 w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50 border border-yellow-400/30 dark:border-yellow-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
+            >
+              {isEditMode ? 'Convert to Highlight' : 'Create Highlight'}
+            </button>
+          )}
+          
+          {/* Delete button for edit mode */}
+          {isEditMode && onDelete && (
+            <button
+              onClick={() => onDelete(existingAnnotation!.id)}
+              className="mt-3 w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 rounded-lg transition-all duration-300"
+            >
+              Delete {existingAnnotation?.type === 'highlight' ? 'Highlight' : 'Reference'}
+            </button>
+          )}
         </div>
 
         <div className="p-4 space-y-4">
@@ -272,14 +310,16 @@ export function SelectionPopup({
             </div>
           )}
 
-          {/* Create Reference Button */}
-          <button
-            onClick={handleCreateReference}
-            disabled={!selectedDoc && (!showEntityTypes || !entityType || (entityType === 'Other' && !customEntityType))}
-            className={`w-full py-2 ${buttonStyles.primary.base}`}
-          >
-            Create Reference
-          </button>
+          {/* Create/Update Reference Button */}
+          {(!isEditMode || existingAnnotation?.type === 'highlight' || existingAnnotation?.type === 'reference') && (
+            <button
+              onClick={handleCreateReference}
+              disabled={!selectedDoc && (!showEntityTypes || !entityType || (entityType === 'Other' && !customEntityType))}
+              className={`w-full py-2 ${buttonStyles.primary.base}`}
+            >
+              {isEditMode ? (existingAnnotation?.type === 'highlight' ? 'Convert to Reference' : 'Update Reference') : 'Create Reference'}
+            </button>
+          )}
         </div>
       </div>
     </div>
