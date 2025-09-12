@@ -10,6 +10,7 @@ declare module 'next-auth' {
       image?: string | undefined;
       domain: string;
       isAdmin: boolean;
+      isModerator: boolean;
       termsAcceptedAt?: string | null;
     };
     isNewUser?: boolean;
@@ -24,6 +25,7 @@ declare module 'next-auth' {
       image?: string | undefined;
       domain: string;
       isAdmin: boolean;
+      isModerator: boolean;
       termsAcceptedAt?: string | null;
     };
   }
@@ -39,6 +41,7 @@ declare module 'next-auth/jwt' {
       image?: string | undefined;
       domain: string;
       isAdmin: boolean;
+      isModerator: boolean;
       termsAcceptedAt?: string | null;
     };
     isNewUser?: boolean;

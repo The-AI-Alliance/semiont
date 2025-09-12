@@ -77,6 +77,7 @@ export const OAuthUserSchema = z.object({
   image: ImageURLSchema.nullable().transform(val => val || undefined),
   domain: z.string().min(1),
   isAdmin: z.boolean(),
+  isModerator: z.boolean(),
 });
 
 // Sanitization utilities

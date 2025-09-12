@@ -32,6 +32,7 @@ export function useAuth() {
       displayName: session?.user?.name || session?.user?.email?.split('@')[0] || 'User',
       avatarUrl: session?.user?.image,
       isAdmin: session?.backendUser?.isAdmin || false,
+      isModerator: session?.backendUser?.isModerator || false,
       
       // Combined auth status
       isFullyAuthenticated: isAuthenticated && hasValidBackendToken,
