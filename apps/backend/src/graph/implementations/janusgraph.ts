@@ -120,8 +120,15 @@ export class JanusGraphDatabase implements GraphDatabase {
       updatedAt: now,
     };
     
+    // Audit fields
     if (input.createdBy) document.createdBy = input.createdBy;
     if (input.createdBy) document.updatedBy = input.createdBy;
+    
+    // Provenance tracking fields
+    if (input.creationMethod) document.creationMethod = input.creationMethod;
+    if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+    if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
+    // Note: contentChecksum should be in metadata, set by the routes layer
     
     // In production: Use Gremlin to create vertex with JanusGraph transaction
     // await this.client.submit(`

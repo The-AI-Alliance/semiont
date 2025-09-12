@@ -68,10 +68,18 @@ interface Document {
   name: string;
   content: string;
   contentType: string;
+  entityTypes?: string[];
   createdAt: string;
   updatedAt: string;
   highlights?: Selection[];
   references?: Selection[];
+  
+  // Provenance tracking
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
+  contentChecksum?: string;
+  sourceSelectionId?: string;
+  sourceDocumentId?: string;
+  createdBy?: string;
 }
 
 interface Selection {
@@ -150,9 +158,11 @@ interface RequestOptions {
 const validateApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl || apiUrl === 'undefined') {
-    // During build time, return a placeholder URL
-    if (typeof window === 'undefined') {
-      console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
+    // During build time or testing, return a placeholder URL
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
+      }
       return 'http://localhost:4000';
     }
     throw new Error('NEXT_PUBLIC_API_URL environment variable is not set. This should be configured during Docker build.');
@@ -220,6 +230,17 @@ export class TypedAPIClient {
         errorData = { error: errorText };
       }
       throw new APIError(response.status, errorData);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return { success: true };
+    }
+
+    // Handle empty responses
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0') {
+      return { success: true };
     }
 
     return response.json();
@@ -293,7 +314,7 @@ export class LazyTypedAPIClient {
 export const apiClient = new Proxy({} as TypedAPIClient, {
   get(target, prop: string | symbol) {
     const instance = LazyTypedAPIClient.getInstance();
-    return (instance as any)[prop];
+    return instance[prop as keyof TypedAPIClient];
   },
 });
 
@@ -320,14 +341,22 @@ export const apiService = {
 
   // Document endpoints
   documents: {
-    create: (data: { name: string; content: string; contentType?: string }): Promise<DocumentResponse> =>
+    create: (data: { 
+      name: string; 
+      content: string; 
+      contentType?: string;
+      // Only context fields - backend calculates checksum, sets createdBy/createdAt
+      creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
+      sourceSelectionId?: string;  // For reference-created documents
+      sourceDocumentId?: string;  // For reference-created documents
+    }): Promise<DocumentResponse> =>
       apiClient.post('/api/documents', { body: data }),
     
     get: (id: string): Promise<DocumentResponse> =>
       apiClient.get('/api/documents/:id', { params: { id } }),
     
-    update: (id: string, data: { name?: string; content?: string; contentType?: string }): Promise<DocumentResponse> =>
-      apiClient.patch('/api/documents/:id', { params: { id }, body: data }),
+    update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any }): Promise<DocumentResponse> =>
+      apiClient.put('/api/documents/:id', { params: { id }, body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>
       apiClient.delete('/api/documents/:id', { params: { id } }),
@@ -454,6 +483,18 @@ export const apiService = {
       apiClient.get('/api/documents/:id/references', { params: { id: documentId } }),
   },
 
+  // Entity types endpoint
+  entityTypes: {
+    list: (): Promise<{ entityTypes: string[] }> =>
+      apiClient.get('/api/entity-types'),
+  },
+
+  // Reference types endpoint
+  referenceTypes: {
+    list: (): Promise<{ referenceTypes: string[] }> =>
+      apiClient.get('/api/reference-types'),
+  },
+
   // Admin endpoints
   admin: {
     users: {
@@ -520,7 +561,7 @@ export const api = {
   admin: {
     users: {
       list: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.users.list'],
             queryFn: () => apiService.admin.users.list(),
@@ -529,7 +570,7 @@ export const api = {
         }
       },
       stats: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.users.stats'],
             queryFn: () => apiService.admin.users.stats(),
@@ -557,13 +598,37 @@ export const api = {
     
     oauth: {
       config: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.oauth.config'],
             queryFn: () => apiService.admin.oauth.config(),
             ...options,
           });
         }
+      }
+    }
+  },
+
+  entityTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => {
+        return useQuery({
+          queryKey: ['entityTypes.list'],
+          queryFn: () => apiService.entityTypes.list(),
+          ...options,
+        });
+      }
+    }
+  },
+
+  referenceTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => {
+        return useQuery({
+          queryKey: ['referenceTypes.list'],
+          queryFn: () => apiService.referenceTypes.list(),
+          ...options,
+        });
       }
     }
   }

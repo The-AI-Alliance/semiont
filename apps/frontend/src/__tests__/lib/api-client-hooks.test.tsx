@@ -2,13 +2,13 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { api, LazyTypedAPIClient } from '@/lib/api-client';
+import { api, LazyTypedAPIClient, TypedAPIClient } from '@/lib/api-client';
 
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
 
-// Use environment variable for backend URL
-const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Use environment variable for backend URL - matching what api-client uses in test mode
+const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 
 // Mock fetch globally - need to restore original fetch for MSW bypass
@@ -21,6 +21,9 @@ beforeEach(() => {
   global.fetch = mockFetch;
   // Reset the lazy API client for test isolation
   LazyTypedAPIClient.reset();
+  // Set up a test instance with the correct URL
+  const testClient = new TypedAPIClient(getBackendUrl());
+  LazyTypedAPIClient.setInstance(testClient);
 });
 
 afterEach(() => {
@@ -121,10 +124,7 @@ describe('React Query API hooks', () => {
 
   describe('auth.me query', () => {
     it('should fetch current user', async () => {
-      const mockResponse = {
-        ok: true,
-        json: vi.fn().mockResolvedValue({ user: { id: '1', email: 'test@example.com' } })
-      };
+      const mockResponse = createMockResponse({ user: { id: '1', email: 'test@example.com' } });
       mockFetch.mockResolvedValue(mockResponse as any);
 
       const { result } = renderHook(
@@ -184,10 +184,7 @@ describe('React Query API hooks', () => {
 
   describe('health query', () => {
     it('should fetch health status', async () => {
-      const mockResponse = {
-        ok: true,
-        json: vi.fn().mockResolvedValue({ status: 'healthy', timestamp: '2024-01-01' })
-      };
+      const mockResponse = createMockResponse({ status: 'healthy', timestamp: '2024-01-01' });
       mockFetch.mockResolvedValue(mockResponse as any);
 
       const { result } = renderHook(

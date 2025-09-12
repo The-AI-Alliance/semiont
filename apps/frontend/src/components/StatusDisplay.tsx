@@ -32,7 +32,7 @@ export function StatusDisplay() {
     
     if (status.error) {
       // Check if this is an auth error that might be fixed by re-login
-      const errorMessage = (status.error as any)?.message || '';
+      const errorMessage = status.error instanceof Error ? status.error.message : String(status.error);
       if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
         return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again';
       }

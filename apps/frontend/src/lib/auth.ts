@@ -4,7 +4,7 @@ import { JWTTokenSchema, OAuthUserSchema, validateData } from '@/lib/validation'
 import type { NextAuthOptions } from 'next-auth';
 
 // Build providers array based on environment
-const providers: any[] = [];
+const providers: NextAuthOptions['providers'] = [];
 
 // Add Google provider if credentials are configured
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -165,7 +165,15 @@ export const authOptions: NextAuthOptions = {
           user.backendToken = tokenValidation.data;
           user.backendUser = userValidation.data;
           // Store isNewUser in a way TypeScript accepts
-          (user as any).__isNewUser = data.isNewUser;
+          if ('__isNewUser' in user) {
+            user.__isNewUser = data.isNewUser;
+          } else {
+            Object.defineProperty(user, '__isNewUser', {
+              value: data.isNewUser,
+              writable: true,
+              configurable: true
+            });
+          }
           
           return true;
         } catch (error) {
@@ -185,7 +193,9 @@ export const authOptions: NextAuthOptions = {
         if (validation.success && user.backendUser) {
           token.backendToken = validation.data;
           token.backendUser = user.backendUser;
-          token.isNewUser = (user as any).__isNewUser;
+          if ('__isNewUser' in user && typeof user.__isNewUser === 'boolean') {
+            token.isNewUser = user.__isNewUser;
+          }
         } else {
           console.error('Invalid token in JWT callback:', validation.success ? 'No backend user' : validation.error);
         }
