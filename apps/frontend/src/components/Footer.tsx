@@ -9,7 +9,7 @@ export function Footer() {
 
   return (
     <>
-      <footer className="bg-gray-50 border-t border-gray-200 mt-auto">
+      <footer className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto font-sans">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
             <div className="text-sm text-gray-500">
@@ -17,6 +17,12 @@ export function Footer() {
             </div>
             
             <div className="flex space-x-6 text-sm">
+              <Link 
+                href="/about" 
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                About
+              </Link>
               <Link 
                 href="/privacy" 
                 className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -42,6 +48,14 @@ export function Footer() {
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 API Docs
+              </a>
+              <a 
+                href="https://github.com/The-AI-Alliance/semiont"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Source Code
               </a>
             </div>
           </div>

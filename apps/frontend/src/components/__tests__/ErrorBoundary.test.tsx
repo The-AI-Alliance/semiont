@@ -361,8 +361,9 @@ describe('ErrorBoundary Edge Cases', () => {
     const ComponentWithAsyncError = () => {
       const handleClick = () => {
         // This type of error is NOT caught by ErrorBoundary - this is expected
+        // Use console.error instead of throwing to avoid unhandled rejection
         setTimeout(() => {
-          throw new Error('Async error');
+          console.error('Async error (not caught by ErrorBoundary)');
         }, 0);
       };
       

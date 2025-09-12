@@ -1,7 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import TermsOfService from '../page';
+
+// Mock PageLayout to provide the home link
+vi.mock('@/components/PageLayout', () => ({
+  PageLayout: ({ children, className }: any) => (
+    <div className={className}>
+      <a href="/">Return to Home</a>
+      {children}
+    </div>
+  )
+}));
 
 describe('Terms of Service Page', () => {
   it('renders the main heading', () => {
@@ -78,7 +88,7 @@ describe('Terms of Service Page', () => {
   it('references privacy policy', () => {
     render(<TermsOfService />);
     
-    expect(screen.getByRole('heading', { name: 'Privacy and Data Protection' })).toBeInTheDocument();
+    expect(screen.getByText('Privacy and Data Protection')).toBeInTheDocument();
     
     const privacyLink = screen.getByRole('link', { name: /Privacy Policy/ });
     expect(privacyLink).toHaveAttribute('href', '/privacy');

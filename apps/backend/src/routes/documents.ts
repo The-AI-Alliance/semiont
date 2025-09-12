@@ -16,6 +16,7 @@ import {
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection } from '../graph/types';
+import { calculateChecksum } from '../utils/checksum';
 
 // Create documents router
 export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -87,23 +88,52 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    // Create document in graph database
-    const document = await graphDb.createDocument({
+    // Server-side calculated fields (never trust client for these)
+    const contentChecksum = calculateChecksum(body.content);
+    const createdBy = user.id;  // Always from authenticated user
+    // Note: createdAt is set by the graph database layer
+    
+    // Validate provenance fields
+    const creationMethod = body.creationMethod || 'api';
+    if (creationMethod === 'reference' && !body.sourceDocumentId) {
+      return c.json({ 
+        error: 'sourceDocumentId is required when creationMethod is "reference"' 
+      }, 400);
+    }
+    
+    // Build create document input
+    const createInput: any = {
       name: body.name,
       entityTypes: body.entityTypes || [],
       content: body.content,
       contentType: body.contentType || 'text/plain',
       metadata: body.metadata || {},
-      createdBy: user.id,
-    });
+      createdBy: createdBy,  // Server-controlled
+      creationMethod: creationMethod,  // Validated and defaulted
+    };
+    
+    // Add optional fields only if provided
+    if (body.sourceSelectionId) {
+      createInput.sourceSelectionId = body.sourceSelectionId;
+    }
+    if (body.sourceDocumentId) {
+      createInput.sourceDocumentId = body.sourceDocumentId;
+    }
+    
+    // Create document in graph database with provenance tracking
+    const document = await graphDb.createDocument(createInput);
 
     // Save content to filesystem
     const storageUrl = await storage.saveDocument(document.id, body.content);
     
-    // Update document with storage URL
+    // Update document with storage URL and server-calculated checksum
     const updatedDocument = await graphDb.updateDocument(document.id, {
-      metadata: { ...document.metadata, storageUrl },
-      updatedBy: user.id,
+      metadata: { 
+        ...document.metadata, 
+        storageUrl, 
+        contentChecksum  // Always stored in metadata for integrity verification
+      },
+      updatedBy: createdBy,
     });
 
     // Create initial selections if provided
@@ -132,7 +162,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     }
 
     return c.json({
-      document: formatDocument(updatedDocument),
+      document: formatDocument(updatedDocument, body.content),
       selections: selections.map(formatSelection),
     }, 201);
   } catch (error) {
@@ -197,10 +227,21 @@ documentsRouter.openapi(getDocumentRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   const document = await graphDb.getDocument(id);
 
   if (!document) {
     return c.json({ error: 'Document not found' }, 404);
+  }
+
+  // Get document content from filesystem
+  let content = '';
+  try {
+    const contentBuffer = await storage.getDocument(id);
+    content = contentBuffer.toString('utf-8');
+  } catch (error) {
+    console.error(`Failed to load content for document ${id}:`, error);
+    // Continue without content rather than failing the entire request
   }
 
   const selections = await graphDb.getDocumentSelections(id);
@@ -210,7 +251,7 @@ documentsRouter.openapi(getDocumentRoute, async (c) => {
   // const referencedBy = await graphDb.getDocumentReferencedBy(id);
 
   return c.json({
-    document: formatDocument(document),
+    document: formatDocument(document, content),
     selections: selections.map(formatSelection),
     highlights: highlights.map(formatSelection),
     references: references.map(formatSelection),
@@ -283,7 +324,7 @@ documentsRouter.openapi(listDocumentsRoute, async (c) => {
   const result = await graphDb.listDocuments(filter);
 
   return c.json({
-    documents: result.documents.map(formatDocument),
+    documents: result.documents.map(doc => formatDocument(doc)),
     total: result.total,
     offset: offset,
     limit: limit,
@@ -916,14 +957,22 @@ documentsRouter.openapi(discoverContextRoute, async (c) => {
 // HELPER FUNCTIONS
 // ==========================================
 
-function formatDocument(doc: Document): any {
+function formatDocument(doc: Document, content?: string): any {
   return {
     id: doc.id,
     name: doc.name,
     entityTypes: doc.entityTypes,
+    content: content || '',
     contentType: doc.contentType,
     metadata: doc.metadata,
     storageUrl: doc.storageUrl,
+    
+    // Provenance tracking
+    creationMethod: doc.creationMethod,
+    contentChecksum: doc.contentChecksum || doc.metadata?.contentChecksum,
+    sourceSelectionId: doc.sourceSelectionId,
+    sourceDocumentId: doc.sourceDocumentId,
+    
     createdBy: doc.createdBy,
     updatedBy: doc.updatedBy,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,

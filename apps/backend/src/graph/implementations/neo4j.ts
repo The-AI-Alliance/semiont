@@ -83,8 +83,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       updatedAt: now,
     };
     
+    // Audit fields
     if (input.createdBy) document.createdBy = input.createdBy;
     if (input.createdBy) document.updatedBy = input.createdBy;
+    
+    // Provenance tracking fields
+    if (input.creationMethod) document.creationMethod = input.creationMethod;
+    if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+    if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
+    // Note: contentChecksum should be in metadata, set by the routes layer
     
     // In production: Use Cypher to create node
     // const session = this.driver.session();
@@ -211,7 +218,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
   
   async createSelection(input: CreateSelectionInput): Promise<Selection> {
-    const id = this.generateId();
+    const id = this.generateId('sel');
     const now = new Date();
     
     const selection: Selection = {
@@ -586,8 +593,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return [];
   }
   
-  generateId(): string {
-    return `doc_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+  generateId(prefix: string = 'doc'): string {
+    return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
   }
   
   async clearDatabase(): Promise<void> {

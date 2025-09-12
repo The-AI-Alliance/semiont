@@ -15,39 +15,48 @@ interface GraphServiceConfig {
   [key: string]: any;
 }
 
+interface FilesystemServiceConfig {
+  path: string;  // Required field
+  [key: string]: any;
+}
+
 interface EnvironmentConfig {
   services?: {
     graph?: GraphServiceConfig;
+    filesystem?: FilesystemServiceConfig;
     [key: string]: any;
   };
   [key: string]: any;
 }
 
 /**
+ * Get the project root directory
+ * Project root is either SEMIONT_ROOT or cwd
+ * Always returns an absolute path
+ */
+export function getProjectRoot(): string {
+  const root = process.env.SEMIONT_ROOT || process.cwd();
+  return path.resolve(root);
+}
+
+/**
  * Load environment configuration from JSON file
+ * Environment files are at <project_root>/environments/<environment>.json
  */
 export function loadEnvironmentConfig(): EnvironmentConfig | null {
   try {
     // Get environment name from SEMIONT_ENV or NODE_ENV
     const envName = process.env.SEMIONT_ENV || process.env.NODE_ENV || 'local';
     
-    // Try to find the environment file
-    const possiblePaths = [
-      // In production, might be in /app
-      path.join('/app', 'templates', 'environments', `${envName}.json`),
-      // In development, look for CLI templates
-      path.join(process.cwd(), '..', 'cli', 'templates', 'environments', `${envName}.json`),
-      // Alternative development path
-      path.join(process.cwd(), '..', '..', 'apps', 'cli', 'templates', 'environments', `${envName}.json`),
-      // Check project root
-      path.join(process.cwd(), 'environments', `${envName}.json`),
-    ];
+    // Project root is either SEMIONT_ROOT or cwd
+    const projectRoot = getProjectRoot();
     
-    for (const envPath of possiblePaths) {
-      if (fs.existsSync(envPath)) {
-        const content = fs.readFileSync(envPath, 'utf-8');
-        return JSON.parse(content);
-      }
+    // Environment file is deterministically at <project_root>/environments/<environment>.json
+    const envPath = path.join(projectRoot, 'environments', `${envName}.json`);
+    
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8');
+      return JSON.parse(content);
     }
     
     // No environment file found
@@ -134,4 +143,37 @@ export function getGraphConfig(): {
   return {
     type: 'memory'
   };
+}
+
+/**
+ * Get filesystem service configuration from environment
+ */
+export function getFilesystemConfig(): {
+  path: string;
+} {
+  // Load from environment JSON
+  const envConfig = loadEnvironmentConfig();
+  
+  if (envConfig?.services?.filesystem) {
+    const filesystemService = envConfig.services.filesystem;
+    
+    if (!filesystemService.path) {
+      throw new Error('Filesystem service configuration must specify a "path" field');
+    }
+    
+    let resolvedPath = filesystemService.path;
+    
+    // If path is relative, prepend project root
+    if (!path.isAbsolute(resolvedPath)) {
+      const projectRoot = getProjectRoot();
+      resolvedPath = path.join(projectRoot, resolvedPath);
+    }
+    
+    return {
+      path: resolvedPath
+    };
+  }
+  
+  // If no configuration found, error
+  throw new Error('Filesystem service configuration not found. Please specify services.filesystem.path in your environment configuration.');
 }

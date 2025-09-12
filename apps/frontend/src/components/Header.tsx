@@ -1,13 +1,28 @@
 import React from 'react';
-import { env } from '@/lib/env';
+import Link from 'next/link';
 import { UserMenu } from './UserMenu';
+import { SemiontBranding } from './SemiontBranding';
 
-export function Header() {
+interface HeaderProps {
+  showBranding?: boolean;
+}
+
+export function Header({ showBranding = true }: HeaderProps) {
   return (
     <div className="flex justify-between items-center w-full mb-8">
-      <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-        {env.NEXT_PUBLIC_SITE_NAME}
-      </h1>
+      {showBranding ? (
+        <Link href="/" className="hover:opacity-80 transition-opacity">
+          <SemiontBranding 
+            size="sm" 
+            showTagline={true} 
+            animated={false}
+            compactTagline={true}
+            className="py-1"
+          />
+        </Link>
+      ) : (
+        <div></div>
+      )}
       
       {/* Authentication Status */}
       <div className="text-right relative">

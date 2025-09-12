@@ -371,6 +371,9 @@ describe('CookieBanner Component', () => {
     });
 
     it('should handle region detection failures gracefully', async () => {
+      // Suppress console errors for this test
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
       mockIsGDPRApplicable.mockRejectedValue(new Error('Network error'));
       mockIsCCPAApplicable.mockRejectedValue(new Error('Network error'));
 
@@ -380,6 +383,8 @@ describe('CookieBanner Component', () => {
         // Should fallback to general region
         expect(screen.getByText('Cookie Notice')).toBeInTheDocument();
       });
+      
+      consoleError.mockRestore();
     });
 
     it('should handle mixed region detection results', async () => {

@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import { 
   GoogleAuthSchema, 
-  HelloParamsSchema, 
   EmailSchema, 
   CuidSchema, 
   JWTPayloadSchema,
@@ -33,25 +32,6 @@ describe('Validation Schemas Unit Tests', () => {
     });
   });
 
-  describe('HelloParamsSchema', () => {
-    it('should validate valid name parameter', () => {
-      const validParams = { name: 'John' };
-      const result = HelloParamsSchema.safeParse(validParams);
-      expect(result.success).toBe(true);
-    });
-
-    it('should accept missing name parameter', () => {
-      const emptyParams = {};
-      const result = HelloParamsSchema.safeParse(emptyParams);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject name that is too long', () => {
-      const invalidParams = { name: 'a'.repeat(101) };
-      const result = HelloParamsSchema.safeParse(invalidParams);
-      expect(result.success).toBe(false);
-    });
-  });
 
   describe('EmailSchema', () => {
     it('should validate valid email addresses', () => {
@@ -167,8 +147,8 @@ describe('Validation Schemas Unit Tests', () => {
 
   describe('validateData helper function', () => {
     it('should return success for valid data', () => {
-      const validData = { name: 'John' };
-      const result = validateData(HelloParamsSchema, validData);
+      const validData = 'test@example.com';
+      const result = validateData(EmailSchema, validData);
       
       expect(result.success).toBe(true);
       if (result.success) {
@@ -177,9 +157,9 @@ describe('Validation Schemas Unit Tests', () => {
     });
 
     it('should return error for invalid data', () => {
-      // Test with an invalid type (number instead of string)
-      const invalidData = { name: 123 as any };
-      const result = validateData(HelloParamsSchema, invalidData);
+      // Test with an invalid email format
+      const invalidData = 'not-an-email';
+      const result = validateData(EmailSchema, invalidData);
       
       expect(result.success).toBe(false);
       if (!result.success) {

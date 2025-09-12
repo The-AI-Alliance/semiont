@@ -11,7 +11,7 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
-import { api, type AdminUser } from '@/lib/api-client';
+import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
 
@@ -134,8 +134,8 @@ export default function AdminUsers() {
   const updateUserMutation = api.admin.users.update.useMutation();
   const deleteUserMutation = api.admin.users.delete.useMutation();
 
-  const users = (usersResponse as any)?.users || [];
-  const userStats = (statsResponse as any)?.stats || { total: 0, active: 0, admins: 0, recent: 0 };
+  const users = (usersResponse as AdminUsersResponse | undefined)?.users ?? [];
+  const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats ?? { total: 0, active: 0, admins: 0, recent: 0 };
 
   const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
@@ -177,7 +177,7 @@ export default function AdminUsers() {
   });
 
   return (
-    <div className="space-y-6">
+      <div className="space-y-6">
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -382,6 +382,6 @@ export default function AdminUsers() {
           </div>
         )}
       </div>
-    </div>
+      </div>
   );
 }

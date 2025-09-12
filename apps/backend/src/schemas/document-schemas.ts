@@ -50,6 +50,25 @@ export const DocumentSchema = z.object({
   contentType: z.string().openapi({ example: 'text/plain', description: 'MIME type' }),
   metadata: z.record(z.any()).optional().openapi({ example: { author: 'John Doe', tags: ['quantum', 'computing'] } }),
   storageUrl: z.string().optional().openapi({ example: '/efs/documents/doc_abc123.txt' }),
+  
+  // Provenance tracking
+  creationMethod: z.enum(['reference', 'upload', 'ui', 'api']).optional().openapi({ 
+    example: 'reference',
+    description: 'How the document was created' 
+  }),
+  contentChecksum: z.string().optional().openapi({ 
+    example: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3',
+    description: 'SHA-256 hash of content' 
+  }),
+  sourceSelectionId: z.string().optional().openapi({ 
+    example: 'sel_xyz789',
+    description: 'Selection that triggered creation' 
+  }),
+  sourceDocumentId: z.string().optional().openapi({ 
+    example: 'doc_xyz789',
+    description: 'Source document for reference creation' 
+  }),
+  
   createdBy: z.string().optional(),
   updatedBy: z.string().optional(),
   createdAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
@@ -106,6 +125,23 @@ export const CreateDocumentRequestSchema = z.object({
   content: z.string().openapi({ example: 'Document content here...' }),
   contentType: z.string().default('text/plain').openapi({ example: 'text/plain' }),
   metadata: z.record(z.any()).optional(),
+  
+  // Provenance tracking - only optional fields that provide context
+  // creationMethod defaults to 'api' on backend, but can be overridden for 'reference', 'upload', 'ui'
+  creationMethod: z.enum(['reference', 'upload', 'ui', 'api']).optional().openapi({ 
+    example: 'reference',
+    description: 'How the document was created (defaults to api)' 
+  }),
+  sourceSelectionId: z.string().optional().openapi({ 
+    example: 'sel_xyz789',
+    description: 'Selection that triggered document creation (for reference method)' 
+  }),
+  sourceDocumentId: z.string().optional().openapi({ 
+    example: 'doc_abc123',
+    description: 'Source document (for reference method)' 
+  }),
+  // Note: createdBy, createdAt, and contentChecksum are set by the backend
+  
   selections: z.array(z.object({
     selectionType: SelectionTypeSchema,
     saved: z.boolean().optional().default(false),

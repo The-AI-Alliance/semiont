@@ -3,4 +3,4 @@
 export * from '@semiont/api-types';
 
 // Import and re-export validation types for backward compatibility
-export type { GoogleAuthRequest, HelloParams } from '@semiont/api-types';
+export type { GoogleAuthRequest } from '@semiont/api-types';

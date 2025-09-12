@@ -25,6 +25,14 @@ vi.mock('@/components/UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu</div>,
 }));
 
+vi.mock('@/components/SemiontBranding', () => ({
+  SemiontBranding: ({ size, showTagline, animated, compactTagline, className }: any) => (
+    <div data-testid="semiont-branding" className={className}>
+      <span className="text-xl font-semibold">Test Site</span>
+    </div>
+  ),
+}));
+
 const mockPush = vi.fn();
 const mockRouter = { push: mockPush };
 
@@ -116,17 +124,14 @@ describe('AdminHeader', () => {
       const header = screen.getByRole('banner');
       expect(header).toHaveClass('bg-white', 'dark:bg-gray-900', 'shadow');
 
-      // Check site name link
-      const siteLink = screen.getByRole('link', { name: env.NEXT_PUBLIC_SITE_NAME });
+      // Check site branding is rendered
+      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+
+      // Check site link exists
+      const siteLink = screen.getByRole('link');
       expect(siteLink).toHaveAttribute('href', '/');
-      expect(siteLink).toHaveClass('text-xl', 'font-semibold');
 
-      // Check breadcrumb separator
-      expect(screen.getByText('/')).toBeInTheDocument();
-
-      // Check admin dashboard text
-      expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
-      expect(screen.getByText('Admin Dashboard')).toHaveClass('text-lg', 'font-medium');
+      // No breadcrumb in the current implementation
 
       // Check user menu is rendered
       expect(screen.getByTestId('user-menu')).toBeInTheDocument();
@@ -135,15 +140,10 @@ describe('AdminHeader', () => {
     it('should have correct styling classes for site name link', () => {
       render(<AdminHeader />);
 
-      const siteLink = screen.getByRole('link', { name: env.NEXT_PUBLIC_SITE_NAME });
+      const siteLink = screen.getByRole('link');
       expect(siteLink).toHaveClass(
-        'text-xl',
-        'font-semibold',
-        'text-gray-900',
-        'dark:text-white',
-        'hover:text-blue-600',
-        'dark:hover:text-blue-400',
-        'transition-colors'
+        'hover:opacity-80',
+        'transition-opacity'
       );
     });
 
@@ -159,15 +159,7 @@ describe('AdminHeader', () => {
       expect(flexContainer).toHaveClass('flex', 'justify-between', 'items-center', 'h-16');
     });
 
-    it('should render breadcrumb with correct styling', () => {
-      render(<AdminHeader />);
-
-      const separator = screen.getByText('/');
-      expect(separator).toHaveClass('text-gray-400', 'dark:text-gray-500');
-
-      const adminText = screen.getByText('Admin Dashboard');
-      expect(adminText).toHaveClass('text-lg', 'font-medium', 'text-gray-700', 'dark:text-gray-300');
-    });
+    // Removed breadcrumb test - no breadcrumb in current implementation
   });
 
   describe('Dark mode support', () => {
@@ -188,19 +180,12 @@ describe('AdminHeader', () => {
     it('should have dark mode classes for site link', () => {
       render(<AdminHeader />);
 
-      const siteLink = screen.getByRole('link', { name: env.NEXT_PUBLIC_SITE_NAME });
-      expect(siteLink).toHaveClass('dark:text-white', 'dark:hover:text-blue-400');
+      const siteLink = screen.getByRole('link');
+      // The link uses opacity for hover, not color changes
+      expect(siteLink).toHaveClass('hover:opacity-80');
     });
 
-    it('should have dark mode classes for breadcrumb elements', () => {
-      render(<AdminHeader />);
-
-      const separator = screen.getByText('/');
-      expect(separator).toHaveClass('dark:text-gray-500');
-
-      const adminText = screen.getByText('Admin Dashboard');
-      expect(adminText).toHaveClass('dark:text-gray-300');
-    });
+    // Removed breadcrumb dark mode test - no breadcrumb in current implementation
   });
 
   describe('Accessibility', () => {
@@ -221,7 +206,7 @@ describe('AdminHeader', () => {
     it('should have accessible link to home page', () => {
       render(<AdminHeader />);
 
-      const homeLink = screen.getByRole('link', { name: env.NEXT_PUBLIC_SITE_NAME });
+      const homeLink = screen.getByRole('link');
       expect(homeLink).toBeInTheDocument();
       expect(homeLink).toHaveAttribute('href', '/');
     });
@@ -229,8 +214,8 @@ describe('AdminHeader', () => {
     it('should maintain focus styles for interactive elements', () => {
       render(<AdminHeader />);
 
-      const siteLink = screen.getByRole('link', { name: env.NEXT_PUBLIC_SITE_NAME });
-      expect(siteLink).toHaveClass('hover:text-blue-600');
+      const siteLink = screen.getByRole('link');
+      expect(siteLink).toHaveClass('hover:opacity-80', 'transition-opacity');
     });
   });
 
@@ -243,8 +228,8 @@ describe('AdminHeader', () => {
 
       render(<AdminHeader />);
 
-      expect(screen.getByText(env.NEXT_PUBLIC_SITE_NAME)).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: env.NEXT_PUBLIC_SITE_NAME })).toBeInTheDocument();
+      // The site name is displayed in the SemiontBranding component
+      expect(screen.getByText('Test Site')).toBeInTheDocument();
     });
   });
 
@@ -278,7 +263,7 @@ describe('AdminHeader', () => {
         isLoading: false,
       });
       rerender(<AdminHeader />);
-      expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
+      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
   });

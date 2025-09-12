@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
-import { apiService } from '@/lib/api-client';
+import React, { useState, useEffect } from 'react';
+import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 
 interface SelectionPopupProps {
   selectedText: string;
+  sourceDocumentId?: string;
   onCreateHighlight: () => void;
   onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
   onClose: () => void;
@@ -13,6 +14,7 @@ interface SelectionPopupProps {
 
 export function SelectionPopup({
   selectedText,
+  sourceDocumentId,
   onCreateHighlight,
   onCreateReference,
   onClose
@@ -25,6 +27,32 @@ export function SelectionPopup({
   const [referenceType, setReferenceType] = useState('citation');
   const [entityType, setEntityType] = useState('');
   const [customEntityType, setCustomEntityType] = useState('');
+
+  // Fetch entity types from backend
+  const { data: entityTypesData, isLoading: entityTypesLoading } = api.entityTypes.list.useQuery();
+  const commonEntityTypes = entityTypesData?.entityTypes || [
+    // Fallback to hardcoded if API fails
+    'Person',
+    'Organization',
+    'Location',
+    'Event',
+    'Concept',
+    'Product',
+    'Technology',
+    'Date',
+    'Other'
+  ];
+
+  // Fetch reference types from backend
+  const { data: referenceTypesData, isLoading: referenceTypesLoading } = api.referenceTypes.list.useQuery();
+  const referenceTypes = referenceTypesData?.referenceTypes || [
+    // Fallback to hardcoded if API fails
+    'citation',
+    'definition',
+    'elaboration',
+    'example',
+    'related'
+  ];
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -43,11 +71,19 @@ export function SelectionPopup({
 
   const handleCreateNewDocument = async () => {
     try {
-      const response = await apiService.documents.create({
+      const createData: Parameters<typeof apiService.documents.create>[0] = {
         name: searchQuery || selectedText.substring(0, 50),
         content: `# ${searchQuery || selectedText.substring(0, 50)}\n\nThis document was created from a reference to:\n\n> ${selectedText}`,
-        contentType: 'text/markdown'
-      });
+        contentType: 'text/markdown',
+        creationMethod: 'reference'
+      };
+      
+      // Only add sourceDocumentId if it's defined
+      if (sourceDocumentId) {
+        createData.sourceDocumentId = sourceDocumentId;
+      }
+      
+      const response = await apiService.documents.create(createData);
       
       // Create reference to the new document
       onCreateReference(response.document.id, undefined, referenceType);
@@ -57,21 +93,9 @@ export function SelectionPopup({
     }
   };
 
-  const commonEntityTypes = [
-    'Person',
-    'Organization',
-    'Location',
-    'Event',
-    'Concept',
-    'Product',
-    'Technology',
-    'Date',
-    'Other'
-  ];
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl dark:shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
@@ -133,7 +157,7 @@ export function SelectionPopup({
               </p>
               <button
                 onClick={onCreateHighlight}
-                className="w-full py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+                className="w-full py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:focus:ring-offset-gray-800 transition-colors"
               >
                 Create Highlight
               </button>
@@ -155,12 +179,13 @@ export function SelectionPopup({
                   value={referenceType}
                   onChange={(e) => setReferenceType(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  disabled={referenceTypesLoading}
                 >
-                  <option value="citation">Citation</option>
-                  <option value="definition">Definition</option>
-                  <option value="elaboration">Elaboration</option>
-                  <option value="example">Example</option>
-                  <option value="related">Related</option>
+                  {referenceTypes.map(type => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -181,7 +206,7 @@ export function SelectionPopup({
                   <button
                     onClick={handleSearch}
                     disabled={isSearching}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-offset-gray-800 disabled:opacity-50 transition-colors"
                   >
                     {isSearching ? '...' : 'Search'}
                   </button>
@@ -218,7 +243,7 @@ export function SelectionPopup({
                 {selectedDoc && (
                   <button
                     onClick={() => onCreateReference(selectedDoc.id, undefined, referenceType)}
-                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-offset-gray-800 transition-colors"
                   >
                     Link to Selected Document
                   </button>
@@ -226,7 +251,7 @@ export function SelectionPopup({
                 {searchQuery && (
                   <button
                     onClick={handleCreateNewDocument}
-                    className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-offset-gray-800 transition-colors"
                   >
                     Create New Document
                   </button>
@@ -286,7 +311,7 @@ export function SelectionPopup({
                   }
                 }}
                 disabled={!entityType || (entityType === 'Other' && !customEntityType)}
-                className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Create Entity Reference
               </button>

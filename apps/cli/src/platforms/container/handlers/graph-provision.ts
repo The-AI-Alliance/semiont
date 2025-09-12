@@ -10,8 +10,7 @@ import * as yaml from 'js-yaml';
  * Currently supports JanusGraph
  */
 const provisionGraphService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, options } = context;
-  const args = options.args || [];
+  const { service } = context;
   
   // Determine which graph database to provision from service config
   const graphType = service.config.type;
@@ -29,9 +28,11 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
   }
     
   try {
-    // Parse options from args
-    const withElasticsearch = args.includes('--with-elasticsearch');
-    const withCassandra = args.includes('--with-cassandra');
+    // Read configuration from service config
+    const storage = service.config.storage || 'cassandra';
+    const index = service.config.index || 'elasticsearch';
+    const withElasticsearch = index === 'elasticsearch';
+    const withCassandra = storage === 'cassandra';
     const networkName = 'semiont-network';
       
     // Check if Docker is available
@@ -94,6 +95,8 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
         janusgraph: {
           image: 'janusgraph/janusgraph:1.0.0',
           container_name: containerName,
+          // Note: Not setting user field to allow JanusGraph's entrypoint to run as root initially
+          // This generates chown warnings on macOS but allows proper initialization
           networks: [networkName],
           ports: ['8182:8182'],
           environment: {
@@ -190,8 +193,8 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
       if (withElasticsearch) printInfo('  Elasticsearch: docker.elastic.co/elasticsearch/elasticsearch:7.17.10');
       printInfo('');
       printInfo('Configuration:');
-      printInfo(`  Storage backend: ${withCassandra ? 'Cassandra' : 'BerkeleyDB'}`);
-      printInfo(`  Index backend: ${withElasticsearch ? 'Elasticsearch' : 'None'}`);
+      printInfo(`  Storage backend: ${storage}`);
+      printInfo(`  Index backend: ${index}`);
       printInfo(`  Docker Compose: ${composePath}`);
       printInfo('');
       printInfo('To start JanusGraph:');
@@ -209,8 +212,8 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
         serviceType: 'graph',
         serviceName: 'janusgraph',
         composePath,
-        storage: withCassandra ? 'cassandra' : 'berkeleydb',
-        index: withElasticsearch ? 'elasticsearch' : 'none',
+        storage: storage,
+        index: index,
         urls: {
           gremlin: 'ws://localhost:8182/gremlin',
           ...(withCassandra && { cassandra: 'localhost:9042' }),

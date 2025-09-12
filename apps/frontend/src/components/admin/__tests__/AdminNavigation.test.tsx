@@ -17,9 +17,6 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ShieldCheckIcon: ({ className }: { className?: string }) => (
     <svg data-testid="shield-check-icon" className={className} />
   ),
-  HomeIcon: ({ className }: { className?: string }) => (
-    <svg data-testid="home-icon" className={className} />
-  ),
 }));
 
 describe('AdminNavigation', () => {
@@ -39,16 +36,7 @@ describe('AdminNavigation', () => {
       expect(nav).toHaveClass('w-64', 'bg-white', 'dark:bg-gray-900', 'shadow');
     });
 
-    it('should render "Back to Site" link', () => {
-      render(<AdminNavigation />);
-
-      const backLink = screen.getByRole('link', { name: /back to site/i });
-      expect(backLink).toHaveAttribute('href', '/');
-      expect(backLink).toHaveClass('group', 'flex', 'items-center');
-      
-      // Check home icon is present
-      expect(screen.getByTestId('home-icon')).toBeInTheDocument();
-    });
+    // Removed "Back to Site" link test - this link no longer exists in the component
 
     it('should render administration section header', () => {
       render(<AdminNavigation />);
@@ -193,12 +181,7 @@ describe('AdminNavigation', () => {
       );
     });
 
-    it('should apply correct home icon classes', () => {
-      render(<AdminNavigation />);
-
-      const homeIcon = screen.getByTestId('home-icon');
-      expect(homeIcon).toHaveClass('flex-shrink-0', '-ml-1', 'mr-3', 'h-5', 'w-5');
-    });
+    // Removed home icon test - home icon no longer exists in the component
   });
 
   describe('Layout and structure', () => {
@@ -219,12 +202,7 @@ describe('AdminNavigation', () => {
       expect(spaceContainer).toBeInTheDocument();
     });
 
-    it('should have separator between back link and admin sections', () => {
-      render(<AdminNavigation />);
-
-      const separator = screen.getByRole('navigation').querySelector('.border-t');
-      expect(separator).toHaveClass('border-t', 'border-gray-200', 'dark:border-gray-700', 'pt-4', 'mt-4');
-    });
+    // Removed separator test - separator no longer exists in the component
 
     it('should render all links with proper button-like styling', () => {
       render(<AdminNavigation />);
@@ -249,12 +227,7 @@ describe('AdminNavigation', () => {
       expect(nav).toHaveClass('dark:bg-gray-900', 'dark:border-gray-700');
     });
 
-    it('should have dark mode classes for section separator', () => {
-      render(<AdminNavigation />);
-
-      const separator = screen.getByRole('navigation').querySelector('.border-t');
-      expect(separator).toHaveClass('dark:border-gray-700');
-    });
+    // Removed separator dark mode test - separator no longer exists in the component
 
     it('should have dark mode classes for administration header', () => {
       render(<AdminNavigation />);
@@ -265,9 +238,6 @@ describe('AdminNavigation', () => {
 
     it('should have dark mode hover states for inactive links', () => {
       render(<AdminNavigation />);
-
-      const backLink = screen.getByRole('link', { name: /back to site/i });
-      expect(backLink).toHaveClass('dark:text-gray-400', 'dark:hover:text-white', 'dark:hover:bg-gray-800');
 
       const usersLink = screen.getByRole('link', { name: /users/i });
       expect(usersLink).toHaveClass('dark:text-gray-300', 'dark:hover:text-white', 'dark:hover:bg-gray-800');
@@ -308,7 +278,6 @@ describe('AdminNavigation', () => {
     it('should have proper link text for screen readers', () => {
       render(<AdminNavigation />);
 
-      expect(screen.getByRole('link', { name: /back to site/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /users/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /oauth settings/i })).toBeInTheDocument();
     });

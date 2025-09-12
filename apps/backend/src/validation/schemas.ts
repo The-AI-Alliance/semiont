@@ -3,14 +3,13 @@ import { z } from 'zod';
 // Import shared schemas from the api-types package
 import { 
   GoogleAuthSchema, 
-  HelloParamsSchema,
   EmailSchema,
   CuidSchema,
   JWTPayloadSchema
 } from '@semiont/api-types';
 
 // Re-export shared schemas for backward compatibility
-export { GoogleAuthSchema, HelloParamsSchema, EmailSchema, CuidSchema, JWTPayloadSchema };
+export { GoogleAuthSchema, EmailSchema, CuidSchema, JWTPayloadSchema };
 
 // Validation result types
 export type ValidationResult<T> = 
@@ -43,4 +42,3 @@ export function validateData<T>(
 
 // Type exports for use in API types
 export type GoogleAuthRequest = z.infer<typeof GoogleAuthSchema>;
-export type HelloParams = z.infer<typeof HelloParamsSchema>;

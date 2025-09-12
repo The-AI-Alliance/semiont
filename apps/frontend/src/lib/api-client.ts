@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 // Import shared API types
 import type {
-  HelloResponse,
   StatusResponse,
   AuthResponse,
   UserResponse,
@@ -69,10 +68,18 @@ interface Document {
   name: string;
   content: string;
   contentType: string;
+  entityTypes?: string[];
   createdAt: string;
   updatedAt: string;
   highlights?: Selection[];
   references?: Selection[];
+  
+  // Provenance tracking
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
+  contentChecksum?: string;
+  sourceSelectionId?: string;
+  sourceDocumentId?: string;
+  createdBy?: string;
 }
 
 interface Selection {
@@ -151,9 +158,11 @@ interface RequestOptions {
 const validateApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl || apiUrl === 'undefined') {
-    // During build time, return a placeholder URL
-    if (typeof window === 'undefined') {
-      console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
+    // During build time or testing, return a placeholder URL
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
+      }
       return 'http://localhost:4000';
     }
     throw new Error('NEXT_PUBLIC_API_URL environment variable is not set. This should be configured during Docker build.');
@@ -223,6 +232,17 @@ export class TypedAPIClient {
       throw new APIError(response.status, errorData);
     }
 
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return { success: true };
+    }
+
+    // Handle empty responses
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0') {
+      return { success: true };
+    }
+
     return response.json();
   }
 
@@ -237,6 +257,10 @@ export class TypedAPIClient {
 
   async patch(route: string, options: RequestOptions = {}): Promise<any> {
     return this.call(route, 'PATCH', options);
+  }
+
+  async put(route: string, options: RequestOptions = {}): Promise<any> {
+    return this.call(route, 'PUT', options);
   }
 
   async delete(route: string, options: RequestOptions = {}): Promise<any> {
@@ -290,18 +314,12 @@ export class LazyTypedAPIClient {
 export const apiClient = new Proxy({} as TypedAPIClient, {
   get(target, prop: string | symbol) {
     const instance = LazyTypedAPIClient.getInstance();
-    return (instance as any)[prop];
+    return instance[prop as keyof TypedAPIClient];
   },
 });
 
 // Type-safe convenience methods
 export const apiService = {
-  // Hello endpoints
-  hello: {
-    greeting: (name?: string): Promise<HelloResponse> => 
-      apiClient.get('/api/hello/:name?', { params: { name } }),
-  },
-
   status: (): Promise<StatusResponse> => 
     apiClient.get('/api/status'),
 
@@ -323,14 +341,22 @@ export const apiService = {
 
   // Document endpoints
   documents: {
-    create: (data: { name: string; content: string; contentType?: string }): Promise<DocumentResponse> =>
+    create: (data: { 
+      name: string; 
+      content: string; 
+      contentType?: string;
+      // Only context fields - backend calculates checksum, sets createdBy/createdAt
+      creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
+      sourceSelectionId?: string;  // For reference-created documents
+      sourceDocumentId?: string;  // For reference-created documents
+    }): Promise<DocumentResponse> =>
       apiClient.post('/api/documents', { body: data }),
     
     get: (id: string): Promise<DocumentResponse> =>
       apiClient.get('/api/documents/:id', { params: { id } }),
     
-    update: (id: string, data: { name?: string; content?: string; contentType?: string }): Promise<DocumentResponse> =>
-      apiClient.patch('/api/documents/:id', { params: { id }, body: data }),
+    update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any }): Promise<DocumentResponse> =>
+      apiClient.put('/api/documents/:id', { params: { id }, body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>
       apiClient.delete('/api/documents/:id', { params: { id } }),
@@ -366,7 +392,17 @@ export const apiService = {
       position: { start: number; end: number };
       type?: 'provisional' | 'highlight' | 'reference';
     }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections', { body: data }),
+      apiClient.post('/api/selections', { 
+        body: {
+          documentId: data.documentId,
+          selectionType: {
+            type: 'text_span',
+            offset: data.position.start,
+            length: data.position.end - data.position.start,
+            text: data.text
+          }
+        }
+      }),
     
     get: (id: string): Promise<SelectionResponse> =>
       apiClient.get('/api/selections/:id', { params: { id } }),
@@ -389,19 +425,40 @@ export const apiService = {
       return apiClient.get('/api/selections');
     },
     
-    saveAsHighlight: (data: {
+    saveAsHighlight: async (data: {
       documentId: string;
       text: string;
       position: { start: number; end: number };
-    }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections/highlight', { body: data }),
+    }): Promise<SelectionResponse> => {
+      // First create the selection
+      const selection = await apiClient.post('/api/selections', { 
+        body: { 
+          documentId: data.documentId,
+          selectionType: {
+            type: 'text_span',
+            offset: data.position.start,
+            length: data.position.end - data.position.start,
+            text: data.text
+          },
+          saved: true
+        } 
+      });
+      
+      return selection;
+    },
     
     resolveToDocument: (data: {
       selectionId: string;
       targetDocumentId: string;
       referenceType?: string;
     }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections/resolve', { body: data }),
+      apiClient.put('/api/selections/:id/resolve', { 
+        params: { id: data.selectionId },
+        body: { 
+          documentId: data.targetDocumentId,
+          referenceType: data.referenceType 
+        }
+      }),
     
     createDocument: (data: {
       selectionId: string;
@@ -420,10 +477,22 @@ export const apiService = {
       apiClient.post('/api/selections/generate-document', { body: data }),
     
     getHighlights: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections/highlights/:documentId', { params: { documentId } }),
+      apiClient.get('/api/documents/:id/highlights', { params: { id: documentId } }),
     
     getReferences: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections/references/:documentId', { params: { documentId } }),
+      apiClient.get('/api/documents/:id/references', { params: { id: documentId } }),
+  },
+
+  // Entity types endpoint
+  entityTypes: {
+    list: (): Promise<{ entityTypes: string[] }> =>
+      apiClient.get('/api/entity-types'),
+  },
+
+  // Reference types endpoint
+  referenceTypes: {
+    list: (): Promise<{ referenceTypes: string[] }> =>
+      apiClient.get('/api/reference-types'),
   },
 
   // Admin endpoints
@@ -454,72 +523,6 @@ export const apiService = {
 
 // React Query hooks with type safety
 export const api = {
-  hello: {
-    greeting: {
-      useQuery: (input: { name?: string; token?: string; enabled?: boolean }) => {
-        return useQuery({
-          queryKey: ['hello.greeting', input.name],
-          queryFn: async () => {
-            // If token is provided, use an authenticated request
-            if (input.token) {
-              const instance = LazyTypedAPIClient.getInstance();
-              const originalAuth = instance.getAuthToken();
-              try {
-                instance.setAuthToken(input.token);
-                return await apiService.hello.greeting(input.name);
-              } finally {
-                // Restore original auth state
-                if (originalAuth) {
-                  instance.setAuthHeader(originalAuth);
-                } else {
-                  instance.clearAuthToken();
-                }
-              }
-            }
-            // Otherwise make unauthenticated request (will fail since /api/hello requires auth)
-            return apiService.hello.greeting(input.name);
-          },
-          enabled: input.enabled !== false && !!input.name,
-        });
-      }
-    },
-    getStatus: {
-      useQuery: (options?: { 
-        token?: string; 
-        enabled?: boolean;
-        pollingInterval?: number;
-      }) => {
-        return useQuery(
-          ['hello.getStatus'],
-          async () => {
-            // If token is provided, use an authenticated request
-            if (options?.token) {
-              const instance = LazyTypedAPIClient.getInstance();
-              const originalAuth = instance.getAuthToken();
-              try {
-                instance.setAuthToken(options.token);
-                return await apiService.status();
-              } finally {
-                // Restore original auth state
-                if (originalAuth) {
-                  instance.setAuthHeader(originalAuth);
-                } else {
-                  instance.clearAuthToken();
-                }
-              }
-            }
-            // Otherwise make unauthenticated request (will likely fail)
-            return apiService.status();
-          },
-          {
-            enabled: options?.enabled !== false,
-            ...(options?.pollingInterval !== undefined ? { refetchInterval: options.pollingInterval } : {}),
-          }
-        );
-      }
-    }
-  },
-  
   auth: {
     google: {
       useMutation: () => {
@@ -558,7 +561,7 @@ export const api = {
   admin: {
     users: {
       list: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.users.list'],
             queryFn: () => apiService.admin.users.list(),
@@ -567,7 +570,7 @@ export const api = {
         }
       },
       stats: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.users.stats'],
             queryFn: () => apiService.admin.users.stats(),
@@ -595,13 +598,37 @@ export const api = {
     
     oauth: {
       config: {
-        useQuery: (options?: any) => {
+        useQuery: (options?: { enabled?: boolean }) => {
           return useQuery({
             queryKey: ['admin.oauth.config'],
             queryFn: () => apiService.admin.oauth.config(),
             ...options,
           });
         }
+      }
+    }
+  },
+
+  entityTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => {
+        return useQuery({
+          queryKey: ['entityTypes.list'],
+          queryFn: () => apiService.entityTypes.list(),
+          ...options,
+        });
+      }
+    }
+  },
+
+  referenceTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => {
+        return useQuery({
+          queryKey: ['referenceTypes.list'],
+          queryFn: () => apiService.referenceTypes.list(),
+          ...options,
+        });
       }
     }
   }
