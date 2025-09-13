@@ -189,9 +189,10 @@ export function UserMenu({ showAuthLinks = true }: UserMenuProps) {
             )}
             <button
               ref={signOutButtonRef}
-              onClick={() => {
+              onClick={async () => {
                 close();
-                signOut({ callbackUrl: '/' });
+                await signOut({ callbackUrl: '/', redirect: false });
+                window.location.href = '/';
               }}
               onKeyDown={handleKeyDown}
               className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"

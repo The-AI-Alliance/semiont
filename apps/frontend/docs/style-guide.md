@@ -73,21 +73,38 @@ All button styles include `disabled:opacity-50 disabled:cursor-not-allowed`. Alw
 - Required fields are empty
 - The action is not available
 
-## Color Themes by Feature
+## Annotation Styles
+
+Annotation styles are centralized in `/src/lib/annotation-styles.ts` for consistent appearance across the application.
 
 ### Highlights
 - **Background:** Yellow (`bg-yellow-200 dark:bg-yellow-900/50`)
+- **Border:** Ring effect for better visibility (`ring-1 ring-yellow-400/50 dark:ring-2 dark:ring-yellow-500/70`)
 - **Hover:** Deeper yellow
 - **Purpose:** Visual prominence for highlighted text
 
 ### Entity References
 - **Background:** Purple (`bg-purple-200 dark:bg-purple-900/50`)
+- **Border:** Ring effect for better visibility (`ring-1 ring-purple-400/50 dark:ring-2 dark:ring-purple-500/70`)
 - **Tags:** Purple badges for entity types
 - **Purpose:** Distinguish entities from regular references
 
 ### Document References
 - **Background:** Cyan/blue gradient (`from-cyan-200 to-blue-200`)
+- **Border:** Ring effect for better visibility (`ring-1 ring-cyan-400/50 dark:ring-2 dark:ring-cyan-500/70`)
 - **Purpose:** Show connections between documents
+
+### Usage
+```typescript
+import { annotationStyles } from '@/lib/annotation-styles';
+
+// Get style for an annotation
+const className = annotationStyles.getAnnotationStyle(annotation);
+
+// Use specific styles
+<span className={annotationStyles.highlight.className}>Highlighted text</span>
+<span className={annotationStyles.tags.entity}>Entity tag</span>
+```
 
 ### Administrative/Moderation
 - **Active nav items:** Blue (`bg-blue-50 dark:bg-blue-900/20`)

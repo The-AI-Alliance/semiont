@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkWikiLink from 'remark-wiki-link';
+import { annotationStyles } from '@/lib/annotation-styles';
+import { CodeMirrorRenderer } from './CodeMirrorRenderer';
 
 /**
  * ANNOTATION RENDERER - AXIOMATIC IMPLEMENTATION
@@ -16,7 +15,7 @@ import remarkWikiLink from 'remark-wiki-link';
  */
 
 // Types
-interface AnnotationSelection {
+export interface AnnotationSelection {
   id: string;
   documentId: string;
   selectionData?: {
@@ -47,7 +46,7 @@ interface Props {
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
 }
 
-interface TextSegment {
+export interface TextSegment {
   text: string;
   annotation?: AnnotationSelection;
   start: number;
@@ -118,24 +117,7 @@ function segmentTextWithAnnotations(
   return segments;
 }
 
-// Get annotation styling
-function getAnnotationClassName(annotation: AnnotationSelection): string {
-  const base = "rounded px-0.5 cursor-pointer ";
-  
-  if (annotation.type === 'highlight') {
-    return base + "bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50";
-  }
-  
-  // Check for entity references - they have entityTypes array or entityType field
-  if (annotation.referenceType === 'entity' || 
-      (annotation as any).entityTypes?.length > 0 || 
-      annotation.entityType) {
-    return base + "bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50";
-  }
-  
-  return base + "bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 " +
-         "dark:from-cyan-900/50 dark:to-blue-900/50 dark:hover:from-cyan-800/50 dark:hover:to-blue-800/50";
-}
+// Get annotation styling using centralized styles
 
 // Component to render a text segment
 const SegmentRenderer: React.FC<{
@@ -158,7 +140,7 @@ const SegmentRenderer: React.FC<{
   
   return (
     <span
-      className={getAnnotationClassName(segment.annotation)}
+      className={annotationStyles.getAnnotationStyle(segment.annotation)}
       data-annotation-id={segment.annotation.id}
       data-start={segment.start}
       data-end={segment.end}
@@ -201,7 +183,7 @@ export function AnnotationRenderer({
     text: string;
     start: number;
     end: number;
-    rect: DOMRect;
+    rects: DOMRect[];
   } | null>(null);
   
   // Combine and process annotations
@@ -236,18 +218,20 @@ export function AnnotationRenderer({
       }
       
       const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+      // Get all rectangles for multi-line selections
+      const rects = Array.from(range.getClientRects());
       
-      // Calculate position in source text
-      // For now, use a simple approach - in production, use proper position mapping
+      // Calculate position in SOURCE text
       const text = selection.toString();
-      const fullText = container.textContent || '';
-      const beforeSelection = range.startContainer.textContent?.substring(0, range.startOffset) || '';
-      const start = fullText.indexOf(text);
-      const end = start + text.length;
       
-      if (start >= 0) {
-        setSelectionState({ text, start, end, rect });
+      // For plain text, the rendered text matches the source text
+      // So we can directly find the position
+      const sourceText = content;
+      const start = sourceText.indexOf(text);
+      const end = start >= 0 ? start + text.length : -1;
+      
+      if (start >= 0 && rects.length > 0) {
+        setSelectionState({ text, start, end, rects });
       }
     };
     
@@ -291,31 +275,34 @@ export function AnnotationRenderer({
   
   // Render content based on type
   const renderContent = () => {
-    if (contentType !== 'markdown') {
-      // For non-markdown, render segments directly
-      return (
-        <pre className="font-mono text-sm whitespace-pre-wrap">
-          {segments.map((segment, i) => (
-            <SegmentRenderer
-              key={`${segment.start}-${segment.end}-${segment.annotation?.id || i}`}
-              segment={segment}
-              onAnnotationClick={handleAnnotationClick}
-              {...(onAnnotationRightClick && { onAnnotationRightClick })}
-            />
-          ))}
-        </pre>
-      );
+    if (contentType === 'markdown') {
+      // Use CodeMirror for markdown - it handles position mapping correctly!
+      const props: any = {
+        content,
+        segments,
+        onAnnotationClick: handleAnnotationClick,
+        theme: "light",
+        editable: false
+      };
+      if (onAnnotationRightClick) {
+        props.onAnnotationRightClick = onAnnotationRightClick;
+      }
+      return <CodeMirrorRenderer {...props} />;
     }
     
-    // For markdown, we need a different approach
-    // We'll render markdown first, then apply annotations as a post-process
-    return <MarkdownWithAnnotations 
-      content={content}
-      segments={segments}
-      {...(onWikiLinkClick && { onWikiLinkClick })}
-      onAnnotationClick={handleAnnotationClick}
-      {...(onAnnotationRightClick && { onAnnotationRightClick })}
-    />;
+    // For non-markdown, render segments directly
+    return (
+      <pre className="font-mono text-sm whitespace-pre-wrap">
+        {segments.map((segment, i) => (
+          <SegmentRenderer
+            key={`${segment.start}-${segment.end}-${segment.annotation?.id || i}`}
+            segment={segment}
+            onAnnotationClick={handleAnnotationClick}
+            {...(onAnnotationRightClick && { onAnnotationRightClick })}
+          />
+        ))}
+      </pre>
+    );
   };
   
   return (
@@ -331,252 +318,48 @@ export function AnnotationRenderer({
       {/* Selection UI overlay */}
       {selectionState && (
         <>
-          <div
-            className="absolute pointer-events-none z-40"
-            style={{
-              left: `${selectionState.rect.left - containerRef.current!.getBoundingClientRect().left}px`,
-              top: `${selectionState.rect.top - containerRef.current!.getBoundingClientRect().top}px`,
-              width: `${selectionState.rect.width}px`,
-              height: `${selectionState.rect.height}px`,
-              border: '2px dashed rgba(250, 204, 21, 0.6)',
-              borderRadius: '3px',
-              backgroundColor: 'rgba(254, 240, 138, 0.2)',
-              animation: 'pulse 2s ease-in-out infinite'
-            }}
-          />
+          {/* Render a highlight rectangle for each line of the selection */}
+          {selectionState.rects.map((rect, index) => (
+            <div
+              key={index}
+              className="absolute pointer-events-none z-40"
+              style={{
+                left: `${rect.left - containerRef.current!.getBoundingClientRect().left}px`,
+                top: `${rect.top - containerRef.current!.getBoundingClientRect().top}px`,
+                width: `${rect.width}px`,
+                height: `${rect.height}px`,
+                border: '2px dashed rgba(250, 204, 21, 0.6)',
+                borderRadius: '3px',
+                backgroundColor: 'rgba(254, 240, 138, 0.2)',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}
+            />
+          ))}
           
-          <button
-            onClick={handleSparkleClick}
-            className="absolute z-50 text-xl hover:scale-125 transition-transform cursor-pointer animate-bounce"
-            style={{
-              left: `${selectionState.rect.right - containerRef.current!.getBoundingClientRect().left + 5}px`,
-              top: `${selectionState.rect.top - containerRef.current!.getBoundingClientRect().top + selectionState.rect.height / 2}px`,
-              transform: 'translateY(-50%)'
-            }}
-            title="Click to create highlight • Right-click for more options"
-            data-selection-ui
-          >
-            ✨
-          </button>
+          {/* Position sparkle at the end of the last rectangle */}
+          {(() => {
+            const lastRect = selectionState.rects[selectionState.rects.length - 1];
+            const containerRect = containerRef.current?.getBoundingClientRect();
+            if (!lastRect || !containerRect) return null;
+            
+            return (
+              <button
+                onClick={handleSparkleClick}
+                className="absolute z-50 text-xl hover:scale-125 transition-transform cursor-pointer animate-bounce"
+                style={{
+                  left: `${lastRect.right - containerRect.left + 5}px`,
+                  top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
+                  transform: 'translateY(-50%)'
+                }}
+                title="Click to create highlight • Right-click for more options"
+                data-selection-ui
+              >
+                ✨
+              </button>
+            );
+          })()}
         </>
       )}
     </div>
   );
 }
-
-// Markdown renderer with annotation support
-const MarkdownWithAnnotations: React.FC<{
-  content: string;
-  segments: TextSegment[];
-  onWikiLinkClick?: (pageName: string) => void;
-  onAnnotationClick: (annotation: AnnotationSelection) => void;
-  onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
-}> = ({ content, segments, onWikiLinkClick, onAnnotationClick, onAnnotationRightClick }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Apply annotations after markdown renders
-  useEffect(() => {
-    if (!containerRef.current) return;
-    
-    // Wait for markdown to render
-    const timeoutId = setTimeout(() => {
-      if (!containerRef.current) return;
-      
-      // FIRST: Clean up existing annotation spans
-      const existingSpans = containerRef.current.querySelectorAll('[data-annotation-id]');
-      existingSpans.forEach(span => {
-        const parent = span.parentNode;
-        if (parent) {
-          // Replace span with its text content
-          const textNode = document.createTextNode(span.textContent || '');
-          parent.replaceChild(textNode, span);
-        }
-      });
-      
-      // THEN: Build position map of text nodes
-      const walker = document.createTreeWalker(
-        containerRef.current,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-      
-      const textNodes: Array<{ node: Text; start: number; length: number }> = [];
-      let position = 0;
-      let node;
-      
-      while (node = walker.nextNode()) {
-        const textNode = node as Text;
-        const length = textNode.textContent?.length || 0;
-        textNodes.push({ node: textNode, start: position, length });
-        position += length;
-      }
-      
-      // Apply annotations to text nodes
-      for (const segment of segments) {
-        if (!segment.annotation) continue;
-        
-        // Find text nodes that overlap with this segment
-        for (const { node, start, length } of textNodes) {
-          const nodeEnd = start + length;
-          
-          // Check for overlap
-          if (segment.start < nodeEnd && segment.end > start) {
-            const overlapStart = Math.max(0, segment.start - start);
-            const overlapEnd = Math.min(length, segment.end - start);
-            
-            if (overlapStart < overlapEnd && node.parentNode) {
-              // Wrap the overlapping portion
-              const text = node.textContent || '';
-              const before = text.substring(0, overlapStart);
-              const annotated = text.substring(overlapStart, overlapEnd);
-              const after = text.substring(overlapEnd);
-              
-              const span = document.createElement('span');
-              span.className = getAnnotationClassName(segment.annotation);
-              span.textContent = annotated;
-              span.setAttribute('data-annotation-id', segment.annotation.id);
-              
-              // Add hover text
-              const hoverText = segment.annotation.type === 'highlight' 
-                ? 'Right-click to delete or convert to reference'
-                : segment.annotation.referencedDocumentId
-                  ? 'Click to navigate • Right-click for options'
-                  : (segment.annotation as any).entityTypes?.length > 0 || segment.annotation.entityType
-                    ? `Entity: ${(segment.annotation as any).entityTypes?.[0] || segment.annotation.entityType} • Right-click for options`
-                    : 'Right-click to link to document or delete';
-              span.title = hoverText;
-              
-              // Add event handlers
-              span.onclick = () => onAnnotationClick(segment.annotation!);
-              if (onAnnotationRightClick) {
-                span.oncontextmenu = (e) => {
-                  e.preventDefault();
-                  onAnnotationRightClick(segment.annotation!, e.clientX, e.clientY);
-                };
-              }
-              
-              // Replace node with new structure
-              const parent = node.parentNode;
-              const fragment = document.createDocumentFragment();
-              
-              if (before) fragment.appendChild(document.createTextNode(before));
-              fragment.appendChild(span);
-              if (after) fragment.appendChild(document.createTextNode(after));
-              
-              parent.replaceChild(fragment, node);
-              break; // Move to next segment
-            }
-          }
-        }
-      }
-    }, 100); // Slightly longer delay to ensure markdown is fully rendered
-    
-    return () => clearTimeout(timeoutId);
-  }, [segments, onAnnotationClick, onAnnotationRightClick]);
-  
-  return (
-    <div ref={containerRef}>
-      <ReactMarkdown
-        remarkPlugins={[
-          remarkGfm,
-          [remarkWikiLink, {
-            pageResolver: (name: string) => [name.replace(/ /g, '_').toLowerCase()],
-            hrefTemplate: (permalink: string) => `#${permalink}`
-          }]
-        ]}
-        components={{
-          // Headings
-          h1: ({ children }) => (
-            <h1 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">{children}</h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">{children}</h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">{children}</h3>
-          ),
-          // Paragraphs and text
-          p: ({ children }) => (
-            <p className="mb-4 text-gray-700 dark:text-gray-300 leading-relaxed">{children}</p>
-          ),
-          // Lists
-          ul: ({ children }) => (
-            <ul className="list-disc list-inside mb-4 text-gray-700 dark:text-gray-300">{children}</ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="list-decimal list-inside mb-4 text-gray-700 dark:text-gray-300">{children}</ol>
-          ),
-          li: ({ children }) => (
-            <li className="mb-1">{children}</li>
-          ),
-          // Blockquotes
-          blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 mb-4 italic text-gray-600 dark:text-gray-400">
-              {children}
-            </blockquote>
-          ),
-          // Code
-          code: ({ className, children, ...props }) => {
-            const match = /language-(\w+)/.exec(className || '');
-            const isInline = !match;
-            
-            if (isInline) {
-              return (
-                <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>
-                  {children}
-                </code>
-              );
-            }
-            
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-          pre: ({ children }) => (
-            <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4 overflow-x-auto">
-              {children}
-            </pre>
-          ),
-          // Links
-          a: ({ href, children }) => {
-            if (href?.startsWith('#')) {
-              const pageName = href.substring(1).replace(/_/g, ' ');
-              return (
-                <button
-                  onClick={() => onWikiLinkClick?.(pageName)}
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline cursor-pointer"
-                >
-                  {children}
-                </button>
-              );
-            }
-            return <a href={href} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">{children}</a>;
-          },
-          // Horizontal rule
-          hr: () => <hr className="my-6 border-gray-300 dark:border-gray-600" />,
-          // Tables
-          table: ({ children }) => (
-            <table className="min-w-full mb-4 border-collapse">{children}</table>
-          ),
-          thead: ({ children }) => (
-            <thead className="border-b border-gray-300 dark:border-gray-600">{children}</thead>
-          ),
-          tbody: ({ children }) => <tbody>{children}</tbody>,
-          tr: ({ children }) => (
-            <tr className="border-b border-gray-200 dark:border-gray-700">{children}</tr>
-          ),
-          th: ({ children }) => (
-            <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">{children}</th>
-          ),
-          td: ({ children }) => (
-            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{children}</td>
-          )
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-};

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
+import { annotationStyles } from '@/lib/annotation-styles';
 
 interface SelectionPopupProps {
   selectedText: string;
@@ -44,6 +45,7 @@ export function SelectionPopup({
   );
   const [createNewDoc, setCreateNewDoc] = useState(false);
   const [newDocName, setNewDocName] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // Fetch entity types from backend
   const { data: entityTypesData } = api.entityTypes.list.useQuery();
@@ -144,12 +146,64 @@ export function SelectionPopup({
             </button>
           </div>
           
-          {/* Selected text display */}
+          {/* Selected text display with copy button */}
           <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Selected:</p>
-            <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-              "{selectedText}"
-            </p>
+            <div className="flex justify-between items-start gap-2">
+              <div className="flex-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Selected:</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                  "{selectedText}"
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedText).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+                  }).catch(err => {
+                    console.error('Failed to copy text:', err);
+                  });
+                }}
+                className={`p-1.5 rounded transition-all duration-200 ${
+                  copied 
+                    ? 'bg-green-500 text-white' 
+                    : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+                title={copied ? "Copied!" : "Copy to clipboard"}
+              >
+                {copied ? (
+                  // Checkmark icon for "Copied!" state
+                  <svg 
+                    className="w-4 h-4"
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M5 13l4 4L19 7" 
+                    />
+                  </svg>
+                ) : (
+                  // Copy icon
+                  <svg 
+                    className="w-4 h-4 text-gray-600 dark:text-gray-400"
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" 
+                    />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           
           {/* Create/Convert to Highlight button */}
@@ -247,7 +301,7 @@ export function SelectionPopup({
                           {doc.entityTypes.map((type) => (
                             <span
                               key={type}
-                              className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded"
+                              className={annotationStyles.tags.entity}
                             >
                               {type}
                             </span>
@@ -333,7 +387,7 @@ export function SelectionPopup({
                     {selectedEntityTypes.map((type) => (
                       <span
                         key={type}
-                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded flex items-center gap-1"
+                        className={`${annotationStyles.tags.entity} inline-flex items-center gap-1`}
                       >
                         {type}
                         <button
