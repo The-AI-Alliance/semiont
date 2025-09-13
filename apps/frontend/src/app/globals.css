@@ -34,3 +34,82 @@ body {
     opacity: 0.6;
   }
 }
+
+/* Custom CodeMirror Markdown Preview Styles */
+
+/* Headers */
+.md-header-1 { 
+  font-size: 2em; 
+  font-weight: bold; 
+  line-height: 1.2;
+  display: inline-block;
+  width: 100%;
+}
+.md-header-2 { 
+  font-size: 1.5em; 
+  font-weight: bold; 
+  line-height: 1.3;
+  display: inline-block;
+  width: 100%;
+}
+.md-header-3 { 
+  font-size: 1.25em; 
+  font-weight: bold; 
+  line-height: 1.4;
+  display: inline-block;
+  width: 100%;
+}
+.md-header-4 { 
+  font-size: 1.1em; 
+  font-weight: bold;
+  display: inline-block;
+  width: 100%;
+}
+.md-header-5 { 
+  font-size: 1em; 
+  font-weight: bold;
+  display: inline-block;
+  width: 100%;
+}
+.md-header-6 { 
+  font-size: 0.9em; 
+  font-weight: bold;
+  display: inline-block;
+  width: 100%;
+}
+
+/* Text formatting */
+.md-bold { font-weight: bold; }
+.md-italic { font-style: italic; }
+.md-code { 
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+/* Links */
+.md-link { 
+  color: #0969da;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Lists */
+.md-list-bullet {
+  color: #666;
+  font-weight: bold;
+}
+.md-list-item {
+  padding-left: 1em;
+}
+
+/* Header widgets (if using widget approach) */
+.md-header-widget {
+  display: block;
+  margin: 0.5em 0;
+}
+.md-h1 { font-size: 2em; font-weight: bold; }
+.md-h2 { font-size: 1.5em; font-weight: bold; }
+.md-h3 { font-size: 1.25em; font-weight: bold; }
