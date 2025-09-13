@@ -309,9 +309,16 @@ export default function DocumentPage() {
         console.log('Creating new entity document with types:', entityTypes);
         const newDocResponse = await apiService.documents.create({
           name: selectedText,
-          content: `# ${selectedText}\n\nThis is an entity${entityTypes.length > 1 ? ' with types' : ' of type'}: ${entityTypes.join(', ')}`,
+          content: `# ${selectedText}`,
           contentType: 'text/markdown'
         });
+        
+        // Set entity types on the new document
+        if (newDocResponse.document?.id && entityTypes.length > 0) {
+          await apiService.documents.update(newDocResponse.document.id, {
+            entityTypes: entityTypes
+          });
+        }
         
         // Now resolve the selection to this new document
         if (newDocResponse.document?.id) {
