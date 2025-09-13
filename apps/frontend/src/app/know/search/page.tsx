@@ -28,7 +28,7 @@ export default function SearchDocumentsPage() {
   };
 
   const openDocument = (documentId: string) => {
-    router.push(`/documents/${documentId}`);
+    router.push(`/know/document/${documentId}`);
   };
 
   return (

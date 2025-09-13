@@ -49,7 +49,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
       });
       
       // Navigate to the new document
-      router.push(`/documents/${response.document.id}`);
+      router.push(`/know/document/${response.document.id}`);
     } catch (error) {
       console.error('Failed to create document:', error);
       alert('Failed to create document. Please try again.');
@@ -59,7 +59,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
   };
 
   const openDocument = (documentId: string) => {
-    router.push(`/documents/${documentId}`);
+    router.push(`/know/document/${documentId}`);
   };
 
   return (

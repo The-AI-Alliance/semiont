@@ -142,5 +142,5 @@ export function CodeMirrorRenderer({
     };
   }, [content, segments, onAnnotationClick, onAnnotationRightClick, theme, editable]);
 
-  return <div ref={containerRef} className="codemirror-renderer" />;
+  return <div ref={containerRef} className="codemirror-renderer" data-markdown-container />;
 }

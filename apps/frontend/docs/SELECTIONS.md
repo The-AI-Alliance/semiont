@@ -96,7 +96,8 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 AnnotationRenderer
 ├── segmentTextWithAnnotations() // Pure function for text segmentation
 ├── SegmentRenderer             // Renders individual text segments  
-├── CodeMirrorRenderer          // Handles markdown with proper position mapping
+├── MarkdownWithAnnotations     // Handles markdown rendering with annotations
+│   └── ReactMarkdown          // Converts markdown to HTML
 └── SelectionOverlay            // Manages text selection UI
 ```
 
