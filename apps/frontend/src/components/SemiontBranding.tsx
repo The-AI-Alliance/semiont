@@ -3,7 +3,6 @@
 import React from 'react';
 
 interface SemiontBrandingProps {
-  isDark?: boolean;
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showTagline?: boolean;
@@ -12,7 +11,6 @@ interface SemiontBrandingProps {
 }
 
 export function SemiontBranding({ 
-  isDark = false,
   className = "",
   size = 'lg',
   showTagline = true,
@@ -40,10 +38,6 @@ export function SemiontBranding({
     xl: 'text-lg tracking-widest'
   };
 
-  const gradientStyle = isDark 
-    ? 'linear-gradient(135deg, #ffffff 0%, #00f5ff 50%, #ffffff 100%)'
-    : 'linear-gradient(135deg, #1f2937 0%, #0891b2 50%, #1f2937 100%)';
-
   const brandingContent = (
     <div className={`flex flex-col items-center justify-center text-center ${className}`}>
       {/* Main heading */}
@@ -51,10 +45,7 @@ export function SemiontBranding({
         className={`${sizeClasses[size]} font-bold tracking-tight ${compactTagline && showTagline ? 'mb-1' : 'mb-6 sm:mb-8'} uppercase font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000 ease-out' : ''}`}
       >
         <span
-          className="bg-clip-text text-transparent"
-          style={{ 
-            backgroundImage: gradientStyle
-          }}
+          className="bg-clip-text text-transparent bg-gradient-to-r from-gray-800 via-cyan-600 to-gray-800 dark:from-white dark:via-cyan-400 dark:to-white"
         >
           Semiont
         </span>
@@ -63,7 +54,7 @@ export function SemiontBranding({
       {/* Tagline */}
       {showTagline && (
         <h2 
-          className={`${compactTagline ? compactTaglineSizes[size] : taglineSizes[size]} ${isDark ? 'text-cyan-400' : 'text-cyan-600'} ${compactTagline ? '' : 'tracking-wide'} font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-2 duration-1000 ease-out delay-300' : ''}`}
+          className={`${compactTagline ? compactTaglineSizes[size] : taglineSizes[size]} text-cyan-600 dark:text-cyan-400 ${compactTagline ? '' : 'tracking-wide'} font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-2 duration-1000 ease-out delay-300' : ''}`}
         >
           make meaning
         </h2>
