@@ -489,10 +489,10 @@ export const apiService = {
       apiClient.post('/api/selections/generate-document', { body: data }),
     
     getHighlights: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/documents/:id/highlights', { params: { id: documentId } }),
+      apiClient.get('/api/selections', { params: { documentId, saved: true } }),
     
     getReferences: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/documents/:id/references', { params: { id: documentId } }),
+      apiClient.get('/api/selections', { params: { documentId, resolved: true } }),
   },
 
   // Entity types endpoint

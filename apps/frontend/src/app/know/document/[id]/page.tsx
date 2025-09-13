@@ -113,18 +113,6 @@ export default function KnowledgeDocumentPage() {
     return () => window.document.removeEventListener('keydown', handleKeyDown);
   }, [documentId, showSelectionPopup]);
 
-  // Load document and its selections
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (!session?.backendToken) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    loadDocument();
-    loadSelections();
-  }, [documentId, session, status]);
-
   const loadDocument = async () => {
     try {
       setLoading(true);
@@ -157,6 +145,18 @@ export default function KnowledgeDocumentPage() {
       console.error('Failed to load selections:', err);
     }
   };
+
+  // Load document and its selections
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (!session?.backendToken) {
+      router.push('/auth/signin');
+      return;
+    }
+
+    loadDocument();
+    loadSelections();
+  }, [documentId, session, status, router]);
 
   const handleCreateHighlight = async () => {
     if (!selectionPosition) return;
