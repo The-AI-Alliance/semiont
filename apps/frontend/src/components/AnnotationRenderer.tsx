@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkWikiLink from 'remark-wiki-link';
 import { annotationStyles } from '@/lib/annotation-styles';
+import { CodeMirrorRenderer } from './CodeMirrorRenderer';
 
 /**
  * ANNOTATION RENDERER - AXIOMATIC IMPLEMENTATION
@@ -48,7 +49,7 @@ interface Props {
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
 }
 
-interface TextSegment {
+export interface TextSegment {
   text: string;
   annotation?: AnnotationSelection;
   start: number;
@@ -188,7 +189,7 @@ export function AnnotationRenderer({
     text: string;
     start: number;
     end: number;
-    rect: DOMRect;
+    rects: DOMRect[];
   } | null>(null);
   
   // Combine and process annotations
@@ -223,18 +224,20 @@ export function AnnotationRenderer({
       }
       
       const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+      // Get all rectangles for multi-line selections
+      const rects = Array.from(range.getClientRects());
       
-      // Calculate position in source text
-      // For now, use a simple approach - in production, use proper position mapping
+      // Calculate position in SOURCE text
       const text = selection.toString();
-      const fullText = container.textContent || '';
-      const beforeSelection = range.startContainer.textContent?.substring(0, range.startOffset) || '';
-      const start = fullText.indexOf(text);
-      const end = start + text.length;
       
-      if (start >= 0) {
-        setSelectionState({ text, start, end, rect });
+      // For plain text, the rendered text matches the source text
+      // So we can directly find the position
+      const sourceText = content;
+      const start = sourceText.indexOf(text);
+      const end = start >= 0 ? start + text.length : -1;
+      
+      if (start >= 0 && rects.length > 0) {
+        setSelectionState({ text, start, end, rects });
       }
     };
     
@@ -278,31 +281,33 @@ export function AnnotationRenderer({
   
   // Render content based on type
   const renderContent = () => {
-    if (contentType !== 'markdown') {
-      // For non-markdown, render segments directly
+    if (contentType === 'markdown') {
+      // Use CodeMirror for markdown - it handles position mapping correctly!
       return (
-        <pre className="font-mono text-sm whitespace-pre-wrap">
-          {segments.map((segment, i) => (
-            <SegmentRenderer
-              key={`${segment.start}-${segment.end}-${segment.annotation?.id || i}`}
-              segment={segment}
-              onAnnotationClick={handleAnnotationClick}
-              {...(onAnnotationRightClick && { onAnnotationRightClick })}
-            />
-          ))}
-        </pre>
+        <CodeMirrorRenderer
+          content={content}
+          segments={segments}
+          onAnnotationClick={handleAnnotationClick}
+          onAnnotationRightClick={onAnnotationRightClick}
+          theme="light"
+          editable={false}
+        />
       );
     }
     
-    // For markdown, we need a different approach
-    // We'll render markdown first, then apply annotations as a post-process
-    return <MarkdownWithAnnotations 
-      content={content}
-      segments={segments}
-      {...(onWikiLinkClick && { onWikiLinkClick })}
-      onAnnotationClick={handleAnnotationClick}
-      {...(onAnnotationRightClick && { onAnnotationRightClick })}
-    />;
+    // For non-markdown, render segments directly
+    return (
+      <pre className="font-mono text-sm whitespace-pre-wrap">
+        {segments.map((segment, i) => (
+          <SegmentRenderer
+            key={`${segment.start}-${segment.end}-${segment.annotation?.id || i}`}
+            segment={segment}
+            onAnnotationClick={handleAnnotationClick}
+            {...(onAnnotationRightClick && { onAnnotationRightClick })}
+          />
+        ))}
+      </pre>
+    );
   };
   
   return (
@@ -318,26 +323,31 @@ export function AnnotationRenderer({
       {/* Selection UI overlay */}
       {selectionState && (
         <>
-          <div
-            className="absolute pointer-events-none z-40"
-            style={{
-              left: `${selectionState.rect.left - containerRef.current!.getBoundingClientRect().left}px`,
-              top: `${selectionState.rect.top - containerRef.current!.getBoundingClientRect().top}px`,
-              width: `${selectionState.rect.width}px`,
-              height: `${selectionState.rect.height}px`,
-              border: '2px dashed rgba(250, 204, 21, 0.6)',
-              borderRadius: '3px',
-              backgroundColor: 'rgba(254, 240, 138, 0.2)',
-              animation: 'pulse 2s ease-in-out infinite'
-            }}
-          />
+          {/* Render a highlight rectangle for each line of the selection */}
+          {selectionState.rects.map((rect, index) => (
+            <div
+              key={index}
+              className="absolute pointer-events-none z-40"
+              style={{
+                left: `${rect.left - containerRef.current!.getBoundingClientRect().left}px`,
+                top: `${rect.top - containerRef.current!.getBoundingClientRect().top}px`,
+                width: `${rect.width}px`,
+                height: `${rect.height}px`,
+                border: '2px dashed rgba(250, 204, 21, 0.6)',
+                borderRadius: '3px',
+                backgroundColor: 'rgba(254, 240, 138, 0.2)',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}
+            />
+          ))}
           
+          {/* Position sparkle at the end of the last rectangle */}
           <button
             onClick={handleSparkleClick}
             className="absolute z-50 text-xl hover:scale-125 transition-transform cursor-pointer animate-bounce"
             style={{
-              left: `${selectionState.rect.right - containerRef.current!.getBoundingClientRect().left + 5}px`,
-              top: `${selectionState.rect.top - containerRef.current!.getBoundingClientRect().top + selectionState.rect.height / 2}px`,
+              left: `${selectionState.rects[selectionState.rects.length - 1].right - containerRef.current!.getBoundingClientRect().left + 5}px`,
+              top: `${selectionState.rects[selectionState.rects.length - 1].top - containerRef.current!.getBoundingClientRect().top + selectionState.rects[selectionState.rects.length - 1].height / 2}px`,
               transform: 'translateY(-50%)'
             }}
             title="Click to create highlight • Right-click for more options"
@@ -402,14 +412,33 @@ const MarkdownWithAnnotations: React.FC<{
       for (const segment of segments) {
         if (!segment.annotation) continue;
         
-        // Find text nodes that overlap with this segment
+        // Get the text that should be annotated from the SOURCE
+        const annotatedText = content.substring(segment.start, segment.end);
+        
+        // Find where this text appears in the RENDERED output
+        let renderedText = '';
+        for (const { node } of textNodes) {
+          renderedText += node.textContent || '';
+        }
+        
+        const renderedPosition = renderedText.indexOf(annotatedText);
+        if (renderedPosition === -1) {
+          console.warn(`Could not find annotation text "${annotatedText}" in rendered output`);
+          continue;
+        }
+        
+        // Now apply the annotation at the RENDERED position
+        const renderedStart = renderedPosition;
+        const renderedEnd = renderedPosition + annotatedText.length;
+        
+        // Find text nodes that overlap with this RENDERED position
         for (const { node, start, length } of textNodes) {
           const nodeEnd = start + length;
           
-          // Check for overlap
-          if (segment.start < nodeEnd && segment.end > start) {
-            const overlapStart = Math.max(0, segment.start - start);
-            const overlapEnd = Math.min(length, segment.end - start);
+          // Check for overlap using RENDERED positions
+          if (renderedStart < nodeEnd && renderedEnd > start) {
+            const overlapStart = Math.max(0, renderedStart - start);
+            const overlapEnd = Math.min(length, renderedEnd - start);
             
             if (overlapStart < overlapEnd && node.parentNode) {
               // Wrap the overlapping portion

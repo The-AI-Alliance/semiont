@@ -95,8 +95,9 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 ```typescript
 AnnotationRenderer
 ├── segmentTextWithAnnotations() // Pure function for text segmentation
-├── SegmentRenderer             // Renders individual text segments
-├── MarkdownWithAnnotations     // Handles markdown with annotations
+├── SegmentRenderer             // Renders individual text segments  
+├── CodeMirrorRenderer          // Handles markdown with proper position mapping
+├── MarkdownWithAnnotations     // Legacy markdown renderer (deprecated)
 └── SelectionOverlay            // Manages text selection UI
 ```
 
@@ -104,8 +105,62 @@ AnnotationRenderer
 
 1. **Input**: Raw text content + array of selections
 2. **Processing**: Text is segmented based on annotation positions
-3. **Rendering**: Segments rendered with appropriate styling
+3. **Rendering**: 
+   - For markdown: CodeMirror renders with decorations at source positions
+   - For plain text: Segments rendered directly with appropriate styling
 4. **Interaction**: Event handlers attached for clicks and selection
+
+### CodeMirror Integration
+
+As of the latest implementation, we use CodeMirror for markdown rendering to solve the position mapping challenge:
+
+#### Why CodeMirror?
+
+1. **Automatic Position Mapping**: CodeMirror handles the complex mapping between source markdown positions and rendered display positions
+2. **Native Markdown Support**: Built-in markdown mode understands markdown syntax
+3. **Decoration System**: Efficiently applies highlights without modifying the source text
+4. **Performance**: Optimized for large documents with virtual scrolling capabilities
+
+#### How It Works
+
+```typescript
+// CodeMirrorRenderer.tsx
+const builder = new RangeSetBuilder<Decoration>();
+
+for (const segment of annotatedSegments) {
+  const decoration = Decoration.mark({
+    class: annotationStyles.getAnnotationStyle(segment.annotation),
+    attributes: {
+      'data-annotation-id': segment.annotation.id,
+      // ... other attributes
+    }
+  });
+  
+  // Add decoration at SOURCE positions - CodeMirror handles the mapping!
+  builder.add(segment.start, segment.end, decoration);
+}
+```
+
+Key points:
+- Decorations are applied using **source text positions**
+- CodeMirror automatically handles the transformation when rendering markdown
+- Click and context menu handlers are attached via CodeMirror's event system
+- The editor is configured as read-only for viewing documents
+
+#### Position Mapping Example
+
+For markdown content like:
+```markdown
+- dog
+- cat
+- horse
+```
+
+- **Source positions**: Characters 0-17 including markdown syntax
+- **Rendered display**: List items without the `- ` prefixes
+- **Annotation at source position 2-5**: Correctly highlights "dog" in the rendered list
+
+This solves the fundamental challenge of markdown position tracking that was identified in AXIOM 5.
 
 ### Testing Strategy
 
@@ -143,7 +198,7 @@ The selection system can be configured through environment variables:
 
 1. Annotations don't persist through document edits (positions become invalid)
 2. Overlapping annotations are skipped rather than layered
-3. Position tracking in complex markdown (tables, nested lists) may be imprecise
+3. ~~Position tracking in complex markdown~~ - **SOLVED with CodeMirror integration**
 
 ## Future Enhancements
 
