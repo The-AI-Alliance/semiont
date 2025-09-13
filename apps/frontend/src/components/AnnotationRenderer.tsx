@@ -1,9 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkWikiLink from 'remark-wiki-link';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { CodeMirrorRenderer } from './CodeMirrorRenderer';
 
@@ -290,9 +287,6 @@ export function AnnotationRenderer({
       if (onAnnotationRightClick) {
         props.onAnnotationRightClick = onAnnotationRightClick;
       }
-      if (onWikiLinkClick) {
-        props.onWikiLinkClick = onWikiLinkClick;
-      }
       return <CodeMirrorRenderer {...props} />;
     }
     
@@ -369,159 +363,3 @@ export function AnnotationRenderer({
     </div>
   );
 }
-      
-      // Get all text nodes in the container
-      const walker = document.createTreeWalker(
-        containerRef.current,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-      
-      const textNodes: Array<{ node: Text; start: number; length: number }> = [];
-      let position = 0;
-      let node;
-      
-      while (node = walker.nextNode()) {
-        const textNode = node as Text;
-        const length = textNode.textContent?.length || 0;
-        textNodes.push({ node: textNode, start: position, length });
-        position += length;
-      }
-      
-      // Apply annotations to text nodes
-      for (const segment of segments) {
-        if (!segment.annotation) continue;
-        
-        // Find text nodes that overlap with this segment
-        for (const { node, start, length } of textNodes) {
-          const nodeEnd = start + length;
-          
-          // Check for overlap
-          if (segment.start < nodeEnd && segment.end > start) {
-            const overlapStart = Math.max(0, segment.start - start);
-            const overlapEnd = Math.min(length, segment.end - start);
-            
-            if (overlapStart < overlapEnd && node.parentNode) {
-              // Wrap the overlapping portion
-              const text = node.textContent || '';
-              const before = text.substring(0, overlapStart);
-              const annotated = text.substring(overlapStart, overlapEnd);
-              const after = text.substring(overlapEnd);
-              
-              const span = document.createElement('span');
-              span.className = annotationStyles.getAnnotationStyle(segment.annotation);
-              span.textContent = annotated;
-              span.setAttribute('data-annotation-id', segment.annotation.id);
-              span.setAttribute('data-markdown-container', 'true');
-              
-              // Add event handlers
-              span.onclick = () => onAnnotationClick(segment.annotation!);
-              if (onAnnotationRightClick) {
-                span.oncontextmenu = (e) => {
-                  e.preventDefault();
-                  onAnnotationRightClick(segment.annotation!, e.clientX, e.clientY);
-                };
-              }
-              
-              // Replace node with new structure
-              const parent = node.parentNode;
-              const fragment = document.createDocumentFragment();
-              
-              if (before) fragment.appendChild(document.createTextNode(before));
-              fragment.appendChild(span);
-              if (after) fragment.appendChild(document.createTextNode(after));
-              
-              parent.replaceChild(fragment, node);
-              break; // Move to next segment
-            }
-          }
-        }
-      }
-    }, 100); // Delay to ensure markdown is fully rendered
-    
-    return () => clearTimeout(timeoutId);
-  }, [segments, onAnnotationClick, onAnnotationRightClick]);
-  
-  return (
-    <div ref={containerRef} data-markdown-container>
-      <ReactMarkdown
-        remarkPlugins={[
-          remarkGfm,
-          [remarkWikiLink, {
-            pageResolver: (name: string) => [name.replace(/ /g, '_').toLowerCase()],
-            hrefTemplate: (permalink: string) => `#${permalink}`
-          }]
-        ]}
-        components={{
-          // Headings
-          h1: ({ children }) => (
-            <h1 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">{children}</h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">{children}</h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">{children}</h3>
-          ),
-          // Paragraphs and text
-          p: ({ children }) => (
-            <p className="mb-4 text-gray-700 dark:text-gray-300 leading-relaxed">{children}</p>
-          ),
-          // Lists
-          ul: ({ children }) => (
-            <ul className="list-disc list-inside mb-4 text-gray-700 dark:text-gray-300">{children}</ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="list-decimal list-inside mb-4 text-gray-700 dark:text-gray-300">{children}</ol>
-          ),
-          li: ({ children }) => (
-            <li className="mb-1">{children}</li>
-          ),
-          // Links - handle wiki links specially
-          a: ({ href, children }) => {
-            if (href?.startsWith('#') && onWikiLinkClick) {
-              const pageName = href.substring(1).replace(/_/g, ' ');
-              return (
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onWikiLinkClick(pageName);
-                  }}
-                  className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                >
-                  {children}
-                </a>
-              );
-            }
-            return (
-              <a 
-                href={href} 
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {children}
-              </a>
-            );
-          },
-          // Code blocks
-          code: ({ className, children, ...props }) => {
-            const match = /language-(\w+)/.exec(className || '');
-            return match ? (
-              <pre className="bg-gray-100 dark:bg-gray-800 rounded p-3 mb-4 overflow-x-auto">
-                <code className={className}>{children}</code>
-              </pre>
-            ) : (
-              <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm">
-                {children}
-              </code>
-            );
-          }
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-};
