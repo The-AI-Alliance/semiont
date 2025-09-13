@@ -337,14 +337,27 @@ export function PythonRenderer({ content, segments, onAnnotationClick }) {
 
 // 2. Update AnnotationRenderer.tsx
 const renderContent = () => {
-  switch (contentType) {
-    case 'markdown':
-      return <CodeMirrorRenderer ... />;
-    case 'python':
-      return <PythonRenderer ... />;
-    default:
-      return <PlainTextRenderer ... />;
+  if (contentType === 'markdown') {
+    // Use CodeMirror for markdown - it handles position mapping correctly!
+    const props: any = {
+      content,
+      segments,
+      onAnnotationClick: handleAnnotationClick,
+      theme: "light",
+      editable: false
+    };
+    if (onAnnotationRightClick) {
+      props.onAnnotationRightClick = onAnnotationRightClick;
+    }
+    return <CodeMirrorRenderer {...props} />;
   }
+  
+  // For other content types, render segments directly or use custom renderers
+  if (contentType === 'python') {
+    return <PythonRenderer ... />;
+  }
+  
+  return <PlainTextRenderer ... />;
 };
 
 // 3. Add tests

@@ -7,10 +7,10 @@ The Semiont frontend uses a sophisticated rendering pipeline to display document
 ## Component Hierarchy
 
 ```
-Document Page
+Document Page (/know/document/[id]/page.tsx)
 └── AnnotationRenderer
-    ├── MarkdownWithAnnotations (for markdown content)
-    │   └── ReactMarkdown (converts markdown to HTML)
+    ├── CodeMirrorRenderer (for markdown content)
+    │   └── CodeMirror with markdown mode
     └── Plain Text Renderer (for non-markdown content)
 ```
 
@@ -34,65 +34,61 @@ Document Page
 - Uses `segmentTextWithAnnotations()` to split text into annotated and non-annotated segments
 - Handles both left-click (navigation) and right-click (edit) on annotations
 
-### MarkdownWithAnnotations
-
-**Location**: Within `/src/components/AnnotationRenderer.tsx`
-
-**Role**: Renders markdown as HTML and applies annotations as DOM overlays.
-
-**How it works**:
-1. Uses ReactMarkdown to convert markdown to HTML
-2. Waits for HTML to render (100ms delay)
-3. Walks through all text nodes in the rendered HTML
-4. Maps annotation positions (which are in source markdown coordinates) to rendered text
-5. Wraps annotated text portions in `<span>` elements with appropriate styling
-
-**Key Challenge Solved**: 
-Annotations are stored as character positions in the **source markdown text** (e.g., position 10-15), but need to be applied to the **rendered HTML text** where positions are different due to markdown syntax being converted to HTML tags.
-
-**Example**:
-```markdown
-# Hello World
-This is **bold** text.
-```
-- Source position 0-13: includes the `# ` 
-- Rendered HTML: `<h1>Hello World</h1>` - the `# ` is gone
-- MarkdownWithAnnotations handles this mapping by walking the rendered text nodes
-
-### ReactMarkdown
-
-**Location**: External library (`react-markdown`)
-
-**Role**: Converts markdown text to React components/HTML elements.
-
-**Features Used**:
-- `remarkGfm`: GitHub Flavored Markdown support (tables, strikethrough, etc.)
-- `remarkWikiLink`: Wiki-style links `[[Page Name]]`
-- Custom component renderers for styling (headings, links, code blocks, etc.)
-
-**Custom Renderers**:
-- Headers (h1, h2, h3) with proper typography
-- Links with special handling for wiki links
-- Code blocks with syntax highlighting
-- Lists with proper indentation
-
-### CodeMirrorRenderer (Currently Unused)
+### CodeMirrorRenderer (Primary Renderer)
 
 **Location**: `/src/components/CodeMirrorRenderer.tsx`
 
-**Role**: Alternative renderer using CodeMirror editor in read-only mode.
+**Role**: Renders markdown content with annotations using CodeMirror editor in read-only mode.
 
-**Why it exists**: 
-CodeMirror has built-in position mapping between source and rendered text, which could solve the position mapping challenge more elegantly.
+**Why CodeMirror**:
+- **Perfect position mapping**: Source positions ARE display positions
+- **No transformation needed**: Annotations work directly with source text
+- **Built-in decoration system**: Efficiently highlights text without DOM manipulation
+- **Reliable and performant**: Handles large documents well
 
-**Why it's not used**:
-- CodeMirror shows markdown with syntax highlighting, not rendered HTML
-- Users expect to see formatted text (headers, bold, lists), not raw markdown
-- Would show `# Title` instead of a large formatted title
+**How it works**:
+1. Creates a CodeMirror instance with markdown syntax highlighting
+2. Applies decoration marks at source positions for annotations
+3. Handles click and right-click events on annotations
+4. Configured as read-only for viewing
 
-**Potential Future Use**:
-- Could be used for an "edit mode" where users see and edit raw markdown
-- Could be adapted to render markdown while maintaining position mapping
+**Current Display**:
+- Shows markdown syntax with highlighting (e.g., `# Title`, `**bold**`)
+- Not ideal for reading but ensures accurate annotation positioning
+- Custom extension available for preview-like formatting
+
+### Custom Markdown Preview Extension
+
+**Location**: `/src/lib/codemirror-markdown-preview.ts`
+
+**Role**: Custom CodeMirror 6 extension to format markdown for reading while maintaining positions.
+
+**Features**:
+- Hides markdown syntax characters using decorations
+- Applies CSS styling (larger headers, bold/italic text)
+- Can replace elements with widgets (e.g., bullets for lists)
+- Maintains perfect position mapping
+
+**Implementation Approaches**:
+1. **Decoration-based**: Hide syntax, apply CSS classes
+2. **Widget-based**: Replace ranges with custom HTML elements
+3. **Hybrid**: Combine both for optimal results
+
+### MarkdownWithAnnotations (Deprecated)
+
+**Status**: Previously used but removed due to position mapping complexity
+
+**Why it was removed**:
+- Position mapping between source markdown and rendered HTML was unreliable
+- Required hacky DOM walking after ReactMarkdown rendered
+- 100ms delay needed for rendering
+- Complex and error-prone
+
+**What it did**:
+1. Used ReactMarkdown to convert markdown to HTML
+2. Walked DOM tree to rebuild position map
+3. Applied annotations by wrapping text in spans
+4. Handled the source→rendered position transformation
 
 ## Position Mapping Challenge
 
@@ -119,17 +115,23 @@ The word "bold" is now at different positions in the rendered text because:
 
 ### Current Solution
 
-MarkdownWithAnnotations solves this by:
-1. Letting ReactMarkdown render the HTML first
-2. Walking through rendered text nodes to rebuild position map
-3. Finding where annotation positions map to in the rendered output
-4. Applying annotations at the correct rendered positions
+CodeMirrorRenderer avoids the problem entirely by:
+1. Displaying the source markdown text directly
+2. Using CodeMirror's decoration system for annotations
+3. Applying decorations at source positions (no mapping needed)
+4. Showing syntax highlighting instead of rendered HTML
 
-### Alternative Solutions Considered
+This approach trades visual polish for accuracy and reliability.
 
-1. **CodeMirror**: Has built-in position mapping but doesn't render HTML
-2. **Unified/Remark AST**: Could track positions through the markdown AST transformation
-3. **Server-side rendering**: Pre-calculate rendered positions on the backend
+### Previous Solutions Attempted
+
+1. **ReactMarkdown with DOM walking**: Too complex, unreliable position mapping
+2. **MarkdownWithAnnotations**: Required hacky delays and DOM manipulation
+3. **Server-side position mapping**: Would add complexity to the backend
+
+### Future Improvements
+
+The custom markdown preview extension (`codemirror-markdown-preview.ts`) provides a path to better visual formatting while maintaining position accuracy by using CodeMirror's decoration system to hide syntax and style content.
 
 ## Data Flow
 
@@ -148,10 +150,10 @@ MarkdownWithAnnotations solves this by:
    Document content + Selections
    → AnnotationRenderer
    → segmentTextWithAnnotations()
-   → MarkdownWithAnnotations
-   → ReactMarkdown (HTML generation)
-   → DOM manipulation (annotation overlay)
-   → Final rendered output
+   → CodeMirrorRenderer
+   → CodeMirror with markdown mode
+   → Decorations applied at source positions
+   → Final rendered output (syntax-highlighted markdown)
    ```
 
 4. **User Interaction**:

@@ -116,8 +116,8 @@ As of the latest implementation, we use CodeMirror for markdown rendering to sol
 
 #### Why CodeMirror?
 
-1. **Automatic Position Mapping**: CodeMirror handles the complex mapping between source markdown positions and rendered display positions
-2. **Native Markdown Support**: Built-in markdown mode understands markdown syntax
+1. **Perfect Position Mapping**: Source positions match display positions exactly
+2. **Native Markdown Support**: Built-in markdown mode with syntax highlighting
 3. **Decoration System**: Efficiently applies highlights without modifying the source text
 4. **Performance**: Optimized for large documents with virtual scrolling capabilities
 
@@ -136,31 +136,46 @@ for (const segment of annotatedSegments) {
     }
   });
   
-  // Add decoration at SOURCE positions - CodeMirror handles the mapping!
+  // Add decoration at SOURCE positions
   builder.add(segment.start, segment.end, decoration);
 }
 ```
 
 Key points:
 - Decorations are applied using **source text positions**
-- CodeMirror automatically handles the transformation when rendering markdown
+- CodeMirror displays markdown with syntax highlighting (shows raw markdown)
 - Click and context menu handlers are attached via CodeMirror's event system
 - The editor is configured as read-only for viewing documents
+
+#### Custom Markdown Preview Extension
+
+We've created a custom CodeMirror extension (`codemirror-markdown-preview.ts`) that can:
+- Hide markdown syntax characters using decorations
+- Apply CSS styling to make headers larger, text bold/italic, etc.
+- Replace certain elements with widgets (e.g., bullets for lists)
+- Maintain perfect position mapping for annotations
+
+#### Current Display Mode
+
+The system currently shows markdown syntax with highlighting. While not ideal for reading, this approach:
+- Guarantees accurate annotation positioning
+- Avoids the complex position mapping issues of HTML rendering
+- Provides a stable foundation for the annotation system
 
 #### Position Mapping Example
 
 For markdown content like:
 ```markdown
+# Title
 - dog
 - cat
-- horse
 ```
 
-- **Source positions**: Characters 0-17 including markdown syntax
-- **Rendered display**: List items without the `- ` prefixes
-- **Annotation at source position 2-5**: Correctly highlights "dog" in the rendered list
+- **Source positions**: Characters include all markdown syntax (`#`, `-`, spaces)
+- **Display**: Shows the exact source text with syntax highlighting
+- **Annotation at position 8-11**: Highlights "dog" including the exact characters at those positions
 
-This solves the fundamental challenge of markdown position tracking that was identified in AXIOM 5.
+This approach completely avoids the position mapping problem by not transforming the text at all.
 
 ### Testing Strategy
 
