@@ -7,7 +7,7 @@ import { apiService } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { DocumentTags } from '@/components/DocumentTags';
-import type { Document } from '@/lib/api-client';
+import type { Document as SemiontDocument } from '@/lib/api-client';
 import { 
   mapBackendToFrontendSelection, 
   type HighlightsApiResponse, 
@@ -21,7 +21,7 @@ export default function KnowledgeDocumentPage() {
   const { data: session, status } = useSession();
   const documentId = params?.id as string;
 
-  const [document, setDocument] = useState<Document | null>(null);
+  const [document, setDocument] = useState<SemiontDocument | null>(null);
   const [highlights, setHighlights] = useState<any[]>([]);
   const [references, setReferences] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
