@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { apiService, api } from '@/lib/api-client';
+import { apiService } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
-import { annotationStyles } from '@/lib/annotation-styles';
-import type { Document, Selection } from '@/lib/api-client';
+import { DocumentTags } from '@/components/DocumentTags';
+import type { Document } from '@/lib/api-client';
 import { 
   mapBackendToFrontendSelection, 
   type HighlightsApiResponse, 
@@ -41,10 +41,6 @@ export default function KnowledgeDocumentPage() {
   
   // Entity type management state
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
-  const [isEditingTags, setIsEditingTags] = useState(false);
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
-  const [tagSearchQuery, setTagSearchQuery] = useState('');
-  const { data: entityTypesData, isLoading: entityTypesLoading, error: entityTypesError } = api.entityTypes.list.useQuery();
   
   // Store the document ID in localStorage when viewing
   useEffect(() => {
@@ -53,23 +49,11 @@ export default function KnowledgeDocumentPage() {
     }
   }, [documentId]);
 
-  // Handle click outside for dropdowns
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.tag-dropdown-container')) {
-        setShowTagDropdown(false);
-      }
-    };
-
-    if (showTagDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showTagDropdown]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
     const handleKeyDown = async (e: KeyboardEvent) => {
       // Escape key to close popups
       if (e.key === 'Escape') {
@@ -78,9 +62,6 @@ export default function KnowledgeDocumentPage() {
           setEditingAnnotation(null);
           setSelectedText('');
           setSelectionPosition(null);
-        }
-        if (showTagDropdown) {
-          setShowTagDropdown(false);
         }
       }
 
@@ -128,7 +109,7 @@ export default function KnowledgeDocumentPage() {
     
     window.document.addEventListener('keydown', handleKeyDown);
     return () => window.document.removeEventListener('keydown', handleKeyDown);
-  }, [documentId, showSelectionPopup, showTagDropdown]);
+  }, [documentId, showSelectionPopup]);
 
   // Load document and its selections
   useEffect(() => {
@@ -296,39 +277,6 @@ export default function KnowledgeDocumentPage() {
     }
   };
 
-  const handleEditAnnotation = async (
-    id: string, 
-    type: 'highlight' | 'reference',
-    targetDocumentId?: string,
-    referenceType?: string,
-    entityType?: string
-  ) => {
-    if (type === 'highlight') {
-      // For highlights, we just delete and recreate
-      await apiService.selections.delete(id);
-      await loadSelections();
-    } else if (type === 'reference' && targetDocumentId && referenceType) {
-      // For references, update the reference
-      await apiService.selections.update(id, {
-        referencedDocumentId: targetDocumentId,
-        referenceType
-      });
-      
-      // If updating entity types for a new document
-      if (entityType && !targetDocumentId.startsWith('existing-')) {
-        const selection = references.find(r => r.id === id);
-        if (selection?.referencedDocumentId) {
-          await apiService.documents.update(selection.referencedDocumentId, {
-            entityTypes: [entityType]
-          });
-        }
-      }
-      
-      await loadSelections();
-    }
-    
-    setEditingAnnotation(null);
-  };
 
   const handleDeleteAnnotation = async (id: string) => {
     try {
@@ -404,22 +352,6 @@ export default function KnowledgeDocumentPage() {
     setShowSelectionPopup(true);
   };
 
-  const handleAddTag = (tag: string) => {
-    if (!documentEntityTypes.includes(tag)) {
-      const newTags = [...documentEntityTypes, tag];
-      setDocumentEntityTypes(newTags);
-      updateDocumentTags(newTags);
-    }
-    setShowTagDropdown(false);
-    setTagSearchQuery('');
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    const newTags = documentEntityTypes.filter(tag => tag !== tagToRemove);
-    setDocumentEntityTypes(newTags);
-    updateDocumentTags(newTags);
-  };
-
   const updateDocumentTags = async (tags: string[]) => {
     try {
       await apiService.documents.update(documentId, {
@@ -429,11 +361,6 @@ export default function KnowledgeDocumentPage() {
       console.error('Failed to update document tags:', err);
     }
   };
-
-  const filteredEntityTypes = entityTypesData?.entityTypes.filter(type => 
-    type.toLowerCase().includes(tagSearchQuery.toLowerCase()) &&
-    !documentEntityTypes.includes(type)
-  ) || [];
 
   if (loading) {
     return (
@@ -514,74 +441,14 @@ export default function KnowledgeDocumentPage() {
 
         {/* Document Tags sidebar */}
         <div className="w-64">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Document Tags</h3>
-            <button
-              onClick={() => setIsEditingTags(!isEditingTags)}
-              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              {isEditingTags ? 'Done' : 'Edit'}
-            </button>
-          </div>
-          
-          <div className="space-y-2">
-            {/* Display existing tags */}
-            <div className="flex flex-wrap gap-2">
-              {documentEntityTypes.map(tag => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                >
-                  {tag}
-                  {isEditingTags && (
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                    >
-                      ×
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-            
-            {/* Add tag input */}
-            {isEditingTags && (
-              <div className="relative tag-dropdown-container">
-                <input
-                  type="text"
-                  placeholder="Add tag..."
-                  value={tagSearchQuery}
-                  onChange={(e) => {
-                    setTagSearchQuery(e.target.value);
-                    setShowTagDropdown(true);
-                  }}
-                  onFocus={() => setShowTagDropdown(true)}
-                  className="w-full px-2 py-1 text-xs border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                
-                {showTagDropdown && filteredEntityTypes.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-40 overflow-y-auto">
-                    {filteredEntityTypes.map(type => (
-                      <button
-                        key={type}
-                        onClick={() => {
-                          handleAddTag(type);
-                          setShowTagDropdown(false);
-                          setTagSearchQuery('');
-                        }}
-                        className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-600"
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+          <DocumentTags 
+            documentId={documentId}
+            initialTags={documentEntityTypes}
+            onUpdate={async (tags) => {
+              setDocumentEntityTypes(tags);
+              await updateDocumentTags(tags);
+            }}
+          />
         
         {/* Statistics */}
         <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
