@@ -430,11 +430,13 @@ export default function KnowledgeDocumentPage() {
             }}
             isEditMode={!!editingAnnotation}
             {...(editingAnnotation && { existingAnnotation: editingAnnotation })}
-            onDelete={editingAnnotation ? async () => {
-              await handleDeleteAnnotation(editingAnnotation.id);
-              setShowSelectionPopup(false);
-              setEditingAnnotation(null);
-            } : undefined}
+            {...(editingAnnotation && {
+              onDelete: async (annotationId: string) => {
+                await handleDeleteAnnotation(annotationId);
+                setShowSelectionPopup(false);
+                setEditingAnnotation(null);
+              }
+            })}
           />
         )}
         </div>

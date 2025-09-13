@@ -57,7 +57,7 @@ class HeaderWidget extends WidgetType {
     return element;
   }
   
-  get estimatedHeight() {
+  override get estimatedHeight() {
     // Estimate height based on header level for virtual scrolling
     return [48, 40, 36, 32, 28, 24][this.level - 1] || 24;
   }
