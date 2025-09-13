@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
@@ -470,6 +471,22 @@ export default function KnowledgeDocumentPage() {
             </div>
           </div>
         </div>
+        
+        {/* Cloned From */}
+        {document.sourceDocumentId && document.creationMethod === 'clone' && (
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
+            <div className="text-xs text-gray-600 dark:text-gray-400">
+              <span>Cloned from: </span>
+              <Link
+                href={`/know/document/${document.sourceDocumentId}`}
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View original
+              </Link>
+            </div>
+          </div>
+        )}
         
         {/* Archive Status */}
         <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
