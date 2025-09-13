@@ -24,7 +24,7 @@ function AuthErrorContent() {
   };
 
   return (
-    <PageLayout className="bg-gray-50">
+    <PageLayout className="bg-gray-50 dark:bg-gray-900">
       <div className="flex items-center justify-center py-20">
         <div className="max-w-md w-full space-y-8">
           <div>
