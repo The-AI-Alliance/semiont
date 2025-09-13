@@ -4,8 +4,8 @@ import React from 'react';
 import Home from '@/app/page';
 
 // Mock all child components to isolate the Home page structure
-vi.mock('@/components/shared/DashboardHeader', () => ({
-  DashboardHeader: () => <header data-testid="dashboard-header">Dashboard Header</header>
+vi.mock('@/components/shared/UnifiedHeader', () => ({
+  UnifiedHeader: () => <header data-testid="unified-header">Unified Header</header>
 }));
 
 vi.mock('@/components/UserMenu', () => ({

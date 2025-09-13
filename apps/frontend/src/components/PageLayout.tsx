@@ -1,5 +1,5 @@
 import React from 'react';
-import { Header } from './Header';
+import { UnifiedHeader } from './shared/UnifiedHeader';
 import { Footer } from './Footer';
 
 interface PageLayoutProps {
@@ -12,8 +12,12 @@ export function PageLayout({ children, className = '', showAuthLinks = true }: P
   return (
     <div className="flex flex-col min-h-screen">
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <Header showAuthLinks={showAuthLinks} />
+        <div className="max-w-7xl mx-auto pl-4 pr-1 py-4">
+          <UnifiedHeader 
+            showAuthLinks={showAuthLinks}
+            brandingLink="/"
+            variant="embedded"
+          />
         </div>
       </header>
       
