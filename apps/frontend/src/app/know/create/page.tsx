@@ -1,51 +1,119 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 
-export default function CreateDocumentPage() {
+function CreateDocumentContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams?.get('mode');
+  const tokenFromUrl = searchParams?.get('token');
+  
   const [newDocName, setNewDocName] = useState('');
   const [newDocContent, setNewDocContent] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isClone, setIsClone] = useState(false);
+  const [cloneToken, setCloneToken] = useState<string | null>(null);
+  
+  // Load cloned document data if in clone mode
+  useEffect(() => {
+    const loadCloneData = async () => {
+      if (mode === 'clone' && tokenFromUrl) {
+        try {
+          // Fetch the document data using the token
+          const response = await apiService.documents.getByToken(tokenFromUrl);
+          if (response.sourceDocument) {
+            setIsClone(true);
+            setCloneToken(tokenFromUrl);
+            setNewDocName(response.sourceDocument.name);
+            setNewDocContent(response.sourceDocument.content);
+          } else {
+            alert('Invalid or expired clone token');
+            router.push('/know/search');
+          }
+        } catch (err) {
+          console.error('Failed to load clone data:', err);
+          alert('Failed to load clone data');
+          router.push('/know/search');
+        } finally {
+          setIsLoading(false);
+        }
+      } else if (mode === 'clone' && !tokenFromUrl) {
+        alert('Clone token not found. Please try cloning again.');
+        router.push('/know/search');
+      } else {
+        setIsLoading(false);
+      }
+    };
+    
+    loadCloneData();
+  }, [mode, tokenFromUrl, router]);
 
-  const handleCreateDocument = async (e: React.FormEvent) => {
+  const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDocName.trim()) return;
 
     setIsCreating(true);
     try {
-      const response = await apiService.documents.create({
-        name: newDocName,
-        content: newDocContent || `# ${newDocName}\n\nStart writing your document here...`,
-        contentType: 'text/markdown'
-      });
-      
-      // Navigate to the new document
-      router.push(`/know/document/${response.document.id}`);
+      if (isClone && cloneToken) {
+        // Create document from clone token with edited content
+        const response = await apiService.documents.createFromToken({
+          token: cloneToken,
+          name: newDocName,
+          content: newDocContent
+        });
+        
+        // Navigate to the new cloned document
+        router.push(`/know/document/${response.document.id}`);
+      } else {
+        // Create a new document
+        const response = await apiService.documents.create({
+          name: newDocName,
+          content: newDocContent || `# ${newDocName}\n\nStart writing your document here...`,
+          contentType: 'text/markdown'
+        });
+        
+        // Navigate to the new document
+        router.push(`/know/document/${response.document.id}`);
+      }
     } catch (error) {
-      console.error('Failed to create document:', error);
-      alert('Failed to create document. Please try again.');
+      console.error('Failed to save document:', error);
+      alert('Failed to save document. Please try again.');
     } finally {
       setIsCreating(false);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="px-4 py-8">
+        <div className="flex items-center justify-center py-20">
+          <p className="text-gray-600 dark:text-gray-300">Loading cloned document...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-8">
       {/* Page Title */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Document</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {isClone ? 'Edit Cloned Document' : 'Create New Document'}
+        </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Start a new document in your knowledge base
+          {isClone 
+            ? 'Review and edit your cloned document before saving'
+            : 'Start a new document in your knowledge base'}
         </p>
       </div>
 
       {/* Create Form */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-        <form onSubmit={handleCreateDocument} className="space-y-6">
+        <form onSubmit={handleSaveDocument} className="space-y-6">
           <div>
             <label htmlFor="docName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Document Name
@@ -64,7 +132,7 @@ export default function CreateDocumentPage() {
           
           <div>
             <label htmlFor="docContent" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Initial Content (Optional)
+              {isClone ? 'Document Content' : 'Initial Content (Optional)'}
             </label>
             <textarea
               id="docContent"
@@ -91,11 +159,27 @@ export default function CreateDocumentPage() {
               disabled={isCreating || !newDocName.trim()}
               className={buttonStyles.primary.base}
             >
-              {isCreating ? 'Creating...' : 'Create Document'}
+              {isCreating 
+                ? (isClone ? 'Saving...' : 'Creating...') 
+                : (isClone ? 'Save Cloned Document' : 'Create Document')}
             </button>
           </div>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function CreateDocumentPage() {
+  return (
+    <Suspense fallback={
+      <div className="px-4 py-8">
+        <div className="flex items-center justify-center py-20">
+          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    }>
+      <CreateDocumentContent />
+    </Suspense>
   );
 }

@@ -76,7 +76,7 @@ interface Document {
   references?: Selection[];
   
   // Provenance tracking
-  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';
   contentChecksum?: string;
   sourceSelectionId?: string;
   sourceDocumentId?: string;
@@ -358,6 +358,15 @@ export const apiService = {
     
     update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }): Promise<DocumentResponse> =>
       apiClient.put('/api/documents/:id', { params: { id }, body: data }),
+    
+    clone: (id: string): Promise<{ token: string; expiresAt: string; sourceDocument: any }> =>
+      apiClient.post('/api/documents/:id/clone', { params: { id }, body: {} }),
+    
+    getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
+      apiClient.get('/api/documents/token/:token', { params: { token } }),
+    
+    createFromToken: (data: { token: string; name: string; content: string }): Promise<DocumentResponse> =>
+      apiClient.post('/api/documents/create-from-token', { body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>
       apiClient.delete('/api/documents/:id', { params: { id } }),

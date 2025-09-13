@@ -479,22 +479,43 @@ export default function KnowledgeDocumentPage() {
               Archived
             </div>
           )}
-          <button
-            onClick={async () => {
-              try {
-                await apiService.documents.update(documentId, {
-                  archived: !document.archived
-                });
-                await loadDocument();
-              } catch (err) {
-                console.error('Failed to update archive status:', err);
-                alert('Failed to update archive status');
-              }
-            }}
-            className={`${buttonStyles.secondary.base} w-full`}
-          >
-            {document.archived ? 'Unarchive' : 'Archive'}
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={async () => {
+                try {
+                  await apiService.documents.update(documentId, {
+                    archived: !document.archived
+                  });
+                  await loadDocument();
+                } catch (err) {
+                  console.error('Failed to update archive status:', err);
+                  alert('Failed to update archive status');
+                }
+              }}
+              className={`${buttonStyles.secondary.base} w-full`}
+            >
+              {document.archived ? 'Unarchive' : 'Archive'}
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const response = await apiService.documents.clone(documentId);
+                  if (response.token) {
+                    // Pass the token via URL parameter
+                    router.push(`/know/create?mode=clone&token=${encodeURIComponent(response.token)}`);
+                  } else {
+                    alert('Failed to prepare clone');
+                  }
+                } catch (err) {
+                  console.error('Failed to clone document:', err);
+                  alert('Failed to clone document');
+                }
+              }}
+              className={`${buttonStyles.secondary.base} w-full`}
+            >
+              Clone
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -16,10 +16,10 @@ export interface Document {
   updatedAt: Date;  // Set by backend on update
   
   // Provenance tracking (backend-controlled with optional client context)
-  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // How document was created (defaults to 'api')
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';  // How document was created (defaults to 'api')
   contentChecksum?: string;  // SHA-256 hash calculated by backend for integrity
   sourceSelectionId?: string;  // If created from reference, the selection that triggered it
-  sourceDocumentId?: string;  // If created from reference, the source document
+  sourceDocumentId?: string;  // If created from reference/clone, the source document
 }
 
 // Base selection type - represents any selection within a document
