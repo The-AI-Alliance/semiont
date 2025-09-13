@@ -315,8 +315,8 @@ export function AnnotationRenderer({
         {renderContent()}
       </div>
       
-      {/* Selection UI overlay */}
-      {selectionState && (
+      {/* Selection UI overlay - only show when onTextSelect is provided (not in archived mode) */}
+      {selectionState && onTextSelect && (
         <>
           {/* Render a highlight rectangle for each line of the selection */}
           {selectionState.rects.map((rect, index) => (

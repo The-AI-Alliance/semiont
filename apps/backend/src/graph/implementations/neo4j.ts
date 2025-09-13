@@ -79,6 +79,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       contentType: input.contentType,
       storageUrl: `/efs/documents/${id}`,
       metadata: input.metadata || {},
+      archived: false,  // New documents are not archived by default
       createdAt: now,
       updatedAt: now,
     };
@@ -137,6 +138,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       ...(input.name && { name: input.name }),
       ...(input.entityTypes && { entityTypes: input.entityTypes }),
       ...(input.metadata && { metadata: { ...doc.metadata, ...input.metadata } }),
+      ...(input.archived !== undefined && { archived: input.archived }),
       ...(input.updatedBy && { updatedBy: input.updatedBy }),
       updatedAt: new Date(),
     };
