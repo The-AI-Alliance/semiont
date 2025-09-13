@@ -93,7 +93,7 @@ export default function Welcome() {
   // Show loading while session is being fetched
   if (status === 'loading') {
     return (
-      <PageLayout className="bg-gray-50">
+      <PageLayout className="bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <div className="w-8 h-8 mx-auto animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
@@ -107,7 +107,7 @@ export default function Welcome() {
   // Show terms accepted confirmation
   if (termsAccepted) {
     return (
-      <PageLayout className="bg-gray-50">
+      <PageLayout className="bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center justify-center py-20">
           <div className="max-w-md w-full text-center space-y-6">
             <div className="w-16 h-16 mx-auto bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
@@ -129,7 +129,7 @@ export default function Welcome() {
 
   // Show terms acceptance form
   return (
-    <PageLayout className="bg-gray-50">
+    <PageLayout className="bg-gray-50 dark:bg-gray-900">
       <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-8">
           <div className="text-center mb-8">

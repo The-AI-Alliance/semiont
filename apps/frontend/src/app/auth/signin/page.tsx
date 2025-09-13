@@ -83,7 +83,7 @@ function SignInContent() {
   };
 
   return (
-    <PageLayout className="bg-gray-50" showAuthLinks={false}>
+    <PageLayout className="bg-gray-50 dark:bg-gray-900" showAuthLinks={false}>
       <div className="flex items-center justify-center py-12 font-sans">
         <div className="max-w-md w-full space-y-8">
           <div>
@@ -134,7 +134,7 @@ function SignInContent() {
                       <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500">Or</span>
+                      <span className="px-2 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400">Or</span>
                     </div>
                   </div>
                 </>
