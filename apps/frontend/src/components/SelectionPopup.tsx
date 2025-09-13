@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
+import { buttonStyles } from '@/lib/button-styles';
 
 interface SelectionPopupProps {
   selectedText: string;
@@ -10,6 +11,16 @@ interface SelectionPopupProps {
   onCreateHighlight: () => void;
   onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void;
   onClose: () => void;
+  isEditMode?: boolean;
+  existingAnnotation?: {
+    id: string;
+    type: 'highlight' | 'reference';
+    referencedDocumentId?: string;
+    referenceType?: string;
+    entityType?: string;
+  };
+  onUpdate?: (annotationId: string, updates: any) => void;
+  onDelete?: (annotationId: string) => void;
 }
 
 export function SelectionPopup({
@@ -17,49 +28,51 @@ export function SelectionPopup({
   sourceDocumentId,
   onCreateHighlight,
   onCreateReference,
-  onClose
+  onClose,
+  isEditMode = false,
+  existingAnnotation,
+  onUpdate,
+  onDelete
 }: SelectionPopupProps) {
-  const [activeTab, setActiveTab] = useState<'highlight' | 'reference' | 'entity'>('highlight');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Document[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
-  const [referenceType, setReferenceType] = useState('citation');
-  const [entityType, setEntityType] = useState('');
-  const [customEntityType, setCustomEntityType] = useState('');
+  const [referenceType, setReferenceType] = useState(existingAnnotation?.referenceType || 'mentions');
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>(
+    existingAnnotation?.entityType ? [existingAnnotation.entityType] : []
+  );
+  const [createNewDoc, setCreateNewDoc] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
 
   // Fetch entity types from backend
-  const { data: entityTypesData, isLoading: entityTypesLoading } = api.entityTypes.list.useQuery();
+  const { data: entityTypesData } = api.entityTypes.list.useQuery();
   const commonEntityTypes = entityTypesData?.entityTypes || [
-    // Fallback to hardcoded if API fails
     'Person',
-    'Organization',
+    'Organization', 
     'Location',
     'Event',
     'Concept',
     'Product',
-    'Technology',
-    'Date',
-    'Other'
+    'Technology'
   ];
 
   // Fetch reference types from backend
-  const { data: referenceTypesData, isLoading: referenceTypesLoading } = api.referenceTypes.list.useQuery();
+  const { data: referenceTypesData } = api.referenceTypes.list.useQuery();
   const referenceTypes = referenceTypesData?.referenceTypes || [
-    // Fallback to hardcoded if API fails
-    'citation',
-    'definition',
-    'elaboration',
-    'example',
-    'related'
+    'mentions',
+    'defines',
+    'cites',
+    'describes',
+    'uses'
   ];
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
-
+    
     setIsSearching(true);
     try {
-      const response = await apiService.documents.search(searchQuery, 5);
+      const response = await apiService.documents.search(searchQuery, 10);
       setSearchResults(response.documents);
     } catch (error) {
       console.error('Search failed:', error);
@@ -70,219 +83,243 @@ export function SelectionPopup({
   };
 
   const handleCreateNewDocument = async () => {
+    const docName = newDocName.trim() || searchQuery.trim() || selectedText;
+    if (!docName) return;
+    
     try {
-      const createData: Parameters<typeof apiService.documents.create>[0] = {
-        name: searchQuery || selectedText.substring(0, 50),
-        content: `# ${searchQuery || selectedText.substring(0, 50)}\n\nThis document was created from a reference to:\n\n> ${selectedText}`,
-        contentType: 'text/markdown',
-        creationMethod: 'reference'
-      };
-      
-      // Only add sourceDocumentId if it's defined
-      if (sourceDocumentId) {
-        createData.sourceDocumentId = sourceDocumentId;
-      }
-      
-      const response = await apiService.documents.create(createData);
-      
-      // Create reference to the new document
-      onCreateReference(response.document.id, undefined, referenceType);
+      // Pass entity types if any are selected
+      const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+      onCreateReference(undefined, entityTypesStr, referenceType);
     } catch (error) {
       console.error('Failed to create document:', error);
-      alert('Failed to create new document');
     }
   };
 
+  const handleCreateReference = () => {
+    if (selectedDoc && !createNewDoc) {
+      // Create reference to existing document
+      onCreateReference(selectedDoc.id, undefined, referenceType);
+    } else if (createNewDoc || (searchQuery && !selectedDoc)) {
+      // Create reference with new document
+      handleCreateNewDocument();
+    }
+  };
+
+  // Handle Escape key to close the popup
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  // Prevent clicks inside the popup from closing it
+  const handlePopupClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl dark:shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+        onClick={handlePopupClick}
+      >
+        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Create Selection
+              {isEditMode ? 'Edit Selection' : 'Create Selection'}
             </h3>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               ✕
             </button>
           </div>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-            Selected: "{selectedText}"
-          </p>
+          
+          {/* Selected text display */}
+          <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded">
+            <p className="text-sm text-gray-600 dark:text-gray-400">Selected:</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+              "{selectedText}"
+            </p>
+          </div>
+          
+          {/* Create/Convert to Highlight button */}
+          {(!isEditMode || existingAnnotation?.type === 'reference') && (
+            <button
+              onClick={onCreateHighlight}
+              className="mt-3 w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50 border border-yellow-400/30 dark:border-yellow-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
+            >
+              {isEditMode ? 'Convert to Highlight' : 'Create Highlight'}
+            </button>
+          )}
+          
+          {/* Delete button for edit mode */}
+          {isEditMode && onDelete && (
+            <button
+              onClick={() => onDelete(existingAnnotation!.id)}
+              className="mt-3 w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 rounded-lg transition-all duration-300"
+            >
+              Delete {existingAnnotation?.type === 'highlight' ? 'Highlight' : 'Reference'}
+            </button>
+          )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
-          <button
-            onClick={() => setActiveTab('highlight')}
-            className={`px-4 py-2 font-medium text-sm ${
-              activeTab === 'highlight'
-                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-            }`}
-          >
-            Highlight
-          </button>
-          <button
-            onClick={() => setActiveTab('reference')}
-            className={`px-4 py-2 font-medium text-sm ${
-              activeTab === 'reference'
-                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-            }`}
-          >
-            Reference Document
-          </button>
-          <button
-            onClick={() => setActiveTab('entity')}
-            className={`px-4 py-2 font-medium text-sm ${
-              activeTab === 'entity'
-                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-            }`}
-          >
-            Entity Reference
-          </button>
-        </div>
+        <div className="p-4 space-y-4">
+          {/* Reference Type Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Reference Type
+            </label>
+            <select
+              value={referenceType}
+              onChange={(e) => setReferenceType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              {referenceTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* Content */}
-        <div className="p-4 overflow-y-auto" style={{ maxHeight: '400px' }}>
-          {activeTab === 'highlight' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Create a highlight to mark this text as important. Highlights are saved and can be viewed later.
-              </p>
+          {/* Document Search */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Target Document
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSelectedDoc(null);
+                  setCreateNewDoc(false);
+                }}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Search for existing document..."
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
               <button
-                onClick={onCreateHighlight}
-                className="w-full py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 dark:focus:ring-offset-gray-800 transition-colors"
+                onClick={handleSearch}
+                disabled={isSearching || !searchQuery.trim()}
+                className={buttonStyles.secondary.base}
               >
-                Create Highlight
+                {isSearching ? '...' : 'Search'}
               </button>
             </div>
-          )}
+          </div>
 
-          {activeTab === 'reference' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Link this selection to another document.
-              </p>
-
-              {/* Reference Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Reference Type
-                </label>
-                <select
-                  value={referenceType}
-                  onChange={(e) => setReferenceType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  disabled={referenceTypesLoading}
-                >
-                  {referenceTypes.map(type => (
-                    <option key={type} value={type}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Search for Document */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Search for Document
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="Search documents..."
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  />
-                  <button
-                    onClick={handleSearch}
-                    disabled={isSearching}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-offset-gray-800 disabled:opacity-50 transition-colors"
-                  >
-                    {isSearching ? '...' : 'Search'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Search Results */}
+          {/* Search Results or Create New Options */}
+          {(searchResults.length > 0 || searchQuery) && (
+            <div className="space-y-2">
               {searchResults.length > 0 && (
-                <div className="space-y-2">
+                <>
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Select a document:
+                    Existing documents:
                   </p>
                   {searchResults.map((doc) => (
                     <div
                       key={doc.id}
-                      onClick={() => setSelectedDoc(doc)}
+                      onClick={() => {
+                        setSelectedDoc(doc);
+                        setCreateNewDoc(false);
+                      }}
                       className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedDoc?.id === doc.id
+                        selectedDoc?.id === doc.id && !createNewDoc
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                           : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
                       <p className="font-medium text-gray-900 dark:text-white">{doc.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                      {doc.entityTypes && doc.entityTypes.length > 0 && (
+                        <div className="mt-1 flex gap-1 flex-wrap">
+                          {doc.entityTypes.map((type) => (
+                            <span
+                              key={type}
+                              className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded"
+                            >
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-1">
                         {doc.content.substring(0, 100)}...
                       </p>
                     </div>
                   ))}
-                </div>
+                </>
               )}
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                {selectedDoc && (
-                  <button
-                    onClick={() => onCreateReference(selectedDoc.id, undefined, referenceType)}
-                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-offset-gray-800 transition-colors"
-                  >
-                    Link to Selected Document
-                  </button>
-                )}
-                {searchQuery && (
-                  <button
-                    onClick={handleCreateNewDocument}
-                    className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-offset-gray-800 transition-colors"
-                  >
-                    Create New Document
-                  </button>
-                )}
+              
+              {/* Option to create new document */}
+              <div
+                onClick={() => {
+                  setCreateNewDoc(true);
+                  setSelectedDoc(null);
+                }}
+                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                  createNewDoc
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <p className="font-medium text-gray-900 dark:text-white">
+                  ✨ Create new document
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {searchQuery ? `Named: "${searchQuery}"` : `Named: "${selectedText}"`}
+                </p>
               </div>
             </div>
           )}
 
-          {activeTab === 'entity' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Mark this selection as a reference to an entity (person, place, concept, etc.).
-              </p>
-
+          {/* New Document Options - show when creating new */}
+          {createNewDoc && (
+            <div className="space-y-3 p-3 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Document Name
+                </label>
+                <input
+                  type="text"
+                  value={newDocName}
+                  onChange={(e) => setNewDocName(e.target.value)}
+                  placeholder={searchQuery || selectedText}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+              
               {/* Entity Type Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Entity Type
+                  Entity Types (optional)
                 </label>
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="grid grid-cols-3 gap-2">
                   {commonEntityTypes.map((type) => (
                     <button
                       key={type}
                       onClick={() => {
-                        setEntityType(type);
-                        setCustomEntityType('');
+                        setSelectedEntityTypes(prev => 
+                          prev.includes(type) 
+                            ? prev.filter(t => t !== type)
+                            : [...prev, type]
+                        );
                       }}
                       className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                        entityType === type
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-                          : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        selectedEntityTypes.includes(type)
+                          ? 'border-purple-500 bg-purple-200 text-purple-900 dark:bg-purple-900/50 dark:text-purple-300'
+                          : buttonStyles.tertiary.base + ' border border-gray-300 dark:border-gray-600'
                       }`}
                     >
                       {type}
@@ -290,32 +327,38 @@ export function SelectionPopup({
                   ))}
                 </div>
                 
-                {/* Custom Entity Type */}
-                {entityType === 'Other' && (
-                  <input
-                    type="text"
-                    value={customEntityType}
-                    onChange={(e) => setCustomEntityType(e.target.value)}
-                    placeholder="Enter custom entity type..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  />
+                {/* Show selected entity types */}
+                {selectedEntityTypes.length > 0 && (
+                  <div className="mt-2 flex gap-1 flex-wrap">
+                    {selectedEntityTypes.map((type) => (
+                      <span
+                        key={type}
+                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded flex items-center gap-1"
+                      >
+                        {type}
+                        <button
+                          onClick={() => setSelectedEntityTypes(prev => prev.filter(t => t !== type))}
+                          className="hover:text-purple-900 dark:hover:text-purple-100"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
-
-              {/* Create Entity Reference */}
-              <button
-                onClick={() => {
-                  const finalEntityType = entityType === 'Other' ? customEntityType : entityType;
-                  if (finalEntityType) {
-                    onCreateReference(undefined, finalEntityType, 'entity');
-                  }
-                }}
-                disabled={!entityType || (entityType === 'Other' && !customEntityType)}
-                className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Create Entity Reference
-              </button>
             </div>
+          )}
+
+          {/* Create/Update Reference Button */}
+          {(!isEditMode || existingAnnotation?.type === 'highlight' || existingAnnotation?.type === 'reference') && (
+            <button
+              onClick={handleCreateReference}
+              disabled={!selectedDoc && !createNewDoc && !searchQuery}
+              className={`w-full py-2 ${buttonStyles.primary.base}`}
+            >
+              {isEditMode ? (existingAnnotation?.type === 'highlight' ? 'Convert to Reference' : 'Update Reference') : 'Create Reference'}
+            </button>
           )}
         </div>
       </div>

@@ -28,6 +28,7 @@ interface AnnotationSelection {
   text?: string;
   referencedDocumentId?: string;
   entityType?: string;
+  entityTypes?: string[];
   referenceType?: string;
   type?: string;
   createdAt?: string;
@@ -125,7 +126,10 @@ function getAnnotationClassName(annotation: AnnotationSelection): string {
     return base + "bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50";
   }
   
-  if (annotation.referenceType === 'entity') {
+  // Check for entity references - they have entityTypes array or entityType field
+  if (annotation.referenceType === 'entity' || 
+      (annotation as any).entityTypes?.length > 0 || 
+      annotation.entityType) {
     return base + "bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50";
   }
   
@@ -148,7 +152,9 @@ const SegmentRenderer: React.FC<{
     ? 'Right-click to delete or convert to reference'
     : segment.annotation.referencedDocumentId
       ? 'Click to navigate • Right-click for options'
-      : 'Right-click to link to document or delete';
+      : (segment.annotation as any).entityTypes?.length > 0 || segment.annotation.entityType
+        ? `Entity: ${(segment.annotation as any).entityTypes?.[0] || segment.annotation.entityType} • Right-click for options`
+        : 'Right-click to link to document or delete';
   
   return (
     <span
@@ -435,7 +441,9 @@ const MarkdownWithAnnotations: React.FC<{
                 ? 'Right-click to delete or convert to reference'
                 : segment.annotation.referencedDocumentId
                   ? 'Click to navigate • Right-click for options'
-                  : 'Right-click to link to document or delete';
+                  : (segment.annotation as any).entityTypes?.length > 0 || segment.annotation.entityType
+                    ? `Entity: ${(segment.annotation as any).entityTypes?.[0] || segment.annotation.entityType} • Right-click for options`
+                    : 'Right-click to link to document or delete';
               span.title = hoverText;
               
               // Add event handlers

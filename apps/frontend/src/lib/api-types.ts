@@ -53,6 +53,7 @@ export interface FrontendSelection {
   // Use consistent naming for frontend
   referencedDocumentId?: string;
   entityType?: string;
+  entityTypes?: string[];
   referenceType?: string;
   
   createdAt?: string;
@@ -74,8 +75,14 @@ export function mapBackendToFrontendSelection(backend: BackendSelection): Fronte
   if (backend.resolvedDocumentId !== undefined) {
     mapped.referencedDocumentId = backend.resolvedDocumentId;
   }
-  if (backend.entityTypes?.[0] !== undefined) {
-    mapped.entityType = backend.entityTypes[0];
+  if (backend.entityTypes !== undefined && backend.entityTypes.length > 0) {
+    mapped.entityTypes = backend.entityTypes;
+    if (backend.entityTypes[0] !== undefined) {
+      mapped.entityType = backend.entityTypes[0];
+    }
+  } else if (backend.entityTypes !== undefined) {
+    // Handle empty array case
+    mapped.entityTypes = [];
   }
   if (backend.referenceTags?.[0] !== undefined) {
     mapped.referenceType = backend.referenceTags[0];

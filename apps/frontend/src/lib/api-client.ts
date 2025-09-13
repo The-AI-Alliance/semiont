@@ -391,6 +391,7 @@ export const apiService = {
       text: string; 
       position: { start: number; end: number };
       type?: 'provisional' | 'highlight' | 'reference';
+      entityTypes?: string[];
     }): Promise<SelectionResponse> =>
       apiClient.post('/api/selections', { 
         body: {
@@ -400,7 +401,8 @@ export const apiService = {
             offset: data.position.start,
             length: data.position.end - data.position.start,
             text: data.text
-          }
+          },
+          entityTypes: data.entityTypes
         }
       }),
     

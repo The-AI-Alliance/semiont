@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 import { apiService, api } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
-import { AnnotationContextMenu } from '@/components/AnnotationContextMenu';
 import { PageLayout } from '@/components/PageLayout';
 import type { Document, Selection } from '@/lib/api-client';
 import { 
@@ -32,15 +31,13 @@ export default function DocumentPage() {
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{ start: number; end: number } | null>(null);
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
-  
-  // Context menu state
-  interface ContextMenuAnnotation {
+  const [editingAnnotation, setEditingAnnotation] = useState<{
     id: string;
     type: 'highlight' | 'reference';
     referencedDocumentId?: string;
-  }
-  const [contextMenuAnnotation, setContextMenuAnnotation] = useState<ContextMenuAnnotation | null>(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+    referenceType?: string;
+    entityType?: string;
+  } | null>(null);
   
   // Entity type management state
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
@@ -231,11 +228,19 @@ export default function DocumentPage() {
     if (!selectionPosition) return;
 
     try {
-      await apiService.selections.saveAsHighlight({
-        documentId,
-        text: selectedText,
-        position: selectionPosition
-      });
+      // If we're editing a reference, delete it first before creating highlight
+      if (editingAnnotation && editingAnnotation.type === 'reference') {
+        await apiService.selections.delete(editingAnnotation.id);
+      }
+      
+      // Create new highlight (or keep existing one if already a highlight)
+      if (!editingAnnotation || editingAnnotation.type === 'reference') {
+        await apiService.selections.saveAsHighlight({
+          documentId,
+          text: selectedText,
+          position: selectionPosition
+        });
+      }
       
       // Reload selections
       await loadSelections();
@@ -244,9 +249,11 @@ export default function DocumentPage() {
       setShowSelectionPopup(false);
       setSelectedText('');
       setSelectionPosition(null);
+      setEditingAnnotation(null);
+      setEditingAnnotation(null);
     } catch (err) {
-      console.error('Failed to create highlight:', err);
-      alert('Failed to create highlight');
+      console.error('Failed to create/convert highlight:', err);
+      alert('Failed to create/convert highlight');
     }
   };
 
@@ -254,6 +261,16 @@ export default function DocumentPage() {
     if (!selectionPosition) return;
 
     try {
+      // If we're editing a highlight, delete it first before creating reference
+      if (editingAnnotation && editingAnnotation.type === 'highlight') {
+        await apiService.selections.delete(editingAnnotation.id);
+      }
+      
+      // For existing references being updated, we might need to delete and recreate
+      // if the target document is changing
+      if (editingAnnotation && editingAnnotation.type === 'reference') {
+        await apiService.selections.delete(editingAnnotation.id);
+      }
       // First create the selection - returns BackendSelection directly
       const response = await apiService.selections.create({
         documentId,
@@ -273,9 +290,9 @@ export default function DocumentPage() {
       const selectionId = backendSelection.id;
       console.log('Created selection with ID:', selectionId);
 
-      // If we have a target document, resolve it
+      // If we have a target document, resolve to it
       if (targetDocId) {
-        console.log('Resolving to document:', targetDocId, 'with selection:', selectionId);
+        console.log('Resolving to existing document:', targetDocId, 'with selection:', selectionId);
         const resolveData: { selectionId: string; targetDocumentId: string; referenceType?: string } = {
           selectionId: selectionId,
           targetDocumentId: targetDocId
@@ -284,6 +301,29 @@ export default function DocumentPage() {
           resolveData.referenceType = referenceType;
         }
         await apiService.selections.resolveToDocument(resolveData);
+      } else if (entityType) {
+        // Create a new document with the entity type(s)
+        // entityType may be a comma-separated list
+        const entityTypes = entityType.split(',').map(t => t.trim()).filter(t => t);
+        console.log('Creating new entity document with types:', entityTypes);
+        const newDocResponse = await apiService.documents.create({
+          name: selectedText,
+          content: `# ${selectedText}\n\nThis is an entity${entityTypes.length > 1 ? ' with types' : ' of type'}: ${entityTypes.join(', ')}`,
+          contentType: 'text/markdown'
+        });
+        
+        // Now resolve the selection to this new document
+        if (newDocResponse.document?.id) {
+          console.log('Resolving to new entity document:', newDocResponse.document.id);
+          const resolveData: { selectionId: string; targetDocumentId: string; referenceType?: string } = {
+            selectionId: selectionId,
+            targetDocumentId: newDocResponse.document.id
+          };
+          if (referenceType) {
+            resolveData.referenceType = referenceType;
+          }
+          await apiService.selections.resolveToDocument(resolveData);
+        }
       }
 
       // Reload selections
@@ -293,6 +333,7 @@ export default function DocumentPage() {
       setShowSelectionPopup(false);
       setSelectedText('');
       setSelectionPosition(null);
+      setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to create reference - Full error:', err);
       if (err instanceof Error) {
@@ -372,15 +413,33 @@ export default function DocumentPage() {
                 }}
                 onAnnotationRightClick={(annotation, x, y) => {
                   if (annotation.type === 'highlight' || annotation.type === 'reference') {
-                    const menuAnnotation: ContextMenuAnnotation = {
-                      id: annotation.id,
-                      type: annotation.type
-                    };
-                    if (annotation.referencedDocumentId) {
-                      menuAnnotation.referencedDocumentId = annotation.referencedDocumentId;
+                    // Set up the editing annotation data
+                    const annData = annotation.type === 'highlight' 
+                      ? highlights.find(h => h.id === annotation.id)
+                      : references.find(r => r.id === annotation.id);
+                    
+                    if (annData) {
+                      setSelectedText(annData.text || annData.selectionData.text);
+                      setSelectionPosition({
+                        start: annData.selectionData.offset,
+                        end: annData.selectionData.offset + annData.selectionData.length
+                      });
+                      const editAnn: typeof editingAnnotation = {
+                        id: annotation.id,
+                        type: annotation.type
+                      };
+                      if (annotation.referencedDocumentId) {
+                        editAnn.referencedDocumentId = annotation.referencedDocumentId;
+                      }
+                      if ((annotation as any).referenceType) {
+                        editAnn.referenceType = (annotation as any).referenceType;
+                      }
+                      if ((annotation as any).entityType) {
+                        editAnn.entityType = (annotation as any).entityType;
+                      }
+                      setEditingAnnotation(editAnn);
+                      setShowSelectionPopup(true);
                     }
-                    setContextMenuAnnotation(menuAnnotation);
-                    setContextMenuPosition({ x, y });
                   }
                 }}
               />
@@ -544,83 +603,6 @@ export default function DocumentPage() {
         </div>
       </div>
 
-      {/* Context Menu */}
-      {contextMenuAnnotation && contextMenuPosition && (() => {
-        const menuProps: React.ComponentProps<typeof AnnotationContextMenu> = {
-          x: contextMenuPosition.x,
-          y: contextMenuPosition.y,
-          annotation: contextMenuAnnotation,
-          onClose: () => {
-            setContextMenuAnnotation(null);
-            setContextMenuPosition(null);
-          },
-          onDelete: async () => {
-            try {
-              await apiService.selections.delete(contextMenuAnnotation.id);
-              await loadSelections();
-            } catch (err) {
-              console.error('Failed to delete annotation:', err);
-              alert('Failed to delete annotation');
-            }
-          }
-        };
-        
-        if (contextMenuAnnotation.type === 'highlight') {
-          menuProps.onConvertToReference = () => {
-            // Show the reference creation popup to allow choosing a target document
-            setShowSelectionPopup(true);
-            // Find the highlight to get its text and position
-            const highlight = highlights.find(h => h.id === contextMenuAnnotation.id);
-            if (highlight) {
-              setSelectedText(highlight.text || highlight.selectionData.text);
-              setSelectionPosition({
-                start: highlight.selectionData.offset,
-                end: highlight.selectionData.offset + highlight.selectionData.length
-              });
-            }
-            setContextMenuAnnotation(null);
-            setContextMenuPosition(null);
-          };
-        }
-        
-        if (contextMenuAnnotation.type === 'reference') {
-          menuProps.onConvertToHighlight = async () => {
-            try {
-              // To convert reference to highlight, we need to:
-              // 1. Get the reference details
-              // 2. Delete the reference
-              // 3. Create a new highlight with the same text/position
-              const reference = references.find(r => r.id === contextMenuAnnotation.id);
-              if (!reference) {
-                throw new Error('Reference not found');
-              }
-              
-              // Delete the reference
-              await apiService.selections.delete(contextMenuAnnotation.id);
-              
-              // Create a new highlight
-              await apiService.selections.saveAsHighlight({
-                documentId,
-                text: reference.text || reference.selectionData.text,
-                position: {
-                  start: reference.selectionData.offset,
-                  end: reference.selectionData.offset + reference.selectionData.length
-                }
-              });
-              
-              await loadSelections();
-              setContextMenuAnnotation(null);
-              setContextMenuPosition(null);
-            } catch (err) {
-              console.error('Failed to convert to highlight:', err);
-              alert('Failed to convert to highlight');
-            }
-          };
-        }
-        
-        return <AnnotationContextMenu {...menuProps} />;
-      })()}
-
       {/* Selection Popup */}
       {showSelectionPopup && (
         <SelectionPopup
@@ -632,6 +614,20 @@ export default function DocumentPage() {
             setShowSelectionPopup(false);
             setSelectedText('');
             setSelectionPosition(null);
+            setEditingAnnotation(null);
+          }}
+          isEditMode={!!editingAnnotation}
+          {...(editingAnnotation && { existingAnnotation: editingAnnotation })}
+          onDelete={async (annotationId) => {
+            try {
+              await apiService.selections.delete(annotationId);
+              await loadSelections();
+              setShowSelectionPopup(false);
+              setEditingAnnotation(null);
+            } catch (err) {
+              console.error('Failed to delete annotation:', err);
+              alert('Failed to delete annotation');
+            }
           }}
         />
       )}
