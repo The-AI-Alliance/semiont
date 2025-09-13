@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkWikiLink from 'remark-wiki-link';
+import { annotationStyles } from '@/lib/annotation-styles';
 
 /**
  * ANNOTATION RENDERER - AXIOMATIC IMPLEMENTATION
@@ -118,23 +119,9 @@ function segmentTextWithAnnotations(
   return segments;
 }
 
-// Get annotation styling
+// Get annotation styling using centralized styles
 function getAnnotationClassName(annotation: AnnotationSelection): string {
-  const base = "rounded px-0.5 cursor-pointer ";
-  
-  if (annotation.type === 'highlight') {
-    return base + "bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50";
-  }
-  
-  // Check for entity references - they have entityTypes array or entityType field
-  if (annotation.referenceType === 'entity' || 
-      (annotation as any).entityTypes?.length > 0 || 
-      annotation.entityType) {
-    return base + "bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50";
-  }
-  
-  return base + "bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 " +
-         "dark:from-cyan-900/50 dark:to-blue-900/50 dark:hover:from-cyan-800/50 dark:hover:to-blue-800/50";
+  return annotationStyles.getAnnotationStyle(annotation);
 }
 
 // Component to render a text segment

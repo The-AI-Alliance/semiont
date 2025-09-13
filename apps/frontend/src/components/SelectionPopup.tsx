@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
+import { annotationStyles } from '@/lib/annotation-styles';
 
 interface SelectionPopupProps {
   selectedText: string;
@@ -247,7 +248,7 @@ export function SelectionPopup({
                           {doc.entityTypes.map((type) => (
                             <span
                               key={type}
-                              className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded"
+                              className={annotationStyles.tags.entity}
                             >
                               {type}
                             </span>
@@ -333,7 +334,7 @@ export function SelectionPopup({
                     {selectedEntityTypes.map((type) => (
                       <span
                         key={type}
-                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded flex items-center gap-1"
+                        className={`${annotationStyles.tags.entity} inline-flex items-center gap-1`}
                       >
                         {type}
                         <button
