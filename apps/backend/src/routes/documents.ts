@@ -402,6 +402,7 @@ documentsRouter.openapi(updateDocumentRoute, async (c) => {
   if (body.name !== undefined) updateInput.name = body.name;
   if (body.entityTypes !== undefined) updateInput.entityTypes = body.entityTypes;
   if (body.metadata !== undefined) updateInput.metadata = body.metadata;
+  if (body.archived !== undefined) updateInput.archived = body.archived;
   
   const document = await graphDb.updateDocument(id, updateInput);
 
@@ -966,6 +967,7 @@ function formatDocument(doc: Document, content?: string): any {
     contentType: doc.contentType,
     metadata: doc.metadata,
     storageUrl: doc.storageUrl,
+    archived: doc.archived || false,
     
     // Provenance tracking
     creationMethod: doc.creationMethod,

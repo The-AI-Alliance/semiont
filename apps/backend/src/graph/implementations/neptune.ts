@@ -66,6 +66,7 @@ function vertexToDocument(vertex: any): Document {
     contentType: getValue('contentType') || 'text/plain',
     storageUrl: getValue('storageUrl') || '',
     metadata: JSON.parse(getValue('metadata') || '{}'),
+    archived: getValue('archived') === 'true' || getValue('archived') === true || false,
     createdAt: new Date(getValue('createdAt') || Date.now()),
     updatedAt: new Date(getValue('updatedAt') || Date.now()),
   };
@@ -279,6 +280,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       contentType: input.contentType || 'text/plain',
       storageUrl: `/efs/documents/${id}`,
       metadata: input.metadata || {},
+      archived: false,
       createdAt: now,
       updatedAt: now,
     };
@@ -300,6 +302,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('name', document.name)
         .property('contentType', document.contentType)
         .property('storageUrl', document.storageUrl)
+        .property('archived', document.archived)
         .property('createdAt', document.createdAt.toISOString())
         .property('updatedAt', document.updatedAt.toISOString())
         .property('createdBy', document.createdBy || '')
@@ -351,6 +354,9 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       if (input.metadata !== undefined) {
         traversal = traversal.property('metadata', JSON.stringify(input.metadata));
+      }
+      if (input.archived !== undefined) {
+        traversal = traversal.property('archived', input.archived);
       }
       if (input.updatedBy !== undefined) {
         traversal = traversal.property('updatedBy', input.updatedBy);
