@@ -365,7 +365,7 @@ export const apiService = {
     getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
       apiClient.get('/api/documents/token/:token', { params: { token } }),
     
-    createFromToken: (data: { token: string; name: string; content: string }): Promise<DocumentResponse> =>
+    createFromToken: (data: { token: string; name: string; content: string; archiveOriginal?: boolean }): Promise<DocumentResponse> =>
       apiClient.post('/api/documents/create-from-token', { body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>

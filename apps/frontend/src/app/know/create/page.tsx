@@ -17,6 +17,7 @@ function CreateDocumentContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isClone, setIsClone] = useState(false);
   const [cloneToken, setCloneToken] = useState<string | null>(null);
+  const [archiveOriginal, setArchiveOriginal] = useState(true);
   
   // Load cloned document data if in clone mode
   useEffect(() => {
@@ -63,7 +64,8 @@ function CreateDocumentContent() {
         const response = await apiService.documents.createFromToken({
           token: cloneToken,
           name: newDocName,
-          content: newDocContent
+          content: newDocContent,
+          archiveOriginal: archiveOriginal
         });
         
         // Navigate to the new cloned document
@@ -144,6 +146,22 @@ function CreateDocumentContent() {
               disabled={isCreating}
             />
           </div>
+          
+          {isClone && (
+            <div className="flex items-center">
+              <input
+                id="archiveOriginal"
+                type="checkbox"
+                checked={archiveOriginal}
+                onChange={(e) => setArchiveOriginal(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                disabled={isCreating}
+              />
+              <label htmlFor="archiveOriginal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                Archive original document after saving clone
+              </label>
+            </div>
+          )}
           
           <div className="flex gap-4 justify-end">
             <button

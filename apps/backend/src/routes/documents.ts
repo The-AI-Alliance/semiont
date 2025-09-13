@@ -681,6 +681,7 @@ const createFromTokenRoute = createRoute({
             token: z.string(),
             name: z.string(),
             content: z.string(),
+            archiveOriginal: z.boolean().optional(),
           }),
         },
       },
@@ -724,7 +725,7 @@ const createFromTokenRoute = createRoute({
 
 documentsRouter.openapi(createFromTokenRoute, async (c) => {
   const user = c.get('user');
-  const { token, name, content } = c.req.valid('json');
+  const { token, name, content, archiveOriginal } = c.req.valid('json');
   
   try {
     // Get and validate token
@@ -808,6 +809,11 @@ documentsRouter.openapi(createFromTokenRoute, async (c) => {
         const clonedSel = await graphDb.createSelection(cloneInput);
         clonedSelections.push(clonedSel);
       }
+    }
+    
+    // Archive the original document if requested
+    if (archiveOriginal) {
+      await graphDb.updateDocument(tokenData.sourceDocumentId, { archived: true });
     }
     
     return c.json({
