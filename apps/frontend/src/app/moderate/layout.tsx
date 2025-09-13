@@ -1,5 +1,5 @@
 import React from 'react';
-import { DashboardHeader } from '@/components/shared/DashboardHeader';
+import { UnifiedHeader } from '@/components/shared/UnifiedHeader';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
 import { ModerationAuthWrapper } from '@/components/moderation/ModerationAuthWrapper';
 import { Footer } from '@/components/Footer';
@@ -16,7 +16,7 @@ export default function ModerateLayout({
   return (
     <ModerationAuthWrapper>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <DashboardHeader requireModerator={true} />
+        <UnifiedHeader brandingLink="/know" variant="standalone" />
         <div className="flex flex-1">
           <ModerationNavigation />
           <main className="flex-1 p-6">

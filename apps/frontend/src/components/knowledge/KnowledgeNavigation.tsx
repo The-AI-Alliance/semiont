@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   MagnifyingGlassIcon,
-  PlusIcon
+  PlusIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -20,11 +21,36 @@ const navigation = [
     href: '/know/create',
     icon: PlusIcon,
     description: 'Create a new document'
+  },
+  {
+    name: 'Document',
+    href: '/know/document',
+    icon: DocumentTextIcon,
+    description: 'View document'
   }
 ];
 
 export function KnowledgeNavigation() {
   const pathname = usePathname();
+  
+  // Check if we're viewing a document
+  const isDocumentView = pathname.startsWith('/know/document');
+  
+  // Get the last viewed document ID from localStorage (client-side only)
+  const [lastDocumentId, setLastDocumentId] = React.useState<string | null>(null);
+  
+  React.useEffect(() => {
+    const storedId = localStorage.getItem('lastViewedDocumentId');
+    setLastDocumentId(storedId);
+  }, [pathname]); // Re-check when pathname changes
+  
+  // Filter navigation to only show Document if we have a document ID
+  const filteredNavigation = navigation.filter(item => {
+    if (item.name === 'Document') {
+      return lastDocumentId !== null;
+    }
+    return true;
+  });
 
   return (
     <nav className="w-64 bg-white dark:bg-gray-900 shadow border-r border-gray-200 dark:border-gray-700">
@@ -35,12 +61,23 @@ export function KnowledgeNavigation() {
               Knowledge
             </div>
             
-            {navigation.map((item) => {
-              const isActive = pathname === item.href;
+            {filteredNavigation.map((item) => {
+              let isActive = pathname === item.href;
+              // Special handling for document view
+              if (item.name === 'Document' && isDocumentView) {
+                isActive = true;
+              }
+              
+              // Build the href for Document link
+              let href = item.href;
+              if (item.name === 'Document' && lastDocumentId) {
+                href = `/know/document/${lastDocumentId}`;
+              }
+              
               return (
                 <Link
                   key={item.name}
-                  href={item.href}
+                  href={href}
                   className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     isActive
                       ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-r-2 border-blue-500'

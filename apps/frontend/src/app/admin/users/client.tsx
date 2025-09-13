@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
+import { buttonStyles } from '@/lib/button-styles';
 
 function UserTableRow({ 
   user, 
@@ -186,7 +187,7 @@ export default function AdminUsers() {
             Manage users, permissions, and domain access
           </p>
         </div>
-        <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+        <button className={`${buttonStyles.primary.base} inline-flex items-center`}>
           <PlusIcon className="-ml-1 mr-2 h-4 w-4" />
           Add User
         </button>
@@ -316,7 +317,7 @@ export default function AdminUsers() {
           </div>
           
           <div className="flex items-end">
-            <button className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <button className={`${buttonStyles.secondary.base} w-full`}>
               Export Users
             </button>
           </div>

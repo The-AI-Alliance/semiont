@@ -1,6 +1,6 @@
 import React from 'react';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
-import { DashboardHeader } from '@/components/shared/DashboardHeader';
+import { UnifiedHeader } from '@/components/shared/UnifiedHeader';
 import { AdminAuthWrapper } from '@/components/admin/AdminAuthWrapper';
 import { Footer } from '@/components/Footer';
 
@@ -16,7 +16,7 @@ export default function AdminLayout({
   return (
     <AdminAuthWrapper>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <DashboardHeader requireAdmin={true} />
+        <UnifiedHeader brandingLink="/know" variant="standalone" />
         <div className="flex flex-1">
           <AdminNavigation />
           <main className="flex-1 p-6">

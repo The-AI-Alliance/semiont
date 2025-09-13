@@ -75,27 +75,8 @@ export function UserMenu({ showAuthLinks = true }: UserMenuProps) {
   }
 
   if (!isAuthenticated) {
-    if (!showAuthLinks) {
-      return null;
-    }
-    return (
-      <div className="flex gap-3 font-sans">
-        <Link
-          href="/auth/signup"
-          className="text-sm text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 rounded px-3 py-2"
-        >
-          Sign Up
-        </Link>
-        <button
-          onClick={() => signIn(undefined, { callbackUrl: '/know' })}
-          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded px-3 py-2"
-          aria-label="Sign in to your account"
-          type="button"
-        >
-          Sign In
-        </button>
-      </div>
-    );
+    // Never show sign in/sign up links in the header
+    return null;
   }
 
   return (
@@ -191,8 +172,7 @@ export function UserMenu({ showAuthLinks = true }: UserMenuProps) {
               ref={signOutButtonRef}
               onClick={async () => {
                 close();
-                await signOut({ callbackUrl: '/', redirect: false });
-                window.location.href = '/';
+                await signOut({ callbackUrl: '/' });
               }}
               onKeyDown={handleKeyDown}
               className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"

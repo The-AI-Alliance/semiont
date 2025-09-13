@@ -441,10 +441,10 @@ Regular paragraph text.`;
     const cmContent = container.querySelector('.cm-content');
     expect(cmContent).toBeInTheDocument();
     
-    // Check that the text content is preserved (CodeMirror renders all content)
-    expect(container.textContent).toContain('# Heading 1');
-    expect(container.textContent).toContain('## Heading 2');
-    expect(container.textContent).toContain('### Heading 3');
+    // Check that the text content is preserved (CodeMirror renders formatted text)
+    expect(container.textContent).toContain('Heading 1');
+    expect(container.textContent).toContain('Heading 2');
+    expect(container.textContent).toContain('Heading 3');
     expect(container.textContent).toContain('Regular paragraph text.');
   });
   
@@ -468,10 +468,10 @@ Regular paragraph text.`;
     const cmContent = container.querySelector('.cm-content');
     expect(cmContent).toBeInTheDocument();
     
-    // Check that list content is preserved
-    expect(container.textContent).toContain('- Item 1');
-    expect(container.textContent).toContain('- Item 2');
-    expect(container.textContent).toContain('1. Numbered 1');
+    // Check that list content is preserved (CodeMirror renders formatted lists)
+    expect(container.textContent).toContain('Item 1');  // Bullet points hide the '-'
+    expect(container.textContent).toContain('Item 2');
+    expect(container.textContent).toContain('1. Numbered 1');  // Numbers are kept
     expect(container.textContent).toContain('2. Numbered 2');
   });
 });

@@ -5,6 +5,7 @@ import { EditorView, Decoration, DecorationSet } from '@codemirror/view';
 import { EditorState, RangeSetBuilder } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { markdownPreview } from '@/lib/codemirror-markdown-preview';
 import type { TextSegment, AnnotationSelection } from './AnnotationRenderer';
 import { annotationStyles } from '@/lib/annotation-styles';
 
@@ -68,6 +69,7 @@ export function CodeMirrorRenderer({
       doc: content,
       extensions: [
         markdown(),
+        markdownPreview(), // Add our custom markdown preview extension
         theme === 'dark' ? oneDark : [],
         EditorView.editable.of(editable),
         EditorView.decorations.of(decorations),
@@ -106,7 +108,7 @@ export function CodeMirrorRenderer({
             padding: '0',
             fontFamily: 'inherit',
             fontSize: 'inherit',
-            lineHeight: 'inherit'
+            lineHeight: '1.6'
           },
           '.cm-line': {
             padding: '0'
@@ -142,5 +144,5 @@ export function CodeMirrorRenderer({
     };
   }, [content, segments, onAnnotationClick, onAnnotationRightClick, theme, editable]);
 
-  return <div ref={containerRef} className="codemirror-renderer" />;
+  return <div ref={containerRef} className="codemirror-renderer" data-markdown-container />;
 }

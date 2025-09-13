@@ -1,15 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function KnowledgePage() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Redirect to Discover as the default page
-    router.replace('/know/search');
+    // Check if there's a last viewed document
+    const lastDocumentId = localStorage.getItem('lastViewedDocumentId');
+    
+    if (lastDocumentId) {
+      // If there's a last viewed document, go to it
+      router.replace(`/know/document/${lastDocumentId}`);
+    } else {
+      // Otherwise, go to Discover
+      router.replace('/know/search');
+    }
+    
+    setChecking(false);
   }, [router]);
+
+  if (checking) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center py-20">
