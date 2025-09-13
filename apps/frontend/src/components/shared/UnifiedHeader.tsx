@@ -46,7 +46,7 @@ export function UnifiedHeader({
   if (variant === 'standalone') {
     return (
       <header className="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto pl-4 pr-1 sm:pl-6 sm:pr-1 lg:pl-8 lg:pr-1">
+        <div className="px-4 sm:px-6 lg:px-8">
           {content}
         </div>
       </header>

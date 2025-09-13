@@ -395,7 +395,7 @@ export default function DocumentPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="pl-4 pr-1 py-8">
         <div className="flex gap-6">
           {/* Document Content - Left Side */}
           <div className="flex-1">
