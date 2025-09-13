@@ -35,9 +35,13 @@ body {
   }
 }
 
-/* Custom CodeMirror Markdown Preview Styles */
+/* 
+ * Custom CodeMirror Markdown Preview Styles
+ * Used by the custom markdown preview extension in src/lib/codemirror-markdown-preview.ts
+ * These classes are applied via CodeMirror decorations to format markdown display
+ */
 
-/* Headers */
+/* Headers - Applied when markdown syntax is hidden */
 .md-header-1 { 
   font-size: 2em; 
   font-weight: bold; 
@@ -65,14 +69,9 @@ body {
   display: inline-block;
   width: 100%;
 }
-.md-header-5 { 
-  font-size: 1em; 
-  font-weight: bold;
-  display: inline-block;
-  width: 100%;
-}
+.md-header-5, 
 .md-header-6 { 
-  font-size: 0.9em; 
+  font-size: 1em; 
   font-weight: bold;
   display: inline-block;
   width: 100%;
@@ -105,11 +104,11 @@ body {
   padding-left: 1em;
 }
 
-/* Header widgets (if using widget approach) */
+/* Widget approach for headers (alternative implementation) */
 .md-header-widget {
   display: block;
   margin: 0.5em 0;
 }
-.md-h1 { font-size: 2em; font-weight: bold; }
-.md-h2 { font-size: 1.5em; font-weight: bold; }
-.md-h3 { font-size: 1.25em; font-weight: bold; }
+.md-header-widget.md-h1 { font-size: 2em; font-weight: bold; }
+.md-header-widget.md-h2 { font-size: 1.5em; font-weight: bold; }
+.md-header-widget.md-h3 { font-size: 1.25em; font-weight: bold; }
