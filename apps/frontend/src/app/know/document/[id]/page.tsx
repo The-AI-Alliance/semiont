@@ -405,15 +405,17 @@ export default function KnowledgeDocumentPage() {
           highlights={highlights}
           references={references}
           onWikiLinkClick={handleWikiLinkClick}
-          onTextSelect={document.archived ? undefined : handleTextSelection}
+          {...(!document.archived && { 
+            onTextSelect: handleTextSelection,
+            onAnnotationRightClick: (annotation, x, y) => {
+              handleAnnotationRightClick(annotation, { clientX: x, clientY: y, preventDefault: () => {} } as React.MouseEvent);
+            }
+          })}
           onHighlightClick={(highlight) => {
             handleAnnotationClick(highlight);
           }}
           onReferenceClick={(reference) => {
             handleAnnotationClick(reference);
-          }}
-          onAnnotationRightClick={document.archived ? undefined : (annotation, x, y) => {
-            handleAnnotationRightClick(annotation, { clientX: x, clientY: y, preventDefault: () => {} } as React.MouseEvent);
           }}
         />
         
@@ -480,11 +482,9 @@ export default function KnowledgeDocumentPage() {
           <button
             onClick={async () => {
               try {
-                console.log('Current archived status:', document.archived);
-                const response = await apiService.documents.update(documentId, {
+                await apiService.documents.update(documentId, {
                   archived: !document.archived
                 });
-                console.log('Update response:', response);
                 await loadDocument();
               } catch (err) {
                 console.error('Failed to update archive status:', err);
