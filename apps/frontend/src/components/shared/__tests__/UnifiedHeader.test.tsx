@@ -48,7 +48,7 @@ describe('UnifiedHeader Component', () => {
       render(<UnifiedHeader variant="standalone" />);
       
       const container = screen.getByRole('banner').firstChild;
-      expect(container).toHaveClass('pl-4', 'pr-1', 'sm:pl-6', 'sm:pr-1', 'lg:pl-8', 'lg:pr-1');
+      expect(container).toHaveClass('px-4', 'sm:px-6', 'lg:px-8');
     });
 
     it('should use space-x-4 for user menu spacing', () => {

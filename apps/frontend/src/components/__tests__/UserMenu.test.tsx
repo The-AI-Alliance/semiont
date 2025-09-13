@@ -154,31 +154,25 @@ describe('UserMenu Component', () => {
       expect(screen.getByText('Loading...')).toHaveClass('text-gray-500', 'animate-pulse');
     });
 
-    it('should show sign in and sign up buttons when unauthenticated', () => {
+    it('should not show anything when unauthenticated', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.unauthenticated);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
 
-      render(<UserMenu />);
+      const { container } = render(<UserMenu />);
 
-      const signUpLink = screen.getByText('Sign Up');
-      const signInButton = screen.getByText('Sign In');
-
-      expect(signUpLink).toBeInTheDocument();
-      expect(signUpLink).toHaveAttribute('href', '/auth/signup');
-      expect(signInButton).toBeInTheDocument();
-      expect(signInButton).toHaveAttribute('aria-label', 'Sign in to your account');
+      // UserMenu returns null when not authenticated
+      expect(container.firstChild).toBeNull();
     });
 
-    it('should call signIn when sign in button is clicked', async () => {
+    it('should not render sign in button when unauthenticated', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.unauthenticated);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
 
-      render(<UserMenu />);
+      const { container } = render(<UserMenu />);
       
-      const signInButton = screen.getByText('Sign In');
-      await userEvent.click(signInButton);
-
-      expect(mockSignIn).toHaveBeenCalledOnce();
+      // UserMenu returns null when not authenticated
+      expect(container.firstChild).toBeNull();
+      expect(screen.queryByText('Sign In')).not.toBeInTheDocument();
     });
 
     it('should show profile button when authenticated', () => {
@@ -509,30 +503,17 @@ describe('UserMenu Component', () => {
       expect(mockSignOut).toHaveBeenCalledOnce();
     });
 
-    it('should have proper button styling and classes', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.unauthenticated);
+    it('should have proper button styling and classes when authenticated', () => {
+      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
 
       render(<UserMenu />);
 
-      const signInButton = screen.getByText('Sign In');
-      expect(signInButton).toHaveClass(
-        'text-sm',
-        'text-blue-600',
-        'hover:text-blue-800',
-        'dark:text-blue-400',
-        'dark:hover:text-blue-300',
-        'transition-colors'
-      );
-
-      const signUpLink = screen.getByText('Sign Up');
-      expect(signUpLink).toHaveClass(
-        'text-sm',
-        'text-green-600',
-        'hover:text-green-800',
-        'dark:text-green-400',
-        'dark:hover:text-green-300',
-        'transition-colors'
+      const profileButton = screen.getByRole('button', { name: /user menu/i });
+      expect(profileButton).toHaveClass(
+        'w-8',
+        'h-8',
+        'rounded-full'
       );
     });
   });
@@ -631,10 +612,10 @@ describe('UserMenu Component', () => {
       rerender(<UserMenu />);
       expect(screen.getByText('Loading...')).toBeInTheDocument();
 
-      // Unauthenticated state
+      // Unauthenticated state - component returns null
       mockUseAuth.mockReturnValue(mockAuthStates.unauthenticated);
       rerender(<UserMenu />);
-      expect(screen.getByText('Sign In')).toBeInTheDocument();
+      expect(screen.queryByText('Sign In')).not.toBeInTheDocument();
 
       // Authenticated state
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
