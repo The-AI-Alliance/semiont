@@ -7,6 +7,7 @@ import { apiService, api } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { PageLayout } from '@/components/PageLayout';
+import { annotationStyles } from '@/lib/annotation-styles';
 import type { Document, Selection } from '@/lib/api-client';
 import { 
   mapBackendToFrontendSelection, 
@@ -453,13 +454,13 @@ export default function DocumentPage() {
               <div className="flex gap-4 text-xs mb-3">
               {highlights.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-4 h-4 bg-yellow-200 dark:bg-yellow-900/40 rounded"></span>
+                  <span className={`inline-block w-4 h-4 ${annotationStyles.highlight.className}`}></span>
                   <span className="text-gray-600 dark:text-gray-400">{highlights.length} Highlight{highlights.length !== 1 ? 's' : ''}</span>
                 </div>
               )}
               {references.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-4 h-4 bg-gradient-to-r from-cyan-200 to-blue-200 dark:from-cyan-900/40 dark:to-blue-900/40 rounded-md border border-cyan-400/30 dark:border-cyan-600/30"></span>
+                  <span className={`inline-block w-4 h-4 ${annotationStyles.documentReference.className}`}></span>
                   <span className="text-gray-600 dark:text-gray-400">{references.length} Reference{references.length !== 1 ? 's' : ''}</span>
                 </div>
               )}
