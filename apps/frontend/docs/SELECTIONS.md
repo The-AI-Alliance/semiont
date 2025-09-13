@@ -97,7 +97,6 @@ AnnotationRenderer
 ├── segmentTextWithAnnotations() // Pure function for text segmentation
 ├── SegmentRenderer             // Renders individual text segments  
 ├── CodeMirrorRenderer          // Handles markdown with proper position mapping
-├── MarkdownWithAnnotations     // Legacy markdown renderer (deprecated)
 └── SelectionOverlay            // Manages text selection UI
 ```
 

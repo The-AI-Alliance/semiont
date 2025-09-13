@@ -339,7 +339,7 @@ export function PythonRenderer({ content, segments, onAnnotationClick }) {
 const renderContent = () => {
   switch (contentType) {
     case 'markdown':
-      return <MarkdownWithAnnotations ... />;
+      return <CodeMirrorRenderer ... />;
     case 'python':
       return <PythonRenderer ... />;
     default:
