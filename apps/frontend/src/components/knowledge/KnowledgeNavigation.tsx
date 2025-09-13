@@ -34,7 +34,7 @@ export function KnowledgeNavigation() {
   const pathname = usePathname();
   
   // Check if we're viewing a document
-  const isDocumentView = pathname.startsWith('/know/document');
+  const isDocumentView = pathname?.startsWith('/know/document') ?? false;
   
   // Get the last viewed document ID from localStorage (client-side only)
   const [lastDocumentId, setLastDocumentId] = React.useState<string | null>(null);

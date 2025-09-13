@@ -7,6 +7,7 @@ import { apiService } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { DocumentTags } from '@/components/DocumentTags';
+import { buttonStyles } from '@/lib/button-styles';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 import { 
   mapBackendToFrontendSelection, 
@@ -382,14 +383,14 @@ export default function KnowledgeDocumentPage() {
     <div className="space-y-6">
       {/* Document Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {document.name}
             </h2>
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Last updated: {new Date(document.updatedAt).toLocaleDateString()}
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Last updated: {new Date(document.updatedAt).toLocaleDateString()}
+            </div>
           </div>
         </div>
       </div>
@@ -404,15 +405,17 @@ export default function KnowledgeDocumentPage() {
           highlights={highlights}
           references={references}
           onWikiLinkClick={handleWikiLinkClick}
-          onTextSelect={handleTextSelection}
+          {...(!document.archived && { 
+            onTextSelect: handleTextSelection,
+            onAnnotationRightClick: (annotation, x, y) => {
+              handleAnnotationRightClick(annotation, { clientX: x, clientY: y, preventDefault: () => {} } as React.MouseEvent);
+            }
+          })}
           onHighlightClick={(highlight) => {
             handleAnnotationClick(highlight);
           }}
           onReferenceClick={(reference) => {
             handleAnnotationClick(reference);
-          }}
-          onAnnotationRightClick={(annotation, x, y) => {
-            handleAnnotationRightClick(annotation, { clientX: x, clientY: y, preventDefault: () => {} } as React.MouseEvent);
           }}
         />
         
@@ -450,6 +453,7 @@ export default function KnowledgeDocumentPage() {
               setDocumentEntityTypes(tags);
               await updateDocumentTags(tags);
             }}
+            disabled={document.archived || false}
           />
         
         {/* Statistics */}
@@ -465,6 +469,32 @@ export default function KnowledgeDocumentPage() {
               <span className="font-medium">{references.length}</span>
             </div>
           </div>
+        </div>
+        
+        {/* Archive Status */}
+        <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
+          {document.archived && (
+            <div className="mb-3 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-sm font-medium text-center">
+              Archived
+            </div>
+          )}
+          <button
+            onClick={async () => {
+              try {
+                await apiService.documents.update(documentId, {
+                  archived: !document.archived
+                });
+                await loadDocument();
+              } catch (err) {
+                console.error('Failed to update archive status:', err);
+                alert('Failed to update archive status');
+              }
+            }}
+            className={`${buttonStyles.secondary.base} w-full`}
+          >
+            {document.archived ? 'Unarchive' : 'Archive'}
+          </button>
         </div>
       </div>
     </div>

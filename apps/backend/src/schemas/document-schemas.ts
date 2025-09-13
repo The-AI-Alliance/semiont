@@ -50,6 +50,7 @@ export const DocumentSchema = z.object({
   contentType: z.string().openapi({ example: 'text/plain', description: 'MIME type' }),
   metadata: z.record(z.any()).optional().openapi({ example: { author: 'John Doe', tags: ['quantum', 'computing'] } }),
   storageUrl: z.string().optional().openapi({ example: '/efs/documents/doc_abc123.txt' }),
+  archived: z.boolean().optional().openapi({ example: false, description: 'Whether the document is archived (read-only)' }),
   
   // Provenance tracking
   creationMethod: z.enum(['reference', 'upload', 'ui', 'api']).optional().openapi({ 
@@ -158,6 +159,7 @@ export const UpdateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   entityTypes: z.array(z.string()).optional(),
   metadata: z.record(z.any()).optional(),
+  archived: z.boolean().optional().openapi({ description: 'Whether the document is archived (read-only)' }),
 }).openapi('UpdateDocumentRequest');
 
 export const CreateSelectionRequestSchema = z.object({

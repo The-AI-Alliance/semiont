@@ -7,6 +7,7 @@ export interface Document {
   contentType: string;
   storageUrl: string;  // Path to content in filesystem
   metadata: Record<string, any>;
+  archived: boolean;  // Whether the document is archived (read-only)
   
   // Audit fields (backend-controlled)
   createdBy?: string;  // Set from auth context by backend
@@ -173,6 +174,7 @@ export interface UpdateDocumentInput {
   name?: string;
   entityTypes?: string[];
   metadata?: Record<string, any>;
+  archived?: boolean;
   updatedBy?: string;
 }
 

@@ -7,9 +7,10 @@ interface DocumentTagsProps {
   documentId: string;
   initialTags: string[];
   onUpdate: (tags: string[]) => Promise<void>;
+  disabled?: boolean;
 }
 
-export function DocumentTags({ documentId, initialTags, onUpdate }: DocumentTagsProps) {
+export function DocumentTags({ documentId, initialTags, onUpdate, disabled = false }: DocumentTagsProps) {
   const [tags, setTags] = useState<string[]>(initialTags);
   const [isEditing, setIsEditing] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
@@ -49,7 +50,7 @@ export function DocumentTags({ documentId, initialTags, onUpdate }: DocumentTags
   }, [showDropdown]);
 
   const handleAddTag = async (tag: string) => {
-    if (!tag || tags.includes(tag)) return;
+    if (!tag || tags.includes(tag) || disabled) return;
     
     const newTags = [...tags, tag];
     setTags(newTags);
@@ -59,6 +60,7 @@ export function DocumentTags({ documentId, initialTags, onUpdate }: DocumentTags
   };
 
   const handleRemoveTag = async (tagToRemove: string) => {
+    if (disabled) return;
     const newTags = tags.filter(tag => tag !== tagToRemove);
     setTags(newTags);
     await onUpdate(newTags);
@@ -68,12 +70,14 @@ export function DocumentTags({ documentId, initialTags, onUpdate }: DocumentTags
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Document Tags</h3>
-        <button
-          onClick={() => setIsEditing(!isEditing)}
-          className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          {isEditing ? 'Done' : 'Edit'}
-        </button>
+        {!disabled && (
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            {isEditing ? 'Done' : 'Edit'}
+          </button>
+        )}
       </div>
       
       <div className="space-y-2">
