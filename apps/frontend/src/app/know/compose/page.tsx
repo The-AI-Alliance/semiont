@@ -6,7 +6,7 @@ import { apiService } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 
-function CreateDocumentContent() {
+function ComposeDocumentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addDocument } = useOpenDocuments();
@@ -115,7 +115,7 @@ function CreateDocumentContent() {
       {/* Page Title */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {isClone ? 'Edit Cloned Document' : 'Create New Document'}
+          {isClone ? 'Edit Cloned Document' : 'Compose New Document'}
         </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           {isClone 
@@ -145,7 +145,7 @@ function CreateDocumentContent() {
           
           <div>
             <label htmlFor="docContent" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {isClone ? 'Document Content' : 'Initial Content (Optional)'}
+              {isClone ? 'Document Content' : 'Content'}
             </label>
             <textarea
               id="docContent"
@@ -199,7 +199,7 @@ function CreateDocumentContent() {
   );
 }
 
-export default function CreateDocumentPage() {
+export default function ComposeDocumentPage() {
   return (
     <Suspense fallback={
       <div className="px-4 py-8">
@@ -208,7 +208,7 @@ export default function CreateDocumentPage() {
         </div>
       </div>
     }>
-      <CreateDocumentContent />
+      <ComposeDocumentContent />
     </Suspense>
   );
 }

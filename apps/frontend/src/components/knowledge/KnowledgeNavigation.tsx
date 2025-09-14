@@ -19,10 +19,10 @@ const fixedNavigation = [
     description: 'Search and browse documents'
   },
   {
-    name: 'Create',
-    href: '/know/create',
+    name: 'Compose',
+    href: '/know/compose',
     icon: PlusIcon,
-    description: 'Create a new document'
+    description: 'Compose a new document'
   }
 ];
 

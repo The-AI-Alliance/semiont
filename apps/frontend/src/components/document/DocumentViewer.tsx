@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { SourceView } from './SourceView';
-import { PreviewView } from './PreviewView';
+import { AnnotateView } from './AnnotateView';
+import { BrowseView } from './BrowseView';
 import { SelectionPopup } from '@/components/SelectionPopup';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import type { Document as SemiontDocument } from '@/lib/api-client';
@@ -194,7 +194,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       
       {/* Tab content */}
       {activeTab === 'annotate' ? (
-        <SourceView
+        <AnnotateView
           content={document.content}
           highlights={highlights}
           references={references}
@@ -203,7 +203,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
           {...(!document.archived && { onAnnotationRightClick: handleAnnotationRightClick })}
         />
       ) : (
-        <PreviewView
+        <BrowseView
           content={document.content}
           highlights={highlights}
           references={references}

@@ -240,7 +240,7 @@ function renderMarkdown(
   return <>{elements}</>;
 }
 
-export function PreviewView({
+export function BrowseView({
   content,
   highlights,
   references,
