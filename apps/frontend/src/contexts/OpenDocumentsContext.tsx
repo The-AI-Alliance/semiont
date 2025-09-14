@@ -19,6 +19,7 @@ const OpenDocumentsContext = createContext<OpenDocumentsContextType | undefined>
 
 export function OpenDocumentsProvider({ children }: { children: React.ReactNode }) {
   const [openDocuments, setOpenDocuments] = useState<OpenDocument[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Load from localStorage on mount
   useEffect(() => {
@@ -31,12 +32,15 @@ export function OpenDocumentsProvider({ children }: { children: React.ReactNode 
         console.error('Failed to parse open documents:', e);
       }
     }
+    setIsInitialized(true);
   }, []);
   
-  // Save to localStorage whenever documents change
+  // Save to localStorage whenever documents change (but not on initial mount)
   useEffect(() => {
-    localStorage.setItem('openDocuments', JSON.stringify(openDocuments));
-  }, [openDocuments]);
+    if (isInitialized) {
+      localStorage.setItem('openDocuments', JSON.stringify(openDocuments));
+    }
+  }, [openDocuments, isInitialized]);
   
   // Listen for storage events from other tabs
   useEffect(() => {

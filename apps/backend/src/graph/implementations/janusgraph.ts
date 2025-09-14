@@ -379,7 +379,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   
   async getHighlights(documentId: string): Promise<Selection[]> {
     return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && sel.saved);
+      .filter(sel => sel.documentId === documentId && sel.saved && !sel.resolvedDocumentId);
   }
   
   async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {

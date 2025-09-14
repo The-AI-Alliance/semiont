@@ -762,6 +762,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .hasLabel('HAS_SELECTION')
         .has('documentId', documentId)
         .has('saved', 'true')
+        .hasNot('resolvedDocumentId')
         .elementMap()
         .toList();
       
