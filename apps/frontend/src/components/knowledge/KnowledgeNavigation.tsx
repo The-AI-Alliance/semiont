@@ -44,7 +44,7 @@ export function KnowledgeNavigation() {
     
     // If we're closing the currently viewed document, navigate to Discover
     if (pathname === `/know/document/${docId}`) {
-      router.push('/know/search');
+      router.push('/know/discover');
     }
   };
 
