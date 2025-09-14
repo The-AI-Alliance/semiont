@@ -10,6 +10,16 @@ import { http, HttpResponse } from 'msw';
 // Test components
 import SignUp from '../signup/page';
 import Welcome from '../welcome/page';
+import { ToastProvider } from '@/components/Toast';
+
+// Helper function to render with providers
+const renderWithProviders = (component: React.ReactElement) => {
+  return render(
+    <ToastProvider>
+      {component}
+    </ToastProvider>
+  );
+};
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -98,7 +108,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         })
       );
       
-      const { unmount: unmountWelcome } = render(<Welcome />);
+      const { unmount: unmountWelcome } = renderWithProviders(<Welcome />);
       
       // Should show welcome page with terms
       expect(screen.getByText('Welcome to Semiont, Jane!')).toBeInTheDocument();
@@ -155,7 +165,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         status: 'authenticated',
       });
       
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
       
       // Should redirect existing users immediately
       await waitFor(() => {
@@ -190,7 +200,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         })
       );
       
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
       
       // Should redirect to home since terms already accepted
       await waitFor(() => {
@@ -251,7 +261,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
       
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
       
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       fireEvent.click(acceptButton);
@@ -284,7 +294,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         status: 'loading',
       });
       
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
       
       // Should show loading state - may have multiple loading texts
       const loadingElements = screen.getAllByText('Loading...');
@@ -310,14 +320,14 @@ describe('Sign-Up Flow Integration Tests', () => {
         status: 'authenticated',
       });
       
-      const { unmount: unmountWelcome } = render(<Welcome />);
+      const { unmount: unmountWelcome } = renderWithProviders(<Welcome />);
       
       expect(screen.getByText('Welcome to Semiont, Consistent!')).toBeInTheDocument();
       
       unmountWelcome();
       
       // Re-render with same session should work
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
       expect(screen.getByText('Welcome to Semiont, Consistent!')).toBeInTheDocument();
     });
 
@@ -457,7 +467,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         status: 'authenticated',
       });
       
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
       
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       const declineButton = screen.getByRole('button', { name: 'Decline & Sign Out' });
