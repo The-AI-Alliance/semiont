@@ -5,7 +5,8 @@ import { signIn, getSession } from 'next-auth/react';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { PageLayout } from '@/components/PageLayout';
+import { Footer } from '@/components/Footer';
+import { SemiontBranding } from '@/components/SemiontBranding';
 import { buttonStyles } from '@/lib/button-styles';
 
 function SignInContent() {
@@ -83,29 +84,41 @@ function SignInContent() {
   };
 
   return (
-    <PageLayout className="bg-gray-50 dark:bg-gray-900" showAuthLinks={false}>
-      <div className="flex items-center justify-center py-12 font-sans">
-        <div className="max-w-md w-full space-y-8">
-          <div>
-            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-              Sign in to Semiont
-            </h2>
-            <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-              Semantic Knowledge Platform
-            </p>
-          </div>
-          
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
-              <div className="text-sm text-red-700 dark:text-red-400">
-                {error}
-              </div>
-            </div>
-          )}
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
+        <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
+          <div className="text-center space-y-8">
+            {/* Hero Branding Section - Similar to landing page */}
+            <section aria-labelledby="signin-heading" className="py-8">
+              <h1 id="signin-heading" className="sr-only">Sign in to Semiont</h1>
+              <SemiontBranding 
+                size="xl"
+                animated={true}
+                className="mb-8"
+              />
+              <p className="text-xl text-gray-600 dark:text-gray-300 font-sans max-w-4xl mx-auto px-4 mb-2">
+                Welcome back to Semiont
+              </p>
+              <p className="text-base text-gray-500 dark:text-gray-400 font-sans max-w-2xl mx-auto px-4">
+                Sign in to continue to your knowledge workspace
+              </p>
+            </section>
 
-          <div className="mt-8 space-y-6">
-            {showLocalAuth && (
-              <>
+            {/* Error Message */}
+            {error && (
+              <div className="max-w-md mx-auto">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
+                  <div className="text-sm text-red-700 dark:text-red-400">
+                    {error}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sign In Form */}
+            <div className="max-w-md mx-auto space-y-6">
+              {showLocalAuth && (
+                <>
                   <form onSubmit={handleLocalSignIn} className="space-y-4">
                     <div>
                       <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -123,7 +136,7 @@ function SignInContent() {
                     </div>
                     <button
                       type="submit"
-                      className={buttonStyles.primary.large}
+                      className={`${buttonStyles.primary.base} w-full justify-center`}
                     >
                       Sign in with Local Development
                     </button>
@@ -134,7 +147,7 @@ function SignInContent() {
                       <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400">Or</span>
+                      <span className="px-2 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400">Or</span>
                     </div>
                   </div>
                 </>
@@ -142,7 +155,7 @@ function SignInContent() {
               
               <button
                 onClick={handleGoogleSignIn}
-                className={buttonStyles.primary.large}
+                className={`${buttonStyles.primary.base} w-full justify-center`}
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -156,19 +169,35 @@ function SignInContent() {
               <div className="text-xs text-center text-gray-500 dark:text-gray-400">
                 {showLocalAuth ? 'Local authentication enabled for development' : 'Only users with approved email domains can sign in'}
               </div>
-
-              <div className="text-center">
-                <Link
-                  href="/auth/signup"
-                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                >
-                  Don't have an account? Sign up instead
-                </Link>
-              </div>
             </div>
+
+            {/* Navigation Links - Similar style to landing page */}
+            <div className="flex gap-4 justify-center items-center flex-wrap">
+              <Link
+                href="/"
+                className={buttonStyles.secondary.base}
+              >
+                Back to Home
+              </Link>
+              <Link
+                href="/about"
+                className={buttonStyles.secondary.base}
+              >
+                Learn More
+              </Link>
+              <Link
+                href="/auth/signup"
+                className={buttonStyles.primary.base}
+              >
+                Sign Up Instead
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
-    </PageLayout>
+      </main>
+      
+      <Footer />
+    </div>
   );
 }
 
