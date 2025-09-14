@@ -165,7 +165,6 @@ export const UpdateDocumentRequestSchema = z.object({
 export const CreateSelectionRequestSchema = z.object({
   documentId: z.string().openapi({ example: 'doc_abc123' }),
   selectionType: SelectionTypeSchema,
-  saved: z.boolean().optional().default(false).openapi({ description: 'Save as highlight' }),
   resolvedDocumentId: z.string().optional().openapi({ description: 'Resolve to document (reference)' }),
   referenceTags: z.array(z.string()).optional().openapi({ 
     example: ['defines', 'mentions'], 
@@ -174,10 +173,6 @@ export const CreateSelectionRequestSchema = z.object({
   entityTypes: z.array(z.string()).optional().openapi({ description: 'Entity types being referenced' }),
   metadata: z.record(z.any()).optional(),
 }).openapi('CreateSelectionRequest');
-
-export const SaveSelectionRequestSchema = z.object({
-  metadata: z.record(z.any()).optional(),
-}).openapi('SaveSelectionRequest');
 
 export const ResolveSelectionRequestSchema = z.object({
   documentId: z.string().openapi({ example: 'doc_def456' }),

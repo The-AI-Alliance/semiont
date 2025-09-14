@@ -10,7 +10,6 @@ import {
   SelectionSchema,
   CreateSelectionRequestSchema,
   ResolveSelectionRequestSchema,
-  SaveSelectionRequestSchema,
   CreateDocumentFromSelectionRequestSchema,
   CreateDocumentFromSelectionResponseSchema,
   GenerateDocumentFromSelectionRequestSchema,
@@ -122,8 +121,9 @@ selectionsRouter.openapi(createSelectionRoute, async (c) => {
       documentId: body.documentId,
       selectionType: body.selectionType.type,
       selectionData: body.selectionType,
-      saved: body.saved || false,
-      savedBy: body.saved ? user.id : undefined,
+      // If no resolvedDocumentId, it's a highlight and should be saved
+      saved: !body.resolvedDocumentId,
+      savedBy: !body.resolvedDocumentId ? user.id : undefined,
       resolvedDocumentId: body.resolvedDocumentId,
       resolvedBy: body.resolvedDocumentId ? user.id : undefined,
       referenceTags: body.referenceTags,
@@ -273,85 +273,6 @@ selectionsRouter.openapi(listSelectionsRoute, async (c) => {
   } catch (error) {
     console.error('Error listing selections:', error);
     return c.json({ error: 'Failed to list selections' }, 500);
-  }
-});
-
-// ==========================================
-// UPDATE SELECTION (Save as Highlight)
-// ==========================================
-
-const saveSelectionRoute = createRoute({
-  method: 'put',
-  path: '/api/selections/{id}/save',
-  summary: 'Save Selection as Highlight',
-  description: 'Mark a selection as saved (make it a highlight)',
-  tags: ['Selections'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: SaveSelectionRequestSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: SelectionSchema,
-        },
-      },
-      description: 'Selection saved as highlight',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Selection not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-selectionsRouter.openapi(saveSelectionRoute, async (c) => {
-  const { id } = c.req.valid('param');
-  const body = c.req.valid('json');
-  const user = c.get('user');
-
-  try {
-    const graphDb = await getGraphDatabase();
-    
-    const selection = await graphDb.getSelection(id);
-    if (!selection) {
-      return c.json({ error: 'Selection not found' }, 404);
-    }
-
-    const saveInput: any = {
-      selectionId: id,
-      savedBy: user.id,
-    };
-    if (body.metadata !== undefined) saveInput.metadata = body.metadata;
-    
-    const updated = await graphDb.saveSelection(saveInput);
-
-    return c.json(formatSelection(updated), 200);
-  } catch (error) {
-    console.error('Error saving selection:', error);
-    return c.json({ error: 'Failed to save selection' }, 500);
   }
 });
 

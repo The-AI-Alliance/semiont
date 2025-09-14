@@ -172,6 +172,107 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
 });
 
 // ==========================================
+// GET DOCUMENT BY TOKEN
+// ==========================================
+// NOTE: This route must come BEFORE the generic {id} route to avoid conflicts
+
+const getDocumentByTokenRoute = createRoute({
+  method: 'get',
+  path: '/api/documents/token/{token}',
+  summary: 'Get Document by Clone Token',
+  description: 'Get the source document data associated with a clone token',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      token: z.string().openapi({ example: 'token_abc123' }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            sourceDocument: z.any(),
+            expiresAt: z.string(),
+          }),
+        },
+      },
+      description: 'Success',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.string(),
+          }),
+        },
+      },
+      description: 'Invalid or expired token',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.string(),
+          }),
+        },
+      },
+      description: 'Token does not belong to current user',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.string(),
+          }),
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+documentsRouter.openapi(getDocumentByTokenRoute, async (c) => {
+  const user = c.get('user');
+  const { token } = c.req.valid('param');
+  
+  try {
+    // Get and validate token
+    const tokenData = cloneTokens.get(token);
+    if (!tokenData) {
+      return c.json({ error: 'Invalid or expired token' }, 400);
+    }
+    
+    // Check if token belongs to current user
+    if (tokenData.userId !== user.id) {
+      return c.json({ error: 'Token does not belong to current user' }, 401);
+    }
+    
+    // Check if token is expired
+    if (tokenData.expiresAt < new Date()) {
+      cloneTokens.delete(token);
+      return c.json({ error: 'Token has expired' }, 400);
+    }
+    
+    // Return the source document data with content
+    return c.json({
+      sourceDocument: {
+        id: tokenData.sourceDocument.id,
+        name: tokenData.sourceDocument.name,
+        content: tokenData.content,
+        entityTypes: tokenData.sourceDocument.entityTypes,
+        contentType: tokenData.sourceDocument.contentType,
+      },
+      expiresAt: tokenData.expiresAt.toISOString(),
+    }, 200);
+  } catch (error) {
+    console.error('Error fetching document by token:', error);
+    return c.json({ error: 'Failed to fetch document data' }, 500);
+  }
+});
+
+// ==========================================
 // GET DOCUMENT
 // ==========================================
 
@@ -407,6 +508,322 @@ documentsRouter.openapi(updateDocumentRoute, async (c) => {
   const document = await graphDb.updateDocument(id, updateInput);
 
   return c.json(formatDocument(document), 200);
+});
+
+// ==========================================
+// CLONE DOCUMENT
+// ==========================================
+
+const cloneDocumentRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/{id}/clone',
+  summary: 'Clone Document',
+  description: 'Create a copy of a document with all its content, tags, and annotations',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'doc_abc123' }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            name: z.string().optional().openapi({ 
+              example: 'Copy of My Document',
+              description: 'Optional new name for the cloned document' 
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            token: z.string(),
+            expiresAt: z.string(),
+            sourceDocument: z.object({
+              id: z.string(),
+              name: z.string(),
+              content: z.string(),
+              entityTypes: z.array(z.string()),
+              contentType: z.string(),
+            }),
+          }),
+        },
+      },
+      description: 'Clone token created successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Source document not found',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+// In-memory storage for clone tokens (in production, use Redis or similar)
+const cloneTokens = new Map<string, {
+  sourceDocumentId: string;
+  sourceDocument: any;
+  content: string;
+  selections: any[];
+  userId: string;
+  expiresAt: Date;
+}>();
+
+// Clean up expired tokens periodically
+setInterval(() => {
+  const now = new Date();
+  for (const [token, data] of cloneTokens.entries()) {
+    if (data.expiresAt < now) {
+      cloneTokens.delete(token);
+    }
+  }
+}, 60000); // Clean up every minute
+
+documentsRouter.openapi(cloneDocumentRoute, async (c) => {
+  const user = c.get('user');
+  const { id: sourceId } = c.req.valid('param');
+  
+  try {
+    const graphDb = await getGraphDatabase();
+    const storage = getStorageService();
+    
+    // Get source document
+    const sourceDoc = await graphDb.getDocument(sourceId);
+    if (!sourceDoc) {
+      return c.json({ error: 'Source document not found' }, 404);
+    }
+    
+    // Get source content
+    let content = '';
+    try {
+      const contentBuffer = await storage.getDocument(sourceId);
+      content = contentBuffer.toString('utf-8');
+    } catch (error) {
+      console.error(`Failed to load content for document ${sourceId}:`, error);
+      return c.json({ error: 'Failed to load source document content' }, 500);
+    }
+    
+    // Get source selections (highlights and references)
+    const sourceSelections = await graphDb.getDocumentSelections(sourceId);
+    
+    // Generate a unique token
+    const token = `clone_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    
+    // Store the clone data with the token
+    cloneTokens.set(token, {
+      sourceDocumentId: sourceId,
+      sourceDocument: sourceDoc,
+      content,
+      selections: sourceSelections,
+      userId: user.id,
+      expiresAt
+    });
+    
+    return c.json({
+      token,
+      expiresAt: expiresAt.toISOString(),
+      sourceDocument: {
+        id: sourceDoc.id,
+        name: sourceDoc.name,
+        content,
+        entityTypes: sourceDoc.entityTypes,
+        contentType: sourceDoc.contentType,
+      }
+    }, 200);
+  } catch (error) {
+    console.error('Error preparing clone:', error);
+    return c.json({ error: 'Failed to prepare clone' }, 500);
+  }
+});
+
+// ==========================================
+// CREATE DOCUMENT FROM CLONE TOKEN
+// ==========================================
+
+const createFromTokenRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/create-from-token',
+  summary: 'Create Document from Clone Token',
+  description: 'Create a new document using a clone token with edited content',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            token: z.string(),
+            name: z.string(),
+            content: z.string(),
+            archiveOriginal: z.boolean().optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: CreateDocumentResponseSchema,
+        },
+      },
+      description: 'Document created successfully from clone',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Invalid or expired token',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+documentsRouter.openapi(createFromTokenRoute, async (c) => {
+  const user = c.get('user');
+  const { token, name, content, archiveOriginal } = c.req.valid('json');
+  
+  try {
+    // Get and validate token
+    const tokenData = cloneTokens.get(token);
+    if (!tokenData) {
+      return c.json({ error: 'Invalid or expired token' }, 400);
+    }
+    
+    // Check if token belongs to current user
+    if (tokenData.userId !== user.id) {
+      return c.json({ error: 'Token does not belong to current user' }, 401);
+    }
+    
+    // Check if token is expired
+    if (tokenData.expiresAt < new Date()) {
+      cloneTokens.delete(token);
+      return c.json({ error: 'Token has expired' }, 400);
+    }
+    
+    // Delete token (one-time use)
+    cloneTokens.delete(token);
+    
+    const graphDb = await getGraphDatabase();
+    const storage = getStorageService();
+    
+    // Create the new document
+    const contentChecksum = calculateChecksum(content);
+    const createInput: any = {
+      name,
+      entityTypes: tokenData.sourceDocument.entityTypes || [],
+      content,
+      contentType: tokenData.sourceDocument.contentType || 'text/plain',
+      metadata: {
+        ...(tokenData.sourceDocument.metadata || {}),
+        clonedFrom: tokenData.sourceDocumentId,
+        clonedAt: new Date().toISOString(),
+      },
+      createdBy: user.id,
+      creationMethod: 'clone',
+      sourceDocumentId: tokenData.sourceDocumentId,
+    };
+    
+    // Create the document
+    const document = await graphDb.createDocument(createInput);
+    
+    // Save content to filesystem
+    const storageUrl = await storage.saveDocument(document.id, content);
+    
+    // Update document with storage URL and checksum
+    const updatedDocument = await graphDb.updateDocument(document.id, {
+      metadata: { 
+        ...document.metadata, 
+        storageUrl,
+        contentChecksum
+      }
+    });
+    
+    // Clone selections for the new document
+    const clonedSelections = [];
+    for (const sel of tokenData.selections) {
+      if (sel.saved || sel.resolvedDocumentId) {
+        const cloneInput: any = {
+          documentId: document.id,
+          selectionType: sel.selectionType,
+          selectionData: sel.selectionData,
+          saved: sel.saved,
+          savedBy: user.id,
+          provisional: sel.provisional,
+          metadata: {
+            ...(sel.metadata || {}),
+            clonedFrom: sel.id,
+          },
+        };
+        
+        // Add optional fields only if they exist
+        if (sel.resolvedDocumentId) cloneInput.resolvedDocumentId = sel.resolvedDocumentId;
+        if (sel.referenceTags) cloneInput.referenceTags = sel.referenceTags;
+        if (sel.entityTypes) cloneInput.entityTypes = sel.entityTypes;
+        if (sel.confidence !== undefined) cloneInput.confidence = sel.confidence;
+        
+        const clonedSel = await graphDb.createSelection(cloneInput);
+        clonedSelections.push(clonedSel);
+      }
+    }
+    
+    // Archive the original document if requested
+    if (archiveOriginal) {
+      await graphDb.updateDocument(tokenData.sourceDocumentId, { archived: true });
+    }
+    
+    return c.json({
+      document: formatDocument(updatedDocument, content),
+      selections: clonedSelections.map(formatSelection),
+    }, 201);
+  } catch (error) {
+    console.error('Error creating document from token:', error);
+    return c.json({ error: 'Failed to create document' }, 500);
+  }
 });
 
 // ==========================================

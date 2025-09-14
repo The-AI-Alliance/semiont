@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { AnnotationRenderer } from '@/components/AnnotationRenderer';
@@ -112,18 +113,6 @@ export default function KnowledgeDocumentPage() {
     return () => window.document.removeEventListener('keydown', handleKeyDown);
   }, [documentId, showSelectionPopup]);
 
-  // Load document and its selections
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (!session?.backendToken) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    loadDocument();
-    loadSelections();
-  }, [documentId, session, status]);
-
   const loadDocument = async () => {
     try {
       setLoading(true);
@@ -157,10 +146,30 @@ export default function KnowledgeDocumentPage() {
     }
   };
 
+  // Load document and its selections
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (!session?.backendToken) {
+      router.push('/auth/signin');
+      return;
+    }
+
+    // Set the auth token for API calls
+    const { LazyTypedAPIClient } = require('@/lib/api-client');
+    LazyTypedAPIClient.getInstance().setAuthToken(session.backendToken);
+
+    loadDocument();
+    loadSelections();
+  }, [documentId, session, status, router]);
+
   const handleCreateHighlight = async () => {
     if (!selectionPosition) return;
+    if (!session?.backendToken) return;
 
     try {
+      // Ensure auth token is set
+      const { LazyTypedAPIClient } = require('@/lib/api-client');
+      LazyTypedAPIClient.getInstance().setAuthToken(session.backendToken);
       // If we're editing a reference, delete it first before creating highlight
       if (editingAnnotation && editingAnnotation.type === 'reference') {
         await apiService.selections.delete(editingAnnotation.id);
@@ -190,7 +199,8 @@ export default function KnowledgeDocumentPage() {
   };
 
   const handleCreateReference = async (targetDocId?: string, entityType?: string, referenceType?: string) => {
-    if (!selectionPosition) return;
+    if (!selectionPosition || !selectedText) return;
+
 
     try {
       // If we're editing a highlight, delete it first before creating reference
@@ -203,12 +213,12 @@ export default function KnowledgeDocumentPage() {
         await apiService.selections.delete(editingAnnotation.id);
       }
       
-      // First create the selection - returns BackendSelection directly
+      // First create the selection - returns BackendSelection directly  
+      // Don't pass type since it's not used by the backend
       const response = await apiService.selections.create({
         documentId,
         text: selectedText,
-        position: selectionPosition,
-        type: 'reference'
+        position: selectionPosition
       });
 
       // The response is a BackendSelection object
@@ -280,6 +290,7 @@ export default function KnowledgeDocumentPage() {
 
 
   const handleDeleteAnnotation = async (id: string) => {
+
     try {
       await apiService.selections.delete(id);
       await loadSelections();
@@ -290,6 +301,7 @@ export default function KnowledgeDocumentPage() {
   };
 
   const handleWikiLinkClick = async (pageName: string) => {
+
     // Search for a document with this name
     try {
       const response = await apiService.documents.search(pageName, 1);
@@ -333,8 +345,14 @@ export default function KnowledgeDocumentPage() {
       referenceType: annotation.referenceType,
       entityType: annotation.entityType
     });
-    setSelectedText(annotation.text);
-    setSelectionPosition({ start: annotation.start, end: annotation.end });
+    setSelectedText(annotation.text || '');
+    // Use selectionData for position information
+    if (annotation.selectionData) {
+      setSelectionPosition({ 
+        start: annotation.selectionData.offset, 
+        end: annotation.selectionData.offset + annotation.selectionData.length 
+      });
+    }
     setShowSelectionPopup(true);
   };
 
@@ -348,12 +366,19 @@ export default function KnowledgeDocumentPage() {
       referenceType: annotation.referenceType,
       entityType: annotation.entityType
     });
-    setSelectedText(annotation.text);
-    setSelectionPosition({ start: annotation.start, end: annotation.end });
+    setSelectedText(annotation.text || '');
+    // Use selectionData for position information
+    if (annotation.selectionData) {
+      setSelectionPosition({ 
+        start: annotation.selectionData.offset, 
+        end: annotation.selectionData.offset + annotation.selectionData.length 
+      });
+    }
     setShowSelectionPopup(true);
   };
 
   const updateDocumentTags = async (tags: string[]) => {
+
     try {
       await apiService.documents.update(documentId, {
         entityTypes: tags
@@ -471,6 +496,22 @@ export default function KnowledgeDocumentPage() {
           </div>
         </div>
         
+        {/* Cloned From */}
+        {document.sourceDocumentId && document.creationMethod === 'clone' && (
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
+            <div className="text-xs text-gray-600 dark:text-gray-400">
+              <span>Cloned from: </span>
+              <Link
+                href={`/know/document/${document.sourceDocumentId}`}
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View original
+              </Link>
+            </div>
+          </div>
+        )}
+        
         {/* Archive Status */}
         <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
@@ -479,22 +520,43 @@ export default function KnowledgeDocumentPage() {
               Archived
             </div>
           )}
-          <button
-            onClick={async () => {
-              try {
-                await apiService.documents.update(documentId, {
-                  archived: !document.archived
-                });
-                await loadDocument();
-              } catch (err) {
-                console.error('Failed to update archive status:', err);
-                alert('Failed to update archive status');
-              }
-            }}
-            className={`${buttonStyles.secondary.base} w-full`}
-          >
-            {document.archived ? 'Unarchive' : 'Archive'}
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={async () => {
+                try {
+                  await apiService.documents.update(documentId, {
+                    archived: !document.archived
+                  });
+                  await loadDocument();
+                } catch (err) {
+                  console.error('Failed to update archive status:', err);
+                  alert('Failed to update archive status');
+                }
+              }}
+              className={`${buttonStyles.secondary.base} w-full`}
+            >
+              {document.archived ? 'Unarchive' : 'Archive'}
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const response = await apiService.documents.clone(documentId);
+                  if (response.token) {
+                    // Pass the token via URL parameter
+                    router.push(`/know/create?mode=clone&token=${encodeURIComponent(response.token)}`);
+                  } else {
+                    alert('Failed to prepare clone');
+                  }
+                } catch (err) {
+                  console.error('Failed to clone document:', err);
+                  alert('Failed to clone document');
+                }
+              }}
+              className={`${buttonStyles.secondary.base} w-full`}
+            >
+              Clone
+            </button>
+          </div>
         </div>
       </div>
     </div>
