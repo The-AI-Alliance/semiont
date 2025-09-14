@@ -41,8 +41,8 @@ describe('SignIn Page', () => {
     it('renders sign-in form with correct heading and description', () => {
       render(<SignIn />);
       
-      expect(screen.getByText('Sign in to Semiont')).toBeInTheDocument();
-      expect(screen.getByText('Semantic Knowledge Platform')).toBeInTheDocument();
+      expect(screen.getByText('Welcome back to Semiont')).toBeInTheDocument();
+      expect(screen.getByText('Sign in to continue to your knowledge workspace')).toBeInTheDocument();
     });
 
     it('shows Google sign-in button', () => {
@@ -55,7 +55,7 @@ describe('SignIn Page', () => {
     it('shows link to sign-up page', () => {
       render(<SignIn />);
       
-      const signUpLink = screen.getByRole('link', { name: /Don't have an account\? Sign up instead/i });
+      const signUpLink = screen.getByRole('link', { name: /Sign Up Instead/i });
       expect(signUpLink).toBeInTheDocument();
       expect(signUpLink).toHaveAttribute('href', '/auth/signup');
     });
