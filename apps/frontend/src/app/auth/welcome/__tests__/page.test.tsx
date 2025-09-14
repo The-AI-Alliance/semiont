@@ -6,6 +6,16 @@ import { useRouter } from 'next/navigation';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import Welcome from '../page';
+import { ToastProvider } from '@/components/Toast';
+
+// Helper function to render with providers
+const renderWithProviders = (component: React.ReactElement) => {
+  return render(
+    <ToastProvider>
+      {component}
+    </ToastProvider>
+  );
+};
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -50,7 +60,7 @@ describe('Welcome Page', () => {
         status: 'unauthenticated',
       });
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       await waitFor(() => {
         expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
@@ -63,7 +73,7 @@ describe('Welcome Page', () => {
         status: 'loading',
       });
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const loadingElements = screen.getAllByText('Loading...');
       expect(loadingElements.length).toBeGreaterThan(0);
@@ -71,7 +81,7 @@ describe('Welcome Page', () => {
     });
 
     it('checks if user already accepted terms', async () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       // Should make API call to check terms acceptance
       await waitFor(() => {
@@ -92,7 +102,7 @@ describe('Welcome Page', () => {
         })
       );
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       await waitFor(() => {
         expect(mockRouter.push).toHaveBeenCalledWith('/');
@@ -108,7 +118,7 @@ describe('Welcome Page', () => {
         status: 'authenticated',
       });
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       await waitFor(() => {
         expect(mockRouter.push).toHaveBeenCalledWith('/');
@@ -124,7 +134,7 @@ describe('Welcome Page', () => {
         status: 'authenticated',
       });
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       // Should not crash and should render the terms form
       expect(screen.getByText('Welcome to Semiont, John!')).toBeInTheDocument();
@@ -140,7 +150,7 @@ describe('Welcome Page', () => {
         })
       );
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       // Component should still render even with API error
       expect(screen.getByText('Welcome to Semiont, John!')).toBeInTheDocument();
@@ -154,13 +164,13 @@ describe('Welcome Page', () => {
 
   describe('Terms Display', () => {
     it('shows welcome message with user first name', () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       expect(screen.getByText('Welcome to Semiont, John!')).toBeInTheDocument();
     });
 
     it('displays terms of service content', () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       expect(screen.getByText('Terms of Service Summary')).toBeInTheDocument();
       expect(screen.getByText('✅ Acceptable Use')).toBeInTheDocument();
@@ -170,14 +180,14 @@ describe('Welcome Page', () => {
     });
 
     it('shows Accept and Decline buttons', () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       expect(screen.getByRole('button', { name: 'Accept & Continue' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Decline & Sign Out' })).toBeInTheDocument();
     });
 
     it('links to full terms and privacy policy', () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const termsLinks = screen.getAllByRole('link', { name: 'Terms of Service' });
       const privacyLinks = screen.getAllByRole('link', { name: 'Privacy Policy' });
@@ -193,7 +203,7 @@ describe('Welcome Page', () => {
     });
 
     it('shows AI Alliance Code of Conduct link', () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const codeLink = screen.getByRole('link', { name: 'AI Alliance Code of Conduct' });
       expect(codeLink).toHaveAttribute('href', 'https://ai-alliance.cdn.prismic.io/ai-alliance/Zl-MG5m069VX1dgH_AIAllianceCodeofConduct.pdf');
@@ -217,7 +227,7 @@ describe('Welcome Page', () => {
         })
       );
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       fireEvent.click(acceptButton);
@@ -230,7 +240,7 @@ describe('Welcome Page', () => {
     });
 
     it('shows success state after accepting', async () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       fireEvent.click(acceptButton);
@@ -242,7 +252,7 @@ describe('Welcome Page', () => {
     });
 
     it('redirects to home after acceptance (with real timers)', async () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       fireEvent.click(acceptButton);
@@ -259,7 +269,7 @@ describe('Welcome Page', () => {
     });
 
     it('handles terms decline (dynamic import limitation)', async () => {
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const declineButton = screen.getByRole('button', { name: 'Decline & Sign Out' });
       
@@ -275,7 +285,6 @@ describe('Welcome Page', () => {
     });
 
     it('handles API errors during acceptance using MSW', async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       // Override MSW handler to return error response
@@ -285,18 +294,16 @@ describe('Welcome Page', () => {
         })
       );
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       const acceptButton = screen.getByRole('button', { name: 'Accept & Continue' });
       fireEvent.click(acceptButton);
 
-      // Wait for error handling
+      // Wait for error handling - the error is now shown via toast instead of alert
       await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('There was an error recording your terms acceptance. Please try again.');
         expect(consoleError).toHaveBeenCalledWith('Terms acceptance error:', expect.any(Error));
       }, { timeout: 3000 });
 
-      alertSpy.mockRestore();
       consoleError.mockRestore();
     });
   });
@@ -314,7 +321,7 @@ describe('Welcome Page', () => {
         status: 'authenticated',
       });
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       expect(screen.getByText('Welcome to Semiont, !')).toBeInTheDocument();
     });
@@ -331,7 +338,7 @@ describe('Welcome Page', () => {
         status: 'authenticated',
       });
 
-      render(<Welcome />);
+      renderWithProviders(<Welcome />);
 
       expect(screen.getByText('Welcome to Semiont, Madonna!')).toBeInTheDocument();
     });

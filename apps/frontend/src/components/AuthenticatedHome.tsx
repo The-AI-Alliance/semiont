@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { AsyncErrorBoundary } from '@/components/ErrorBoundary';
+import { useToast } from '@/components/Toast';
 
 interface AuthenticatedHomeProps {
   userName?: string;
@@ -12,6 +13,7 @@ interface AuthenticatedHomeProps {
 
 export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
   const router = useRouter();
+  const { showError } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Document[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -52,7 +54,7 @@ export function AuthenticatedHome({ userName }: AuthenticatedHomeProps) {
       router.push(`/know/document/${response.document.id}`);
     } catch (error) {
       console.error('Failed to create document:', error);
-      alert('Failed to create document. Please try again.');
+      showError('Failed to create document. Please try again.');
     } finally {
       setIsCreating(false);
     }
