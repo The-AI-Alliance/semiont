@@ -25,20 +25,27 @@ export const annotationStyles = {
     referenceType?: string;
     entityType?: string;
     entityTypes?: string[];
+    referencedDocumentId?: string;
   }) => {
     if (annotation.type === 'highlight') {
       return annotationStyles.highlight.className;
     }
     
-    // Check for entity references - they have entityTypes array or entityType field
-    if (annotation.referenceType === 'entity' || 
-        annotation.entityTypes?.length || 
-        annotation.entityType) {
-      return annotationStyles.entityReference.className;
+    // Check if it's a reference type
+    if (annotation.type === 'reference' || annotation.referencedDocumentId) {
+      // Check for entity references - they have entityTypes array or entityType field
+      if (annotation.referenceType === 'entity' || 
+          annotation.entityTypes?.length || 
+          annotation.entityType) {
+        return annotationStyles.entityReference.className;
+      }
+      
+      // Document reference
+      return annotationStyles.documentReference.className;
     }
     
-    // Default to document reference style
-    return annotationStyles.documentReference.className;
+    // Default to highlight if type is not specified
+    return annotationStyles.highlight.className;
   },
   
   // Styles for annotation tags/badges - also more visible in dark mode
