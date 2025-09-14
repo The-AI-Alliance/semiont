@@ -143,7 +143,7 @@ function renderMarkdown(
         </pre>
       );
     }
-    // Lists
+    // Unordered lists
     else if (line.match(/^[-*+] /)) {
       const listItems: React.ReactNode[] = [];
       while (i < lines.length && lines[i]?.match(/^[-*+] /)) {
@@ -162,6 +162,29 @@ function renderMarkdown(
         <ul key={`ul-${i}`} className="list-disc pl-6 mb-4">
           {listItems}
         </ul>
+      );
+      i--; // Back up one since we went one too far
+    }
+    // Ordered lists (numbered)
+    else if (line.match(/^\d+\. /)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i]?.match(/^\d+\. /)) {
+        const listLine = lines[i]!;
+        const match = listLine.match(/^(\d+)\. (.*)/)!;
+        const listText = match[2];
+        const listOffset = currentOffset + match[1].length + 2; // Account for "1. "
+        listItems.push(
+          <li key={`li-${i}`}>
+            {applyAnnotations(listText, listOffset, annotations, onAnnotationClick)}
+          </li>
+        );
+        currentOffset += listLine.length + 1;
+        i++;
+      }
+      elements.push(
+        <ol key={`ol-${i}`} className="list-decimal pl-6 mb-4">
+          {listItems}
+        </ol>
       );
       i--; // Back up one since we went one too far
     }
@@ -195,7 +218,7 @@ function renderMarkdown(
       currentOffset += line.length + 1;
       i++;
       
-      while (i < lines.length && lines[i]?.trim() && !lines[i]?.match(/^[#>\-*+`]/) && !lines[i]?.match(/^---+$/) && !lines[i]?.match(/^\*\*\*+$/) && !lines[i]?.match(/^___+$/)) {
+      while (i < lines.length && lines[i]?.trim() && !lines[i]?.match(/^[#>\-*+`]/) && !lines[i]?.match(/^\d+\. /) && !lines[i]?.match(/^---+$/) && !lines[i]?.match(/^\*\*\*+$/) && !lines[i]?.match(/^___+$/)) {
         paragraphLines.push(lines[i]!);
         currentOffset += lines[i]!.length + 1;
         i++;
