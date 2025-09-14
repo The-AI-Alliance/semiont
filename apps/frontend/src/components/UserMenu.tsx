@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useCallback } from 'react';
-import { signIn, signOut } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { sanitizeImageURL } from '@/lib/validation';
@@ -16,7 +16,7 @@ interface UserMenuProps {
   showAuthLinks?: boolean;
 }
 
-export function UserMenu({ showAuthLinks = true }: UserMenuProps) {
+export function UserMenu({ }: UserMenuProps) {
   const { isLoading, isAuthenticated, displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
   const [imageError, setImageError] = useState(false);
