@@ -170,14 +170,16 @@ function renderMarkdown(
       const listItems: React.ReactNode[] = [];
       while (i < lines.length && lines[i]?.match(/^\d+\. /)) {
         const listLine = lines[i]!;
-        const match = listLine.match(/^(\d+)\. (.*)/)!;
-        const listText = match[2];
-        const listOffset = currentOffset + match[1].length + 2; // Account for "1. "
-        listItems.push(
-          <li key={`li-${i}`}>
-            {applyAnnotations(listText, listOffset, annotations, onAnnotationClick)}
-          </li>
-        );
+        const match = listLine.match(/^(\d+)\. (.*)/);
+        if (match && match[1] && match[2]) {
+          const listText = match[2];
+          const listOffset = currentOffset + match[1].length + 2; // Account for "1. "
+          listItems.push(
+            <li key={`li-${i}`}>
+              {applyAnnotations(listText, listOffset, annotations, onAnnotationClick)}
+            </li>
+          );
+        }
         currentOffset += listLine.length + 1;
         i++;
       }
