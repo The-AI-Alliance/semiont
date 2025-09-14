@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useRequireAuth } from '@/hooks/useSecureAPI';
 import { apiService } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
@@ -79,7 +79,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const { addDocument } = useOpenDocuments();
   
   // Consolidated state for documents
@@ -98,22 +98,14 @@ export default function DiscoverPage() {
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Load initial data when session is ready
+  // Load initial data when authentication is ready
   useEffect(() => {
-    if (status === 'loading') return;
-    
-    if (!session?.backendToken) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    // Set auth token BEFORE making API calls
-    const { LazyTypedAPIClient } = require('@/lib/api-client');
-    LazyTypedAPIClient.getInstance().setAuthToken(session.backendToken);
+    // Wait for auth to be ready - token is already set by SecureAPIProvider
+    if (!isAuthenticated) return;
 
     const loadInitialData = async () => {
       try {
-        // Load recent documents
+        // Load recent documents - auth token is already set globally
         const docsResponse = await apiService.documents.list({ limit: 10 });
         
         setDocuments(prev => ({
@@ -142,7 +134,7 @@ export default function DiscoverPage() {
     };
 
     loadInitialData();
-  }, [session?.backendToken, status, router]);
+  }, [isAuthenticated]);
 
   // Perform search when debounced query changes
   useEffect(() => {
@@ -207,7 +199,7 @@ export default function DiscoverPage() {
   }, []);
 
   // Loading state
-  if (status === 'loading' || documents.isLoading) {
+  if (authLoading || documents.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-gray-600 dark:text-gray-300">Loading knowledge base...</p>
