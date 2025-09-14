@@ -310,34 +310,54 @@ export function SelectionPopup({
                 />
               )}
 
-              {/* Entity Types Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Entity Types (optional)
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {commonEntityTypes.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        setSelectedEntityTypes((prev) =>
-                          prev.includes(type)
-                            ? prev.filter((t) => t !== type)
-                            : [...prev, type]
-                        );
-                      }}
-                      disabled={isCreating}
-                      className={`px-3 py-1 rounded-full text-sm transition-colors disabled:opacity-50 ${
-                        selectedEntityTypes.includes(type)
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
+              {/* Entity Types - Show for new documents (selectable) or selected documents (read-only) */}
+              {(createNewDoc || selectedDoc) && (
+                <div className={`${createNewDoc ? 'animate-slideDown' : ''}`}>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {createNewDoc ? 'Entity Types for New Document (optional)' : 'Selected Document Entity Types'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {createNewDoc ? (
+                      // Selectable entity types for new document
+                      commonEntityTypes.map((type, index) => (
+                        <button
+                          key={type}
+                          onClick={() => {
+                            setSelectedEntityTypes((prev) =>
+                              prev.includes(type)
+                                ? prev.filter((t) => t !== type)
+                                : [...prev, type]
+                            );
+                          }}
+                          disabled={isCreating}
+                          className={`px-3 py-1 rounded-full text-sm transition-all duration-300 disabled:opacity-50 animate-fadeInScale ${
+                            selectedEntityTypes.includes(type)
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                              : 'bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-600 dark:hover:to-gray-500 border border-gray-200 dark:border-gray-600'
+                          }`}
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          {type}
+                        </button>
+                      ))
+                    ) : selectedDoc?.entityTypes && selectedDoc.entityTypes.length > 0 ? (
+                      // Read-only display of selected document's entity types
+                      selectedDoc.entityTypes.map((type) => (
+                        <span
+                          key={type}
+                          className="px-3 py-1 rounded-full text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-500"
+                        >
+                          {type}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-400 italic">
+                        No entity types defined
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Create Reference Button */}
               {(!isEditMode || existingAnnotation?.type === 'highlight') && (
