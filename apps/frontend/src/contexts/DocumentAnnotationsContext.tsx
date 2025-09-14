@@ -67,7 +67,6 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         ? highlightsResponse.highlights 
         : highlightsResponse.selections;
       const mappedHighlights = highlightData.map(mapBackendToFrontendSelection);
-      console.log('Loaded highlights:', mappedHighlights);
       setHighlights(mappedHighlights.map(h => ({ ...h, type: 'highlight' as const })));
 
       // Load references
@@ -76,7 +75,6 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         ? referencesResponse.references 
         : referencesResponse.selections;
       const mappedReferences = referenceData.map(mapBackendToFrontendSelection);
-      console.log('Loaded references:', mappedReferences);
       setReferences(mappedReferences.map(r => ({ ...r, type: 'reference' as const })));
     } catch (err) {
       console.error('Failed to load annotations:', err);
