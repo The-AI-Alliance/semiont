@@ -193,6 +193,20 @@ export function AnnotationRenderer({
       ...references.map(r => ({ ...r, type: 'reference' }))
     ];
     
+    // Debug logging
+    console.log('Content length:', content.length);
+    console.log('First 100 chars:', JSON.stringify(content.substring(0, 100)));
+    allAnnotations.forEach(ann => {
+      if (ann.selectionData) {
+        console.log('Annotation:', {
+          text: ann.selectionData.text,
+          offset: ann.selectionData.offset,
+          length: ann.selectionData.length,
+          actualText: content.substring(ann.selectionData.offset, ann.selectionData.offset + ann.selectionData.length)
+        });
+      }
+    });
+    
     return segmentTextWithAnnotations(content, allAnnotations);
   }, [content, highlights, references]);
   
@@ -224,11 +238,15 @@ export function AnnotationRenderer({
       // Calculate position in SOURCE text
       const text = selection.toString();
       
-      // For plain text, the rendered text matches the source text
-      // So we can directly find the position
-      const sourceText = content;
-      const start = sourceText.indexOf(text);
-      const end = start >= 0 ? start + text.length : -1;
+      // Calculate actual position using range method
+      // Create a range from container start to selection start
+      const preSelectionRange = document.createRange();
+      preSelectionRange.selectNodeContents(container);
+      preSelectionRange.setEnd(range.startContainer, range.startOffset);
+      
+      // The length of text before selection is the start position
+      const start = preSelectionRange.toString().length;
+      const end = start + text.length;
       
       if (start >= 0 && rects.length > 0) {
         setSelectionState({ text, start, end, rects });
@@ -286,6 +304,10 @@ export function AnnotationRenderer({
       };
       if (onAnnotationRightClick) {
         props.onAnnotationRightClick = onAnnotationRightClick;
+      }
+      // Pass onTextSelect to CodeMirror
+      if (onTextSelect) {
+        props.onTextSelect = onTextSelect;
       }
       return <CodeMirrorRenderer {...props} />;
     }

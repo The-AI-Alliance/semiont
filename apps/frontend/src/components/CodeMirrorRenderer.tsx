@@ -14,6 +14,7 @@ interface Props {
   segments: TextSegment[];
   onAnnotationClick?: (annotation: AnnotationSelection) => void;
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
+  onTextSelect?: (text: string, position: { start: number; end: number }) => void;
   theme?: 'light' | 'dark';
   editable?: boolean;
 }
@@ -23,6 +24,7 @@ export function CodeMirrorRenderer({
   segments,
   onAnnotationClick,
   onAnnotationRightClick,
+  onTextSelect,
   theme = 'light',
   editable = false
 }: Props) {
@@ -73,7 +75,7 @@ export function CodeMirrorRenderer({
         theme === 'dark' ? oneDark : [],
         EditorView.editable.of(editable),
         EditorView.decorations.of(decorations),
-        // Handle clicks on annotations
+        // Handle clicks on annotations and text selection
         EditorView.domEventHandlers({
           click: (event, view) => {
             const target = event.target as HTMLElement;

@@ -194,15 +194,39 @@ export class TypedAPIClient {
     
     // Build URL with parameters
     let url = `${this.baseUrl}${route}`;
+    const queryParams: Record<string, any> = {};
+    
     if (params) {
-      // Replace path parameters for all methods
+      // Process parameters - separate path params from query params
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined) {
-          url = url.replace(`:${key}?`, String(value)).replace(`:${key}`, String(value));
+          // Check if this is a path parameter (format :paramName in route)
+          const pathParamPattern = new RegExp(`:${key}\\??(?=/|$)`);
+          if (pathParamPattern.test(url)) {
+            // Replace path parameter
+            url = url.replace(`:${key}?`, String(value)).replace(`:${key}`, String(value));
+          } else {
+            // Collect as query parameter
+            queryParams[key] = value;
+          }
         }
       });
       // Remove optional parameters that weren't provided
       url = url.replace(/\/:[^/?]+\?/g, '');
+    }
+    
+    // Add query parameters to URL
+    if (Object.keys(queryParams).length > 0) {
+      const searchParams = new URLSearchParams();
+      Object.entries(queryParams).forEach(([key, value]) => {
+        // Handle boolean and number values properly
+        if (typeof value === 'boolean' || typeof value === 'number') {
+          searchParams.append(key, String(value));
+        } else if (value !== null && value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+      url += '?' + searchParams.toString();
     }
 
     // Prepare request options
@@ -442,8 +466,8 @@ export const apiService = {
       text: string;
       position: { start: number; end: number };
     }): Promise<SelectionResponse> => {
-      // First create the selection
-      const selection = await apiClient.post('/api/selections', { 
+      // Create selection (automatically saved as highlight when no resolvedDocumentId)
+      const highlight = await apiClient.post('/api/selections', { 
         body: { 
           documentId: data.documentId,
           selectionType: {
@@ -451,12 +475,13 @@ export const apiService = {
             offset: data.position.start,
             length: data.position.end - data.position.start,
             text: data.text
-          },
-          saved: true
+          }
         } 
       });
       
-      return selection;
+      console.log('Created highlight:', highlight);
+      
+      return highlight;
     },
     
     resolveToDocument: (data: {
@@ -489,10 +514,10 @@ export const apiService = {
       apiClient.post('/api/selections/generate-document', { body: data }),
     
     getHighlights: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections', { params: { documentId, saved: true } }),
+      apiClient.get('/api/documents/:documentId/highlights', { params: { documentId } }),
     
     getReferences: (documentId: string): Promise<SelectionsResponse> =>
-      apiClient.get('/api/selections', { params: { documentId, resolved: true } }),
+      apiClient.get('/api/documents/:documentId/references', { params: { documentId } }),
   },
 
   // Entity types endpoint

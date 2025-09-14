@@ -154,14 +154,22 @@ export default function KnowledgeDocumentPage() {
       return;
     }
 
+    // Set the auth token for API calls
+    const { LazyTypedAPIClient } = require('@/lib/api-client');
+    LazyTypedAPIClient.getInstance().setAuthToken(session.backendToken);
+
     loadDocument();
     loadSelections();
   }, [documentId, session, status, router]);
 
   const handleCreateHighlight = async () => {
     if (!selectionPosition) return;
+    if (!session?.backendToken) return;
 
     try {
+      // Ensure auth token is set
+      const { LazyTypedAPIClient } = require('@/lib/api-client');
+      LazyTypedAPIClient.getInstance().setAuthToken(session.backendToken);
       // If we're editing a reference, delete it first before creating highlight
       if (editingAnnotation && editingAnnotation.type === 'reference') {
         await apiService.selections.delete(editingAnnotation.id);
@@ -191,7 +199,8 @@ export default function KnowledgeDocumentPage() {
   };
 
   const handleCreateReference = async (targetDocId?: string, entityType?: string, referenceType?: string) => {
-    if (!selectionPosition) return;
+    if (!selectionPosition || !selectedText) return;
+
 
     try {
       // If we're editing a highlight, delete it first before creating reference
@@ -204,12 +213,12 @@ export default function KnowledgeDocumentPage() {
         await apiService.selections.delete(editingAnnotation.id);
       }
       
-      // First create the selection - returns BackendSelection directly
+      // First create the selection - returns BackendSelection directly  
+      // Don't pass type since it's not used by the backend
       const response = await apiService.selections.create({
         documentId,
         text: selectedText,
-        position: selectionPosition,
-        type: 'reference'
+        position: selectionPosition
       });
 
       // The response is a BackendSelection object
@@ -281,6 +290,7 @@ export default function KnowledgeDocumentPage() {
 
 
   const handleDeleteAnnotation = async (id: string) => {
+
     try {
       await apiService.selections.delete(id);
       await loadSelections();
@@ -291,6 +301,7 @@ export default function KnowledgeDocumentPage() {
   };
 
   const handleWikiLinkClick = async (pageName: string) => {
+
     // Search for a document with this name
     try {
       const response = await apiService.documents.search(pageName, 1);
@@ -334,8 +345,14 @@ export default function KnowledgeDocumentPage() {
       referenceType: annotation.referenceType,
       entityType: annotation.entityType
     });
-    setSelectedText(annotation.text);
-    setSelectionPosition({ start: annotation.start, end: annotation.end });
+    setSelectedText(annotation.text || '');
+    // Use selectionData for position information
+    if (annotation.selectionData) {
+      setSelectionPosition({ 
+        start: annotation.selectionData.offset, 
+        end: annotation.selectionData.offset + annotation.selectionData.length 
+      });
+    }
     setShowSelectionPopup(true);
   };
 
@@ -349,12 +366,19 @@ export default function KnowledgeDocumentPage() {
       referenceType: annotation.referenceType,
       entityType: annotation.entityType
     });
-    setSelectedText(annotation.text);
-    setSelectionPosition({ start: annotation.start, end: annotation.end });
+    setSelectedText(annotation.text || '');
+    // Use selectionData for position information
+    if (annotation.selectionData) {
+      setSelectionPosition({ 
+        start: annotation.selectionData.offset, 
+        end: annotation.selectionData.offset + annotation.selectionData.length 
+      });
+    }
     setShowSelectionPopup(true);
   };
 
   const updateDocumentTags = async (tags: string[]) => {
+
     try {
       await apiService.documents.update(documentId, {
         entityTypes: tags
