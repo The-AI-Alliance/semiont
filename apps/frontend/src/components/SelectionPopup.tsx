@@ -343,7 +343,7 @@ export function SelectionPopup({
               {(!isEditMode || existingAnnotation?.type === 'highlight') && (
                 <button
                   onClick={handleCreateReferenceClick}
-                  disabled={isCreating || (!selectedDoc && !createNewDoc && !searchQuery)}
+                  disabled={isCreating || (!selectedDoc && !createNewDoc)}
                   className={`w-full py-2 ${buttonStyles.primary.base} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
                 >
                   {isCreating ? (
