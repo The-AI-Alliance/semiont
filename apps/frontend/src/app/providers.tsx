@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
+import { ToastProvider } from '@/components/Toast';
 
 // Separate component to use the secure API hook
 function SecureAPIProvider({ children }: { children: React.ReactNode }) {
@@ -35,9 +36,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
-        <SecureAPIProvider>
-          {children}
-        </SecureAPIProvider>
+        <ToastProvider>
+          <SecureAPIProvider>
+            {children}
+          </SecureAPIProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </SessionProvider>
   );

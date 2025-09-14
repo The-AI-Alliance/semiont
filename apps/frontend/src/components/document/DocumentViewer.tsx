@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
@@ -46,15 +46,15 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
     }
   }, [document.id, loadAnnotations]);
   
-  // Handle text selection from SourceView
-  const handleTextSelection = (text: string, position: { start: number; end: number }) => {
+  // Handle text selection from SourceView - memoized
+  const handleTextSelection = useCallback((text: string, position: { start: number; end: number }) => {
     setSelectedText(text);
     setSelectionPosition(position);
     setShowSelectionPopup(true);
-  };
+  }, []);
   
-  // Handle annotation clicks
-  const handleAnnotationClick = (annotation: any) => {
+  // Handle annotation clicks - memoized
+  const handleAnnotationClick = useCallback((annotation: any) => {
     // If it's a reference, navigate to the referenced document
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${annotation.referencedDocumentId}`);
@@ -77,10 +77,10 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       });
     }
     setShowSelectionPopup(true);
-  };
+  }, [router]);
   
-  // Handle annotation right-clicks
-  const handleAnnotationRightClick = (annotation: any, x: number, y: number) => {
+  // Handle annotation right-clicks - memoized
+  const handleAnnotationRightClick = useCallback((annotation: any) => {
     setEditingAnnotation({
       id: annotation.id,
       type: annotation.type,
@@ -96,10 +96,10 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       });
     }
     setShowSelectionPopup(true);
-  };
+  }, []);
   
-  // Handle creating highlights
-  const handleCreateHighlight = async () => {
+  // Handle creating highlights - memoized
+  const handleCreateHighlight = useCallback(async () => {
     if (!selectionPosition || !selectedText) return;
     
     try {
@@ -121,12 +121,11 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to create highlight:', err);
-      alert('Failed to create highlight');
     }
-  };
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight]);
   
-  // Handle creating references
-  const handleCreateReference = async (targetDocId?: string, entityType?: string, referenceType?: string) => {
+  // Handle creating references - memoized
+  const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
     if (!selectionPosition || !selectedText) return;
     
     try {
@@ -151,12 +150,11 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to create reference:', err);
-      alert('Failed to create reference');
     }
-  };
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference]);
   
-  // Handle deleting annotations
-  const handleDeleteAnnotation = async (id: string) => {
+  // Handle deleting annotations - memoized
+  const handleDeleteAnnotation = useCallback(async (id: string) => {
     try {
       await deleteAnnotation(id);
       setShowSelectionPopup(false);
@@ -164,7 +162,15 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
     } catch (err) {
       console.error('Failed to delete annotation:', err);
     }
-  };
+  }, [deleteAnnotation]);
+  
+  // Close popup - memoized
+  const handleClosePopup = useCallback(() => {
+    setShowSelectionPopup(false);
+    setSelectedText('');
+    setSelectionPosition(null);
+    setEditingAnnotation(null);
+  }, []);
   
   return (
     <div>
@@ -194,14 +200,23 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       
       {/* Tab content */}
       {activeTab === 'annotate' ? (
-        <AnnotateView
-          content={document.content}
-          highlights={highlights}
-          references={references}
-          {...(!document.archived && { onTextSelect: handleTextSelection })}
-          onAnnotationClick={handleAnnotationClick}
-          {...(!document.archived && { onAnnotationRightClick: handleAnnotationRightClick })}
-        />
+        document.archived ? (
+          <AnnotateView
+            content={document.content}
+            highlights={highlights}
+            references={references}
+            onAnnotationClick={handleAnnotationClick}
+          />
+        ) : (
+          <AnnotateView
+            content={document.content}
+            highlights={highlights}
+            references={references}
+            onTextSelect={handleTextSelection}
+            onAnnotationClick={handleAnnotationClick}
+            onAnnotationRightClick={handleAnnotationRightClick}
+          />
+        )
       ) : (
         <BrowseView
           content={document.content}
@@ -214,25 +229,27 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       
       {/* Selection popup */}
       {showSelectionPopup && selectedText && (
-        <SelectionPopup
-          selectedText={selectedText}
-          sourceDocumentId={document.id}
-          onCreateHighlight={handleCreateHighlight}
-          onCreateReference={handleCreateReference}
-          onClose={() => {
-            setShowSelectionPopup(false);
-            setSelectedText('');
-            setSelectionPosition(null);
-            setEditingAnnotation(null);
-          }}
-          isEditMode={!!editingAnnotation}
-          {...(editingAnnotation && { existingAnnotation: editingAnnotation })}
-          {...(editingAnnotation && {
-            onDelete: async (annotationId: string) => {
-              await handleDeleteAnnotation(annotationId);
-            }
-          })}
-        />
+        editingAnnotation ? (
+          <SelectionPopup
+            selectedText={selectedText}
+            sourceDocumentId={document.id}
+            onCreateHighlight={handleCreateHighlight}
+            onCreateReference={handleCreateReference}
+            onClose={handleClosePopup}
+            isEditMode={true}
+            existingAnnotation={editingAnnotation}
+            onDelete={handleDeleteAnnotation}
+          />
+        ) : (
+          <SelectionPopup
+            selectedText={selectedText}
+            sourceDocumentId={document.id}
+            onCreateHighlight={handleCreateHighlight}
+            onCreateReference={handleCreateReference}
+            onClose={handleClosePopup}
+            isEditMode={false}
+          />
+        )
       )}
     </div>
   );

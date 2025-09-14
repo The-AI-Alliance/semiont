@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { useRequireAuth } from '@/hooks/useSecureAPI';
 import { apiService } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTags } from '@/components/DocumentTags';
@@ -11,50 +11,45 @@ import { buttonStyles } from '@/lib/button-styles';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useToast } from '@/components/Toast';
 
 export default function KnowledgeDocumentPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
   const { highlights, references } = useDocumentAnnotations();
+  const { showError, showSuccess } = useToast();
 
   const [document, setDocument] = useState<SemiontDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
 
-  // Load document
-  const loadDocument = async () => {
+  // Load document - memoized to prevent recreating on every render
+  const loadDocument = useCallback(async () => {
+    if (!isAuthenticated || !documentId) return;
+    
     try {
       setLoading(true);
+      setError(null);
       const response = await apiService.documents.get(documentId);
       setDocument(response.document);
       setDocumentEntityTypes(response.document.entityTypes || []);
-      setError(null);
     } catch (err) {
       console.error('Failed to load document:', err);
-      setError('Failed to load document');
+      setError('Failed to load document. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [documentId, isAuthenticated]);
 
-  // Load document when ID changes or session is ready
+  // Load document when authentication is ready
   useEffect(() => {
-    if (status === 'loading') return;
-    if (!session?.backendToken) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    // Set the auth token for API calls
-    const { LazyTypedAPIClient } = require('@/lib/api-client');
-    LazyTypedAPIClient.getInstance().setAuthToken(session.backendToken);
-
     loadDocument();
-  }, [documentId, session, status, router]);
+  }, [loadDocument]);
 
   // Add document to open tabs when it loads
   useEffect(() => {
@@ -64,8 +59,8 @@ export default function KnowledgeDocumentPage() {
     }
   }, [document, documentId, addDocument]);
 
-  // Handle wiki link clicks
-  const handleWikiLinkClick = async (pageName: string) => {
+  // Handle wiki link clicks - memoized
+  const handleWikiLinkClick = useCallback(async (pageName: string) => {
     try {
       const response = await apiService.documents.search(pageName, 1);
       if (response.documents.length > 0 && response.documents[0]) {
@@ -83,22 +78,57 @@ export default function KnowledgeDocumentPage() {
       }
     } catch (err) {
       console.error('Failed to navigate to wiki link:', err);
+      setError('Failed to navigate to wiki link');
     }
-  };
+  }, [router]);
 
-  // Update document tags
-  const updateDocumentTags = async (tags: string[]) => {
+  // Update document tags - memoized
+  const updateDocumentTags = useCallback(async (tags: string[]) => {
     try {
       await apiService.documents.update(documentId, {
         entityTypes: tags
       });
       setDocumentEntityTypes(tags);
+      showSuccess('Document tags updated successfully');
     } catch (err) {
       console.error('Failed to update document tags:', err);
+      showError('Failed to update document tags');
     }
-  };
+  }, [documentId, showSuccess, showError]);
 
-  if (loading) {
+  // Handle archive toggle - memoized
+  const handleArchiveToggle = useCallback(async () => {
+    if (!document) return;
+    
+    try {
+      await apiService.documents.update(documentId, {
+        archived: !document.archived
+      });
+      await loadDocument();
+      showSuccess(document.archived ? 'Document unarchived' : 'Document archived');
+    } catch (err) {
+      console.error('Failed to update archive status:', err);
+      showError('Failed to update archive status');
+    }
+  }, [document, documentId, loadDocument, showSuccess, showError]);
+
+  // Handle clone - memoized
+  const handleClone = useCallback(async () => {
+    try {
+      const response = await apiService.documents.clone(documentId);
+      if (response.token) {
+        router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
+      } else {
+        showError('Failed to prepare document for cloning');
+      }
+    } catch (err) {
+      console.error('Failed to clone document:', err);
+      showError('Failed to clone document');
+    }
+  }, [documentId, router, showError]);
+
+  // Loading state
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-gray-600 dark:text-gray-300">Loading document...</p>
@@ -106,10 +136,17 @@ export default function KnowledgeDocumentPage() {
     );
   }
 
+  // Error state
   if (error || !document) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-red-600">Failed to load document</p>
+      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+        <p className="text-red-600 dark:text-red-400">{error || 'Failed to load document'}</p>
+        <button
+          onClick={loadDocument}
+          className={buttonStyles.secondary.base}
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -125,14 +162,40 @@ export default function KnowledgeDocumentPage() {
         </div>
       </div>
 
+      {/* Error Message Banner */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex gap-6">
         {/* Document Content - Left Side */}
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-          <DocumentViewer
-            document={document}
-            onWikiLinkClick={handleWikiLinkClick}
-          />
+          <ErrorBoundary
+            fallback={(error, reset) => (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">
+                  Error loading document viewer
+                </h3>
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  {error.message}
+                </p>
+                <button
+                  onClick={reset}
+                  className="mt-2 text-sm text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 underline"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+          >
+            <DocumentViewer
+              document={document}
+              onWikiLinkClick={handleWikiLinkClick}
+            />
+          </ErrorBoundary>
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
             Last updated: {new Date(document.updatedAt).toLocaleDateString()}
           </div>
@@ -188,35 +251,13 @@ export default function KnowledgeDocumentPage() {
             )}
             <div className="space-y-2">
               <button
-                onClick={async () => {
-                  try {
-                    await apiService.documents.update(documentId, {
-                      archived: !document.archived
-                    });
-                    await loadDocument();
-                  } catch (err) {
-                    console.error('Failed to update archive status:', err);
-                    alert('Failed to update archive status');
-                  }
-                }}
+                onClick={handleArchiveToggle}
                 className={`${buttonStyles.secondary.base} w-full`}
               >
                 {document.archived ? 'Unarchive' : 'Archive'}
               </button>
               <button
-                onClick={async () => {
-                  try {
-                    const response = await apiService.documents.clone(documentId);
-                    if (response.token) {
-                      router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
-                    } else {
-                      alert('Failed to prepare clone');
-                    }
-                  } catch (err) {
-                    console.error('Failed to clone document:', err);
-                    alert('Failed to clone document');
-                  }
-                }}
+                onClick={handleClone}
                 className={`${buttonStyles.secondary.base} w-full`}
               >
                 Clone

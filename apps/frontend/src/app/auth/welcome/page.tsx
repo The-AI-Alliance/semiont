@@ -6,12 +6,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
+import { useToast } from '@/components/Toast';
 
 export default function Welcome() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const { showError } = useToast();
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -86,7 +88,7 @@ export default function Welcome() {
     } catch (error) {
       console.error('Terms acceptance error:', error);
       // Handle error - maybe show a message to the user
-      alert('There was an error recording your terms acceptance. Please try again.');
+      showError('There was an error recording your terms acceptance. Please try again.');
     }
   };
 

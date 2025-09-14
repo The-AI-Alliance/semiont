@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
+import { useToast } from '@/components/Toast';
 
 function ComposeDocumentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addDocument } = useOpenDocuments();
+  const { showError } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
   
@@ -34,18 +36,18 @@ function ComposeDocumentContent() {
             setNewDocName(response.sourceDocument.name);
             setNewDocContent(response.sourceDocument.content);
           } else {
-            alert('Invalid or expired clone token');
+            showError('Invalid or expired clone token');
             router.push('/know/search');
           }
         } catch (err) {
           console.error('Failed to load clone data:', err);
-          alert('Failed to load clone data');
+          showError('Failed to load clone data. Please try again.');
           router.push('/know/search');
         } finally {
           setIsLoading(false);
         }
       } else if (mode === 'clone' && !tokenFromUrl) {
-        alert('Clone token not found. Please try cloning again.');
+        showError('Clone token not found. Please try cloning again.');
         router.push('/know/search');
       } else {
         setIsLoading(false);
@@ -94,7 +96,7 @@ function ComposeDocumentContent() {
       router.push(`/know/document/${documentId}`);
     } catch (error) {
       console.error('Failed to save document:', error);
-      alert('Failed to save document. Please try again.');
+      showError('Failed to save document. Please try again.');
     } finally {
       setIsCreating(false);
     }
