@@ -208,7 +208,7 @@ export default function KnowledgeDocumentPage() {
                   try {
                     const response = await apiService.documents.clone(documentId);
                     if (response.token) {
-                      router.push(`/know/create?mode=clone&token=${encodeURIComponent(response.token)}`);
+                      router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
                     } else {
                       alert('Failed to prepare clone');
                     }

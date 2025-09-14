@@ -78,7 +78,7 @@ function segmentTextWithAnnotations(text: string, annotations: Annotation[]): Te
   return segments;
 }
 
-export function SourceView({
+export function AnnotateView({
   content,
   highlights,
   references,
