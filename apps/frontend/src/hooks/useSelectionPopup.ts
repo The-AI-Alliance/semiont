@@ -2,6 +2,23 @@ import { useState, useCallback, useEffect } from 'react';
 import { apiService, api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 
+// Custom hook for debounced values
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 interface UseSelectionPopupProps {
   selectedText: string;
   sourceDocumentId?: string | undefined;
@@ -25,6 +42,7 @@ export function useSelectionPopup({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Document[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [referenceType, setReferenceType] = useState(existingAnnotation?.referenceType || 'mentions');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>(
@@ -35,6 +53,9 @@ export function useSelectionPopup({
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Debounced search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Fetch entity types from backend
   const { data: entityTypesData, isLoading: isLoadingEntityTypes } = api.entityTypes.list.useQuery();
@@ -58,23 +79,33 @@ export function useSelectionPopup({
     'uses'
   ];
 
-  // Handle search - memoized
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    
-    setIsSearching(true);
-    setError(null);
-    try {
-      const response = await apiService.documents.search(searchQuery, 10);
-      setSearchResults(response.documents);
-    } catch (error) {
-      console.error('Search failed:', error);
-      setError('Failed to search documents');
+  // Perform search when debounced query changes
+  useEffect(() => {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
-    } finally {
-      setIsSearching(false);
+      setHasSearched(false);
+      return;
     }
-  }, [searchQuery]);
+
+    const performSearch = async () => {
+      setIsSearching(true);
+      setError(null);
+      try {
+        const response = await apiService.documents.search(debouncedSearchQuery, 10);
+        setSearchResults(response.documents);
+        setHasSearched(true);
+      } catch (error) {
+        console.error('Search failed:', error);
+        setError('Failed to search documents');
+        setSearchResults([]);
+        setHasSearched(true);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    performSearch();
+  }, [debouncedSearchQuery]);
 
   // Handle copy to clipboard - memoized
   const handleCopyText = useCallback(() => {
@@ -167,7 +198,7 @@ export function useSelectionPopup({
     setSelectedEntityTypes,
     setCreateNewDoc,
     setNewDocName,
-    handleSearch,
+    hasSearched,
     handleCopyText,
     handleCreateReference,
     handleCreateNewDocument,

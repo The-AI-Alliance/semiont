@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useRequireAuth } from '@/hooks/useSecureAPI';
+import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTags } from '@/components/DocumentTags';
@@ -17,7 +17,7 @@ import { useToast } from '@/components/Toast';
 export default function KnowledgeDocumentPage() {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+  const { data: session, status } = useSession();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
   const { highlights, references } = useDocumentAnnotations();
@@ -27,6 +27,17 @@ export default function KnowledgeDocumentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
+
+  // Check authentication status  
+  const isAuthenticated = !!session?.backendToken;
+  const authLoading = status === 'loading';
+
+  // Redirect to sign-in if not authenticated (after loading)
+  useEffect(() => {
+    if (status !== 'loading' && !session) {
+      router.push('/auth/signin');
+    }
+  }, [status, session, router]);
 
   // Load document - memoized to prevent recreating on every render
   const loadDocument = useCallback(async () => {
@@ -44,7 +55,7 @@ export default function KnowledgeDocumentPage() {
     } finally {
       setLoading(false);
     }
-  }, [documentId, isAuthenticated]);
+  }, [documentId, isAuthenticated, session]);
 
   // Load document when authentication is ready
   useEffect(() => {
