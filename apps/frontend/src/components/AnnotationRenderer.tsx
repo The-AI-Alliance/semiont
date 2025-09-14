@@ -194,18 +194,18 @@ export function AnnotationRenderer({
     ];
     
     // Debug logging
-    console.log('Content length:', content.length);
-    console.log('First 100 chars:', JSON.stringify(content.substring(0, 100)));
-    allAnnotations.forEach(ann => {
-      if (ann.selectionData) {
-        console.log('Annotation:', {
-          text: ann.selectionData.text,
-          offset: ann.selectionData.offset,
-          length: ann.selectionData.length,
-          actualText: content.substring(ann.selectionData.offset, ann.selectionData.offset + ann.selectionData.length)
-        });
-      }
-    });
+    // console.log('Content length:', content.length);
+    // console.log('First 100 chars:', JSON.stringify(content.substring(0, 100)));
+    // allAnnotations.forEach(ann => {
+    //   if (ann.selectionData) {
+    //     console.log('Annotation:', {
+    //       text: ann.selectionData.text,
+    //       offset: ann.selectionData.offset,
+    //       length: ann.selectionData.length,
+    //       actualText: content.substring(ann.selectionData.offset, ann.selectionData.offset + ann.selectionData.length)
+    //     });
+    //   }
+    // });
     
     return segmentTextWithAnnotations(content, allAnnotations);
   }, [content, highlights, references]);
