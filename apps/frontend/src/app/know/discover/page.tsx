@@ -122,15 +122,12 @@ export default function DiscoverPage() {
           isLoading: false,
         }));
         
-        // Try to load entity types from schema, but don't fail if it doesn't work
+        // Load entity types using the same method as entity-tags page
         try {
-          const schemaResponse = await apiService.documents.schemaDescription();
-          const types = schemaResponse.statistics?.entityTypes 
-            ? Object.keys(schemaResponse.statistics.entityTypes)
-            : [];
-          setEntityTypes(types);
-        } catch (schemaError) {
-          console.warn('Could not load schema (this is optional):', schemaError);
+          const entityTypesResponse = await apiService.entityTypes.list();
+          setEntityTypes(entityTypesResponse.entityTypes || []);
+        } catch (error) {
+          console.warn('Could not load entity types:', error);
           // Extract entity types from loaded documents as fallback
           const typesFromDocs = new Set<string>();
           docsResponse.documents.forEach((doc: Document) => {
