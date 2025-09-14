@@ -119,14 +119,9 @@ export default function KnowledgeDocumentPage() {
       {/* Document Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-lg">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {document.name}
-            </h2>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Last updated: {new Date(document.updatedAt).toLocaleDateString()}
-            </div>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {document.name}
+          </h2>
         </div>
       </div>
 
@@ -138,6 +133,9 @@ export default function KnowledgeDocumentPage() {
             document={document}
             onWikiLinkClick={handleWikiLinkClick}
           />
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+            Last updated: {new Date(document.updatedAt).toLocaleDateString()}
+          </div>
         </div>
 
         {/* Document Tags sidebar */}
