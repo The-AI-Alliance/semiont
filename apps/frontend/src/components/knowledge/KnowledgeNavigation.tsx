@@ -18,7 +18,7 @@ const TelescopeIcon = ({ className }: { className?: string }) => (
 const fixedNavigation = [
   {
     name: 'Discover',
-    href: '/know/search',
+    href: '/know/discover',
     icon: TelescopeIcon,
     description: 'Search and browse documents'
   },
