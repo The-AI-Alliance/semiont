@@ -4,18 +4,22 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
-  MagnifyingGlassIcon,
   PlusIcon,
   DocumentTextIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 
+// Custom telescope icon component
+const TelescopeIcon = ({ className }: { className?: string }) => (
+  <span className={className} style={{ fontSize: '1.25rem', lineHeight: '1' }}>🔭</span>
+);
+
 const fixedNavigation = [
   {
     name: 'Discover',
     href: '/know/search',
-    icon: MagnifyingGlassIcon,
+    icon: TelescopeIcon,
     description: 'Search and browse documents'
   },
   {
