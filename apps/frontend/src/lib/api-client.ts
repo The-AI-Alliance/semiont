@@ -413,8 +413,10 @@ export const apiService = {
       return apiClient.get('/api/documents');
     },
     
-    search: (query: string, limit?: number): Promise<DocumentsResponse> =>
-      apiClient.get('/api/documents', { params: { search: query, limit } }),
+    search: (query: string, limit?: number): Promise<DocumentsResponse> => {
+      console.log('[API] Searching documents with query:', query, 'limit:', limit);
+      return apiClient.get('/api/documents', { params: { search: query, limit } });
+    },
     
     schemaDescription: (): Promise<SchemaDescriptionResponse> =>
       apiClient.get('/api/documents/schema-description'),

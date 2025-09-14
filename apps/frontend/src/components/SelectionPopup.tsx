@@ -38,6 +38,7 @@ export function SelectionPopup({
     searchQuery,
     searchResults,
     isSearching,
+    hasSearched,
     selectedDoc,
     referenceType,
     selectedEntityTypes,
@@ -58,7 +59,6 @@ export function SelectionPopup({
     setSelectedEntityTypes,
     setCreateNewDoc,
     setNewDocName,
-    handleSearch,
     handleCopyText,
     handleCreateReference: handleCreateReferenceLogic,
   } = useSelectionPopup({
@@ -218,31 +218,30 @@ export function SelectionPopup({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Link to Document
                 </label>
-                <div className="flex gap-2">
+                <div className="relative">
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isSearching && handleSearch()}
-                    placeholder="Search for a document..."
-                    disabled={isCreating || isSearching}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
+                    placeholder="Type to search documents..."
+                    disabled={isCreating}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
                   />
-                  <button
-                    onClick={handleSearch}
-                    disabled={isCreating || isSearching || !searchQuery.trim()}
-                    className={`${buttonStyles.secondary.base} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    {isSearching ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-white"></div>
-                    ) : (
-                      'Search'
-                    )}
-                  </button>
+                  {isSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 dark:border-gray-400"></div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Search Results */}
+              {/* Search Results and Feedback */}
+              {searchQuery && hasSearched && !isSearching && searchResults.length === 0 && (
+                <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                  No documents found matching "{searchQuery}"
+                </div>
+              )}
+              
               {searchResults.length > 0 && (
                 <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg">
                   {searchResults.map((doc) => (
@@ -311,40 +310,60 @@ export function SelectionPopup({
                 />
               )}
 
-              {/* Entity Types Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Entity Types (optional)
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {commonEntityTypes.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        setSelectedEntityTypes((prev) =>
-                          prev.includes(type)
-                            ? prev.filter((t) => t !== type)
-                            : [...prev, type]
-                        );
-                      }}
-                      disabled={isCreating}
-                      className={`px-3 py-1 rounded-full text-sm transition-colors disabled:opacity-50 ${
-                        selectedEntityTypes.includes(type)
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
+              {/* Entity Types - Show for new documents (selectable) or selected documents (read-only) */}
+              {(createNewDoc || selectedDoc) && (
+                <div className={`${createNewDoc ? 'animate-slideDown' : ''}`}>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {createNewDoc ? 'Entity Types for New Document (optional)' : 'Selected Document Entity Types'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {createNewDoc ? (
+                      // Selectable entity types for new document
+                      commonEntityTypes.map((type, index) => (
+                        <button
+                          key={type}
+                          onClick={() => {
+                            setSelectedEntityTypes((prev) =>
+                              prev.includes(type)
+                                ? prev.filter((t) => t !== type)
+                                : [...prev, type]
+                            );
+                          }}
+                          disabled={isCreating}
+                          className={`px-3 py-1 rounded-full text-sm transition-all duration-300 disabled:opacity-50 animate-fadeInScale ${
+                            selectedEntityTypes.includes(type)
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                              : 'bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-600 dark:hover:to-gray-500 border border-gray-200 dark:border-gray-600'
+                          }`}
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          {type}
+                        </button>
+                      ))
+                    ) : selectedDoc?.entityTypes && selectedDoc.entityTypes.length > 0 ? (
+                      // Read-only display of selected document's entity types
+                      selectedDoc.entityTypes.map((type) => (
+                        <span
+                          key={type}
+                          className="px-3 py-1 rounded-full text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-500"
+                        >
+                          {type}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-400 italic">
+                        No entity types defined
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Create Reference Button */}
               {(!isEditMode || existingAnnotation?.type === 'highlight') && (
                 <button
                   onClick={handleCreateReferenceClick}
-                  disabled={isCreating || (!selectedDoc && !createNewDoc && !searchQuery)}
+                  disabled={isCreating || (!selectedDoc && !createNewDoc)}
                   className={`w-full py-2 ${buttonStyles.primary.base} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
                 >
                   {isCreating ? (

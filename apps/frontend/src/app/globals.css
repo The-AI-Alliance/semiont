@@ -111,4 +111,35 @@ body {
 }
 .md-header-widget.md-h1 { font-size: 2em; font-weight: bold; }
 .md-header-widget.md-h2 { font-size: 1.5em; font-weight: bold; }
+
+/* Animations for SelectionPopup entity types */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInScale {
+  animation: fadeInScale 0.3s ease-out forwards;
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out;
+}
 .md-header-widget.md-h3 { font-size: 1.25em; font-weight: bold; }
