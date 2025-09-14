@@ -15,7 +15,7 @@ interface Props {
 
 export function DocumentViewer({ document, onWikiLinkClick }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'source' | 'preview'>('source');
+  const [activeTab, setActiveTab] = useState<'annotate' | 'browse'>('browse');
   const {
     highlights,
     references,
@@ -171,29 +171,29 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       {/* Tab buttons */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 mb-4">
         <button
-          onClick={() => setActiveTab('source')}
+          onClick={() => setActiveTab('browse')}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'source'
+            activeTab === 'browse'
               ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          Source
+          Browse
         </button>
         <button
-          onClick={() => setActiveTab('preview')}
+          onClick={() => setActiveTab('annotate')}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'preview'
+            activeTab === 'annotate'
               ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          Preview
+          Annotate
         </button>
       </div>
       
       {/* Tab content */}
-      {activeTab === 'source' ? (
+      {activeTab === 'annotate' ? (
         <SourceView
           content={document.content}
           highlights={highlights}
