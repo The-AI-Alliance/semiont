@@ -122,8 +122,19 @@ interface SelectionResponse {
 }
 
 interface SchemaDescriptionResponse {
-  success: boolean;
   description: string;
+  statistics: {
+    documentCount: number;
+    selectionCount: number;
+    highlightCount: number;
+    referenceCount: number;
+    entityTypes: Record<string, number>;
+  };
+  entityTypeDescriptions: Array<{
+    type: string;
+    count: number;
+    description: string;
+  }>;
 }
 
 interface LLMContextResponse {
@@ -403,7 +414,7 @@ export const apiService = {
     },
     
     search: (query: string, limit?: number): Promise<DocumentsResponse> =>
-      apiClient.get('/api/documents/search', { params: { q: query, limit } }),
+      apiClient.get('/api/documents', { params: { search: query, limit } }),
     
     schemaDescription: (): Promise<SchemaDescriptionResponse> =>
       apiClient.get('/api/documents/schema-description'),
