@@ -4,10 +4,12 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
+import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 
 function CreateDocumentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { addDocument } = useOpenDocuments();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
   
@@ -59,6 +61,9 @@ function CreateDocumentContent() {
 
     setIsCreating(true);
     try {
+      let documentId: string;
+      let documentName: string;
+      
       if (isClone && cloneToken) {
         // Create document from clone token with edited content
         const response = await apiService.documents.createFromToken({
@@ -68,8 +73,8 @@ function CreateDocumentContent() {
           archiveOriginal: archiveOriginal
         });
         
-        // Navigate to the new cloned document
-        router.push(`/know/document/${response.document.id}`);
+        documentId = response.document?.id || '';
+        documentName = response.document?.name || newDocName;
       } else {
         // Create a new document
         const response = await apiService.documents.create({
@@ -78,9 +83,15 @@ function CreateDocumentContent() {
           contentType: 'text/markdown'
         });
         
-        // Navigate to the new document
-        router.push(`/know/document/${response.document.id}`);
+        documentId = response.document?.id || '';
+        documentName = response.document?.name || newDocName;
       }
+      
+      // Add the new document to open tabs using the context
+      addDocument(documentId, documentName);
+      
+      // Navigate to the new document
+      router.push(`/know/document/${documentId}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       alert('Failed to save document. Please try again.');

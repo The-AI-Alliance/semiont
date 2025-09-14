@@ -10,6 +10,7 @@ import { SelectionPopup } from '@/components/SelectionPopup';
 import { DocumentTags } from '@/components/DocumentTags';
 import { buttonStyles } from '@/lib/button-styles';
 import type { Document as SemiontDocument } from '@/lib/api-client';
+import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { 
   mapBackendToFrontendSelection, 
   type HighlightsApiResponse, 
@@ -22,6 +23,7 @@ export default function KnowledgeDocumentPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const documentId = params?.id as string;
+  const { addDocument } = useOpenDocuments();
 
   const [document, setDocument] = useState<SemiontDocument | null>(null);
   const [highlights, setHighlights] = useState<any[]>([]);
@@ -44,12 +46,15 @@ export default function KnowledgeDocumentPage() {
   // Entity type management state
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
   
-  // Store the document ID in localStorage when viewing
+  // Add document to open tabs when it loads
   useEffect(() => {
-    if (documentId && typeof window !== 'undefined') {
+    if (document && documentId) {
+      addDocument(documentId, document.name);
+      
+      // Also keep the lastViewedDocumentId for backwards compatibility
       localStorage.setItem('lastViewedDocumentId', documentId);
     }
-  }, [documentId]);
+  }, [document, documentId, addDocument]);
 
 
   // Handle keyboard shortcuts
