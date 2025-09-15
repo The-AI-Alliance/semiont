@@ -16,21 +16,23 @@ The selections system allows users to create, view, and manage text selections w
 - Created without any `resolvedDocumentId` field in the database
 
 #### References
-References can be in one of two states:
+References can have different visual styles based on their properties:
 
-##### Stub References (Purple)
-- References that don't yet point to an existing document
+##### Entity References (Purple)
+- References that have entity types (e.g., "Person", "Concept", "Titan")
 - Rendered with a purple background
-- Clicking opens a modal offering to create the referenced document
-- Stored with `resolvedDocumentId: null` in the database
-- Can have entity types (e.g., "Person", "Concept") and reference types (e.g., "mentions", "defines")
+- Can be either:
+  - **Stub references**: `resolvedDocumentId: null` - clicking opens modal to create document
+  - **Resolved references**: `resolvedDocumentId: "doc_id"` - clicking navigates to document
+- The purple color indicates the presence of entity type metadata
 
-##### Resolved References (Blue)
-- References that point to an existing document
+##### Document References (Blue Gradient)
+- References without entity types
 - Rendered with a blue gradient background
-- Clicking navigates directly to the referenced document
-- Stored with `resolvedDocumentId: "doc_id"` in the database
-- Maintain entity types and reference types from creation
+- Can be either:
+  - **Stub references**: `resolvedDocumentId: null` - clicking opens modal to create document
+  - **Resolved references**: `resolvedDocumentId: "doc_id"` - clicking navigates to document
+- The blue color indicates a plain document reference without entity metadata
 
 ## Axioms for Annotation Rendering
 
@@ -113,8 +115,8 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 
 - **View**: Selections are visually indicated with colored backgrounds:
   - Yellow for highlights
-  - Purple for stub references (unresolved)
-  - Blue gradient for resolved references
+  - Purple for references with entity types
+  - Blue gradient for references without entity types
 - **Navigate**: 
   - **Resolved references**: Click to navigate directly to the linked document
   - **Stub references**: Click to open a modal offering to create the document
