@@ -23,32 +23,36 @@ export function StubReferenceModal({
 
   // Handle escape key
   useEffect(() => {
+    if (!isOpen) return;
+    
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onCancel();
       }
     };
     
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
-    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onCancel]);
 
   // Handle click outside
   useEffect(() => {
+    if (!isOpen) return;
+    
     const handleClickOutside = (e: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
         onCancel();
       }
     };
     
-    if (isOpen) {
-      setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
-      }, 100);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [isOpen, onCancel]);
 
   if (!isOpen) return null;
