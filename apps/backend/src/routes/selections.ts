@@ -126,8 +126,8 @@ selectionsRouter.openapi(createSelectionRoute, async (c) => {
       metadata: body.metadata,
     };
     
-    // Only include resolvedDocumentId if it's explicitly provided (even if null)
-    if ('resolvedDocumentId' in body) {
+    // Only include resolvedDocumentId if it's explicitly provided AND not undefined
+    if ('resolvedDocumentId' in body && body.resolvedDocumentId !== undefined) {
       selInput.resolvedDocumentId = body.resolvedDocumentId;
       if (body.resolvedDocumentId) {
         selInput.resolvedBy = user.id;
