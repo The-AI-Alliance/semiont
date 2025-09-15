@@ -16,7 +16,22 @@ interface Props {
 
 export function DocumentViewer({ document, onWikiLinkClick }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'annotate' | 'browse'>('browse');
+  
+  // Initialize from localStorage or default to 'browse'
+  const [activeTab, setActiveTab] = useState<'annotate' | 'browse'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('documentViewerTab') as 'annotate' | 'browse') || 'browse';
+    }
+    return 'browse';
+  });
+  
+  // Save tab preference when it changes
+  const handleTabChange = useCallback((tab: 'annotate' | 'browse') => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('documentViewerTab', tab);
+    }
+  }, []);
   const {
     highlights,
     references,
@@ -213,7 +228,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       {/* Tab buttons */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 mb-4">
         <button
-          onClick={() => setActiveTab('browse')}
+          onClick={() => handleTabChange('browse')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'browse'
               ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
@@ -223,7 +238,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
           Browse
         </button>
         <button
-          onClick={() => setActiveTab('annotate')}
+          onClick={() => handleTabChange('annotate')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'annotate'
               ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'

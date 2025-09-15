@@ -245,7 +245,7 @@ export function AnnotateView({
             return (
               <button
                 onClick={handleSparkleClick}
-                className="absolute z-50 text-xl hover:scale-125 transition-transform cursor-pointer animate-bounce"
+                className="absolute z-50 hover:scale-125 transition-transform cursor-pointer animate-bounce"
                 style={{
                   left: `${lastRect.right - containerRect.left + 5}px`,
                   top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
@@ -254,7 +254,14 @@ export function AnnotateView({
                 title="Click to create highlight • Right-click for more options"
                 data-selection-ui
               >
-                ✨
+                <span className="relative inline-flex items-center justify-center">
+                  {/* Pulsing ring animation */}
+                  <span className="absolute inset-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-75 animate-ping"></span>
+                  {/* Solid background circle */}
+                  <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 ring-2 ring-yellow-400 dark:ring-yellow-500 shadow-lg">
+                    <span className="text-xl">✨</span>
+                  </span>
+                </span>
               </button>
             );
           })()}
