@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { SelectionPopup } from '@/components/SelectionPopup';
+import { StubReferenceModal } from '@/components/StubReferenceModal';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
@@ -38,6 +39,10 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
     referenceType?: string;
     entityType?: string;
   } | null>(null);
+  const [stubReferenceModal, setStubReferenceModal] = useState<{
+    isOpen: boolean;
+    annotation: any;
+  }>({ isOpen: false, annotation: null });
   
   // Load annotations when document changes
   useEffect(() => {
@@ -61,33 +66,9 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       return;
     }
     
-    // If it's a reference WITHOUT a target document (stub), offer to create it
+    // If it's a reference WITHOUT a target document (stub), show modal
     if (annotation.type === 'reference' && !annotation.referencedDocumentId) {
-      // Note: If a custom name was provided when creating the reference, 
-      // it's not stored in the reference, so we use the selected text
-      const documentName = annotation.selectionData?.text || 'New Document';
-      const confirmed = confirm(
-        `This reference points to a document that hasn't been created yet.\n\n` +
-        `Would you like to create a document for "${documentName}" now?\n\n` +
-        `You can change the name in the composer.\n\n` +
-        `Click OK to go to the document composer, or Cancel to stay here.`
-      );
-      
-      if (confirmed) {
-        // Navigate to compose page with the reference data
-        const params = new URLSearchParams({
-          name: documentName,
-          referenceId: annotation.id,
-          sourceDocumentId: document.id
-        });
-        if (annotation.entityType) {
-          params.append('entityTypes', annotation.entityType);
-        }
-        if (annotation.referenceType) {
-          params.append('referenceType', annotation.referenceType);
-        }
-        router.push(`/know/compose?${params.toString()}`);
-      }
+      setStubReferenceModal({ isOpen: true, annotation });
       return;
     }
     
@@ -127,6 +108,31 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
     }
     setShowSelectionPopup(true);
   }, []);
+  
+  // Handle stub reference modal confirmation
+  const handleStubReferenceConfirm = useCallback(() => {
+    const annotation = stubReferenceModal.annotation;
+    if (!annotation) return;
+    
+    const documentName = annotation.selectionData?.text || 'New Document';
+    const params = new URLSearchParams({
+      name: documentName,
+      referenceId: annotation.id,
+      sourceDocumentId: document.id
+    });
+    if (annotation.entityType) {
+      params.append('entityTypes', annotation.entityType);
+    } else if (annotation.entityTypes) {
+      params.append('entityTypes', annotation.entityTypes.join(','));
+    }
+    if (annotation.referenceType) {
+      params.append('referenceType', annotation.referenceType);
+    } else if (annotation.referenceTags && annotation.referenceTags.length > 0) {
+      params.append('referenceType', annotation.referenceTags[0]);
+    }
+    router.push(`/know/compose?${params.toString()}`);
+    setStubReferenceModal({ isOpen: false, annotation: null });
+  }, [stubReferenceModal.annotation, document.id, router]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
@@ -281,6 +287,16 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
           />
         )
       )}
+      
+      {/* Stub Reference Modal */}
+      <StubReferenceModal
+        isOpen={stubReferenceModal.isOpen}
+        documentName={stubReferenceModal.annotation?.selectionData?.text || 'New Document'}
+        entityTypes={stubReferenceModal.annotation?.entityType ? [stubReferenceModal.annotation.entityType] : stubReferenceModal.annotation?.entityTypes}
+        referenceType={stubReferenceModal.annotation?.referenceType || stubReferenceModal.annotation?.referenceTags?.[0]}
+        onConfirm={handleStubReferenceConfirm}
+        onCancel={() => setStubReferenceModal({ isOpen: false, annotation: null })}
+      />
     </div>
   );
 }
