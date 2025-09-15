@@ -55,14 +55,15 @@ function applyAnnotations(
     
     // Add annotated text
     const className = annotationStyles.getAnnotationStyle(annotation);
-    const isReference = annotation.type === 'reference' && annotation.referencedDocumentId;
+    const isReference = annotation.type === 'reference';
+    const hasTarget = annotation.referencedDocumentId;
     
     segments.push(
       <span
         key={`ann-${annotation.id}`}
         className={className}
         onClick={() => isReference && onAnnotationClick?.(annotation)}
-        title={isReference ? 'Click to navigate to referenced document' : 'Highlight'}
+        title={isReference ? (hasTarget ? 'Click to navigate to referenced document' : 'Click to create referenced document') : 'Highlight'}
         style={{ cursor: isReference ? 'pointer' : 'default' }}
       >
         {text.slice(start, end)}
