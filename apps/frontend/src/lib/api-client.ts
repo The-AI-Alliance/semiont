@@ -463,7 +463,6 @@ export const apiService = {
         body.resolvedDocumentId = data.resolvedDocumentId;
       }
       
-      console.log('Creating selection with body:', body);
       return apiClient.post('/api/selections', { body });
     },
     
