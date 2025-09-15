@@ -29,6 +29,12 @@ export default function KnowledgeDocumentPage() {
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
   const [referencedBy, setReferencedBy] = useState<any[]>([]);
   const [referencedByLoading, setReferencedByLoading] = useState(false);
+  const [annotateMode, setAnnotateMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('annotateMode') === 'true';
+    }
+    return false;
+  });
 
   // Check authentication status  
   const isAuthenticated = !!session?.backendToken;
@@ -163,6 +169,15 @@ export default function KnowledgeDocumentPage() {
     }
   }, [documentId, router, showError]);
 
+  // Handle annotate mode toggle - memoized
+  const handleAnnotateModeToggle = useCallback(() => {
+    const newMode = !annotateMode;
+    setAnnotateMode(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotateMode', newMode.toString());
+    }
+  }, [annotateMode]);
+
   // Loading state
   if (authLoading || loading) {
     return (
@@ -188,10 +203,10 @@ export default function KnowledgeDocumentPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2 pt-6">
       {/* Document Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="px-6 py-4">
+        <div className="px-6 py-2">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             {document.name}
           </h2>
@@ -208,7 +223,7 @@ export default function KnowledgeDocumentPage() {
       {/* Main Content */}
       <div className="flex gap-6">
         {/* Document Content - Left Side */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm px-6 py-4">
           <ErrorBoundary
             fallback={(error, reset) => (
               <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
@@ -230,39 +245,67 @@ export default function KnowledgeDocumentPage() {
             <DocumentViewer
               document={document}
               onWikiLinkClick={handleWikiLinkClick}
+              annotateMode={annotateMode}
             />
           </ErrorBoundary>
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
-            Last updated: {new Date(document.updatedAt).toLocaleDateString()}
-          </div>
         </div>
 
-        {/* Document Tags sidebar */}
+        {/* Sidebar */}
         <div className="w-64">
-          <DocumentTags 
-            documentId={documentId}
-            initialTags={documentEntityTypes}
-            onUpdate={updateDocumentTags}
-            disabled={document.archived || false}
-          />
-        
-          {/* Statistics */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-              <div className="flex justify-between">
-                <span>Highlights</span>
-                <span className="font-medium">{highlights.length}</span>
+          {/* Manage */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
+            {document.archived && (
+              <div className="mb-3 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-sm font-medium text-center">
+                Archived
               </div>
-              <div className="flex justify-between">
-                <span>References</span>
-                <span className="font-medium">{references.length}</span>
-              </div>
+            )}
+            <div className="space-y-2">
+              <button
+                onClick={handleAnnotateModeToggle}
+                className={`${
+                  annotateMode ? buttonStyles.primary.base : buttonStyles.secondary.base
+                } w-full`}
+                disabled={document.archived}
+                title={document.archived ? 'Cannot annotate archived documents' : 'Toggle annotation mode'}
+              >
+                {annotateMode ? '✏️ Annotate Mode ON' : '👁️ View Mode'}
+              </button>
+              <button
+                onClick={() => console.log('Propose Entities - Not implemented yet')}
+                className={`${buttonStyles.secondary.base} w-full`}
+                disabled={document.archived || !annotateMode}
+                title={document.archived ? 'Cannot propose entities in archived documents' : annotateMode ? 'Automatically propose entity references' : 'Enable annotate mode first'}
+              >
+                ✨ Propose Entities
+              </button>
+              <button
+                onClick={handleArchiveToggle}
+                className={`${buttonStyles.secondary.base} w-full`}
+              >
+                {document.archived ? 'Unarchive' : 'Archive'}
+              </button>
+              <button
+                onClick={handleClone}
+                className={`${buttonStyles.secondary.base} w-full`}
+              >
+                Clone
+              </button>
             </div>
+          </div>
+          
+          {/* Document Tags */}
+          <div className="mt-3">
+            <DocumentTags 
+              documentId={documentId}
+              initialTags={documentEntityTypes}
+              onUpdate={updateDocumentTags}
+              disabled={document.archived || false}
+            />
           </div>
         
           {/* Referenced by */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               Referenced by
               {referencedByLoading && (
@@ -292,43 +335,54 @@ export default function KnowledgeDocumentPage() {
             )}
           </div>
         
-          {/* Cloned From */}
-          {document.sourceDocumentId && document.creationMethod === 'clone' && (
-            <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
-              <div className="text-xs text-gray-600 dark:text-gray-400">
-                <span>Cloned from: </span>
-                <Link
-                  href={`/know/document/${document.sourceDocumentId}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  View original
-                </Link>
+          {/* Provenance */}
+          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
+            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+              <div className="flex justify-between">
+                <span>Last Updated</span>
+                <span className="font-medium">{new Date(document.updatedAt).toLocaleDateString()}</span>
               </div>
+              <div className="flex justify-between">
+                <span>Created At</span>
+                <span className="font-medium">{new Date(document.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Created By</span>
+                <span className="font-medium">---</span>
+              </div>
+              {document.creationMethod && (
+                <div className="flex justify-between">
+                  <span>Creation Method</span>
+                  <span className="font-medium capitalize">{document.creationMethod}</span>
+                </div>
+              )}
+              {document.sourceDocumentId && document.creationMethod === 'clone' && (
+                <div className="flex justify-between">
+                  <span>Cloned From</span>
+                  <Link
+                    href={`/know/document/${document.sourceDocumentId}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    View original
+                  </Link>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         
-          {/* Archive Status */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
-            {document.archived && (
-              <div className="mb-3 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-sm font-medium text-center">
-                Archived
+          {/* Statistics */}
+          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
+            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+              <div className="flex justify-between">
+                <span>Highlights</span>
+                <span className="font-medium">{highlights.length}</span>
               </div>
-            )}
-            <div className="space-y-2">
-              <button
-                onClick={handleArchiveToggle}
-                className={`${buttonStyles.secondary.base} w-full`}
-              >
-                {document.archived ? 'Unarchive' : 'Archive'}
-              </button>
-              <button
-                onClick={handleClone}
-                className={`${buttonStyles.secondary.base} w-full`}
-              >
-                Clone
-              </button>
+              <div className="flex justify-between">
+                <span>References</span>
+                <span className="font-medium">{references.length}</span>
+              </div>
             </div>
           </div>
         </div>

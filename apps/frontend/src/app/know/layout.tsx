@@ -17,7 +17,7 @@ export default function KnowledgeLayout({
           <UnifiedHeader brandingLink="/know" variant="standalone" />
           <div className="flex flex-1">
             <KnowledgeNavigation />
-            <main className="flex-1 p-6">
+            <main className="flex-1 px-6 pb-6">
               <div className="max-w-7xl mx-auto">
                 {children}
               </div>

@@ -8,6 +8,7 @@ interface StubReferenceModalProps {
   entityTypes?: string[];
   referenceType?: string;
   onConfirm: () => void;
+  onGenerate?: () => void;
   onCancel: () => void;
 }
 
@@ -17,6 +18,7 @@ export function StubReferenceModal({
   entityTypes,
   referenceType,
   onConfirm,
+  onGenerate,
   onCancel
 }: StubReferenceModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -118,10 +120,10 @@ export function StubReferenceModal({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 font-medium"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 font-medium"
           >
             Stay Here
           </button>
@@ -131,6 +133,14 @@ export function StubReferenceModal({
           >
             Create Document
           </button>
+          {onGenerate && (
+            <button
+              onClick={onGenerate}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+            >
+              ✨ Generate Document
+            </button>
+          )}
         </div>
       </div>
     </div>
