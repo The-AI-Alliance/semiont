@@ -272,12 +272,12 @@ export default function KnowledgeDocumentPage() {
                 {annotateMode ? '✏️ Annotate Mode ON' : '👁️ View Mode'}
               </button>
               <button
-                onClick={() => console.log('Detect Highlights - Not implemented yet')}
+                onClick={() => console.log('Propose Entities - Not implemented yet')}
                 className={`${buttonStyles.secondary.base} w-full`}
                 disabled={document.archived || !annotateMode}
-                title={document.archived ? 'Cannot detect highlights in archived documents' : annotateMode ? 'Automatically detect and create highlights' : 'Enable annotate mode first'}
+                title={document.archived ? 'Cannot propose entities in archived documents' : annotateMode ? 'Automatically propose entity references' : 'Enable annotate mode first'}
               >
-                Detect Highlights
+                ✨ Propose Entities
               </button>
               <button
                 onClick={handleArchiveToggle}
