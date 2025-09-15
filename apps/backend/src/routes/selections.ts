@@ -1099,7 +1099,18 @@ selectionsRouter.openapi(getDocumentReferencedByRoute, async (c) => {
 
     const referencedBy = await graphDb.getDocumentReferencedBy(id);
     
-    return c.json({ referencedBy: referencedBy.map(formatSelection) }, 200);
+    // Enhance each selection with the source document name
+    const enhancedReferences = await Promise.all(
+      referencedBy.map(async (sel) => {
+        const sourceDoc = await graphDb.getDocument(sel.documentId);
+        return {
+          ...formatSelection(sel),
+          documentName: sourceDoc?.name || 'Untitled Document'
+        };
+      })
+    );
+    
+    return c.json({ referencedBy: enhancedReferences }, 200);
   } catch (error) {
     console.error('Error getting incoming references:', error);
     return c.json({ error: 'Failed to get incoming references' }, 500);
