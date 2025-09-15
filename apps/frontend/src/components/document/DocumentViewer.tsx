@@ -137,6 +137,32 @@ export function DocumentViewer({ document, onWikiLinkClick, annotateMode = false
     setStubReferenceModal({ isOpen: false, annotation: null });
   }, [stubReferenceModal.annotation, document.id, router]);
   
+  // Handle stub reference modal generate
+  const handleStubReferenceGenerate = useCallback(() => {
+    const annotation = stubReferenceModal.annotation;
+    if (!annotation) return;
+    
+    const documentName = annotation.selectionData?.text || 'New Document';
+    const params = new URLSearchParams({
+      name: documentName,
+      referenceId: annotation.id,
+      sourceDocumentId: document.id,
+      generate: 'true'  // Flag to indicate AI generation should be triggered
+    });
+    if (annotation.entityType) {
+      params.append('entityTypes', annotation.entityType);
+    } else if (annotation.entityTypes) {
+      params.append('entityTypes', annotation.entityTypes.join(','));
+    }
+    if (annotation.referenceType) {
+      params.append('referenceType', annotation.referenceType);
+    } else if (annotation.referenceTags && annotation.referenceTags.length > 0) {
+      params.append('referenceType', annotation.referenceTags[0]);
+    }
+    router.push(`/know/compose?${params.toString()}`);
+    setStubReferenceModal({ isOpen: false, annotation: null });
+  }, [stubReferenceModal.annotation, document.id, router]);
+  
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
     if (!selectionPosition || !selectedText) return;
@@ -275,6 +301,7 @@ export function DocumentViewer({ document, onWikiLinkClick, annotateMode = false
         entityTypes={stubReferenceModal.annotation?.entityType ? [stubReferenceModal.annotation.entityType] : stubReferenceModal.annotation?.entityTypes}
         referenceType={stubReferenceModal.annotation?.referenceType || stubReferenceModal.annotation?.referenceTags?.[0]}
         onConfirm={handleStubReferenceConfirm}
+        onGenerate={handleStubReferenceGenerate}
         onCancel={() => setStubReferenceModal({ isOpen: false, annotation: null })}
       />
     </div>
