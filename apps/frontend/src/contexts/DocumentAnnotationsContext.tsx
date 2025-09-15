@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { apiService } from '@/lib/api-client';
 import { 
   mapBackendToFrontendSelection,
@@ -141,7 +141,6 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // If none of the above, it's a highlight (no resolvedDocumentId key)
       
       // Create the selection with metadata
-      console.log('addReference - createData:', createData);
       await apiService.selections.create(createData);
       
       await refreshAnnotations();
