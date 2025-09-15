@@ -21,7 +21,7 @@ export default function KnowledgeDocumentPage() {
   const { data: session, status } = useSession();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
-  const { highlights, references } = useDocumentAnnotations();
+  const { highlights, references, loadAnnotations } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
 
   const [document, setDocument] = useState<SemiontDocument | null>(null);
@@ -184,16 +184,26 @@ export default function KnowledgeDocumentPage() {
   const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
     try {
       console.log('Detecting entity references for types:', selectedTypes);
+      console.log('Document ID:', documentId);
+      console.log('Making API call to detectSelections...');
+      
       const response = await apiService.documents.detectSelections(documentId, selectedTypes);
+      
+      console.log('Detection response:', response);
       showSuccess(response.message || `Entity detection started for ${selectedTypes.length} type(s)`);
       setShowProposeEntitiesModal(false);
       
       // Reload annotations after a delay to show new detections
       setTimeout(() => {
+        console.log('Reloading annotations...');
         loadAnnotations(documentId);
       }, 2000);
     } catch (err) {
-      console.error('Failed to detect entity references:', err);
+      console.error('Failed to detect entity references - Full error:', err);
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+      }
       showError('Failed to start entity detection. Please try again.');
     }
   }, [documentId, showSuccess, showError, loadAnnotations]);

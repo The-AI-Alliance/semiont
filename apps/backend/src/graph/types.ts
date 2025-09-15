@@ -160,7 +160,7 @@ export interface CreateDocumentInput {
   createdBy?: string;  // Should be set by backend from auth context
   
   // Provenance tracking (only context fields, not derived fields)
-  creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' if not specified
+  creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';  // Defaults to 'api' if not specified
   sourceSelectionId?: string;  // For reference-created documents
   sourceDocumentId?: string;  // For reference-created documents
   // Note: contentChecksum is calculated by backend
