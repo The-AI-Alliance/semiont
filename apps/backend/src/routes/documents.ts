@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { HTTPException } from 'hono/http-exception';
 import { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { 
@@ -55,7 +56,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
   const graphDb = await getGraphDatabase();
   const storage = getStorageService();
   
-  // const checksum = calculateChecksum(body.content);  // Not used
+  const checksum = calculateChecksum(body.content);
   const document: Document = {
     id: `doc_${Math.random().toString(36).substring(2, 11)}`,
     name: body.name,
@@ -69,6 +70,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     creationMethod: (body.creationMethod || 'api') as 'api' | 'reference' | 'upload' | 'ui',
     sourceSelectionId: body.sourceSelectionId || undefined,
     sourceDocumentId: body.sourceDocumentId || undefined,
+    contentChecksum: checksum,
     
     createdBy: user?.id || 'anonymous',
     updatedBy: user?.id || 'anonymous',
@@ -76,17 +78,20 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     updatedAt: new Date(),
   };
   
-  const savedDoc = await graphDb.createDocument({
+  const createInput: any = {
     name: document.name,
     entityTypes: document.entityTypes,
     content: body.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod,
-    sourceSelectionId: document.sourceSelectionId,
-    sourceDocumentId: document.sourceDocumentId
-  });
+    createdBy: document.createdBy || 'anonymous',
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
   
   // Get selections
@@ -126,10 +131,14 @@ const getDocumentRoute = createRoute({
 documentsRouter.openapi(getDocumentRoute, async (c) => {
   const { id } = c.req.valid('param');
   const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   const document = await graphDb.getDocument(id);
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
+  
+  // Get content from storage
+  const content = await storage.getDocument(id);
   
   // Get selections
   const highlights = await graphDb.getHighlights(id);
@@ -137,7 +146,10 @@ documentsRouter.openapi(getDocumentRoute, async (c) => {
   const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
   
   return c.json({
-    document: formatDocument(document),
+    document: {
+      ...formatDocument(document),
+      content: content.toString('utf-8')
+    },
     selections: [...highlights, ...references].map(formatSelection),
     highlights: highlights.map(formatSelection),
     references: references.map(formatSelection),
@@ -279,10 +291,11 @@ documentsRouter.openapi(updateDocumentRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
   const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   
   const document = await graphDb.getDocument(id);
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
   
   const updateData: UpdateDocumentInput = {
@@ -295,13 +308,19 @@ documentsRouter.openapi(updateDocumentRoute, async (c) => {
   
   const updatedDoc = await graphDb.updateDocument(id, updateData);
   
+  // Get content from storage
+  const content = await storage.getDocument(id);
+  
   // Get selections
   const highlights = await graphDb.getHighlights(id);
   const references = await graphDb.getReferences(id);
   const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
   
   return c.json({
-    document: formatDocument(updatedDoc),
+    document: {
+      ...formatDocument(updatedDoc),
+      content: content.toString('utf-8')
+    },
     selections: [...highlights, ...references].map(formatSelection),
     highlights: highlights.map(formatSelection),
     references: references.map(formatSelection),
@@ -335,7 +354,7 @@ documentsRouter.openapi(deleteDocumentRoute, async (c) => {
   
   const document = await graphDb.getDocument(id);
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
   
   await graphDb.deleteDocument(id);
@@ -381,7 +400,7 @@ documentsRouter.openapi(getDocumentContentRoute, async (c) => {
   
   const document = await graphDb.getDocument(id);
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
   
   const content = await storage.getDocument(id);
@@ -435,7 +454,7 @@ documentsRouter.openapi(cloneDocumentRoute, async (c) => {
   
   const document = await graphDb.getDocument(id);
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
   
   // Get content
@@ -493,12 +512,12 @@ documentsRouter.openapi(getDocumentByTokenRoute, async (c) => {
   
   const tokenData = cloneTokens.get(token);
   if (!tokenData) {
-    return c.json({ error: 'Invalid or expired token' }, 404);
+    throw new HTTPException(404, { message: 'Invalid or expired token' });
   }
   
   if (new Date() > tokenData.expiresAt) {
     cloneTokens.delete(token);
-    return c.json({ error: 'Token expired' }, 404);
+    throw new HTTPException(404, { message: 'Token expired' });
   }
   
   const graphDb = await getGraphDatabase();
@@ -506,7 +525,7 @@ documentsRouter.openapi(getDocumentByTokenRoute, async (c) => {
   
   const document = await graphDb.getDocument(tokenData.documentId);
   if (!document) {
-    return c.json({ error: 'Source document not found' }, 404);
+    throw new HTTPException(404, { message: 'Source document not found' });
   }
   
   const content = await storage.getDocument(tokenData.documentId);
@@ -560,12 +579,12 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   
   const tokenData = cloneTokens.get(body.token);
   if (!tokenData) {
-    return c.json({ error: 'Invalid or expired token' }, 404);
+    throw new HTTPException(404, { message: 'Invalid or expired token' });
   }
   
   if (new Date() > tokenData.expiresAt) {
     cloneTokens.delete(body.token);
-    return c.json({ error: 'Token expired' }, 404);
+    throw new HTTPException(404, { message: 'Token expired' });
   }
   
   const graphDb = await getGraphDatabase();
@@ -574,7 +593,7 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   // Get source document
   const sourceDoc = await graphDb.getDocument(tokenData.documentId);
   if (!sourceDoc) {
-    return c.json({ error: 'Source document not found' }, 404);
+    throw new HTTPException(404, { message: 'Source document not found' });
   }
   
   // Create new document
@@ -598,17 +617,20 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
     updatedAt: new Date(),
   };
   
-  const savedDoc = await graphDb.createDocument({
+  const createInput: any = {
     name: document.name,
     entityTypes: document.entityTypes,
     content: body.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod,
-    sourceSelectionId: document.sourceSelectionId,
-    sourceDocumentId: document.sourceDocumentId
-  });
+    createdBy: document.createdBy || 'anonymous',
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
   
   // Archive original if requested
@@ -1030,7 +1052,7 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
   
   const document = await graphDb.getDocument(id);
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
   // Get document content from storage
   const content = await storage.getDocument(id);
@@ -1142,7 +1164,7 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   // Get the selection
   const selection = await graphDb.getSelection(id);
   if (!selection) {
-    return c.json({ error: 'Selection not found' }, 404);
+    throw new HTTPException(404, { message: 'Selection not found' });
   }
   
   // Generate content (stub implementation)
@@ -1153,7 +1175,7 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   );
   
   // Create the document
-  const checksum = calculateChecksum(generatedContent.content);
+  // const checksum = calculateChecksum(generatedContent.content);  // Not used
   const document: Document = {
     id: `doc_${Math.random().toString(36).substring(2, 11)}`,
     name: generatedContent.title,
@@ -1177,17 +1199,20 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     updatedAt: new Date(),
   };
   
-  const savedDoc = await graphDb.createDocument({
+  const createInput: any = {
     name: document.name,
     entityTypes: document.entityTypes,
-    content: body.content,
+    content: generatedContent.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod,
-    sourceSelectionId: document.sourceSelectionId,
-    sourceDocumentId: document.sourceDocumentId
-  });
+    createdBy: document.createdBy || 'anonymous',
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(generatedContent.content));
   
   // Update the selection to resolve to this document
@@ -1294,7 +1319,7 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   // Get the selection
   const selection = await graphDb.getSelection(id);
   if (!selection) {
-    return c.json({ error: 'Selection not found' }, 404);
+    throw new HTTPException(404, { message: 'Selection not found' });
   }
   
   // Create the document
@@ -1318,17 +1343,20 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     updatedAt: new Date(),
   };
   
-  const savedDoc = await graphDb.createDocument({
+  const createInput: any = {
     name: document.name,
     entityTypes: document.entityTypes,
     content: body.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod,
-    sourceSelectionId: document.sourceSelectionId,
-    sourceDocumentId: document.sourceDocumentId
-  });
+    createdBy: document.createdBy || 'anonymous',
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
   
   // Update the selection to resolve to this document

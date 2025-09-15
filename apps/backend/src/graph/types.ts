@@ -163,7 +163,7 @@ export interface CreateDocumentInput {
   creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';  // Defaults to 'api' if not specified
   sourceSelectionId?: string;  // For reference-created documents
   sourceDocumentId?: string;  // For reference-created documents
-  // Note: contentChecksum is calculated by backend
+  contentChecksum?: string;  // SHA-256 hash calculated by backend
   // Note: createdAt is set by backend
 }
 
