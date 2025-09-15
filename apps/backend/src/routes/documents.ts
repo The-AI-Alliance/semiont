@@ -1078,7 +1078,8 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
       // Create the selection as a stub reference (resolvedDocumentId: null)
       const selectionData: any = {
         documentId: id,
-        selectionType: detection.selection.selectionData,
+        selectionType: detection.selection.selectionType,
+        selectionData: detection.selection.selectionData,
         entityTypes: detection.selection.entityTypes,
         provisional: true,
         confidence: detection.selection.confidence,
