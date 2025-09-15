@@ -38,7 +38,7 @@ const createSelectionRoute = createRoute({
   method: 'post',
   path: '/api/selections',
   summary: 'Create Selection',
-  description: 'Create a selection (can be saved as highlight and/or resolved as reference)',
+  description: 'Create a selection (highlight if no resolvedDocumentId, reference if resolvedDocumentId present)',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -121,15 +121,18 @@ selectionsRouter.openapi(createSelectionRoute, async (c) => {
       documentId: body.documentId,
       selectionType: body.selectionType.type,
       selectionData: body.selectionType,
-      // If no resolvedDocumentId, it's a highlight and should be saved
-      saved: !body.resolvedDocumentId,
-      savedBy: !body.resolvedDocumentId ? user.id : undefined,
-      resolvedDocumentId: body.resolvedDocumentId,
-      resolvedBy: body.resolvedDocumentId ? user.id : undefined,
       referenceTags: body.referenceTags,
       entityTypes: body.entityTypes,
       metadata: body.metadata,
     };
+    
+    // Only include resolvedDocumentId if it's explicitly provided AND not undefined
+    if ('resolvedDocumentId' in body && body.resolvedDocumentId !== undefined) {
+      selInput.resolvedDocumentId = body.resolvedDocumentId;
+      if (body.resolvedDocumentId) {
+        selInput.resolvedBy = user.id;
+      }
+    }
 
     const selection = await graphDb.createSelection(selInput);
 
@@ -217,7 +220,6 @@ const listSelectionsRoute = createRoute({
     query: z.object({
       documentId: z.string().optional(),
       resolvedDocumentId: z.string().optional(),
-      saved: z.boolean().optional(),
       resolved: z.boolean().optional(),
       hasEntityTypes: z.boolean().optional(),
       referenceTags: z.string().optional(),
@@ -259,7 +261,6 @@ selectionsRouter.openapi(listSelectionsRoute, async (c) => {
     };
     if (query.documentId !== undefined) filter.documentId = query.documentId;
     if (query.resolvedDocumentId !== undefined) filter.resolvedDocumentId = query.resolvedDocumentId;
-    if (query.saved !== undefined) filter.saved = query.saved;
     if (query.resolved !== undefined) filter.resolved = query.resolved;
     if (query.hasEntityTypes !== undefined) filter.hasEntityTypes = query.hasEntityTypes;
     if (query.referenceTags) filter.referenceTags = query.referenceTags.split(',');
@@ -915,7 +916,7 @@ const getDocumentHighlightsRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/highlights',
   summary: 'Get Document Highlights',
-  description: 'Get only saved selections (highlights) in a document',
+  description: 'Get only highlights (selections without resolvedDocumentId) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -1098,7 +1099,18 @@ selectionsRouter.openapi(getDocumentReferencedByRoute, async (c) => {
 
     const referencedBy = await graphDb.getDocumentReferencedBy(id);
     
-    return c.json({ referencedBy: referencedBy.map(formatSelection) }, 200);
+    // Enhance each selection with the source document name
+    const enhancedReferences = await Promise.all(
+      referencedBy.map(async (sel) => {
+        const sourceDoc = await graphDb.getDocument(sel.documentId);
+        return {
+          ...formatSelection(sel),
+          documentName: sourceDoc?.name || 'Untitled Document'
+        };
+      })
+    );
+    
+    return c.json({ referencedBy: enhancedReferences }, 200);
   } catch (error) {
     console.error('Error getting incoming references:', error);
     return c.json({ error: 'Failed to get incoming references' }, 500);
@@ -1473,9 +1485,6 @@ function formatSelection(sel: Selection): any {
     documentId: sel.documentId,
     selectionType: sel.selectionType,
     selectionData: sel.selectionData,
-    saved: sel.saved,
-    savedAt: sel.savedAt instanceof Date ? sel.savedAt.toISOString() : sel.savedAt,
-    savedBy: sel.savedBy,
     resolvedDocumentId: sel.resolvedDocumentId,
     resolvedAt: sel.resolvedAt instanceof Date ? sel.resolvedAt.toISOString() : sel.resolvedAt,
     resolvedBy: sel.resolvedBy,
@@ -1484,6 +1493,7 @@ function formatSelection(sel: Selection): any {
     provisional: sel.provisional,
     confidence: sel.confidence,
     metadata: sel.metadata,
+    createdBy: sel.createdBy,
     createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
     updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
   };

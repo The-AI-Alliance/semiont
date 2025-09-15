@@ -11,7 +11,6 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateSelectionInput,
-  SaveSelectionInput,
   ResolveSelectionInput,
 } from './types';
 
@@ -29,15 +28,14 @@ export interface GraphDatabase {
   listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }>;
   searchDocuments(query: string, limit?: number): Promise<Document[]>;
   
-  // Selection operations (ephemeral or saved)
+  // Selection operations
   createSelection(input: CreateSelectionInput): Promise<Selection>;
   getSelection(id: string): Promise<Selection | null>;
   updateSelection(id: string, updates: Partial<Selection>): Promise<Selection>;
   deleteSelection(id: string): Promise<void>;
   listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }>;
   
-  // Highlight operations (saved selections)
-  saveSelection(input: SaveSelectionInput): Promise<Selection>;
+  // Highlight operations
   getHighlights(documentId: string): Promise<Selection[]>;
   
   // Reference operations (resolved selections)
@@ -67,7 +65,6 @@ export interface GraphDatabase {
   
   // Bulk operations
   createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]>;
-  saveSelections(inputs: SaveSelectionInput[]): Promise<Selection[]>;
   resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]>;
   
   // Auto-detection

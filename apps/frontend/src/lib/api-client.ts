@@ -397,6 +397,9 @@ export const apiService = {
     clone: (id: string): Promise<{ token: string; expiresAt: string; sourceDocument: any }> =>
       apiClient.post('/api/documents/:id/clone', { params: { id }, body: {} }),
     
+    getReferencedBy: (id: string): Promise<{ referencedBy: SelectionResponse[] }> =>
+      apiClient.get('/api/documents/:id/referenced-by', { params: { id } }),
+    
     getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
       apiClient.get('/api/documents/token/:token', { params: { token } }),
     
@@ -439,19 +442,29 @@ export const apiService = {
       position: { start: number; end: number };
       type?: 'provisional' | 'highlight' | 'reference';
       entityTypes?: string[];
-    }): Promise<SelectionResponse> =>
-      apiClient.post('/api/selections', { 
-        body: {
-          documentId: data.documentId,
-          selectionType: {
-            type: 'text_span',
-            offset: data.position.start,
-            length: data.position.end - data.position.start,
-            text: data.text
-          },
-          entityTypes: data.entityTypes
-        }
-      }),
+      referenceTags?: string[];
+      resolvedDocumentId?: string | null;
+    }): Promise<SelectionResponse> => {
+      const body: any = {
+        documentId: data.documentId,
+        selectionType: {
+          type: 'text_span',
+          offset: data.position.start,
+          length: data.position.end - data.position.start,
+          text: data.text
+        },
+        entityTypes: data.entityTypes,
+        referenceTags: data.referenceTags
+      };
+      
+      // Only include resolvedDocumentId if it's explicitly provided
+      // This preserves the distinction between undefined (not sent) and null (sent as null)
+      if ('resolvedDocumentId' in data) {
+        body.resolvedDocumentId = data.resolvedDocumentId;
+      }
+      
+      return apiClient.post('/api/selections', { body });
+    },
     
     get: (id: string): Promise<SelectionResponse> =>
       apiClient.get('/api/selections/:id', { params: { id } }),
@@ -491,8 +504,6 @@ export const apiService = {
           }
         } 
       });
-      
-      console.log('Created highlight:', highlight);
       
       return highlight;
     },

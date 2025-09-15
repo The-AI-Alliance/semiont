@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { SelectionPopup } from '@/components/SelectionPopup';
+import { StubReferenceModal } from '@/components/StubReferenceModal';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
@@ -38,6 +39,10 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
     referenceType?: string;
     entityType?: string;
   } | null>(null);
+  const [stubReferenceModal, setStubReferenceModal] = useState<{
+    isOpen: boolean;
+    annotation: any;
+  }>({ isOpen: false, annotation: null });
   
   // Load annotations when document changes
   useEffect(() => {
@@ -55,13 +60,19 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any) => {
-    // If it's a reference, navigate to the referenced document
+    // If it's a reference with a target document, navigate to it
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${annotation.referencedDocumentId}`);
       return;
     }
     
-    // Otherwise, show the editing popup
+    // If it's a reference WITHOUT a target document (stub), show modal
+    if (annotation.type === 'reference' && !annotation.referencedDocumentId) {
+      setStubReferenceModal({ isOpen: true, annotation });
+      return;
+    }
+    
+    // Otherwise, show the editing popup (for highlights or editing existing references)
     setEditingAnnotation({
       id: annotation.id,
       type: annotation.type,
@@ -77,7 +88,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       });
     }
     setShowSelectionPopup(true);
-  }, [router]);
+  }, [router, document.id]);
   
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: any) => {
@@ -97,6 +108,31 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
     }
     setShowSelectionPopup(true);
   }, []);
+  
+  // Handle stub reference modal confirmation
+  const handleStubReferenceConfirm = useCallback(() => {
+    const annotation = stubReferenceModal.annotation;
+    if (!annotation) return;
+    
+    const documentName = annotation.selectionData?.text || 'New Document';
+    const params = new URLSearchParams({
+      name: documentName,
+      referenceId: annotation.id,
+      sourceDocumentId: document.id
+    });
+    if (annotation.entityType) {
+      params.append('entityTypes', annotation.entityType);
+    } else if (annotation.entityTypes) {
+      params.append('entityTypes', annotation.entityTypes.join(','));
+    }
+    if (annotation.referenceType) {
+      params.append('referenceType', annotation.referenceType);
+    } else if (annotation.referenceTags && annotation.referenceTags.length > 0) {
+      params.append('referenceType', annotation.referenceTags[0]);
+    }
+    router.push(`/know/compose?${params.toString()}`);
+    setStubReferenceModal({ isOpen: false, annotation: null });
+  }, [stubReferenceModal.annotation, document.id, router]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
@@ -251,6 +287,16 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
           />
         )
       )}
+      
+      {/* Stub Reference Modal */}
+      <StubReferenceModal
+        isOpen={stubReferenceModal.isOpen}
+        documentName={stubReferenceModal.annotation?.selectionData?.text || 'New Document'}
+        entityTypes={stubReferenceModal.annotation?.entityType ? [stubReferenceModal.annotation.entityType] : stubReferenceModal.annotation?.entityTypes}
+        referenceType={stubReferenceModal.annotation?.referenceType || stubReferenceModal.annotation?.referenceTags?.[0]}
+        onConfirm={handleStubReferenceConfirm}
+        onCancel={() => setStubReferenceModal({ isOpen: false, annotation: null })}
+      />
     </div>
   );
 }

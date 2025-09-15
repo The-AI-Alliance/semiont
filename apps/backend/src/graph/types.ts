@@ -29,11 +29,6 @@ export interface Selection {
   selectionType: string;  // 'text_span', 'ast_node', 'image_region', 'audio_segment'
   selectionData: any;     // Type-specific data (offset, length, coordinates, etc.)
   
-  // If saved, it becomes a highlight
-  saved: boolean;
-  savedAt?: Date;
-  savedBy?: string;
-  
   // If resolved to a document, it becomes a reference
   resolvedDocumentId?: string;
   resolvedAt?: Date;
@@ -50,6 +45,7 @@ export interface Selection {
   confidence?: number;
   
   metadata?: Record<string, any>;
+  createdBy?: string;  // User who created the selection
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,11 +99,13 @@ export type ReferenceTag = typeof REFERENCE_TAGS[keyof typeof REFERENCE_TAGS] | 
 
 // Type guards and computed properties
 export function isHighlight(selection: Selection): boolean {
-  return selection.saved;
+  // Highlight = no resolvedDocumentId field at all
+  return !('resolvedDocumentId' in selection);
 }
 
 export function isReference(selection: Selection): boolean {
-  return !!selection.resolvedDocumentId;
+  // Reference = has resolvedDocumentId field (even if null for stubs)
+  return 'resolvedDocumentId' in selection;
 }
 
 export function isEntityReference(selection: Selection): boolean {
@@ -146,7 +144,6 @@ export interface SelectionFilter {
   documentId?: string;
   resolvedDocumentId?: string;
   provisional?: boolean;
-  saved?: boolean;  // Filter for highlights
   resolved?: boolean;  // Filter for references
   hasEntityTypes?: boolean;  // Filter for entity references
   referenceTags?: string[];  // Filter by reference tags
@@ -183,9 +180,7 @@ export interface CreateSelectionInput {
   selectionType: string;
   selectionData: any;
   
-  // Optional - makes it a highlight
-  saved?: boolean;
-  savedBy?: string;
+  createdBy?: string;
   
   // Optional - makes it a reference
   resolvedDocumentId?: string;
@@ -202,11 +197,8 @@ export interface CreateSelectionInput {
   metadata?: Record<string, any>;
 }
 
-export interface SaveSelectionInput {
-  selectionId: string;
-  savedBy?: string;
-  metadata?: Record<string, any>;
-}
+// SaveSelectionInput removed - selections don't have a separate "save" operation
+// They are either highlights (no resolvedDocumentId) or references (has resolvedDocumentId)
 
 export interface ResolveSelectionInput {
   selectionId: string;
