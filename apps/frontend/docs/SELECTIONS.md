@@ -2,10 +2,35 @@
 
 ## Overview
 
-The selections system allows users to create, view, and manage text selections within documents. There are two types of selections:
+The selections system allows users to create, view, and manage text selections within documents. There are two primary types of selections:
 
 1. **Highlights** - Simple text selections for marking important content
-2. **References** - Selections that can link to other documents or entities
+2. **References** - Selections that link to other documents or entities
+
+### Types of Selections
+
+#### Highlights (Yellow)
+- Simple text selections for marking important content
+- Rendered with a yellow background
+- No linking functionality
+- Created without any `resolvedDocumentId` field in the database
+
+#### References
+References can be in one of two states:
+
+##### Stub References (Purple)
+- References that don't yet point to an existing document
+- Rendered with a purple background
+- Clicking opens a modal offering to create the referenced document
+- Stored with `resolvedDocumentId: null` in the database
+- Can have entity types (e.g., "Person", "Concept") and reference types (e.g., "mentions", "defines")
+
+##### Resolved References (Blue)
+- References that point to an existing document
+- Rendered with a blue gradient background
+- Clicking navigates directly to the referenced document
+- Stored with `resolvedDocumentId: "doc_id"` in the database
+- Maintain entity types and reference types from creation
 
 ## Axioms for Annotation Rendering
 
@@ -76,19 +101,83 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 3. **Create Annotation**: 
    - Click the sparkle, OR
    - Right-click the selection
-4. **Choose Type**: Select whether to create a highlight or reference
+4. **Choose Type**: 
+   - **Highlight**: Creates a simple yellow highlight
+   - **Reference**: Opens options to:
+     - Create a stub reference (no target document)
+     - Link to an existing document
+     - Specify entity types and reference types
 5. **Save**: The selection is saved and persists across page loads
 
 ### Managing Selections
 
 - **View**: Selections are visually indicated with colored backgrounds:
   - Yellow for highlights
-  - Purple for entity references  
-  - Blue gradient for document references
-- **Navigate**: Click on a reference to navigate to the linked document
-- **Delete**: Right-click on a selection and choose "Delete" from the context menu
+  - Purple for stub references (unresolved)
+  - Blue gradient for resolved references
+- **Navigate**: 
+  - **Resolved references**: Click to navigate directly to the linked document
+  - **Stub references**: Click to open a modal offering to create the document
+- **Edit**: Right-click on a selection to:
+  - Convert between highlight and reference
+  - Update reference target
+  - Delete the selection
+- **Delete**: Right-click and choose "Delete" from the context menu
+
+### Stub Reference Modal
+
+When clicking on a stub reference (purple), a modal appears with:
+- The selected text as the proposed document name
+- Entity types associated with the reference
+- Reference type (e.g., "mentions", "defines")
+- Options to:
+  - **Create Document**: Navigate to the compose view to create the document
+  - **Stay Here**: Close the modal and remain on the current page
 
 ## Technical Implementation
+
+### Database Structure
+
+The critical distinction between selection types is based on the `resolvedDocumentId` field:
+
+```typescript
+// Highlight - no resolvedDocumentId field
+{
+  id: "sel_abc123",
+  documentId: "doc_xyz",
+  selectionType: "text_span",
+  selectionData: { offset: 10, length: 5, text: "hello" }
+  // NO resolvedDocumentId field
+}
+
+// Stub Reference - resolvedDocumentId is null
+{
+  id: "sel_def456", 
+  documentId: "doc_xyz",
+  selectionType: "text_span",
+  selectionData: { offset: 20, length: 7, text: "Ouranos" },
+  resolvedDocumentId: null,  // Explicitly null
+  entityTypes: ["Titan"],
+  referenceTags: ["mentions"]
+}
+
+// Resolved Reference - resolvedDocumentId has a value
+{
+  id: "sel_ghi789",
+  documentId: "doc_xyz", 
+  selectionType: "text_span",
+  selectionData: { offset: 30, length: 10, text: "Prometheus" },
+  resolvedDocumentId: "doc_target123",  // Points to actual document
+  entityTypes: ["Titan"],
+  referenceTags: ["mentions"]
+}
+```
+
+**Important**: The distinction is based on field presence, not just value:
+- Highlights: Field not present (`!('resolvedDocumentId' in selection)`)
+- References: Field present (`'resolvedDocumentId' in selection`)
+  - Stub: Value is `null`
+  - Resolved: Value is a document ID string
 
 ### Component Architecture
 
@@ -196,11 +285,22 @@ fc.property(
 
 ## API Endpoints
 
-- `GET /api/documents/:id/highlights` - Get all highlights for a document
-- `GET /api/documents/:id/references` - Get all references for a document
-- `POST /api/selections` - Create a new selection
-- `DELETE /api/selections/:id` - Delete a selection
+### Selection Management
+- `POST /api/selections` - Create a new selection (highlight or reference)
+  - Body includes `resolvedDocumentId` field to distinguish type:
+    - Omit field for highlights
+    - `null` for stub references
+    - Document ID string for resolved references
+- `GET /api/selections/:id` - Get a specific selection
 - `PATCH /api/selections/:id` - Update a selection
+- `DELETE /api/selections/:id` - Delete a selection
+
+### Document Selections
+- `GET /api/documents/:id/highlights` - Get all highlights for a document
+- `GET /api/documents/:id/references` - Get all references for a document  
+- `GET /api/documents/:id/referenced-by` - Get incoming references from other documents
+  - Returns selections from other documents that reference this document
+  - Includes source document names for display
 
 ## Configuration
 
