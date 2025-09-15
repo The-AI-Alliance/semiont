@@ -162,7 +162,7 @@ export const UpdateDocumentRequestSchema = z.object({
 export const CreateSelectionRequestSchema = z.object({
   documentId: z.string().openapi({ example: 'doc_abc123' }),
   selectionType: SelectionTypeSchema,
-  resolvedDocumentId: z.string().optional().openapi({ description: 'Resolve to document (reference)' }),
+  resolvedDocumentId: z.string().nullable().optional().openapi({ description: 'Resolve to document (reference). null for stub reference, string for resolved reference, omit for highlight' }),
   referenceTags: z.array(z.string()).optional().openapi({ 
     example: ['defines', 'mentions'], 
     description: 'Semantic relationship tags' 

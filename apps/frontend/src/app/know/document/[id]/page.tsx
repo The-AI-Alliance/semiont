@@ -27,6 +27,8 @@ export default function KnowledgeDocumentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
+  const [referencedBy, setReferencedBy] = useState<any[]>([]);
+  const [referencedByLoading, setReferencedByLoading] = useState(false);
 
   // Check authentication status  
   const isAuthenticated = !!session?.backendToken;
@@ -57,10 +59,33 @@ export default function KnowledgeDocumentPage() {
     }
   }, [documentId, isAuthenticated, session]);
 
+  // Load incoming references - memoized
+  const loadReferencedBy = useCallback(async () => {
+    if (!isAuthenticated || !documentId) return;
+    
+    try {
+      setReferencedByLoading(true);
+      const response = await apiService.documents.getReferencedBy(documentId);
+      setReferencedBy(response.referencedBy || []);
+    } catch (err) {
+      console.error('Failed to load incoming references:', err);
+      // Don't show error for this secondary data
+    } finally {
+      setReferencedByLoading(false);
+    }
+  }, [documentId, isAuthenticated]);
+
   // Load document when authentication is ready
   useEffect(() => {
     loadDocument();
   }, [loadDocument]);
+
+  // Load incoming references when document loads
+  useEffect(() => {
+    if (document) {
+      loadReferencedBy();
+    }
+  }, [document, loadReferencedBy]);
 
   // Add document to open tabs when it loads
   useEffect(() => {
@@ -234,6 +259,37 @@ export default function KnowledgeDocumentPage() {
                 <span className="font-medium">{references.length}</span>
               </div>
             </div>
+          </div>
+        
+          {/* Referenced by */}
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              Referenced by
+              {referencedByLoading && (
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(loading...)</span>
+              )}
+            </h3>
+            {referencedBy.length > 0 ? (
+              <div className="space-y-2">
+                {referencedBy.map((ref: any) => (
+                  <div key={ref.id} className="text-xs">
+                    <Link
+                      href={`/know/document/${ref.documentId}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline block"
+                    >
+                      {ref.documentName || 'Untitled Document'}
+                    </Link>
+                    <span className="text-gray-500 dark:text-gray-400 italic">
+                      "{ref.selectionData?.text || 'No text'}"
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {referencedByLoading ? 'Loading...' : 'No incoming references'}
+              </p>
+            )}
           </div>
         
           {/* Cloned From */}

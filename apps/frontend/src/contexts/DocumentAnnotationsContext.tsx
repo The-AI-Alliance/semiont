@@ -141,6 +141,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // If none of the above, it's a highlight (no resolvedDocumentId key)
       
       // Create the selection with metadata
+      console.log('addReference - createData:', createData);
       await apiService.selections.create(createData);
       
       await refreshAnnotations();
