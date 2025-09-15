@@ -67,7 +67,6 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         ? highlightsResponse.highlights 
         : highlightsResponse.selections;
       const mappedHighlights = highlightData.map(mapBackendToFrontendSelection);
-      console.log('Loaded highlights:', highlightData);
       setHighlights(mappedHighlights.map(h => ({ ...h, type: 'highlight' as const })));
 
       // Load references
@@ -76,7 +75,6 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         ? referencesResponse.references 
         : referencesResponse.selections;
       const mappedReferences = referenceData.map(mapBackendToFrontendSelection);
-      console.log('Loaded references:', referenceData);
       setReferences(mappedReferences.map(r => ({ ...r, type: 'reference' as const })));
     } catch (err) {
       console.error('Failed to load annotations:', err);
@@ -143,21 +141,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // If none of the above, it's a highlight (no resolvedDocumentId key)
       
       // Create the selection with metadata
-      console.log('Creating selection with data:', createData);
-      const response = await apiService.selections.create(createData);
-      console.log('Backend response:', response);
-      
-      // The response is a BackendSelection object
-      const backendSelection = response as unknown as import('@/lib/api-types').BackendSelection;
-      const selectionId = backendSelection.id;
-      
-      // No need to call resolveToDocument - we already set resolvedDocumentId in create
-      if (!targetDocId && (referenceType || entityType)) {
-        // Stub reference created with null resolvedDocumentId
-        console.log('Created stub reference:', { selectionId, entityType, referenceType });
-      } else if (targetDocId) {
-        console.log('Created resolved reference:', { selectionId, targetDocId, referenceType });
-      }
+      await apiService.selections.create(createData);
       
       await refreshAnnotations();
     } catch (err) {

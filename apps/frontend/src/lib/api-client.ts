@@ -494,8 +494,6 @@ export const apiService = {
         } 
       });
       
-      console.log('Created highlight:', highlight);
-      
       return highlight;
     },
     
