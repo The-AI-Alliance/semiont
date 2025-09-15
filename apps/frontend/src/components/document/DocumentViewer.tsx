@@ -12,26 +12,14 @@ import type { Document as SemiontDocument } from '@/lib/api-client';
 interface Props {
   document: SemiontDocument;
   onWikiLinkClick?: (pageName: string) => void;
+  annotateMode?: boolean;
 }
 
-export function DocumentViewer({ document, onWikiLinkClick }: Props) {
+export function DocumentViewer({ document, onWikiLinkClick, annotateMode = false }: Props) {
   const router = useRouter();
   
-  // Initialize from localStorage or default to 'browse'
-  const [activeTab, setActiveTab] = useState<'annotate' | 'browse'>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('documentViewerTab') as 'annotate' | 'browse') || 'browse';
-    }
-    return 'browse';
-  });
-  
-  // Save tab preference when it changes
-  const handleTabChange = useCallback((tab: 'annotate' | 'browse') => {
-    setActiveTab(tab);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('documentViewerTab', tab);
-    }
-  }, []);
+  // Use prop directly instead of internal state
+  const activeView = annotateMode ? 'annotate' : 'browse';
   const {
     highlights,
     references,
@@ -225,32 +213,8 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
   
   return (
     <div>
-      {/* Tab buttons */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 mb-4">
-        <button
-          onClick={() => handleTabChange('browse')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'browse'
-              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-          }`}
-        >
-          Browse
-        </button>
-        <button
-          onClick={() => handleTabChange('annotate')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'annotate'
-              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-          }`}
-        >
-          Annotate
-        </button>
-      </div>
-      
-      {/* Tab content */}
-      {activeTab === 'annotate' ? (
+      {/* Content */}
+      {activeView === 'annotate' ? (
         document.archived ? (
           <AnnotateView
             content={document.content}
@@ -277,6 +241,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
           {...(onWikiLinkClick && { onWikiLinkClick })}
         />
       )}
+      
       
       {/* Selection popup */}
       {showSelectionPopup && selectedText && (

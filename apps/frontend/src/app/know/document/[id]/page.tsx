@@ -29,6 +29,12 @@ export default function KnowledgeDocumentPage() {
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
   const [referencedBy, setReferencedBy] = useState<any[]>([]);
   const [referencedByLoading, setReferencedByLoading] = useState(false);
+  const [annotateMode, setAnnotateMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('annotateMode') === 'true';
+    }
+    return false;
+  });
 
   // Check authentication status  
   const isAuthenticated = !!session?.backendToken;
@@ -163,6 +169,15 @@ export default function KnowledgeDocumentPage() {
     }
   }, [documentId, router, showError]);
 
+  // Handle annotate mode toggle - memoized
+  const handleAnnotateModeToggle = useCallback(() => {
+    const newMode = !annotateMode;
+    setAnnotateMode(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotateMode', newMode.toString());
+    }
+  }, [annotateMode]);
+
   // Loading state
   if (authLoading || loading) {
     return (
@@ -230,6 +245,7 @@ export default function KnowledgeDocumentPage() {
             <DocumentViewer
               document={document}
               onWikiLinkClick={handleWikiLinkClick}
+              annotateMode={annotateMode}
             />
           </ErrorBoundary>
         </div>
@@ -246,10 +262,20 @@ export default function KnowledgeDocumentPage() {
             )}
             <div className="space-y-2">
               <button
-                onClick={() => console.log('Detect Highlights - Not implemented yet')}
-                className={`${buttonStyles.primary.base} w-full`}
+                onClick={handleAnnotateModeToggle}
+                className={`${
+                  annotateMode ? buttonStyles.primary.base : buttonStyles.secondary.base
+                } w-full`}
                 disabled={document.archived}
-                title={document.archived ? 'Cannot detect highlights in archived documents' : 'Automatically detect and create highlights'}
+                title={document.archived ? 'Cannot annotate archived documents' : 'Toggle annotation mode'}
+              >
+                {annotateMode ? '✏️ Annotate Mode ON' : '👁️ View Mode'}
+              </button>
+              <button
+                onClick={() => console.log('Detect Highlights - Not implemented yet')}
+                className={`${buttonStyles.secondary.base} w-full`}
+                disabled={document.archived || !annotateMode}
+                title={document.archived ? 'Cannot detect highlights in archived documents' : annotateMode ? 'Automatically detect and create highlights' : 'Enable annotate mode first'}
               >
                 Detect Highlights
               </button>
