@@ -86,10 +86,9 @@ export const SelectionSchema = z.object({
   selectionType: z.string().openapi({ example: 'text_span' }),
   selectionData: z.any().openapi({ description: 'Type-specific selection data' }),
   
-  // Highlight properties (saved selection)
-  saved: z.boolean().openapi({ example: false, description: 'Whether this selection is saved (highlight)' }),
-  savedAt: z.string().optional().openapi({ example: '2024-01-01T00:00:00.000Z' }),
-  savedBy: z.string().optional(),
+  // Creation tracking
+  createdAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  createdBy: z.string().optional(),
   
   // Reference properties (resolved selection)
   resolvedDocumentId: z.string().optional().openapi({ example: 'doc_def456', description: 'Target document if resolved (reference)' }),
@@ -112,7 +111,6 @@ export const SelectionSchema = z.object({
   confidence: z.number().min(0).max(1).optional().openapi({ example: 0.85 }),
   metadata: z.record(z.any()).optional(),
   
-  createdAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
   updatedAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
 }).openapi('Selection');
 
@@ -145,7 +143,6 @@ export const CreateDocumentRequestSchema = z.object({
   
   selections: z.array(z.object({
     selectionType: SelectionTypeSchema,
-    saved: z.boolean().optional().default(false),
     resolvedDocumentId: z.string().optional(),
     referenceTags: z.array(z.string()).optional(),
     entityTypes: z.array(z.string()).optional(),

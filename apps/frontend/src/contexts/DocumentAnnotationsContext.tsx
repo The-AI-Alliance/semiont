@@ -67,6 +67,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         ? highlightsResponse.highlights 
         : highlightsResponse.selections;
       const mappedHighlights = highlightData.map(mapBackendToFrontendSelection);
+      console.log('Loaded highlights:', highlightData);
       setHighlights(mappedHighlights.map(h => ({ ...h, type: 'highlight' as const })));
 
       // Load references
@@ -75,6 +76,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         ? referencesResponse.references 
         : referencesResponse.selections;
       const mappedReferences = referenceData.map(mapBackendToFrontendSelection);
+      console.log('Loaded references:', referenceData);
       setReferences(mappedReferences.map(r => ({ ...r, type: 'reference' as const })));
     } catch (err) {
       console.error('Failed to load annotations:', err);
@@ -117,54 +119,44 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceType?: string
   ) => {
     try {
-      // Create the selection first
-      const response = await apiService.selections.create({
+      // Build the create selection request with all metadata
+      const createData: any = {
         documentId,
         text,
         position
-      });
+      };
+      
+      // For references (both stub and resolved)
+      if (targetDocId !== undefined || referenceType || entityType) {
+        // Include resolvedDocumentId key (null for stubs, string for resolved)
+        createData.resolvedDocumentId = targetDocId || null;
+        
+        if (entityType) {
+          // Entity types is an array of strings
+          createData.entityTypes = entityType.split(',').map(t => t.trim()).filter(t => t);
+        }
+        if (referenceType) {
+          // Reference tags is an array, but we have a single reference type
+          createData.referenceTags = [referenceType];
+        }
+      }
+      // If none of the above, it's a highlight (no resolvedDocumentId key)
+      
+      // Create the selection with metadata
+      console.log('Creating selection with data:', createData);
+      const response = await apiService.selections.create(createData);
+      console.log('Backend response:', response);
       
       // The response is a BackendSelection object
       const backendSelection = response as unknown as import('@/lib/api-types').BackendSelection;
       const selectionId = backendSelection.id;
       
-      // If we have a target document, resolve to it
-      if (targetDocId) {
-        const resolveData: any = {
-          selectionId,
-          targetDocumentId: targetDocId
-        };
-        if (referenceType) {
-          resolveData.referenceType = referenceType;
-        }
-        await apiService.selections.resolveToDocument(resolveData);
-      } else if (entityType) {
-        // Create a new document with the entity type(s)
-        const entityTypes = entityType.split(',').map(t => t.trim()).filter(t => t);
-        const newDocResponse = await apiService.documents.create({
-          name: text,
-          content: `# ${text}`,
-          contentType: 'text/markdown'
-        });
-        
-        // Set entity types on the new document
-        if (newDocResponse.document?.id && entityTypes.length > 0) {
-          await apiService.documents.update(newDocResponse.document.id, {
-            entityTypes: entityTypes
-          });
-        }
-        
-        // Now resolve the selection to this new document
-        if (newDocResponse.document?.id) {
-          const resolveData: any = {
-            selectionId,
-            targetDocumentId: newDocResponse.document.id
-          };
-          if (referenceType) {
-            resolveData.referenceType = referenceType;
-          }
-          await apiService.selections.resolveToDocument(resolveData);
-        }
+      // No need to call resolveToDocument - we already set resolvedDocumentId in create
+      if (!targetDocId && (referenceType || entityType)) {
+        // Stub reference created with null resolvedDocumentId
+        console.log('Created stub reference:', { selectionId, entityType, referenceType });
+      } else if (targetDocId) {
+        console.log('Created resolved reference:', { selectionId, targetDocId, referenceType });
       }
       
       await refreshAnnotations();

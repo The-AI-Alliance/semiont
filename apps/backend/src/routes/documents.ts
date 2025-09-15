@@ -144,10 +144,9 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
           documentId: document.id,
           selectionType: selData.selectionType.type,
           selectionData: selData.selectionType,
-          saved: selData.saved || false,
           provisional: selData.provisional || false,
+          createdBy: user.id,
         };
-        if (selData.saved) selInput.savedBy = user.id;
         if (selData.resolvedDocumentId) {
           selInput.resolvedDocumentId = selData.resolvedDocumentId;
           selInput.resolvedBy = user.id;
@@ -786,13 +785,12 @@ documentsRouter.openapi(createFromTokenRoute, async (c) => {
     // Clone selections for the new document
     const clonedSelections = [];
     for (const sel of tokenData.selections) {
-      if (sel.saved || sel.resolvedDocumentId) {
+      if (!('resolvedDocumentId' in sel) || sel.resolvedDocumentId) {
         const cloneInput: any = {
           documentId: document.id,
           selectionType: sel.selectionType,
           selectionData: sel.selectionData,
-          saved: sel.saved,
-          savedBy: user.id,
+          createdBy: user.id,
           provisional: sel.provisional,
           metadata: {
             ...(sel.metadata || {}),
@@ -1405,9 +1403,6 @@ function formatSelection(sel: Selection): any {
     documentId: sel.documentId,
     selectionType: sel.selectionType,
     selectionData: sel.selectionData,
-    saved: sel.saved,
-    savedAt: sel.savedAt instanceof Date ? sel.savedAt.toISOString() : sel.savedAt,
-    savedBy: sel.savedBy,
     resolvedDocumentId: sel.resolvedDocumentId,
     resolvedAt: sel.resolvedAt instanceof Date ? sel.resolvedAt.toISOString() : sel.resolvedAt,
     resolvedBy: sel.resolvedBy,
@@ -1416,6 +1411,7 @@ function formatSelection(sel: Selection): any {
     provisional: sel.provisional,
     confidence: sel.confidence,
     metadata: sel.metadata,
+    createdBy: sel.createdBy,
     createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
     updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
   };
@@ -1459,7 +1455,6 @@ async function detectSelectionsInDocument(
             length,
             text: selectionText,
           },
-          saved: false,
           provisional: true,
           confidence: 0.9,
           metadata: {
@@ -1500,7 +1495,6 @@ async function detectSelectionsInDocument(
             length,
             text,
           },
-          saved: false,
           provisional: true,
           confidence: 1.0,
           entityTypes: ['Placeholder'],
@@ -1542,7 +1536,6 @@ async function detectSelectionsInDocument(
             length,
             text,
           },
-          saved: false,
           provisional: true,
           confidence: 0.95,
           entityTypes: ['Person'],
@@ -1602,7 +1595,7 @@ function generateSchemaDescription(
     lines.push(`\nThere are ${stats.selectionCount} total selection${stats.selectionCount !== 1 ? 's' : ''} in the system:`);
     
     if (stats.highlightCount > 0) {
-      lines.push(`- ${stats.highlightCount} saved highlight${stats.highlightCount !== 1 ? 's' : ''} (important text marked for later reference)`);
+      lines.push(`- ${stats.highlightCount} highlight${stats.highlightCount !== 1 ? 's' : ''} (important text marked for later reference)`);
     }
     
     if (stats.referenceCount > 0) {
@@ -1960,7 +1953,7 @@ async function generateLLMContext(
   if (options.includeSelections) {
     const docSelections = await graphDb.getDocumentSelections(document.id);
     selectionStats.totalInDocument = docSelections.length;
-    selectionStats.highlights = docSelections.filter((s: Selection) => s.saved && !s.resolvedDocumentId).length;
+    selectionStats.highlights = docSelections.filter((s: Selection) => !('resolvedDocumentId' in s)).length;
     selectionStats.references = docSelections.filter((s: Selection) => s.resolvedDocumentId).length;
   }
   

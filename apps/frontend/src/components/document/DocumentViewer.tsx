@@ -55,13 +55,43 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any) => {
-    // If it's a reference, navigate to the referenced document
+    // If it's a reference with a target document, navigate to it
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${annotation.referencedDocumentId}`);
       return;
     }
     
-    // Otherwise, show the editing popup
+    // If it's a reference WITHOUT a target document (stub), offer to create it
+    if (annotation.type === 'reference' && !annotation.referencedDocumentId) {
+      // Note: If a custom name was provided when creating the reference, 
+      // it's not stored in the reference, so we use the selected text
+      const documentName = annotation.selectionData?.text || 'New Document';
+      const confirmed = confirm(
+        `This reference points to a document that hasn't been created yet.\n\n` +
+        `Would you like to create a document for "${documentName}" now?\n\n` +
+        `You can change the name in the composer.\n\n` +
+        `Click OK to go to the document composer, or Cancel to stay here.`
+      );
+      
+      if (confirmed) {
+        // Navigate to compose page with the reference data
+        const params = new URLSearchParams({
+          name: documentName,
+          referenceId: annotation.id,
+          sourceDocumentId: document.id
+        });
+        if (annotation.entityType) {
+          params.append('entityTypes', annotation.entityType);
+        }
+        if (annotation.referenceType) {
+          params.append('referenceType', annotation.referenceType);
+        }
+        router.push(`/know/compose?${params.toString()}`);
+      }
+      return;
+    }
+    
+    // Otherwise, show the editing popup (for highlights or editing existing references)
     setEditingAnnotation({
       id: annotation.id,
       type: annotation.type,
@@ -77,7 +107,7 @@ export function DocumentViewer({ document, onWikiLinkClick }: Props) {
       });
     }
     setShowSelectionPopup(true);
-  }, [router]);
+  }, [router, document.id]);
   
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: any) => {

@@ -11,21 +11,42 @@ function ComposeDocumentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addDocument } = useOpenDocuments();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
   
+  // Reference completion parameters
+  const referenceId = searchParams?.get('referenceId');
+  const sourceDocumentId = searchParams?.get('sourceDocumentId');
+  const nameFromUrl = searchParams?.get('name');
+  const entityTypesFromUrl = searchParams?.get('entityTypes');
+  const referenceTypeFromUrl = searchParams?.get('referenceType');
+  
   const [newDocName, setNewDocName] = useState('');
   const [newDocContent, setNewDocContent] = useState('');
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isClone, setIsClone] = useState(false);
   const [cloneToken, setCloneToken] = useState<string | null>(null);
   const [archiveOriginal, setArchiveOriginal] = useState(true);
+  const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
   
-  // Load cloned document data if in clone mode
+  // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {
-    const loadCloneData = async () => {
+    const loadInitialData = async () => {
+      // Handle reference completion mode
+      if (referenceId && sourceDocumentId && nameFromUrl) {
+        setIsReferenceCompletion(true);
+        setNewDocName(nameFromUrl);
+        if (entityTypesFromUrl) {
+          setSelectedEntityTypes(entityTypesFromUrl.split(','));
+        }
+        setIsLoading(false);
+        return;
+      }
+      
+      // Handle clone mode
       if (mode === 'clone' && tokenFromUrl) {
         try {
           // Fetch the document data using the token
@@ -54,8 +75,8 @@ function ComposeDocumentContent() {
       }
     };
     
-    loadCloneData();
-  }, [mode, tokenFromUrl, router]);
+    loadInitialData();
+  }, [mode, tokenFromUrl, router, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, showError]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +100,8 @@ function ComposeDocumentContent() {
         documentName = response.document?.name || newDocName;
       } else {
         // Create a new document
+        // Note: entityTypes would need to be stored separately since the API doesn't accept them here
+        // The backend would need to be updated to support entity types on document creation
         const response = await apiService.documents.create({
           name: newDocName,
           content: newDocContent || `# ${newDocName}\n\nStart writing your document here...`,
@@ -87,6 +110,22 @@ function ComposeDocumentContent() {
         
         documentId = response.document?.id || '';
         documentName = response.document?.name || newDocName;
+        
+        // If this is a reference completion, update the reference to point to the new document
+        if (isReferenceCompletion && referenceId && documentId) {
+          try {
+            await apiService.selections.resolveToDocument({
+              selectionId: referenceId,
+              targetDocumentId: documentId,
+              referenceType: referenceTypeFromUrl || 'mentions' // Use the reference type from the original reference creation
+            });
+            showSuccess('Reference successfully linked to the new document');
+          } catch (error) {
+            console.error('Failed to update reference:', error);
+            // Don't fail the whole operation, just log the error
+            showError('Document created but failed to update reference. You may need to manually link it.');
+          }
+        }
       }
       
       // Add the new document to open tabs using the context
@@ -117,13 +156,22 @@ function ComposeDocumentContent() {
       {/* Page Title */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {isClone ? 'Edit Cloned Document' : 'Compose New Document'}
+          {isClone ? 'Edit Cloned Document' : isReferenceCompletion ? 'Complete Reference' : 'Compose New Document'}
         </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           {isClone 
             ? 'Review and edit your cloned document before saving'
+            : isReferenceCompletion
+            ? 'Create a document to complete the reference you started'
             : 'Start a new document in your knowledge base'}
         </p>
+        {isReferenceCompletion && (
+          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              This document will be linked to the reference you created.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Create Form */}
@@ -160,6 +208,28 @@ function ComposeDocumentContent() {
             />
           </div>
           
+          {/* Entity Types Selection for reference completion */}
+          {isReferenceCompletion && selectedEntityTypes.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Entity Types
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {selectedEntityTypes.map((type) => (
+                  <span
+                    key={type}
+                    className="px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                These entity types were selected when creating the reference
+              </p>
+            </div>
+          )}
+          
           {isClone && (
             <div className="flex items-center">
               <input
@@ -191,8 +261,8 @@ function ComposeDocumentContent() {
               className={buttonStyles.primary.base}
             >
               {isCreating 
-                ? (isClone ? 'Saving...' : 'Creating...') 
-                : (isClone ? 'Save Cloned Document' : 'Create Document')}
+                ? (isClone ? 'Saving...' : isReferenceCompletion ? 'Creating and Linking...' : 'Creating...') 
+                : (isClone ? 'Save Cloned Document' : isReferenceCompletion ? 'Create & Link Document' : 'Create Document')}
             </button>
           </div>
         </form>

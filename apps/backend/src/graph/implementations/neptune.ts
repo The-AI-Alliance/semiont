@@ -13,7 +13,6 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateSelectionInput,
-  SaveSelectionInput,
   ResolveSelectionInput,
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -97,7 +96,6 @@ function edgeToSelection(edge: any): Selection {
     documentId: getValue('documentId') || '',
     selectionType: getValue('selectionType') || 'highlight',
     selectionData: JSON.parse(getValue('selectionData') || '{}'),
-    saved: getValue('saved') === 'true' || getValue('saved') === true,
     provisional: getValue('provisional') === 'true' || getValue('provisional') === true,
     createdAt: new Date(getValue('createdAt') || Date.now()),
     updatedAt: new Date(getValue('updatedAt') || Date.now()),
@@ -110,11 +108,6 @@ function edgeToSelection(edge: any): Selection {
   const resolvedAt = getValue('resolvedAt');
   if (resolvedAt) selection.resolvedAt = new Date(resolvedAt);
   
-  const savedAt = getValue('savedAt');
-  if (savedAt) selection.savedAt = new Date(savedAt);
-  
-  const savedBy = getValue('savedBy');
-  if (savedBy) selection.savedBy = savedBy;
   
   const resolvedBy = getValue('resolvedBy');
   if (resolvedBy) selection.resolvedBy = resolvedBy;
@@ -466,20 +459,21 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       documentId: input.documentId,
       selectionType: input.selectionType,
       selectionData: input.selectionData,
-      saved: input.saved || false,
       provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
     };
     
-    if (input.savedBy) {
-      selection.savedBy = input.savedBy;
-      selection.savedAt = now;
+    if (input.createdBy) {
+      selection.createdBy = input.createdBy;
     }
     
-    if (input.resolvedDocumentId) {
+    if ('resolvedDocumentId' in input) {
       selection.resolvedDocumentId = input.resolvedDocumentId;
-      selection.resolvedAt = now;
+      if (input.resolvedDocumentId) {
+        // Only set resolvedAt if actually resolved to a document
+        selection.resolvedAt = now;
+      }
       if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
     }
     
@@ -516,7 +510,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('documentId', selection.documentId)
         .property('selectionType', selection.selectionType)
         .property('selectionData', JSON.stringify(selection.selectionData))
-        .property('saved', selection.saved.toString())
         .property('provisional', selection.provisional.toString())
         .property('createdAt', selection.createdAt.toISOString())
         .property('updatedAt', selection.updatedAt.toISOString());
@@ -527,12 +520,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       if (selection.resolvedAt) {
         traversal = traversal.property('resolvedAt', selection.resolvedAt.toISOString());
-      }
-      if (selection.savedAt) {
-        traversal = traversal.property('savedAt', selection.savedAt.toISOString());
-      }
-      if (selection.savedBy) {
-        traversal = traversal.property('savedBy', selection.savedBy);
       }
       if (selection.resolvedBy) {
         traversal = traversal.property('resolvedBy', selection.resolvedBy);
@@ -583,9 +570,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       let traversal = this.g.E().has('id', id);
       
       // Update properties
-      if (updates.saved !== undefined) {
-        traversal = traversal.property('saved', updates.saved.toString());
-      }
       if (updates.provisional !== undefined) {
         traversal = traversal.property('provisional', updates.provisional.toString());
       }
@@ -603,12 +587,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       if (updates.metadata !== undefined) {
         traversal = traversal.property('metadata', JSON.stringify(updates.metadata));
-      }
-      if (updates.savedBy !== undefined) {
-        traversal = traversal.property('savedBy', updates.savedBy);
-      }
-      if (updates.savedAt !== undefined) {
-        traversal = traversal.property('savedAt', updates.savedAt.toISOString());
       }
       if (updates.resolvedBy !== undefined) {
         traversal = traversal.property('resolvedBy', updates.resolvedBy);
@@ -664,9 +642,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         traversal = traversal.has('provisional', filter.provisional.toString());
       }
       
-      if (filter.saved !== undefined) {
-        traversal = traversal.has('saved', filter.saved.toString());
-      }
       
       if (filter.resolved !== undefined) {
         if (filter.resolved) {
@@ -717,51 +692,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async saveSelection(input: SaveSelectionInput): Promise<Selection> {
-    try {
-      const now = new Date();
-      
-      let traversal = this.g.E()
-        .has('id', input.selectionId)
-        .property('saved', 'true')
-        .property('savedAt', now.toISOString())
-        .property('updatedAt', now.toISOString());
-      
-      if (input.savedBy) {
-        traversal = traversal.property('savedBy', input.savedBy);
-      }
-      
-      if (input.metadata) {
-        // Merge metadata
-        const existing = await this.g.E()
-          .has('id', input.selectionId)
-          .values('metadata')
-          .next();
-        
-        const existingMetadata = existing.value ? JSON.parse(existing.value) : {};
-        const mergedMetadata = { ...existingMetadata, ...input.metadata };
-        traversal = traversal.property('metadata', JSON.stringify(mergedMetadata));
-      }
-      
-      const result = await traversal.elementMap().next();
-      
-      if (!result.value) {
-        throw new Error('Selection not found');
-      }
-      
-      return edgeToSelection(result.value);
-    } catch (error) {
-      console.error('Failed to save selection in Neptune:', error);
-      throw error;
-    }
-  }
   
   async getHighlights(documentId: string): Promise<Selection[]> {
     try {
       const results = await this.g.E()
         .hasLabel('HAS_SELECTION')
         .has('documentId', documentId)
-        .has('saved', 'true')
         .hasNot('resolvedDocumentId')
         .elementMap()
         .toList();
@@ -807,7 +743,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('documentId', existingSelection.documentId)
         .property('selectionType', existingSelection.selectionType)
         .property('selectionData', JSON.stringify(existingSelection.selectionData))
-        .property('saved', existingSelection.saved.toString())
         .property('provisional', (input.provisional || false).toString())
         .property('resolvedDocumentId', input.documentId)
         .property('resolvedAt', now.toISOString())
@@ -1082,10 +1017,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .next();
       const selectionCount = selCountResult.value || 0;
       
-      // Get highlight count (saved selections without resolved document)
+      // Get highlight count (selections without resolved document)
       const highlightCountResult = await this.g.E()
         .hasLabel('HAS_SELECTION')
-        .has('saved', 'true')
+        .hasNot('resolvedDocumentId')
         .count()
         .next();
       const highlightCount = highlightCountResult.value || 0;
@@ -1154,21 +1089,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async saveSelections(inputs: SaveSelectionInput[]): Promise<Selection[]> {
-    const results: Selection[] = [];
-    
-    try {
-      for (const input of inputs) {
-        const selection = await this.saveSelection(input);
-        results.push(selection);
-      }
-      
-      return results;
-    } catch (error) {
-      console.error('Failed to save selections in Neptune:', error);
-      throw error;
-    }
-  }
   
   async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
     const results: Selection[] = [];

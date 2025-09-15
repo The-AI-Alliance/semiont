@@ -15,8 +15,7 @@ export interface BackendSelection {
     text: string;
   };
   
-  // Highlight properties
-  saved: boolean;
+  // Highlight properties  
   savedAt?: string;
   savedBy?: string;
   

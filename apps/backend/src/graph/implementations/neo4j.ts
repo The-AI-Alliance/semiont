@@ -13,7 +13,6 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateSelectionInput,
-  SaveSelectionInput,
   ResolveSelectionInput,
   isHighlight,
   isReference,
@@ -228,20 +227,21 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       documentId: input.documentId,
       selectionType: input.selectionType,
       selectionData: input.selectionData,
-      saved: input.saved || false,
       provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
     };
     
-    if (input.savedBy) {
-      selection.savedBy = input.savedBy;
-      selection.savedAt = now;
+    if (input.createdBy) {
+      selection.createdBy = input.createdBy;
     }
     
-    if (input.resolvedDocumentId) {
+    if ('resolvedDocumentId' in input) {
       selection.resolvedDocumentId = input.resolvedDocumentId;
-      selection.resolvedAt = now;
+      if (input.resolvedDocumentId) {
+        // Only set resolvedAt if actually resolved to a document
+        selection.resolvedAt = now;
+      }
       if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
     }
     
@@ -311,9 +311,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       sels = sels.filter(sel => sel.provisional === filter.provisional);
     }
     
-    if (filter.saved !== undefined) {
-      sels = sels.filter(sel => sel.saved === filter.saved);
-    }
     
     if (filter.resolved !== undefined) {
       sels = sels.filter(sel => filter.resolved ? !!sel.resolvedDocumentId : !sel.resolvedDocumentId);
@@ -340,29 +337,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return { selections: sels, total };
   }
   
-  async saveSelection(input: SaveSelectionInput): Promise<Selection> {
-    const sel = this.selections.get(input.selectionId);
-    if (!sel) throw new Error('Selection not found');
-    
-    const updated: Selection = {
-      ...sel,
-      saved: true,
-      savedAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    if (input.savedBy) updated.savedBy = input.savedBy;
-    if (input.metadata || sel.metadata) {
-      updated.metadata = { ...sel.metadata, ...input.metadata };
-    }
-    
-    this.selections.set(input.selectionId, updated);
-    return updated;
-  }
   
   async getHighlights(documentId: string): Promise<Selection[]> {
     return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && sel.saved && !sel.resolvedDocumentId);
+      .filter(sel => sel.documentId === documentId && !('resolvedDocumentId' in sel));
   }
   
   async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
@@ -391,7 +369,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   
   async getReferences(documentId: string): Promise<Selection[]> {
     return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && !!sel.resolvedDocumentId);
+      .filter(sel => sel.documentId === documentId && 'resolvedDocumentId' in sel);
   }
   
   async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
@@ -573,13 +551,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
   
-  async saveSelections(inputs: SaveSelectionInput[]): Promise<Selection[]> {
-    const results: Selection[] = [];
-    for (const input of inputs) {
-      results.push(await this.saveSelection(input));
-    }
-    return results;
-  }
   
   async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
     const results: Selection[] = [];

@@ -300,14 +300,10 @@ export function SelectionPopup({
               </div>
 
               {createNewDoc && (
-                <input
-                  type="text"
-                  value={newDocName}
-                  onChange={(e) => setNewDocName(e.target.value)}
-                  placeholder="New document name (optional)"
-                  disabled={isCreating}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
-                />
+                <div className="text-sm text-gray-600 dark:text-gray-400 italic">
+                  A new document will be created using the selected text "{selectedText}" as the initial name. 
+                  You can rename it later when editing the document.
+                </div>
               )}
 
               {/* Entity Types - Show for new documents (selectable) or selected documents (read-only) */}
