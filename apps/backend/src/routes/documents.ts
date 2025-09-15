@@ -968,11 +968,16 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
 
   const detectedSelections = await detectSelectionsInDocument(
     { ...document, content: contentStr },
-    (body as any).types || ['entities', 'concepts'],
-    (body as any).confidence || 0.7
+    body.entityTypes,
+    body.confidence || 0.7
   );
 
+  // TODO: In the real implementation, this would actually create stub references
+  // in the database for the detected entities. For now, just return the detection results.
+  
   return c.json({
+    message: `Entity detection started for ${body.entityTypes.length} type(s): ${body.entityTypes.join(', ')}`,
+    detectionsStarted: detectedSelections.length,
     selections: detectedSelections,
     stats: {
       total: detectedSelections.length,
@@ -1418,11 +1423,12 @@ function formatSelection(sel: Selection): any {
 }
 
 
-// Dummy implementation for detecting selections in document
+// Stub implementation for detecting entity references in document
+// TODO: This is where you'll implement the actual entity detection logic
 async function detectSelectionsInDocument(
   document: any,
-  _types: string[],
-  _confidence: number
+  entityTypes: string[],
+  confidence: number
 ): Promise<any[]> {
   // Dummy implementation that detects:
   // 1. [[wiki-style]] references

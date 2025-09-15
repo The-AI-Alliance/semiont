@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTags } from '@/components/DocumentTags';
+import { ProposeEntitiesModal } from '@/components/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
@@ -35,6 +36,7 @@ export default function KnowledgeDocumentPage() {
     }
     return false;
   });
+  const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
 
   // Check authentication status  
   const isAuthenticated = !!session?.backendToken;
@@ -178,6 +180,24 @@ export default function KnowledgeDocumentPage() {
     }
   }, [annotateMode]);
 
+  // Handle detect entity references - memoized
+  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
+    try {
+      console.log('Detecting entity references for types:', selectedTypes);
+      const response = await apiService.documents.detectSelections(documentId, selectedTypes);
+      showSuccess(response.message || `Entity detection started for ${selectedTypes.length} type(s)`);
+      setShowProposeEntitiesModal(false);
+      
+      // Reload annotations after a delay to show new detections
+      setTimeout(() => {
+        loadAnnotations(documentId);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to detect entity references:', err);
+      showError('Failed to start entity detection. Please try again.');
+    }
+  }, [documentId, showSuccess, showError, loadAnnotations]);
+
   // Loading state
   if (authLoading || loading) {
     return (
@@ -272,12 +292,12 @@ export default function KnowledgeDocumentPage() {
                 {annotateMode ? '✏️ Annotate Mode ON' : '👁️ View Mode'}
               </button>
               <button
-                onClick={() => console.log('Propose Entities - Not implemented yet')}
+                onClick={() => setShowProposeEntitiesModal(true)}
                 className={`${buttonStyles.secondary.base} w-full`}
                 disabled={document.archived || !annotateMode}
-                title={document.archived ? 'Cannot propose entities in archived documents' : annotateMode ? 'Automatically propose entity references' : 'Enable annotate mode first'}
+                title={document.archived ? 'Cannot detect entity references in archived documents' : annotateMode ? 'Automatically detect entity references' : 'Enable annotate mode first'}
               >
-                ✨ Propose Entities
+                ✨ Detect Entity References
               </button>
               <button
                 onClick={handleArchiveToggle}
@@ -387,6 +407,13 @@ export default function KnowledgeDocumentPage() {
           </div>
         </div>
       </div>
+      
+      {/* Detect Entity References Modal */}
+      <ProposeEntitiesModal
+        isOpen={showProposeEntitiesModal}
+        onConfirm={handleDetectEntityReferences}
+        onCancel={() => setShowProposeEntitiesModal(false)}
+      />
     </div>
   );
 }
