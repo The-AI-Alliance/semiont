@@ -30,9 +30,9 @@ export default function KnowledgeDocumentPage() {
   const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
   const [referencedBy, setReferencedBy] = useState<any[]>([]);
   const [referencedByLoading, setReferencedByLoading] = useState(false);
-  const [annotateMode, setAnnotateMode] = useState(() => {
+  const [curationMode, setCurationMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('annotateMode') === 'true';
+      return localStorage.getItem('curationMode') === 'true';
     }
     return false;
   });
@@ -171,14 +171,14 @@ export default function KnowledgeDocumentPage() {
     }
   }, [documentId, router, showError]);
 
-  // Handle annotate mode toggle - memoized
-  const handleAnnotateModeToggle = useCallback(() => {
-    const newMode = !annotateMode;
-    setAnnotateMode(newMode);
+  // Handle curation mode toggle - memoized
+  const handleCurationModeToggle = useCallback(() => {
+    const newMode = !curationMode;
+    setCurationMode(newMode);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('annotateMode', newMode.toString());
+      localStorage.setItem('curationMode', newMode.toString());
     }
-  }, [annotateMode]);
+  }, [curationMode]);
 
   // Handle detect entity references - memoized
   const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
@@ -275,54 +275,77 @@ export default function KnowledgeDocumentPage() {
             <DocumentViewer
               document={document}
               onWikiLinkClick={handleWikiLinkClick}
-              annotateMode={annotateMode}
+              curationMode={curationMode}
             />
           </ErrorBoundary>
         </div>
 
         {/* Sidebar */}
         <div className="w-64">
-          {/* Manage */}
+          {/* Curation Mode Toggle */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
-            {document.archived && (
-              <div className="mb-3 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-sm font-medium text-center">
-                Archived
-              </div>
-            )}
-            <div className="space-y-2">
-              <button
-                onClick={handleAnnotateModeToggle}
-                className={`${
-                  annotateMode ? buttonStyles.primary.base : buttonStyles.secondary.base
-                } w-full`}
-                disabled={document.archived}
-                title={document.archived ? 'Cannot annotate archived documents' : 'Toggle annotation mode'}
-              >
-                {annotateMode ? '✏️ Annotate Mode ON' : '👁️ View Mode'}
-              </button>
-              <button
-                onClick={() => setShowProposeEntitiesModal(true)}
-                className={`${buttonStyles.secondary.base} w-full`}
-                disabled={document.archived || !annotateMode}
-                title={document.archived ? 'Cannot detect entity references in archived documents' : annotateMode ? 'Automatically detect entity references' : 'Enable annotate mode first'}
-              >
-                ✨ Detect Entity References
-              </button>
-              <button
-                onClick={handleArchiveToggle}
-                className={`${buttonStyles.secondary.base} w-full`}
-              >
-                {document.archived ? 'Unarchive' : 'Archive'}
-              </button>
-              <button
-                onClick={handleClone}
-                className={`${buttonStyles.secondary.base} w-full`}
-              >
-                Clone
-              </button>
-            </div>
+            <button
+              onClick={handleCurationModeToggle}
+              className={`${
+                curationMode ? buttonStyles.primary.base : buttonStyles.secondary.base
+              } w-full`}
+              title="Toggle global curation mode"
+            >
+              {curationMode ? '✏️ Curation Mode ON' : '👁️ View Mode'}
+            </button>
           </div>
+
+          {/* Archived Status - show above Manage when document is archived */}
+          {curationMode && document.archived && (
+            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mt-3">
+              <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
+                📦 Archived
+              </div>
+            </div>
+          )}
+
+          {/* Manage - only show in Curation Mode */}
+          {curationMode && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mt-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
+              <div className="space-y-2">
+                {document.archived ? (
+                  // Archived documents only show Unarchive button
+                  <button
+                    onClick={handleArchiveToggle}
+                    className={`${buttonStyles.secondary.base} w-full`}
+                  >
+                    Unarchive
+                  </button>
+                ) : (
+                  // Non-archived documents show all actions
+                  <>
+                    <button
+                      onClick={() => setShowProposeEntitiesModal(true)}
+                      className={`${buttonStyles.secondary.base} w-full`}
+                      title="Automatically detect entity references"
+                    >
+                      ✨ Detect Entity References
+                    </button>
+                    
+                    <button
+                      onClick={handleClone}
+                      className={`${buttonStyles.secondary.base} w-full`}
+                    >
+                      Clone
+                    </button>
+                    
+                    <button
+                      onClick={handleArchiveToggle}
+                      className={`${buttonStyles.secondary.base} w-full`}
+                    >
+                      Archive
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           
           {/* Document Tags */}
           <div className="mt-3">
@@ -330,7 +353,7 @@ export default function KnowledgeDocumentPage() {
               documentId={documentId}
               initialTags={documentEntityTypes}
               onUpdate={updateDocumentTags}
-              disabled={document.archived || false}
+              disabled={!curationMode || !!document.archived}
             />
           </div>
         
