@@ -5,7 +5,6 @@ export interface Document {
   name: string;
   entityTypes: string[];
   contentType: string;
-  storageUrl: string;  // Path to content in filesystem
   metadata: Record<string, any>;
   archived: boolean;  // Whether the document is archived (read-only)
   

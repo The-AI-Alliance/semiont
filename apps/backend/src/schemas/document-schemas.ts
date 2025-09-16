@@ -49,7 +49,6 @@ export const DocumentSchema = z.object({
   content: z.string().openapi({ example: 'Quantum computing is a revolutionary...' }),
   contentType: z.string().openapi({ example: 'text/plain', description: 'MIME type' }),
   metadata: z.record(z.any()).optional().openapi({ example: { author: 'John Doe', tags: ['quantum', 'computing'] } }),
-  storageUrl: z.string().optional().openapi({ example: '/efs/documents/doc_abc123.txt' }),
   archived: z.boolean().optional().openapi({ example: false, description: 'Whether the document is archived (read-only)' }),
   
   // Provenance tracking

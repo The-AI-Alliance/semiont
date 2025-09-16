@@ -60,7 +60,6 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
   const document: Document = {
     id: `doc_${Math.random().toString(36).substring(2, 11)}`,
     name: body.name,
-    storageUrl: '',  // Will be set by storage service
     archived: false,
     contentType: body.contentType || 'text/plain',
     metadata: body.metadata || {},
@@ -601,7 +600,6 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   const document: Document = {
     id: `doc_${Math.random().toString(36).substring(2, 11)}`,
     name: body.name,
-    storageUrl: '',  // Will be set by storage service
     archived: false,
     contentType: sourceDoc.contentType,
     metadata: sourceDoc.metadata || {},
@@ -1180,7 +1178,6 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   const document: Document = {
     id: `doc_${Math.random().toString(36).substring(2, 11)}`,
     name: generatedContent.title,
-    storageUrl: '',  // Will be set by storage service
     archived: false,
     contentType: 'text/markdown',
     metadata: {
@@ -1328,7 +1325,6 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   const document: Document = {
     id: `doc_${Math.random().toString(36).substring(2, 11)}`,
     name: body.name,
-    storageUrl: '',  // Will be set by storage service
     archived: false,
     contentType: body.contentType || 'text/markdown',
     metadata: {},

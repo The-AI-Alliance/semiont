@@ -63,7 +63,6 @@ function vertexToDocument(vertex: any): Document {
     name: getValue('name') || '',
     entityTypes: JSON.parse(getValue('entityTypes') || '[]'),
     contentType: getValue('contentType') || 'text/plain',
-    storageUrl: getValue('storageUrl') || '',
     metadata: JSON.parse(getValue('metadata') || '{}'),
     archived: getValue('archived') === 'true' || getValue('archived') === true || false,
     createdAt: new Date(getValue('createdAt') || Date.now()),
@@ -271,7 +270,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       name: input.name,
       entityTypes: input.entityTypes || [],
       contentType: input.contentType || 'text/plain',
-      storageUrl: `/efs/documents/${id}`,
       metadata: input.metadata || {},
       archived: false,
       createdAt: now,
@@ -294,7 +292,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('id', document.id)
         .property('name', document.name)
         .property('contentType', document.contentType)
-        .property('storageUrl', document.storageUrl)
         .property('archived', document.archived)
         .property('createdAt', document.createdAt.toISOString())
         .property('updatedAt', document.updatedAt.toISOString())

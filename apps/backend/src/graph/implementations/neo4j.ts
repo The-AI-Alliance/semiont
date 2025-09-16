@@ -76,7 +76,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       name: input.name,
       entityTypes: input.entityTypes || [],
       contentType: input.contentType,
-      storageUrl: `/efs/documents/${id}`,
       metadata: input.metadata || {},
       archived: false,  // New documents are not archived by default
       createdAt: now,
@@ -101,7 +100,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     //     name: $name,
     //     entityTypes: $entityTypes,
     //     contentType: $contentType,
-    //     storageUrl: $storageUrl,
     //     createdAt: datetime($createdAt),
     //     updatedAt: datetime($updatedAt)
     //   }) RETURN d`,

@@ -113,7 +113,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       name: input.name,
       entityTypes: input.entityTypes || [],
       contentType: input.contentType,
-      storageUrl: `/efs/documents/${id}`,
       metadata: input.metadata || {},
       archived: false,  // New documents are not archived by default
       createdAt: now,
@@ -138,7 +137,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     //     .property('name', name)
     //     .property('entityTypes', entityTypes)
     //     .property('contentType', contentType)
-    //     .property('storageUrl', storageUrl)
     //     .property('createdAt', createdAt)
     //     .property('updatedAt', updatedAt)
     //   graph.tx().commit()
