@@ -400,6 +400,12 @@ export const apiService = {
     getReferencedBy: (id: string): Promise<{ referencedBy: SelectionResponse[] }> =>
       apiClient.get('/api/documents/:id/referenced-by', { params: { id } }),
     
+    detectSelections: (id: string, entityTypes: string[]): Promise<{ message: string; detectionsStarted: number }> =>
+      apiClient.post('/api/documents/:id/detect-selections', { 
+        params: { id }, 
+        body: { entityTypes } 
+      }),
+    
     getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
       apiClient.get('/api/documents/token/:token', { params: { token } }),
     

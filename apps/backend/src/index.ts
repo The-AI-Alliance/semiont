@@ -66,6 +66,31 @@ app.use('*', cors({
   credentials: true,
 }));
 
+// Add request/response logging middleware
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  const method = c.req.method;
+  const url = c.req.url;
+  
+  console.log(`[${new Date().toISOString()}] --> ${method} ${url}`);
+  
+  // Log request body for POST/PUT requests
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+    try {
+      const body = await c.req.raw.clone().json();
+      console.log(`    Request body:`, JSON.stringify(body, null, 2));
+    } catch (e) {
+      // Body might not be JSON or might be empty
+    }
+  }
+  
+  await next();
+  
+  const duration = Date.now() - start;
+  const status = c.res.status;
+  console.log(`[${new Date().toISOString()}] <-- ${method} ${url} ${status} (${duration}ms)`);
+});
+
 // Mount route routers
 app.route('/', healthRouter);
 app.route('/', authRouter);

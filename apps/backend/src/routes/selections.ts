@@ -1464,7 +1464,6 @@ function formatDocument(doc: Document): any {
     entityTypes: doc.entityTypes,
     contentType: doc.contentType,
     metadata: doc.metadata,
-    storageUrl: doc.storageUrl,
     createdBy: doc.createdBy,
     updatedBy: doc.updatedBy,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,

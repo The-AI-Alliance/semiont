@@ -49,7 +49,6 @@ export const DocumentSchema = z.object({
   content: z.string().openapi({ example: 'Quantum computing is a revolutionary...' }),
   contentType: z.string().openapi({ example: 'text/plain', description: 'MIME type' }),
   metadata: z.record(z.any()).optional().openapi({ example: { author: 'John Doe', tags: ['quantum', 'computing'] } }),
-  storageUrl: z.string().optional().openapi({ example: '/efs/documents/doc_abc123.txt' }),
   archived: z.boolean().optional().openapi({ example: false, description: 'Whether the document is archived (read-only)' }),
   
   // Provenance tracking
@@ -204,8 +203,14 @@ export const GenerateDocumentFromSelectionRequestSchema = z.object({
 }).openapi('GenerateDocumentFromSelectionRequest');
 
 export const DetectSelectionsRequestSchema = z.object({
-  types: z.array(z.enum(['entities', 'concepts', 'definitions', 'references'])).optional(),
-  confidence: z.number().min(0).max(1).default(0.7),
+  entityTypes: z.array(z.string()).openapi({ 
+    description: 'Entity types to detect (e.g., Person, Organization, Concept)',
+    example: ['Person', 'Organization', 'Concept']
+  }),
+  confidence: z.number().min(0).max(1).default(0.7).optional().openapi({
+    description: 'Minimum confidence threshold for detections',
+    example: 0.7
+  }),
 }).openapi('DetectSelectionsRequest');
 
 // ==========================================

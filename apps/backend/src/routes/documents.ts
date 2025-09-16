@@ -1,11 +1,9 @@
-import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
-import { z } from '@hono/zod-openapi';
-import { authMiddleware } from '../middleware/auth';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { HTTPException } from 'hono/http-exception';
 import { User } from '@prisma/client';
-import { ErrorResponseSchema } from '../openapi';
-import {
-  DocumentSchema,
-  CreateDocumentRequestSchema,
+import { authMiddleware } from '../middleware/auth';
+import { 
+  CreateDocumentRequestSchema, 
   CreateDocumentResponseSchema,
   GetDocumentResponseSchema,
   ListDocumentsResponseSchema,
@@ -15,7 +13,7 @@ import {
 } from '../schemas/document-schemas';
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
-import type { Document, Selection } from '../graph/types';
+import type { Document, Selection, UpdateDocumentInput } from '../graph/types';
 import { calculateChecksum } from '../utils/checksum';
 
 // Create documents router
@@ -24,15 +22,12 @@ export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
 // Apply auth middleware to all document routes
 documentsRouter.use('/api/documents/*', authMiddleware);
 
-// ==========================================
-// CREATE DOCUMENT
-// ==========================================
-
+// CREATE
 const createDocumentRoute = createRoute({
   method: 'post',
   path: '/api/documents',
   summary: 'Create Document',
-  description: 'Create a new document with optional initial selections',
+  description: 'Create a new document',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -53,233 +48,67 @@ const createDocumentRoute = createRoute({
       },
       description: 'Document created successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Invalid request',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
-
 documentsRouter.openapi(createDocumentRoute, async (c) => {
-  const user = c.get('user');
   const body = c.req.valid('json');
-
-  try {
-    const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
-
-    // Server-side calculated fields (never trust client for these)
-    const contentChecksum = calculateChecksum(body.content);
-    const createdBy = user.id;  // Always from authenticated user
-    // Note: createdAt is set by the graph database layer
-    
-    // Validate provenance fields
-    const creationMethod = body.creationMethod || 'api';
-    if (creationMethod === 'reference' && !body.sourceDocumentId) {
-      return c.json({ 
-        error: 'sourceDocumentId is required when creationMethod is "reference"' 
-      }, 400);
-    }
-    
-    // Build create document input
-    const createInput: any = {
-      name: body.name,
-      entityTypes: body.entityTypes || [],
-      content: body.content,
-      contentType: body.contentType || 'text/plain',
-      metadata: body.metadata || {},
-      createdBy: createdBy,  // Server-controlled
-      creationMethod: creationMethod,  // Validated and defaulted
-    };
-    
-    // Add optional fields only if provided
-    if (body.sourceSelectionId) {
-      createInput.sourceSelectionId = body.sourceSelectionId;
-    }
-    if (body.sourceDocumentId) {
-      createInput.sourceDocumentId = body.sourceDocumentId;
-    }
-    
-    // Create document in graph database with provenance tracking
-    const document = await graphDb.createDocument(createInput);
-
-    // Save content to filesystem
-    const storageUrl = await storage.saveDocument(document.id, body.content);
-    
-    // Update document with storage URL and server-calculated checksum
-    const updatedDocument = await graphDb.updateDocument(document.id, {
-      metadata: { 
-        ...document.metadata, 
-        storageUrl, 
-        contentChecksum  // Always stored in metadata for integrity verification
-      },
-      updatedBy: createdBy,
-    });
-
-    // Create initial selections if provided
-    const selections: Selection[] = [];
-    if (body.selections && body.selections.length > 0) {
-      for (const selData of body.selections) {
-        const selInput: any = {
-          documentId: document.id,
-          selectionType: selData.selectionType.type,
-          selectionData: selData.selectionType,
-          provisional: selData.provisional || false,
-          createdBy: user.id,
-        };
-        if (selData.resolvedDocumentId) {
-          selInput.resolvedDocumentId = selData.resolvedDocumentId;
-          selInput.resolvedBy = user.id;
-        }
-        if (selData.referenceTags) selInput.referenceTags = selData.referenceTags;
-        if (selData.entityTypes) selInput.entityTypes = selData.entityTypes;
-        if (selData.confidence !== undefined) selInput.confidence = selData.confidence;
-        if (selData.metadata) selInput.metadata = selData.metadata;
-        const selection = await graphDb.createSelection(selInput);
-        selections.push(selection);
-      }
-    }
-
-    return c.json({
-      document: formatDocument(updatedDocument, body.content),
-      selections: selections.map(formatSelection),
-    }, 201);
-  } catch (error) {
-    console.error('Error creating document:', error);
-    return c.json({ error: 'Failed to create document' }, 500);
-  }
-});
-
-// ==========================================
-// GET DOCUMENT BY TOKEN
-// ==========================================
-// NOTE: This route must come BEFORE the generic {id} route to avoid conflicts
-
-const getDocumentByTokenRoute = createRoute({
-  method: 'get',
-  path: '/api/documents/token/{token}',
-  summary: 'Get Document by Clone Token',
-  description: 'Get the source document data associated with a clone token',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      token: z.string().openapi({ example: 'token_abc123' }),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            sourceDocument: z.any(),
-            expiresAt: z.string(),
-          }),
-        },
-      },
-      description: 'Success',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            error: z.string(),
-          }),
-        },
-      },
-      description: 'Invalid or expired token',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            error: z.string(),
-          }),
-        },
-      },
-      description: 'Token does not belong to current user',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            error: z.string(),
-          }),
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-documentsRouter.openapi(getDocumentByTokenRoute, async (c) => {
   const user = c.get('user');
-  const { token } = c.req.valid('param');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   
-  try {
-    // Get and validate token
-    const tokenData = cloneTokens.get(token);
-    if (!tokenData) {
-      return c.json({ error: 'Invalid or expired token' }, 400);
-    }
+  const checksum = calculateChecksum(body.content);
+  const document: Document = {
+    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    name: body.name,
+    archived: false,
+    contentType: body.contentType || 'text/plain',
+    metadata: body.metadata || {},
+    entityTypes: [],
     
-    // Check if token belongs to current user
-    if (tokenData.userId !== user.id) {
-      return c.json({ error: 'Token does not belong to current user' }, 401);
-    }
+    // Creation context
+    creationMethod: (body.creationMethod || 'api') as 'api' | 'reference' | 'upload' | 'ui',
+    sourceSelectionId: body.sourceSelectionId || undefined,
+    sourceDocumentId: body.sourceDocumentId || undefined,
+    contentChecksum: checksum,
     
-    // Check if token is expired
-    if (tokenData.expiresAt < new Date()) {
-      cloneTokens.delete(token);
-      return c.json({ error: 'Token has expired' }, 400);
-    }
-    
-    // Return the source document data with content
-    return c.json({
-      sourceDocument: {
-        id: tokenData.sourceDocument.id,
-        name: tokenData.sourceDocument.name,
-        content: tokenData.content,
-        entityTypes: tokenData.sourceDocument.entityTypes,
-        contentType: tokenData.sourceDocument.contentType,
-      },
-      expiresAt: tokenData.expiresAt.toISOString(),
-    }, 200);
-  } catch (error) {
-    console.error('Error fetching document by token:', error);
-    return c.json({ error: 'Failed to fetch document data' }, 500);
-  }
+    createdBy: user.id,
+    updatedBy: user.id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  
+  const createInput: any = {
+    name: document.name,
+    entityTypes: document.entityTypes,
+    content: body.content,
+    contentType: document.contentType,
+    metadata: document.metadata,
+    createdBy: document.createdBy,
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
+  await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
+  
+  // Get selections
+  const highlights = await graphDb.getHighlights(savedDoc.id);
+  const references = await graphDb.getReferences(savedDoc.id);
+  
+  return c.json({
+    document: formatDocument(savedDoc),
+    selections: [...highlights, ...references].map(formatSelection),
+  }, 201);
 });
 
-// ==========================================
-// GET DOCUMENT
-// ==========================================
-
+// GET
 const getDocumentRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}',
   summary: 'Get Document',
-  description: 'Retrieve a document by ID with its selections',
+  description: 'Get a document by ID',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -296,86 +125,51 @@ const getDocumentRoute = createRoute({
       },
       description: 'Document retrieved successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Document not found',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
-
 documentsRouter.openapi(getDocumentRoute, async (c) => {
   const { id } = c.req.valid('param');
-
   const graphDb = await getGraphDatabase();
   const storage = getStorageService();
   const document = await graphDb.getDocument(id);
-
   if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+    throw new HTTPException(404, { message: 'Document not found' });
   }
-
-  // Get document content from filesystem
-  let content = '';
-  try {
-    const contentBuffer = await storage.getDocument(id);
-    content = contentBuffer.toString('utf-8');
-  } catch (error) {
-    console.error(`Failed to load content for document ${id}:`, error);
-    // Continue without content rather than failing the entire request
-  }
-
-  const selections = await graphDb.getDocumentSelections(id);
+  
+  // Get content from storage
+  const content = await storage.getDocument(id);
+  
+  // Get selections
   const highlights = await graphDb.getHighlights(id);
   const references = await graphDb.getReferences(id);
-  const entityReferences = await graphDb.getEntityReferences(id);
-  // const referencedBy = await graphDb.getDocumentReferencedBy(id);
-
+  const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
+  
   return c.json({
-    document: formatDocument(document, content),
-    selections: selections.map(formatSelection),
+    document: {
+      ...formatDocument(document),
+      content: content.toString('utf-8')
+    },
+    selections: [...highlights, ...references].map(formatSelection),
     highlights: highlights.map(formatSelection),
     references: references.map(formatSelection),
     entityReferences: entityReferences.map(formatSelection),
-  }, 200);
+  });
 });
 
-// ==========================================
-// LIST DOCUMENTS
-// ==========================================
-
+// LIST
 const listDocumentsRoute = createRoute({
   method: 'get',
   path: '/api/documents',
   summary: 'List Documents',
-  description: 'List and search documents',
+  description: 'List all documents with optional filters',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
-      entityTypes: z.string().optional().openapi({ example: 'Person,Author' }),
-      search: z.string().optional().openapi({ example: 'quantum' }),
-      limit: z.string().optional().default('20').openapi({ example: '20' }),
-      offset: z.string().optional().default('0').openapi({ example: '0' }),
+      offset: z.coerce.number().default(0),
+      limit: z.coerce.number().default(50),
+      entityType: z.string().optional(),
+      archived: z.coerce.boolean().optional(),
     }),
   },
   responses: {
@@ -385,61 +179,87 @@ const listDocumentsRoute = createRoute({
           schema: ListDocumentsResponseSchema,
         },
       },
-      description: 'Documents retrieved successfully',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
+      description: 'Documents listed successfully',
     },
   },
 });
-
 documentsRouter.openapi(listDocumentsRoute, async (c) => {
-  const query = c.req.valid('query');
-  const limit = parseInt(query.limit);
-  const offset = parseInt(query.offset);
-
+  const { offset, limit, entityType, archived } = c.req.valid('query');
   const graphDb = await getGraphDatabase();
-
-  // Build filter for graph database
-  const filter: any = {
-    limit,
-    offset,
-  };
-  if (query.entityTypes) filter.entityTypes = query.entityTypes.split(',').map(t => t.trim());
-  if (query.search) filter.search = query.search;
-
-  const result = await graphDb.listDocuments(filter);
-
+  
+  const allDocs = await graphDb.listDocuments({});
+  
+  // Apply filters
+  let filteredDocs = allDocs.documents;
+  if (entityType) {
+    filteredDocs = filteredDocs.filter(doc => doc.entityTypes?.includes(entityType));
+  }
+  if (archived !== undefined) {
+    filteredDocs = filteredDocs.filter(doc => doc.archived === archived);
+  }
+  
+  // Paginate
+  const paginatedDocs = filteredDocs.slice(offset, offset + limit);
+  
   return c.json({
-    documents: result.documents.map(doc => formatDocument(doc)),
-    total: result.total,
-    offset: offset,
-    limit: limit,
-  }, 200);
+    documents: paginatedDocs.map(formatDocument),
+    total: filteredDocs.length,
+    offset,
+    limit,
+  });
 });
 
-// ==========================================
-// UPDATE DOCUMENT
-// ==========================================
+// SEARCH
+const searchDocumentsRoute = createRoute({
+  method: 'get',
+  path: '/api/documents/search',
+  summary: 'Search Documents',
+  description: 'Search documents by name',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      q: z.string().min(1),
+      limit: z.coerce.number().default(10),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: ListDocumentsResponseSchema,
+        },
+      },
+      description: 'Search results',
+    },
+  },
+});
+documentsRouter.openapi(searchDocumentsRoute, async (c) => {
+  const { q, limit } = c.req.valid('query');
+  const graphDb = await getGraphDatabase();
+  
+  const allDocs = await graphDb.listDocuments({});
+  
+  // Simple case-insensitive search in document names
+  const query = q.toLowerCase();
+  const matchingDocs = allDocs.documents
+    .filter((doc: Document) => doc.name.toLowerCase().includes(query))
+    .slice(0, limit);
+  
+  return c.json({
+    documents: matchingDocs.map(formatDocument),
+    total: matchingDocs.length,
+    offset: 0,
+    limit,
+  });
+});
 
+// UPDATE
 const updateDocumentRoute = createRoute({
   method: 'put',
   path: '/api/documents/{id}',
   summary: 'Update Document',
-  description: 'Update document metadata (not content)',
+  description: 'Update document metadata',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -458,84 +278,154 @@ const updateDocumentRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DocumentSchema,
+          schema: GetDocumentResponseSchema,
         },
       },
       description: 'Document updated successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Document not found',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
-
 documentsRouter.openapi(updateDocumentRoute, async (c) => {
-  const user = c.get('user');
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
-
+  const user = c.get('user');
   const graphDb = await getGraphDatabase();
-  const updateInput: any = {
-    updatedBy: user.id,
-  };
-  if (body.name !== undefined) updateInput.name = body.name;
-  if (body.entityTypes !== undefined) updateInput.entityTypes = body.entityTypes;
-  if (body.metadata !== undefined) updateInput.metadata = body.metadata;
-  if (body.archived !== undefined) updateInput.archived = body.archived;
+  const storage = getStorageService();
   
-  const document = await graphDb.updateDocument(id, updateInput);
-
-  return c.json(formatDocument(document), 200);
+  const document = await graphDb.getDocument(id);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Document not found' });
+  }
+  
+  const updateData: UpdateDocumentInput = {
+    updatedBy: user.id
+  };
+  if (body.name !== undefined) updateData.name = body.name;
+  if (body.entityTypes !== undefined) updateData.entityTypes = body.entityTypes;
+  if (body.metadata !== undefined) updateData.metadata = body.metadata;
+  if (body.archived !== undefined) updateData.archived = body.archived;
+  
+  const updatedDoc = await graphDb.updateDocument(id, updateData);
+  
+  // Get content from storage
+  const content = await storage.getDocument(id);
+  
+  // Get selections
+  const highlights = await graphDb.getHighlights(id);
+  const references = await graphDb.getReferences(id);
+  const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
+  
+  return c.json({
+    document: {
+      ...formatDocument(updatedDoc),
+      content: content.toString('utf-8')
+    },
+    selections: [...highlights, ...references].map(formatSelection),
+    highlights: highlights.map(formatSelection),
+    references: references.map(formatSelection),
+    entityReferences: entityReferences.map(formatSelection),
+  });
 });
 
-// ==========================================
-// CLONE DOCUMENT
-// ==========================================
-
-const cloneDocumentRoute = createRoute({
-  method: 'post',
-  path: '/api/documents/{id}/clone',
-  summary: 'Clone Document',
-  description: 'Create a copy of a document with all its content, tags, and annotations',
+// DELETE
+const deleteDocumentRoute = createRoute({
+  method: 'delete',
+  path: '/api/documents/{id}',
+  summary: 'Delete Document',
+  description: 'Delete a document',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: 'doc_abc123' }),
     }),
-    body: {
+  },
+  responses: {
+    204: {
+      description: 'Document deleted successfully',
+    },
+  },
+});
+documentsRouter.openapi(deleteDocumentRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  const document = await graphDb.getDocument(id);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Document not found' });
+  }
+  
+  await graphDb.deleteDocument(id);
+  await storage.deleteDocument(id);
+  
+  return c.body(null, 204);
+});
+
+// GET CONTENT
+const getDocumentContentRoute = createRoute({
+  method: 'get',
+  path: '/api/documents/{id}/content',
+  summary: 'Get Document Content',
+  description: 'Get the content of a document',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'doc_abc123' }),
+    }),
+  },
+  responses: {
+    200: {
       content: {
+        'text/plain': {
+          schema: z.string(),
+        },
+        'text/markdown': {
+          schema: z.string(),
+        },
         'application/json': {
-          schema: z.object({
-            name: z.string().optional().openapi({ 
-              example: 'Copy of My Document',
-              description: 'Optional new name for the cloned document' 
-            }),
-          }),
+          schema: z.object({ content: z.string() }),
         },
       },
+      description: 'Document content retrieved successfully',
     },
+  },
+});
+documentsRouter.openapi(getDocumentContentRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  const document = await graphDb.getDocument(id);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Document not found' });
+  }
+  
+  const content = await storage.getDocument(id);
+  
+  // Return based on content type
+  if (document.contentType === 'text/plain' || document.contentType === 'text/markdown') {
+    c.header('Content-Type', document.contentType);
+    return c.text(content.toString('utf-8'));
+  }
+  
+  // Default to JSON
+  return c.json({ content: content.toString('utf-8') });
+});
+
+// Clone Document (create clone token)
+const cloneDocumentRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/{id}/clone',
+  summary: 'Clone Document',
+  description: 'Create a clone token for duplicating a document',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'doc_abc123' }),
+    }),
   },
   responses: {
     200: {
@@ -544,132 +434,116 @@ const cloneDocumentRoute = createRoute({
           schema: z.object({
             token: z.string(),
             expiresAt: z.string(),
-            sourceDocument: z.object({
-              id: z.string(),
-              name: z.string(),
-              content: z.string(),
-              entityTypes: z.array(z.string()),
-              contentType: z.string(),
-            }),
+            sourceDocument: z.any(),
           }),
         },
       },
       description: 'Clone token created successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Source document not found',
+  },
+});
+
+// Simple in-memory token store (replace with Redis/DB in production)
+const cloneTokens = new Map<string, { documentId: string; expiresAt: Date }>();
+
+documentsRouter.openapi(cloneDocumentRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  const document = await graphDb.getDocument(id);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Document not found' });
+  }
+  
+  // Get content
+  const content = await storage.getDocument(id);
+  
+  // Create token
+  const token = `clone_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+  
+  cloneTokens.set(token, {
+    documentId: id,
+    expiresAt,
+  });
+  
+  return c.json({
+    token,
+    expiresAt: expiresAt.toISOString(),
+    sourceDocument: {
+      ...formatDocument(document),
+      content: content.toString('utf-8'),
     },
-    401: {
+  });
+});
+
+// Get document by clone token
+const getDocumentByTokenRoute = createRoute({
+  method: 'get',
+  path: '/api/documents/token/{token}',
+  summary: 'Get Document by Clone Token',
+  description: 'Retrieve a document using a clone token',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      token: z.string(),
+    }),
+  },
+  responses: {
+    200: {
       content: {
         'application/json': {
-          schema: ErrorResponseSchema,
+          schema: z.object({
+            sourceDocument: z.any(),
+            expiresAt: z.string(),
+          }),
         },
       },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
+      description: 'Document retrieved successfully',
     },
   },
 });
 
-// In-memory storage for clone tokens (in production, use Redis or similar)
-const cloneTokens = new Map<string, {
-  sourceDocumentId: string;
-  sourceDocument: any;
-  content: string;
-  selections: any[];
-  userId: string;
-  expiresAt: Date;
-}>();
-
-// Clean up expired tokens periodically
-setInterval(() => {
-  const now = new Date();
-  for (const [token, data] of cloneTokens.entries()) {
-    if (data.expiresAt < now) {
-      cloneTokens.delete(token);
-    }
-  }
-}, 60000); // Clean up every minute
-
-documentsRouter.openapi(cloneDocumentRoute, async (c) => {
-  const user = c.get('user');
-  const { id: sourceId } = c.req.valid('param');
+documentsRouter.openapi(getDocumentByTokenRoute, async (c) => {
+  const { token } = c.req.valid('param');
   
-  try {
-    const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
-    
-    // Get source document
-    const sourceDoc = await graphDb.getDocument(sourceId);
-    if (!sourceDoc) {
-      return c.json({ error: 'Source document not found' }, 404);
-    }
-    
-    // Get source content
-    let content = '';
-    try {
-      const contentBuffer = await storage.getDocument(sourceId);
-      content = contentBuffer.toString('utf-8');
-    } catch (error) {
-      console.error(`Failed to load content for document ${sourceId}:`, error);
-      return c.json({ error: 'Failed to load source document content' }, 500);
-    }
-    
-    // Get source selections (highlights and references)
-    const sourceSelections = await graphDb.getDocumentSelections(sourceId);
-    
-    // Generate a unique token
-    const token = `clone_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    
-    // Store the clone data with the token
-    cloneTokens.set(token, {
-      sourceDocumentId: sourceId,
-      sourceDocument: sourceDoc,
-      content,
-      selections: sourceSelections,
-      userId: user.id,
-      expiresAt
-    });
-    
-    return c.json({
-      token,
-      expiresAt: expiresAt.toISOString(),
-      sourceDocument: {
-        id: sourceDoc.id,
-        name: sourceDoc.name,
-        content,
-        entityTypes: sourceDoc.entityTypes,
-        contentType: sourceDoc.contentType,
-      }
-    }, 200);
-  } catch (error) {
-    console.error('Error preparing clone:', error);
-    return c.json({ error: 'Failed to prepare clone' }, 500);
+  const tokenData = cloneTokens.get(token);
+  if (!tokenData) {
+    throw new HTTPException(404, { message: 'Invalid or expired token' });
   }
+  
+  if (new Date() > tokenData.expiresAt) {
+    cloneTokens.delete(token);
+    throw new HTTPException(404, { message: 'Token expired' });
+  }
+  
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  const document = await graphDb.getDocument(tokenData.documentId);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Source document not found' });
+  }
+  
+  const content = await storage.getDocument(tokenData.documentId);
+  
+  return c.json({
+    sourceDocument: {
+      ...formatDocument(document),
+      content: content.toString('utf-8'),
+    },
+    expiresAt: tokenData.expiresAt.toISOString(),
+  });
 });
 
-// ==========================================
-// CREATE DOCUMENT FROM CLONE TOKEN
-// ==========================================
-
-const createFromTokenRoute = createRoute({
+// Create document from clone token
+const createDocumentFromTokenRoute = createRoute({
   method: 'post',
   path: '/api/documents/create-from-token',
   summary: 'Create Document from Clone Token',
-  description: 'Create a new document using a clone token with edited content',
+  description: 'Create a new document using a clone token',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -693,543 +567,148 @@ const createFromTokenRoute = createRoute({
           schema: CreateDocumentResponseSchema,
         },
       },
-      description: 'Document created successfully from clone',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Invalid or expired token',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
+      description: 'Document created successfully',
     },
   },
 });
 
-documentsRouter.openapi(createFromTokenRoute, async (c) => {
+documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
+  const body = c.req.valid('json');
   const user = c.get('user');
-  const { token, name, content, archiveOriginal } = c.req.valid('json');
   
-  try {
-    // Get and validate token
-    const tokenData = cloneTokens.get(token);
-    if (!tokenData) {
-      return c.json({ error: 'Invalid or expired token' }, 400);
-    }
-    
-    // Check if token belongs to current user
-    if (tokenData.userId !== user.id) {
-      return c.json({ error: 'Token does not belong to current user' }, 401);
-    }
-    
-    // Check if token is expired
-    if (tokenData.expiresAt < new Date()) {
-      cloneTokens.delete(token);
-      return c.json({ error: 'Token has expired' }, 400);
-    }
-    
-    // Delete token (one-time use)
-    cloneTokens.delete(token);
-    
-    const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
-    
-    // Create the new document
-    const contentChecksum = calculateChecksum(content);
-    const createInput: any = {
-      name,
-      entityTypes: tokenData.sourceDocument.entityTypes || [],
-      content,
-      contentType: tokenData.sourceDocument.contentType || 'text/plain',
-      metadata: {
-        ...(tokenData.sourceDocument.metadata || {}),
-        clonedFrom: tokenData.sourceDocumentId,
-        clonedAt: new Date().toISOString(),
-      },
-      createdBy: user.id,
-      creationMethod: 'clone',
-      sourceDocumentId: tokenData.sourceDocumentId,
-    };
-    
-    // Create the document
-    const document = await graphDb.createDocument(createInput);
-    
-    // Save content to filesystem
-    const storageUrl = await storage.saveDocument(document.id, content);
-    
-    // Update document with storage URL and checksum
-    const updatedDocument = await graphDb.updateDocument(document.id, {
-      metadata: { 
-        ...document.metadata, 
-        storageUrl,
-        contentChecksum
-      }
-    });
-    
-    // Clone selections for the new document
-    const clonedSelections = [];
-    for (const sel of tokenData.selections) {
-      if (!('resolvedDocumentId' in sel) || sel.resolvedDocumentId) {
-        const cloneInput: any = {
-          documentId: document.id,
-          selectionType: sel.selectionType,
-          selectionData: sel.selectionData,
-          createdBy: user.id,
-          provisional: sel.provisional,
-          metadata: {
-            ...(sel.metadata || {}),
-            clonedFrom: sel.id,
-          },
-        };
-        
-        // Add optional fields only if they exist
-        if (sel.resolvedDocumentId) cloneInput.resolvedDocumentId = sel.resolvedDocumentId;
-        if (sel.referenceTags) cloneInput.referenceTags = sel.referenceTags;
-        if (sel.entityTypes) cloneInput.entityTypes = sel.entityTypes;
-        if (sel.confidence !== undefined) cloneInput.confidence = sel.confidence;
-        
-        const clonedSel = await graphDb.createSelection(cloneInput);
-        clonedSelections.push(clonedSel);
-      }
-    }
-    
-    // Archive the original document if requested
-    if (archiveOriginal) {
-      await graphDb.updateDocument(tokenData.sourceDocumentId, { archived: true });
-    }
-    
-    return c.json({
-      document: formatDocument(updatedDocument, content),
-      selections: clonedSelections.map(formatSelection),
-    }, 201);
-  } catch (error) {
-    console.error('Error creating document from token:', error);
-    return c.json({ error: 'Failed to create document' }, 500);
+  const tokenData = cloneTokens.get(body.token);
+  if (!tokenData) {
+    throw new HTTPException(404, { message: 'Invalid or expired token' });
   }
-});
-
-// ==========================================
-// DELETE DOCUMENT
-// ==========================================
-
-const deleteDocumentRoute = createRoute({
-  method: 'delete',
-  path: '/api/documents/{id}',
-  summary: 'Delete Document',
-  description: 'Delete a document and all its selections',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: 'doc_abc123' }),
-    }),
-  },
-  responses: {
-    204: {
-      description: 'Document deleted successfully',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Document not found',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-documentsRouter.openapi(deleteDocumentRoute, async (c) => {
-  const { id } = c.req.valid('param');
-
+  
+  if (new Date() > tokenData.expiresAt) {
+    cloneTokens.delete(body.token);
+    throw new HTTPException(404, { message: 'Token expired' });
+  }
+  
   const graphDb = await getGraphDatabase();
   const storage = getStorageService();
-
-  // Delete from graph database (will also delete references)
-  await graphDb.deleteDocument(id);
-
-  // Delete from storage
-  await storage.deleteDocument(id);
-
-  return c.body(null, 204);
-});
-
-// ==========================================
-// DETECT SELECTIONS
-// ==========================================
-
-const detectSelectionsRoute = createRoute({
-  method: 'post',
-  path: '/api/documents/{id}/detect-selections',
-  summary: 'Detect Selections',
-  description: 'Trigger AI-based selection detection for a document',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: 'doc_abc123' }),
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: DetectSelectionsRequestSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: DetectSelectionsResponseSchema,
-        },
-      },
-      description: 'Selections detected successfully',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Document not found',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Unauthorized',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-documentsRouter.openapi(detectSelectionsRoute, async (c) => {
-  const { id } = c.req.valid('param');
-  const body = c.req.valid('json');
-
-  const graphDb = await getGraphDatabase();
-  const storage = getStorageService();
-  const document = await graphDb.getDocument(id);
-
-  if (!document) {
-    return c.json({ error: 'Document not found' }, 404);
+  
+  // Get source document
+  const sourceDoc = await graphDb.getDocument(tokenData.documentId);
+  if (!sourceDoc) {
+    throw new HTTPException(404, { message: 'Source document not found' });
   }
-
-  // Get document content from storage
-  const content = await storage.getDocument(id);
-  const contentStr = content.toString('utf-8');
-
-  // Stub implementation - in real implementation, this would:
-  // 1. Use NLP/ML to detect selections in the document
-  // 2. Find potential resolutions from existing documents
-  // 3. Return detected selections with confidence scores
-
-  const detectedSelections = await detectSelectionsInDocument(
-    { ...document, content: contentStr },
-    (body as any).types || ['entities', 'concepts'],
-    (body as any).confidence || 0.7
-  );
-
+  
+  // Create new document
+  // const checksum = calculateChecksum(body.content);  // Not used
+  const document: Document = {
+    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    name: body.name,
+    archived: false,
+    contentType: sourceDoc.contentType,
+    metadata: sourceDoc.metadata || {},
+    entityTypes: sourceDoc.entityTypes || [],
+    
+    // Clone context
+    creationMethod: 'clone',
+    sourceDocumentId: tokenData.documentId,
+    
+    createdBy: user.id,
+    updatedBy: user.id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  
+  const createInput: any = {
+    name: document.name,
+    entityTypes: document.entityTypes,
+    content: body.content,
+    contentType: document.contentType,
+    metadata: document.metadata,
+    createdBy: document.createdBy,
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
+  await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
+  
+  // Archive original if requested
+  if (body.archiveOriginal) {
+    await graphDb.updateDocument(tokenData.documentId, {
+      archived: true,
+      updatedBy: user.id,
+      });
+  }
+  
+  // Clean up token
+  cloneTokens.delete(body.token);
+  
+  // Get selections
+  const highlights = await graphDb.getHighlights(savedDoc.id);
+  const references = await graphDb.getReferences(savedDoc.id);
+  
   return c.json({
-    selections: detectedSelections,
-    stats: {
-      total: detectedSelections.length,
-      byType: {},
-      averageConfidence: 0.5,
-    },
-  }, 200);
+    document: formatDocument(savedDoc),
+    selections: [...highlights, ...references].map(formatSelection),
+  }, 201);
 });
 
-// ==========================================
-// GRAPH SCHEMA DESCRIPTION
-// ==========================================
-
-const describeGraphSchemaRoute = createRoute({
+// Get referenced by (incoming references)
+const getReferencedByRoute = createRoute({
   method: 'get',
-  path: '/api/documents/schema-description',
-  summary: 'Describe Graph Schema',
-  description: 'Get a natural language description of the document graph schema and statistics',
-  tags: ['Documents'],
-  security: [{ bearerAuth: [] }],
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            description: z.string(),
-            statistics: z.object({
-              documentCount: z.number(),
-              selectionCount: z.number(),
-              highlightCount: z.number(),
-              referenceCount: z.number(),
-              entityTypes: z.record(z.number()),
-            }),
-            entityTypeDescriptions: z.array(z.object({
-              type: z.string(),
-              count: z.number(),
-              description: z.string(),
-            })),
-          }),
-        },
-      },
-      description: 'Schema description retrieved successfully',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-documentsRouter.openapi(describeGraphSchemaRoute, async (c) => {
-  try {
-    const graphDb = await getGraphDatabase();
-    
-    // Get statistics from the graph database
-    const stats = await graphDb.getStats();
-    const entityStats = await graphDb.getEntityTypeStats();
-    
-    // Generate natural language description
-    const description = generateSchemaDescription(stats, entityStats);
-    
-    // Generate entity type descriptions
-    const entityTypeDescriptions = entityStats.map(stat => ({
-      type: stat.type,
-      count: stat.count,
-      description: describeEntityType(stat.type, stat.count),
-    }));
-    
-    return c.json({
-      description,
-      statistics: {
-        documentCount: stats.documentCount,
-        selectionCount: stats.selectionCount,
-        highlightCount: stats.highlightCount,
-        referenceCount: stats.referenceCount,
-        entityTypes: stats.entityTypes,
-      },
-      entityTypeDescriptions,
-    }, 200);
-  } catch (error) {
-    console.error('Error describing graph schema:', error);
-    return c.json({ error: 'Failed to describe graph schema' }, 500);
-  }
-});
-
-// ==========================================
-// LLM CONTEXT GENERATION
-// ==========================================
-
-const getLLMContextRoute = createRoute({
-  method: 'post',
-  path: '/api/documents/{id}/llm-context',
-  summary: 'Get LLM Context',
-  description: 'Get context suitable for LLM processing for a document and optional selection',
+  path: '/api/documents/{id}/referenced-by',
+  summary: 'Get Referenced By',
+  description: 'Get all selections from other documents that reference this document',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: 'doc_abc123' }),
     }),
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            selectionId: z.string().optional().openapi({ 
-              example: 'sel_xyz789',
-              description: 'Optional selection ID for focused context' 
-            }),
-            includeReferences: z.boolean().default(true).openapi({
-              description: 'Include referenced documents in context'
-            }),
-            includeSelections: z.boolean().default(true).openapi({
-              description: 'Include other selections from this document'
-            }),
-            maxReferencedDocuments: z.number().default(5).openapi({
-              description: 'Maximum number of referenced documents to include'
-            }),
-            contextWindow: z.number().default(1000).openapi({
-              description: 'Characters of surrounding context for selections'
-            }),
-          }).optional(),
-        },
-      },
-    },
   },
   responses: {
     200: {
       content: {
         'application/json': {
           schema: z.object({
-            document: z.object({
-              id: z.string(),
-              name: z.string(),
-              entityTypes: z.array(z.string()),
-              contentSnippet: z.string(),
-              metadata: z.record(z.any()),
-            }),
-            selection: z.object({
-              id: z.string(),
-              text: z.string(),
-              type: z.string(),
-              context: z.object({
-                before: z.string(),
-                after: z.string(),
-              }),
-              entityTypes: z.array(z.string()).optional(),
-              resolvedDocument: z.object({
-                id: z.string(),
-                name: z.string(),
-                entityTypes: z.array(z.string()),
-                snippet: z.string(),
-              }).optional(),
-            }).optional(),
-            relatedDocuments: z.array(z.object({
-              id: z.string(),
-              name: z.string(),
-              entityTypes: z.array(z.string()),
-              relationship: z.string(),
-              relevanceScore: z.number(),
-              snippet: z.string(),
-            })),
-            graphContext: z.object({
-              totalDocuments: z.number(),
-              documentConnections: z.number(),
-              commonEntityTypes: z.array(z.string()),
-              selectionStats: z.object({
-                totalInDocument: z.number(),
-                highlights: z.number(),
-                references: z.number(),
-              }),
-            }),
-            suggestedPrompt: z.string().optional(),
+            referencedBy: z.array(z.any()),
           }),
         },
       },
-      description: 'LLM context retrieved successfully',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Document or selection not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
+      description: 'Incoming references retrieved successfully',
     },
   },
 });
 
-documentsRouter.openapi(getLLMContextRoute, async (c) => {
+documentsRouter.openapi(getReferencedByRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const body = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
   
-  try {
-    const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
-    
-    // Get the main document
-    const document = await graphDb.getDocument(id);
-    if (!document) {
-      return c.json({ error: 'Document not found' }, 404);
-    }
-    
-    // Get document content
-    const content = await storage.getDocument(id);
-    const contentStr = content.toString('utf-8');
-    
-    // Get optional selection
-    let selection = null;
-    if (body?.selectionId) {
-      selection = await graphDb.getSelection(body.selectionId);
-      if (!selection) {
-        return c.json({ error: 'Selection not found' }, 404);
-      }
-    }
-    
-    // Generate LLM context (dummy implementation)
-    const llmContext = await generateLLMContext(
-      document,
-      contentStr,
-      selection,
-      {
-        includeReferences: body?.includeReferences !== false,
-        includeSelections: body?.includeSelections !== false,
-        maxReferencedDocuments: body?.maxReferencedDocuments || 5,
-        contextWindow: body?.contextWindow || 1000,
-      },
-      graphDb
-    );
-    
-    return c.json(llmContext, 200);
-  } catch (error) {
-    console.error('Error generating LLM context:', error);
-    return c.json({ error: 'Failed to generate LLM context' }, 500);
-  }
+  // Get all selections that reference this document
+  const incomingRefs = await graphDb.getDocumentReferencedBy(id);
+  
+  // Get source document names for better display
+  const enhancedReferences = await Promise.all(
+    incomingRefs.map(async (sel) => {
+      const sourceDoc = await graphDb.getDocument(sel.documentId);
+      return {
+        ...formatSelection(sel),
+        documentName: sourceDoc?.name || 'Untitled Document'
+      };
+    })
+  );
+  
+  return c.json({
+    referencedBy: enhancedReferences,
+  });
 });
 
+// DISCOVER CONTEXT
 // ==========================================
-// TEXT CONTEXT DISCOVERY
-// ==========================================
-
 const discoverContextRoute = createRoute({
   method: 'post',
   path: '/api/documents/discover-context',
-  summary: 'Discover Context from Text',
-  description: 'Find relevant context from the graph database for a given text block',
+  summary: 'Discover Context',
+  description: 'Analyze text to discover relevant documents and entities',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -1237,22 +716,18 @@ const discoverContextRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            text: z.string().min(1).max(10000).openapi({ 
-              example: 'John Doe wrote about quantum computing in 2023.',
-              description: 'Text to analyze for context discovery' 
+            text: z.string().min(1).max(5000).openapi({
+              example: 'The Titans were overthrown by Zeus and the Olympians',
+              description: 'Text to analyze for context discovery'
             }),
-            maxResults: z.number().default(10).openapi({
-              description: 'Maximum number of relevant documents to return'
+            includeDocuments: z.boolean().default(true).openapi({
+              description: 'Include relevant documents in the response'
             }),
             includeSelections: z.boolean().default(true).openapi({
-              description: 'Include relevant selections from documents'
+              description: 'Include relevant selections/references in the response'
             }),
-            entityTypeFilter: z.array(z.string()).optional().openapi({
-              example: ['Person', 'Topic'],
-              description: 'Filter results by entity types'
-            }),
-            confidenceThreshold: z.number().min(0).max(1).default(0.5).openapi({
-              description: 'Minimum confidence score for results'
+            limit: z.number().min(1).max(20).default(5).openapi({
+              description: 'Maximum number of relevant items to return'
             }),
           }),
         },
@@ -1264,8 +739,7 @@ const discoverContextRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            query: z.object({
-              text: z.string(),
+            analysis: z.object({
               detectedEntities: z.array(z.object({
                 text: z.string(),
                 type: z.string(),
@@ -1298,95 +772,615 @@ const discoverContextRoute = createRoute({
                 entityTypes: z.array(z.string()),
               }).optional(),
             })),
-            suggestedConnections: z.array(z.object({
-              type: z.string().openapi({
-                description: 'Type of connection (create_reference, link_entity, merge_topic, etc.)'
-              }),
-              confidence: z.number(),
-              description: z.string(),
-              targetDocumentId: z.string().optional(),
-              targetEntityType: z.string().optional(),
-            })),
-            graphInsights: z.object({
-              relatedEntityTypes: z.array(z.string()),
-              commonPatterns: z.array(z.string()),
-              potentialDuplicates: z.array(z.object({
-                text: z.string(),
-                existingDocumentId: z.string(),
-                similarity: z.number(),
-              })),
-            }),
           }),
         },
       },
       description: 'Context discovered successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Invalid request',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
     },
   },
 });
 
 documentsRouter.openapi(discoverContextRoute, async (c) => {
   const body = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   
-  try {
-    const graphDb = await getGraphDatabase();
+  // Analyze the text for entities and topics
+  const analysis = await analyzeText(body.text);
+  
+  const relevantDocuments = [];
+  const relevantSelections = [];
+  
+  if (body.includeDocuments) {
+    // Find relevant documents
+    const allDocs = await graphDb.listDocuments({});
     
-    // Discover context from text (dummy implementation)
-    const contextOptions: any = {
-      maxResults: body.maxResults,
-      includeSelections: body.includeSelections,
-      confidenceThreshold: body.confidenceThreshold,
-    };
-    if (body.entityTypeFilter) {
-      contextOptions.entityTypeFilter = body.entityTypeFilter;
+    for (const doc of allDocs.documents) {
+      const relevance = await calculateDocumentRelevance(doc, analysis, body.text);
+      if (relevance.score > 0.3) {
+        // Get a snippet of the document content
+        const content = await storage.getDocument(doc.id);
+        const snippet = extractRelevantSnippet(content.toString('utf-8'), body.text, 200);
+        
+        relevantDocuments.push({
+          id: doc.id,
+          name: doc.name,
+          entityTypes: doc.entityTypes || [],
+          relevanceScore: relevance.score,
+          matchType: relevance.matchType,
+          snippet,
+          matchedPhrases: relevance.matchedPhrases,
+        });
+      }
     }
     
-    const context = await discoverContextFromText(
-      body.text,
-      contextOptions,
-      graphDb
-    );
-    
-    return c.json(context, 200);
-  } catch (error) {
-    console.error('Error discovering context:', error);
-    return c.json({ error: 'Failed to discover context' }, 500);
+    // Sort by relevance and limit
+    relevantDocuments.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    relevantDocuments.splice(body.limit);
   }
+  
+  if (body.includeSelections) {
+    // Find relevant selections
+    const allSelections = (await graphDb.listSelections({})).selections;
+    
+    for (const sel of allSelections) {
+      const relevance = await calculateSelectionRelevance(sel, analysis, body.text);
+      if (relevance.score > 0.3) {
+        const sourceDoc = await graphDb.getDocument(sel.documentId);
+        const resolvedDoc = sel.resolvedDocumentId ? await graphDb.getDocument(sel.resolvedDocumentId) : null;
+        
+        relevantSelections.push({
+          id: sel.id,
+          documentId: sel.documentId,
+          documentName: sourceDoc?.name || 'Unknown',
+          text: sel.selectionData?.text || '',
+          selectionType: sel.selectionType,
+          relevanceScore: relevance.score,
+          matchReason: relevance.reason,
+          ...(resolvedDoc && {
+            resolvedDocument: {
+              id: resolvedDoc.id,
+              name: resolvedDoc.name,
+              entityTypes: resolvedDoc.entityTypes || [],
+            }
+          })
+        });
+      }
+    }
+    
+    // Sort by relevance and limit
+    relevantSelections.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    relevantSelections.splice(body.limit);
+  }
+  
+  return c.json({
+    analysis,
+    relevantDocuments,
+    relevantSelections,
+  });
 });
 
-// ==========================================
-// HELPER FUNCTIONS
-// ==========================================
+// Helper functions for context discovery
+async function analyzeText(text: string): Promise<{
+  detectedEntities: Array<{ text: string; type: string; confidence: number }>;
+  detectedTopics: string[];
+}> {
+  // Simple entity detection (proper nouns)
+  const entities = [];
+  const properNounPattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g;
+  let match;
+  
+  while ((match = properNounPattern.exec(text)) !== null) {
+    // Simple heuristic: multi-word = Person, single word = other entity
+    const entityText = match[0];
+    const wordCount = entityText.split(' ').length;
+    
+    entities.push({
+      text: entityText,
+      type: wordCount > 1 ? 'Person' : 'Entity',
+      confidence: 0.7,
+    });
+  }
+  
+  // Simple topic extraction (just extract key nouns for now)
+  const topics = text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(word => word.length > 4)
+    .filter(word => !['their', 'there', 'where', 'which', 'would', 'could', 'should'].includes(word))
+    .slice(0, 5);
+  
+  return {
+    detectedEntities: entities,
+    detectedTopics: topics,
+  };
+}
 
-function formatDocument(doc: Document, content?: string): any {
+async function calculateDocumentRelevance(
+  doc: Document,
+  analysis: any,
+  queryText: string
+): Promise<{ score: number; matchType: string; matchedPhrases: string[] }> {
+  const docName = doc.name.toLowerCase();
+  const queryLower = queryText.toLowerCase();
+  const matchedPhrases = [];
+  let score = 0;
+  let matchType = 'none';
+  
+  // Check entity type matches
+  for (const entity of analysis.detectedEntities) {
+    if (doc.entityTypes?.some(type => type.toLowerCase() === entity.type.toLowerCase())) {
+      score += 0.3;
+      matchType = 'entity_match';
+    }
+  }
+  
+  // Check name similarity
+  const words = queryLower.split(/\s+/);
+  for (const word of words) {
+    if (word.length > 3 && docName.includes(word)) {
+      score += 0.2;
+      matchedPhrases.push(word);
+      if (matchType === 'none') matchType = 'name_match';
+    }
+  }
+  
+  // Check topic matches
+  for (const topic of analysis.detectedTopics) {
+    if (docName.includes(topic)) {
+      score += 0.1;
+      if (matchType === 'none') matchType = 'topic_match';
+    }
+  }
+  
+  return {
+    score: Math.min(score, 1),
+    matchType,
+    matchedPhrases,
+  };
+}
+
+async function calculateSelectionRelevance(
+  sel: Selection,
+  analysis: any,
+  queryText: string
+): Promise<{ score: number; reason: string }> {
+  const selText = (sel.selectionData?.text || '').toLowerCase();
+  const queryLower = queryText.toLowerCase();
+  let score = 0;
+  let reason = 'text_similarity';
+  
+  // Check direct text matches
+  const words = queryLower.split(/\s+/);
+  for (const word of words) {
+    if (word.length > 3 && selText.includes(word)) {
+      score += 0.3;
+    }
+  }
+  
+  // Check entity matches
+  for (const entity of analysis.detectedEntities) {
+    if (selText.includes(entity.text.toLowerCase())) {
+      score += 0.4;
+      reason = 'entity_reference';
+    }
+  }
+  
+  // Boost if it's a resolved reference
+  if (sel.resolvedDocumentId) {
+    score += 0.1;
+  }
+  
+  return {
+    score: Math.min(score, 1),
+    reason,
+  };
+}
+
+function extractRelevantSnippet(content: string, query: string, maxLength: number): string {
+  const queryLower = query.toLowerCase();
+  const contentLower = content.toLowerCase();
+  
+  // Find the first occurrence of any query word
+  const words = queryLower.split(/\s+/).filter(w => w.length > 3);
+  let bestIndex = -1;
+  
+  for (const word of words) {
+    const index = contentLower.indexOf(word);
+    if (index !== -1 && (bestIndex === -1 || index < bestIndex)) {
+      bestIndex = index;
+    }
+  }
+  
+  if (bestIndex === -1) {
+    // No match found, return beginning
+    return content.substring(0, maxLength) + (content.length > maxLength ? '...' : '');
+  }
+  
+  // Extract snippet around the match
+  const start = Math.max(0, bestIndex - 50);
+  const end = Math.min(content.length, bestIndex + maxLength - 50);
+  let snippet = content.substring(start, end);
+  
+  if (start > 0) snippet = '...' + snippet;
+  if (end < content.length) snippet = snippet + '...';
+  
+  return snippet;
+}
+
+// DETECT SELECTIONS
+// ==========================================
+const detectSelectionsRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/{id}/detect-selections',
+  summary: 'Detect Selections',
+  description: 'Trigger AI-based selection detection for a document',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'doc_abc123' }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: DetectSelectionsRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: DetectSelectionsResponseSchema,
+        },
+      },
+      description: 'Selections detected successfully',
+    },
+  },
+});
+documentsRouter.openapi(detectSelectionsRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  console.log(`[detect-selections] Starting detection for document ${id} with entity types:`, body.entityTypes);
+  
+  const document = await graphDb.getDocument(id);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Document not found' });
+  }
+  // Get document content from storage
+  const content = await storage.getDocument(id);
+  const contentStr = content.toString('utf-8');
+  
+  console.log(`[detect-selections] Document loaded, content length: ${contentStr.length}`);
+  
+  // Detect selections in the document
+  const detectedSelections = await detectSelectionsInDocument(
+    { ...document, content: contentStr },
+    body.entityTypes,
+    body.confidence || 0.7
+  );
+  
+  console.log(`[detect-selections] Detected ${detectedSelections.length} potential entity references`);
+  
+  // Actually create the selections in the database
+  const createdSelections = [];
+  for (const detection of detectedSelections) {
+    try {
+      console.log(`[detect-selections] Creating selection for text: "${detection.selection.selectionData.text}"`);
+      
+      // Create the selection as a stub reference (resolvedDocumentId: null)
+      const selectionData: any = {
+        documentId: id,
+        selectionType: detection.selection.selectionType,
+        selectionData: detection.selection.selectionData,
+        entityTypes: detection.selection.entityTypes,
+        provisional: true,
+        confidence: detection.selection.confidence,
+        metadata: detection.selection.metadata,
+      };
+      
+      // Only include resolvedDocumentId if we want a stub reference
+      // For entity references without a target, we include it as null
+      selectionData.resolvedDocumentId = null;
+      
+      const selection = await graphDb.createSelection(selectionData);
+      
+      createdSelections.push(selection);
+      console.log(`[detect-selections] Created selection ${selection.id}`);
+    } catch (err) {
+      console.error(`[detect-selections] Failed to create selection:`, err);
+    }
+  }
+  
+  console.log(`[detect-selections] Successfully created ${createdSelections.length} selections`);
+  
+  // Format the selections for response
+  const formattedSelections = createdSelections.map(sel => formatSelection(sel));
+  
+  return c.json({
+    selections: formattedSelections,
+    stats: {
+      total: formattedSelections.length,
+      byType: {},
+      averageConfidence: 0.85,
+    },
+  });
+});
+
+// GENERATE DOCUMENT FROM SELECTION
+// ==========================================
+const generateDocumentFromSelectionRoute = createRoute({
+  method: 'post',
+  path: '/api/selections/{id}/generate-document',
+  summary: 'Generate Document from Selection',
+  description: 'Use AI to generate a document from a selection/reference',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'sel_xyz789' }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            prompt: z.string().optional().openapi({
+              example: 'Generate a detailed explanation of this concept',
+              description: 'Optional prompt for AI generation'
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            document: z.any(),
+            selection: z.any(),
+          }),
+        },
+      },
+      description: 'Document generated successfully',
+    },
+  },
+});
+
+documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const user = c.get('user');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  // Get the selection
+  const selection = await graphDb.getSelection(id);
+  if (!selection) {
+    throw new HTTPException(404, { message: 'Selection not found' });
+  }
+  
+  // Generate content (stub implementation)
+  const generatedContent = await generateDocumentContent(
+    selection.selectionData?.text || 'Unknown Topic',
+    selection.entityTypes || [],
+    body.prompt
+  );
+  
+  // Create the document
+  // const checksum = calculateChecksum(generatedContent.content);  // Not used
+  const document: Document = {
+    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    name: generatedContent.title,
+    archived: false,
+    contentType: 'text/markdown',
+    metadata: {
+      aiGenerated: true,
+      generationPrompt: body.prompt,
+      sourceSelectionId: id,
+    },
+    entityTypes: selection.entityTypes || [],
+    
+    creationMethod: 'api' as const,  // Use 'api' instead of 'ai_generation'
+    sourceSelectionId: id,
+    sourceDocumentId: selection.documentId,
+    
+    createdBy: user.id,
+    updatedBy: user.id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  
+  const createInput: any = {
+    name: document.name,
+    entityTypes: document.entityTypes,
+    content: generatedContent.content,
+    contentType: document.contentType,
+    metadata: document.metadata,
+    createdBy: document.createdBy,
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
+  await storage.saveDocument(savedDoc.id, Buffer.from(generatedContent.content));
+  
+  // Update the selection to resolve to this document
+  const updatedSelection = await graphDb.updateSelection(id, {
+    resolvedDocumentId: savedDoc.id,
+    resolvedAt: new Date(),
+    resolvedBy: user.id,
+  });
+  
+  return c.json({
+    document: formatDocument(savedDoc),
+    selection: formatSelection(updatedSelection),
+  });
+});
+
+// Stub implementation for AI content generation
+async function generateDocumentContent(
+  topic: string,
+  entityTypes: string[],
+  prompt?: string
+): Promise<{ title: string; content: string }> {
+  // In real implementation, this would call an AI service
+  const title = topic;
+  const content = `# ${topic}
+
+${prompt ? `*Generated based on prompt: "${prompt}"*\n\n` : ''}
+
+## Overview
+
+This is an AI-generated document about **${topic}**.
+
+## Entity Types
+
+${entityTypes.length > 0 ? entityTypes.map(type => `- ${type}`).join('\n') : 'No specific entity types identified.'}
+
+## Description
+
+This document was automatically generated to provide information about ${topic}. 
+In a real implementation, this would contain AI-generated content based on:
+- The selection text: "${topic}"
+- Entity types: ${entityTypes.join(', ') || 'none'}
+- Custom prompt: ${prompt || 'none'}
+
+## Related Topics
+
+- Further research needed
+- Additional context required
+- Related entities to explore
+
+---
+*This is a stub implementation. In production, this would use an actual AI service to generate meaningful content.*
+`;
+  
+  return { title, content };
+}
+
+// CREATE DOCUMENT FROM SELECTION
+// ==========================================
+const createDocumentFromSelectionRoute = createRoute({
+  method: 'post',
+  path: '/api/selections/{id}/create-document',
+  summary: 'Create Document from Selection',
+  description: 'Create a new document and resolve a selection/reference to it',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'sel_xyz789' }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            name: z.string(),
+            content: z.string(),
+            contentType: z.string().optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            document: z.any(),
+            selection: z.any(),
+          }),
+        },
+      },
+      description: 'Document created and selection resolved',
+    },
+  },
+});
+
+documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const user = c.get('user');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  // Get the selection
+  const selection = await graphDb.getSelection(id);
+  if (!selection) {
+    throw new HTTPException(404, { message: 'Selection not found' });
+  }
+  
+  // Create the document
+  // const checksum = calculateChecksum(body.content);  // Not used
+  const document: Document = {
+    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    name: body.name,
+    archived: false,
+    contentType: body.contentType || 'text/markdown',
+    metadata: {},
+    entityTypes: selection.entityTypes || [],
+    
+    creationMethod: 'reference',
+    sourceSelectionId: id,
+    sourceDocumentId: selection.documentId,
+    
+    createdBy: user.id,
+    updatedBy: user.id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  
+  const createInput: any = {
+    name: document.name,
+    entityTypes: document.entityTypes,
+    content: body.content,
+    contentType: document.contentType,
+    metadata: document.metadata,
+    createdBy: document.createdBy,
+    creationMethod: document.creationMethod || 'api',
+  };
+  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
+  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
+  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
+  
+  const savedDoc = await graphDb.createDocument(createInput);
+  await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
+  
+  // Update the selection to resolve to this document
+  const updatedSelection = await graphDb.updateSelection(id, {
+    resolvedDocumentId: savedDoc.id,
+    resolvedAt: new Date(),
+    resolvedBy: user.id,
+  });
+  
+  return c.json({
+    document: formatDocument(savedDoc),
+    selection: formatSelection(updatedSelection),
+  }, 201);
+});
+
+// Format helpers
+function formatDocument(doc: Document): any {
   return {
     id: doc.id,
     name: doc.name,
-    entityTypes: doc.entityTypes,
-    content: content || '',
+    // checksum: doc.checksum,  // Document type doesn't have checksum
     contentType: doc.contentType,
     metadata: doc.metadata,
-    storageUrl: doc.storageUrl,
     archived: doc.archived || false,
+    entityTypes: doc.entityTypes || [],
     
-    // Provenance tracking
     creationMethod: doc.creationMethod,
-    contentChecksum: doc.contentChecksum || doc.metadata?.contentChecksum,
     sourceSelectionId: doc.sourceSelectionId,
     sourceDocumentId: doc.sourceDocumentId,
     
@@ -1418,32 +1412,109 @@ function formatSelection(sel: Selection): any {
 }
 
 
-// Dummy implementation for detecting selections in document
+// Implementation for detecting entity references in document
+// Version Zero: Detects proper nouns (capitalized word sequences)
 async function detectSelectionsInDocument(
   document: any,
-  _types: string[],
-  _confidence: number
+  entityTypes: string[],
+  confidence: number
 ): Promise<any[]> {
-  // Dummy implementation that detects:
-  // 1. [[wiki-style]] references
-  // 2. "lorem ipsum" (case insensitive)
-  // 3. "John Doe" (case insensitive)
-
+  console.log(`Detecting entities of types: ${entityTypes.join(', ')} with confidence >= ${confidence}`);
+  
   const detectedSelections = [];
 
   // Only process text content
   if (document.contentType === 'text/plain' || document.contentType === 'text/markdown') {
     const content = document.content;
     
-    // Pattern 1: Detect [[wiki-style]] references
-    const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
+    // Pattern for proper nouns: Capitalized word sequences
+    // Matches sequences of capitalized words (with optional spaces/hyphens between them)
+    // Stops at sentence endings (., !, ?), quotes, or markdown syntax
+    const properNounPattern = /\b([A-Z][a-z]*(?:[-\s]+[A-Z][a-z]*)*)/g;
+    
+    // Track already detected positions to avoid duplicates
+    const detectedPositions = new Set<string>();
+    
     let match;
+    while ((match = properNounPattern.exec(content)) !== null) {
+      const selectionText = match[0];
+      const offset = match.index;
+      const length = selectionText.length;
+      
+      // Skip if too short (single letter) or too long (probably not a proper noun)
+      if (selectionText.length < 2 || selectionText.length > 50) continue;
+      
+      // Skip if it's at the start of a sentence (check for preceding period/newline)
+      if (offset > 0) {
+        // const precedingChar = content[offset - 1];  // unused
+        const twoCharsBefore = offset > 1 ? content.substring(offset - 2, offset) : '';
+        // Skip if preceded by sentence ending + space (likely sentence start, not proper noun)
+        if (twoCharsBefore.match(/[.!?\n]\s$/)) continue;
+      }
+      
+      // Skip common words that are often capitalized but aren't entities
+      const skipWords = ['The', 'This', 'That', 'These', 'Those', 'There', 'Here', 'When', 'Where', 'What', 'Who', 'Why', 'How', 'If', 'Then', 'But', 'And', 'Or', 'Not', 'In', 'On', 'At', 'To', 'For', 'From', 'With', 'By', 'About', 'After', 'Before', 'During'];
+      if (skipWords.includes(selectionText)) continue;
+      
+      // Check if we already detected this position
+      const posKey = `${offset}-${offset + length}`;
+      if (detectedPositions.has(posKey)) continue;
+      detectedPositions.add(posKey);
+      
+      // Randomly select an entity type from the requested types
+      const randomEntityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
+      
+      const selection = {
+        selection: {
+          id: `sel_proper_${Math.random().toString(36).substring(2, 11)}`,
+          documentId: document.id,
+          selectionType: 'text_span',
+          selectionData: {
+            type: 'text_span',
+            offset,
+            length,
+            text: selectionText,
+          },
+          provisional: true,
+          confidence: confidence, // Use the provided confidence threshold
+          entityTypes: [randomEntityType],
+          metadata: {
+            detectionType: 'proper_noun',
+            pattern: 'Capitalized word sequence',
+            assignedEntityType: randomEntityType
+          },
+          createdAt: new Date().toISOString(),
+              },
+        suggestedResolutions: [
+          {
+            documentId: null, // Stub reference
+            documentName: selectionText,
+            entityTypes: [randomEntityType],
+            confidence: confidence,
+            reason: 'Proper noun detected',
+          }
+        ],
+      };
+      detectedSelections.push(selection);
+    }
+    
+    // Also detect wiki-style links as they're explicitly marked
+    const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
+    properNounPattern.lastIndex = 0; // Reset regex
     
     while ((match = wikiLinkPattern.exec(content)) !== null) {
       const selectionText = match[1];
       const offset = match.index;
       const length = match[0].length;
-
+      
+      // Check if we already detected this position
+      const posKey = `${offset}-${offset + length}`;
+      if (detectedPositions.has(posKey)) continue;
+      detectedPositions.add(posKey);
+      
+      // Randomly select an entity type
+      const randomEntityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
+      
       const selection = {
         selection: {
           id: `sel_wiki_${Math.random().toString(36).substring(2, 11)}`,
@@ -1456,104 +1527,22 @@ async function detectSelectionsInDocument(
             text: selectionText,
           },
           provisional: true,
-          confidence: 0.9,
+          confidence: 1.0, // Wiki links have high confidence
+          entityTypes: [randomEntityType],
           metadata: {
             detectionType: 'wiki_link',
-            pattern: '[[...]]'
+            pattern: '[[...]]',
+            assignedEntityType: randomEntityType
           },
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
+              },
         suggestedResolutions: [
           {
-            documentId: 'doc_suggested_' + Math.random().toString(36).substring(2, 11),
+            documentId: null,
             documentName: selectionText,
-            entityTypes: ['Topic'],
-            confidence: 0.75,
-            reason: 'Wiki-style link detected',
-          }
-        ],
-      };
-      detectedSelections.push(selection);
-    }
-
-    // Pattern 2: Detect "lorem ipsum" (case insensitive)
-    const loremPattern = /lorem\s+ipsum/gi;
-    while ((match = loremPattern.exec(content)) !== null) {
-      const offset = match.index;
-      const length = match[0].length;
-      const text = match[0];
-
-      const selection = {
-        selection: {
-          id: `sel_lorem_${Math.random().toString(36).substring(2, 11)}`,
-          documentId: document.id,
-          selectionType: 'text_span',
-          selectionData: {
-            type: 'text_span',
-            offset,
-            length,
-            text,
-          },
-          provisional: true,
-          confidence: 1.0,
-          entityTypes: ['Placeholder'],
-          metadata: {
-            detectionType: 'dummy_text',
-            pattern: 'lorem ipsum'
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        suggestedResolutions: [
-          {
-            documentId: 'doc_placeholder_text',
-            documentName: 'Placeholder Text',
-            entityTypes: ['Placeholder', 'Template'],
+            entityTypes: [randomEntityType],
             confidence: 1.0,
-            reason: 'Lorem ipsum placeholder text detected',
-          }
-        ],
-      };
-      detectedSelections.push(selection);
-    }
-
-    // Pattern 3: Detect "John Doe" (case insensitive)
-    const johnDoePattern = /john\s+doe/gi;
-    while ((match = johnDoePattern.exec(content)) !== null) {
-      const offset = match.index;
-      const length = match[0].length;
-      const text = match[0];
-
-      const selection = {
-        selection: {
-          id: `sel_person_${Math.random().toString(36).substring(2, 11)}`,
-          documentId: document.id,
-          selectionType: 'text_span',
-          selectionData: {
-            type: 'text_span',
-            offset,
-            length,
-            text,
-          },
-          provisional: true,
-          confidence: 0.95,
-          entityTypes: ['Person'],
-          metadata: {
-            detectionType: 'named_entity',
-            pattern: 'john doe',
-            entityType: 'person'
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        suggestedResolutions: [
-          {
-            documentId: 'doc_person_johndoe',
-            documentName: 'John Doe (Example Person)',
-            entityTypes: ['Person', 'Example'],
-            confidence: 0.95,
-            reason: 'Common placeholder name detected',
+            reason: 'Wiki-style link detected',
           }
         ],
       };
@@ -1564,436 +1553,4 @@ async function detectSelectionsInDocument(
   return detectedSelections;
 }
 
-// Generate natural language description of the graph schema
-function generateSchemaDescription(
-  stats: {
-    documentCount: number;
-    selectionCount: number;
-    highlightCount: number;
-    referenceCount: number;
-    entityReferenceCount: number;
-    entityTypes: Record<string, number>;
-    contentTypes: Record<string, number>;
-  },
-  entityStats: Array<{ type: string; count: number }>
-): string {
-  const lines: string[] = [];
-  
-  // Overview
-  lines.push(`The knowledge graph currently contains ${stats.documentCount} document${stats.documentCount !== 1 ? 's' : ''}.`);
-  
-  // Document types
-  if (Object.keys(stats.contentTypes).length > 0) {
-    const contentTypeList = Object.entries(stats.contentTypes)
-      .map(([type, count]) => `${count} ${type}`)
-      .join(', ');
-    lines.push(`Document formats include: ${contentTypeList}.`);
-  }
-  
-  // Selections
-  if (stats.selectionCount > 0) {
-    lines.push(`\nThere are ${stats.selectionCount} total selection${stats.selectionCount !== 1 ? 's' : ''} in the system:`);
-    
-    if (stats.highlightCount > 0) {
-      lines.push(`- ${stats.highlightCount} highlight${stats.highlightCount !== 1 ? 's' : ''} (important text marked for later reference)`);
-    }
-    
-    if (stats.referenceCount > 0) {
-      lines.push(`- ${stats.referenceCount} resolved reference${stats.referenceCount !== 1 ? 's' : ''} (text linked to specific documents)`);
-    }
-    
-    const provisionalCount = stats.selectionCount - stats.highlightCount - stats.referenceCount;
-    if (provisionalCount > 0) {
-      lines.push(`- ${provisionalCount} provisional selection${provisionalCount !== 1 ? 's' : ''} (detected but not yet confirmed)`);
-    }
-  } else {
-    lines.push(`\nNo selections have been made yet. Selections allow you to highlight important text, create references between documents, and build connections in your knowledge graph.`);
-  }
-  
-  // Entity types
-  if (entityStats.length > 0) {
-    lines.push(`\nThe graph organizes content using ${entityStats.length} entity type${entityStats.length !== 1 ? 's' : ''}:`);
-    
-    // Sort by count descending
-    const sortedTypes = [...entityStats].sort((a, b) => b.count - a.count);
-    const topTypes = sortedTypes.slice(0, 5);
-    
-    topTypes.forEach(stat => {
-      const percentage = stats.documentCount > 0 
-        ? Math.round((stat.count / stats.documentCount) * 100)
-        : 0;
-      lines.push(`- ${stat.type}: ${stat.count} document${stat.count !== 1 ? 's' : ''} (${percentage}%)`);
-    });
-    
-    if (sortedTypes.length > 5) {
-      lines.push(`- ... and ${sortedTypes.length - 5} more type${sortedTypes.length - 5 !== 1 ? 's' : ''}`);
-    }
-  } else {
-    lines.push(`\nNo entity types have been defined yet. Entity types help categorize and organize documents (e.g., Person, Topic, Concept, etc.).`);
-  }
-  
-  // Relationships
-  if (stats.referenceCount > 0) {
-    lines.push(`\nThe graph contains ${stats.referenceCount} connection${stats.referenceCount !== 1 ? 's' : ''} between documents through resolved references, creating a web of related information.`);
-  }
-  
-  // Summary
-  lines.push(`\nThis structure allows for semantic navigation, where you can traverse from one concept to related concepts through selections and references.`);
-  
-  return lines.join('\n');
-}
-
-// Describe what an entity type represents
-function describeEntityType(entityType: string, count: number): string {
-  // Common entity type descriptions
-  const descriptions: Record<string, string> = {
-    'Person': 'Represents individuals, including authors, historical figures, or any named person referenced in documents.',
-    'Topic': 'Represents subject areas, themes, or general topics of discussion.',
-    'Concept': 'Represents abstract ideas, theories, or conceptual frameworks.',
-    'Place': 'Represents geographical locations, from specific addresses to countries or regions.',
-    'Organization': 'Represents companies, institutions, groups, or any organized body.',
-    'Event': 'Represents historical events, meetings, conferences, or any time-bound occurrence.',
-    'Technology': 'Represents tools, software, hardware, or technological concepts.',
-    'Product': 'Represents physical or digital products, services, or offerings.',
-    'Author': 'Represents content creators, writers, or contributors to documents.',
-    'Reference': 'Represents bibliographic references, citations, or source materials.',
-    'Definition': 'Represents formal definitions or explanations of terms.',
-    'Example': 'Represents illustrative examples or case studies.',
-    'Placeholder': 'Represents template content or placeholder text (like Lorem ipsum).',
-    'Template': 'Represents document templates or reusable content structures.',
-  };
-  
-  const baseDescription = descriptions[entityType] || 
-    `Represents ${entityType.toLowerCase()} entities within the knowledge graph.`;
-  
-  const countInfo = count === 1 
-    ? 'Currently 1 document of this type.'
-    : `Currently ${count} documents of this type.`;
-  
-  return `${baseDescription} ${countInfo}`;
-}
-
-// Discover context from text (dummy implementation)
-async function discoverContextFromText(
-  text: string,
-  options: {
-    maxResults: number;
-    includeSelections: boolean;
-    entityTypeFilter?: string[];
-    confidenceThreshold: number;
-  },
-  graphDb: any
-): Promise<any> {
-  // Dummy entity detection
-  const detectedEntities = [];
-  const detectedTopics = [];
-  
-  // Simple pattern matching for dummy entities
-  const lowerText = text.toLowerCase();
-  
-  // Check for "John Doe" or similar names
-  if (lowerText.includes('john doe') || lowerText.includes('jane doe')) {
-    detectedEntities.push({
-      text: 'John Doe',
-      type: 'Person',
-      confidence: 0.95,
-    });
-  }
-  
-  // Check for Lorem ipsum
-  if (lowerText.includes('lorem ipsum')) {
-    detectedEntities.push({
-      text: 'Lorem Ipsum',
-      type: 'Placeholder',
-      confidence: 1.0,
-    });
-  }
-  
-  // Detect some dummy topics based on keywords
-  const topicKeywords = {
-    'quantum': 'Quantum Computing',
-    'computing': 'Computing',
-    'artificial intelligence': 'AI',
-    'machine learning': 'Machine Learning',
-    'blockchain': 'Blockchain',
-    'climate': 'Climate Change',
-    'technology': 'Technology',
-    'science': 'Science',
-  };
-  
-  for (const [keyword, topic] of Object.entries(topicKeywords)) {
-    if (lowerText.includes(keyword)) {
-      detectedTopics.push(topic);
-    }
-  }
-  
-  // Generate dummy relevant documents
-  const relevantDocuments = [];
-  const numDocs = Math.min(options.maxResults, 5);
-  
-  for (let i = 0; i < numDocs; i++) {
-    const matchTypes = ['entity_match', 'topic_match', 'text_similarity', 'semantic_similarity'];
-    const matchType = matchTypes[i % matchTypes.length];
-    
-    // Skip if doesn't match entity type filter
-    const docEntityTypes = ['Person', 'Topic', 'Concept', 'Technology'];
-    const entityTypes = options.entityTypeFilter 
-      ? docEntityTypes.filter(t => options.entityTypeFilter!.includes(t))
-      : docEntityTypes.slice(i % 2, (i % 2) + 2);
-    
-    if (entityTypes.length === 0) continue;
-    
-    const relevanceScore = 0.95 - (i * 0.1);
-    
-    if (relevanceScore >= options.confidenceThreshold) {
-      relevantDocuments.push({
-        id: `doc_match_${i}`,
-        name: `${detectedTopics[0] || 'Related Topic'} - Document ${i + 1}`,
-        entityTypes,
-        relevanceScore,
-        matchType,
-        snippet: `This document discusses ${detectedTopics[0] || 'various topics'} in detail. Lorem ipsum dolor sit amet...`,
-        matchedPhrases: detectedTopics.slice(0, 2).concat(detectedEntities.slice(0, 1).map(e => e.text)),
-      });
-    }
-  }
-  
-  // Generate dummy relevant selections
-  const relevantSelections = [];
-  
-  if (options.includeSelections) {
-    for (let i = 0; i < 3; i++) {
-      const relevanceScore = 0.85 - (i * 0.15);
-      
-      if (relevanceScore >= options.confidenceThreshold) {
-        const selection = {
-          id: `sel_match_${i}`,
-          documentId: relevantDocuments[i]?.id || `doc_${i}`,
-          documentName: relevantDocuments[i]?.name || `Document ${i + 1}`,
-          text: detectedEntities[0]?.text || detectedTopics[0] || 'Relevant text snippet',
-          selectionType: 'text_span',
-          relevanceScore,
-          matchReason: i === 0 ? 'exact_text_match' : i === 1 ? 'entity_co_occurrence' : 'topic_similarity',
-          resolvedDocument: undefined as any,
-        };
-        
-        // Add resolved document for some selections
-        if (i === 0 && detectedEntities.length > 0 && detectedEntities[0]) {
-          selection.resolvedDocument = {
-            id: 'doc_resolved_entity',
-            name: detectedEntities[0].text,
-            entityTypes: [detectedEntities[0].type],
-          };
-        }
-        
-        relevantSelections.push(selection);
-      }
-    }
-  }
-  
-  // Generate suggested connections
-  const suggestedConnections = [];
-  
-  if (detectedEntities.length > 0 && detectedEntities[0]) {
-    suggestedConnections.push({
-      type: 'create_reference',
-      confidence: 0.8,
-      description: `Create a reference to "${detectedEntities[0].text}" entity`,
-      targetDocumentId: 'doc_person_johndoe',
-      targetEntityType: detectedEntities[0].type,
-    });
-  }
-  
-  if (detectedTopics.length > 1) {
-    suggestedConnections.push({
-      type: 'link_topics',
-      confidence: 0.7,
-      description: `Link related topics: ${detectedTopics.slice(0, 2).join(' and ')}`,
-      targetEntityType: 'Topic',
-    });
-  }
-  
-  if (relevantDocuments.length > 0 && relevantDocuments[0] && relevantDocuments[0].relevanceScore > 0.9) {
-    suggestedConnections.push({
-      type: 'potential_duplicate',
-      confidence: relevantDocuments[0].relevanceScore,
-      description: `This text may be duplicate content of "${relevantDocuments[0].name}"`,
-      targetDocumentId: relevantDocuments[0].id,
-    });
-  }
-  
-  // Generate graph insights
-  const stats = await graphDb.getStats();
-  const relatedEntityTypes = Object.keys(stats.entityTypes)
-    .filter(type => !options.entityTypeFilter || options.entityTypeFilter.includes(type))
-    .slice(0, 5);
-  
-  const commonPatterns = [];
-  if (detectedEntities.some(e => e.type === 'Person')) {
-    commonPatterns.push('Person entities often link to Author or Organization documents');
-  }
-  if (detectedTopics.includes('Technology') || detectedTopics.includes('Computing')) {
-    commonPatterns.push('Technology topics frequently reference Product and Tool entities');
-  }
-  if (text.includes('[[') && text.includes(']]')) {
-    commonPatterns.push('Wiki-style links detected - these can be auto-resolved to existing documents');
-  }
-  
-  // Check for potential duplicates (dummy)
-  const potentialDuplicates = [];
-  if (text.length > 100) {
-    const firstWords = text.split(' ').slice(0, 5).join(' ').toLowerCase();
-    if (firstWords.includes('lorem ipsum')) {
-      potentialDuplicates.push({
-        text: 'Lorem ipsum dolor sit amet',
-        existingDocumentId: 'doc_placeholder_text',
-        similarity: 0.92,
-      });
-    }
-  }
-  
-  return {
-    query: {
-      text: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
-      detectedEntities,
-      detectedTopics,
-    },
-    relevantDocuments,
-    relevantSelections,
-    suggestedConnections,
-    graphInsights: {
-      relatedEntityTypes,
-      commonPatterns,
-      potentialDuplicates,
-    },
-  };
-}
-
-// Generate LLM context for a document and optional selection (dummy implementation)
-async function generateLLMContext(
-  document: Document,
-  content: string,
-  selection: Selection | null,
-  options: {
-    includeReferences: boolean;
-    includeSelections: boolean;
-    maxReferencedDocuments: number;
-    contextWindow: number;
-  },
-  graphDb: any
-): Promise<any> {
-  // Extract content snippet
-  const contentSnippet = content.length > 500 
-    ? content.substring(0, 500) + '...' 
-    : content;
-  
-  // Prepare selection context if provided
-  let selectionContext = null;
-  if (selection) {
-    const selData = selection.selectionData as any;
-    const offset = selData.offset || 0;
-    const length = selData.length || 0;
-    const selectionText = selData.text || content.substring(offset, offset + length);
-    
-    // Get surrounding context
-    const beforeStart = Math.max(0, offset - options.contextWindow);
-    const beforeText = content.substring(beforeStart, offset);
-    const afterEnd = Math.min(content.length, offset + length + options.contextWindow);
-    const afterText = content.substring(offset + length, afterEnd);
-    
-    selectionContext = {
-      id: selection.id,
-      text: selectionText,
-      type: selection.selectionType,
-      context: {
-        before: beforeStart > 0 ? '...' + beforeText : beforeText,
-        after: afterEnd < content.length ? afterText + '...' : afterText,
-      },
-      entityTypes: selection.entityTypes,
-      resolvedDocument: undefined as any,
-    };
-    
-    // Add resolved document info if available
-    if (selection.resolvedDocumentId) {
-      const resolvedDoc = await graphDb.getDocument(selection.resolvedDocumentId);
-      if (resolvedDoc) {
-        selectionContext.resolvedDocument = {
-          id: resolvedDoc.id,
-          name: resolvedDoc.name,
-          entityTypes: resolvedDoc.entityTypes,
-          snippet: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit...',
-        };
-      }
-    }
-  }
-  
-  // Generate dummy related documents
-  const relatedDocuments = [];
-  if (options.includeReferences) {
-    // Add some dummy related documents
-    for (let i = 0; i < Math.min(3, options.maxReferencedDocuments); i++) {
-      relatedDocuments.push({
-        id: `doc_related_${i}`,
-        name: `Related Document ${i + 1}`,
-        entityTypes: ['Topic', 'Concept'],
-        relationship: i === 0 ? 'directly_references' : 'shares_entity_type',
-        relevanceScore: 0.95 - (i * 0.1),
-        snippet: `This is a snippet from related document ${i + 1}. Lorem ipsum dolor sit amet...`,
-      });
-    }
-  }
-  
-  // Get selection statistics for the document
-  let selectionStats = {
-    totalInDocument: 0,
-    highlights: 0,
-    references: 0,
-  };
-  
-  if (options.includeSelections) {
-    const docSelections = await graphDb.getDocumentSelections(document.id);
-    selectionStats.totalInDocument = docSelections.length;
-    selectionStats.highlights = docSelections.filter((s: Selection) => !('resolvedDocumentId' in s)).length;
-    selectionStats.references = docSelections.filter((s: Selection) => s.resolvedDocumentId).length;
-  }
-  
-  // Get graph statistics
-  const stats = await graphDb.getStats();
-  
-  // Generate suggested prompt based on context
-  let suggestedPrompt = null;
-  if (selection) {
-    if (selection.resolvedDocumentId) {
-      suggestedPrompt = `Explain the relationship between "${(selection.selectionData as any).text}" and the referenced document.`;
-    } else if (selection.entityTypes && selection.entityTypes.length > 0) {
-      suggestedPrompt = `Provide more information about this ${selection.entityTypes[0]?.toLowerCase() || 'entity'}: "${(selection.selectionData as any).text}"`;
-    } else {
-      suggestedPrompt = `Analyze the selected text and suggest relevant connections or entity types.`;
-    }
-  } else {
-    suggestedPrompt = `Summarize the key concepts in this document and suggest potential connections to other topics.`;
-  }
-  
-  // Build the final context object
-  return {
-    document: {
-      id: document.id,
-      name: document.name,
-      entityTypes: document.entityTypes,
-      contentSnippet,
-      metadata: document.metadata,
-    },
-    selection: selectionContext,
-    relatedDocuments,
-    graphContext: {
-      totalDocuments: stats.documentCount,
-      documentConnections: stats.referenceCount,
-      commonEntityTypes: Object.entries(stats.entityTypes)
-        .sort(([, a], [, b]) => (b as number) - (a as number))
-        .slice(0, 5)
-        .map(([type]) => type),
-      selectionStats,
-    },
-    suggestedPrompt,
-  };
-}
+export default documentsRouter;
