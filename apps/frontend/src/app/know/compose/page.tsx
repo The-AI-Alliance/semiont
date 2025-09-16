@@ -21,6 +21,7 @@ function ComposeDocumentContent() {
   const nameFromUrl = searchParams?.get('name');
   const entityTypesFromUrl = searchParams?.get('entityTypes');
   const referenceTypeFromUrl = searchParams?.get('referenceType');
+  const shouldGenerate = searchParams?.get('generate') === 'true';
   
   const [newDocName, setNewDocName] = useState('');
   const [newDocContent, setNewDocContent] = useState('');
@@ -31,6 +32,70 @@ function ComposeDocumentContent() {
   const [cloneToken, setCloneToken] = useState<string | null>(null);
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
+  
+  // Generate dummy AI content
+  const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
+    setIsGenerating(true);
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Generate dummy content based on the document name and entity types
+    const entityTypesList = entityTypes.length > 0 
+      ? `\n\n## Entity Types\n${entityTypes.map(type => `- ${type}`).join('\n')}` 
+      : '';
+    
+    const referenceInfo = referenceType 
+      ? `\n\n## Reference Type\nThis document ${referenceType} the source document.` 
+      : '';
+    
+    const content = `# ${documentName}
+
+## Overview
+This document provides comprehensive information about ${documentName}. It has been generated based on the reference context and entity types provided.
+
+## Description
+${documentName} represents a key concept in the knowledge base. This document serves as a definitive reference for understanding its various aspects and relationships with other concepts.${entityTypesList}${referenceInfo}
+
+## Key Points
+- Primary characteristic of ${documentName}
+- Relationship to other concepts in the knowledge base
+- Important implications and applications
+- Historical context and development
+
+## Details
+### Background
+The concept of ${documentName} has evolved significantly over time. Understanding its origins helps in grasping its current relevance and future potential.
+
+### Current Understanding
+In the current context, ${documentName} is understood to encompass several important aspects:
+1. First major aspect
+2. Second major aspect
+3. Third major aspect
+
+### Applications
+${documentName} finds applications in various domains:
+- Domain 1: Description of application
+- Domain 2: Description of application
+- Domain 3: Description of application
+
+## Related Concepts
+- Related concept 1
+- Related concept 2
+- Related concept 3
+
+## Conclusion
+This document provides a foundation for understanding ${documentName}. As knowledge evolves, this document will be updated to reflect new insights and connections.
+
+---
+*This content was generated automatically based on the reference context. Please review and edit as needed.*`;
+    
+    setNewDocContent(content);
+    setIsGenerating(false);
+    setHasGenerated(true);
+  };
   
   // Load cloned document data if in clone mode or pre-fill reference completion data
   useEffect(() => {
@@ -39,9 +104,17 @@ function ComposeDocumentContent() {
       if (referenceId && sourceDocumentId && nameFromUrl) {
         setIsReferenceCompletion(true);
         setNewDocName(nameFromUrl);
-        if (entityTypesFromUrl) {
-          setSelectedEntityTypes(entityTypesFromUrl.split(','));
+        const entityTypes = entityTypesFromUrl ? entityTypesFromUrl.split(',') : [];
+        if (entityTypes.length > 0) {
+          setSelectedEntityTypes(entityTypes);
         }
+        
+        // Generate content if requested and not already generated
+        if (shouldGenerate && !hasGenerated) {
+          await generateContent(nameFromUrl, entityTypes, referenceTypeFromUrl || undefined);
+          showSuccess('Content generated! You can now edit it before saving.');
+        }
+        
         setIsLoading(false);
         return;
       }
@@ -76,7 +149,8 @@ function ComposeDocumentContent() {
     };
     
     loadInitialData();
-  }, [mode, tokenFromUrl, router, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, showError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, tokenFromUrl, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, hasGenerated]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +219,9 @@ function ComposeDocumentContent() {
     return (
       <div className="px-4 py-8">
         <div className="flex items-center justify-center py-20">
-          <p className="text-gray-600 dark:text-gray-300">Loading cloned document...</p>
+          <p className="text-gray-600 dark:text-gray-300">
+            {isGenerating ? 'Generating content...' : 'Loading cloned document...'}
+          </p>
         </div>
       </div>
     );
@@ -162,13 +238,14 @@ function ComposeDocumentContent() {
           {isClone 
             ? 'Review and edit your cloned document before saving'
             : isReferenceCompletion
-            ? 'Create a document to complete the reference you started'
+            ? shouldGenerate ? 'AI-generated content has been created for your reference' : 'Create a document to complete the reference you started'
             : 'Start a new document in your knowledge base'}
         </p>
         {isReferenceCompletion && (
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
             <p className="text-sm text-blue-700 dark:text-blue-300">
               This document will be linked to the reference you created.
+              {shouldGenerate && ' The content below was generated automatically.'}
             </p>
           </div>
         )}
