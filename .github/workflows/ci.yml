@@ -29,6 +29,14 @@ jobs:
           npm run build:packages
           cd apps/cli && npm run build && npm link
 
+      - name: Run frontend type check
+        run: |
+          echo "Running frontend TypeScript type check..."
+          cd apps/frontend
+          npm run typecheck
+        env:
+          CI: true
+
       - name: Run frontend tests
         run: |
           echo "Running frontend unit tests..."
@@ -72,6 +80,14 @@ jobs:
           npm install
           npm run build:packages
           cd apps/cli && npm run build && npm link
+
+      - name: Run backend type check
+        run: |
+          echo "Running backend TypeScript type check..."
+          cd apps/backend
+          npm run typecheck
+        env:
+          CI: true
 
       - name: Run backend tests
         run: |
