@@ -1553,4 +1553,525 @@ async function detectSelectionsInDocument(
   return detectedSelections;
 }
 
+// LLM CONTEXT FOR DOCUMENT
+// ==========================================
+const getDocumentLLMContextRoute = createRoute({
+  method: 'get',
+  path: '/api/documents/{id}/llm-context',
+  summary: 'Get LLM Context for Document',
+  description: 'Get comprehensive context about a document optimized for LLM consumption',
+  tags: ['Documents'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'doc_abc123' }),
+    }),
+    query: z.object({
+      includeContent: z.coerce.boolean().default(true).openapi({
+        description: 'Include full document content'
+      }),
+      includeSelections: z.coerce.boolean().default(true).openapi({
+        description: 'Include highlights and references within the document'
+      }),
+      includeIncomingRefs: z.coerce.boolean().default(true).openapi({
+        description: 'Include references from other documents'
+      }),
+      includeRelated: z.coerce.boolean().default(true).openapi({
+        description: 'Include related documents based on entity types and content'
+      }),
+      maxRelated: z.coerce.number().min(1).max(10).default(5).openapi({
+        description: 'Maximum number of related documents to include'
+      }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            document: z.object({
+              id: z.string(),
+              name: z.string(),
+              entityTypes: z.array(z.string()),
+              metadata: z.any(),
+              archived: z.boolean(),
+              createdAt: z.string(),
+              updatedAt: z.string(),
+            }),
+            content: z.string().optional(),
+            contentSummary: z.string().openapi({
+              description: 'Brief summary of document content'
+            }),
+            statistics: z.object({
+              wordCount: z.number(),
+              highlightCount: z.number(),
+              referenceCount: z.number(),
+              stubReferenceCount: z.number(),
+              incomingReferenceCount: z.number(),
+            }),
+            selections: z.object({
+              highlights: z.array(z.object({
+                id: z.string(),
+                text: z.string(),
+                offset: z.number(),
+                length: z.number(),
+              })).optional(),
+              references: z.array(z.object({
+                id: z.string(),
+                text: z.string(),
+                offset: z.number(),
+                length: z.number(),
+                targetDocumentId: z.string().nullable(),
+                targetDocumentName: z.string().nullable(),
+                referenceType: z.string().optional(),
+                entityTypes: z.array(z.string()).optional(),
+                isStub: z.boolean(),
+              })).optional(),
+            }),
+            incomingReferences: z.array(z.object({
+              sourceDocumentId: z.string(),
+              sourceDocumentName: z.string(),
+              selectionText: z.string(),
+              referenceType: z.string().optional(),
+            })).optional(),
+            relatedDocuments: z.array(z.object({
+              id: z.string(),
+              name: z.string(),
+              entityTypes: z.array(z.string()),
+              relevanceScore: z.number(),
+              relationshipType: z.string().openapi({
+                description: 'How this document relates (entity_match, content_similarity, co_referenced, etc.)'
+              }),
+            })).optional(),
+            graphContext: z.object({
+              directConnections: z.number(),
+              secondDegreeConnections: z.number(),
+              centralityScore: z.number().optional(),
+              clusters: z.array(z.string()).optional(),
+            }),
+          }),
+        },
+      },
+      description: 'LLM context retrieved successfully',
+    },
+  },
+});
+
+documentsRouter.openapi(getDocumentLLMContextRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  // Get document
+  const document = await graphDb.getDocument(id);
+  if (!document) {
+    throw new HTTPException(404, { message: 'Document not found' });
+  }
+  
+  // Get content
+  let content: string | undefined;
+  let wordCount = 0;
+  if (query.includeContent) {
+    const contentBuffer = await storage.getDocument(id);
+    content = contentBuffer.toString('utf-8');
+    wordCount = content.split(/\s+/).length;
+  }
+  
+  // Get selections
+  let highlights: any[] = [];
+  let references: any[] = [];
+  let stubReferenceCount = 0;
+  
+  if (query.includeSelections) {
+    highlights = await graphDb.getHighlights(id);
+    references = await graphDb.getReferences(id);
+    
+    // Count stub references
+    stubReferenceCount = references.filter(ref => !ref.resolvedDocumentId).length;
+    
+    // Enhance references with target document names
+    for (const ref of references) {
+      if (ref.resolvedDocumentId) {
+        const targetDoc = await graphDb.getDocument(ref.resolvedDocumentId);
+        ref.targetDocumentName = targetDoc?.name || null;
+      }
+      ref.isStub = !ref.resolvedDocumentId;
+    }
+  }
+  
+  // Get incoming references
+  let incomingReferences: any[] = [];
+  if (query.includeIncomingRefs) {
+    // Get all references and filter for those pointing to this document
+    const allReferences = (await graphDb.listSelections({})).selections;
+    const incoming = allReferences.filter(ref => 
+      ref.selectionType === 'reference' && ref.resolvedDocumentId === id
+    );
+    
+    for (const ref of incoming) {
+      const sourceDoc = await graphDb.getDocument(ref.documentId);
+      incomingReferences.push({
+        sourceDocumentId: ref.documentId,
+        sourceDocumentName: sourceDoc?.name || 'Unknown',
+        selectionText: ref.selectionData?.text || '',
+        referenceType: ref.referenceTags?.[0] || 'mentions',
+      });
+    }
+  }
+  
+  // Get related documents
+  let relatedDocuments: any[] = [];
+  if (query.includeRelated && document.entityTypes && document.entityTypes.length > 0) {
+    const allDocs = await graphDb.listDocuments({});
+    
+    // Find documents with matching entity types
+    for (const doc of allDocs.documents) {
+      if (doc.id === id) continue;
+      
+      const sharedEntities = doc.entityTypes?.filter(e => 
+        document.entityTypes?.includes(e)
+      ) || [];
+      
+      if (sharedEntities.length > 0) {
+        relatedDocuments.push({
+          id: doc.id,
+          name: doc.name,
+          entityTypes: doc.entityTypes || [],
+          relevanceScore: sharedEntities.length / (document.entityTypes?.length || 1),
+          relationshipType: 'entity_match',
+        });
+      }
+    }
+    
+    // Sort by relevance and limit
+    relatedDocuments.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    relatedDocuments = relatedDocuments.slice(0, query.maxRelated);
+  }
+  
+  // Generate content summary
+  const contentSummary = content 
+    ? content.substring(0, 200).replace(/\n+/g, ' ').trim() + '...'
+    : 'No content available';
+  
+  // Graph context (simplified for stub)
+  const graphContext = {
+    directConnections: references.length + incomingReferences.length,
+    secondDegreeConnections: relatedDocuments.length,
+    centralityScore: undefined, // Would calculate in real implementation
+    clusters: document.entityTypes,
+  };
+  
+  return c.json({
+    document: {
+      id: document.id,
+      name: document.name,
+      entityTypes: document.entityTypes || [],
+      metadata: document.metadata || {},
+      archived: document.archived || false,
+      createdAt: document.createdAt instanceof Date ? document.createdAt.toISOString() : document.createdAt,
+      updatedAt: document.updatedAt instanceof Date ? document.updatedAt.toISOString() : document.updatedAt,
+    },
+    ...(query.includeContent && { content }),
+    contentSummary,
+    statistics: {
+      wordCount,
+      highlightCount: highlights.length,
+      referenceCount: references.length,
+      stubReferenceCount,
+      incomingReferenceCount: incomingReferences.length,
+    },
+    selections: query.includeSelections ? {
+      highlights: highlights.map(h => ({
+        id: h.id,
+        text: h.selectionData?.text || '',
+        offset: h.selectionData?.offset || 0,
+        length: h.selectionData?.length || 0,
+      })),
+      references: references.map(r => ({
+        id: r.id,
+        text: r.selectionData?.text || '',
+        offset: r.selectionData?.offset || 0,
+        length: r.selectionData?.length || 0,
+        targetDocumentId: r.resolvedDocumentId || null,
+        targetDocumentName: r.targetDocumentName || null,
+        referenceType: r.referenceTags?.[0] || undefined,
+        entityTypes: r.entityTypes || undefined,
+        isStub: r.isStub,
+      })),
+    } : {},
+    ...(query.includeIncomingRefs && { incomingReferences }),
+    ...(query.includeRelated && { relatedDocuments }),
+    graphContext,
+  });
+});
+
+// LLM CONTEXT FOR REFERENCE
+// ==========================================
+const getReferenceLLMContextRoute = createRoute({
+  method: 'get',
+  path: '/api/references/{id}/llm-context',
+  summary: 'Get LLM Context for Reference',
+  description: 'Get comprehensive context about a reference/selection optimized for LLM consumption',
+  tags: ['Selections'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'sel_xyz789' }),
+    }),
+    query: z.object({
+      contextWindow: z.coerce.number().min(100).max(1000).default(300).openapi({
+        description: 'Characters of surrounding context to include'
+      }),
+      includeRelatedRefs: z.coerce.boolean().default(true).openapi({
+        description: 'Include other references with similar entity types'
+      }),
+      includeTargetDoc: z.coerce.boolean().default(true).openapi({
+        description: 'Include full target document if reference is resolved'
+      }),
+      maxRelated: z.coerce.number().min(1).max(10).default(5).openapi({
+        description: 'Maximum number of related references to include'
+      }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            reference: z.object({
+              id: z.string(),
+              text: z.string(),
+              type: z.string(),
+              entityTypes: z.array(z.string()).optional(),
+              referenceType: z.string().optional(),
+              isStub: z.boolean(),
+            }),
+            sourceContext: z.object({
+              documentId: z.string(),
+              documentName: z.string(),
+              documentEntityTypes: z.array(z.string()),
+              surroundingText: z.string(),
+              beforeText: z.string(),
+              afterText: z.string(),
+              offset: z.number(),
+            }),
+            targetContext: z.object({
+              exists: z.boolean(),
+              documentId: z.string().nullable(),
+              documentName: z.string().nullable(),
+              content: z.string().optional(),
+              entityTypes: z.array(z.string()).optional(),
+              suggestedName: z.string().optional(),
+              suggestedEntityTypes: z.array(z.string()).optional(),
+            }),
+            relatedReferences: z.array(z.object({
+              id: z.string(),
+              text: z.string(),
+              documentId: z.string(),
+              documentName: z.string(),
+              entityTypes: z.array(z.string()).optional(),
+              similarityScore: z.number(),
+              similarityReason: z.string(),
+            })).optional(),
+            generationContext: z.object({
+              suggestedContent: z.object({
+                title: z.string(),
+                summary: z.string(),
+                keyPoints: z.array(z.string()),
+                relatedConcepts: z.array(z.string()),
+              }),
+              contentGuidelines: z.array(z.string()),
+              recommendedStructure: z.array(z.string()),
+            }),
+            knowledgeGraphContext: z.object({
+              connectedEntities: z.array(z.string()),
+              domainClusters: z.array(z.string()),
+              semanticDistance: z.number().optional(),
+            }),
+          }),
+        },
+      },
+      description: 'Reference LLM context retrieved successfully',
+    },
+  },
+});
+
+documentsRouter.openapi(getReferenceLLMContextRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
+  
+  // Get the reference/selection
+  const selection = await graphDb.getSelection(id);
+  if (!selection) {
+    throw new HTTPException(404, { message: 'Reference not found' });
+  }
+  
+  const isReference = selection.selectionType === 'reference';
+  const isStub = isReference && !selection.resolvedDocumentId;
+  
+  // Get source document
+  const sourceDoc = await graphDb.getDocument(selection.documentId);
+  if (!sourceDoc) {
+    throw new HTTPException(404, { message: 'Source document not found' });
+  }
+  
+  // Get source content and extract surrounding context
+  const sourceContent = await storage.getDocument(selection.documentId);
+  const contentStr = sourceContent.toString('utf-8');
+  
+  const offset = selection.selectionData?.offset || 0;
+  const length = selection.selectionData?.length || 0;
+  const beforeStart = Math.max(0, offset - query.contextWindow);
+  const afterEnd = Math.min(contentStr.length, offset + length + query.contextWindow);
+  
+  const beforeText = contentStr.substring(beforeStart, offset);
+  const afterText = contentStr.substring(offset + length, afterEnd);
+  const surroundingText = contentStr.substring(beforeStart, afterEnd);
+  
+  // Get target context if reference is resolved
+  let targetContext: any = {
+    exists: false,
+    documentId: null,
+    documentName: null,
+    suggestedName: selection.selectionData?.text || 'New Document',
+    suggestedEntityTypes: selection.entityTypes || [],
+  };
+  
+  if (selection.resolvedDocumentId) {
+    const targetDoc = await graphDb.getDocument(selection.resolvedDocumentId);
+    if (targetDoc) {
+      targetContext = {
+        exists: true,
+        documentId: targetDoc.id,
+        documentName: targetDoc.name,
+        entityTypes: targetDoc.entityTypes || [],
+      };
+      
+      if (query.includeTargetDoc) {
+        const targetContent = await storage.getDocument(targetDoc.id);
+        targetContext.content = targetContent.toString('utf-8');
+      }
+    }
+  }
+  
+  // Get related references
+  let relatedReferences: any[] = [];
+  if (query.includeRelatedRefs) {
+    const allSelections = (await graphDb.listSelections({})).selections;
+    
+    for (const sel of allSelections) {
+      if (sel.id === id) continue;
+      if (sel.selectionType !== 'reference') continue;
+      
+      // Calculate similarity based on entity types and text
+      let similarityScore = 0;
+      let similarityReason = '';
+      
+      // Check entity type overlap
+      if (selection.entityTypes && sel.entityTypes) {
+        const sharedEntities = sel.entityTypes.filter(e => 
+          selection.entityTypes?.includes(e)
+        );
+        if (sharedEntities.length > 0) {
+          similarityScore += sharedEntities.length * 0.3;
+          similarityReason = 'shared_entities';
+        }
+      }
+      
+      // Check text similarity (simple approach)
+      if (selection.selectionData?.text && sel.selectionData?.text) {
+        const text1 = selection.selectionData.text.toLowerCase();
+        const text2 = sel.selectionData.text.toLowerCase();
+        if (text1.includes(text2) || text2.includes(text1)) {
+          similarityScore += 0.5;
+          similarityReason = similarityReason ? 'shared_entities_and_text' : 'text_similarity';
+        }
+      }
+      
+      if (similarityScore > 0) {
+        const relDoc = await graphDb.getDocument(sel.documentId);
+        relatedReferences.push({
+          id: sel.id,
+          text: sel.selectionData?.text || '',
+          documentId: sel.documentId,
+          documentName: relDoc?.name || 'Unknown',
+          entityTypes: sel.entityTypes,
+          similarityScore,
+          similarityReason,
+        });
+      }
+    }
+    
+    // Sort by similarity and limit
+    relatedReferences.sort((a, b) => b.similarityScore - a.similarityScore);
+    relatedReferences = relatedReferences.slice(0, query.maxRelated);
+  }
+  
+  // Generate content suggestions for stub references
+  const generationContext = {
+    suggestedContent: {
+      title: selection.selectionData?.text || 'New Document',
+      summary: `This document provides information about ${selection.selectionData?.text || 'the selected topic'}.`,
+      keyPoints: [
+        `Definition and overview of ${selection.selectionData?.text}`,
+        'Historical context and development',
+        'Current applications and relevance',
+        'Related concepts and connections',
+      ],
+      relatedConcepts: relatedReferences.map(r => r.text).slice(0, 5),
+    },
+    contentGuidelines: [
+      'Start with a clear definition',
+      'Provide context from the source document',
+      'Include relevant entity types',
+      'Connect to existing knowledge in the graph',
+    ],
+    recommendedStructure: [
+      'Overview',
+      'Description',
+      'Key Concepts',
+      'Relationships',
+      'Applications',
+      'References',
+    ],
+  };
+  
+  // Knowledge graph context
+  const knowledgeGraphContext = {
+    connectedEntities: [
+      ...(sourceDoc.entityTypes || []),
+      ...(selection.entityTypes || []),
+    ].filter((v, i, a) => a.indexOf(v) === i), // unique
+    domainClusters: sourceDoc.entityTypes || [],
+    semanticDistance: undefined, // Would calculate in real implementation
+  };
+  
+  return c.json({
+    reference: {
+      id: selection.id,
+      text: selection.selectionData?.text || '',
+      type: selection.selectionType,
+      entityTypes: selection.entityTypes,
+      referenceType: selection.referenceTags?.[0],
+      isStub,
+    },
+    sourceContext: {
+      documentId: sourceDoc.id,
+      documentName: sourceDoc.name,
+      documentEntityTypes: sourceDoc.entityTypes || [],
+      surroundingText,
+      beforeText,
+      afterText,
+      offset,
+    },
+    targetContext,
+    ...(query.includeRelatedRefs && { relatedReferences }),
+    generationContext,
+    knowledgeGraphContext,
+  });
+});
+
 export default documentsRouter;
