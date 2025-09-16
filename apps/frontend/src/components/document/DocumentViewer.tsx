@@ -12,14 +12,14 @@ import type { Document as SemiontDocument } from '@/lib/api-client';
 interface Props {
   document: SemiontDocument;
   onWikiLinkClick?: (pageName: string) => void;
-  annotateMode?: boolean;
+  curationMode?: boolean;
 }
 
-export function DocumentViewer({ document, onWikiLinkClick, annotateMode = false }: Props) {
+export function DocumentViewer({ document, onWikiLinkClick, curationMode = false }: Props) {
   const router = useRouter();
   
   // Use prop directly instead of internal state
-  const activeView = annotateMode ? 'annotate' : 'browse';
+  const activeView = curationMode ? 'annotate' : 'browse';
   const {
     highlights,
     references,
