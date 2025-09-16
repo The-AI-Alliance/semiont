@@ -291,7 +291,7 @@ export default function KnowledgeDocumentPage() {
               } w-full`}
               title="Toggle global curation mode"
             >
-              {curationMode ? '✏️ Curation Mode ON' : '👁️ View Mode'}
+              {curationMode ? '✏️ Curation Mode ON' : '👁️ Curation Mode OFF'}
             </button>
           </div>
 

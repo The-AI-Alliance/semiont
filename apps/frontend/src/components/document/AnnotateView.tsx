@@ -182,9 +182,15 @@ export function AnnotateView({
               return <span key={`${segment.start}-${segment.end}`}>{segment.text}</span>;
             }
             
+            const isReference = segment.annotation.type === 'reference';
+            const hasTarget = segment.annotation.referencedDocumentId;
+            const isStubReference = isReference && !hasTarget;
+            
             const hoverText = segment.annotation.type === 'highlight'
               ? 'Right-click to delete or convert to reference'
-              : segment.annotation.referencedDocumentId
+              : isStubReference
+                ? 'Click to create referenced document • Right-click for options'
+                : hasTarget
                 ? 'Click to navigate • Right-click for options'
                 : 'Right-click for options';
             
