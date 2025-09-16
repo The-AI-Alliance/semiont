@@ -81,6 +81,14 @@ jobs:
           npm run build:packages
           cd apps/cli && npm run build && npm link
 
+      - name: Generate Prisma Client
+        run: |
+          echo "Generating Prisma client for backend..."
+          cd apps/backend
+          npx prisma generate
+        env:
+          CI: true
+
       - name: Run backend type check
         run: |
           echo "Running backend TypeScript type check..."
@@ -185,6 +193,14 @@ jobs:
           npm install
           npm run build:packages
           cd apps/cli && npm run build && npm link
+
+      - name: Generate Prisma Client
+        run: |
+          echo "Generating Prisma client for backend..."
+          cd apps/backend
+          npx prisma generate
+        env:
+          CI: true
 
       - name: Run comprehensive test suite
         run: |
