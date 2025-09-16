@@ -72,8 +72,8 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     sourceDocumentId: body.sourceDocumentId || undefined,
     contentChecksum: checksum,
     
-    createdBy: user?.id || 'anonymous',
-    updatedBy: user?.id || 'anonymous',
+    createdBy: user.id,
+    updatedBy: user.id,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -84,7 +84,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     content: body.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy || 'anonymous',
+    createdBy: document.createdBy,
     creationMethod: document.creationMethod || 'api',
   };
   if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
@@ -299,7 +299,7 @@ documentsRouter.openapi(updateDocumentRoute, async (c) => {
   }
   
   const updateData: UpdateDocumentInput = {
-    updatedBy: user?.id || 'anonymous'
+    updatedBy: user.id
   };
   if (body.name !== undefined) updateData.name = body.name;
   if (body.entityTypes !== undefined) updateData.entityTypes = body.entityTypes;
@@ -611,8 +611,8 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
     creationMethod: 'clone',
     sourceDocumentId: tokenData.documentId,
     
-    createdBy: user?.id || 'anonymous',
-    updatedBy: user?.id || 'anonymous',
+    createdBy: user.id,
+    updatedBy: user.id,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -623,7 +623,7 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
     content: body.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy || 'anonymous',
+    createdBy: document.createdBy,
     creationMethod: document.creationMethod || 'api',
   };
   if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
@@ -637,7 +637,7 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   if (body.archiveOriginal) {
     await graphDb.updateDocument(tokenData.documentId, {
       archived: true,
-      updatedBy: user?.id || 'anonymous',
+      updatedBy: user.id,
       });
   }
   
@@ -1194,8 +1194,8 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     sourceSelectionId: id,
     sourceDocumentId: selection.documentId,
     
-    createdBy: user?.id || 'anonymous',
-    updatedBy: user?.id || 'anonymous',
+    createdBy: user.id,
+    updatedBy: user.id,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -1206,7 +1206,7 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     content: generatedContent.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy || 'anonymous',
+    createdBy: document.createdBy,
     creationMethod: document.creationMethod || 'api',
   };
   if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
@@ -1220,7 +1220,7 @@ documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   const updatedSelection = await graphDb.updateSelection(id, {
     resolvedDocumentId: savedDoc.id,
     resolvedAt: new Date(),
-    resolvedBy: user?.id || 'anonymous',
+    resolvedBy: user.id,
   });
   
   return c.json({
@@ -1338,8 +1338,8 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     sourceSelectionId: id,
     sourceDocumentId: selection.documentId,
     
-    createdBy: user?.id || 'anonymous',
-    updatedBy: user?.id || 'anonymous',
+    createdBy: user.id,
+    updatedBy: user.id,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -1350,7 +1350,7 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     content: body.content,
     contentType: document.contentType,
     metadata: document.metadata,
-    createdBy: document.createdBy || 'anonymous',
+    createdBy: document.createdBy,
     creationMethod: document.creationMethod || 'api',
   };
   if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
@@ -1364,7 +1364,7 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   const updatedSelection = await graphDb.updateSelection(id, {
     resolvedDocumentId: savedDoc.id,
     resolvedAt: new Date(),
-    resolvedBy: user?.id || 'anonymous',
+    resolvedBy: user.id,
   });
   
   return c.json({
