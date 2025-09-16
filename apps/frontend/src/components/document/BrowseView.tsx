@@ -57,14 +57,24 @@ function applyAnnotations(
     const className = annotationStyles.getAnnotationStyle(annotation);
     const isReference = annotation.type === 'reference';
     const hasTarget = annotation.referencedDocumentId;
+    const isStubReference = isReference && !hasTarget;
     
     segments.push(
       <span
         key={`ann-${annotation.id}`}
         className={className}
-        onClick={() => isReference && onAnnotationClick?.(annotation)}
-        title={isReference ? (hasTarget ? 'Click to navigate to referenced document' : 'Click to create referenced document') : 'Highlight'}
-        style={{ cursor: isReference ? 'pointer' : 'default' }}
+        onClick={() => isReference && hasTarget && onAnnotationClick?.(annotation)}
+        title={
+          isStubReference 
+            ? 'Reference to a document that doesn\'t exist yet. Switch to curation mode to create it.'
+            : isReference 
+            ? 'Click to navigate to referenced document' 
+            : 'Highlight'
+        }
+        style={{ 
+          cursor: isReference && hasTarget ? 'pointer' : 'default',
+          opacity: isStubReference ? 0.7 : 1
+        }}
       >
         {text.slice(start, end)}
       </span>

@@ -69,29 +69,36 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       return;
     }
     
-    // If it's a reference WITHOUT a target document (stub), show modal
+    // If it's a reference WITHOUT a target document (stub)
     if (annotation.type === 'reference' && !annotation.referencedDocumentId) {
-      setStubReferenceModal({ isOpen: true, annotation });
+      // Only show modal in curation mode
+      if (curationMode) {
+        setStubReferenceModal({ isOpen: true, annotation });
+      }
+      // In view mode, do nothing (handled by CSS/hover text)
       return;
     }
     
     // Otherwise, show the editing popup (for highlights or editing existing references)
-    setEditingAnnotation({
-      id: annotation.id,
-      type: annotation.type,
-      referencedDocumentId: annotation.referencedDocumentId,
-      referenceType: annotation.referenceType,
-      entityType: annotation.entityType
-    });
-    setSelectedText(annotation.selectionData?.text || '');
-    if (annotation.selectionData) {
-      setSelectionPosition({ 
-        start: annotation.selectionData.offset, 
-        end: annotation.selectionData.offset + annotation.selectionData.length 
+    // Only in curation mode
+    if (curationMode) {
+      setEditingAnnotation({
+        id: annotation.id,
+        type: annotation.type,
+        referencedDocumentId: annotation.referencedDocumentId,
+        referenceType: annotation.referenceType,
+        entityType: annotation.entityType
       });
+      setSelectedText(annotation.selectionData?.text || '');
+      if (annotation.selectionData) {
+        setSelectionPosition({ 
+          start: annotation.selectionData.offset, 
+          end: annotation.selectionData.offset + annotation.selectionData.length 
+        });
+      }
+      setShowSelectionPopup(true);
     }
-    setShowSelectionPopup(true);
-  }, [router, document.id]);
+  }, [router, curationMode]);
   
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: any) => {
