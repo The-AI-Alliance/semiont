@@ -344,9 +344,10 @@ authRouter.openapi(localAuthRoute, async (c) => {
       token,
       isNewUser: false,
     }, 200);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Local auth error:', error);
-    return c.json({ error: error.message || 'Authentication failed' }, 400);
+    const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+    return c.json({ error: errorMessage }, 400);
   }
 });
 
@@ -381,9 +382,10 @@ authRouter.openapi(googleAuthRoute, async (c) => {
       token,
       isNewUser,
     }, 200);
-  } catch (error: any) {
+  } catch (error) {
     console.error('OAuth error:', error);
-    return c.json({ error: error.message || 'Authentication failed' }, 400);
+    const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+    return c.json({ error: errorMessage }, 400);
   }
 });
 
@@ -421,31 +423,32 @@ authRouter.openapi(refreshTokenRoute, async (c) => {
     }
     
     // Generate new short-lived access token (1 hour)
-    const accessTokenPayload: any = {
+    const accessTokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
       userId: user.id,
       email: user.email,
       domain: user.domain,
       provider: user.provider,
-      isAdmin: user.isAdmin
+      isAdmin: user.isAdmin,
+      ...(user.name && { name: user.name })
     };
-    if (user.name) {
-      accessTokenPayload.name = user.name;
-    }
     const accessToken = JWTService.generateToken(accessTokenPayload, '1h'); // 1 hour expiration
     
     // Return in the format MCP expects
     return c.json({ 
       access_token: accessToken  // Note: using snake_case for consistency
     }, 200);
-  } catch (error: any) {
-    console.error('Token refresh error:', error.message || error);
-    console.error('Error stack:', error.stack);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Token refresh error:', errorMessage);
+    if (error instanceof Error) {
+      console.error('Error stack:', error.stack);
+    }
     
     // Provide specific error messages for different failure modes
-    if (error.message?.includes('expired')) {
+    if (errorMessage.includes('expired')) {
       return c.json({ error: 'Refresh token expired - please re-provision' }, 401);
     }
-    if (error.message?.includes('signature')) {
+    if (errorMessage.includes('signature')) {
       return c.json({ error: 'Invalid refresh token' }, 401);
     }
     
@@ -460,22 +463,20 @@ authRouter.openapi(mcpGenerateRoute, async (c) => {
   
   try {
     // Generate long-lived refresh token (30 days) for MCP
-    const tokenPayload: any = {
+    const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
       userId: user.id,
       email: user.email,
       domain: user.domain,
       provider: user.provider,
-      isAdmin: user.isAdmin
+      isAdmin: user.isAdmin,
+      ...(user.name && { name: user.name })
     };
-    if (user.name) {
-      tokenPayload.name = user.name;
-    }
     const refreshToken = JWTService.generateToken(tokenPayload, '30d'); // 30 day expiration
     
     return c.json({ 
       refresh_token: refreshToken  // Note: returning refresh_token, not access_token
     }, 200);
-  } catch (error: any) {
+  } catch (error) {
     console.error('MCP token generation error:', error);
     return c.json({ error: 'Failed to generate refresh token' }, 401);
   }
