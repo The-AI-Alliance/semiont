@@ -316,7 +316,7 @@ adminRouter.openapi(listUsersRoute, async (c) => {
   
   return c.json({
     success: true,
-    users: users.map(u => ({
+    users: users.map((u) => ({
       ...u,
       termsAcceptedAt: u.termsAcceptedAt?.toISOString() || null,
       lastLogin: u.lastLogin?.toISOString() || null,
@@ -362,11 +362,11 @@ adminRouter.openapi(userStatsRoute, async (c) => {
       activeUsers,
       adminUsers,
       regularUsers: totalUsers - adminUsers,
-      domainBreakdown: domainStats.map(d => ({
+      domainBreakdown: domainStats.map((d) => ({
         domain: d.domain,
         count: d._count.domain,
       })),
-      recentSignups: recentUsers.map(u => ({
+      recentSignups: recentUsers.map((u) => ({
         ...u,
         createdAt: u.createdAt.toISOString(),
       })),
