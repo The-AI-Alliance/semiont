@@ -170,6 +170,7 @@ const listDocumentsRoute = createRoute({
       limit: z.coerce.number().default(50),
       entityType: z.string().optional(),
       archived: z.coerce.boolean().optional(),
+      search: z.string().optional(), // Add search parameter for text search
     }),
   },
   responses: {
@@ -184,13 +185,23 @@ const listDocumentsRoute = createRoute({
   },
 });
 documentsRouter.openapi(listDocumentsRoute, async (c) => {
-  const { offset, limit, entityType, archived } = c.req.valid('query');
+  const { offset, limit, entityType, archived, search } = c.req.valid('query');
   const graphDb = await getGraphDatabase();
+  const storage = getStorageService();
   
   const allDocs = await graphDb.listDocuments({});
   
   // Apply filters
   let filteredDocs = allDocs.documents;
+  
+  // Apply search filter if provided
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filteredDocs = filteredDocs.filter(doc => 
+      doc.name.toLowerCase().includes(searchLower)
+    );
+  }
+  
   if (entityType) {
     filteredDocs = filteredDocs.filter(doc => doc.entityTypes?.includes(entityType));
   }
@@ -201,8 +212,24 @@ documentsRouter.openapi(listDocumentsRoute, async (c) => {
   // Paginate
   const paginatedDocs = filteredDocs.slice(offset, offset + limit);
   
+  // For search results, load content snippets
+  let documentsWithContent = paginatedDocs;
+  if (search) {
+    documentsWithContent = await Promise.all(
+      paginatedDocs.map(async (doc) => {
+        try {
+          const contentBuffer = await storage.getDocument(doc.id);
+          const contentStr = contentBuffer.toString('utf-8');
+          return { ...doc, content: contentStr.slice(0, 200) }; // Include first 200 chars as preview
+        } catch {
+          return { ...doc, content: '' }; // Return empty content if load fails
+        }
+      })
+    );
+  }
+  
   return c.json({
-    documents: paginatedDocs.map(formatDocument),
+    documents: documentsWithContent.map(formatDocument),
     total: filteredDocs.length,
     offset,
     limit,
@@ -1370,8 +1397,8 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
 });
 
 // Format helpers
-function formatDocument(doc: Document): any {
-  return {
+function formatDocument(doc: Document & { content?: string }): any {
+  const formatted: any = {
     id: doc.id,
     name: doc.name,
     // checksum: doc.checksum,  // Document type doesn't have checksum
@@ -1389,6 +1416,13 @@ function formatDocument(doc: Document): any {
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
   };
+  
+  // Include content if it exists (for search results)
+  if ('content' in doc) {
+    formatted.content = doc.content;
+  }
+  
+  return formatted;
 }
 
 function formatSelection(sel: Selection): any {
