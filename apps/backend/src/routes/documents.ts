@@ -169,7 +169,11 @@ const listDocumentsRoute = createRoute({
       offset: z.coerce.number().default(0),
       limit: z.coerce.number().default(50),
       entityType: z.string().optional(),
-      archived: z.coerce.boolean().optional(),
+      archived: z.union([
+        z.literal('true').transform(() => true),
+        z.literal('false').transform(() => false),
+        z.boolean()
+      ]).optional(),
       search: z.string().optional(), // Add search parameter for text search
     }),
   },

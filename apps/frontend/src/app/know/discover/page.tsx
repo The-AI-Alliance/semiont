@@ -108,7 +108,11 @@ export default function DiscoverPage() {
     const loadInitialData = async () => {
       try {
         // Load recent documents - auth token is already set globally
-        const docsResponse = await apiService.documents.list({ limit: 10 });
+        // Only fetch non-archived documents for the discover page
+        const docsResponse = await apiService.documents.list({
+          limit: 10,
+          archived: false
+        });
         
         setDocuments(prev => ({
           ...prev,

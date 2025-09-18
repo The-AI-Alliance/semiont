@@ -415,7 +415,14 @@ export const apiService = {
     delete: (id: string): Promise<{ success: boolean }> =>
       apiClient.delete('/api/documents/:id', { params: { id } }),
     
-    list: (params?: { limit?: number; offset?: number; contentType?: string }): Promise<DocumentsResponse> => {
+    list: (params?: {
+      limit?: number;
+      offset?: number;
+      contentType?: string;
+      archived?: boolean;
+      entityType?: string;
+      search?: string;
+    }): Promise<DocumentsResponse> => {
       if (params) {
         return apiClient.get('/api/documents', { params });
       }
