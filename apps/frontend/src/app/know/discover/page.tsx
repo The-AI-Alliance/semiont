@@ -30,9 +30,11 @@ const DocumentCard = React.memo(({
       )}
     </div>
     
-    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
-      {doc.content.replace(/^#+ .*$/gm, '').trim().substring(0, 150)}...
-    </p>
+    {doc.content && (
+      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
+        {doc.content.replace(/^#+ .*$/gm, '').trim().substring(0, 150)}...
+      </p>
+    )}
     
     {/* Document Metadata */}
     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
