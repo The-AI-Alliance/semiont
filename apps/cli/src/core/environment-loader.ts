@@ -136,6 +136,36 @@ function isObject(item: any): boolean {
 }
 
 /**
+ * Recursively resolve environment variable placeholders in configuration
+ * Replaces ${VAR_NAME} with the value from process.env
+ *
+ * @param obj - Configuration object to process
+ * @returns Configuration with resolved environment variables
+ */
+function resolveEnvVars(obj: any): any {
+  if (typeof obj === 'string') {
+    // Replace ${VAR_NAME} with actual environment variable value
+    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+      return process.env[varName] || match;
+    });
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => resolveEnvVars(item));
+  }
+
+  if (obj && typeof obj === 'object') {
+    const resolved: any = {};
+    for (const key in obj) {
+      resolved[key] = resolveEnvVars(obj[key]);
+    }
+    return resolved;
+  }
+
+  return obj;
+}
+
+/**
  * Load environment configuration
  * Merges semiont.json with environment-specific config
  * 
@@ -177,25 +207,28 @@ export function loadEnvironmentConfig(environment: string, configFile?: string):
       baseConfig.defaults || {},           // Default config from semiont.json
       envConfig                            // Environment-specific overrides
     );
-    
+
+    // Resolve environment variables in the merged configuration
+    const resolved = resolveEnvVars(merged);
+
     // Ensure services exists (even if empty)
-    if (!merged.services) {
-      merged.services = {};
+    if (!resolved.services) {
+      resolved.services = {};
     }
-    
+
     // Validate NODE_ENV if specified
-    if (merged.env?.NODE_ENV) {
+    if (resolved.env?.NODE_ENV) {
       const validNodeEnv = ['development', 'production', 'test'];
-      if (!validNodeEnv.includes(merged.env.NODE_ENV)) {
+      if (!validNodeEnv.includes(resolved.env.NODE_ENV)) {
         throw new ConfigurationError(
-          `Invalid NODE_ENV value: ${merged.env.NODE_ENV}`,
+          `Invalid NODE_ENV value: ${resolved.env.NODE_ENV}`,
           environment,
           `NODE_ENV must be one of: ${validNodeEnv.join(', ')}`
         );
       }
     }
-    
-    return merged as EnvironmentConfig;
+
+    return resolved as EnvironmentConfig;
   } catch (error) {
     if (error instanceof ConfigurationError) {
       throw error; // Re-throw our custom errors

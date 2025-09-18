@@ -396,6 +396,9 @@ await Promise.all(scriptFiles.map(async (name) => {
         'socket.io',
         // simple-git uses dynamic requires that don't work with bundling
         'simple-git',
+        // neo4j-driver uses dynamic requires for node internals
+        'neo4j-driver',
+        'neo4j-driver-core',
         // esbuild is needed at runtime for compiling CDK stacks
         'esbuild',
         // Vitest and testing dependencies

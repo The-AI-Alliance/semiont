@@ -87,14 +87,25 @@ export class ExternalPlatform extends Platform {
     if (declaredType === 'frontend') {
       return 'static';
     }
-    
+
     // Preserve inference type for inference handler
     if (declaredType === 'inference') {
       return 'inference';
     }
-    
-    // Everything else is treated as an API
-    return 'api';
+
+    // Preserve graph type for graph handler
+    if (declaredType === 'graph') {
+      return 'graph';
+    }
+
+    // Backend and database services map to api handler
+    // since they're accessed via external APIs
+    if (declaredType === 'backend' || declaredType === 'database') {
+      return 'api';
+    }
+
+    // Throw error for unmapped service types
+    throw new Error(`Unmapped service type '${declaredType}' for external platform. Add explicit mapping in mapServiceType().`);
   }
   
   /**

@@ -21,6 +21,7 @@ export interface GraphDatabaseConfig {
   neo4jUri?: string;
   neo4jUsername?: string;
   neo4jPassword?: string;
+  neo4jDatabase?: string;
   
   // JanusGraph config
   janusHost?: string;
@@ -47,6 +48,7 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
       if (config.neo4jUri !== undefined) neo4jConfig.uri = config.neo4jUri;
       if (config.neo4jUsername !== undefined) neo4jConfig.username = config.neo4jUsername;
       if (config.neo4jPassword !== undefined) neo4jConfig.password = config.neo4jPassword;
+      if (config.neo4jDatabase !== undefined) neo4jConfig.database = config.neo4jDatabase;
       return new Neo4jGraphDatabase(neo4jConfig);
     }
       
@@ -65,6 +67,16 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
     default:
       throw new Error(`Unsupported graph database type: ${config.type}`);
   }
+}
+
+// Helper function to evaluate environment variable placeholders
+function evaluateEnvVar(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+
+  // Replace ${VAR_NAME} with actual environment variable value
+  return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+    return process.env[varName] || match;
+  });
 }
 
 export async function getGraphDatabase(): Promise<GraphDatabase> {
@@ -101,12 +113,25 @@ export async function getGraphDatabase(): Promise<GraphDatabase> {
       if (envConfig?.aws?.region) {
         config.neptuneRegion = envConfig.aws.region;
       }
+    } else if (graphConfig.type === 'neo4j') {
+      // Neo4j configuration from environment JSON or environment variables
+      const envConfig = loadEnvironmentConfig();
+      const graphService = envConfig?.services?.graph;
+
+      // Try environment JSON config first, then fall back to environment variables
+      if (graphService?.uri || process.env.NEO4J_URI) {
+        config.neo4jUri = evaluateEnvVar(graphService?.uri) || process.env.NEO4J_URI;
+      }
+      if (graphService?.username || process.env.NEO4J_USERNAME) {
+        config.neo4jUsername = evaluateEnvVar(graphService?.username) || process.env.NEO4J_USERNAME;
+      }
+      if (graphService?.password || process.env.NEO4J_PASSWORD) {
+        config.neo4jPassword = evaluateEnvVar(graphService?.password) || process.env.NEO4J_PASSWORD;
+      }
+      if (graphService?.database || process.env.NEO4J_DATABASE) {
+        config.neo4jDatabase = evaluateEnvVar(graphService?.database) || process.env.NEO4J_DATABASE;
+      }
     }
-    
-    // Neo4j config  
-    if (process.env.NEO4J_URI) config.neo4jUri = process.env.NEO4J_URI;
-    if (process.env.NEO4J_USERNAME) config.neo4jUsername = process.env.NEO4J_USERNAME;
-    if (process.env.NEO4J_PASSWORD) config.neo4jPassword = process.env.NEO4J_PASSWORD;
     
     graphDatabaseInstance = createGraphDatabase(config);
     await graphDatabaseInstance.connect();
