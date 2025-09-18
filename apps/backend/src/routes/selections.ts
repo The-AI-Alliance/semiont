@@ -18,6 +18,13 @@ import {
   SelectionContextResponseSchema,
 } from '../schemas/document-schemas';
 
+// Infer types from schemas
+type SelectionResponse = z.infer<typeof SelectionSchema>;
+// type CreateDocumentFromSelectionResponse = z.infer<typeof CreateDocumentFromSelectionResponseSchema>;
+// type GenerateDocumentFromSelectionResponse = z.infer<typeof GenerateDocumentFromSelectionResponseSchema>;
+type ContextualSummaryResponse = z.infer<typeof ContextualSummaryResponseSchema>;
+// type SelectionContextResponse = z.infer<typeof SelectionContextResponseSchema>;
+
 // Create selections router
 export const selectionsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
 
@@ -136,7 +143,7 @@ selectionsRouter.openapi(createSelectionRoute, async (c) => {
 
     const selection = await graphDb.createSelection(selInput);
 
-    return c.json(formatSelection(selection), 201);
+    return c.json(formatSelection(selection) as SelectionResponse, 201);
   } catch (error) {
     console.error('Error creating selection:', error);
     return c.json({ error: 'Failed to create selection' }, 500);
@@ -198,7 +205,7 @@ selectionsRouter.openapi(getSelectionRoute, async (c) => {
       return c.json({ error: 'Selection not found' }, 404);
     }
 
-    return c.json(formatSelection(selection), 200);
+    return c.json(formatSelection(selection) as SelectionResponse, 200);
   } catch (error) {
     console.error('Error fetching selection:', error);
     return c.json({ error: 'Failed to fetch selection' }, 500);
@@ -359,7 +366,7 @@ selectionsRouter.openapi(resolveSelectionRoute, async (c) => {
     
     const updated = await graphDb.resolveSelection(resolveInput);
 
-    return c.json(formatSelection(updated), 200);
+    return c.json(formatSelection(updated) as SelectionResponse, 200);
   } catch (error) {
     console.error('Error resolving selection:', error);
     return c.json({ error: 'Failed to resolve selection' }, 500);
@@ -776,7 +783,7 @@ selectionsRouter.openapi(getContextualSummaryRoute, async (c) => {
         selectionType: selection.selectionType,
       },
       context,
-    }, 200);
+    } as ContextualSummaryResponse, 200);
   } catch (error) {
     console.error('Error getting contextual summary:', error);
     return c.json({ error: 'Failed to get contextual summary' }, 500);
