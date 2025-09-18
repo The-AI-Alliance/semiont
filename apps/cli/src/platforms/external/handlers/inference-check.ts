@@ -59,6 +59,19 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
     };
   }
   
+  if (!model) {
+    return {
+      success: false,
+      error: 'No model configured for inference service',
+      status: 'unknown',
+      metadata: {
+        serviceType: 'inference',
+        inferenceType,
+        hint: 'Add "model" to your service configuration (e.g., "claude-3-haiku-20240307" for Claude or "gpt-3.5-turbo" for OpenAI)'
+      }
+    };
+  }
+  
   // Perform health check based on inference type
   try {
     const startTime = Date.now();
@@ -66,7 +79,19 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
     
     if (inferenceType === 'claude') {
       // Claude health check using SDK
-      const apiKey = serviceConfig.apiKey || process.env.ANTHROPIC_API_KEY;
+      let apiKey = serviceConfig.apiKey;
+      
+      // Handle environment variable reference from config file
+      if (apiKey && apiKey.startsWith('${') && apiKey.endsWith('}')) {
+        const envVarName = apiKey.slice(2, -1);
+        apiKey = process.env[envVarName];
+      }
+      
+      // Fall back to environment variable if not in config
+      if (!apiKey) {
+        apiKey = process.env.ANTHROPIC_API_KEY;
+      }
+      
       if (!apiKey) {
         throw new Error('Claude API key not configured. Set ANTHROPIC_API_KEY environment variable or apiKey in service config.');
       }
@@ -78,7 +103,7 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
       
       // Make a minimal API call to verify connectivity
       const response = await client.messages.create({
-        model: model || 'claude-3-haiku-20240307',
+        model: model,
         max_tokens: 10,
         messages: [
           {
@@ -96,7 +121,19 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
       
     } else if (inferenceType === 'openai') {
       // OpenAI health check using SDK
-      const apiKey = serviceConfig.apiKey || process.env.OPENAI_API_KEY;
+      let apiKey = serviceConfig.apiKey;
+      
+      // Handle environment variable reference from config file
+      if (apiKey && apiKey.startsWith('${') && apiKey.endsWith('}')) {
+        const envVarName = apiKey.slice(2, -1);
+        apiKey = process.env[envVarName];
+      }
+      
+      // Fall back to environment variable if not in config
+      if (!apiKey) {
+        apiKey = process.env.OPENAI_API_KEY;
+      }
+      
       if (!apiKey) {
         throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY environment variable or apiKey in service config.');
       }
@@ -109,7 +146,7 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
       
       // Make a minimal API call to verify connectivity
       const response = await client.chat.completions.create({
-        model: model || 'gpt-3.5-turbo',
+        model: model,
         messages: [
           {
             role: 'user',
@@ -144,16 +181,63 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
     status = 'unhealthy';
     const errorMessage = error?.message || 'Health check failed';
     
+    // Extract more error details from SDK errors
+    let errorCode = error?.status;
+    let errorType = error?.error?.type || error?.type;
+    let errorDetails = error?.error?.message || error?.details;
+    
+    // For Anthropic SDK errors
+    if (error?.response) {
+      errorCode = error.response.status;
+      if (error.response.data) {
+        errorType = error.response.data.error?.type;
+        errorDetails = error.response.data.error?.message;
+      }
+    }
+    
     // Check specific error types
-    if (error?.status === 401 || error?.status === 403 || errorMessage.includes('API key') || errorMessage.includes('Authentication')) {
+    if (errorCode === 401 || errorCode === 403 || errorMessage.includes('API key') || errorMessage.includes('Authentication')) {
       status = 'stopped'; // Consider it stopped if auth fails
-    } else if (error?.status === 429) {
+      health = {
+        endpoint,
+        healthy: false,
+        details: { 
+          error: errorMessage,
+          inferenceType,
+          hint: `API key authentication failed. Ensure ${inferenceType === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} is set and valid`,
+          errorCode,
+          errorType,
+          errorDetails,
+          model: model,
+        }
+      };
+    } else if (errorCode === 429) {
       // Rate limited but API is working
       status = 'running';
       health = {
         endpoint,
         healthy: true,
         warning: 'Rate limited but operational',
+        details: {
+          status: 'rate_limited',
+          inferenceType,
+          model: model,
+        }
+      };
+    } else if (errorCode === 404 || errorMessage.includes('model_not_found')) {
+      // Model doesn't exist
+      status = 'stopped';
+      health = {
+        endpoint,
+        healthy: false,
+        details: { 
+          error: `Model "${model}" not found or not accessible`,
+          inferenceType,
+          hint: `Check if the model "${model}" is valid and accessible with your API key`,
+          errorCode,
+          errorType,
+          errorDetails,
+        }
       };
     } else {
       health = {
@@ -165,8 +249,11 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
           hint: inferenceType === 'claude' 
             ? 'Ensure ANTHROPIC_API_KEY is set and valid'
             : 'Ensure OPENAI_API_KEY is set and valid',
-          errorCode: error?.status,
-          errorType: error?.error?.type,
+          errorCode,
+          errorType,
+          errorDetails,
+          model: model,
+          endpoint,
         }
       };
     }

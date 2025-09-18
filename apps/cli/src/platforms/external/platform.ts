@@ -83,9 +83,14 @@ export class ExternalPlatform extends Platform {
    * Map service types to external handler types
    */
   protected override mapServiceType(declaredType: string): string {
-    // External platform only has static and api handlers
+    // Map frontend to static handler
     if (declaredType === 'frontend') {
       return 'static';
+    }
+    
+    // Preserve inference type for inference handler
+    if (declaredType === 'inference') {
+      return 'inference';
     }
     
     // Everything else is treated as an API
