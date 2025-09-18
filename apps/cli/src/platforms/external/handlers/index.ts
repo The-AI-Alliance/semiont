@@ -1,5 +1,6 @@
 import { apiCheckDescriptor } from './api-check.js';
 import { staticCheckDescriptor } from './static-check.js';
+import { graphCheckDescriptor } from './graph-check.js';
 import { apiStartDescriptor } from './api-start.js';
 import { staticStartDescriptor } from './static-start.js';
 import { inferenceCheckDescriptor } from './inference-check.js';
@@ -14,6 +15,7 @@ const externalHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
   apiCheckDescriptor,
   staticCheckDescriptor,
+  graphCheckDescriptor,
   inferenceCheckDescriptor,
   // Start handlers
   apiStartDescriptor,

@@ -1,6 +1,7 @@
 // Neo4j implementation of GraphDatabase interface
 // Uses Cypher query language
 
+import neo4j, { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
 import {
   Document,
@@ -14,491 +15,814 @@ import {
   UpdateDocumentInput,
   CreateSelectionInput,
   ResolveSelectionInput,
-  isHighlight,
-  isReference,
-  isEntityReference,
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Note: In production, you would use neo4j-driver
-// For now, this is a stub that shows how Neo4j would be integrated
-
 export class Neo4jGraphDatabase implements GraphDatabase {
+  private driver: Driver | null = null;
   private connected: boolean = false;
-  // private driver: any; // Would be neo4j.Driver in production
-  
-  // In-memory storage for development/testing (same as Neptune for now)
-  private documents: Map<string, Document> = new Map();
-  private selections: Map<string, Selection> = new Map();
-  
+  private config: {
+    uri?: string;
+    username?: string;
+    password?: string;
+    database?: string;
+  };
+
+  // Tag Collections - cached in memory for performance
+  private entityTypesCollection: Set<string> | null = null;
+  private referenceTypesCollection: Set<string> | null = null;
+
   constructor(config: {
     uri?: string;
     username?: string;
     password?: string;
+    database?: string;
   } = {}) {
-    // Config will be used when implementing actual Neo4j connection
-    void config;
+    this.config = config;
   }
-  
+
   async connect(): Promise<void> {
-    // In production: connect to Neo4j database using neo4j-driver
-    // const neo4j = require('neo4j-driver');
-    // this.driver = neo4j.driver(
-    //   this.config.uri || 'bolt://localhost:7687',
-    //   neo4j.auth.basic(this.config.username || 'neo4j', this.config.password || 'password')
-    // );
-    // 
-    // // Test connection
-    // const session = this.driver.session();
-    // await session.run('RETURN 1');
-    // await session.close();
-    
-    console.log('Connecting to Neo4j (simulated)...');
-    this.connected = true;
+    try {
+      const uri = this.config.uri || process.env.NEO4J_URI || 'bolt://localhost:7687';
+      const username = this.config.username || process.env.NEO4J_USERNAME || 'neo4j';
+      const password = this.config.password || process.env.NEO4J_PASSWORD || 'password';
+
+      console.log(`Connecting to Neo4j at ${uri}...`);
+
+      this.driver = neo4j.driver(
+        uri,
+        neo4j.auth.basic(username, password),
+        {
+          maxConnectionPoolSize: 50,
+          connectionAcquisitionTimeout: 60000,
+        }
+      );
+
+      // Test connection
+      const session = this.driver.session({
+        database: this.config.database || process.env.NEO4J_DATABASE || 'neo4j'
+      });
+
+      await session.run('RETURN 1 as test');
+      await session.close();
+
+      // Create constraints and indexes if they don't exist
+      await this.ensureSchemaExists();
+
+      console.log('Successfully connected to Neo4j');
+      this.connected = true;
+    } catch (error) {
+      console.error('Failed to connect to Neo4j:', error);
+      throw new Error(`Neo4j connection failed: ${error}`);
+    }
   }
-  
+
   async disconnect(): Promise<void> {
-    // In production: close Neo4j driver
-    // if (this.driver) await this.driver.close();
+    if (this.driver) {
+      await this.driver.close();
+      this.driver = null;
+    }
     this.connected = false;
   }
-  
+
   isConnected(): boolean {
     return this.connected;
   }
-  
+
+  private getSession(): Session {
+    if (!this.driver) {
+      throw new Error('Neo4j driver not initialized');
+    }
+    return this.driver.session({
+      database: this.config.database || process.env.NEO4J_DATABASE || 'neo4j'
+    });
+  }
+
+  private async ensureSchemaExists(): Promise<void> {
+    const session = this.getSession();
+    try {
+      // Create constraints for unique IDs
+      const constraints = [
+        'CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE',
+        'CREATE CONSTRAINT sel_id IF NOT EXISTS FOR (s:Selection) REQUIRE s.id IS UNIQUE',
+        'CREATE CONSTRAINT tag_id IF NOT EXISTS FOR (t:TagCollection) REQUIRE t.type IS UNIQUE'
+      ];
+
+      for (const constraint of constraints) {
+        try {
+          await session.run(constraint);
+        } catch (error: any) {
+          // Ignore if constraint already exists
+          if (!error.message?.includes('already exists')) {
+            console.warn(`Schema creation warning: ${error.message}`);
+          }
+        }
+      }
+
+      // Create indexes for common queries
+      const indexes = [
+        'CREATE INDEX doc_name IF NOT EXISTS FOR (d:Document) ON (d.name)',
+        'CREATE INDEX doc_entity_types IF NOT EXISTS FOR (d:Document) ON (d.entityTypes)',
+        'CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Selection) ON (s.documentId)',
+        'CREATE INDEX sel_resolved_id IF NOT EXISTS FOR (s:Selection) ON (s.resolvedDocumentId)'
+      ];
+
+      for (const index of indexes) {
+        try {
+          await session.run(index);
+        } catch (error: any) {
+          // Ignore if index already exists
+          if (!error.message?.includes('already exists')) {
+            console.warn(`Index creation warning: ${error.message}`);
+          }
+        }
+      }
+    } finally {
+      await session.close();
+    }
+  }
+
   async createDocument(input: CreateDocumentInput): Promise<Document> {
-    const id = this.generateId();
-    const now = new Date();
-    
-    const document: Document = {
-      id,
-      name: input.name,
-      entityTypes: input.entityTypes || [],
-      contentType: input.contentType,
-      metadata: input.metadata || {},
-      archived: false,  // New documents are not archived by default
-      createdAt: now,
-      updatedAt: now,
-    };
-    
-    // Audit fields
-    if (input.createdBy) document.createdBy = input.createdBy;
-    if (input.createdBy) document.updatedBy = input.createdBy;
-    
-    // Provenance tracking fields
-    if (input.creationMethod) document.creationMethod = input.creationMethod;
-    if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
-    if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
-    // Note: contentChecksum should be in metadata, set by the routes layer
-    
-    // In production: Use Cypher to create node
-    // const session = this.driver.session();
-    // await session.run(
-    //   `CREATE (d:Document {
-    //     id: $id,
-    //     name: $name,
-    //     entityTypes: $entityTypes,
-    //     contentType: $contentType,
-    //     createdAt: datetime($createdAt),
-    //     updatedAt: datetime($updatedAt)
-    //   }) RETURN d`,
-    //   { id, name: document.name, entityTypes: document.entityTypes, ... }
-    // );
-    // await session.close();
-    
-    this.documents.set(id, document);
-    return document;
+    const session = this.getSession();
+    try {
+      const id = this.generateId();
+      const now = new Date().toISOString();
+
+      const document: Document = {
+        id,
+        name: input.name,
+        entityTypes: input.entityTypes || [],
+        contentType: input.contentType,
+        metadata: input.metadata || {},
+        archived: false,
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+      };
+
+      // Add optional fields
+      if (input.createdBy) document.createdBy = input.createdBy;
+      if (input.createdBy) document.updatedBy = input.createdBy;
+      if (input.creationMethod) document.creationMethod = input.creationMethod;
+      if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+      if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
+
+      const result = await session.run(
+        `CREATE (d:Document {
+          id: $id,
+          name: $name,
+          entityTypes: $entityTypes,
+          contentType: $contentType,
+          metadata: $metadata,
+          archived: $archived,
+          createdAt: datetime($createdAt),
+          updatedAt: datetime($updatedAt),
+          createdBy: $createdBy,
+          updatedBy: $updatedBy,
+          creationMethod: $creationMethod,
+          sourceSelectionId: $sourceSelectionId,
+          sourceDocumentId: $sourceDocumentId
+        }) RETURN d`,
+        {
+          id,
+          name: document.name,
+          entityTypes: document.entityTypes,
+          contentType: document.contentType,
+          metadata: JSON.stringify(document.metadata),
+          archived: document.archived,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: document.createdBy || null,
+          updatedBy: document.updatedBy || null,
+          creationMethod: document.creationMethod || null,
+          sourceSelectionId: document.sourceSelectionId || null,
+          sourceDocumentId: document.sourceDocumentId || null,
+        }
+      );
+
+      return this.parseDocumentNode(result.records[0]!.get('d'));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async getDocument(id: string): Promise<Document | null> {
-    // In production: Use Cypher to query node
-    // const session = this.driver.session();
-    // const result = await session.run(
-    //   'MATCH (d:Document {id: $id}) RETURN d',
-    //   { id }
-    // );
-    // await session.close();
-    // 
-    // if (result.records.length === 0) return null;
-    // return result.records[0].get('d').properties;
-    
-    return this.documents.get(id) || null;
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        'MATCH (d:Document {id: $id}) RETURN d',
+        { id }
+      );
+
+      if (result.records.length === 0) return null;
+      return this.parseDocumentNode(result.records[0]!.get('d'));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
-    const doc = this.documents.get(id);
-    if (!doc) throw new Error('Document not found');
-    
-    const updated: Document = {
-      ...doc,
-      ...(input.name && { name: input.name }),
-      ...(input.entityTypes && { entityTypes: input.entityTypes }),
-      ...(input.metadata && { metadata: { ...doc.metadata, ...input.metadata } }),
-      ...(input.archived !== undefined && { archived: input.archived }),
-      ...(input.updatedBy && { updatedBy: input.updatedBy }),
-      updatedAt: new Date(),
-    };
-    
-    // In production: Use Cypher SET clause
-    // const session = this.driver.session();
-    // await session.run(
-    //   `MATCH (d:Document {id: $id})
-    //    SET d.name = $name, d.entityTypes = $entityTypes, d.updatedAt = datetime()
-    //    RETURN d`,
-    //   { id, name: updated.name, entityTypes: updated.entityTypes }
-    // );
-    // await session.close();
-    
-    this.documents.set(id, updated);
-    return updated;
+    const session = this.getSession();
+    try {
+      const updates: string[] = ['d.updatedAt = datetime()'];
+      const params: any = { id };
+
+      if (input.name !== undefined) {
+        updates.push('d.name = $name');
+        params.name = input.name;
+      }
+      if (input.entityTypes !== undefined) {
+        updates.push('d.entityTypes = $entityTypes');
+        params.entityTypes = input.entityTypes;
+      }
+      if (input.metadata !== undefined) {
+        updates.push('d.metadata = $metadata');
+        params.metadata = JSON.stringify(input.metadata);
+      }
+      if (input.archived !== undefined) {
+        updates.push('d.archived = $archived');
+        params.archived = input.archived;
+      }
+      if (input.updatedBy !== undefined) {
+        updates.push('d.updatedBy = $updatedBy');
+        params.updatedBy = input.updatedBy;
+      }
+
+      const result = await session.run(
+        `MATCH (d:Document {id: $id})
+         SET ${updates.join(', ')}
+         RETURN d`,
+        params
+      );
+
+      if (result.records.length === 0) {
+        throw new Error('Document not found');
+      }
+
+      return this.parseDocumentNode(result.records[0]!.get('d'));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async deleteDocument(id: string): Promise<void> {
-    // In production: Use Cypher to delete node and relationships
-    // const session = this.driver.session();
-    // await session.run(
-    //   'MATCH (d:Document {id: $id}) DETACH DELETE d',
-    //   { id }
-    // );
-    // await session.close();
-    
-    this.documents.delete(id);
-    
-    // Delete selections
-    for (const [selId, sel] of this.selections) {
-      if (sel.documentId === id || sel.resolvedDocumentId === id) {
-        this.selections.delete(selId);
-      }
+    const session = this.getSession();
+    try {
+      // Delete document and all its selections
+      await session.run(
+        `MATCH (d:Document {id: $id})
+         OPTIONAL MATCH (s:Selection)-[:BELONGS_TO|:REFERENCES]->(d)
+         DETACH DELETE d, s`,
+        { id }
+      );
+    } finally {
+      await session.close();
     }
   }
-  
+
   async listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }> {
-    let docs = Array.from(this.documents.values());
-    
-    if (filter.entityTypes && filter.entityTypes.length > 0) {
-      docs = docs.filter(doc => 
-        doc.entityTypes.some(type => filter.entityTypes!.includes(type))
+    const session = this.getSession();
+    try {
+      let whereClause = '';
+      const params: any = {};
+      const conditions: string[] = [];
+
+      if (filter.entityTypes && filter.entityTypes.length > 0) {
+        conditions.push('ANY(type IN $entityTypes WHERE type IN d.entityTypes)');
+        params.entityTypes = filter.entityTypes;
+      }
+
+      if (filter.search) {
+        conditions.push('toLower(d.name) CONTAINS toLower($search)');
+        params.search = filter.search;
+      }
+
+      if (conditions.length > 0) {
+        whereClause = 'WHERE ' + conditions.join(' AND ');
+      }
+
+      // Get total count
+      const countResult = await session.run(
+        `MATCH (d:Document) ${whereClause} RETURN count(d) as total`,
+        params
       );
-    }
-    
-    if (filter.search) {
-      const searchLower = filter.search.toLowerCase();
-      docs = docs.filter(doc =>
-        doc.name.toLowerCase().includes(searchLower)
+      const total = countResult.records[0]!.get('total').toNumber();
+
+      // Get paginated results
+      params.skip = filter.offset || 0;
+      params.limit = filter.limit || 20;
+
+      const result = await session.run(
+        `MATCH (d:Document) ${whereClause}
+         RETURN d
+         ORDER BY d.updatedAt DESC
+         SKIP $skip LIMIT $limit`,
+        params
       );
+
+      const documents = result.records.map(record => this.parseDocumentNode(record.get('d')));
+
+      return { documents, total };
+    } finally {
+      await session.close();
     }
-    
-    const total = docs.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 20;
-    docs = docs.slice(offset, offset + limit);
-    
-    return { documents: docs, total };
   }
-  
+
   async searchDocuments(query: string, limit: number = 20): Promise<Document[]> {
-    // In production: Use Neo4j full-text search
-    // const session = this.driver.session();
-    // const result = await session.run(
-    //   `CALL db.index.fulltext.queryNodes('document_search', $query)
-    //    YIELD node, score
-    //    RETURN node LIMIT $limit`,
-    //   { query, limit }
-    // );
-    // await session.close();
-    
-    const searchLower = query.toLowerCase();
-    const results = Array.from(this.documents.values())
-      .filter(doc => doc.name.toLowerCase().includes(searchLower))
-      .slice(0, limit);
-    
-    return results;
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (d:Document)
+         WHERE toLower(d.name) CONTAINS toLower($query)
+         RETURN d
+         ORDER BY d.updatedAt DESC
+         LIMIT $limit`,
+        { query, limit }
+      );
+
+      return result.records.map(record => this.parseDocumentNode(record.get('d')));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async createSelection(input: CreateSelectionInput): Promise<Selection> {
-    const id = this.generateId('sel');
-    const now = new Date();
-    
-    const selection: Selection = {
-      id,
-      documentId: input.documentId,
-      selectionType: input.selectionType,
-      selectionData: input.selectionData,
-      provisional: input.provisional || false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    
-    if (input.createdBy) {
-      selection.createdBy = input.createdBy;
-    }
-    
-    if ('resolvedDocumentId' in input) {
-      selection.resolvedDocumentId = input.resolvedDocumentId;
-      if (input.resolvedDocumentId) {
-        // Only set resolvedAt if actually resolved to a document
-        selection.resolvedAt = now;
+    const session = this.getSession();
+    try {
+      const id = this.generateId('sel');
+      const now = new Date().toISOString();
+
+      const selection: Selection = {
+        id,
+        documentId: input.documentId,
+        selectionType: input.selectionType,
+        selectionData: input.selectionData,
+        provisional: input.provisional || false,
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+      };
+
+      // Add optional fields
+      if (input.createdBy) selection.createdBy = input.createdBy;
+      if ('resolvedDocumentId' in input) {
+        selection.resolvedDocumentId = input.resolvedDocumentId;
+        if (input.resolvedDocumentId) {
+          selection.resolvedAt = new Date(now);
+        }
+        if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
       }
-      if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
+      if (input.referenceTags) selection.referenceTags = input.referenceTags;
+      if (input.entityTypes) selection.entityTypes = input.entityTypes;
+      if (input.confidence !== undefined) selection.confidence = input.confidence;
+      if (input.metadata) selection.metadata = input.metadata;
+
+      // Create the selection node and relationships
+      const cypher = selection.resolvedDocumentId
+        ? `MATCH (from:Document {id: $fromId})
+           MATCH (to:Document {id: $toId})
+           CREATE (s:Selection {
+             id: $id,
+             documentId: $documentId,
+             resolvedDocumentId: $resolvedDocumentId,
+             selectionType: $selectionType,
+             selectionData: $selectionData,
+             provisional: $provisional,
+             referenceTags: $referenceTags,
+             entityTypes: $entityTypes,
+             confidence: $confidence,
+             metadata: $metadata,
+             createdAt: datetime($createdAt),
+             updatedAt: datetime($updatedAt),
+             resolvedAt: datetime($resolvedAt),
+             createdBy: $createdBy,
+             resolvedBy: $resolvedBy
+           })
+           CREATE (s)-[:BELONGS_TO]->(from)
+           CREATE (s)-[:REFERENCES]->(to)
+           RETURN s`
+        : `MATCH (d:Document {id: $documentId})
+           CREATE (s:Selection {
+             id: $id,
+             documentId: $documentId,
+             selectionType: $selectionType,
+             selectionData: $selectionData,
+             provisional: $provisional,
+             entityTypes: $entityTypes,
+             metadata: $metadata,
+             createdAt: datetime($createdAt),
+             updatedAt: datetime($updatedAt),
+             createdBy: $createdBy
+           })
+           CREATE (s)-[:BELONGS_TO]->(d)
+           RETURN s`;
+
+      const params: any = {
+        id,
+        documentId: selection.documentId,
+        fromId: selection.documentId,
+        toId: selection.resolvedDocumentId || null,
+        resolvedDocumentId: selection.resolvedDocumentId || null,
+        selectionType: selection.selectionType,
+        selectionData: JSON.stringify(selection.selectionData),
+        provisional: selection.provisional,
+        referenceTags: selection.referenceTags || [],
+        entityTypes: selection.entityTypes || [],
+        confidence: selection.confidence || null,
+        metadata: selection.metadata ? JSON.stringify(selection.metadata) : null,
+        createdAt: now,
+        updatedAt: now,
+        resolvedAt: selection.resolvedAt?.toISOString() || null,
+        createdBy: selection.createdBy || null,
+        resolvedBy: selection.resolvedBy || null,
+      };
+
+      const result = await session.run(cypher, params);
+
+      return this.parseSelectionNode(result.records[0]!.get('s'));
+    } finally {
+      await session.close();
     }
-    
-    if (input.referenceTags) selection.referenceTags = input.referenceTags;
-    if (input.entityTypes) selection.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) selection.confidence = input.confidence;
-    if (input.metadata) selection.metadata = input.metadata;
-    
-    // In production: Create relationship in graph
-    // const session = this.driver.session();
-    // if (input.resolvedDocumentId) {
-    //   await session.run(
-    //     `MATCH (from:Document {id: $fromId})
-    //      MATCH (to:Document {id: $toId})
-    //      CREATE (from)-[r:REFERENCES {
-    //        id: $id,
-    //        selectionType: $selectionType,
-    //        saved: $saved,
-    //        provisional: $provisional,
-    //        confidence: $confidence,
-    //        createdAt: datetime()
-    //      }]->(to)
-    //      RETURN r`,
-    //     { fromId: input.documentId, toId: input.resolvedDocumentId, ... }
-    //   );
-    // }
-    // await session.close();
-    
-    this.selections.set(id, selection);
-    return selection;
   }
-  
+
   async getSelection(id: string): Promise<Selection | null> {
-    return this.selections.get(id) || null;
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        'MATCH (s:Selection {id: $id}) RETURN s',
+        { id }
+      );
+
+      if (result.records.length === 0) return null;
+      return this.parseSelectionNode(result.records[0]!.get('s'));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async updateSelection(id: string, updates: Partial<Selection>): Promise<Selection> {
-    const sel = this.selections.get(id);
-    if (!sel) throw new Error('Selection not found');
-    
-    const updated: Selection = {
-      ...sel,
-      ...updates,
-      updatedAt: new Date(),
-    };
-    
-    this.selections.set(id, updated);
-    return updated;
+    const session = this.getSession();
+    try {
+      const setClauses: string[] = ['s.updatedAt = datetime()'];
+      const params: any = { id };
+
+      // Build SET clauses dynamically
+      Object.entries(updates).forEach(([key, value]) => {
+        if (key !== 'id' && key !== 'updatedAt') {
+          setClauses.push(`s.${key} = $${key}`);
+          if (key === 'selectionData' || key === 'metadata') {
+            params[key] = JSON.stringify(value);
+          } else if (key === 'createdAt' || key === 'resolvedAt') {
+            params[key] = value ? new Date(value as any).toISOString() : null;
+          } else {
+            params[key] = value;
+          }
+        }
+      });
+
+      const result = await session.run(
+        `MATCH (s:Selection {id: $id})
+         SET ${setClauses.join(', ')}
+         RETURN s`,
+        params
+      );
+
+      if (result.records.length === 0) {
+        throw new Error('Selection not found');
+      }
+
+      return this.parseSelectionNode(result.records[0]!.get('s'));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async deleteSelection(id: string): Promise<void> {
-    this.selections.delete(id);
+    const session = this.getSession();
+    try {
+      await session.run(
+        'MATCH (s:Selection {id: $id}) DETACH DELETE s',
+        { id }
+      );
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }> {
-    let sels = Array.from(this.selections.values());
-    
-    if (filter.documentId) {
-      sels = sels.filter(sel => sel.documentId === filter.documentId);
-    }
-    
-    if (filter.resolvedDocumentId) {
-      sels = sels.filter(sel => sel.resolvedDocumentId === filter.resolvedDocumentId);
-    }
-    
-    if (filter.provisional !== undefined) {
-      sels = sels.filter(sel => sel.provisional === filter.provisional);
-    }
-    
-    
-    if (filter.resolved !== undefined) {
-      sels = sels.filter(sel => filter.resolved ? !!sel.resolvedDocumentId : !sel.resolvedDocumentId);
-    }
-    
-    if (filter.hasEntityTypes !== undefined) {
-      sels = sels.filter(sel => filter.hasEntityTypes ? 
-        (sel.entityTypes && sel.entityTypes.length > 0) : 
-        (!sel.entityTypes || sel.entityTypes.length === 0)
+    const session = this.getSession();
+    try {
+      const conditions: string[] = [];
+      const params: any = {};
+
+      if (filter.documentId) {
+        conditions.push('s.documentId = $documentId');
+        params.documentId = filter.documentId;
+      }
+
+      if (filter.resolvedDocumentId) {
+        conditions.push('s.resolvedDocumentId = $resolvedDocumentId');
+        params.resolvedDocumentId = filter.resolvedDocumentId;
+      }
+
+      if (filter.provisional !== undefined) {
+        conditions.push('s.provisional = $provisional');
+        params.provisional = filter.provisional;
+      }
+
+      if (filter.resolved !== undefined) {
+        if (filter.resolved) {
+          conditions.push('s.resolvedDocumentId IS NOT NULL');
+        } else {
+          conditions.push('s.resolvedDocumentId IS NULL');
+        }
+      }
+
+      if (filter.hasEntityTypes !== undefined) {
+        if (filter.hasEntityTypes) {
+          conditions.push('size(s.entityTypes) > 0');
+        } else {
+          conditions.push('size(s.entityTypes) = 0');
+        }
+      }
+
+      if (filter.referenceTags && filter.referenceTags.length > 0) {
+        conditions.push('ANY(tag IN $referenceTags WHERE tag IN s.referenceTags)');
+        params.referenceTags = filter.referenceTags;
+      }
+
+      const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+      // Get total count
+      const countResult = await session.run(
+        `MATCH (s:Selection) ${whereClause} RETURN count(s) as total`,
+        params
       );
-    }
-    
-    if (filter.referenceTags && filter.referenceTags.length > 0) {
-      sels = sels.filter(sel => 
-        sel.referenceTags && sel.referenceTags.some(tag => filter.referenceTags!.includes(tag))
+      const total = countResult.records[0]!.get('total').toNumber();
+
+      // Get paginated results
+      params.skip = filter.offset || 0;
+      params.limit = filter.limit || 20;
+
+      const result = await session.run(
+        `MATCH (s:Selection) ${whereClause}
+         RETURN s
+         ORDER BY s.updatedAt DESC
+         SKIP $skip LIMIT $limit`,
+        params
       );
+
+      const selections = result.records.map(record => this.parseSelectionNode(record.get('s')));
+
+      return { selections, total };
+    } finally {
+      await session.close();
     }
-    
-    const total = sels.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 20;
-    sels = sels.slice(offset, offset + limit);
-    
-    return { selections: sels, total };
   }
-  
-  
+
   async getHighlights(documentId: string): Promise<Selection[]> {
-    return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && !('resolvedDocumentId' in sel));
-  }
-  
-  async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
-    const sel = this.selections.get(input.selectionId);
-    if (!sel) throw new Error('Selection not found');
-    
-    const updated: Selection = {
-      ...sel,
-      resolvedDocumentId: input.documentId,
-      provisional: input.provisional || false,
-      resolvedAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    if (input.referenceTags) updated.referenceTags = input.referenceTags;
-    if (input.entityTypes) updated.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) updated.confidence = input.confidence;
-    if (input.resolvedBy) updated.resolvedBy = input.resolvedBy;
-    if (input.metadata || sel.metadata) {
-      updated.metadata = { ...sel.metadata, ...input.metadata };
-    }
-    
-    this.selections.set(input.selectionId, updated);
-    return updated;
-  }
-  
-  async getReferences(documentId: string): Promise<Selection[]> {
-    return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && 'resolvedDocumentId' in sel);
-  }
-  
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
-    let refs = Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId && isEntityReference(sel));
-    
-    if (entityTypes && entityTypes.length > 0) {
-      refs = refs.filter(sel => 
-        sel.entityTypes && sel.entityTypes.some(type => entityTypes.includes(type))
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (s:Selection {documentId: $documentId})
+         WHERE s.resolvedDocumentId IS NULL
+         RETURN s
+         ORDER BY s.createdAt DESC`,
+        { documentId }
       );
+
+      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+    } finally {
+      await session.close();
     }
-    
-    return refs;
   }
-  
+
+  async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
+    const session = this.getSession();
+    try {
+      const now = new Date().toISOString();
+      const params: any = {
+        selectionId: input.selectionId,
+        documentId: input.documentId,
+        provisional: input.provisional || false,
+        resolvedAt: now,
+        updatedAt: now,
+      };
+
+      const setClauses = [
+        's.resolvedDocumentId = $documentId',
+        's.provisional = $provisional',
+        's.resolvedAt = datetime($resolvedAt)',
+        's.updatedAt = datetime($updatedAt)'
+      ];
+
+      if (input.referenceTags) {
+        setClauses.push('s.referenceTags = $referenceTags');
+        params.referenceTags = input.referenceTags;
+      }
+      if (input.entityTypes) {
+        setClauses.push('s.entityTypes = $entityTypes');
+        params.entityTypes = input.entityTypes;
+      }
+      if (input.confidence !== undefined) {
+        setClauses.push('s.confidence = $confidence');
+        params.confidence = input.confidence;
+      }
+      if (input.resolvedBy) {
+        setClauses.push('s.resolvedBy = $resolvedBy');
+        params.resolvedBy = input.resolvedBy;
+      }
+      if (input.metadata) {
+        setClauses.push('s.metadata = $metadata');
+        params.metadata = JSON.stringify(input.metadata);
+      }
+
+      // Update selection and create REFERENCES relationship
+      const result = await session.run(
+        `MATCH (s:Selection {id: $selectionId})
+         MATCH (to:Document {id: $documentId})
+         SET ${setClauses.join(', ')}
+         MERGE (s)-[:REFERENCES]->(to)
+         RETURN s`,
+        params
+      );
+
+      if (result.records.length === 0) {
+        throw new Error('Selection not found');
+      }
+
+      return this.parseSelectionNode(result.records[0]!.get('s'));
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getReferences(documentId: string): Promise<Selection[]> {
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (s:Selection {documentId: $documentId})
+         WHERE s.resolvedDocumentId IS NOT NULL
+         RETURN s
+         ORDER BY s.createdAt DESC`,
+        { documentId }
+      );
+
+      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
+    const session = this.getSession();
+    try {
+      let cypher = `MATCH (s:Selection {documentId: $documentId})
+                    WHERE s.resolvedDocumentId IS NOT NULL
+                    AND size(s.entityTypes) > 0`;
+
+      const params: any = { documentId };
+
+      if (entityTypes && entityTypes.length > 0) {
+        cypher += ' AND ANY(type IN $entityTypes WHERE type IN s.entityTypes)';
+        params.entityTypes = entityTypes;
+      }
+
+      cypher += ' RETURN s ORDER BY s.createdAt DESC';
+
+      const result = await session.run(cypher, params);
+
+      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+    } finally {
+      await session.close();
+    }
+  }
+
   async getDocumentSelections(documentId: string): Promise<Selection[]> {
-    return Array.from(this.selections.values())
-      .filter(sel => sel.documentId === documentId);
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (s:Selection {documentId: $documentId})
+         RETURN s
+         ORDER BY s.createdAt DESC`,
+        { documentId }
+      );
+
+      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async getDocumentReferencedBy(documentId: string): Promise<Selection[]> {
-    return Array.from(this.selections.values())
-      .filter(sel => sel.resolvedDocumentId === documentId);
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (s:Selection {resolvedDocumentId: $documentId})
+         RETURN s
+         ORDER BY s.createdAt DESC`,
+        { documentId }
+      );
+
+      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+    } finally {
+      await session.close();
+    }
   }
-  
+
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
-    // In production: Use Cypher with path patterns
-    // const session = this.driver.session();
-    // const result = await session.run(
-    //   `MATCH (d:Document {id: $id})-[r:REFERENCES]-(other:Document)
-    //    RETURN other, collect(r) as relationships`,
-    //   { id: documentId }
-    // );
-    // await session.close();
-    
-    const connections: GraphConnection[] = [];
-    const refs = await this.getReferences(documentId);
-    
-    for (const ref of refs) {
-      if (ref.resolvedDocumentId) {
-        const targetDoc = await this.getDocument(ref.resolvedDocumentId);
-        if (targetDoc) {
-          const reverseRefs = await this.getReferences(ref.resolvedDocumentId);
-          const bidirectional = reverseRefs.some(r => r.resolvedDocumentId === documentId);
-          
-          connections.push({
-            targetDocument: targetDoc,
-            selections: [ref],
-            bidirectional,
-          });
-        }
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (d:Document {id: $documentId})
+         OPTIONAL MATCH (d)<-[:BELONGS_TO]-(s1:Selection)-[:REFERENCES]->(other:Document)
+         OPTIONAL MATCH (other)<-[:BELONGS_TO]-(s2:Selection)-[:REFERENCES]->(d)
+         WITH other, COLLECT(DISTINCT s1) as outgoing, COLLECT(DISTINCT s2) as incoming
+         WHERE other IS NOT NULL
+         RETURN other, outgoing, incoming`,
+        { documentId }
+      );
+
+      const connections: GraphConnection[] = [];
+
+      for (const record of result.records) {
+        const targetDocument = this.parseDocumentNode(record.get('other'));
+        const outgoing = record.get('outgoing').map((s: any) => this.parseSelectionNode(s));
+        const incoming = record.get('incoming').map((s: any) => this.parseSelectionNode(s));
+
+        connections.push({
+          targetDocument,
+          selections: outgoing,
+          bidirectional: incoming.length > 0
+        });
       }
+
+      return connections;
+    } finally {
+      await session.close();
     }
-    
-    return connections;
   }
-  
+
   async findPath(fromDocumentId: string, toDocumentId: string, maxDepth: number = 5): Promise<GraphPath[]> {
-    // In production: Use Cypher shortest path
-    // const session = this.driver.session();
-    // const result = await session.run(
-    //   `MATCH p = shortestPath((from:Document {id: $fromId})-[*..${maxDepth}]-(to:Document {id: $toId}))
-    //    RETURN p`,
-    //   { fromId: fromDocumentId, toId: toDocumentId }
-    // );
-    // await session.close();
-    
-    // Using BFS implementation for stub
-    const visited = new Set<string>();
-    const queue: { docId: string; path: Document[]; sels: Selection[] }[] = [];
-    const fromDoc = await this.getDocument(fromDocumentId);
-    
-    if (!fromDoc) return [];
-    
-    queue.push({ docId: fromDocumentId, path: [fromDoc], sels: [] });
-    visited.add(fromDocumentId);
-    
-    const paths: GraphPath[] = [];
-    
-    while (queue.length > 0 && paths.length < 10) {
-      const { docId, path, sels } = queue.shift()!;
-      
-      if (path.length > maxDepth) continue;
-      
-      if (docId === toDocumentId) {
-        paths.push({ documents: path, selections: sels });
-        continue;
-      }
-      
-      const connections = await this.getDocumentConnections(docId);
-      
-      for (const conn of connections) {
-        if (!visited.has(conn.targetDocument.id)) {
-          visited.add(conn.targetDocument.id);
-          queue.push({
-            docId: conn.targetDocument.id,
-            path: [...path, conn.targetDocument],
-            sels: [...sels, ...conn.selections],
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH path = shortestPath((from:Document {id: $fromId})-[:REFERENCES*..${maxDepth}]-(to:Document {id: $toId}))
+         WITH path, nodes(path) as docs, relationships(path) as rels
+         RETURN docs, rels
+         LIMIT 10`,
+        { fromId: fromDocumentId, toId: toDocumentId }
+      );
+
+      const paths: GraphPath[] = [];
+
+      for (const record of result.records) {
+        const docs = record.get('docs').map((node: any) => this.parseDocumentNode(node));
+        const rels = record.get('rels');
+
+        // Get selection details for the relationships
+        const selectionIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
+        const selections: Selection[] = [];
+
+        if (selectionIds.length > 0) {
+          const selResult = await session.run(
+            'MATCH (s:Selection) WHERE s.id IN $ids RETURN s',
+            { ids: selectionIds }
+          );
+          selResult.records.forEach(rec => {
+            selections.push(this.parseSelectionNode(rec.get('s')));
           });
         }
+
+        paths.push({
+          documents: docs,
+          selections: selections
+        });
       }
+
+      return paths;
+    } finally {
+      await session.close();
     }
-    
-    return paths;
   }
-  
+
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
-    // In production: Use Cypher aggregation
-    // const session = this.driver.session();
-    // const result = await session.run(
-    //   `MATCH (d:Document)
-    //    UNWIND d.entityTypes AS type
-    //    RETURN type, count(*) AS count
-    //    ORDER BY count DESC`
-    // );
-    // await session.close();
-    
-    const typeCounts = new Map<string, number>();
-    
-    for (const doc of this.documents.values()) {
-      for (const type of doc.entityTypes) {
-        typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
-      }
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (d:Document)
+         UNWIND d.entityTypes AS type
+         RETURN type, count(*) AS count
+         ORDER BY count DESC`
+      );
+
+      return result.records.map(record => ({
+        type: record.get('type'),
+        count: record.get('count').toNumber()
+      }));
+    } finally {
+      await session.close();
     }
-    
-    return Array.from(typeCounts.entries()).map(([type, count]) => ({
-      type,
-      count,
-    }));
   }
-  
+
   async getStats(): Promise<{
     documentCount: number;
     selectionCount: number;
@@ -508,48 +832,76 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     entityTypes: Record<string, number>;
     contentTypes: Record<string, number>;
   }> {
-    const entityTypes: Record<string, number> = {};
-    const contentTypes: Record<string, number> = {};
-    
-    for (const doc of this.documents.values()) {
-      for (const type of doc.entityTypes) {
-        entityTypes[type] = (entityTypes[type] || 0) + 1;
-      }
-      contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
+    const session = this.getSession();
+    try {
+      // Get document count
+      const docCountResult = await session.run('MATCH (d:Document) RETURN count(d) as count');
+      const documentCount = docCountResult.records[0]!.get('count').toNumber();
+
+      // Get selection counts
+      const selCountResult = await session.run('MATCH (s:Selection) RETURN count(s) as count');
+      const selectionCount = selCountResult.records[0]!.get('count').toNumber();
+
+      const highlightCountResult = await session.run(
+        'MATCH (s:Selection) WHERE s.resolvedDocumentId IS NULL RETURN count(s) as count'
+      );
+      const highlightCount = highlightCountResult.records[0]!.get('count').toNumber();
+
+      const referenceCountResult = await session.run(
+        'MATCH (s:Selection) WHERE s.resolvedDocumentId IS NOT NULL RETURN count(s) as count'
+      );
+      const referenceCount = referenceCountResult.records[0]!.get('count').toNumber();
+
+      const entityRefCountResult = await session.run(
+        'MATCH (s:Selection) WHERE s.resolvedDocumentId IS NOT NULL AND size(s.entityTypes) > 0 RETURN count(s) as count'
+      );
+      const entityReferenceCount = entityRefCountResult.records[0]!.get('count').toNumber();
+
+      // Get entity type stats
+      const entityTypeResult = await session.run(
+        `MATCH (d:Document)
+         UNWIND d.entityTypes AS type
+         RETURN type, count(*) AS count`
+      );
+
+      const entityTypes: Record<string, number> = {};
+      entityTypeResult.records.forEach(record => {
+        entityTypes[record.get('type')] = record.get('count').toNumber();
+      });
+
+      // Get content type stats
+      const contentTypeResult = await session.run(
+        `MATCH (d:Document)
+         RETURN d.contentType as type, count(*) AS count`
+      );
+
+      const contentTypes: Record<string, number> = {};
+      contentTypeResult.records.forEach(record => {
+        contentTypes[record.get('type')] = record.get('count').toNumber();
+      });
+
+      return {
+        documentCount,
+        selectionCount,
+        highlightCount,
+        referenceCount,
+        entityReferenceCount,
+        entityTypes,
+        contentTypes
+      };
+    } finally {
+      await session.close();
     }
-    
-    const selections = Array.from(this.selections.values());
-    const highlightCount = selections.filter(isHighlight).length;
-    const referenceCount = selections.filter(isReference).length;
-    const entityReferenceCount = selections.filter(isEntityReference).length;
-    
-    return {
-      documentCount: this.documents.size,
-      selectionCount: this.selections.size,
-      highlightCount,
-      referenceCount,
-      entityReferenceCount,
-      entityTypes,
-      contentTypes,
-    };
   }
-  
+
   async createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]> {
-    // In production: Use batch operations
-    // const session = this.driver.session();
-    // const tx = session.beginTransaction();
-    // ... batch operations ...
-    // await tx.commit();
-    // await session.close();
-    
     const results: Selection[] = [];
     for (const input of inputs) {
       results.push(await this.createSelection(input));
     }
     return results;
   }
-  
-  
+
   async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
     const results: Selection[] = [];
     for (const input of inputs) {
@@ -557,98 +909,166 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
     return results;
   }
-  
+
   async detectSelections(_documentId: string): Promise<Selection[]> {
     // This would use AI/ML to detect selections in a document
     // For now, return empty array as a placeholder
     return [];
   }
-  
-  // Tag Collections - stored as special documents in the graph
-  private entityTypesCollection: Set<string> | null = null;
-  private referenceTypesCollection: Set<string> | null = null;
-  
+
+  // Tag Collections
   async getEntityTypes(): Promise<string[]> {
-    // Initialize if not already loaded
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
     }
     return Array.from(this.entityTypesCollection!).sort();
   }
-  
+
   async getReferenceTypes(): Promise<string[]> {
-    // Initialize if not already loaded
     if (this.referenceTypesCollection === null) {
       await this.initializeTagCollections();
     }
     return Array.from(this.referenceTypesCollection!).sort();
   }
-  
+
   async addEntityType(tag: string): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
     }
     this.entityTypesCollection!.add(tag);
-    // In production: persist to Neo4j
-    // await session.run('MERGE (t:TagCollection {type: "entity-types"}) SET t.tags = $tags', 
-    //   { tags: Array.from(this.entityTypesCollection!) });
+    await this.persistTagCollection('entity-types', this.entityTypesCollection!);
   }
-  
+
   async addReferenceType(tag: string): Promise<void> {
     if (this.referenceTypesCollection === null) {
       await this.initializeTagCollections();
     }
     this.referenceTypesCollection!.add(tag);
-    // In production: persist to Neo4j
-    // await session.run('MERGE (t:TagCollection {type: "reference-types"}) SET t.tags = $tags',
-    //   { tags: Array.from(this.referenceTypesCollection!) });
+    await this.persistTagCollection('reference-types', this.referenceTypesCollection!);
   }
-  
+
   async addEntityTypes(tags: string[]): Promise<void> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
     }
     tags.forEach(tag => this.entityTypesCollection!.add(tag));
-    // In production: persist to Neo4j
+    await this.persistTagCollection('entity-types', this.entityTypesCollection!);
   }
-  
+
   async addReferenceTypes(tags: string[]): Promise<void> {
     if (this.referenceTypesCollection === null) {
       await this.initializeTagCollections();
     }
     tags.forEach(tag => this.referenceTypesCollection!.add(tag));
-    // In production: persist to Neo4j
+    await this.persistTagCollection('reference-types', this.referenceTypesCollection!);
   }
-  
+
   private async initializeTagCollections(): Promise<void> {
-    // In production: check Neo4j for existing collections
-    // const session = this.driver.session();
-    // const result = await session.run('MATCH (t:TagCollection) RETURN t.type as type, t.tags as tags');
-    
-    // For now, initialize with defaults if not present
-    if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('../tag-collections');
-      this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
-    }
-    
-    if (this.referenceTypesCollection === null) {
-      const { DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
-      this.referenceTypesCollection = new Set(DEFAULT_REFERENCE_TYPES);
+    const session = this.getSession();
+    try {
+      // Load existing collections from Neo4j
+      const result = await session.run(
+        'MATCH (t:TagCollection) RETURN t.type as type, t.tags as tags'
+      );
+
+      let entityTypesFromDb: string[] = [];
+      let referenceTypesFromDb: string[] = [];
+
+      result.records.forEach(record => {
+        const type = record.get('type');
+        const tags = record.get('tags') || [];
+
+        if (type === 'entity-types') {
+          entityTypesFromDb = tags;
+        } else if (type === 'reference-types') {
+          referenceTypesFromDb = tags;
+        }
+      });
+
+      // Load defaults
+      const { DEFAULT_ENTITY_TYPES, DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+
+      // Merge with defaults
+      this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
+      this.referenceTypesCollection = new Set([...DEFAULT_REFERENCE_TYPES, ...referenceTypesFromDb]);
+
+      // Persist merged collections back to Neo4j
+      await this.persistTagCollection('entity-types', this.entityTypesCollection);
+      await this.persistTagCollection('reference-types', this.referenceTypesCollection);
+    } finally {
+      await session.close();
     }
   }
-  
+
+  private async persistTagCollection(type: string, collection: Set<string>): Promise<void> {
+    const session = this.getSession();
+    try {
+      await session.run(
+        'MERGE (t:TagCollection {type: $type}) SET t.tags = $tags',
+        { type, tags: Array.from(collection) }
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
   generateId(prefix: string = 'doc'): string {
     return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
   }
-  
+
   async clearDatabase(): Promise<void> {
-    // In production: CAREFUL! This would clear the entire database
-    // const session = this.driver.session();
-    // await session.run('MATCH (n) DETACH DELETE n');
-    // await session.close();
-    this.documents.clear();
-    this.selections.clear();
-    this.entityTypesCollection = null;
-    this.referenceTypesCollection = null;
+    const session = this.getSession();
+    try {
+      // CAREFUL! This clears the entire database
+      await session.run('MATCH (n) DETACH DELETE n');
+      this.entityTypesCollection = null;
+      this.referenceTypesCollection = null;
+    } finally {
+      await session.close();
+    }
+  }
+
+  // Helper methods to parse Neo4j nodes
+  private parseDocumentNode(node: any): Document {
+    const props = node.properties;
+    return {
+      id: props.id,
+      name: props.name,
+      entityTypes: props.entityTypes || [],
+      contentType: props.contentType,
+      metadata: props.metadata ? JSON.parse(props.metadata) : {},
+      archived: props.archived || false,
+      createdAt: props.createdAt ? new Date(props.createdAt.toString()) : new Date(),
+      updatedAt: props.updatedAt ? new Date(props.updatedAt.toString()) : new Date(),
+      createdBy: props.createdBy || undefined,
+      updatedBy: props.updatedBy || undefined,
+      creationMethod: props.creationMethod || undefined,
+      sourceSelectionId: props.sourceSelectionId || undefined,
+      sourceDocumentId: props.sourceDocumentId || undefined,
+    };
+  }
+
+  private parseSelectionNode(node: any): Selection {
+    const props = node.properties;
+    const selection: Selection = {
+      id: props.id,
+      documentId: props.documentId,
+      selectionType: props.selectionType,
+      selectionData: props.selectionData ? JSON.parse(props.selectionData) : {},
+      provisional: props.provisional || false,
+      createdAt: props.createdAt ? new Date(props.createdAt.toString()) : new Date(),
+      updatedAt: props.updatedAt ? new Date(props.updatedAt.toString()) : new Date(),
+    };
+
+    if (props.resolvedDocumentId) selection.resolvedDocumentId = props.resolvedDocumentId;
+    if (props.resolvedAt) selection.resolvedAt = new Date(props.resolvedAt.toString());
+    if (props.referenceTags?.length > 0) selection.referenceTags = props.referenceTags;
+    if (props.entityTypes?.length > 0) selection.entityTypes = props.entityTypes;
+    if (props.confidence !== null) selection.confidence = props.confidence;
+    if (props.metadata) selection.metadata = JSON.parse(props.metadata);
+    if (props.createdBy) selection.createdBy = props.createdBy;
+    if (props.resolvedBy) selection.resolvedBy = props.resolvedBy;
+
+    return selection;
   }
 }
