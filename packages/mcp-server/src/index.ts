@@ -18,6 +18,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import fetch from 'node-fetch';
 
 // Configuration from environment variables
 const SEMIONT_ENV = process.env.SEMIONT_ENV || 'development';
@@ -133,6 +134,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             entityTypes: { type: 'string', description: 'Comma-separated entity types to filter' },
             search: { type: 'string', description: 'Search query' },
+            archived: { type: 'boolean', description: 'Filter by archived status (default: false - shows only non-archived documents)' },
             limit: { type: 'number', description: 'Maximum results (default: 20)' },
             offset: { type: 'number', description: 'Offset for pagination (default: 0)' },
           },
@@ -439,9 +441,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const params = new URLSearchParams();
         if (args?.entityTypes) params.set('entityTypes', args.entityTypes as string);
         if (args?.search) params.set('search', args.search as string);
+        // Default to archived: false (show only non-archived documents)
+        const archived = args?.archived ?? false;
+        params.set('archived', String(archived));
         if (args?.limit) params.set('limit', args.limit.toString());
         if (args?.offset) params.set('offset', args.offset.toString());
-        
+
         const data = await callSemiontAPI(`/api/documents?${params}`);
         return {
           content: [{
@@ -639,15 +644,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Start the server
 async function main() {
+  console.error('[MCP Server] Starting up...');
+  console.error('[MCP Server] Environment:', {
+    SEMIONT_ENV,
+    SEMIONT_API_URL,
+    NODE_ENV: process.env.NODE_ENV,
+    cwd: process.cwd()
+  });
+
   const transport = new StdioServerTransport();
+  console.error('[MCP Server] Connecting to transport...');
+
   await server.connect(transport);
-  
-  // Don't output anything to stdout/stderr - it breaks the JSON-RPC protocol
-  // The MCP server communicates only via JSON-RPC over stdio
+  console.error('[MCP Server] Connected successfully');
+
+  // Keep the server alive until it receives a termination signal
+  process.on('SIGINT', async () => {
+    console.error('[MCP Server] Received SIGINT, shutting down...');
+    await server.close();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    console.error('[MCP Server] Received SIGTERM, shutting down...');
+    await server.close();
+    process.exit(0);
+  });
+
+  // Add handler for unexpected exits
+  process.on('exit', (code) => {
+    console.error(`[MCP Server] Process exiting with code ${code}`);
+  });
+
+  process.on('uncaughtException', (error) => {
+    console.error('[MCP Server] Uncaught exception:', error);
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[MCP Server] Unhandled rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+  });
+
+  console.error('[MCP Server] Setting up keep-alive...');
+
+  // Keep the process alive
+  // The server will handle incoming messages via the transport
+  await new Promise(() => {
+    console.error('[MCP Server] Keep-alive promise created, server should stay running...');
+
+    // Log periodic heartbeat to show we're still alive
+    setInterval(() => {
+      console.error(`[MCP Server] Still alive at ${new Date().toISOString()}`);
+    }, 30000); // Every 30 seconds
+  });
 }
 
 main().catch((error) => {
-  // Can't log to console - it would break JSON-RPC protocol
-  // Just exit with error code
+  console.error('[MCP Server] Fatal error in main:', error);
   process.exit(1);
 });
