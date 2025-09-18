@@ -4,6 +4,7 @@ import { GraphDatabase } from './interface';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
+import { MemoryGraphDatabase } from './implementations/memorygraph';
 import { getGraphConfig, loadEnvironmentConfig } from '../config/environment-loader';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
@@ -59,8 +60,7 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
     }
       
     case 'memory':
-      // Use any implementation with in-memory storage (they're all stubs for now)
-      return new NeptuneGraphDatabase({});
+      return new MemoryGraphDatabase({});
       
     default:
       throw new Error(`Unsupported graph database type: ${config.type}`);

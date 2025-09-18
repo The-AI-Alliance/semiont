@@ -31,7 +31,7 @@
     "@semiont/api-types": "*",
     "dotenv": "^16.3.1",
     "google-auth-library": "^9.10.0",
-    "gremlin": "^3.7.0",
+    "gremlin": "^3.7.4",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^9.0.1",
@@ -40,6 +40,7 @@
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",
     "@testcontainers/postgresql": "^11.5.0",
+    "@types/gremlin": "^3.6.7",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.9",
     "@types/supertest": "^6.0.3",
