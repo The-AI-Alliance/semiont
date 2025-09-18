@@ -98,8 +98,6 @@ The following security features are **not yet implemented** and are planned for 
 
 - Fine-grained role-based access control (RBAC)
 - Resource-level permissions
-- API rate limiting
-- Web Application Firewall (WAF) rules
 - Automated vulnerability scanning
 - End-to-end encryption for stored documents
 - Multi-factor authentication (MFA) beyond OAuth provider support
@@ -108,12 +106,9 @@ The following security features are **not yet implemented** and are planned for 
 
 ## Roadmap
 
-### Near-term (Next Release)
-- Basic role system (admin/user)
-- API rate limiting
-- Enhanced audit logging
-
 ### Medium-term
+- Basic role system (admin/user)
+- Enhanced audit logging
 - Full RBAC implementation
 - Resource-level permissions
 - Advanced threat detection
