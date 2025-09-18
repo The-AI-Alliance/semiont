@@ -39,7 +39,7 @@ export interface ArgSpec {
 export interface CommandDefinition<TInput = any, TOptions = TInput, TResult = any> {
   name: string;
   description: string;
-  schema: z.ZodType<TOptions, any, TInput>;
+  schema: z.ZodSchema<TOptions>;
   argSpec: ArgSpec;
   requiresEnvironment: boolean;
   requiresServices: boolean;
