@@ -38,7 +38,7 @@ export function createArgParser<T>(
       // Validate with Zod
       const validated = command.schema.parse(normalized);
       
-      return validated;
+      return validated as T;
     } catch (error) {
       if (error instanceof arg.ArgError) {
         throw new Error(`Invalid arguments: ${error.message}`);

@@ -63,7 +63,7 @@ For each service in your environment, specify:
 {
   "services": {
     "backend": {
-      "platform": "posix",
+      "platform": { "type": "posix" },  // Platform must be an object with 'type'
       "port": 3000,
       "command": "npm start",
       "env": {
@@ -72,7 +72,7 @@ For each service in your environment, specify:
       }
     },
     "database": {
-      "platform": "container",
+      "platform": { "type": "container" },  // Platform must be an object with 'type'
       "image": "postgres:15",
       "port": 5432,
       "env": {
@@ -85,7 +85,7 @@ For each service in your environment, specify:
       ]
     },
     "worker": {
-      "platform": "aws",
+      "platform": { "type": "aws" },  // Platform must be an object with 'type'
       "serviceType": "lambda",  // Hint for AWS platform
       "memory": 512,
       "timeout": 300,

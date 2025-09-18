@@ -51,7 +51,7 @@ const app = new OpenAPIHono<{ Variables: Variables }>({
       return c.json(
         {
           error: 'Validation error',
-          details: result.error.errors,
+          details: result.error.issues,
         },
         400
       );

@@ -26,7 +26,7 @@ export function validateData<T>(
     return { success: true, data: result };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorMessage = error.errors.map(err => 
+      const errorMessage = error.issues.map((err: any) => 
         `${err.path.join('.')}: ${err.message}`
       ).join(', ');
       

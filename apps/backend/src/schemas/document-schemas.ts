@@ -48,7 +48,7 @@ export const DocumentSchema = z.object({
   entityTypes: z.array(z.string()).openapi({ example: ['Technology', 'Topic'] }),
   content: z.string().openapi({ example: 'Quantum computing is a revolutionary...' }),
   contentType: z.string().openapi({ example: 'text/plain', description: 'MIME type' }),
-  metadata: z.record(z.any()).optional().openapi({ example: { author: 'John Doe', tags: ['quantum', 'computing'] } }),
+  metadata: z.object({}).passthrough().optional(),
   archived: z.boolean().optional().openapi({ example: false, description: 'Whether the document is archived (read-only)' }),
   
   // Provenance tracking
@@ -83,7 +83,7 @@ export const SelectionSchema = z.object({
   id: z.string().openapi({ example: 'sel_xyz789' }),
   documentId: z.string().openapi({ example: 'doc_abc123' }),
   selectionType: z.string().openapi({ example: 'text_span' }),
-  selectionData: z.any().openapi({ description: 'Type-specific selection data' }),
+  selectionData: z.unknown().openapi({ description: 'Type-specific selection data' }),
   
   // Creation tracking
   createdAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
@@ -108,7 +108,7 @@ export const SelectionSchema = z.object({
   
   provisional: z.boolean().default(false).openapi({ example: false }),
   confidence: z.number().min(0).max(1).optional().openapi({ example: 0.85 }),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.object({}).passthrough().optional(),
   
   updatedAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
 }).openapi('Selection');
@@ -122,7 +122,7 @@ export const CreateDocumentRequestSchema = z.object({
   entityTypes: z.array(z.string()).optional().openapi({ example: ['Person', 'Author'] }),
   content: z.string().openapi({ example: 'Document content here...' }),
   contentType: z.string().default('text/plain').openapi({ example: 'text/plain' }),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.object({}).passthrough().optional(),
   
   // Provenance tracking - only optional fields that provide context
   // creationMethod defaults to 'api' on backend, but can be overridden for 'reference', 'upload', 'ui'
@@ -147,14 +147,14 @@ export const CreateDocumentRequestSchema = z.object({
     entityTypes: z.array(z.string()).optional(),
     provisional: z.boolean().optional(),
     confidence: z.number().min(0).max(1).optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.object({}).passthrough().optional(),
   })).optional().openapi({ description: 'Initial selections within the document' }),
 }).openapi('CreateDocumentRequest');
 
 export const UpdateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.object({}).passthrough().optional(),
   archived: z.boolean().optional().openapi({ description: 'Whether the document is archived (read-only)' }),
 }).openapi('UpdateDocumentRequest');
 
@@ -167,7 +167,7 @@ export const CreateSelectionRequestSchema = z.object({
     description: 'Semantic relationship tags' 
   }),
   entityTypes: z.array(z.string()).optional().openapi({ description: 'Entity types being referenced' }),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.object({}).passthrough().optional(),
 }).openapi('CreateSelectionRequest');
 
 export const ResolveSelectionRequestSchema = z.object({
@@ -182,7 +182,7 @@ export const ResolveSelectionRequestSchema = z.object({
   }),
   provisional: z.boolean().optional(),
   confidence: z.number().min(0).max(1).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.object({}).passthrough().optional(),
 }).openapi('ResolveSelectionRequest');
 
 export const CreateDocumentFromSelectionRequestSchema = z.object({
@@ -190,7 +190,7 @@ export const CreateDocumentFromSelectionRequestSchema = z.object({
   entityTypes: z.array(z.string()).optional(),
   content: z.string().optional(),
   contentType: z.string().default('text/plain'),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.object({}).passthrough().optional(),
 }).openapi('CreateDocumentFromSelectionRequest');
 
 export const GenerateDocumentFromSelectionRequestSchema = z.object({
@@ -241,7 +241,7 @@ export const DetectSelectionsResponseSchema = z.object({
   selections: z.array(SelectionSchema),
   stats: z.object({
     total: z.number(),
-    byType: z.record(z.number()),
+    byType: z.object({}).passthrough(),
     averageConfidence: z.number(),
   }),
 }).openapi('DetectSelectionsResponse');
@@ -259,7 +259,7 @@ export const GenerateDocumentFromSelectionResponseSchema = z.object({
 
 export const ContextualSummaryResponseSchema = z.object({
   summary: z.string(),
-  relevantFields: z.record(z.any()),
+  relevantFields: z.object({}).passthrough(),
   context: z.object({
     before: z.string().optional(),
     selected: z.string(),
