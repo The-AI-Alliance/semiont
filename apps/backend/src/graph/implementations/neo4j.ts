@@ -307,9 +307,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
       const total = countResult.records[0]!.get('total').toNumber();
 
-      // Get paginated results
-      params.skip = filter.offset || 0;
-      params.limit = filter.limit || 20;
+      // Get paginated results - ensure integers for Neo4j
+      params.skip = neo4j.int(filter.offset || 0);
+      params.limit = neo4j.int(filter.limit || 20);
 
       const result = await session.run(
         `MATCH (d:Document) ${whereClause}
@@ -336,7 +336,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
          RETURN d
          ORDER BY d.updatedAt DESC
          LIMIT $limit`,
-        { query, limit }
+        { query, limit: neo4j.int(limit) }
       );
 
       return result.records.map(record => this.parseDocumentNode(record.get('d')));
@@ -596,9 +596,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
       const total = countResult.records[0]!.get('total').toNumber();
 
-      // Get paginated results
-      params.skip = filter.offset || 0;
-      params.limit = filter.limit || 20;
+      // Get paginated results - ensure integers for Neo4j
+      params.skip = neo4j.int(filter.offset || 0);
+      params.limit = neo4j.int(filter.limit || 20);
 
       const result = await session.run(
         `MATCH (s:Selection) ${whereClause}
