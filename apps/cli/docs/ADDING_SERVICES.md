@@ -404,12 +404,17 @@ Available service types:
 
 For services that support multiple implementations (like graph databases), ensure your configuration includes the implementation type:
 
+**IMPORTANT: Platform Configuration Structure**
+The `platform` field must ALWAYS be an object with a `type` property:
+- ✅ CORRECT: `"platform": { "type": "external" }`
+- ❌ WRONG: `"platform": "external"`
+
 ```json
 // environments/local.json - JanusGraph example
 {
   "services": {
     "graph": {
-      "platform": { "type": "container" },
+      "platform": { "type": "container" },  // Platform is an OBJECT
       "type": "janusgraph",  // CRITICAL: Implementation type
       "port": 8182,
       "storage": "berkeleydb"
@@ -424,10 +429,22 @@ For services that support multiple implementations (like graph databases), ensur
   },
   "services": {
     "graph": {
-      "platform": { "type": "aws" },
+      "platform": { "type": "aws" },  // Platform is an OBJECT
       "type": "neptune",  // CRITICAL: Implementation type
       "port": 8182,
       "comment": "Provisioned via CDK data stack (Amazon Neptune)"
+    }
+  }
+}
+
+// Example for external services (Claude, OpenAI, etc.)
+{
+  "services": {
+    "claude": {
+      "platform": { "type": "external" },  // Platform is an OBJECT
+      "type": "claude",  // Implementation type
+      "apiKey": "${ANTHROPIC_API_KEY}",
+      "model": "claude-3-haiku-20240307"
     }
   }
 }

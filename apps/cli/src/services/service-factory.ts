@@ -15,6 +15,7 @@ import { DatabaseService } from './database-service.js';
 import { FilesystemService } from './filesystem-service.js';
 import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
+import { InferenceService } from './inference-service.js';
 import { GenericService } from '../core/generic-service.js';
 
 export class ServiceFactory {
@@ -45,6 +46,9 @@ export class ServiceFactory {
         
       case 'mcp':
         return new MCPService(name, platform, config, serviceConfig);
+        
+      case 'inference':
+        return new InferenceService(name, platform, config, serviceConfig);
         
       default:
         // Use GenericService for unknown service types
