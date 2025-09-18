@@ -363,27 +363,40 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       // Add optional fields
       if (input.createdBy) selection.createdBy = input.createdBy;
+
+      // Set selectionCategory based on resolvedDocumentId presence and value
+      let selectionCategory: string;
       if ('resolvedDocumentId' in input) {
         selection.resolvedDocumentId = input.resolvedDocumentId;
         if (input.resolvedDocumentId) {
           selection.resolvedAt = new Date(now);
+          selectionCategory = 'resolved_reference';
+        } else {
+          selectionCategory = 'stub_reference';
         }
         if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
+      } else {
+        selectionCategory = 'highlight';
       }
+
       if (input.referenceTags) selection.referenceTags = input.referenceTags;
       if (input.entityTypes) selection.entityTypes = input.entityTypes;
       if (input.confidence !== undefined) selection.confidence = input.confidence;
       if (input.metadata) selection.metadata = input.metadata;
 
       // Create the selection node and relationships
-      const cypher = selection.resolvedDocumentId
-        ? `MATCH (from:Document {id: $fromId})
+      // Three cases: resolved reference (has target doc), stub reference (null), highlight (no field)
+      let cypher: string;
+      if (selectionCategory === 'resolved_reference') {
+        // Resolved reference - has a target document
+        cypher = `MATCH (from:Document {id: $fromId})
            MATCH (to:Document {id: $toId})
            CREATE (s:Selection {
              id: $id,
              documentId: $documentId,
              resolvedDocumentId: $resolvedDocumentId,
              selectionType: $selectionType,
+             selectionCategory: $selectionCategory,
              selectionData: $selectionData,
              provisional: $provisional,
              referenceTags: $referenceTags,
@@ -398,12 +411,35 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            })
            CREATE (s)-[:BELONGS_TO]->(from)
            CREATE (s)-[:REFERENCES]->(to)
-           RETURN s`
-        : `MATCH (d:Document {id: $documentId})
+           RETURN s`;
+      } else if (selectionCategory === 'stub_reference') {
+        // Stub reference - has resolvedDocumentId but it's null
+        cypher = `MATCH (d:Document {id: $documentId})
+           CREATE (s:Selection {
+             id: $id,
+             documentId: $documentId,
+             resolvedDocumentId: $resolvedDocumentId,
+             selectionType: $selectionType,
+             selectionCategory: $selectionCategory,
+             selectionData: $selectionData,
+             provisional: $provisional,
+             referenceTags: $referenceTags,
+             entityTypes: $entityTypes,
+             metadata: $metadata,
+             createdAt: datetime($createdAt),
+             updatedAt: datetime($updatedAt),
+             createdBy: $createdBy
+           })
+           CREATE (s)-[:BELONGS_TO]->(d)
+           RETURN s`;
+      } else {
+        // Highlight - no resolvedDocumentId field at all
+        cypher = `MATCH (d:Document {id: $documentId})
            CREATE (s:Selection {
              id: $id,
              documentId: $documentId,
              selectionType: $selectionType,
+             selectionCategory: $selectionCategory,
              selectionData: $selectionData,
              provisional: $provisional,
              entityTypes: $entityTypes,
@@ -414,6 +450,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            })
            CREATE (s)-[:BELONGS_TO]->(d)
            RETURN s`;
+      }
 
       const params: any = {
         id,
@@ -422,6 +459,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         toId: selection.resolvedDocumentId || null,
         resolvedDocumentId: selection.resolvedDocumentId || null,
         selectionType: selection.selectionType,
+        selectionCategory,
         selectionData: JSON.stringify(selection.selectionData),
         provisional: selection.provisional,
         referenceTags: selection.referenceTags || [],
@@ -583,7 +621,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (s:Selection {documentId: $documentId})
-         WHERE s.resolvedDocumentId IS NULL
+         WHERE s.selectionCategory = 'highlight'
          RETURN s
          ORDER BY s.createdAt DESC`,
         { documentId }
@@ -660,7 +698,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (s:Selection {documentId: $documentId})
-         WHERE s.resolvedDocumentId IS NOT NULL
+         WHERE s.selectionCategory IN ['stub_reference', 'resolved_reference']
          RETURN s
          ORDER BY s.createdAt DESC`,
         { documentId }

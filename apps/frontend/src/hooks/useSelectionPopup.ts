@@ -143,14 +143,21 @@ export function useSelectionPopup({
   const handleCreateReference = useCallback((
     onCreateReference: (targetDocId?: string, entityType?: string, referenceType?: string) => void
   ) => {
+    // Pass entity types if any are selected
+    const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+
     if (selectedDoc && !createNewDoc) {
-      // Create reference to existing document
-      onCreateReference(selectedDoc.id, undefined, referenceType);
+      // Create resolved reference to existing document
+      onCreateReference(selectedDoc.id, entityTypesStr, referenceType);
     } else if (createNewDoc || (searchQuery && !selectedDoc)) {
       // Create reference with new document
       handleCreateNewDocument(onCreateReference);
+    } else {
+      // Create stub reference (no document selected, not creating new)
+      // Pass undefined for targetDocId to create stub reference
+      onCreateReference(undefined, entityTypesStr, referenceType);
     }
-  }, [selectedDoc, createNewDoc, searchQuery, referenceType, handleCreateNewDocument]);
+  }, [selectedDoc, createNewDoc, searchQuery, referenceType, selectedEntityTypes, handleCreateNewDocument]);
 
   // Handle Escape key to close the popup
   useEffect(() => {
