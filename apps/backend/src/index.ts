@@ -40,6 +40,9 @@ import { selectionsRouter } from './routes/selections';
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
 
+// Import graph database for initialization
+import { getGraphDatabase } from './graph/factory';
+
 type Variables = {
   user: User;
 };
@@ -179,9 +182,25 @@ if (CONFIG.NODE_ENV !== 'test') {
     fetch: app.fetch,
     port: port,
     hostname: '0.0.0.0'
-  }, (info) => {
+  }, async (info) => {
     console.log(`🚀 Server ready at http://localhost:${info.port}`);
     console.log(`📡 API ready at http://localhost:${info.port}/api`);
+    
+    // Initialize graph database and seed tag collections
+    try {
+      console.log('🔧 Initializing graph database...');
+      const graphDb = await getGraphDatabase();
+      
+      // Pre-populate tag collections by calling getters
+      // This ensures defaults are loaded on startup
+      const entityTypes = await graphDb.getEntityTypes();
+      const referenceTypes = await graphDb.getReferenceTypes();
+      
+      console.log(`✅ Graph database initialized with ${entityTypes.length} entity types and ${referenceTypes.length} reference types`);
+    } catch (error) {
+      console.error('⚠️ Failed to initialize graph database:', error);
+      // Continue running even if graph initialization fails
+    }
   });
 }
 
