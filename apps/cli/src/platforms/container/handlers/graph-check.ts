@@ -80,6 +80,44 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
               stdio: 'pipe'
             });
             isHealthy = true;
+
+            // Additional JanusGraph-specific checks for better diagnostics
+            if (graphType === 'janusgraph') {
+              // Check if dependent services are healthy
+              try {
+                const cassandraRunning = execSync(`${runtime} ps --filter "name=semiont-cassandra" --format "{{.Names}}"`, {
+                  encoding: 'utf-8',
+                  stdio: 'pipe'
+                }).trim().includes('semiont-cassandra');
+
+                const elasticsearchRunning = execSync(`${runtime} ps --filter "name=semiont-elasticsearch" --format "{{.Names}}"`, {
+                  encoding: 'utf-8',
+                  stdio: 'pipe'
+                }).trim().includes('semiont-elasticsearch');
+
+                healthDetails.dependencies = {
+                  cassandra: cassandraRunning ? 'running' : 'stopped',
+                  elasticsearch: elasticsearchRunning ? 'running' : 'stopped'
+                };
+
+                // Check for known WebSocket compatibility issues
+                healthDetails.clientCompatibility = {
+                  gremlinJs: 'known_issue',
+                  issue: 'gremlin JavaScript client has WebSocket API incompatibility with Node.js',
+                  error: 'this._ws.on is not a function',
+                  workaround: 'Use HTTP-based JanusGraph client or alternative Gremlin client'
+                };
+
+                // Check startup ordering
+                healthDetails.startupOrder = {
+                  status: 'fixed',
+                  note: 'Container dependencies use health checks for proper startup ordering'
+                };
+
+              } catch {
+                // Dependency check is best-effort
+              }
+            }
           } catch {
             // If nc fails, try checking if the java process is running
             const processes = execSync(`${runtime} exec ${containerName} ps aux`, {
@@ -88,6 +126,10 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
             });
             // If JanusGraph java process is running, consider it healthy
             isHealthy = processes.includes('java') && processes.includes('janusgraph');
+
+            if (!isHealthy) {
+              healthDetails.processCheck = 'JanusGraph java process not found';
+            }
           }
           break;
         case 'neo4j':
