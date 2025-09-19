@@ -131,18 +131,18 @@ This document provides a foundation for understanding ${documentName}. As knowle
             setNewDocContent(response.sourceDocument.content);
           } else {
             showError('Invalid or expired clone token');
-            router.push('/know/search');
+            router.push('/know/discover');
           }
         } catch (err) {
           console.error('Failed to load clone data:', err);
           showError('Failed to load clone data. Please try again.');
-          router.push('/know/search');
+          router.push('/know/discover');
         } finally {
           setIsLoading(false);
         }
       } else if (mode === 'clone' && !tokenFromUrl) {
         showError('Clone token not found. Please try cloning again.');
-        router.push('/know/search');
+        router.push('/know/discover');
       } else {
         setIsLoading(false);
       }
@@ -326,7 +326,7 @@ This document provides a foundation for understanding ${documentName}. As knowle
           <div className="flex gap-4 justify-end">
             <button
               type="button"
-              onClick={() => router.push('/know/search')}
+              onClick={() => router.push('/know/discover')}
               disabled={isCreating}
               className={buttonStyles.tertiary.base}
             >
