@@ -1,16 +1,8 @@
-import { notFound } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import AdminUsersClient from './client';
 
-export default async function AdminUsersPage() {
-  const session = await getServerSession(authOptions);
-  
-  // Show 404 for non-admin users or unauthenticated users
-  // This hides the existence of admin routes for security
-  if (!session?.backendUser?.isAdmin) {
-    notFound();
-  }
+// Authentication is handled by middleware.ts
+// Only authenticated admins can reach this page
 
+export default function AdminUsersPage() {
   return <AdminUsersClient />;
 }

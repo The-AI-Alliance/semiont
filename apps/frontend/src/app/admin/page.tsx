@@ -1,19 +1,7 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 export default function AdminPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Redirect to Users as the default page
-    router.replace('/admin/users');
-  }, [router]);
-
-  return (
-    <div className="flex items-center justify-center py-20">
-      <p className="text-gray-600 dark:text-gray-300">Redirecting...</p>
-    </div>
-  );
+  // Middleware has already verified admin access
+  // Just redirect to the default admin page
+  redirect('/admin/users');
 }

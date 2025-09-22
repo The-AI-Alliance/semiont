@@ -1,42 +1,16 @@
 'use client';
 
-import { notFound } from 'next/navigation';
-import { useSession } from 'next-auth/react';
-import { useEffect } from 'react';
-import { 
+import {
   ChartBarIcon,
   ServerIcon,
   CommandLineIcon
 } from '@heroicons/react/24/outline';
 import { StatusDisplay } from '@/components/StatusDisplay';
 
+// Authentication is handled by middleware.ts
+// Only authenticated admins can reach this page
+
 export default function DevOpsPage() {
-  const { data: session, status } = useSession();
-  
-  // Check authentication and admin status
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (status === 'unauthenticated') {
-      notFound();
-    }
-    if (!session?.backendUser?.isAdmin) {
-      notFound();
-    }
-  }, [status, session]);
-
-  // Show loading while checking session
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
-      </div>
-    );
-  }
-
-  // Show nothing if not admin (will be handled by notFound)
-  if (!session?.backendUser?.isAdmin) {
-    return null;
-  }
 
   const suggestedFeatures = [
     {
