@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useRequireAuth } from '@/hooks/useSecureAPI';
 import { apiService } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
@@ -81,7 +80,6 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const { addDocument } = useOpenDocuments();
   
   // Consolidated state for documents
@@ -100,15 +98,16 @@ export default function DiscoverPage() {
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Load initial data when authentication is ready
+  // Load initial data
   useEffect(() => {
-    // Wait for auth to be ready - token is already set by SecureAPIProvider
-    if (!isAuthenticated) return;
-
     const loadInitialData = async () => {
       try {
         // Load recent documents - auth token is already set globally
-        const docsResponse = await apiService.documents.list({ limit: 10 });
+        // Only fetch non-archived documents for the discover page
+        const docsResponse = await apiService.documents.list({
+          limit: 10,
+          archived: false
+        });
         
         setDocuments(prev => ({
           ...prev,
@@ -117,18 +116,8 @@ export default function DiscoverPage() {
         }));
         
         // Load entity types using the same method as entity-tags page
-        try {
-          const entityTypesResponse = await apiService.entityTypes.list();
-          setEntityTypes(entityTypesResponse.entityTypes || []);
-        } catch (error) {
-          console.warn('Could not load entity types:', error);
-          // Extract entity types from loaded documents as fallback
-          const typesFromDocs = new Set<string>();
-          docsResponse.documents.forEach((doc: Document) => {
-            doc.entityTypes?.forEach(type => typesFromDocs.add(type));
-          });
-          setEntityTypes(Array.from(typesFromDocs));
-        }
+        const entityTypesResponse = await apiService.entityTypes.list();
+        setEntityTypes(entityTypesResponse.entityTypes || []);
       } catch (error) {
         console.error('Failed to load initial data:', error);
         setDocuments(prev => ({ ...prev, isLoading: false }));
@@ -136,7 +125,7 @@ export default function DiscoverPage() {
     };
 
     loadInitialData();
-  }, [isAuthenticated]);
+  }, []);
 
   // Perform search when debounced query changes
   useEffect(() => {
@@ -201,7 +190,7 @@ export default function DiscoverPage() {
   }, []);
 
   // Loading state
-  if (authLoading || documents.isLoading) {
+  if (documents.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-gray-600 dark:text-gray-300">Loading knowledge base...</p>

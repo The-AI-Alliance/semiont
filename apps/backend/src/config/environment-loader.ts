@@ -20,10 +20,20 @@ interface FilesystemServiceConfig {
   [key: string]: any;
 }
 
+interface InferenceServiceConfig {
+  type: 'anthropic' | 'openai';  // Required field
+  model?: string;
+  endpoint?: string;
+  apiKey?: string;
+  maxTokens?: number;
+  [key: string]: any;
+}
+
 interface EnvironmentConfig {
   services?: {
     graph?: GraphServiceConfig;
     filesystem?: FilesystemServiceConfig;
+    inference?: InferenceServiceConfig;
     [key: string]: any;
   };
   [key: string]: any;
@@ -113,36 +123,9 @@ export function getGraphConfig(): {
     
     return result;
   }
-  
-  // Fall back to environment variables for backwards compatibility
-  // This supports existing deployments that use environment variables
-  if (process.env.JANUSGRAPH_HOST || process.env.JANUSGRAPH_PORT) {
-    const result: {
-      type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
-      host?: string;
-      port?: number;
-      storage?: string;
-      index?: string;
-    } = {
-      type: 'janusgraph',
-      host: process.env.JANUSGRAPH_HOST || 'localhost',
-      port: process.env.JANUSGRAPH_PORT ? parseInt(process.env.JANUSGRAPH_PORT) : 8182
-    };
-    
-    if (process.env.JANUSGRAPH_STORAGE) {
-      result.storage = process.env.JANUSGRAPH_STORAGE;
-    }
-    if (process.env.JANUSGRAPH_INDEX) {
-      result.index = process.env.JANUSGRAPH_INDEX;
-    }
-    
-    return result;
-  }
-  
-  // Default to in-memory for development
-  return {
-    type: 'memory'
-  };
+
+  // If no configuration found, error
+  throw new Error('Graph service configuration not found. Please specify graph service settings your environment configuration.');
 }
 
 /**
@@ -176,4 +159,41 @@ export function getFilesystemConfig(): {
   
   // If no configuration found, error
   throw new Error('Filesystem service configuration not found. Please specify services.filesystem.path in your environment configuration.');
+}
+
+/**
+ * Get inference service configuration from environment
+ */
+export function getInferenceConfig(): InferenceServiceConfig {
+  // First try to load from environment JSON
+  const envConfig = loadEnvironmentConfig();
+  console.log('Environment config loaded from:', process.env.SEMIONT_ROOT || process.cwd());
+  console.log('Has inference config:', !!envConfig?.services?.inference);
+
+  if (envConfig?.services?.inference) {
+    const config = envConfig.services.inference;
+    console.log('Raw inference config:', config);
+
+    // Expand environment variables in config values
+    const expandedConfig: InferenceServiceConfig = {
+      type: config.type,
+      model: config.model,
+      endpoint: config.endpoint || config.baseURL,
+      maxTokens: config.maxTokens
+    };
+
+    // Handle apiKey with environment variable expansion
+    if (config.apiKey) {
+      if (config.apiKey.startsWith('${') && config.apiKey.endsWith('}')) {
+        const envVarName = config.apiKey.slice(2, -1);
+        expandedConfig.apiKey = process.env[envVarName];
+      } else {
+        expandedConfig.apiKey = config.apiKey;
+      }
+    }
+
+    return expandedConfig;
+  }
+
+  throw new Error('Inference service configuration not found. Please specify infererence settings in your environment configuration.');
 }

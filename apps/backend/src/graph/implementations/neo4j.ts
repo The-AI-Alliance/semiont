@@ -151,18 +151,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const document: Document = {
         id,
         name: input.name,
-        entityTypes: input.entityTypes || [],
+        entityTypes: input.entityTypes,
         contentType: input.contentType,
-        metadata: input.metadata || {},
+        metadata: input.metadata,
         archived: false,
         createdAt: new Date(now),
-        updatedAt: new Date(now),
+        createdBy: input.createdBy,
+        creationMethod: input.creationMethod,
+        contentChecksum: input.contentChecksum,
       };
 
-      // Add optional fields
-      if (input.createdBy) document.createdBy = input.createdBy;
-      if (input.createdBy) document.updatedBy = input.createdBy;
-      if (input.creationMethod) document.creationMethod = input.creationMethod;
       if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
       if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
 
@@ -175,10 +173,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           metadata: $metadata,
           archived: $archived,
           createdAt: datetime($createdAt),
-          updatedAt: datetime($updatedAt),
           createdBy: $createdBy,
-          updatedBy: $updatedBy,
           creationMethod: $creationMethod,
+          contentChecksum: $contentChecksum,
           sourceSelectionId: $sourceSelectionId,
           sourceDocumentId: $sourceDocumentId
         }) RETURN d`,
@@ -190,12 +187,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           metadata: JSON.stringify(document.metadata),
           archived: document.archived,
           createdAt: now,
-          updatedAt: now,
-          createdBy: document.createdBy || null,
-          updatedBy: document.updatedBy || null,
-          creationMethod: document.creationMethod || null,
-          sourceSelectionId: document.sourceSelectionId || null,
-          sourceDocumentId: document.sourceDocumentId || null,
+          createdBy: document.createdBy,
+          creationMethod: document.creationMethod,
+          contentChecksum: document.contentChecksum,
+          sourceSelectionId: document.sourceSelectionId ?? null,
+          sourceDocumentId: document.sourceDocumentId ?? null,
         }
       );
 
@@ -221,37 +217,18 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+    // Documents are immutable - only archiving is allowed
+    if (Object.keys(input).length !== 1 || input.archived === undefined) {
+      throw new Error('Documents are immutable. Only archiving is allowed.');
+    }
+
     const session = this.getSession();
     try {
-      const updates: string[] = ['d.updatedAt = datetime()'];
-      const params: any = { id };
-
-      if (input.name !== undefined) {
-        updates.push('d.name = $name');
-        params.name = input.name;
-      }
-      if (input.entityTypes !== undefined) {
-        updates.push('d.entityTypes = $entityTypes');
-        params.entityTypes = input.entityTypes;
-      }
-      if (input.metadata !== undefined) {
-        updates.push('d.metadata = $metadata');
-        params.metadata = JSON.stringify(input.metadata);
-      }
-      if (input.archived !== undefined) {
-        updates.push('d.archived = $archived');
-        params.archived = input.archived;
-      }
-      if (input.updatedBy !== undefined) {
-        updates.push('d.updatedBy = $updatedBy');
-        params.updatedBy = input.updatedBy;
-      }
-
       const result = await session.run(
         `MATCH (d:Document {id: $id})
-         SET ${updates.join(', ')}
+         SET d.archived = $archived
          RETURN d`,
-        params
+        { id, archived: input.archived }
       );
 
       if (result.records.length === 0) {
@@ -348,7 +325,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createSelection(input: CreateSelectionInput): Promise<Selection> {
     const session = this.getSession();
     try {
-      const id = this.generateId('sel');
+      const id = this.generateId();
       const now = new Date().toISOString();
 
       const selection: Selection = {
@@ -456,21 +433,21 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         id,
         documentId: selection.documentId,
         fromId: selection.documentId,
-        toId: selection.resolvedDocumentId || null,
-        resolvedDocumentId: selection.resolvedDocumentId || null,
+        toId: selection.resolvedDocumentId ?? null,
+        resolvedDocumentId: selection.resolvedDocumentId ?? null,
         selectionType: selection.selectionType,
         selectionCategory,
         selectionData: JSON.stringify(selection.selectionData),
         provisional: selection.provisional,
         referenceTags: selection.referenceTags || [],
         entityTypes: selection.entityTypes || [],
-        confidence: selection.confidence || null,
+        confidence: selection.confidence ?? null,
         metadata: selection.metadata ? JSON.stringify(selection.metadata) : null,
         createdAt: now,
         updatedAt: now,
-        resolvedAt: selection.resolvedAt?.toISOString() || null,
-        createdBy: selection.createdBy || null,
-        resolvedBy: selection.resolvedBy || null,
+        resolvedAt: selection.resolvedAt?.toISOString() ?? null,
+        createdBy: selection.createdBy ?? null,
+        resolvedBy: selection.resolvedBy ?? null,
       };
 
       const result = await session.run(cypher, params);
@@ -1050,8 +1027,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  generateId(prefix: string = 'doc'): string {
-    return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+  generateId(): string {
+    return uuidv4().replace(/-/g, '').substring(0, 12);
   }
 
   async clearDatabase(): Promise<void> {
@@ -1069,33 +1046,55 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   // Helper methods to parse Neo4j nodes
   private parseDocumentNode(node: any): Document {
     const props = node.properties;
+
+    // Validate all required fields
+    if (!props.id) throw new Error('Document missing required field: id');
+    if (!props.name) throw new Error(`Document ${props.id} missing required field: name`);
+    if (!props.entityTypes) throw new Error(`Document ${props.id} missing required field: entityTypes`);
+    if (!props.contentType) throw new Error(`Document ${props.id} missing required field: contentType`);
+    if (!props.metadata) throw new Error(`Document ${props.id} missing required field: metadata`);
+    if (props.archived === undefined || props.archived === null) throw new Error(`Document ${props.id} missing required field: archived`);
+    if (!props.createdAt) throw new Error(`Document ${props.id} missing required field: createdAt`);
+    if (!props.createdBy) throw new Error(`Document ${props.id} missing required field: createdBy`);
+    if (!props.creationMethod) throw new Error(`Document ${props.id} missing required field: creationMethod`);
+    if (!props.contentChecksum) throw new Error(`Document ${props.id} missing required field: contentChecksum`);
+
     return {
       id: props.id,
       name: props.name,
-      entityTypes: props.entityTypes || [],
+      entityTypes: props.entityTypes,
       contentType: props.contentType,
-      metadata: props.metadata ? JSON.parse(props.metadata) : {},
-      archived: props.archived || false,
-      createdAt: props.createdAt ? new Date(props.createdAt.toString()) : new Date(),
-      updatedAt: props.updatedAt ? new Date(props.updatedAt.toString()) : new Date(),
-      createdBy: props.createdBy || undefined,
-      updatedBy: props.updatedBy || undefined,
-      creationMethod: props.creationMethod || undefined,
-      sourceSelectionId: props.sourceSelectionId || undefined,
-      sourceDocumentId: props.sourceDocumentId || undefined,
+      metadata: JSON.parse(props.metadata),
+      archived: props.archived,
+      createdAt: new Date(props.createdAt.toString()),
+      createdBy: props.createdBy,
+      creationMethod: props.creationMethod,
+      contentChecksum: props.contentChecksum,
+      sourceSelectionId: props.sourceSelectionId,
+      sourceDocumentId: props.sourceDocumentId,
     };
   }
 
   private parseSelectionNode(node: any): Selection {
     const props = node.properties;
+
+    // Validate required fields
+    if (!props.id) throw new Error('Selection missing required field: id');
+    if (!props.documentId) throw new Error(`Selection ${props.id} missing required field: documentId`);
+    if (!props.selectionType) throw new Error(`Selection ${props.id} missing required field: selectionType`);
+    if (!props.selectionData) throw new Error(`Selection ${props.id} missing required field: selectionData`);
+    if (props.provisional === undefined || props.provisional === null) throw new Error(`Selection ${props.id} missing required field: provisional`);
+    if (!props.createdAt) throw new Error(`Selection ${props.id} missing required field: createdAt`);
+    if (!props.updatedAt) throw new Error(`Selection ${props.id} missing required field: updatedAt`);
+
     const selection: Selection = {
       id: props.id,
       documentId: props.documentId,
       selectionType: props.selectionType,
-      selectionData: props.selectionData ? JSON.parse(props.selectionData) : {},
-      provisional: props.provisional || false,
-      createdAt: props.createdAt ? new Date(props.createdAt.toString()) : new Date(),
-      updatedAt: props.updatedAt ? new Date(props.updatedAt.toString()) : new Date(),
+      selectionData: JSON.parse(props.selectionData),
+      provisional: props.provisional,
+      createdAt: new Date(props.createdAt.toString()),
+      updatedAt: new Date(props.updatedAt.toString()),
     };
 
     if (props.resolvedDocumentId) selection.resolvedDocumentId = props.resolvedDocumentId;

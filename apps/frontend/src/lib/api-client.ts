@@ -415,7 +415,14 @@ export const apiService = {
     delete: (id: string): Promise<{ success: boolean }> =>
       apiClient.delete('/api/documents/:id', { params: { id } }),
     
-    list: (params?: { limit?: number; offset?: number; contentType?: string }): Promise<DocumentsResponse> => {
+    list: (params?: {
+      limit?: number;
+      offset?: number;
+      contentType?: string;
+      archived?: boolean;
+      entityType?: string;
+      search?: string;
+    }): Promise<DocumentsResponse> => {
       if (params) {
         return apiClient.get('/api/documents', { params });
       }
@@ -535,13 +542,17 @@ export const apiService = {
     }): Promise<DocumentResponse> =>
       apiClient.post('/api/selections/create-document', { body: data }),
     
-    generateDocument: (data: {
-      selectionId: string;
-      prompt?: string;
-      name?: string;
-      referenceType?: string;
-    }): Promise<DocumentResponse> =>
-      apiClient.post('/api/selections/generate-document', { body: data }),
+    generateDocument: (
+      selectionId: string,
+      data?: {
+        entityTypes?: string[];
+        prompt?: string;
+      }
+    ): Promise<any> =>
+      apiClient.post('/api/selections/:id/generate-document', {
+        params: { id: selectionId },
+        body: data || {}
+      }),
     
     getHighlights: (documentId: string): Promise<SelectionsResponse> =>
       apiClient.get('/api/documents/:documentId/highlights', { params: { documentId } }),

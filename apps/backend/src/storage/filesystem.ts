@@ -31,9 +31,8 @@ export class FilesystemStorage implements StorageService {
   }
   
   getDocumentPath(documentId: string): string {
-    // Use first 2 chars of UUID portion for directory sharding to avoid too many files in one directory
-    // Skip the "doc_" prefix and use characters 4-6 from the UUID part
-    const shard = documentId.substring(4, 6);
+    // Use first 2 chars of UUID for directory sharding to avoid too many files in one directory
+    const shard = documentId.substring(0, 2);
     return path.join(this.basePath, shard, `${documentId}.dat`);
   }
   

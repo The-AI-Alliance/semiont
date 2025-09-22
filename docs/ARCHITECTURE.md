@@ -155,6 +155,7 @@ Browser ↔ Frontend (Next.js) ↔ ALB ↔ Backend (Hono) ↔ PostgreSQL
 
 ### Data & Storage
 - **RDS PostgreSQL**: Managed relational database
+- **Graph Database**: Multiple implementations (Neo4j, Neptune, JanusGraph, Memory) - see [Graph Implementation Guide](GRAPH.md)
 - **EFS**: Elastic File System for persistent storage
 - **Secrets Manager**: Encrypted credential storage
 
@@ -481,5 +482,6 @@ TypeScript-based management scripts provide:
 - [Deployment Guide](DEPLOYMENT.md) - Step-by-step deployment instructions
 - [Configuration Guide](CONFIGURATION.md) - Environment and secret management
 - [Database Management](DATABASE.md) - Schema migrations and backup procedures
+- [Graph Implementation Guide](GRAPH.md) - Graph database patterns and implementations
 - [OAuth Setup](OAuth.md) - Authentication configuration guide
 - [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions

@@ -284,7 +284,7 @@ export function SelectionPopup({
                 </div>
               )}
 
-              {/* Create New Document Option */}
+              {/* Create Stub Reference Option */}
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -295,14 +295,14 @@ export function SelectionPopup({
                   className="rounded border-gray-300 dark:border-gray-600 disabled:opacity-50"
                 />
                 <label htmlFor="createNewDoc" className="text-sm text-gray-700 dark:text-gray-300">
-                  Create new document instead
+                  Create stub reference instead
                 </label>
               </div>
 
               {createNewDoc && (
                 <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                  A new document will be created using the selected text "{selectedText}" as the initial name. 
-                  You can rename it later when editing the document.
+                  A new reference will be created that points to a future document named "{selectedText}".
+                  You can complete this reference later by creating the actual document.
                 </div>
               )}
 
@@ -310,7 +310,7 @@ export function SelectionPopup({
               {(createNewDoc || selectedDoc) && (
                 <div className={`${createNewDoc ? 'animate-slideDown' : ''}`}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {createNewDoc ? 'Entity Types for New Document (optional)' : 'Selected Document Entity Types'}
+                    {createNewDoc ? 'Entity Types for Stub Reference (optional)' : 'Selected Document Entity Types'}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {createNewDoc ? (
@@ -355,8 +355,8 @@ export function SelectionPopup({
                 </div>
               )}
 
-              {/* Create Reference Button */}
-              {(!isEditMode || existingAnnotation?.type === 'highlight') && (
+              {/* Create Reference / Create Document Button */}
+              {(!isEditMode || existingAnnotation?.type === 'highlight' || createNewDoc) && (
                 <button
                   onClick={handleCreateReferenceClick}
                   disabled={isCreating || (!selectedDoc && !createNewDoc)}
@@ -367,8 +367,12 @@ export function SelectionPopup({
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                       Creating...
                     </>
+                  ) : createNewDoc ? (
+                    'Create Stub Reference'
+                  ) : isEditMode ? (
+                    'Convert to Reference'
                   ) : (
-                    isEditMode ? 'Convert to Reference' : 'Create Reference'
+                    'Create Reference'
                   )}
                 </button>
               )}

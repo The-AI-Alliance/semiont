@@ -1,32 +1,29 @@
 import React from 'react';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
 import { UnifiedHeader } from '@/components/shared/UnifiedHeader';
-import { AdminAuthWrapper } from '@/components/admin/AdminAuthWrapper';
 import { Footer } from '@/components/Footer';
 
-// Note: Metadata removed from layout to prevent leaking admin information
-// when pages return 404 for security. Metadata should be set in individual
-// page components after authentication check.
+// Note: Authentication is handled by middleware.ts for all admin routes
+// This ensures centralized security and returns 404 for unauthorized users
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Middleware has already verified admin access
   return (
-    <AdminAuthWrapper>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <UnifiedHeader brandingLink="/know" variant="standalone" />
-        <div className="flex flex-1">
-          <AdminNavigation />
-          <main className="flex-1 p-6">
-            <div className="max-w-7xl mx-auto">
-              {children}
-            </div>
-          </main>
-        </div>
-        <Footer />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <UnifiedHeader brandingLink="/know" variant="standalone" />
+      <div className="flex flex-1">
+        <AdminNavigation />
+        <main className="flex-1 p-6">
+          <div className="max-w-7xl mx-auto">
+            {children}
+          </div>
+        </main>
       </div>
-    </AdminAuthWrapper>
+      <Footer />
+    </div>
   );
 }

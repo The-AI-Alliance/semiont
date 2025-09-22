@@ -2,8 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
-import { 
-  CreateDocumentRequestSchema, 
+import {
+  CreateDocumentRequestSchema,
   CreateDocumentResponseSchema,
   GetDocumentResponseSchema,
   ListDocumentsResponseSchema,
@@ -13,8 +13,10 @@ import {
 } from '../schemas/document-schemas';
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
-import type { Document, Selection, UpdateDocumentInput } from '../graph/types';
+import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } from '../graph/types';
+import { CREATION_METHODS } from '../graph/types';
 import { calculateChecksum } from '../utils/checksum';
+import { generateDocumentSummary, generateReferenceSuggestions } from '../inference/factory';
 
 // Create documents router
 export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -58,7 +60,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
   
   const checksum = calculateChecksum(body.content);
   const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    id: Math.random().toString(36).substring(2, 11),
     name: body.name,
     archived: false,
     contentType: body.contentType || 'text/plain',
@@ -66,29 +68,27 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
     entityTypes: [],
     
     // Creation context
-    creationMethod: (body.creationMethod || 'api') as 'api' | 'reference' | 'upload' | 'ui',
-    sourceSelectionId: body.sourceSelectionId || undefined,
-    sourceDocumentId: body.sourceDocumentId || undefined,
+    creationMethod: CREATION_METHODS.API,  // Regular API creation
+    sourceSelectionId: body.sourceSelectionId,
+    sourceDocumentId: body.sourceDocumentId,
     contentChecksum: checksum,
     
     createdBy: user.id,
-    updatedBy: user.id,
     createdAt: new Date(),
-    updatedAt: new Date(),
   };
   
-  const createInput: any = {
+  const createInput: CreateDocumentInput = {
     name: document.name,
     entityTypes: document.entityTypes,
     content: body.content,
     contentType: document.contentType,
+    contentChecksum: document.contentChecksum!,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod || 'api',
+    createdBy: document.createdBy!,
+    creationMethod: document.creationMethod,
+    ...(document.sourceSelectionId ? { sourceSelectionId: document.sourceSelectionId } : {}),
+    ...(document.sourceDocumentId ? { sourceDocumentId: document.sourceDocumentId } : {}),
   };
-  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
-  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
-  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
   
   const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
@@ -169,7 +169,11 @@ const listDocumentsRoute = createRoute({
       offset: z.coerce.number().default(0),
       limit: z.coerce.number().default(50),
       entityType: z.string().optional(),
-      archived: z.coerce.boolean().optional(),
+      archived: z.union([
+        z.literal('true').transform(() => true),
+        z.literal('false').transform(() => false),
+        z.boolean()
+      ]).optional(),
       search: z.string().optional(), // Add search parameter for text search
     }),
   },
@@ -315,7 +319,6 @@ const updateDocumentRoute = createRoute({
 documentsRouter.openapi(updateDocumentRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
-  const user = c.get('user');
   const graphDb = await getGraphDatabase();
   const storage = getStorageService();
   
@@ -324,9 +327,7 @@ documentsRouter.openapi(updateDocumentRoute, async (c) => {
     throw new HTTPException(404, { message: 'Document not found' });
   }
   
-  const updateData: UpdateDocumentInput = {
-    updatedBy: user.id
-  };
+  const updateData: UpdateDocumentInput = {};
   if (body.name !== undefined) updateData.name = body.name;
   if (body.entityTypes !== undefined) updateData.entityTypes = body.entityTypes;
   if (body.metadata !== undefined) updateData.metadata = body.metadata;
@@ -623,37 +624,36 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   }
   
   // Create new document
-  // const checksum = calculateChecksum(body.content);  // Not used
+  const checksum = calculateChecksum(body.content);
   const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    id: Math.random().toString(36).substring(2, 11),
     name: body.name,
     archived: false,
     contentType: sourceDoc.contentType,
     metadata: sourceDoc.metadata || {},
     entityTypes: sourceDoc.entityTypes || [],
-    
+
     // Clone context
-    creationMethod: 'clone',
+    creationMethod: CREATION_METHODS.CLONE,
     sourceDocumentId: tokenData.documentId,
-    
+    contentChecksum: checksum,
+
     createdBy: user.id,
-    updatedBy: user.id,
     createdAt: new Date(),
-    updatedAt: new Date(),
   };
   
-  const createInput: any = {
+  const createInput: CreateDocumentInput = {
     name: document.name,
     entityTypes: document.entityTypes,
     content: body.content,
     contentType: document.contentType,
+    contentChecksum: document.contentChecksum!,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod || 'api',
+    createdBy: document.createdBy!,
+    creationMethod: document.creationMethod,
+    ...(document.sourceSelectionId ? { sourceSelectionId: document.sourceSelectionId } : {}),
+    ...(document.sourceDocumentId ? { sourceDocumentId: document.sourceDocumentId } : {}),
   };
-  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
-  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
-  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
   
   const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
@@ -661,9 +661,8 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   // Archive original if requested
   if (body.archiveOriginal) {
     await graphDb.updateDocument(tokenData.documentId, {
-      archived: true,
-      updatedBy: user.id,
-      });
+      archived: true
+    });
   }
   
   // Clean up token
@@ -1139,161 +1138,6 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
   });
 });
 
-// GENERATE DOCUMENT FROM SELECTION
-// ==========================================
-const generateDocumentFromSelectionRoute = createRoute({
-  method: 'post',
-  path: '/api/selections/{id}/generate-document',
-  summary: 'Generate Document from Selection',
-  description: 'Use AI to generate a document from a selection/reference',
-  tags: ['Selections'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: 'sel_xyz789' }),
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            prompt: z.string().optional().openapi({
-              example: 'Generate a detailed explanation of this concept',
-              description: 'Optional prompt for AI generation'
-            }),
-          }),
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            document: z.any(),
-            selection: z.any(),
-          }),
-        },
-      },
-      description: 'Document generated successfully',
-    },
-  },
-});
-
-documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
-  const { id } = c.req.valid('param');
-  const body = c.req.valid('json');
-  const user = c.get('user');
-  const graphDb = await getGraphDatabase();
-  const storage = getStorageService();
-  
-  // Get the selection
-  const selection = await graphDb.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
-  }
-  
-  // Generate content (stub implementation)
-  const generatedContent = await generateDocumentContent(
-    selection.selectionData?.text || 'Unknown Topic',
-    selection.entityTypes || [],
-    body.prompt
-  );
-  
-  // Create the document
-  // const checksum = calculateChecksum(generatedContent.content);  // Not used
-  const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
-    name: generatedContent.title,
-    archived: false,
-    contentType: 'text/markdown',
-    metadata: {
-      aiGenerated: true,
-      generationPrompt: body.prompt,
-      sourceSelectionId: id,
-    },
-    entityTypes: selection.entityTypes || [],
-    
-    creationMethod: 'api' as const,  // Use 'api' instead of 'ai_generation'
-    sourceSelectionId: id,
-    sourceDocumentId: selection.documentId,
-    
-    createdBy: user.id,
-    updatedBy: user.id,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  
-  const createInput: any = {
-    name: document.name,
-    entityTypes: document.entityTypes,
-    content: generatedContent.content,
-    contentType: document.contentType,
-    metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod || 'api',
-  };
-  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
-  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
-  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
-  
-  const savedDoc = await graphDb.createDocument(createInput);
-  await storage.saveDocument(savedDoc.id, Buffer.from(generatedContent.content));
-  
-  // Update the selection to resolve to this document
-  const updatedSelection = await graphDb.updateSelection(id, {
-    resolvedDocumentId: savedDoc.id,
-    resolvedAt: new Date(),
-    resolvedBy: user.id,
-  });
-  
-  return c.json({
-    document: formatDocument(savedDoc),
-    selection: formatSelection(updatedSelection),
-  });
-});
-
-// Stub implementation for AI content generation
-async function generateDocumentContent(
-  topic: string,
-  entityTypes: string[],
-  prompt?: string
-): Promise<{ title: string; content: string }> {
-  // In real implementation, this would call an AI service
-  const title = topic;
-  const content = `# ${topic}
-
-${prompt ? `*Generated based on prompt: "${prompt}"*\n\n` : ''}
-
-## Overview
-
-This is an AI-generated document about **${topic}**.
-
-## Entity Types
-
-${entityTypes.length > 0 ? entityTypes.map(type => `- ${type}`).join('\n') : 'No specific entity types identified.'}
-
-## Description
-
-This document was automatically generated to provide information about ${topic}. 
-In a real implementation, this would contain AI-generated content based on:
-- The selection text: "${topic}"
-- Entity types: ${entityTypes.join(', ') || 'none'}
-- Custom prompt: ${prompt || 'none'}
-
-## Related Topics
-
-- Further research needed
-- Additional context required
-- Related entities to explore
-
----
-*This is a stub implementation. In production, this would use an actual AI service to generate meaningful content.*
-`;
-  
-  return { title, content };
-}
-
 // CREATE DOCUMENT FROM SELECTION
 // ==========================================
 const createDocumentFromSelectionRoute = createRoute({
@@ -1348,37 +1192,36 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   }
   
   // Create the document
-  // const checksum = calculateChecksum(body.content);  // Not used
+  const checksum = calculateChecksum(body.content);
   const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    id: Math.random().toString(36).substring(2, 11),
     name: body.name,
     archived: false,
     contentType: body.contentType || 'text/markdown',
     metadata: {},
     entityTypes: selection.entityTypes || [],
-    
-    creationMethod: 'reference',
+
+    creationMethod: CREATION_METHODS.REFERENCE,
     sourceSelectionId: id,
     sourceDocumentId: selection.documentId,
-    
+    contentChecksum: checksum,
+
     createdBy: user.id,
-    updatedBy: user.id,
     createdAt: new Date(),
-    updatedAt: new Date(),
   };
   
-  const createInput: any = {
+  const createInput: CreateDocumentInput = {
     name: document.name,
     entityTypes: document.entityTypes,
     content: body.content,
     contentType: document.contentType,
+    contentChecksum: document.contentChecksum!,
     metadata: document.metadata,
-    createdBy: document.createdBy,
-    creationMethod: document.creationMethod || 'api',
+    createdBy: document.createdBy!,
+    creationMethod: document.creationMethod,
+    ...(document.sourceSelectionId ? { sourceSelectionId: document.sourceSelectionId } : {}),
+    ...(document.sourceDocumentId ? { sourceDocumentId: document.sourceDocumentId } : {}),
   };
-  if (document.sourceSelectionId) createInput.sourceSelectionId = document.sourceSelectionId;
-  if (document.sourceDocumentId) createInput.sourceDocumentId = document.sourceDocumentId;
-  if (document.contentChecksum) createInput.contentChecksum = document.contentChecksum;
   
   const savedDoc = await graphDb.createDocument(createInput);
   await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
@@ -1412,9 +1255,7 @@ function formatDocument(doc: Document & { content?: string }): any {
     sourceDocumentId: doc.sourceDocumentId,
     
     createdBy: doc.createdBy,
-    updatedBy: doc.updatedBy,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
-    updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
   };
   
   // Include content if it exists (for search results)
@@ -1500,7 +1341,7 @@ async function detectSelectionsInDocument(
       
       const selection = {
         selection: {
-          id: `sel_proper_${Math.random().toString(36).substring(2, 11)}`,
+          id: Math.random().toString(36).substring(2, 14),
           documentId: document.id,
           selectionType: 'text_span',
           selectionData: {
@@ -1551,7 +1392,7 @@ async function detectSelectionsInDocument(
       
       const selection = {
         selection: {
-          id: `sel_wiki_${Math.random().toString(36).substring(2, 11)}`,
+          id: Math.random().toString(36).substring(2, 14),
           documentId: document.id,
           selectionType: 'text_span',
           selectionData: {
@@ -1630,7 +1471,6 @@ const getDocumentLLMContextRoute = createRoute({
               metadata: z.any(),
               archived: z.boolean(),
               createdAt: z.string(),
-              updatedAt: z.string(),
             }),
             content: z.string().optional(),
             contentSummary: z.string().openapi({
@@ -1783,10 +1623,20 @@ documentsRouter.openapi(getDocumentLLMContextRoute, async (c) => {
     relatedDocuments = relatedDocuments.slice(0, query.maxRelated);
   }
   
-  // Generate content summary
-  const contentSummary = content 
-    ? content.substring(0, 200).replace(/\n+/g, ' ').trim() + '...'
-    : 'No content available';
+  // Generate intelligent content summary
+  let contentSummary: string;
+
+  if (content) {
+    const intelligentSummary = await generateDocumentSummary(
+      document.name,
+      content,
+      document.entityTypes || []
+    );
+
+    contentSummary = intelligentSummary;
+  } else {
+    contentSummary = 'No content available';
+  }
   
   // Graph context (simplified for stub)
   const graphContext = {
@@ -1804,7 +1654,6 @@ documentsRouter.openapi(getDocumentLLMContextRoute, async (c) => {
       metadata: document.metadata || {},
       archived: document.archived || false,
       createdAt: document.createdAt instanceof Date ? document.createdAt.toISOString() : document.createdAt,
-      updatedAt: document.updatedAt instanceof Date ? document.updatedAt.toISOString() : document.updatedAt,
     },
     ...(query.includeContent && { content }),
     contentSummary,
@@ -1829,8 +1678,8 @@ documentsRouter.openapi(getDocumentLLMContextRoute, async (c) => {
         length: r.selectionData?.length || 0,
         targetDocumentId: r.resolvedDocumentId || null,
         targetDocumentName: r.targetDocumentName || null,
-        referenceType: r.referenceTags?.[0] || undefined,
-        entityTypes: r.entityTypes || undefined,
+        referenceType: r.referenceTags?.[0],
+        entityTypes: r.entityTypes,
         isStub: r.isStub,
       })),
     } : {},
@@ -2044,12 +1893,22 @@ documentsRouter.openapi(getReferenceLLMContextRoute, async (c) => {
     relatedReferences = relatedReferences.slice(0, query.maxRelated);
   }
   
-  // Generate content suggestions for stub references
+  // Generate smart content suggestions for stub references
+  let smartSuggestions: string[] | null = null;
+  if (!selection.resolvedDocumentId) {
+    // This is a stub reference - generate smart suggestions
+    smartSuggestions = await generateReferenceSuggestions(
+      selection.selectionData?.text || 'New Document',
+      selection.entityTypes?.[0],
+      surroundingText
+    );
+  }
+
   const generationContext = {
     suggestedContent: {
       title: selection.selectionData?.text || 'New Document',
       summary: `This document provides information about ${selection.selectionData?.text || 'the selected topic'}.`,
-      keyPoints: [
+      keyPoints: smartSuggestions || [
         `Definition and overview of ${selection.selectionData?.text}`,
         'Historical context and development',
         'Current applications and relevance',
@@ -2071,6 +1930,7 @@ documentsRouter.openapi(getReferenceLLMContextRoute, async (c) => {
       'Applications',
       'References',
     ],
+    smartSuggestions: smartSuggestions,
   };
   
   // Knowledge graph context

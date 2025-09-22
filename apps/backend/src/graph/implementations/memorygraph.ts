@@ -21,7 +21,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 
 // Simple in-memory storage using Maps
-// This implementation is used as a fallback when no graph database is available
+// Useful for development and testing
 
 export class MemoryGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
@@ -50,44 +50,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return this.connected;
   }
   
-  // Schema management not needed for in-memory storage
-  // private async initializeSchema(): Promise<void> {
-  //   // In production: Define vertex labels, edge labels, and property keys
-  //   // await this.client.submit(`
-  //   //   mgmt = graph.openManagement()
-  //   //   
-  //   //   // Define vertex labels
-  //   //   if (!mgmt.containsVertexLabel('Document')) {
-  //   //     mgmt.makeVertexLabel('Document').make()
-  //   //   }
-  //   //   
-  //   //   // Define edge labels
-  //   //   if (!mgmt.containsEdgeLabel('REFERENCES')) {
-  //   //     mgmt.makeEdgeLabel('REFERENCES').multiplicity(MULTI).make()
-  //   //   }
-  //   //   
-  //   //   // Define property keys
-  //   //   if (!mgmt.containsPropertyKey('name')) {
-  //   //     mgmt.makePropertyKey('name').dataType(String.class).cardinality(SINGLE).make()
-  //   //   }
-  //   //   
-  //   //   // Create indexes for better query performance
-  //   //   if (!mgmt.containsGraphIndex('documentByName')) {
-  //   //     name = mgmt.getPropertyKey('name')
-  //   //     mgmt.buildIndex('documentByName', Vertex.class).addKey(name).buildCompositeIndex()
-  //   //   }
-  //   //   
-  //   //   // Create mixed index for full-text search (requires indexing backend)
-  //   //   if (!mgmt.containsGraphIndex('documentSearch')) {
-  //   //     mgmt.buildIndex('documentSearch', Vertex.class)
-  //   //       .addKey(name, Mapping.TEXT.asParameter())
-  //   //       .buildMixedIndex('search')
-  //   //   }
-  //   //   
-  //   //   mgmt.commit()
-  //   // `);
-  // }
-  
   async createDocument(input: CreateDocumentInput): Promise<Document> {
     const id = this.generateId();
     const now = new Date();
@@ -95,23 +57,19 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const document: Document = {
       id,
       name: input.name,
-      entityTypes: input.entityTypes || [],
+      entityTypes: input.entityTypes,
       contentType: input.contentType,
-      metadata: input.metadata || {},
+      metadata: input.metadata,
       archived: false,  // New documents are not archived by default
+      creationMethod: input.creationMethod,
+      contentChecksum: input.contentChecksum,
       createdAt: now,
-      updatedAt: now,
+      createdBy: input.createdBy,
     };
-    
-    // Audit fields
-    if (input.createdBy) document.createdBy = input.createdBy;
-    if (input.createdBy) document.updatedBy = input.createdBy;
-    
+
     // Provenance tracking fields
-    if (input.creationMethod) document.creationMethod = input.creationMethod;
     if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
     if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
-    // Note: contentChecksum should be in metadata, set by the routes layer
     
     // Simply add to in-memory map
     // await this.client.submit(`
@@ -140,31 +98,16 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+    // Documents are immutable - only archiving is allowed
+    if (Object.keys(input).length !== 1 || input.archived === undefined) {
+      throw new Error('Documents are immutable. Only archiving is allowed.');
+    }
+
     const doc = this.documents.get(id);
     if (!doc) throw new Error('Document not found');
-    
-    const updated: Document = {
-      ...doc,
-      ...(input.name && { name: input.name }),
-      ...(input.entityTypes && { entityTypes: input.entityTypes }),
-      ...(input.metadata && { metadata: { ...doc.metadata, ...input.metadata } }),
-      ...(input.archived !== undefined && { archived: input.archived }),
-      ...(input.updatedBy && { updatedBy: input.updatedBy }),
-      updatedAt: new Date(),
-    };
-    
-    // Simply update in map
-    // await this.client.submit(`
-    //   graph.tx().rollback()
-    //   g.V().has('id', id)
-    //     .property('name', name)
-    //     .property('entityTypes', entityTypes)
-    //     .property('updatedAt', new Date())
-    //   graph.tx().commit()
-    // `, { id, name, entityTypes, ... });
-    
-    this.documents.set(id, updated);
-    return updated;
+
+    doc.archived = input.archived;
+    return doc;
   }
   
   async deleteDocument(id: string): Promise<void> {
@@ -224,7 +167,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async createSelection(input: CreateSelectionInput): Promise<Selection> {
-    const id = this.generateId('sel');
+    const id = this.generateId();
     const now = new Date();
     
     const selection: Selection = {
@@ -655,8 +598,8 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
   }
   
-  generateId(prefix: string = 'doc'): string {
-    return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+  generateId(): string {
+    return uuidv4().replace(/-/g, '').substring(0, 12);
   }
   
   async clearDatabase(): Promise<void> {

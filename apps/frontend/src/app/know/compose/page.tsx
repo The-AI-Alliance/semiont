@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
@@ -10,6 +11,7 @@ import { useToast } from '@/components/Toast';
 function ComposeDocumentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const { addDocument } = useOpenDocuments();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
@@ -35,66 +37,50 @@ function ComposeDocumentContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   
-  // Generate dummy AI content
+  // Generate AI content using the backend inference service
   const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
     setIsGenerating(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Generate dummy content based on the document name and entity types
-    const entityTypesList = entityTypes.length > 0 
-      ? `\n\n## Entity Types\n${entityTypes.map(type => `- ${type}`).join('\n')}` 
-      : '';
-    
-    const referenceInfo = referenceType 
-      ? `\n\n## Reference Type\nThis document ${referenceType} the source document.` 
-      : '';
-    
-    const content = `# ${documentName}
 
-## Overview
-This document provides comprehensive information about ${documentName}. It has been generated based on the reference context and entity types provided.
+    try {
+      // Check if we have a referenceId to generate from
+      if (!referenceId) {
+        throw new Error('Cannot generate content: No reference ID provided');
+      }
 
-## Description
-${documentName} represents a key concept in the knowledge base. This document serves as a definitive reference for understanding its various aspects and relationships with other concepts.${entityTypesList}${referenceInfo}
+      // Call the backend API to generate document content
+      const requestData: { entityTypes?: string[]; prompt?: string } = {};
+      if (entityTypes.length > 0) {
+        requestData.entityTypes = entityTypes;
+      }
+      if (referenceType) {
+        requestData.prompt = `Create a document that ${referenceType} the source document.`;
+      }
 
-## Key Points
-- Primary characteristic of ${documentName}
-- Relationship to other concepts in the knowledge base
-- Important implications and applications
-- Historical context and development
+      const response = await apiService.selections.generateDocument(
+        referenceId,
+        requestData
+      );
 
-## Details
-### Background
-The concept of ${documentName} has evolved significantly over time. Understanding its origins helps in grasping its current relevance and future potential.
+      if (!response.document || !response.document.content) {
+        throw new Error('No content returned from generation service');
+      }
 
-### Current Understanding
-In the current context, ${documentName} is understood to encompass several important aspects:
-1. First major aspect
-2. Second major aspect
-3. Third major aspect
-
-### Applications
-${documentName} finds applications in various domains:
-- Domain 1: Description of application
-- Domain 2: Description of application
-- Domain 3: Description of application
-
-## Related Concepts
-- Related concept 1
-- Related concept 2
-- Related concept 3
-
-## Conclusion
-This document provides a foundation for understanding ${documentName}. As knowledge evolves, this document will be updated to reflect new insights and connections.
-
----
-*This content was generated automatically based on the reference context. Please review and edit as needed.*`;
-    
-    setNewDocContent(content);
-    setIsGenerating(false);
-    setHasGenerated(true);
+      // Use the generated content from the backend
+      setNewDocContent(response.document.content);
+      // Also update the name if the AI generated a better title
+      if (response.document.name && response.document.name !== documentName) {
+        setNewDocName(response.document.name);
+      }
+      setHasGenerated(true);
+      showSuccess('Content generated using AI! You can now edit it before saving.');
+    } catch (error: any) {
+      console.error('Failed to generate content:', error);
+      setHasGenerated(false);
+      // Re-throw to let caller handle navigation
+      throw error;
+    } finally {
+      setIsGenerating(false);
+    }
   };
   
   // Load cloned document data if in clone mode or pre-fill reference completion data
@@ -108,13 +94,23 @@ This document provides a foundation for understanding ${documentName}. As knowle
         if (entityTypes.length > 0) {
           setSelectedEntityTypes(entityTypes);
         }
-        
+
         // Generate content if requested and not already generated
-        if (shouldGenerate && !hasGenerated) {
-          await generateContent(nameFromUrl, entityTypes, referenceTypeFromUrl || undefined);
-          showSuccess('Content generated! You can now edit it before saving.');
+        // Wait for session to be ready before attempting generation
+        if (shouldGenerate && !hasGenerated && session?.backendToken) {
+          try {
+            // referenceTypeFromUrl can be null from searchParams, convert to undefined for API
+            const referenceType = referenceTypeFromUrl ?? undefined;
+            await generateContent(nameFromUrl, entityTypes, referenceType);
+          } catch (error) {
+            console.error('Failed to generate content:', error);
+            showError('Failed to generate content. Returning to source document.');
+            // Navigate back to the source document
+            router.push(`/know/document/${sourceDocumentId}`);
+            return;
+          }
         }
-        
+
         setIsLoading(false);
         return;
       }
@@ -131,18 +127,18 @@ This document provides a foundation for understanding ${documentName}. As knowle
             setNewDocContent(response.sourceDocument.content);
           } else {
             showError('Invalid or expired clone token');
-            router.push('/know/search');
+            router.push('/know/discover');
           }
         } catch (err) {
           console.error('Failed to load clone data:', err);
           showError('Failed to load clone data. Please try again.');
-          router.push('/know/search');
+          router.push('/know/discover');
         } finally {
           setIsLoading(false);
         }
       } else if (mode === 'clone' && !tokenFromUrl) {
         showError('Clone token not found. Please try cloning again.');
-        router.push('/know/search');
+        router.push('/know/discover');
       } else {
         setIsLoading(false);
       }
@@ -150,7 +146,7 @@ This document provides a foundation for understanding ${documentName}. As knowle
     
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, hasGenerated]);
+  }, [mode, tokenFromUrl, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, hasGenerated, session?.backendToken]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,29 +166,38 @@ This document provides a foundation for understanding ${documentName}. As knowle
           archiveOriginal: archiveOriginal
         });
         
-        documentId = response.document?.id || '';
-        documentName = response.document?.name || newDocName;
+        if (!response.document?.id) {
+          throw new Error('No document ID returned from server');
+        }
+        documentId = response.document.id;
+        documentName = response.document.name || newDocName;
       } else {
         // Create a new document
         // Note: entityTypes would need to be stored separately since the API doesn't accept them here
         // The backend would need to be updated to support entity types on document creation
         const response = await apiService.documents.create({
           name: newDocName,
-          content: newDocContent || `# ${newDocName}\n\nStart writing your document here...`,
+          content: newDocContent,
           contentType: 'text/markdown'
         });
         
-        documentId = response.document?.id || '';
-        documentName = response.document?.name || newDocName;
+        if (!response.document?.id) {
+          throw new Error('No document ID returned from server');
+        }
+        documentId = response.document.id;
+        documentName = response.document.name || newDocName;
         
         // If this is a reference completion, update the reference to point to the new document
         if (isReferenceCompletion && referenceId && documentId) {
           try {
-            await apiService.selections.resolveToDocument({
+            const resolveData: Parameters<typeof apiService.selections.resolveToDocument>[0] = {
               selectionId: referenceId,
-              targetDocumentId: documentId,
-              referenceType: referenceTypeFromUrl || 'mentions' // Use the reference type from the original reference creation
-            });
+              targetDocumentId: documentId
+            };
+            if (referenceTypeFromUrl) {
+              resolveData.referenceType = referenceTypeFromUrl;
+            }
+            await apiService.selections.resolveToDocument(resolveData);
             showSuccess('Reference successfully linked to the new document');
           } catch (error) {
             console.error('Failed to update reference:', error);
@@ -326,7 +331,7 @@ This document provides a foundation for understanding ${documentName}. As knowle
           <div className="flex gap-4 justify-end">
             <button
               type="button"
-              onClick={() => router.push('/know/search')}
+              onClick={() => router.push('/know/discover')}
               disabled={isCreating}
               className={buttonStyles.tertiary.base}
             >

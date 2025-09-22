@@ -87,9 +87,9 @@ export class InferenceService extends BaseService {
   validateConfig(): void {
     const inferenceType = this.config.type;
     
-    if (!inferenceType || !['claude', 'openai'].includes(inferenceType)) {
+    if (!inferenceType || !['anthropic', 'openai'].includes(inferenceType)) {
       throw new Error(
-        `Invalid or missing inference type. Must be "claude" or "openai", got: ${inferenceType}`
+        `Invalid or missing inference type. Must be "anthropic" or "openai", got: ${inferenceType}`
       );
     }
 

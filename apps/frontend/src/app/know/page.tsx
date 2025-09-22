@@ -16,7 +16,7 @@ export default function KnowledgePage() {
       router.replace(`/know/document/${lastDocumentId}`);
     } else {
       // Otherwise, go to Discover
-      router.replace('/know/search');
+      router.replace('/know/discover');
     }
     
     setChecking(false);

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SessionProvider } from 'next-auth/react';
+import { SessionProvider, useSession } from 'next-auth/react';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { ToastProvider } from '@/components/Toast';
 
@@ -10,6 +10,18 @@ import { ToastProvider } from '@/components/Toast';
 function SecureAPIProvider({ children }: { children: React.ReactNode }) {
   // This hook automatically manages API authentication
   useSecureAPI();
+  const { status } = useSession();
+
+  // Block rendering until we know if we have auth or not
+  // This prevents any child components from making API calls before auth is set up
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-600 dark:text-gray-300">Loading authentication...</p>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }
 

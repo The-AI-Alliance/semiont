@@ -6,6 +6,9 @@
   "deployment": {
     "imageTagStrategy": "mutable"
   },
+  "site": {
+    "domain": "localhost:3000"
+  },
   "env": {
     "NODE_ENV": "development"
   },
@@ -39,14 +42,14 @@
     },
     "graph": {
       "platform": {
-        "type": "container"
+        "type": "external"
       },
-      "type": "janusgraph",
-      "name": "janusgraph",
-      "port": 8182,
-      "host": "localhost",
-      "storage": "cassandra",
-      "index": "elasticsearch"
+      "type": "neo4j",
+      "name": "neo4j",
+      "uri": "${NEO4J_URI}",
+      "username": "${NEO4J_USERNAME}",
+      "password": "${NEO4J_PASSWORD}",
+      "database": "${NEO4J_DATABASE}"
     },
     "mcp": {
       "platform": {
@@ -59,7 +62,17 @@
         "type": "posix"
       },
       "path": "./data/uploads",
-      "description": "Local filesystem storage for document content"
+      "description": "Local filesystem storage for uploads and assets"
+    },
+    "inference": {
+      "platform": {
+        "type": "external"
+      },
+      "type": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "maxTokens": 8192,
+      "endpoint": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}"
     }
   }
 }

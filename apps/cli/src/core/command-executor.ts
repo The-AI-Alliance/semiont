@@ -197,8 +197,13 @@ export async function executeCommand(
     
     // Keep process alive if service requires it (e.g., for long-running connections)
     if (cliBehaviors.keepProcessAlive) {
-      // Service process will handle its own lifecycle
-      return;
+      // Keep the CLI process alive indefinitely
+      // The child process (MCP server) will handle its own lifecycle
+      // This prevents Node.js from exiting when the event loop becomes empty
+      await new Promise(() => {
+        // This promise never resolves, keeping the process alive
+        // The process will exit when the child process exits or on SIGINT/SIGTERM
+      });
     }
     
     // Exit with appropriate code

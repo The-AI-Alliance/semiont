@@ -86,7 +86,6 @@ For complete deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 | [API Types README](packages/api-types/README.md) | Shared TypeScript type definitions |
 | [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
 | [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
-| [Cloud README](packages/cloud/README.md) | AWS CDK infrastructure setup and deployment |
 
 ### System Documentation
 

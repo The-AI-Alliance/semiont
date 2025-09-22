@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
 import { apiService } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTags } from '@/components/DocumentTags';
@@ -18,7 +17,6 @@ import { useToast } from '@/components/Toast';
 export default function KnowledgeDocumentPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session, status } = useSession();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
   const { highlights, references, loadAnnotations } = useDocumentAnnotations();
@@ -38,20 +36,11 @@ export default function KnowledgeDocumentPage() {
   });
   const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
 
-  // Check authentication status  
-  const isAuthenticated = !!session?.backendToken;
-  const authLoading = status === 'loading';
-
-  // Redirect to sign-in if not authenticated (after loading)
-  useEffect(() => {
-    if (status !== 'loading' && !session) {
-      router.push('/auth/signin');
-    }
-  }, [status, session, router]);
+  // Session is guaranteed by SecureAPIProvider
 
   // Load document - memoized to prevent recreating on every render
   const loadDocument = useCallback(async () => {
-    if (!isAuthenticated || !documentId) return;
+    if (!documentId) return;
     
     try {
       setLoading(true);
@@ -65,11 +54,11 @@ export default function KnowledgeDocumentPage() {
     } finally {
       setLoading(false);
     }
-  }, [documentId, isAuthenticated, session]);
+  }, [documentId]);
 
   // Load incoming references - memoized
   const loadReferencedBy = useCallback(async () => {
-    if (!isAuthenticated || !documentId) return;
+    if (!documentId) return;
     
     try {
       setReferencedByLoading(true);
@@ -81,7 +70,7 @@ export default function KnowledgeDocumentPage() {
     } finally {
       setReferencedByLoading(false);
     }
-  }, [documentId, isAuthenticated]);
+  }, [documentId]);
 
   // Load document when authentication is ready
   useEffect(() => {
@@ -209,7 +198,7 @@ export default function KnowledgeDocumentPage() {
   }, [documentId, showSuccess, showError, loadAnnotations]);
 
   // Loading state
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-gray-600 dark:text-gray-300">Loading document...</p>

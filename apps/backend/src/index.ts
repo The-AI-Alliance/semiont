@@ -42,6 +42,8 @@ import { openApiConfig } from './openapi';
 
 // Import graph database for initialization
 import { getGraphDatabase } from './graph/factory';
+// Import inference client for initialization
+import { getInferenceClient } from './inference/factory';
 
 type Variables = {
   user: User;
@@ -101,6 +103,46 @@ app.route('/', statusRouter);
 app.route('/', adminRouter);
 app.route('/', documentsRouter);
 app.route('/', selectionsRouter);
+
+// Test inference route
+app.get('/api/test-inference', async (c) => {
+  const { getInferenceClient, getInferenceModel } = await import('./inference/factory');
+  const client = await getInferenceClient();
+
+  if (!client) {
+    return c.json({
+      status: 'error',
+      message: 'Inference not configured',
+      env: {
+        SEMIONT_ENV: process.env.SEMIONT_ENV,
+        SEMIONT_ROOT: process.env.SEMIONT_ROOT,
+        hasApiKey: !!process.env.ANTHROPIC_API_KEY
+      }
+    }, 500);
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: getInferenceModel(),
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: 'Say "hello"'
+      }]
+    });
+
+    return c.json({
+      status: 'success',
+      response: response.content[0],
+      model: getInferenceModel()
+    });
+  } catch (error: any) {
+    return c.json({
+      status: 'error',
+      message: error.message
+    }, 500);
+  }
+});
 
 
 
@@ -190,16 +232,26 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('🔧 Initializing graph database...');
       const graphDb = await getGraphDatabase();
-      
+
       // Pre-populate tag collections by calling getters
       // This ensures defaults are loaded on startup
       const entityTypes = await graphDb.getEntityTypes();
       const referenceTypes = await graphDb.getReferenceTypes();
-      
+
       console.log(`✅ Graph database initialized with ${entityTypes.length} entity types and ${referenceTypes.length} reference types`);
     } catch (error) {
       console.error('⚠️ Failed to initialize graph database:', error);
       // Continue running even if graph initialization fails
+    }
+
+    // Initialize inference client
+    try {
+      console.log('🤖 Initializing inference client...');
+      await getInferenceClient();
+      console.log('✅ Inference client initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize inference client:', error);
+      // Continue running even if inference initialization fails
     }
   });
 }
