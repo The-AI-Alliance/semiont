@@ -102,6 +102,46 @@ app.route('/', adminRouter);
 app.route('/', documentsRouter);
 app.route('/', selectionsRouter);
 
+// Test inference route
+app.get('/api/test-inference', async (c) => {
+  const { getInferenceClient, getInferenceModel } = await import('./inference/factory');
+  const client = await getInferenceClient();
+
+  if (!client) {
+    return c.json({
+      status: 'error',
+      message: 'Inference not configured',
+      env: {
+        SEMIONT_ENV: process.env.SEMIONT_ENV,
+        SEMIONT_ROOT: process.env.SEMIONT_ROOT,
+        hasApiKey: !!process.env.ANTHROPIC_API_KEY
+      }
+    }, 500);
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: getInferenceModel(),
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: 'Say "hello"'
+      }]
+    });
+
+    return c.json({
+      status: 'success',
+      response: response.content[0],
+      model: getInferenceModel()
+    });
+  } catch (error: any) {
+    return c.json({
+      status: 'error',
+      message: error.message
+    }, 500);
+  }
+});
+
 
 
 // API Documentation root - redirect to appropriate format

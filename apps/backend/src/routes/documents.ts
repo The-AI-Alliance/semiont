@@ -16,7 +16,7 @@ import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } from '../graph/types';
 import { CREATION_METHODS } from '../graph/types';
 import { calculateChecksum } from '../utils/checksum';
-import { generateDocumentFromTopic, generateDocumentSummary, generateReferenceSuggestions } from '../inference/factory';
+import { generateDocumentSummary, generateReferenceSuggestions } from '../inference/factory';
 
 // Create documents router
 export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -60,7 +60,7 @@ documentsRouter.openapi(createDocumentRoute, async (c) => {
   
   const checksum = calculateChecksum(body.content);
   const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    id: Math.random().toString(36).substring(2, 11),
     name: body.name,
     archived: false,
     contentType: body.contentType || 'text/plain',
@@ -626,7 +626,7 @@ documentsRouter.openapi(createDocumentFromTokenRoute, async (c) => {
   // Create new document
   const checksum = calculateChecksum(body.content);
   const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    id: Math.random().toString(36).substring(2, 11),
     name: body.name,
     archived: false,
     contentType: sourceDoc.contentType,
@@ -1138,118 +1138,6 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
   });
 });
 
-// GENERATE DOCUMENT FROM SELECTION
-// ==========================================
-const generateDocumentFromSelectionRoute = createRoute({
-  method: 'post',
-  path: '/api/selections/{id}/generate-document',
-  summary: 'Generate Document from Selection',
-  description: 'Use AI to generate a document from a selection/reference',
-  tags: ['Selections'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: 'sel_xyz789' }),
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            prompt: z.string().optional().openapi({
-              example: 'Generate a detailed explanation of this concept',
-              description: 'Optional prompt for AI generation'
-            }),
-          }),
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            document: z.any(),
-            selection: z.any(),
-          }),
-        },
-      },
-      description: 'Document generated successfully',
-    },
-  },
-});
-
-documentsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
-  const { id } = c.req.valid('param');
-  const body = c.req.valid('json');
-  const user = c.get('user');
-  const graphDb = await getGraphDatabase();
-  const storage = getStorageService();
-  
-  // Get the selection
-  const selection = await graphDb.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
-  }
-
-  const generatedContent = await generateDocumentFromTopic(
-    selection.selectionData?.text || 'Unknown Topic',
-    selection.entityTypes || [],
-    body.prompt
-  );
-  
-  // Create the document
-  const checksum = calculateChecksum(generatedContent.content);
-  const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
-    name: generatedContent.title,
-    archived: false,
-    contentType: 'text/markdown',
-    metadata: {
-      aiGenerated: true,
-      generationPrompt: body.prompt,
-      sourceSelectionId: id,
-    },
-    entityTypes: selection.entityTypes || [],
-
-    creationMethod: CREATION_METHODS.GENERATED,  // AI-generated from selection
-    sourceSelectionId: id,
-    sourceDocumentId: selection.documentId,
-    contentChecksum: checksum,
-
-    createdBy: user.id,
-    createdAt: new Date(),
-  };
-  
-  const createInput: CreateDocumentInput = {
-    name: document.name,
-    entityTypes: document.entityTypes,
-    content: generatedContent.content,
-    contentType: document.contentType,
-    contentChecksum: document.contentChecksum!,
-    metadata: document.metadata,
-    createdBy: document.createdBy!,
-    creationMethod: document.creationMethod,
-    ...(document.sourceSelectionId ? { sourceSelectionId: document.sourceSelectionId } : {}),
-    ...(document.sourceDocumentId ? { sourceDocumentId: document.sourceDocumentId } : {}),
-  };
-  
-  const savedDoc = await graphDb.createDocument(createInput);
-  await storage.saveDocument(savedDoc.id, Buffer.from(generatedContent.content));
-  
-  // Update the selection to resolve to this document
-  const updatedSelection = await graphDb.updateSelection(id, {
-    resolvedDocumentId: savedDoc.id,
-    resolvedAt: new Date(),
-    resolvedBy: user.id,
-  });
-  
-  return c.json({
-    document: formatDocument(savedDoc),
-    selection: formatSelection(updatedSelection),
-  });
-});
-
 // CREATE DOCUMENT FROM SELECTION
 // ==========================================
 const createDocumentFromSelectionRoute = createRoute({
@@ -1306,7 +1194,7 @@ documentsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   // Create the document
   const checksum = calculateChecksum(body.content);
   const document: Document = {
-    id: `doc_${Math.random().toString(36).substring(2, 11)}`,
+    id: Math.random().toString(36).substring(2, 11),
     name: body.name,
     archived: false,
     contentType: body.contentType || 'text/markdown',
@@ -1453,7 +1341,7 @@ async function detectSelectionsInDocument(
       
       const selection = {
         selection: {
-          id: `sel_proper_${Math.random().toString(36).substring(2, 11)}`,
+          id: Math.random().toString(36).substring(2, 14),
           documentId: document.id,
           selectionType: 'text_span',
           selectionData: {
@@ -1504,7 +1392,7 @@ async function detectSelectionsInDocument(
       
       const selection = {
         selection: {
-          id: `sel_wiki_${Math.random().toString(36).substring(2, 11)}`,
+          id: Math.random().toString(36).substring(2, 14),
           documentId: document.id,
           selectionType: 'text_span',
           selectionData: {

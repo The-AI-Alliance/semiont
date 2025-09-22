@@ -49,82 +49,118 @@ function vertexToDocument(vertex: any): Document {
   const props = vertex.properties || vertex;
   
   // Handle different property formats from Neptune
-  const getValue = (key: string) => {
+  const getValue = (key: string, required: boolean = false) => {
     const prop = props[key];
-    if (!prop) return undefined;
+    if (!prop) {
+      if (required) {
+        throw new Error(`Document ${vertex.id || 'unknown'} missing required field: ${key}`);
+      }
+      return undefined;
+    }
     if (Array.isArray(prop) && prop.length > 0) {
       return prop[0].value !== undefined ? prop[0].value : prop[0];
     }
     return prop.value !== undefined ? prop.value : prop;
   };
   
+  // Get all required fields and validate
+  const id = getValue('id', true);
+  const name = getValue('name', true);
+  const entityTypesRaw = getValue('entityTypes', true);
+  const contentType = getValue('contentType', true);
+  const metadataRaw = getValue('metadata', true);
+  const archived = getValue('archived', true);
+  const createdAtRaw = getValue('createdAt', true);
+
   const doc: Document = {
-    id: getValue('id') || vertex.id,
-    name: getValue('name') || '',
-    entityTypes: JSON.parse(getValue('entityTypes') || '[]'),
-    contentType: getValue('contentType') || 'text/plain',
-    metadata: JSON.parse(getValue('metadata') || '{}'),
-    archived: getValue('archived') === 'true' || getValue('archived') === true || false,
-    createdAt: new Date(getValue('createdAt') || Date.now()),
-    updatedAt: new Date(getValue('updatedAt') || Date.now()),
+    id,
+    name,
+    entityTypes: JSON.parse(entityTypesRaw),
+    contentType,
+    metadata: JSON.parse(metadataRaw),
+    archived: archived === 'true' || archived === true,
+    createdAt: new Date(createdAtRaw),
+    createdBy: getValue('createdBy', true),
+    creationMethod: getValue('creationMethod', true),
+    contentChecksum: getValue('contentChecksum', true),
   };
-  
-  const createdBy = getValue('createdBy');
-  if (createdBy) doc.createdBy = createdBy;
-  
-  const updatedBy = getValue('updatedBy');
-  if (updatedBy) doc.updatedBy = updatedBy;
-  
+
+  const sourceSelectionId = getValue('sourceSelectionId');
+  if (sourceSelectionId) doc.sourceSelectionId = sourceSelectionId;
+
+  const sourceDocumentId = getValue('sourceDocumentId');
+  if (sourceDocumentId) doc.sourceDocumentId = sourceDocumentId;
+
   return doc;
 }
 
-// Helper function to convert Neptune edge to Selection
-function edgeToSelection(edge: any): Selection {
-  const props = edge.properties || edge;
-  
+// Helper function to convert Neptune vertex to Selection
+function vertexToSelection(vertex: any): Selection {
+  const props = vertex.properties || vertex;
+
   // Handle different property formats from Neptune
-  const getValue = (key: string) => {
+  const getValue = (key: string, required: boolean = false) => {
     const prop = props[key];
-    if (!prop) return undefined;
+    if (!prop) {
+      if (required) {
+        throw new Error(`Selection ${vertex.id || 'unknown'} missing required field: ${key}`);
+      }
+      return undefined;
+    }
+    if (Array.isArray(prop) && prop.length > 0) {
+      return prop[0].value !== undefined ? prop[0].value : prop[0];
+    }
     if (typeof prop === 'object' && 'value' in prop) return prop.value;
     return prop;
   };
-  
+
+  // Get required fields
+  const id = getValue('id', true);
+  const documentId = getValue('documentId', true);
+  const selectionType = getValue('selectionType', true);
+  const selectionDataRaw = getValue('selectionData', true);
+  const provisional = getValue('provisional', true);
+  const createdAtRaw = getValue('createdAt', true);
+  const updatedAtRaw = getValue('updatedAt', true);
+
   const selection: Selection = {
-    id: getValue('id') || edge.id,
-    documentId: getValue('documentId') || '',
-    selectionType: getValue('selectionType') || 'highlight',
-    selectionData: JSON.parse(getValue('selectionData') || '{}'),
-    provisional: getValue('provisional') === 'true' || getValue('provisional') === true,
-    createdAt: new Date(getValue('createdAt') || Date.now()),
-    updatedAt: new Date(getValue('updatedAt') || Date.now()),
+    id,
+    documentId,
+    selectionType,
+    selectionData: JSON.parse(selectionDataRaw),
+    provisional: provisional === 'true' || provisional === true,
+    createdAt: new Date(createdAtRaw),
+    updatedAt: new Date(updatedAtRaw),
   };
-  
+
   // Optional fields
+  const createdBy = getValue('createdBy');
+  if (createdBy) selection.createdBy = createdBy;
+
   const resolvedDocumentId = getValue('resolvedDocumentId');
   if (resolvedDocumentId) selection.resolvedDocumentId = resolvedDocumentId;
-  
+
   const resolvedAt = getValue('resolvedAt');
   if (resolvedAt) selection.resolvedAt = new Date(resolvedAt);
-  
-  
+
   const resolvedBy = getValue('resolvedBy');
   if (resolvedBy) selection.resolvedBy = resolvedBy;
-  
+
   const referenceTags = getValue('referenceTags');
   if (referenceTags) selection.referenceTags = JSON.parse(referenceTags);
-  
+
   const entityTypes = getValue('entityTypes');
   if (entityTypes) selection.entityTypes = JSON.parse(entityTypes);
-  
+
   const confidence = getValue('confidence');
   if (confidence !== undefined) selection.confidence = parseFloat(confidence);
-  
+
   const metadata = getValue('metadata');
   if (metadata) selection.metadata = JSON.parse(metadata);
-  
+
   return selection;
 }
+
 
 export class NeptuneGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
@@ -268,38 +304,40 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const document: Document = {
       id,
       name: input.name,
-      entityTypes: input.entityTypes || [],
-      contentType: input.contentType || 'text/plain',
-      metadata: input.metadata || {},
+      entityTypes: input.entityTypes,
+      contentType: input.contentType,
+      metadata: input.metadata,
       archived: false,
       createdAt: now,
-      updatedAt: now,
+      createdBy: input.createdBy,
+      creationMethod: input.creationMethod,
+      contentChecksum: input.contentChecksum,
     };
-    
-    // Audit fields
-    if (input.createdBy) document.createdBy = input.createdBy;
-    if (input.createdBy) document.updatedBy = input.createdBy;
-    
-    // Provenance tracking fields
-    if (input.creationMethod) document.creationMethod = input.creationMethod;
     if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
     if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
-    // Note: contentChecksum should be in metadata, set by the routes layer
     
     // Create vertex in Neptune
     try {
-      await this.g.addV('Document')
+      const vertex = this.g.addV('Document')
         .property('id', document.id)
         .property('name', document.name)
         .property('contentType', document.contentType)
         .property('archived', document.archived)
         .property('createdAt', document.createdAt.toISOString())
-        .property('updatedAt', document.updatedAt.toISOString())
-        .property('createdBy', document.createdBy || '')
-        .property('updatedBy', document.updatedBy || '')
+        .property('createdBy', document.createdBy)
+        .property('creationMethod', document.creationMethod)
+        .property('contentChecksum', document.contentChecksum)
         .property('entityTypes', JSON.stringify(document.entityTypes))
-        .property('metadata', JSON.stringify(document.metadata))
-        .next();
+        .property('metadata', JSON.stringify(document.metadata));
+
+      if (document.sourceSelectionId) {
+        vertex.property('sourceSelectionId', document.sourceSelectionId);
+      }
+      if (document.sourceDocumentId) {
+        vertex.property('sourceDocumentId', document.sourceDocumentId);
+      }
+
+      await vertex.next();
       
       console.log(`Created document vertex in Neptune: ${document.id}`);
       return document;
@@ -329,39 +367,23 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
+    // Documents are immutable - only archiving is allowed
+    if (Object.keys(input).length !== 1 || input.archived === undefined) {
+      throw new Error('Documents are immutable. Only archiving is allowed.');
+    }
+
     try {
-      // Start with the vertex
-      let traversal = this.g.V()
+      const result = await this.g.V()
         .hasLabel('Document')
-        .has('id', id);
-      
-      // Update properties
-      if (input.name !== undefined) {
-        traversal = traversal.property('name', input.name);
-      }
-      if (input.entityTypes !== undefined) {
-        traversal = traversal.property('entityTypes', JSON.stringify(input.entityTypes));
-      }
-      if (input.metadata !== undefined) {
-        traversal = traversal.property('metadata', JSON.stringify(input.metadata));
-      }
-      if (input.archived !== undefined) {
-        traversal = traversal.property('archived', input.archived);
-      }
-      if (input.updatedBy !== undefined) {
-        traversal = traversal.property('updatedBy', input.updatedBy);
-      }
-      
-      // Always update the timestamp
-      traversal = traversal.property('updatedAt', new Date().toISOString());
-      
-      // Execute the update and return the updated vertex
-      const result = await traversal.elementMap().next();
-      
+        .has('id', id)
+        .property('archived', input.archived)
+        .elementMap()
+        .next();
+
       if (!result.value) {
         throw new Error('Document not found');
       }
-      
+
       return vertexToDocument(result.value);
     } catch (error) {
       console.error('Failed to update document in Neptune:', error);
@@ -480,29 +502,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     if (input.metadata) selection.metadata = input.metadata;
     
     try {
-      // Create edge in graph
-      let traversal = this.g.V()
-        .hasLabel('Document')
-        .has('id', input.documentId)
-        .as('from');
-      
-      if (input.resolvedDocumentId) {
-        // Create edge to resolved document
-        traversal = traversal
-          .V()
-          .hasLabel('Document')
-          .has('id', input.resolvedDocumentId)
-          .addE('REFERENCES')
-          .from('from');
-      } else {
-        // Create self-edge for highlights
-        traversal = traversal
-          .addE('HAS_SELECTION')
-          .to('from');
-      }
-      
-      // Add edge properties
-      traversal = traversal
+      // Create Selection vertex
+      const vertex = this.g.addV('Selection')
         .property('id', selection.id)
         .property('documentId', selection.documentId)
         .property('selectionType', selection.selectionType)
@@ -510,33 +511,50 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('provisional', selection.provisional.toString())
         .property('createdAt', selection.createdAt.toISOString())
         .property('updatedAt', selection.updatedAt.toISOString());
-      
+
       // Add optional properties
+      if (selection.createdBy) {
+        vertex.property('createdBy', selection.createdBy);
+      }
       if (selection.resolvedDocumentId) {
-        traversal = traversal.property('resolvedDocumentId', selection.resolvedDocumentId);
+        vertex.property('resolvedDocumentId', selection.resolvedDocumentId);
       }
       if (selection.resolvedAt) {
-        traversal = traversal.property('resolvedAt', selection.resolvedAt.toISOString());
+        vertex.property('resolvedAt', selection.resolvedAt.toISOString());
       }
       if (selection.resolvedBy) {
-        traversal = traversal.property('resolvedBy', selection.resolvedBy);
+        vertex.property('resolvedBy', selection.resolvedBy);
       }
       if (selection.referenceTags) {
-        traversal = traversal.property('referenceTags', JSON.stringify(selection.referenceTags));
+        vertex.property('referenceTags', JSON.stringify(selection.referenceTags));
       }
       if (selection.entityTypes) {
-        traversal = traversal.property('entityTypes', JSON.stringify(selection.entityTypes));
+        vertex.property('entityTypes', JSON.stringify(selection.entityTypes));
       }
       if (selection.confidence !== undefined) {
-        traversal = traversal.property('confidence', selection.confidence.toString());
+        vertex.property('confidence', selection.confidence.toString());
       }
       if (selection.metadata) {
-        traversal = traversal.property('metadata', JSON.stringify(selection.metadata));
+        vertex.property('metadata', JSON.stringify(selection.metadata));
       }
-      
-      await traversal.next();
-      
-      console.log(`Created selection edge in Neptune: ${selection.id}`);
+
+      const newVertex = await vertex.next();
+
+      // Create edge from Selection to Document (BELONGS_TO)
+      await this.g.V(newVertex.value)
+        .addE('BELONGS_TO')
+        .to(this.g.V().hasLabel('Document').has('id', input.documentId))
+        .next();
+
+      // If resolved, create edge to target document (REFERENCES)
+      if (input.resolvedDocumentId) {
+        await this.g.V(newVertex.value)
+          .addE('REFERENCES')
+          .to(this.g.V().hasLabel('Document').has('id', input.resolvedDocumentId))
+          .next();
+      }
+
+      console.log(`Created selection vertex in Neptune: ${selection.id}`);
       return selection;
     } catch (error) {
       console.error('Failed to create selection in Neptune:', error);
@@ -546,7 +564,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async getSelection(id: string): Promise<Selection | null> {
     try {
-      const result = await this.g.E()
+      const result = await this.g.V()
+        .hasLabel('Selection')
         .has('id', id)
         .elementMap()
         .next();
@@ -555,7 +574,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         return null;
       }
       
-      return edgeToSelection(result.value);
+      return vertexToSelection(result.value);
     } catch (error) {
       console.error('Failed to get selection from Neptune:', error);
       throw error;
@@ -564,7 +583,9 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async updateSelection(id: string, updates: Partial<Selection>): Promise<Selection> {
     try {
-      let traversal = this.g.E().has('id', id);
+      let traversal = this.g.V()
+        .hasLabel('Selection')
+        .has('id', id);
       
       // Update properties
       if (updates.provisional !== undefined) {
@@ -601,7 +622,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         throw new Error('Selection not found');
       }
       
-      return edgeToSelection(result.value);
+      return vertexToSelection(result.value);
     } catch (error) {
       console.error('Failed to update selection in Neptune:', error);
       throw error;
@@ -610,7 +631,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async deleteSelection(id: string): Promise<void> {
     try {
-      await this.g.E()
+      await this.g.V()
+        .hasLabel('Selection')
         .has('id', id)
         .drop()
         .iterate();
@@ -624,7 +646,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }> {
     try {
-      let traversal = this.g.E().hasLabel('REFERENCES', 'HAS_SELECTION');
+      let traversal = this.g.V().hasLabel('Selection');
       
       // Apply filters
       if (filter.documentId) {
@@ -680,7 +702,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .elementMap()
         .toList();
       
-      const selections = results.map(edgeToSelection);
+      const selections = results.map(vertexToSelection);
       
       return { selections, total };
     } catch (error) {
@@ -692,14 +714,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async getHighlights(documentId: string): Promise<Selection[]> {
     try {
-      const results = await this.g.E()
-        .hasLabel('HAS_SELECTION')
+      const results = await this.g.V()
+        .hasLabel('Selection')
         .has('documentId', documentId)
         .hasNot('resolvedDocumentId')
         .elementMap()
         .toList();
-      
-      return results.map(edgeToSelection);
+
+      return results.map(vertexToSelection);
     } catch (error) {
       console.error('Failed to get highlights from Neptune:', error);
       throw error;
@@ -709,43 +731,19 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
     try {
       const now = new Date();
-      
-      // Need to recreate the edge with proper connection
-      // First get the existing edge data
-      const existing = await this.g.E()
-        .has('id', input.selectionId)
-        .elementMap()
-        .next();
-      
-      if (!existing.value) {
-        throw new Error('Selection not found');
-      }
-      
-      const existingSelection = edgeToSelection(existing.value);
-      
-      // Delete old edge
-      await this.g.E().has('id', input.selectionId).drop().iterate();
-      
-      // Create new edge with resolved document
+
+      // Update the existing Selection vertex
       let traversal = this.g.V()
-        .hasLabel('Document')
-        .has('id', existingSelection.documentId)
-        .as('from')
-        .V()
-        .hasLabel('Document')
-        .has('id', input.documentId)
-        .addE('REFERENCES')
-        .from('from')
-        .property('id', existingSelection.id)
-        .property('documentId', existingSelection.documentId)
-        .property('selectionType', existingSelection.selectionType)
-        .property('selectionData', JSON.stringify(existingSelection.selectionData))
-        .property('provisional', (input.provisional || false).toString())
+        .hasLabel('Selection')
+        .has('id', input.selectionId);
+      
+      // Update properties
+      traversal = traversal
         .property('resolvedDocumentId', input.documentId)
         .property('resolvedAt', now.toISOString())
-        .property('createdAt', existingSelection.createdAt.toISOString())
+        .property('provisional', (input.provisional || false).toString())
         .property('updatedAt', now.toISOString());
-      
+
       // Add optional properties
       if (input.referenceTags) {
         traversal = traversal.property('referenceTags', JSON.stringify(input.referenceTags));
@@ -759,17 +757,28 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       if (input.resolvedBy) {
         traversal = traversal.property('resolvedBy', input.resolvedBy);
       }
-      
-      // Preserve existing metadata and merge new
-      const metadata = input.metadata || existingSelection.metadata ? 
-        { ...existingSelection.metadata, ...input.metadata } : undefined;
-      if (metadata) {
-        traversal = traversal.property('metadata', JSON.stringify(metadata));
+      if (input.metadata) {
+        traversal = traversal.property('metadata', JSON.stringify(input.metadata));
       }
-      
+
       const result = await traversal.elementMap().next();
+
+      if (!result.value) {
+        throw new Error('Selection not found');
+      }
+
+      // Create REFERENCES edge to the resolved document
+      const selectionVertex = await this.g.V()
+        .hasLabel('Selection')
+        .has('id', input.selectionId)
+        .next();
+
+      await this.g.V(selectionVertex.value)
+        .addE('REFERENCES')
+        .to(this.g.V().hasLabel('Document').has('id', input.documentId))
+        .next();
       
-      return edgeToSelection(result.value);
+      return vertexToSelection(result.value);
     } catch (error) {
       console.error('Failed to resolve selection in Neptune:', error);
       throw error;
@@ -779,13 +788,13 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getReferences(documentId: string): Promise<Selection[]> {
     try {
       const results = await this.g.V()
-        .hasLabel('Document')
-        .has('id', documentId)
-        .outE('REFERENCES')
+        .hasLabel('Selection')
+        .has('documentId', documentId)
+        .has('resolvedDocumentId')
         .elementMap()
         .toList();
-      
-      return results.map(edgeToSelection);
+
+      return results.map(vertexToSelection);
     } catch (error) {
       console.error('Failed to get references from Neptune:', error);
       throw error;
@@ -795,9 +804,9 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
     try {
       let traversal = this.g.V()
-        .hasLabel('Document')
-        .has('id', documentId)
-        .outE('REFERENCES')
+        .hasLabel('Selection')
+        .has('documentId', documentId)
+        .has('resolvedDocumentId')
         .has('entityTypes');
       
       if (entityTypes && entityTypes.length > 0) {
@@ -811,8 +820,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       
       const results = await traversal.elementMap().toList();
-      
-      return results.map(edgeToSelection);
+
+      return results.map(vertexToSelection);
     } catch (error) {
       console.error('Failed to get entity references from Neptune:', error);
       throw error;
@@ -821,12 +830,13 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async getDocumentSelections(documentId: string): Promise<Selection[]> {
     try {
-      const results = await this.g.E()
+      const results = await this.g.V()
+        .hasLabel('Selection')
         .has('documentId', documentId)
         .elementMap()
         .toList();
-      
-      return results.map(edgeToSelection);
+
+      return results.map(vertexToSelection);
     } catch (error) {
       console.error('Failed to get document selections from Neptune:', error);
       throw error;
@@ -836,13 +846,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getDocumentReferencedBy(documentId: string): Promise<Selection[]> {
     try {
       const results = await this.g.V()
-        .hasLabel('Document')
-        .has('id', documentId)
-        .inE('REFERENCES')
+        .hasLabel('Selection')
+        .has('resolvedDocumentId', documentId)
         .elementMap()
         .toList();
-      
-      return results.map(edgeToSelection);
+
+      return results.map(vertexToSelection);
     } catch (error) {
       console.error('Failed to get document referenced by from Neptune:', error);
       throw error;
@@ -851,59 +860,61 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
     try {
-      // Get all outgoing references
-      const outgoingRefs = await this.g.V()
-        .hasLabel('Document')
-        .has('id', documentId)
-        .outE('REFERENCES')
-        .as('edge')
-        .inV()
-        .as('target')
-        .select('edge', 'target')
-        .by(process.statics.elementMap())
+      // Get all selections from this document that reference other documents
+      const outgoingSelections = await this.g.V()
+        .hasLabel('Selection')
+        .has('documentId', documentId)
+        .has('resolvedDocumentId')
+        .elementMap()
         .toList();
-      
-      // Get all incoming references
-      const incomingRefs = await this.g.V()
-        .hasLabel('Document')
-        .has('id', documentId)
-        .inE('REFERENCES')
-        .as('edge')
-        .outV()
-        .as('source')
-        .select('edge', 'source')
-        .by(process.statics.elementMap())
+
+      // Get all selections that reference this document
+      const incomingSelections = await this.g.V()
+        .hasLabel('Selection')
+        .has('resolvedDocumentId', documentId)
+        .elementMap()
         .toList();
-      
+
       // Build connections map
       const connectionsMap = new Map<string, GraphConnection>();
-      
+
       // Process outgoing references
-      for (const ref of outgoingRefs) {
-        const targetDoc = vertexToDocument(ref.target);
-        const selection = edgeToSelection(ref.edge);
-        
-        const existing = connectionsMap.get(targetDoc.id);
-        if (existing) {
-          existing.selections.push(selection);
-        } else {
-          connectionsMap.set(targetDoc.id, {
-            targetDocument: targetDoc,
-            selections: [selection],
-            bidirectional: false,
-          });
+      for (const selVertex of outgoingSelections) {
+        const selection = vertexToSelection(selVertex);
+        const targetDocId = selection.resolvedDocumentId!;
+
+        // Get the target document
+        const targetDocResult = await this.g.V()
+          .hasLabel('Document')
+          .has('id', targetDocId)
+          .elementMap()
+          .next();
+
+        if (targetDocResult.value) {
+          const targetDoc = vertexToDocument(targetDocResult.value);
+          const existing = connectionsMap.get(targetDoc.id);
+          if (existing) {
+            existing.selections.push(selection);
+          } else {
+            connectionsMap.set(targetDoc.id, {
+              targetDocument: targetDoc,
+              selections: [selection],
+              bidirectional: false,
+            });
+          }
         }
       }
-      
+
       // Check for bidirectional connections
-      for (const ref of incomingRefs) {
-        const sourceDoc = vertexToDocument(ref.source);
-        const existing = connectionsMap.get(sourceDoc.id);
+      for (const selVertex of incomingSelections) {
+        const selection = vertexToSelection(selVertex);
+        const sourceDocId = selection.documentId;
+        const existing = connectionsMap.get(sourceDocId);
         if (existing) {
           existing.bidirectional = true;
         }
       }
-      
+
       return Array.from(connectionsMap.values());
     } catch (error) {
       console.error('Failed to get document connections from Neptune:', error);
@@ -943,8 +954,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
             // Vertex (Document)
             documents.push(vertexToDocument(element));
           } else {
-            // Edge (Selection)
-            selections.push(edgeToSelection(element));
+            // Edge - skip for now as we're using vertex-based selections
+            // We'd need to query for selections between documents
           }
         }
         
@@ -1008,31 +1019,32 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const documentCount = docCountResult.value || 0;
       
       // Get selection count
-      const selCountResult = await this.g.E()
-        .hasLabel('REFERENCES', 'HAS_SELECTION')
+      const selCountResult = await this.g.V()
+        .hasLabel('Selection')
         .count()
         .next();
       const selectionCount = selCountResult.value || 0;
-      
+
       // Get highlight count (selections without resolved document)
-      const highlightCountResult = await this.g.E()
-        .hasLabel('HAS_SELECTION')
+      const highlightCountResult = await this.g.V()
+        .hasLabel('Selection')
         .hasNot('resolvedDocumentId')
         .count()
         .next();
       const highlightCount = highlightCountResult.value || 0;
-      
+
       // Get reference count (selections with resolved document)
-      const referenceCountResult = await this.g.E()
-        .hasLabel('REFERENCES')
-        .hasNot('entityTypes')
+      const referenceCountResult = await this.g.V()
+        .hasLabel('Selection')
+        .has('resolvedDocumentId')
         .count()
         .next();
       const referenceCount = referenceCountResult.value || 0;
-      
+
       // Get entity reference count
-      const entityRefCountResult = await this.g.E()
-        .hasLabel('REFERENCES')
+      const entityRefCountResult = await this.g.V()
+        .hasLabel('Selection')
+        .has('resolvedDocumentId')
         .has('entityTypes')
         .count()
         .next();
@@ -1278,7 +1290,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   generateId(): string {
-    return `doc_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+    return uuidv4().replace(/-/g, '').substring(0, 12);
   }
   
   async clearDatabase(): Promise<void> {

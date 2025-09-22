@@ -1,6 +1,4 @@
-import { staticCheckDescriptor } from './static-check.js';
 import { graphCheckDescriptor } from './graph-check.js';
-import { staticStartDescriptor } from './static-start.js';
 import { inferenceCheckDescriptor } from './inference-check.js';
 import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
@@ -11,11 +9,9 @@ import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.
 // Platform-specific handlers with typed contexts
 const externalHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
-  staticCheckDescriptor,
   graphCheckDescriptor,
   inferenceCheckDescriptor,
   // Start handlers
-  staticStartDescriptor
 ];
 
 // Export as base handler type for registry compatibility

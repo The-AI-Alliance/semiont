@@ -355,8 +355,8 @@ export function SelectionPopup({
                 </div>
               )}
 
-              {/* Create Reference Button */}
-              {(!isEditMode || existingAnnotation?.type === 'highlight') && (
+              {/* Create Reference / Create Document Button */}
+              {(!isEditMode || existingAnnotation?.type === 'highlight' || createNewDoc) && (
                 <button
                   onClick={handleCreateReferenceClick}
                   disabled={isCreating || (!selectedDoc && !createNewDoc)}
@@ -367,8 +367,12 @@ export function SelectionPopup({
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                       Creating...
                     </>
+                  ) : createNewDoc ? (
+                    'Create New Document'
+                  ) : isEditMode ? (
+                    'Convert to Reference'
                   ) : (
-                    isEditMode ? 'Convert to Reference' : 'Create Reference'
+                    'Create Reference'
                   )}
                 </button>
               )}

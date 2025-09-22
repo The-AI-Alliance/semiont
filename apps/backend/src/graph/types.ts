@@ -1,5 +1,17 @@
 // Graph database types and interfaces
 
+// Document creation methods
+export const CREATION_METHODS = {
+  API: 'api',
+  UPLOAD: 'upload',
+  UI: 'ui',
+  REFERENCE: 'reference',
+  CLONE: 'clone',
+  GENERATED: 'generated',
+} as const;
+
+export type CreationMethod = typeof CREATION_METHODS[keyof typeof CREATION_METHODS];
+
 export interface Document {
   id: string;
   name: string;
@@ -7,16 +19,14 @@ export interface Document {
   contentType: string;
   metadata: Record<string, any>;
   archived: boolean;  // Whether the document is archived (read-only)
-  
+
   // Audit fields (backend-controlled)
-  createdBy?: string;  // Set from auth context by backend
-  updatedBy?: string;  // Set from auth context by backend
+  createdBy: string;  // Set from auth context by backend
   createdAt: Date;  // Set by backend on creation
-  updatedAt: Date;  // Set by backend on update
-  
+
   // Provenance tracking (backend-controlled with optional client context)
-  creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';  // How document was created (defaults to 'api')
-  contentChecksum?: string;  // SHA-256 hash calculated by backend for integrity
+  creationMethod: CreationMethod;  // How document was created
+  contentChecksum: string;  // SHA-256 hash calculated by backend for integrity
   sourceSelectionId?: string;  // If created from reference, the selection that triggered it
   sourceDocumentId?: string;  // If created from reference/clone, the source document
 }
@@ -152,17 +162,17 @@ export interface SelectionFilter {
 
 export interface CreateDocumentInput {
   name: string;
-  entityTypes?: string[];
+  entityTypes: string[];
   content: string;
   contentType: string;
-  metadata?: Record<string, any>;
-  createdBy?: string;  // Should be set by backend from auth context
-  
+  contentChecksum: string;  // SHA-256 hash calculated by backend
+  metadata: Record<string, any>;
+  createdBy: string;  // Set by backend from auth context (REQUIRED)
+
   // Provenance tracking (only context fields, not derived fields)
-  creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';  // Defaults to 'api' if not specified
+  creationMethod: CreationMethod;  // How document was created
   sourceSelectionId?: string;  // For reference-created documents
   sourceDocumentId?: string;  // For reference-created documents
-  contentChecksum?: string;  // SHA-256 hash calculated by backend
   // Note: createdAt is set by backend
 }
 
@@ -171,7 +181,6 @@ export interface UpdateDocumentInput {
   entityTypes?: string[];
   metadata?: Record<string, any>;
   archived?: boolean;
-  updatedBy?: string;
 }
 
 export interface CreateSelectionInput {

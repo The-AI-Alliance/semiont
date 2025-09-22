@@ -25,8 +25,12 @@ export class JanusGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
   private connection: gremlin.driver.DriverRemoteConnection | null = null;
   private g: gremlin.process.GraphTraversalSource | null = null;
-  
-  
+
+  // Tag Collections - cached in memory for performance
+  private entityTypesCollection: Set<string> | null = null;
+  private referenceTypesCollection: Set<string> | null = null;
+
+
   constructor(private config: {
     host?: string;
     port?: number;
@@ -78,19 +82,28 @@ export class JanusGraphDatabase implements GraphDatabase {
   // Helper function to convert vertex to Document
   private vertexToDocument(vertex: any): Document {
     const props = vertex.properties || {};
+    const id = this.getPropertyValue(props, 'id');
+
+    // Validate required fields
+    const createdBy = this.getPropertyValue(props, 'createdBy');
+    const creationMethod = this.getPropertyValue(props, 'creationMethod');
+    const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
+
+    if (!createdBy) throw new Error(`Document ${id} missing required field: createdBy`);
+    if (!creationMethod) throw new Error(`Document ${id} missing required field: creationMethod`);
+    if (!contentChecksum) throw new Error(`Document ${id} missing required field: contentChecksum`);
+
     return {
-      id: this.getPropertyValue(props, 'id'),
+      id,
       name: this.getPropertyValue(props, 'name'),
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
       contentType: this.getPropertyValue(props, 'contentType'),
       metadata: JSON.parse(this.getPropertyValue(props, 'metadata') || '{}'),
       archived: this.getPropertyValue(props, 'archived') === 'true',
-      createdBy: this.getPropertyValue(props, 'createdBy'),
-      updatedBy: this.getPropertyValue(props, 'updatedBy'),
+      createdBy,
       createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
-      updatedAt: new Date(this.getPropertyValue(props, 'updatedAt')),
-      creationMethod: this.getPropertyValue(props, 'creationMethod') as any,
-      contentChecksum: this.getPropertyValue(props, 'contentChecksum'),
+      creationMethod,
+      contentChecksum,
       sourceSelectionId: this.getPropertyValue(props, 'sourceSelectionId'),
       sourceDocumentId: this.getPropertyValue(props, 'sourceDocumentId'),
     };
@@ -132,33 +145,40 @@ export class JanusGraphDatabase implements GraphDatabase {
     const document: Document = {
       id,
       name: input.name,
-      entityTypes: input.entityTypes || [],
+      entityTypes: input.entityTypes,
       contentType: input.contentType,
-      metadata: input.metadata || {},
+      metadata: input.metadata,
       archived: false,
       createdAt: now,
-      updatedAt: now,
       createdBy: input.createdBy,
-      updatedBy: input.createdBy,
       creationMethod: input.creationMethod,
+      contentChecksum: input.contentChecksum,
       sourceSelectionId: input.sourceSelectionId,
       sourceDocumentId: input.sourceDocumentId,
     };
 
     // Create vertex in JanusGraph
-    await this.g!
+    const vertex = this.g!
       .addV('Document')
       .property('id', id)
       .property('name', input.name)
-      .property('entityTypes', JSON.stringify(input.entityTypes || []))
+      .property('entityTypes', JSON.stringify(input.entityTypes))
       .property('contentType', input.contentType)
-      .property('metadata', JSON.stringify(input.metadata || {}))
+      .property('metadata', JSON.stringify(input.metadata))
       .property('archived', false)
       .property('createdAt', now.toISOString())
-      .property('updatedAt', now.toISOString())
-      .property('createdBy', input.createdBy || '')
-      .property('updatedBy', input.createdBy || '')
-      .next();
+      .property('createdBy', input.createdBy)
+      .property('creationMethod', input.creationMethod)
+      .property('contentChecksum', input.contentChecksum);
+
+    if (input.sourceSelectionId) {
+      vertex.property('sourceSelectionId', input.sourceSelectionId);
+    }
+    if (input.sourceDocumentId) {
+      vertex.property('sourceDocumentId', input.sourceDocumentId);
+    }
+
+    await vertex.next();
 
     console.log('Created document vertex in JanusGraph:', id);
     return document;
@@ -178,22 +198,16 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async updateDocument(id: string, input: UpdateDocumentInput): Promise<Document> {
-    const traversalQuery = this.g!
+    // Documents are immutable - only archiving is allowed
+    if (Object.keys(input).length !== 1 || input.archived === undefined) {
+      throw new Error('Documents are immutable. Only archiving is allowed.');
+    }
+
+    await this.g!
       .V()
-      .has('Document', 'id', id);
-
-    // Update properties
-    if (input.name !== undefined) {
-      await traversalQuery.property('name', input.name).next();
-    }
-    if (input.entityTypes !== undefined) {
-      await traversalQuery.property('entityTypes', JSON.stringify(input.entityTypes)).next();
-    }
-    if (input.metadata !== undefined) {
-      await traversalQuery.property('metadata', JSON.stringify(input.metadata)).next();
-    }
-
-    await traversalQuery.property('updatedAt', new Date().toISOString()).next();
+      .has('Document', 'id', id)
+      .property('archived', input.archived)
+      .next();
 
     const updatedDocument = await this.getDocument(id);
     if (!updatedDocument) {
@@ -250,7 +264,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async createSelection(input: CreateSelectionInput): Promise<Selection> {
-    const id = this.generateId('sel');
+    const id = this.generateId();
     const now = new Date();
 
     const selection: Selection = {
@@ -289,12 +303,11 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('updatedAt', now.toISOString())
       .next();
 
-    // Create edge from document to selection
+    // Create edge from selection to document (BELONGS_TO)
     await this.g!
-      .V()
-      .has('Document', 'id', input.documentId)
-      .addE('HAS_SELECTION')
-      .to(selVertex.value)
+      .V(selVertex.value)
+      .addE('BELONGS_TO')
+      .to(this.g!.V().has('Document', 'id', input.documentId))
       .next();
 
     // If it's a reference, create edge to target document
@@ -498,8 +511,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     const paths = await this.g!
       .V()
       .has('Document', 'id', documentId)
-      .outE('HAS_SELECTION')
-      .inV()
+      .inE('BELONGS_TO')
+      .outV()
       .outE('REFERENCES')
       .inV()
       .path()
@@ -612,56 +625,185 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async getEntityTypes(): Promise<string[]> {
-    const types = new Set<string>();
-    const docs = await this.g!.V().hasLabel('Document').toList();
-    const documents = docs.map((v: any) => this.vertexToDocument(v));
-
-    for (const doc of documents) {
-      doc.entityTypes.forEach(type => types.add(type));
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
     }
-    return Array.from(types);
+    return Array.from(this.entityTypesCollection!).sort();
   }
   
   async getReferenceTypes(): Promise<string[]> {
-    const types = new Set<string>();
-    const sels = await this.g!.V().hasLabel('Selection').toList();
-    const selections = sels.map((v: any) => this.vertexToSelection(v));
-
-    for (const sel of selections) {
-      sel.referenceTags?.forEach(tag => types.add(tag));
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
     }
-    return Array.from(types);
+    return Array.from(this.referenceTypesCollection!).sort();
   }
   
   async addEntityType(tag: string): Promise<void> {
-    // In real implementation, this would update schema
-    console.log('Added entity type:', tag);
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    this.entityTypesCollection!.add(tag);
+
+    // Persist to JanusGraph
+    try {
+      // Find or create the TagCollection vertex
+      const existing = await this.g!.V()
+        .hasLabel('TagCollection')
+        .has('type', 'entity-types')
+        .toList();
+
+      if (existing.length > 0) {
+        // Update existing collection
+        await this.g!.V(existing[0])
+          .property('tags', JSON.stringify(Array.from(this.entityTypesCollection!)))
+          .next();
+      } else {
+        // Create new collection
+        await this.g!.addV('TagCollection')
+          .property('type', 'entity-types')
+          .property('tags', JSON.stringify(Array.from(this.entityTypesCollection!)))
+          .next();
+      }
+    } catch (error) {
+      console.error('Failed to add entity type:', error);
+    }
   }
   
   async addReferenceType(tag: string): Promise<void> {
-    // In real implementation, this would update schema
-    console.log('Added reference type:', tag);
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    this.referenceTypesCollection!.add(tag);
+
+    // Persist to JanusGraph
+    try {
+      // Find or create the TagCollection vertex
+      const existing = await this.g!.V()
+        .hasLabel('TagCollection')
+        .has('type', 'reference-types')
+        .toList();
+
+      if (existing.length > 0) {
+        // Update existing collection
+        await this.g!.V(existing[0])
+          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
+          .next();
+      } else {
+        // Create new collection
+        await this.g!.addV('TagCollection')
+          .property('type', 'reference-types')
+          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
+          .next();
+      }
+    } catch (error) {
+      console.error('Failed to add reference type:', error);
+    }
   }
   
   async addEntityTypes(tags: string[]): Promise<void> {
-    for (const tag of tags) {
-      await this.addEntityType(tag);
+    if (this.entityTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    tags.forEach(tag => this.entityTypesCollection!.add(tag));
+
+    // Persist all at once
+    try {
+      const existing = await this.g!.V()
+        .hasLabel('TagCollection')
+        .has('type', 'entity-types')
+        .toList();
+
+      if (existing.length > 0) {
+        await this.g!.V(existing[0])
+          .property('tags', JSON.stringify(Array.from(this.entityTypesCollection!)))
+          .next();
+      } else {
+        await this.g!.addV('TagCollection')
+          .property('type', 'entity-types')
+          .property('tags', JSON.stringify(Array.from(this.entityTypesCollection!)))
+          .next();
+      }
+    } catch (error) {
+      console.error('Failed to add entity types:', error);
     }
   }
   
   async addReferenceTypes(tags: string[]): Promise<void> {
-    for (const tag of tags) {
-      await this.addReferenceType(tag);
+    if (this.referenceTypesCollection === null) {
+      await this.initializeTagCollections();
+    }
+    tags.forEach(tag => this.referenceTypesCollection!.add(tag));
+
+    // Persist all at once
+    try {
+      const existing = await this.g!.V()
+        .hasLabel('TagCollection')
+        .has('type', 'reference-types')
+        .toList();
+
+      if (existing.length > 0) {
+        await this.g!.V(existing[0])
+          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
+          .next();
+      } else {
+        await this.g!.addV('TagCollection')
+          .property('type', 'reference-types')
+          .property('tags', JSON.stringify(Array.from(this.referenceTypesCollection!)))
+          .next();
+      }
+    } catch (error) {
+      console.error('Failed to add reference types:', error);
     }
   }
   
-  generateId(prefix: string = 'doc'): string {
-    return `${prefix}_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+  private async initializeTagCollections(): Promise<void> {
+    // Load existing collections from JanusGraph
+    const collections = await this.g!.V()
+      .hasLabel('TagCollection')
+      .toList();
+
+    let entityTypesFromDb: string[] = [];
+    let referenceTypesFromDb: string[] = [];
+
+    for (const vertex of collections) {
+      const props = (vertex as any).properties || {};
+      const type = this.getPropertyValue(props, 'type');
+      const tagsJson = this.getPropertyValue(props, 'tags');
+      const tags = tagsJson ? JSON.parse(tagsJson) : [];
+
+      if (type === 'entity-types') {
+        entityTypesFromDb = tags;
+      } else if (type === 'reference-types') {
+        referenceTypesFromDb = tags;
+      }
+    }
+
+    // Load defaults
+    const { DEFAULT_ENTITY_TYPES, DEFAULT_REFERENCE_TYPES } = await import('../tag-collections');
+
+    // Merge with defaults
+    this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
+    this.referenceTypesCollection = new Set([...DEFAULT_REFERENCE_TYPES, ...referenceTypesFromDb]);
+
+    // Persist merged collections back to JanusGraph if they don't exist
+    if (entityTypesFromDb.length === 0) {
+      await this.addEntityTypes([]);
+    }
+    if (referenceTypesFromDb.length === 0) {
+      await this.addReferenceTypes([]);
+    }
+  }
+
+  generateId(): string {
+    return uuidv4().replace(/-/g, '').substring(0, 12);
   }
   
   async clearDatabase(): Promise<void> {
     // Drop all vertices in JanusGraph
     await this.g!.V().drop().next();
+    // Reset cached collections
+    this.entityTypesCollection = null;
+    this.referenceTypesCollection = null;
     console.log('Cleared JanusGraph database');
   }
 }

@@ -9,24 +9,24 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
   const { service } = context;
   
   // Get service-specific configuration
-  const serviceConfig = service.config as any;
-  const inferenceType = serviceConfig.type; // 'claude' or 'openai'
+  const serviceConfig = service.config;
+  const inferenceType = serviceConfig.type; // 'anthropic' or 'openai'
   
   // Validate inference type is configured
   if (!inferenceType) {
     return {
       success: false,
-      error: 'Inference service type not configured. Set "type" to "claude" or "openai" in service configuration.',
+      error: 'Inference service type not configured. Set "type" to "anthropic" or "openai" in service configuration.',
       status: 'unknown',
       metadata: {
         serviceType: 'inference',
-        hint: 'Add "type": "claude" or "type": "openai" to your service configuration'
+        hint: 'Add "type": "anthropic" or "type": "openai" to your service configuration'
       }
     };
   }
   
   // Validate known inference types
-  const supportedTypes = ['claude', 'openai'];
+  const supportedTypes = ['anthropic', 'openai'];
   if (!supportedTypes.includes(inferenceType)) {
     return {
       success: false,
@@ -77,8 +77,8 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
     const startTime = Date.now();
     let responsePreview: string | undefined;
     
-    if (inferenceType === 'claude') {
-      // Claude health check using SDK
+    if (inferenceType === 'anthropic') {
+      // Anthropic health check using SDK
       let apiKey = serviceConfig.apiKey;
       
       // Handle environment variable reference from config file
@@ -87,13 +87,8 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
         apiKey = process.env[envVarName];
       }
       
-      // Fall back to environment variable if not in config
       if (!apiKey) {
-        apiKey = process.env.ANTHROPIC_API_KEY;
-      }
-      
-      if (!apiKey) {
-        throw new Error('Claude API key not configured. Set ANTHROPIC_API_KEY environment variable or apiKey in service config.');
+        throw new Error('Anthropic API key not configured. Set apiKey in service config.');
       }
       
       const client = new Anthropic({
@@ -128,14 +123,9 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
         const envVarName = apiKey.slice(2, -1);
         apiKey = process.env[envVarName];
       }
-      
-      // Fall back to environment variable if not in config
+            
       if (!apiKey) {
-        apiKey = process.env.OPENAI_API_KEY;
-      }
-      
-      if (!apiKey) {
-        throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY environment variable or apiKey in service config.');
+        throw new Error('OpenAI API key not configured. Set apiKey in service config.');
       }
       
       const client = new OpenAI({
@@ -204,7 +194,7 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
         details: { 
           error: errorMessage,
           inferenceType,
-          hint: `API key authentication failed. Ensure ${inferenceType === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} is set and valid`,
+          hint: `API key authentication failed. Ensure ${inferenceType === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} is set and valid`,
           errorCode,
           errorType,
           errorDetails,
@@ -246,9 +236,7 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
         details: { 
           error: errorMessage,
           inferenceType,
-          hint: inferenceType === 'claude' 
-            ? 'Ensure ANTHROPIC_API_KEY is set and valid'
-            : 'Ensure OPENAI_API_KEY is set and valid',
+          hint: 'Ensure apiKey is set and valid',
           errorCode,
           errorType,
           errorDetails,

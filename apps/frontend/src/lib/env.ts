@@ -31,21 +31,7 @@ function validateEnv() {
       // During build time, provide more helpful error messages
       if (typeof window === 'undefined') {
         console.error('❌ Environment validation failed:');
-        missingVars.forEach(msg => console.error(`  - ${msg}`));
-        
-        // For development, provide fallback values but warn
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('⚠️  Using fallback values for missing environment variables in development mode');
-          return {
-            NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
-            NEXT_PUBLIC_SITE_NAME: process.env.NEXT_PUBLIC_SITE_NAME || 'Semiont',
-            NEXT_PUBLIC_DOMAIN: process.env.NEXT_PUBLIC_DOMAIN || 'localhost',
-            NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || 'gmail.com',
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-            NODE_ENV: (process.env.NODE_ENV as 'development' | 'production' | 'test') || 'development',
-          };
-        }
-        
+        missingVars.forEach(msg => console.error(`  - ${msg}`));        
         // In production, fail hard
         throw new Error(`Environment validation failed:\n${missingVars.join('\n')}`);
       }
