@@ -11,8 +11,12 @@ vi.mock('@/hooks/useSecureAPI', () => ({
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
-  SessionProvider: ({ children }: { children: React.ReactNode }) => 
-    <div data-testid="session-provider">{children}</div>
+  SessionProvider: ({ children }: { children: React.ReactNode }) =>
+    <div data-testid="session-provider">{children}</div>,
+  useSession: () => ({
+    status: 'authenticated',
+    data: null
+  })
 }));
 
 // Mock react-query to spy on QueryClient creation
