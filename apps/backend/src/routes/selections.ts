@@ -4,8 +4,10 @@ import { authMiddleware } from '../middleware/auth';
 import { User } from '@prisma/client';
 import { ErrorResponseSchema } from '../openapi';
 import { getGraphDatabase } from '../graph/factory';
+import { generateDocumentFromTopic } from '../inference/factory';
 import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection } from '../graph/types';
+import { calculateChecksum } from '../utils/checksum';
 import {
   SelectionSchema,
   CreateSelectionRequestSchema,
@@ -543,32 +545,44 @@ selectionsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       return c.json({ error: 'Source document not found' }, 404);
     }
 
-    // const sourceContent = await storage.getDocument(sourceDoc.id);
+    // Extract the selection text (assuming it's stored in selectionData for text_span type)
+    const selectionText = selection.selectionData?.text ||
+                          selection.selectionData?.content ||
+                          `Selection from ${sourceDoc.name}`;
 
-    // Dummy implementation: Generate Lorem ipsum content
-    const generatedContent = generateDummyContent(
-      selection,
-      sourceDoc,
-      body.prompt,
-      body.name
+    // Resolve entity types once
+    const entityTypes = body.entityTypes || sourceDoc.entityTypes || [];
+
+    const generatedContent = await generateDocumentFromTopic(
+      selectionText,
+      entityTypes,
+      body.prompt
     );
 
-    // Create the new document
+    // At this point, generatedContent.title and generatedContent.content are guaranteed to exist
+    // Calculate checksum for the content
+    const checksum = calculateChecksum(generatedContent.content);
+
+    // Create the new document with no fallback logic
     const document = await graphDb.createDocument({
-      name: body.name || `Generated from ${sourceDoc.name}`,
-      entityTypes: body.entityTypes || sourceDoc.entityTypes,
-      content: generatedContent,
+      name: generatedContent.title,
+      entityTypes: entityTypes,
+      content: generatedContent.content,
       contentType: 'text/plain',
+      contentChecksum: checksum,
       metadata: {
         generatedFrom: selection.id,
         sourceDocument: sourceDoc.id,
         prompt: body.prompt,
       },
       createdBy: user.id,
+      creationMethod: 'generated',
+      sourceSelectionId: selection.id,
+      sourceDocumentId: sourceDoc.id,
     });
 
     // Store the generated content
-    await storage.saveDocument(document.id, generatedContent);
+    await storage.saveDocument(document.id, generatedContent.content);
 
     // Resolve the selection to the new document
     const updatedSelection = await graphDb.resolveSelection({
@@ -578,7 +592,7 @@ selectionsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     });
 
     return c.json({
-      document: formatDocumentWithContent(document, generatedContent),
+      document: formatDocumentWithContent(document, generatedContent.content),
       selection: formatSelection(updatedSelection),
       generated: true,
     }, 201);
@@ -1472,9 +1486,7 @@ function formatDocument(doc: Document): any {
     contentType: doc.contentType,
     metadata: doc.metadata,
     createdBy: doc.createdBy,
-    updatedBy: doc.updatedBy,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
-    updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
   };
 }
 
@@ -1503,99 +1515,4 @@ function formatSelection(sel: Selection): any {
     createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
     updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
   };
-}
-
-// Dummy content generation function
-function generateDummyContent(
-  selection: Selection,
-  sourceDoc: Document,
-  prompt?: string,
-  requestedName?: string
-): string {
-  // Lorem ipsum word pool for random generation
-  const loremWords = [
-    'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit',
-    'sed', 'do', 'eiusmod', 'tempor', 'incididunt', 'ut', 'labore', 'et', 'dolore',
-    'magna', 'aliqua', 'enim', 'ad', 'minim', 'veniam', 'quis', 'nostrud',
-    'exercitation', 'ullamco', 'laboris', 'nisi', 'aliquip', 'ex', 'ea', 'commodo',
-    'consequat', 'duis', 'aute', 'irure', 'in', 'reprehenderit', 'voluptate',
-    'velit', 'esse', 'cillum', 'fugiat', 'nulla', 'pariatur', 'excepteur', 'sint',
-    'occaecat', 'cupidatat', 'non', 'proident', 'sunt', 'culpa', 'qui', 'officia',
-    'deserunt', 'mollit', 'anim', 'id', 'est', 'laborum'
-  ];
-
-  // Generate random sentences
-  const generateSentence = (minWords: number = 5, maxWords: number = 15): string => {
-    const wordCount = Math.floor(Math.random() * (maxWords - minWords + 1)) + minWords;
-    const words: string[] = [];
-    
-    for (let i = 0; i < wordCount; i++) {
-      const randomIndex = Math.floor(Math.random() * loremWords.length);
-      const randomWord = loremWords[randomIndex] || 'lorem';
-      if (i === 0) {
-        // Capitalize first word
-        words.push(randomWord.charAt(0).toUpperCase() + randomWord.slice(1));
-      } else {
-        words.push(randomWord);
-      }
-    }
-    
-    return words.join(' ') + '.';
-  };
-
-  // Generate paragraphs
-  const generateParagraph = (sentences: number = 4): string => {
-    const paragraph: string[] = [];
-    for (let i = 0; i < sentences; i++) {
-      paragraph.push(generateSentence());
-    }
-    return paragraph.join(' ');
-  };
-
-  // Build the content
-  const content: string[] = [];
-  
-  // Title/Header
-  const title = requestedName || `Generated Document for "${(selection.selectionData as any).text || 'Selection'}"`;
-  content.push(`# ${title}`);
-  content.push('');
-  
-  // Metadata section
-  content.push('## Document Information');
-  content.push(`- Generated from: ${sourceDoc.name}`);
-  content.push(`- Selection type: ${selection.selectionType}`);
-  if (selection.entityTypes && selection.entityTypes.length > 0) {
-    content.push(`- Entity types: ${selection.entityTypes.join(', ')}`);
-  }
-  if (prompt) {
-    content.push(`- Generation prompt: "${prompt}"`);
-  }
-  content.push('');
-  
-  // Context section
-  content.push('## Context');
-  const selectionText = (selection.selectionData as any).text;
-  if (selectionText) {
-    content.push(`The selected text was: "${selectionText}"`);
-    content.push('');
-  }
-  
-  // Main content (Lorem ipsum)
-  content.push('## Generated Content');
-  content.push('');
-  
-  // Generate 3-5 paragraphs of Lorem ipsum
-  const paragraphCount = Math.floor(Math.random() * 3) + 3;
-  for (let i = 0; i < paragraphCount; i++) {
-    const sentenceCount = Math.floor(Math.random() * 3) + 3; // 3-5 sentences per paragraph
-    content.push(generateParagraph(sentenceCount));
-    content.push('');
-  }
-  
-  // Footer note
-  content.push('---');
-  content.push('*Note: This is dummy content generated for testing purposes. ' +
-    'In production, this would be replaced with AI-generated content based on the selection context.*');
-  
-  return content.join('\n');
 }
