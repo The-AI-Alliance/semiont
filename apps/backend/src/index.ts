@@ -42,6 +42,8 @@ import { openApiConfig } from './openapi';
 
 // Import graph database for initialization
 import { getGraphDatabase } from './graph/factory';
+// Import inference client for initialization
+import { getInferenceClient } from './inference/factory';
 
 type Variables = {
   user: User;
@@ -230,16 +232,26 @@ if (CONFIG.NODE_ENV !== 'test') {
     try {
       console.log('🔧 Initializing graph database...');
       const graphDb = await getGraphDatabase();
-      
+
       // Pre-populate tag collections by calling getters
       // This ensures defaults are loaded on startup
       const entityTypes = await graphDb.getEntityTypes();
       const referenceTypes = await graphDb.getReferenceTypes();
-      
+
       console.log(`✅ Graph database initialized with ${entityTypes.length} entity types and ${referenceTypes.length} reference types`);
     } catch (error) {
       console.error('⚠️ Failed to initialize graph database:', error);
       // Continue running even if graph initialization fails
+    }
+
+    // Initialize inference client
+    try {
+      console.log('🤖 Initializing inference client...');
+      await getInferenceClient();
+      console.log('✅ Inference client initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize inference client:', error);
+      // Continue running even if inference initialization fails
     }
   });
 }
