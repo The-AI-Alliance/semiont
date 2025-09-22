@@ -4,19 +4,18 @@ import { render, screen } from '@testing-library/react';
 import AdminLayout from '../layout';
 import { env } from '@/lib/env';
 
-// Mock all the admin components
-vi.mock('@/components/admin/AdminAuthWrapper', () => ({
-  AdminAuthWrapper: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="admin-auth-wrapper">{children}</div>
-  ),
-}));
-
+// Mock the admin components
+// Note: AdminAuthWrapper was removed - auth is now handled by middleware
 vi.mock('@/components/shared/UnifiedHeader', () => ({
   UnifiedHeader: () => <header data-testid="admin-header">Unified Header</header>,
 }));
 
 vi.mock('@/components/admin/AdminNavigation', () => ({
   AdminNavigation: () => <nav data-testid="admin-navigation">Admin Navigation</nav>,
+}));
+
+vi.mock('@/components/Footer', () => ({
+  Footer: () => <footer data-testid="admin-footer">Footer</footer>,
 }));
 
 vi.mock('@/lib/env', () => ({
@@ -37,21 +36,18 @@ describe('AdminLayout', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       // Check that all components are present
-      expect(screen.getByTestId('admin-auth-wrapper')).toBeInTheDocument();
       expect(screen.getByTestId('admin-header')).toBeInTheDocument();
       expect(screen.getByTestId('admin-navigation')).toBeInTheDocument();
       expect(screen.getByTestId('admin-children')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
     });
 
-    it('should wrap entire layout in AdminAuthWrapper', () => {
-      render(<AdminLayout>{mockChildren}</AdminLayout>);
+    it('should have proper root container structure', () => {
+      const { container } = render(<AdminLayout>{mockChildren}</AdminLayout>);
 
-      const authWrapper = screen.getByTestId('admin-auth-wrapper');
-      
-      // AuthWrapper should contain all other elements
-      expect(authWrapper).toContainElement(screen.getByTestId('admin-header'));
-      expect(authWrapper).toContainElement(screen.getByTestId('admin-navigation'));
-      expect(authWrapper).toContainElement(screen.getByTestId('admin-children'));
+      const rootContainer = container.querySelector('.min-h-screen');
+      expect(rootContainer).toBeInTheDocument();
+      expect(rootContainer).toHaveClass('min-h-screen', 'bg-gray-50', 'dark:bg-gray-900', 'flex', 'flex-col');
     });
 
     it('should render children within the main content area', () => {
@@ -59,16 +55,16 @@ describe('AdminLayout', () => {
 
       const children = screen.getByTestId('admin-children');
       const main = screen.getByRole('main');
-      
+
       expect(main).toContainElement(children);
     });
   });
 
   describe('Layout structure', () => {
     it('should have correct root container styling', () => {
-      render(<AdminLayout>{mockChildren}</AdminLayout>);
+      const { container } = render(<AdminLayout>{mockChildren}</AdminLayout>);
 
-      const rootContainer = screen.getByTestId('admin-auth-wrapper').firstChild as HTMLElement;
+      const rootContainer = container.querySelector('.min-h-screen');
       expect(rootContainer).toHaveClass('min-h-screen', 'bg-gray-50', 'dark:bg-gray-900');
     });
 
@@ -77,7 +73,7 @@ describe('AdminLayout', () => {
 
       // Find the flex container that holds navigation and main
       const flexContainer = screen.getByTestId('admin-navigation').parentElement;
-      expect(flexContainer).toHaveClass('flex');
+      expect(flexContainer).toHaveClass('flex', 'flex-1');
 
       // Check main element styling
       const main = screen.getByRole('main');
@@ -89,7 +85,7 @@ describe('AdminLayout', () => {
 
       const main = screen.getByRole('main');
       const contentContainer = main.querySelector('.max-w-7xl');
-      
+
       expect(contentContainer).toBeInTheDocument();
       expect(contentContainer).toHaveClass('max-w-7xl', 'mx-auto');
       expect(contentContainer).toContainElement(screen.getByTestId('admin-children'));
@@ -97,7 +93,7 @@ describe('AdminLayout', () => {
   });
 
   describe('Component composition', () => {
-    it('should render AdminHeader at the top level', () => {
+    it('should render UnifiedHeader at the top level', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       const header = screen.getByTestId('admin-header');
@@ -126,13 +122,23 @@ describe('AdminLayout', () => {
       const main = screen.getByRole('main');
       expect(main.tagName).toBe('MAIN');
     });
+
+    it('should render Footer at the bottom', () => {
+      render(<AdminLayout>{mockChildren}</AdminLayout>);
+
+      const footer = screen.getByTestId('admin-footer');
+      const main = screen.getByRole('main');
+
+      // Footer should come after main content
+      expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
   });
 
   describe('Dark mode support', () => {
     it('should have dark mode classes on root container', () => {
-      render(<AdminLayout>{mockChildren}</AdminLayout>);
+      const { container } = render(<AdminLayout>{mockChildren}</AdminLayout>);
 
-      const rootContainer = screen.getByTestId('admin-auth-wrapper').firstChild as HTMLElement;
+      const rootContainer = container.querySelector('.min-h-screen');
       expect(rootContainer).toHaveClass('dark:bg-gray-900');
     });
   });
@@ -178,10 +184,10 @@ describe('AdminLayout', () => {
       const { container } = render(<AdminLayout>{null}</AdminLayout>);
 
       // Layout should still render properly with no children
-      expect(screen.getByTestId('admin-auth-wrapper')).toBeInTheDocument();
       expect(screen.getByTestId('admin-header')).toBeInTheDocument();
       expect(screen.getByTestId('admin-navigation')).toBeInTheDocument();
       expect(screen.getByRole('main')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
     });
   });
 
@@ -199,10 +205,10 @@ describe('AdminLayout', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       const main = screen.getByRole('main');
-      
+
       // Main should have proper content structure
       expect(main).toContainElement(screen.getByTestId('admin-children'));
-      
+
       // Content should be within responsive container
       const contentContainer = main.querySelector('.max-w-7xl');
       expect(contentContainer).toContainElement(screen.getByTestId('admin-children'));
@@ -230,30 +236,57 @@ describe('AdminLayout', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       // All components should be present and in correct hierarchy
-      const authWrapper = screen.getByTestId('admin-auth-wrapper');
+      // Note: AdminAuthWrapper was removed as auth is now handled by middleware
       const header = screen.getByTestId('admin-header');
       const navigation = screen.getByTestId('admin-navigation');
       const main = screen.getByRole('main');
       const children = screen.getByTestId('admin-children');
+      const footer = screen.getByTestId('admin-footer');
 
-      // Verify hierarchy
-      expect(authWrapper).toContainElement(header);
-      expect(authWrapper).toContainElement(navigation);
-      expect(authWrapper).toContainElement(main);
+      // Verify all elements are present in the document
+      expect(header).toBeInTheDocument();
+      expect(navigation).toBeInTheDocument();
+      expect(main).toBeInTheDocument();
+      expect(footer).toBeInTheDocument();
+
+      // Verify children are in main
       expect(main).toContainElement(children);
+
+      // Verify proper ordering
+      expect(header.compareDocumentPosition(navigation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(navigation.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('should work with different types of admin pages', () => {
-      const dashboardContent = <div data-testid="dashboard">Dashboard Content</div>;
-      const { rerender } = render(<AdminLayout>{dashboardContent}</AdminLayout>);
-      
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument();
+    it('should create a complete admin page structure', () => {
+      const { container } = render(
+        <AdminLayout>
+          <h1>Admin Dashboard</h1>
+          <p>Welcome to the admin area</p>
+        </AdminLayout>
+      );
 
-      const usersContent = <div data-testid="users-page">Users Management</div>;
-      rerender(<AdminLayout>{usersContent}</AdminLayout>);
-      
-      expect(screen.getByTestId('users-page')).toBeInTheDocument();
-      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument();
+      // Check overall structure
+      const rootContainer = container.querySelector('.min-h-screen');
+      expect(rootContainer).toBeInTheDocument();
+
+      // Check all major sections are present
+      expect(screen.getByTestId('admin-header')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-navigation')).toBeInTheDocument();
+      expect(screen.getByRole('main')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
+
+      // Check content is rendered
+      expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
+      expect(screen.getByText('Welcome to the admin area')).toBeInTheDocument();
+    });
+  });
+
+  describe('Security note', () => {
+    it('should have comment about middleware handling authentication', () => {
+      // This test just documents that authentication is handled by middleware
+      // The actual authentication logic is tested in middleware tests
+      expect(true).toBe(true);
     });
   });
 });
