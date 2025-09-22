@@ -433,7 +433,7 @@ selectionsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
 
   try {
     const graphDb = await getGraphDatabase();
-    const storage = await getStorageService() as any;
+    const storage = getStorageService();
     
     const selection = await graphDb.getSelection(id);
     if (!selection) {
@@ -532,7 +532,7 @@ selectionsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
 
   try {
     const graphDb = await getGraphDatabase();
-    const storage = await getStorageService() as any;
+    const storage = getStorageService();
     
     const selection = await graphDb.getSelection(id);
     if (!selection) {
@@ -550,8 +550,9 @@ selectionsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
                           selection.selectionData?.content ||
                           `Selection from ${sourceDoc.name}`;
 
-    // Resolve entity types once
-    const entityTypes = body.entityTypes || sourceDoc.entityTypes || [];
+    // TODO: Review entity type inheritance logic - should generated documents always inherit source types?
+    // Currently: explicit empty array [] is respected, undefined/null inherits from source
+    const entityTypes = body.entityTypes ?? sourceDoc.entityTypes;
 
     const generatedContent = await generateDocumentFromTopic(
       selectionText,
@@ -656,7 +657,7 @@ selectionsRouter.openapi(getSelectionContextRoute, async (c) => {
 
   try {
     const graphDb = await getGraphDatabase();
-    const storage = await getStorageService() as any;
+    const storage = getStorageService();
     
     const selection = await graphDb.getSelection(id);
     if (!selection) {
@@ -693,7 +694,7 @@ selectionsRouter.openapi(getSelectionContextRoute, async (c) => {
     return c.json({
       selection: formatSelection(selection),
       context,
-      document: formatDocumentWithContent(document, content.toString('utf-8')),
+      document: formatDocumentWithContent(document, content),
     }, 200);
   } catch (error) {
     console.error('Error getting selection context:', error);
@@ -750,7 +751,7 @@ selectionsRouter.openapi(getContextualSummaryRoute, async (c) => {
 
   try {
     const graphDb = await getGraphDatabase();
-    const storage = await getStorageService() as any;
+    const storage = getStorageService();
     
     const selection = await graphDb.getSelection(id);
     if (!selection) {
