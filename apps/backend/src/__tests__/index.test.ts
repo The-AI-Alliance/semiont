@@ -9,7 +9,20 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import type { Hono } from 'hono';
+import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { User } from '@prisma/client';
+
+type Variables = {
+  user: User;
+};
+
+interface HealthResponse {
+  status: string;
+  message: string;
+  version: string;
+  environment?: string;
+  timestamp?: string;
+}
 
 // Mock the database before any imports to avoid connection attempts
 vi.mock('../db', () => ({
@@ -26,7 +39,7 @@ vi.mock('../db', () => ({
 }));
 
 describe('Main Application (index.ts)', () => {
-  let app: Hono;
+  let app: OpenAPIHono<{ Variables: Variables }>;
 
   beforeAll(async () => {
     // Import the app
@@ -57,7 +70,7 @@ describe('Main Application (index.ts)', () => {
   describe('Public Endpoints', () => {
     it('should return health status without authentication', async () => {
       const response = await app.request('http://localhost/api/health');
-      const data = await response.json();
+      const data = await response.json() as HealthResponse;
 
       expect(response.status).toBe(200);
       expect(data.status).toBe('operational');

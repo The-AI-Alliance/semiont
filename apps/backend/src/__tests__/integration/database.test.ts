@@ -2,14 +2,29 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { DatabaseTestSetup } from '../setup/database';
 
+// Helper function to create test user data
+function createUserData(overrides: Partial<any> = {}) {
+  return {
+    email: overrides.email || `test-${Date.now()}@example.com`,
+    name: overrides.name || 'Test User',
+    domain: 'example.com',
+    provider: 'google',
+    providerId: `google-${Date.now()}`,
+    isActive: true,
+    isAdmin: false,
+    isModerator: false,
+    ...overrides
+  };
+}
+
 describe('Database Integration Tests', () => {
   let testPrisma: PrismaClient;
-  let connectionString: string;
+  // let connectionString: string; // Currently unused
 
   beforeAll(async () => {
     const setup = await DatabaseTestSetup.setup();
     testPrisma = setup.prisma;
-    connectionString = setup.connectionString;
+    // connectionString = setup.connectionString; // Currently unused
   });
 
   afterAll(async () => {
@@ -34,7 +49,7 @@ describe('Database Integration Tests', () => {
       const dbInfo = await testPrisma.$queryRaw<Array<{ current_database: string }>>`
         SELECT current_database()
       `;
-      expect(dbInfo[0].current_database).toBe('semiont_test');
+      expect(dbInfo[0]?.current_database).toBe('semiont_test');
     });
 
     it('should have correct schema tables', async () => {
@@ -194,16 +209,17 @@ describe('Database Integration Tests', () => {
         where: { isAdmin: true }
       });
       expect(admins).toHaveLength(1);
-      expect(admins[0].email).toBe('admin@example.com');
+      expect(admins[0]?.email).toBe('admin@example.com');
     });
   });
 
   describe('Database Transactions', () => {
     it('should handle successful transactions', async () => {
       const result = await testPrisma.$transaction(async (tx) => {
-        const helloWorld = await tx.helloWorld.create({
-          data: { message: 'Transaction test' }
-        });
+        // NOTE: helloWorld model doesn't exist in schema
+        // const helloWorld = await tx.helloWorld.create({
+        //   data: { message: 'Transaction test' }
+        // });
 
         const user = await tx.user.create({
           data: {
@@ -214,21 +230,21 @@ describe('Database Integration Tests', () => {
           }
         });
 
-        return { helloWorld, user };
+        return { user }; // helloWorld removed - model doesn't exist
       });
 
-      expect(result.helloWorld.id).toBeDefined();
+      // expect(result.helloWorld.id).toBeDefined(); // helloWorld doesn't exist
       expect(result.user.id).toBeDefined();
 
-      // Verify both records exist
-      const helloWorld = await testPrisma.helloWorld.findUnique({
-        where: { id: result.helloWorld.id }
-      });
+      // Verify user record exists
+      // const helloWorld = await testPrisma.helloWorld.findUnique({
+      //   where: { id: result.helloWorld.id }
+      // });
       const user = await testPrisma.user.findUnique({
         where: { id: result.user.id }
       });
 
-      expect(helloWorld).toBeDefined();
+      // expect(helloWorld).toBeDefined();
       expect(user).toBeDefined();
     });
 
@@ -330,9 +346,9 @@ describe('Database Integration Tests', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0].email).toBe('active@example.com');
-      expect(result[0].isActive).toBe(true);
-      expect(result[0].domain).toBe('example.com');
+      expect(result[0]?.email).toBe('active@example.com');
+      expect(result[0]?.isActive).toBe(true);
+      expect(result[0]?.domain).toBe('example.com');
     });
   });
 });

@@ -2,8 +2,18 @@
  * Simple unit tests for API documentation endpoint
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+
+interface ApiDocResponse {
+  name: string;
+  version: string;
+  description: string;
+  endpoints: {
+    public: unknown;
+    [key: string]: unknown;
+  };
+}
 
 describe('API Documentation Endpoint Unit Tests', () => {
   let app: Hono;
@@ -44,7 +54,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     });
     
     const res = await app.fetch(req);
-    const data = await res.json();
+    const data = await res.json() as ApiDocResponse;
     
     expect(res.status).toBe(200);
     expect(data.name).toBe('Semiont API');
@@ -75,7 +85,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     const req = new Request('http://localhost/api');
     
     const res = await app.fetch(req);
-    const data = await res.json();
+    const data = await res.json() as ApiDocResponse;
     
     expect(res.status).toBe(200);
     expect(data.name).toBe('Semiont API');
@@ -101,7 +111,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     });
     
     const res = await app.fetch(req);
-    const data = await res.json();
+    const data = await res.json() as ApiDocResponse;
     
     // Verify structure of documentation
     expect(data).toHaveProperty('name');

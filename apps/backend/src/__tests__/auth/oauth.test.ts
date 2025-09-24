@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OAuthService } from '../../auth/oauth';
 import { JWTService } from '../../auth/jwt';
-import { prisma } from '../../db';
+import { DatabaseConnection } from '../../db';
 import { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
 
@@ -18,7 +18,8 @@ vi.mock('../../auth/jwt', () => ({
   },
 }));
 
-// The prisma mock is already set up in setup.ts
+// Get mocked prisma from DatabaseConnection
+const prisma = DatabaseConnection.getClient();
 const mockPrismaUser = vi.mocked(prisma.user);
 
 describe('OAuth Service', () => {
@@ -40,6 +41,7 @@ describe('OAuth Service', () => {
     providerId: mockGoogleUser.id,
     isAdmin: false,
     isActive: true,
+    isModerator: false,
     termsAcceptedAt: null,
     lastLogin: new Date(),
     createdAt: new Date(),
@@ -267,7 +269,7 @@ describe('OAuth Service', () => {
         name: '',
       });
 
-      const result = await OAuthService.createOrUpdateUser(userWithoutName);
+      await OAuthService.createOrUpdateUser(userWithoutName);
 
       // JWT payload should NOT have name field when user.name is falsy
       expect(JWTService.generateToken).toHaveBeenCalledWith(
@@ -282,8 +284,8 @@ describe('OAuth Service', () => {
       );
       
       // Verify name field is not present when user.name is falsy
-      const generateTokenCall = vi.mocked(JWTService.generateToken).mock.calls[0][0];
-      expect('name' in generateTokenCall).toBe(false);
+      const generateTokenCall = vi.mocked(JWTService.generateToken).mock.calls[0]?.[0];
+      expect(generateTokenCall && 'name' in generateTokenCall).toBe(false);
     });
   });
 

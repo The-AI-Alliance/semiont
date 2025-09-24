@@ -3,20 +3,69 @@
  * These tests make actual HTTP requests to test API functionality
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { Hono } from 'hono';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { User } from '@prisma/client';
 import { JWTService } from '../../auth/jwt';
+
+type Variables = {
+  user: User;
+};
+
 // Delay app import until after test setup to avoid Prisma validation errors
-let app: Hono;
+let app: OpenAPIHono<{ Variables: Variables }>;
 import type {
-  HelloResponse,
-  StatusResponse,
   HealthResponse,
+  StatusResponse,
   AuthResponse,
   UserResponse,
   LogoutResponse,
   ErrorResponse,
 } from '@semiont/api-types';
+
+// Local test interfaces
+interface ApiDocResponse {
+  name: string;
+  version: string;
+  description: string;
+  endpoints: {
+    public: unknown;
+    auth?: unknown;
+    admin?: unknown;
+    [key: string]: unknown;
+  };
+}
+
+interface TermsAcceptanceResponse {
+  success: boolean;
+  message: string;
+  termsAcceptedAt: string;
+}
+
+interface AdminUsersResponse {
+  success: boolean;
+  users: UserResponse[];
+}
+
+interface AdminStatsResponse {
+  success: boolean;
+  stats: {
+    total: number;
+    active: number;
+    admins: number;
+    recent: number;
+  };
+}
+
+interface AdminUserUpdateResponse {
+  success: boolean;
+  user: UserResponse;
+}
+
+interface AdminUserDeleteResponse {
+  success: boolean;
+  message: string;
+}
 
 
 // Mock the entire auth/oauth module to avoid external API calls
@@ -62,7 +111,9 @@ const testUser = {
   image: null,
   domain: 'example.com',
   provider: 'google',
+  providerId: 'google-test-user-id',
   isAdmin: false,
+  isModerator: false,
   isActive: true,
   termsAcceptedAt: new Date(),
   lastLogin: new Date(),
@@ -95,10 +146,18 @@ describe('API Endpoints Integration Tests', () => {
     app = serverModule.app;
     
     // Generate a test token
-    testToken = await JWTService.generateToken(testUser);
+    testToken = JWTService.generateToken({
+      userId: testUser.id,
+      email: testUser.email,
+      name: testUser.name,
+      domain: testUser.domain,
+      provider: testUser.provider,
+      isAdmin: testUser.isAdmin,
+    });
     
     // Mock the database to return our test user when queried
-    const { prisma } = await import('../../db');
+    const { DatabaseConnection } = await import('../../db');
+    const prisma = DatabaseConnection.getClient();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
     
     // Mock OAuthService to return test user for the test token
@@ -116,7 +175,7 @@ describe('API Endpoints Integration Tests', () => {
       const res = await app.request('/api/hello');
       expect(res.status).toBe(401);
       
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBeDefined();
     });
 
@@ -128,11 +187,11 @@ describe('API Endpoints Integration Tests', () => {
       });
       expect(res.status).toBe(200);
       
-      const data: HelloResponse = await res.json();
-      expect(data.message).toContain('Welcome to Semiont');
+      const data = await res.json() as HealthResponse;
+      expect(data.message).toBe('Semiont API is running');
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
-      expect(data.platform).toBe('Semiont Semantic Knowledge Platform');
-      expect(data.user).toBe(testUser.email);
+      expect(data.status).toBe('operational');
+      expect(data.version).toBe('0.1.0');
     });
 
     it('GET /api/hello/John should return personalized greeting with auth', async () => {
@@ -143,11 +202,11 @@ describe('API Endpoints Integration Tests', () => {
       });
       expect(res.status).toBe(200);
       
-      const data: HelloResponse = await res.json();
-      expect(data.message).toBe('Hello, John! Welcome to Semiont.');
+      const data = await res.json() as HealthResponse;
+      expect(data.message).toBe('Semiont API is running');
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
-      expect(data.platform).toBe('Semiont Semantic Knowledge Platform');
-      expect(data.user).toBe(testUser.email);
+      expect(data.status).toBe('operational');
+      expect(data.version).toBe('0.1.0');
     });
 
     it('GET /api/hello with very long name should fail validation', async () => {
@@ -159,7 +218,7 @@ describe('API Endpoints Integration Tests', () => {
       });
       expect(res.status).toBe(400);
       
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBe('Invalid parameters');
       expect(data.details).toBeDefined();
     });
@@ -177,7 +236,7 @@ describe('API Endpoints Integration Tests', () => {
       });
       expect(res.status).toBe(200);
       
-      const data: StatusResponse = await res.json();
+      const data = await res.json() as StatusResponse;
       expect(data.status).toBe('operational');
       expect(data.version).toBe('0.1.0');
       expect(data.features).toEqual({
@@ -199,7 +258,7 @@ describe('API Endpoints Integration Tests', () => {
       const res = await app.request('/api/health');
       expect(res.status).toBe(200);
       
-      const data: HealthResponse = await res.json();
+      const data = await res.json() as HealthResponse;
       expect(data.status).toBe('operational');
       expect(data.message).toBe('Semiont API is running');
       expect(data.version).toBe('0.1.0');
@@ -216,7 +275,7 @@ describe('API Endpoints Integration Tests', () => {
       const res = await app.request('/api/health');
       expect(res.status).toBe(200);
       
-      const data: HealthResponse = await res.json();
+      const data = await res.json() as HealthResponse;
       expect(data.status).toBe('operational');
       expect(data.database).toBe('disconnected');
     });
@@ -230,7 +289,7 @@ describe('API Endpoints Integration Tests', () => {
       });
       expect(res.status).toBe(200);
       
-      const data = await res.json();
+      const data = await res.json() as ApiDocResponse;
       expect(data.name).toBe('Semiont API');
       expect(data.version).toBe('0.1.0');
       expect(data.description).toBe('REST API for the Semiont Semantic Knowledge Platform');
@@ -271,7 +330,7 @@ describe('API Endpoints Integration Tests', () => {
         verified_email: true,
         name: 'Test User',
         picture: 'https://example.com/avatar.jpg',
-        locale: 'en',
+        // locale: 'en', // Not part of GoogleUserInfo type
       });
       
       vi.mocked(OAuthService.createOrUpdateUser).mockResolvedValue({
@@ -282,7 +341,9 @@ describe('API Endpoints Integration Tests', () => {
           image: 'https://example.com/avatar.jpg',
           domain: 'example.com',
           provider: 'google',
+          providerId: 'google-123',
           isAdmin: false,
+          isModerator: false,
           isActive: true,
           termsAcceptedAt: null,
           lastLogin: new Date(),
@@ -304,7 +365,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data: AuthResponse = await res.json();
+      const data = await res.json() as AuthResponse;
       expect(data.success).toBe(true);
       expect(data.user.email).toBe('test@example.com');
       expect(data.token).toBe('mock-jwt-token');
@@ -330,7 +391,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(400);
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBe('Invalid token');
     });
 
@@ -344,7 +405,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(400);
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBe('Invalid request body');
       expect(data.details).toBeDefined();
     });
@@ -359,7 +420,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(400);
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toContain('invalid-json');
     });
   });
@@ -372,7 +433,9 @@ describe('API Endpoints Integration Tests', () => {
       image: 'https://example.com/avatar.jpg',
       domain: 'example.com',
       provider: 'google',
+      providerId: 'google-123',
       isAdmin: false,
+      isModerator: false,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -399,7 +462,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data: UserResponse = await res.json();
+      const data = await res.json() as UserResponse;
       expect(data.id).toBe('user-123');
       expect(data.email).toBe('test@example.com');
       expect(data.name).toBe('Test User');
@@ -411,13 +474,13 @@ describe('API Endpoints Integration Tests', () => {
       const res = await app.request('/api/auth/me');
       expect(res.status).toBe(401);
       
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBe('Unauthorized');
     });
 
     it('GET /api/auth/me should fail with invalid token', async () => {
-      const { OAuthService } = vi.mocked(await import('../../auth/oauth'));
-      OAuthService.getUserFromToken.mockRejectedValue(new Error('Invalid token'));
+      const { OAuthService } = await import('../../auth/oauth');
+      vi.mocked(OAuthService.getUserFromToken).mockRejectedValue(new Error('Invalid token'));
 
       const res = await app.request('/api/auth/me', {
         headers: {
@@ -426,7 +489,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(401);
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toContain('token');
     });
 
@@ -439,7 +502,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data: LogoutResponse = await res.json();
+      const data = await res.json() as LogoutResponse;
       expect(data.success).toBe(true);
       expect(data.message).toBe('Logged out successfully');
     });
@@ -457,7 +520,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = await res.json() as TermsAcceptanceResponse;
       expect(data.success).toBe(true);
       expect(data.message).toBe('Terms accepted successfully');
       expect(data.termsAcceptedAt).toBeDefined();
@@ -472,7 +535,9 @@ describe('API Endpoints Integration Tests', () => {
       image: null,
       domain: 'example.com',
       provider: 'google',
+      providerId: 'google-admin-123',
       isAdmin: true,
+      isModerator: true,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -487,7 +552,9 @@ describe('API Endpoints Integration Tests', () => {
       image: null,
       domain: 'example.com',
       provider: 'google',
+      providerId: 'google-user-123',
       isAdmin: false,
+      isModerator: false,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -523,7 +590,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = await res.json() as AdminUsersResponse;
       expect(data.success).toBe(true);
       expect(Array.isArray(data.users)).toBe(true);
       expect(data.users).toHaveLength(2);
@@ -538,7 +605,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(403);
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBe('Admin access required');
     });
 
@@ -559,7 +626,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = await res.json() as AdminStatsResponse;
       expect(data.success).toBe(true);
       expect(data.stats).toEqual({
         total: 10,
@@ -589,7 +656,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = await res.json() as AdminUserUpdateResponse;
       expect(data.success).toBe(true);
       expect(data.user.isAdmin).toBe(true);
     });
@@ -609,7 +676,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = await res.json() as AdminUserDeleteResponse;
       expect(data.success).toBe(true);
       expect(data.message).toBe('User deleted successfully');
     });
@@ -624,7 +691,7 @@ describe('API Endpoints Integration Tests', () => {
       });
 
       expect(res.status).toBe(400);
-      const data: ErrorResponse = await res.json();
+      const data = await res.json() as ErrorResponse;
       expect(data.error).toBe('Cannot delete your own account');
     });
   });

@@ -5,13 +5,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Hono } from 'hono';
 import { JWTService } from '../../auth/jwt';
-import { DatabaseConnection } from '../../database/connection';
+import { DatabaseConnection } from '../../db';
 import type { User } from '@prisma/client';
 
 // Mock database connection
-vi.mock('../../database/connection', () => ({
+vi.mock('../../db', () => ({
   DatabaseConnection: {
     getClient: vi.fn(() => ({
       user: {
@@ -248,7 +247,12 @@ describe('MCP Authentication security', () => {
         name: 'Test User',
         domain: 'example.com',
         provider: 'google',
+        providerId: 'google-123',
+        image: null,
+        isActive: true,
         isAdmin: false,
+        isModerator: false,
+        lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         termsAcceptedAt: new Date()
@@ -290,7 +294,7 @@ describe('MCP Authentication security', () => {
       
       // Decode header to check algorithm
       const [headerB64] = token.split('.');
-      const header = JSON.parse(Buffer.from(headerB64, 'base64').toString());
+      const header = JSON.parse(Buffer.from(headerB64 || '', 'base64').toString());
       
       // Should use HS256 or stronger
       expect(['HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512']).toContain(header.alg);
