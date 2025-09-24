@@ -17,6 +17,7 @@ import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } fr
 import { CREATION_METHODS } from '../graph/types';
 import { calculateChecksum } from '../utils/checksum';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../inference/factory';
+import { extractEntities } from '../inference/entity-extractor';
 
 // Create documents router
 export const documentsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -1087,8 +1088,7 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
   // Detect selections in the document
   const detectedSelections = await detectSelectionsInDocument(
     { ...document, content: contentStr },
-    body.entityTypes,
-    body.confidence || 0.7
+    body.entityTypes
   );
   
   console.log(`[detect-selections] Detected ${detectedSelections.length} potential entity references`);
@@ -1106,7 +1106,7 @@ documentsRouter.openapi(detectSelectionsRoute, async (c) => {
         selectionData: detection.selection.selectionData,
         entityTypes: detection.selection.entityTypes,
         provisional: true,
-        confidence: detection.selection.confidence,
+        confidence: 1.0,  // TODO: Remove confidence field from underlying store
         metadata: detection.selection.metadata,
       };
       
@@ -1287,139 +1287,56 @@ function formatSelection(sel: Selection): any {
 }
 
 
-// Implementation for detecting entity references in document
-// Version Zero: Detects proper nouns (capitalized word sequences)
+// Types for the detection result
+interface DetectedSelection {
+  selection: {
+    selectionType: string;
+    selectionData: {
+      type: string;
+      offset: number;
+      length: number;
+      text: string;
+    };
+    provisional: boolean;
+    entityTypes: string[];
+    metadata: Record<string, any>;
+  };
+}
+
+// Implementation for detecting entity references in document using AI
 async function detectSelectionsInDocument(
   document: any,
-  entityTypes: string[],
-  confidence: number
-): Promise<any[]> {
-  console.log(`Detecting entities of types: ${entityTypes.join(', ')} with confidence >= ${confidence}`);
-  
-  const detectedSelections = [];
+  entityTypes: string[]
+): Promise<DetectedSelection[]> {
+  console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
+
+  const detectedSelections: DetectedSelection[] = [];
 
   // Only process text content
   if (document.contentType === 'text/plain' || document.contentType === 'text/markdown') {
     const content = document.content;
-    
-    // Pattern for proper nouns: Capitalized word sequences
-    // Matches sequences of capitalized words (with optional spaces/hyphens between them)
-    // Stops at sentence endings (., !, ?), quotes, or markdown syntax
-    const properNounPattern = /\b([A-Z][a-z]*(?:[-\s]+[A-Z][a-z]*)*)/g;
-    
-    // Track already detected positions to avoid duplicates
-    const detectedPositions = new Set<string>();
-    
-    let match;
-    while ((match = properNounPattern.exec(content)) !== null) {
-      const selectionText = match[0];
-      const offset = match.index;
-      const length = selectionText.length;
-      
-      // Skip if too short (single letter) or too long (probably not a proper noun)
-      if (selectionText.length < 2 || selectionText.length > 50) continue;
-      
-      // Skip if it's at the start of a sentence (check for preceding period/newline)
-      if (offset > 0) {
-        // const precedingChar = content[offset - 1];  // unused
-        const twoCharsBefore = offset > 1 ? content.substring(offset - 2, offset) : '';
-        // Skip if preceded by sentence ending + space (likely sentence start, not proper noun)
-        if (twoCharsBefore.match(/[.!?\n]\s$/)) continue;
-      }
-      
-      // Skip common words that are often capitalized but aren't entities
-      const skipWords = ['The', 'This', 'That', 'These', 'Those', 'There', 'Here', 'When', 'Where', 'What', 'Who', 'Why', 'How', 'If', 'Then', 'But', 'And', 'Or', 'Not', 'In', 'On', 'At', 'To', 'For', 'From', 'With', 'By', 'About', 'After', 'Before', 'During'];
-      if (skipWords.includes(selectionText)) continue;
-      
-      // Check if we already detected this position
-      const posKey = `${offset}-${offset + length}`;
-      if (detectedPositions.has(posKey)) continue;
-      detectedPositions.add(posKey);
-      
-      // Randomly select an entity type from the requested types
-      const randomEntityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
-      
-      const selection = {
+
+    // Use AI to extract entities
+    const extractedEntities = await extractEntities(content, entityTypes);
+
+    // Convert extracted entities to selection format
+    for (const entity of extractedEntities) {
+      const selection: DetectedSelection = {
         selection: {
-          id: Math.random().toString(36).substring(2, 14),
-          documentId: document.id,
           selectionType: 'text_span',
           selectionData: {
             type: 'text_span',
-            offset,
-            length,
-            text: selectionText,
+            offset: entity.startOffset,
+            length: entity.endOffset - entity.startOffset,
+            text: entity.text,
           },
           provisional: true,
-          confidence: confidence, // Use the provided confidence threshold
-          entityTypes: [randomEntityType],
+          entityTypes: [entity.entityType],
           metadata: {
-            detectionType: 'proper_noun',
-            pattern: 'Capitalized word sequence',
-            assignedEntityType: randomEntityType
+            detectionType: 'ai_extraction',
+            extractedBy: 'inference/entity-extractor',
           },
-          createdAt: new Date().toISOString(),
-              },
-        suggestedResolutions: [
-          {
-            documentId: null, // Stub reference
-            documentName: selectionText,
-            entityTypes: [randomEntityType],
-            confidence: confidence,
-            reason: 'Proper noun detected',
-          }
-        ],
-      };
-      detectedSelections.push(selection);
-    }
-    
-    // Also detect wiki-style links as they're explicitly marked
-    const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
-    properNounPattern.lastIndex = 0; // Reset regex
-    
-    while ((match = wikiLinkPattern.exec(content)) !== null) {
-      const selectionText = match[1];
-      const offset = match.index;
-      const length = match[0].length;
-      
-      // Check if we already detected this position
-      const posKey = `${offset}-${offset + length}`;
-      if (detectedPositions.has(posKey)) continue;
-      detectedPositions.add(posKey);
-      
-      // Randomly select an entity type
-      const randomEntityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
-      
-      const selection = {
-        selection: {
-          id: Math.random().toString(36).substring(2, 14),
-          documentId: document.id,
-          selectionType: 'text_span',
-          selectionData: {
-            type: 'text_span',
-            offset,
-            length,
-            text: selectionText,
-          },
-          provisional: true,
-          confidence: 1.0, // Wiki links have high confidence
-          entityTypes: [randomEntityType],
-          metadata: {
-            detectionType: 'wiki_link',
-            pattern: '[[...]]',
-            assignedEntityType: randomEntityType
-          },
-          createdAt: new Date().toISOString(),
-              },
-        suggestedResolutions: [
-          {
-            documentId: null,
-            documentName: selectionText,
-            entityTypes: [randomEntityType],
-            confidence: 1.0,
-            reason: 'Wiki-style link detected',
-          }
-        ],
+        },
       };
       detectedSelections.push(selection);
     }
