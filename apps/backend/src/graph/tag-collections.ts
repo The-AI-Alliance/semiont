@@ -12,16 +12,14 @@ export interface TagCollection {
 // Default seed data for collections
 export const DEFAULT_ENTITY_TYPES = [
   'Person',
-  'Organization', 
+  'Organization',
   'Location',
   'Event',
   'Concept',
   'Product',
   'Technology',
   'Date',
-  'Author',
-  'Topic',
-  'Other'
+  'Author'
 ];
 
 export const DEFAULT_REFERENCE_TYPES = [
