@@ -14,8 +14,8 @@ export const mockPlatformInstance = PlatformFactory.getPlatform('mock') as MockP
 // Just ensure we have a shared instance for test state management
 // Note: PlatformFactory.getPlatform('mock') will return the singleton MockPlatform
 
-// Mock platform-resolver for environment config
-vi.mock('../../platform-resolver.js', () => ({
+// Mock environment-loader for environment config
+vi.mock('../../environment-loader', () => ({
   findProjectRoot: vi.fn(() => '/test/project/root'),
   getNodeEnvForEnvironment: vi.fn(() => 'test'),
   loadEnvironmentConfig: vi.fn(() => ({

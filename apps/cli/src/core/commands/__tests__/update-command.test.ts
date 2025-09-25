@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup.js';
+import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup';
 
 // Import mocks (side effects)
-import './_mock-setup.js';
+import './_mock-setup';
 
 describe('Uupdate Command', () => {
   beforeEach(() => {

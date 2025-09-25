@@ -69,7 +69,7 @@ describe('Dynamic Environment Discovery', () => {
     
     // Import the modules after setting up the filesystem
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/platform-resolver.js');
+      await import('../core/environment-loader');
     
     const discovered = getAvailableEnvironments();
     
@@ -122,7 +122,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/platform-resolver.js');
+      await import('../core/environment-loader');
     
     const discovered = getAvailableEnvironments();
     
@@ -143,7 +143,7 @@ describe('Dynamic Environment Discovery', () => {
     // Remove config directory entirely
     fs.rmSync(configDir, { recursive: true, force: true });
     
-    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/environment-loader');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
@@ -155,7 +155,7 @@ describe('Dynamic Environment Discovery', () => {
     fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
     fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
     
-    const { getAvailableEnvironments } = await import('../core/platform-resolver.js');
+    const { getAvailableEnvironments } = await import('../core/environment-loader');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual(['valid']);
@@ -192,7 +192,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/platform-resolver.js');
+      await import('../core/environment-loader');
     
     // These would have been rejected by hardcoded validation
     expect(isValidEnvironment('sandbox')).toBe(true);

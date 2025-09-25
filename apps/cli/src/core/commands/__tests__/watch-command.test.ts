@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createServiceDeployments, resetMockState } from './_mock-setup.js';
+import { createServiceDeployments, resetMockState } from './_mock-setup';
 
 // Import mocks (side effects)
-import './_mock-setup.js';
+import './_mock-setup';
 
 describe('Uwatch Command', () => {
   beforeEach(() => {
