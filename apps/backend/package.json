@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
     "build": "prisma generate && npm run typecheck && tsc",
-    "build:ci": "prisma generate && npm run typecheck:ci && tsc",
+    "build:fast": "prisma generate && tsc --noEmit false",
     "typecheck": "tsc --noEmit",
-    "typecheck:ci": "tsc --noEmit --project tsconfig.ci.json",
+    "typecheck:incremental": "tsc --noEmit --incremental --tsBuildInfoFile .tscache/typecheck.tsbuildinfo",
     "start": "node dist/index.js",
     "pretest": "npm run build --workspace=@semiont/api-contracts",
     "test": "SEMIONT_ENV=unit vitest run",

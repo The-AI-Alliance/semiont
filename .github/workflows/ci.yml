@@ -75,6 +75,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
+      - name: Cache TypeScript incremental build info
+        uses: actions/cache@v3
+        with:
+          path: apps/backend/.tscache
+          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/backend/src/**/*.ts', 'apps/backend/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-tsc-
+
       - name: Install dependencies and CLI
         run: |
           npm install
@@ -93,7 +101,7 @@ jobs:
         run: |
           echo "Running backend TypeScript type check..."
           cd apps/backend
-          npm run typecheck:ci
+          npm run typecheck:incremental
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=8192"
