@@ -240,12 +240,13 @@ jobs:
           GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Build application
-        run: npm run build
+        run: npm run build:ci
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: Start backend for API security verification
         run: |

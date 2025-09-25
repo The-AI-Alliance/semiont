@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
     "build": "prisma generate && npm run typecheck && tsc",
+    "build:ci": "prisma generate && npm run typecheck:ci && tsc",
     "typecheck": "tsc --noEmit",
     "typecheck:ci": "tsc --noEmit --project tsconfig.ci.json",
     "start": "node dist/index.js",
