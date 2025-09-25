@@ -131,5 +131,5 @@ export function getDatabase(): PrismaClient {
   return DatabaseConnection.getClient();
 }
 
-// Export prisma instance for backward compatibility in tests
+// Export prisma for tests
 export const prisma = DatabaseConnection.getClient();
