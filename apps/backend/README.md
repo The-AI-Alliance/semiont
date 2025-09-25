@@ -2,6 +2,23 @@
 
 A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, providing comprehensive document management, text selection capabilities, and graph-based knowledge organization. Built with Hono framework, featuring automatic OpenAPI documentation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
 
+## 📚 API Documentation
+
+### Interactive API Explorer
+- **Local Development**: http://localhost:3001/api
+- **Production**: https://your-domain.com/api
+- **Features**:
+  - 🔍 Interactive endpoint testing
+  - 📝 Request/response examples
+  - 🔐 Authentication testing with JWT tokens
+  - 📊 Schema visualization
+
+### OpenAPI Specification
+- **Endpoint**: `/doc` - Raw OpenAPI 3.0 specification
+- **Usage**: Import into Postman, Insomnia, or generate client SDKs
+- **Auto-Generated**: From Hono route definitions with Zod schemas
+- **Type-Safe**: Full TypeScript type definitions included
+
 ## Quick Start
 
 ### 🚀 Instant Setup with Semiont CLI (Recommended)

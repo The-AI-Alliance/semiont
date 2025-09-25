@@ -57,6 +57,44 @@ semiont provision --destroy             # Tear down infrastructure
 ### `semiont publish`
 Builds applications locally and creates container images for deployment.
 
+#### Deployment Pipeline Flow
+
+```mermaid
+graph TD
+    subgraph "Development"
+        Code[Code Changes]
+        Build[npm run build]
+        Test[npm test]
+    end
+
+    subgraph "Build Phase - semiont publish"
+        TSBuild[TypeScript Build]
+        NextBuild[Next.js Build]
+        Docker[Docker Image Build]
+        ECR[Push to ECR]
+        TaskDef[Update Task Definition]
+    end
+
+    subgraph "Deploy Phase - semiont update"
+        Force[Force New Deployment]
+        Pull[Pull Latest Image]
+        Rolling[Rolling Update]
+        Health[Health Checks]
+    end
+
+    Code --> Build
+    Build --> Test
+    Test --> TSBuild
+    TSBuild --> NextBuild
+    NextBuild --> Docker
+    Docker --> ECR
+    ECR --> TaskDef
+    TaskDef --> Force
+    Force --> Pull
+    Pull --> Rolling
+    Rolling --> Health
+```
+
 ```bash
 semiont publish --semiont-repo /path/to/semiont           # Build and push all services
 semiont publish --service backend --semiont-repo /path/to/semiont  # Specific service

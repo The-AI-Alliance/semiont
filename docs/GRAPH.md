@@ -4,6 +4,47 @@
 
 Semiont uses a graph database to model relationships between documents and selections (highlights, references, entity references). The system supports four different graph database implementations that share a common pattern while accommodating technology-specific differences.
 
+## Graph Architecture
+
+```mermaid
+graph LR
+    subgraph "Application Layer"
+        APP[Semiont Application]
+        GDI[GraphDatabase Interface]
+    end
+
+    subgraph "Implementation Layer"
+        NEO[Neo4j<br/>Cypher]
+        NEP[Neptune<br/>Gremlin]
+        JAN[JanusGraph<br/>Gremlin]
+        MEM[Memory<br/>JavaScript]
+    end
+
+    subgraph "Data Model"
+        DOC[Document Vertices]
+        SEL[Selection Vertices]
+        TAG[TagCollection Vertices]
+        BT[BELONGS_TO Edges]
+        REF[REFERENCES Edges]
+    end
+
+    APP --> GDI
+    GDI --> NEO
+    GDI --> NEP
+    GDI --> JAN
+    GDI --> MEM
+
+    NEO --> DOC
+    NEP --> DOC
+    JAN --> DOC
+    MEM --> DOC
+
+    DOC --> SEL
+    SEL -->|belongs to| BT
+    SEL -->|references| REF
+    DOC --> TAG
+```
+
 ## Common Graph Pattern
 
 ### Vertex Types
