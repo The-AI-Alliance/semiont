@@ -51,7 +51,7 @@ semiont provision --destroy             # Tear down infrastructure
 ```
 
 **What it creates:**
-- Infrastructure Stack: VPC, RDS, EFS, Secrets Manager
+- Data Stack: VPC, RDS, EFS, Secrets Manager
 - Application Stack: ECS Cluster, ALB, WAF, CloudWatch
 
 ### `semiont publish`
@@ -268,7 +268,7 @@ Edit `environments/production.json`:
     "region": "us-east-1",
     "accountId": "123456789012",
     "stacks": {
-      "infra": "MyProjectInfraStack",
+      "data": "MyProjectDataStack",
       "app": "MyProjectAppStack"
     }
   }
@@ -358,7 +358,7 @@ semiont publish --environment production --tag v2.0.0 --semiont-repo /path/to/se
 
 ### First-Time Deployment
 
-#### Step 1: Provision Infrastructure
+#### Step 1: Provision Data Infrastructure
 ```bash
 semiont provision
 ```

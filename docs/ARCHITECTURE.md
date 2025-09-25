@@ -4,10 +4,10 @@ This document describes the overall architecture of the Semiont platform, focusi
 
 ## Overview
 
-Semiont is a cloud-native semantic knowledge platform built on AWS using Infrastructure as Code (CDK) with a modern microservices architecture. The platform is designed for scalability, security, and maintainability with a clean separation between infrastructure provisioning and application deployment.
+Semiont is a cloud-native semantic knowledge platform built on AWS using Infrastructure as Code (CDK) with a modern microservices architecture. The platform is designed for scalability, security, and maintainability with a clean separation between data infrastructure provisioning and application deployment.
 
 **Quick Navigation:**
-- [Infrastructure Components](#infrastructure-components) - VPC, RDS, EFS setup
+- [Data Infrastructure Components](#data-infrastructure-components) - VPC, RDS, EFS setup
 - [Application Architecture](#application-architecture) - Frontend/Backend services
 - [Authentication](#authentication-architecture) - OAuth and JWT implementation
 - [Security](#security-architecture) - Network and application security
@@ -64,15 +64,15 @@ graph TB
     CW --> SNS
 ```
 
-## Infrastructure Components
+## Data Infrastructure Components
 
 ### Two-Stack Architecture
 
-The Semiont platform uses a **two-stack deployment model** that separates long-lived infrastructure from frequently updated application code:
+The Semiont platform uses a **two-stack deployment model** that separates long-lived data infrastructure from frequently updated application code:
 
 ```mermaid
 graph LR
-    subgraph "Infrastructure Stack"
+    subgraph "Data Stack"
         VPC[VPC & Networking]
         RDS2[(RDS Database)]
         EFS2[EFS Storage]
@@ -99,8 +99,8 @@ graph LR
     SM2 --> SVCS
 ```
 
-#### 1. Infrastructure Stack (`SemiontInfraStack`)
-**Purpose**: Provisions foundational AWS resources that rarely change
+#### 1. Data Stack (`SemiontDataStack`)
+**Purpose**: Provisions foundational AWS data resources that rarely change
 
 **Components**:
 - **VPC with 3-tier networking**:
@@ -132,11 +132,11 @@ graph LR
 
 ### Benefits of Two-Stack Model
 
-1. **Faster Deployments**: App stack deploys in ~5 minutes vs full infrastructure
-2. **Lower Risk**: Database and core infrastructure remain stable
+1. **Faster Deployments**: App stack deploys in ~5 minutes vs full data infrastructure
+2. **Lower Risk**: Database and core data infrastructure remain stable
 3. **Cost Control**: Avoid accidental deletion of expensive resources
-4. **Easier Rollbacks**: Application rollbacks don't affect infrastructure
-5. **Environment Isolation**: Different app stacks can share infrastructure
+4. **Easier Rollbacks**: Application rollbacks don't affect data infrastructure
+5. **Environment Isolation**: Different app stacks can share data infrastructure
 
 ## Application Architecture
 
@@ -331,9 +331,9 @@ OAuth authentication handled by NextAuth.js:
 All infrastructure defined in TypeScript using AWS CDK:
 
 **Advantages**:
-- **Type Safety**: Compile-time infrastructure validation
+- **Type Safety**: Compile-time validation
 - **Reusability**: Shared constructs and patterns
-- **Version Control**: Infrastructure changes tracked in Git
+- **Version Control**: All changes tracked in Git
 - **Automated Rollbacks**: CloudFormation change sets
 
 ## Authentication Architecture
@@ -575,7 +575,7 @@ graph TB
 - **Structured Logging**: JSON-formatted log entries with service-specific prefixes
 - **Error Tracking**: Application-level error monitoring
 
-### Infrastructure Monitoring  
+### System Monitoring
 - **ECS Service Metrics**: CPU, memory, task count
 - **ALB Metrics**: Request count, latency, error rates
 - **RDS Metrics**: Database performance and connections
