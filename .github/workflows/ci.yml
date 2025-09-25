@@ -97,11 +97,23 @@ jobs:
         env:
           CI: true
 
-      - name: Run backend tests
+      - name: Run backend unit tests
         run: |
           echo "Running backend unit tests..."
           cd apps/backend
           npm test
+        env:
+          CI: true
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+          JWT_SECRET: test-secret-for-ci
+          GOOGLE_CLIENT_ID: test-client-id
+          GOOGLE_CLIENT_SECRET: test-client-secret
+
+      - name: Run backend integration tests
+        run: |
+          echo "Running backend integration tests..."
+          cd apps/backend
+          npm run test:integration
         env:
           CI: true
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -215,9 +227,9 @@ jobs:
           echo "Running comprehensive test suite..."
           # Run tests for each package
           cd apps/frontend && npm test && cd ../..
-          cd apps/backend && npm test && cd ../..
+          cd apps/backend && npm test && npm run test:integration && cd ../..
           cd apps/cli && npm run test:unit && cd ../..
-          
+
           echo "All tests completed successfully"
         env:
           CI: true
