@@ -23,18 +23,7 @@ import type {
   ErrorResponse,
 } from '@semiont/api-types';
 
-// Local test interfaces
-interface ApiDocResponse {
-  name: string;
-  version: string;
-  description: string;
-  endpoints: {
-    public: unknown;
-    auth?: unknown;
-    admin?: unknown;
-    [key: string]: unknown;
-  };
-}
+// Local test interfaces (removed unused ApiDocResponse)
 
 interface TermsAcceptanceResponse {
   success: boolean;
@@ -57,15 +46,7 @@ interface AdminStatsResponse {
   };
 }
 
-interface AdminUserUpdateResponse {
-  success: boolean;
-  user: UserResponse;
-}
-
-interface AdminUserDeleteResponse {
-  success: boolean;
-  message: string;
-}
+// Removed unused AdminUserUpdateResponse and AdminUserDeleteResponse interfaces
 
 
 // Mock the entire auth/oauth module to avoid external API calls
@@ -255,7 +236,7 @@ describe('API Endpoints Integration Tests', () => {
       const res = await app.request('/api/openapi.json');
       expect(res.status).toBe(200);
 
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data.info).toBeDefined();
       expect(data.info.title).toBe('Semiont API');
       expect(data.info.version).toBe('0.1.0');
