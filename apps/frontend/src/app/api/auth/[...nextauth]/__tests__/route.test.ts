@@ -148,7 +148,7 @@ describe('NextAuth Route Handler', () => {
 
     it('should handle NextAuth initialization without errors', () => {
       // If NextAuth was called successfully, no errors should have been thrown
-      expect(mockNextAuthCalls.length).toBeGreaterThan(0);
+      expect((globalThis as any).mockNextAuthCalls.length).toBeGreaterThan(0);
     });
   });
 
