@@ -93,9 +93,10 @@ jobs:
         run: |
           echo "Running backend TypeScript type check..."
           cd apps/backend
-          npm run typecheck
+          npm run typecheck:ci
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: Run backend unit tests
         run: |
