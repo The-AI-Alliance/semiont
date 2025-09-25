@@ -7,7 +7,7 @@ import type {
   LogoutResponse,
   HealthResponse,
   ErrorResponse
-} from '@semiont/api-types';
+} from '@semiont/api-contracts';
 
 // Admin API types
 interface AdminUser {

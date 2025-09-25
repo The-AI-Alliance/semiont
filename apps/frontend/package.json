@@ -9,7 +9,7 @@
     "build": "npm run typecheck && next build",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "next start",
-    "pretest": "npm run build --workspace=@semiont/api-types",
+    "pretest": "npm run build --workspace=@semiont/api-contracts",
     "test": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json",
     "test:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest",
     "test:coverage": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --coverage",
