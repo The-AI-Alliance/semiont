@@ -101,7 +101,7 @@ jobs:
         run: |
           echo "Running backend TypeScript type check..."
           cd apps/backend
-          npm run typecheck:incremental
+          npm run typecheck
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=8192"

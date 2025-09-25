@@ -248,7 +248,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Run TypeScript type checking
-        run: npm run typecheck:incremental
+        run: npm run typecheck
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
 
