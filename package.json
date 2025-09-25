@@ -11,7 +11,7 @@
     "install:cli": "npm run build -w @semiont/mcp-server && cd apps/cli && npm run build && npm link",
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:apps",
-    "build:packages": "npm run build -w @semiont/core-types && npm run build -w @semiont/utils && npm run build -w @semiont/api-contracts && npm run build -w @semiont/test-utils && npm run build -w @semiont/mcp-server",
+    "build:packages": "node scripts/build-packages.js",
     "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w semiont-cli",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
