@@ -130,3 +130,6 @@ export class DatabaseConnection {
 export function getDatabase(): PrismaClient {
   return DatabaseConnection.getClient();
 }
+
+// Export prisma instance for backward compatibility in tests
+export const prisma = DatabaseConnection.getClient();
