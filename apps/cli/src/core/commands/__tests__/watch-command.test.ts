@@ -7,9 +7,30 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createServiceDeployments, resetMockState } from './_mock-setup';
+import type { WatchOptions } from '../watch.js';
 
 // Import mocks (side effects)
 import './_mock-setup';
+
+// Helper to create complete WatchOptions with defaults
+function createWatchOptions(partial: Partial<WatchOptions> = {}): WatchOptions {
+  return {
+    environment: 'test',
+    verbose: false,
+    dryRun: false,
+    quiet: false,
+    output: 'json',
+    forceDiscovery: false,
+    target: 'all',
+    noFollow: false,
+    interval: 30,
+    terminal: false,
+    term: undefined,
+    port: 3333,
+    service: undefined,
+    ...partial
+  };
+}
 
 describe('Uwatch Command', () => {
   beforeEach(() => {
@@ -22,20 +43,15 @@ describe('Uwatch Command', () => {
 
   describe('Basic Functionality', () => {
     it('should execute watch command successfully', async () => {
-      const { watchCommand } = await import('../watch.js');
-      const watch = watchCommand.handler;
+      const { watch } = await import('../watch.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'process' }
       ]);
 
-      const options = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createWatchOptions({
+        output: 'json'
+      });
 
       const result = await watch(serviceDeployments, options);
 

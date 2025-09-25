@@ -5,11 +5,35 @@
  * Focus: command orchestration and result aggregation.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createServiceDeployments, resetMockState } from './_mock-setup';
+import type { ProvisionOptions } from '../provision.js';
 
 // Import mocks (side effects)
 import './_mock-setup';
+
+// Helper to create complete ProvisionOptions with defaults
+function createProvisionOptions(partial: Partial<ProvisionOptions> = {}): ProvisionOptions {
+  return {
+    environment: 'test',
+    verbose: false,
+    dryRun: false,
+    quiet: false,
+    output: 'json',
+    forceDiscovery: false,
+    all: false,
+    force: false,
+    skipValidation: false,
+    skipDependencies: false,
+    destroy: false,
+    stack: undefined,
+    seedAdmin: false,
+    adminEmail: undefined,
+    service: undefined,
+    semiontRepo: undefined,
+    ...partial
+  };
+}
 
 describe('Provision Command', () => {
   beforeEach(() => {
@@ -22,21 +46,16 @@ describe('Provision Command', () => {
 
   describe('Basic Functionality', () => {
     it('should execute provision command successfully', async () => {
-      const { provisionCommand } = await import('../provision.js');
-      const provision = provisionCommand.handler;
+      const { provision } = await import('../provision.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'mock' }
       ]);
 
-      const options = {
-        environment: 'test',
-        service: 'backend', // Specify a service to provision
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createProvisionOptions({
+        service: 'backend',
+        output: 'json'
+      });
 
       const result = await provision(serviceDeployments, options);
 

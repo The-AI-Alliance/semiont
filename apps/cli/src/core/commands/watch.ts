@@ -101,7 +101,7 @@ const WatchOptionsSchema = BaseOptionsSchema.extend({
   term: undefined
 }));
 
-type WatchOptions = z.output<typeof WatchOptionsSchema>;
+export type WatchOptions = z.output<typeof WatchOptionsSchema>;
 
 // =====================================================================
 // ENHANCED DATA SOURCE FOR NEW ARCHITECTURE

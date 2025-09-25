@@ -28,7 +28,7 @@ const CheckOptionsSchema = BaseOptionsSchema.extend({
   timeout: z.number().optional(),
 });
 
-type CheckOptions = z.output<typeof CheckOptionsSchema>;
+export type CheckOptions = z.output<typeof CheckOptionsSchema>;
 
 // =====================================================================
 // COMMAND DESCRIPTOR

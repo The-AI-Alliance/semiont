@@ -134,7 +134,15 @@ jobs:
         run: |
           semiont --version
           semiont --help
-      
+
+      - name: Run CLI type check
+        run: |
+          echo "Running CLI TypeScript type check..."
+          cd apps/cli
+          npm run typecheck
+        env:
+          CI: true
+
       - name: Run CLI unit tests
         run: |
           echo "Running CLI package unit tests..."

@@ -5,11 +5,31 @@
  * Focus: command orchestration and result aggregation.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createServiceDeployments, resetMockState } from './_mock-setup';
+import type { PublishOptions } from '../publish.js';
 
 // Import mocks (side effects)
 import './_mock-setup';
+
+// Helper to create complete PublishOptions with defaults
+function createPublishOptions(partial: Partial<PublishOptions> = {}): PublishOptions {
+  return {
+    environment: 'test',
+    verbose: false,
+    dryRun: false,
+    quiet: false,
+    output: 'json',
+    forceDiscovery: false,
+    all: false,
+    noCache: false,
+    service: undefined,
+    tag: undefined,
+    registry: undefined,
+    semiontRepo: undefined,
+    ...partial
+  };
+}
 
 describe('Upublish Command', () => {
   beforeEach(() => {
@@ -22,20 +42,15 @@ describe('Upublish Command', () => {
 
   describe('Basic Functionality', () => {
     it('should execute publish command successfully', async () => {
-      const { publishCommand } = await import('../publish.js');
-      const publish = publishCommand.handler;
+      const { publish } = await import('../publish.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'process' }
       ]);
 
-      const options = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createPublishOptions({
+        output: 'json'
+      });
 
       const result = await publish(serviceDeployments, options);
 

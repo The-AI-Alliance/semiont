@@ -79,7 +79,7 @@ describe('MCP OAuth Flow Integration', () => {
       });
 
       expect(response.ok).toBe(true);
-      const { access_token } = await response.json();
+      const { access_token } = await response.json() as { access_token: string };
       expect(access_token).toBe('new-access-token');
 
       // Verify the API was called correctly
@@ -281,7 +281,7 @@ describe('MCP OAuth Flow Integration', () => {
 
     it('should timeout OAuth flow after 2 minutes', async () => {
       // Create a promise that simulates OAuth timeout
-      const oauthTimeout = new Promise((resolve, reject) => {
+      const oauthTimeout = new Promise((_, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Authentication timeout'));
         }, 120000); // 2 minutes

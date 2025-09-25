@@ -34,7 +34,7 @@ const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   semiontRepo: z.string().optional(),
 });
 
-type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
+export type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
 
 // =====================================================================
 // COMMAND DESCRIPTOR

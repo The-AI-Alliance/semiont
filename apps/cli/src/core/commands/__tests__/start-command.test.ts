@@ -6,11 +6,25 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup';
+import { createServiceDeployments, resetMockState } from './_mock-setup';
 import type { StartOptions } from '../start.js';
 
 // Import mocks (side effects)
 import './_mock-setup';
+
+// Helper to create complete StartOptions with defaults
+function createStartOptions(partial: Partial<StartOptions> = {}): StartOptions {
+  return {
+    environment: 'test',
+    verbose: false,
+    dryRun: false,
+    quiet: false,
+    output: 'json',
+    forceDiscovery: false,
+    service: undefined,
+    ...partial
+  };
+}
 
 describe('Start Command', () => {
   beforeEach(() => {
@@ -24,21 +38,16 @@ describe('Start Command', () => {
   describe('Structured Output', () => {
     it('should return CommandResults structure for successful start', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'mock' },
         { name: 'backend', type: 'mock' }
       ]);
 
-      const options: StartOptions = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createStartOptions({
+        output: 'json'
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -74,20 +83,17 @@ describe('Start Command', () => {
 
     it('should handle dry run mode correctly', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'frontend', type: 'mock' }
       ]);
 
-      const options: StartOptions = {
-        environment: 'test',
+      const options = createStartOptions({
         output: 'table',
-        quiet: false,
         verbose: true,
         dryRun: true
-      };
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -102,20 +108,16 @@ describe('Start Command', () => {
 
     it('should return error results for failed starts', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'mock', config: { image: 'invalid-image' } }
       ]);
 
-      const options: StartOptions = {
-        environment: 'test',
+      const options = createStartOptions({
         output: 'yaml',
-        quiet: true,
-        verbose: false,
-        dryRun: false
-      };
+        quiet: true
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -127,20 +129,16 @@ describe('Start Command', () => {
 
   describe('Command Behavior', () => {
     it('should successfully start services', async () => {
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'mock' }
       ]);
 
-      const options: StartOptions = {
+      const options = createStartOptions({
         environment: 'production',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+        output: 'json'
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -152,20 +150,16 @@ describe('Start Command', () => {
 
     it('should include service configuration in results', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'mock', config: { image: 'postgres:14' } }
       ]);
 
-      const options: StartOptions = {
+      const options = createStartOptions({
         environment: 'staging',
-        output: 'summary',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+        output: 'summary'
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -177,20 +171,15 @@ describe('Start Command', () => {
 
     it('should include start time in results', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'mock', config: { port: 3001, command: 'node server.js' } }
       ]);
 
-      const options: StartOptions = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createStartOptions({
+        output: 'json'
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -208,8 +197,7 @@ describe('Start Command', () => {
   describe('Output Format Support', () => {
     it('should support all output formats', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'mock' }
@@ -218,13 +206,10 @@ describe('Start Command', () => {
       const formats = ['summary', 'json', 'yaml', 'table'] as const;
       
       for (const format of formats) {
-        const options: StartOptions = {
-          environment: 'test',
+        const options = createStartOptions({
           output: format,
-          quiet: false,
-          verbose: false,
           dryRun: true
-        };
+        });
 
         const result = await start(serviceDeployments, options);
         
@@ -237,8 +222,7 @@ describe('Start Command', () => {
   describe('Service Selection', () => {
     it('should start all services when service is "all"', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'database', type: 'mock' },
@@ -246,13 +230,10 @@ describe('Start Command', () => {
         { name: 'frontend', type: 'mock' }
       ]);
 
-      const options: StartOptions = {
-        environment: 'test',
+      const options = createStartOptions({
         output: 'json',
-        quiet: false,
-        verbose: false,
         dryRun: true
-      };
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -262,20 +243,15 @@ describe('Start Command', () => {
 
     it('should start specific service when named', async () => {
 
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'backend', type: 'mock' }
       ]);
 
-      const options: StartOptions = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createStartOptions({
+        output: 'json'
+      });
 
       const result = await start(serviceDeployments, options);
 
@@ -312,20 +288,15 @@ describe('Start Command', () => {
     });
 
     it('should start MCP service like any other service', async () => {
-      const { startCommand } = await import('../start.js');
-      const start = startCommand.handler;
+      const { start } = await import('../start.js');
       
       const serviceDeployments = createServiceDeployments([
         { name: 'mcp', type: 'mock', config: { port: 8585 } }
       ]);
       
-      const options: StartOptions = {
-        environment: 'test',
-        output: 'json',
-        quiet: false,
-        verbose: false,
-        dryRun: false
-      };
+      const options = createStartOptions({
+        output: 'json'
+      });
 
       const result = await start(serviceDeployments, options);
 

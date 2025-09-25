@@ -20,13 +20,13 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "coverage",
-    "**/*.test.ts",
-    "**/*.spec.ts"
+    "coverage"
   ]
 }
