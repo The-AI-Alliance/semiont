@@ -108,6 +108,7 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          SITE_DOMAIN: test.semiont.com
 
       - name: Run backend integration tests
         run: |
@@ -120,6 +121,7 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          SITE_DOMAIN: test.semiont.com
 
   test-cli:
     name: CLI Tests
@@ -237,6 +239,7 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          SITE_DOMAIN: test.semiont.com
           
 
   validate-config:
