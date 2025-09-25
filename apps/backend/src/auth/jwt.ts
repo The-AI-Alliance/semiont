@@ -1,6 +1,6 @@
 import * as jwt from 'jsonwebtoken';
 import { JWTPayloadSchema, validateData } from '../validation/schemas';
-import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-types';
+import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-contracts';
 
 export interface JWTPayload {
   userId: string;

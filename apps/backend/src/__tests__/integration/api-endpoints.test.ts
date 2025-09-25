@@ -21,7 +21,7 @@ import type {
   UserResponse,
   LogoutResponse,
   ErrorResponse,
-} from '@semiont/api-types';
+} from '@semiont/api-contracts';
 
 // Local test interfaces (removed unused ApiDocResponse)
 

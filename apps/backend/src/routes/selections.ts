@@ -18,7 +18,7 @@ import {
   GenerateDocumentFromSelectionResponseSchema,
   ContextualSummaryResponseSchema,
   SelectionContextResponseSchema,
-} from '../schemas/document-schemas';
+} from '@semiont/api-contracts';
 
 // Infer types from schemas
 type SelectionResponse = z.infer<typeof SelectionSchema>;

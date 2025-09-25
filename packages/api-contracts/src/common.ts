@@ -2,7 +2,7 @@
  * Common API types and utilities shared across all endpoints
  */
 
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 // Common response interface for errors
 export interface ErrorResponse {
@@ -39,8 +39,8 @@ export interface HealthResponse {
 
 
 // Common validation schemas
-export const EmailSchema = z.string().email('Invalid email format');
-export const CuidSchema = z.string().cuid('Invalid ID format');
+export const EmailSchema = z.string().email('Invalid email format').openapi('Email');
+export const CuidSchema = z.string().cuid('Invalid ID format').openapi('Cuid');
 
 // Validation result type
 export type ValidationResult<T> = 

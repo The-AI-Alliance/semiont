@@ -10,7 +10,7 @@ import {
   UpdateDocumentRequestSchema,
   DetectSelectionsRequestSchema,
   DetectSelectionsResponseSchema,
-} from '../schemas/document-schemas';
+} from '@semiont/api-contracts';
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } from '@semiont/core-types';

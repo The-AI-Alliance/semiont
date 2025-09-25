@@ -1,12 +1,12 @@
 // Request Validation Schemas
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 // Import shared schemas from the api-types package
 import { 
   GoogleAuthSchema, 
   EmailSchema,
   CuidSchema,
   JWTPayloadSchema
-} from '@semiont/api-types';
+} from '@semiont/api-contracts';
 
 // Re-export shared schemas for backward compatibility
 export { GoogleAuthSchema, EmailSchema, CuidSchema, JWTPayloadSchema };

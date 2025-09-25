@@ -2,13 +2,13 @@
  * Authentication and authorization related types
  */
 
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { EmailSchema, CuidSchema } from './common';
 
 // Authentication request schemas
 export const GoogleAuthSchema = z.object({
   access_token: z.string().min(1, 'Access token is required'),
-});
+}).openapi('GoogleAuth');
 
 // JWT Payload validation schema
 export const JWTPayloadSchema = z.object({
@@ -32,7 +32,7 @@ export const JWTPayloadSchema = z.object({
     message: "Token has expired",
     path: ["exp"],
   }
-);
+).openapi('JWTPayload');
 
 // User information interface (used in auth responses)
 export interface UserInfo {

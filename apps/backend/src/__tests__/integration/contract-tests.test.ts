@@ -11,7 +11,7 @@ import type {
   UserResponse,
   LogoutResponse,
   ErrorResponse,
-} from '@semiont/api-types';
+} from '@semiont/api-contracts';
 
 
 describe('API Contract Tests', () => {
