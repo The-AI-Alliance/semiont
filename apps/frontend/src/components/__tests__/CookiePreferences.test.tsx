@@ -45,8 +45,11 @@ vi.mock('@/lib/cookies', () => ({
 // Mock DOM APIs for file downloads
 global.URL = {
   createObjectURL: vi.fn(() => 'mock-blob-url'),
-  revokeObjectURL: vi.fn()
-};
+  revokeObjectURL: vi.fn(),
+  prototype: URL.prototype,
+  canParse: vi.fn(() => true),
+  parse: vi.fn(() => null)
+} as any;
 global.Blob = vi.fn().mockImplementation((content, options) => ({
   content,
   options,
@@ -471,7 +474,7 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       render(<CookiePreferences isOpen={true} onClose={mockOnClose} />);
       
       const deleteButtons = screen.getAllByText('Delete All Data');
-      fireEvent.click(deleteButtons[0]); // Click the main delete button
+      fireEvent.click(deleteButtons[0]!); // Click the main delete button
       
       // Should now show the confirmation modal
       expect(screen.getByText('This will permanently delete all your data including cookies, preferences, and session information. This action cannot be undone and will reload the page.')).toBeInTheDocument();
@@ -483,12 +486,12 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       
       // Open delete modal
       const deleteButtons = screen.getAllByText('Delete All Data');
-      fireEvent.click(deleteButtons[0]);
+      fireEvent.click(deleteButtons[0]!);
       
       // Find and click cancel in the modal
       const cancelButtons = screen.getAllByText('Cancel');
       const modalCancelButton = cancelButtons[cancelButtons.length - 1]; // Last cancel button should be in modal
-      fireEvent.click(modalCancelButton);
+      fireEvent.click(modalCancelButton!);
       
       // Should only have the original delete button, modal should be closed
       expect(screen.getAllByText('Delete All Data')).toHaveLength(1);
@@ -499,12 +502,12 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       
       // Open delete modal
       const deleteButtons = screen.getAllByText('Delete All Data');
-      fireEvent.click(deleteButtons[0]);
+      fireEvent.click(deleteButtons[0]!);
       
       // Find and click the confirmation button in the modal
       const allDeleteButtons = screen.getAllByText('Delete All Data');
       const confirmButton = allDeleteButtons[allDeleteButtons.length - 1]; // Last button is the confirm button
-      fireEvent.click(confirmButton);
+      fireEvent.click(confirmButton!);
       
       const cookiesModule = await import('@/lib/cookies');
       expect(cookiesModule.deleteAllUserData).toHaveBeenCalledTimes(1);
@@ -514,7 +517,7 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       render(<CookiePreferences isOpen={true} onClose={mockOnClose} />);
       
       const deleteButtons = screen.getAllByText('Delete All Data');
-      fireEvent.click(deleteButtons[0]);
+      fireEvent.click(deleteButtons[0]!);
       
       const deleteModal = document.querySelector('.fixed.inset-0.z-60');
       expect(deleteModal).toBeInTheDocument();
@@ -525,7 +528,7 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       render(<CookiePreferences isOpen={true} onClose={mockOnClose} />);
       
       const deleteButtons = screen.getAllByText('Delete All Data');
-      fireEvent.click(deleteButtons[0]);
+      fireEvent.click(deleteButtons[0]!);
       
       expect(screen.getByText('This will permanently delete all your data including cookies, preferences, and session information. This action cannot be undone and will reload the page.')).toBeInTheDocument();
     });
@@ -590,7 +593,7 @@ describe('CookiePreferences - Comprehensive Tests', () => {
       
       const cookiesModule = await import('@/lib/cookies');
       const saveCall = vi.mocked(cookiesModule.setCookieConsent).mock.calls[0];
-      const savedConsent = saveCall[0];
+      const savedConsent = saveCall![0];
       
       expect(savedConsent.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
       expect(savedConsent.version).toBeDefined();

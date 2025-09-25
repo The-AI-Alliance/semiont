@@ -131,7 +131,7 @@ describe('useUI Hooks', () => {
         const { result } = renderHook(() => useDropdown());
 
         const mockDropdownElement = document.createElement('div');
-        result.current.dropdownRef.current = mockDropdownElement;
+        (result.current.dropdownRef as any).current = mockDropdownElement;
 
         act(() => {
           result.current.open();
@@ -159,7 +159,7 @@ describe('useUI Hooks', () => {
         const mockDropdownElement = document.createElement('div');
         const insideElement = document.createElement('button');
         mockDropdownElement.appendChild(insideElement);
-        result.current.dropdownRef.current = mockDropdownElement;
+        (result.current.dropdownRef as any).current = mockDropdownElement;
 
         act(() => {
           result.current.open();
@@ -686,8 +686,8 @@ describe('useUI Hooks', () => {
         });
 
         expect(result.current.toasts).toHaveLength(2);
-        expect(result.current.toasts[0].type).toBe('warning');
-        expect(result.current.toasts[1].type).toBe('info');
+        expect(result.current.toasts[0]!.type).toBe('warning');
+        expect(result.current.toasts[1]!.type).toBe('info');
       });
     });
 
@@ -708,7 +708,7 @@ describe('useUI Hooks', () => {
         });
 
         expect(result.current.toasts).toHaveLength(1);
-        expect(result.current.toasts[0].message).toBe('Another message');
+        expect(result.current.toasts[0]!.message).toBe('Another message');
       });
 
       it('should clear all toasts', () => {
@@ -742,8 +742,8 @@ describe('useUI Hooks', () => {
         });
 
         expect(id1).not.toBe(id2);
-        expect(result.current.toasts[0].id).toBe(id1);
-        expect(result.current.toasts[1].id).toBe(id2);
+        expect(result.current.toasts[0]!.id).toBe(id1);
+        expect(result.current.toasts[1]!.id).toBe(id2);
       });
     });
   });

@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import { getServerSession } from 'next-auth';
 
 // Mock next-auth
@@ -23,7 +24,7 @@ describe('Cookie Consent API - Basic Logic Tests', () => {
 
   describe('Authentication Logic', () => {
     it('should handle unauthenticated requests', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue(null);
+      (getServerSession as Mock).mockResolvedValue(null);
       
       // Test that the logic would return 401 for unauthenticated users
       const session = await getServerSession();
@@ -38,7 +39,7 @@ describe('Cookie Consent API - Basic Logic Tests', () => {
         }
       };
       
-      (getServerSession as vi.Mock).mockResolvedValue(mockSession);
+      (getServerSession as Mock).mockResolvedValue(mockSession);
       
       const session = await getServerSession();
       expect(session?.backendUser).toBeDefined();
@@ -124,7 +125,7 @@ describe('Cookie Consent API - Basic Logic Tests', () => {
       
       try {
         JSON.parse(invalidJson);
-        fail('Should have thrown an error');
+        expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeInstanceOf(SyntaxError);
       }

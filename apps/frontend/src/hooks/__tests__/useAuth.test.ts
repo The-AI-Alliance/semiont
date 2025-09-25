@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import { renderHook } from '@testing-library/react';
 import { useAuth, useUserPreferences, usePermissions } from '../useAuth';
 
@@ -18,11 +19,11 @@ import { useSession } from 'next-auth/react';
 import { validateData } from '@/lib/validation';
 
 // Type the mocked functions
-const mockUseSession = useSession as vi.MockedFunction<typeof useSession>;
-const mockValidateData = validateData as vi.MockedFunction<typeof validateData>;
+const mockUseSession = useSession as MockedFunction<typeof useSession>;
+const mockValidateData = validateData as MockedFunction<typeof validateData>;
 
-// Test data fixtures
-const mockSessions = {
+// Test data fixtures - typed as any for test simplicity
+const mockSessions: Record<string, any> = {
   loading: {
     data: null,
     status: 'loading' as const,
@@ -78,6 +79,7 @@ const mockSessions = {
         name: 'Admin User',
         domain: 'company.com',
         isAdmin: true,
+        isModerator: false,
         termsAcceptedAt: '2024-01-01'
       },
       expires: '2024-12-31'
@@ -231,9 +233,9 @@ describe('useAuth Hooks', () => {
 
       it('should return false for invalid token format', () => {
         mockUseSession.mockReturnValue(mockSessions.invalidToken);
-        mockValidateData.mockReturnValue({ 
-          success: false, 
-          error: new Error('Invalid JWT token format') 
+        mockValidateData.mockReturnValue({
+          success: false,
+          error: 'Invalid JWT token format' as any
         });
         
         const { result } = renderHook(() => useAuth());
@@ -344,7 +346,7 @@ describe('useAuth Hooks', () => {
       it('should handle null/undefined session gracefully', () => {
         mockUseSession.mockReturnValue({
           data: null,
-          status: 'authenticated' as const,
+          status: 'unauthenticated' as const,
           update: vi.fn()
         });
         
@@ -504,9 +506,9 @@ describe('useAuth Hooks', () => {
       it('should handle partial authentication states', () => {
         // Authenticated but invalid backend token
         mockUseSession.mockReturnValue(mockSessions.invalidToken);
-        mockValidateData.mockReturnValue({ 
-          success: false, 
-          error: new Error('Invalid token') 
+        mockValidateData.mockReturnValue({
+          success: false,
+          error: 'Invalid token' as any
         });
         
         const { result } = renderHook(() => usePermissions());

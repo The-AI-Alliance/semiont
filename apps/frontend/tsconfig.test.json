@@ -2,7 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     // Test-specific compiler options
-    "types": ["vitest", "vitest/globals", "@testing-library/jest-dom", "node"],
+    "jsx": "react-jsx",
+    "types": ["vitest", "vitest/globals", "@testing-library/jest-dom", "node", "react", "react-dom"],
     // Allow test files to use the same strict settings
     "noEmit": true,
     // Allow importing .js files (for vitest.setup.js)

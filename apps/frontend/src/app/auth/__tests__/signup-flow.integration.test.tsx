@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -50,8 +51,8 @@ describe('Sign-Up Flow Integration Tests', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
-    (useRouter as vi.Mock).mockReturnValue(mockRouter);
-    (useSearchParams as vi.Mock).mockReturnValue(mockSearchParams);
+    (useRouter as Mock).mockReturnValue(mockRouter);
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
     mockSearchParams.get.mockReturnValue(null);
   });
 
@@ -62,7 +63,7 @@ describe('Sign-Up Flow Integration Tests', () => {
   describe('Complete New User Journey', () => {
     it('should handle complete sign-up flow for new user', async () => {
       // Step 1: Start at signup page
-      (signIn as vi.Mock).mockResolvedValue(undefined);
+      (signIn as Mock).mockResolvedValue(undefined);
       
       const { unmount: unmountSignup } = render(<SignUp />);
       
@@ -91,7 +92,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         isNewUser: true,
       };
       
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: mockNewUserSession,
         status: 'authenticated',
       });
@@ -136,7 +137,7 @@ describe('Sign-Up Flow Integration Tests', () => {
     it('should handle sign-up with custom callback URL', async () => {
       // Mock custom callback URL
       mockSearchParams.get.mockReturnValue('/admin/dashboard');
-      (signIn as vi.Mock).mockResolvedValue(undefined);
+      (signIn as Mock).mockResolvedValue(undefined);
       
       render(<SignUp />);
       
@@ -160,7 +161,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         isNewUser: false, // Existing user
       };
       
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: mockExistingUserSession,
         status: 'authenticated',
       });
@@ -183,7 +184,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         isNewUser: true,
       };
       
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: mockUserSession,
         status: 'authenticated',
       });
@@ -212,7 +213,7 @@ describe('Sign-Up Flow Integration Tests', () => {
   describe('Error Recovery Scenarios', () => {
     it('should handle OAuth failure and allow retry', async () => {
       const oauthError = new Error('OAuth provider error');
-      (signIn as vi.Mock).mockRejectedValue(oauthError);
+      (signIn as Mock).mockRejectedValue(oauthError);
       
       render(<SignUp />);
       
@@ -229,7 +230,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       });
       
       // User can retry
-      (signIn as vi.Mock).mockResolvedValue(undefined);
+      (signIn as Mock).mockResolvedValue(undefined);
       fireEvent.click(signUpButton);
       
       await waitFor(() => {
@@ -247,7 +248,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         isNewUser: true,
       };
       
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: mockUserSession,
         status: 'authenticated',
       });
@@ -276,7 +277,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
     it('should handle network errors gracefully', async () => {
       const networkError = new Error('Network connection failed');
-      (signIn as vi.Mock).mockRejectedValue(networkError);
+      (signIn as Mock).mockRejectedValue(networkError);
       
       render(<SignUp />);
       
@@ -289,7 +290,7 @@ describe('Sign-Up Flow Integration Tests', () => {
     });
 
     it('should handle session loading states', async () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: null,
         status: 'loading',
       });
@@ -315,7 +316,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       };
       
       // Same session should work across components
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: consistentSession,
         status: 'authenticated',
       });
@@ -351,7 +352,7 @@ describe('Sign-Up Flow Integration Tests', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       const signInError = new Error('Authentication failed');
-      (signIn as vi.Mock).mockRejectedValue(signInError);
+      (signIn as Mock).mockRejectedValue(signInError);
       
       render(<SignUp />);
       
@@ -381,7 +382,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
     it('should clean up async operations on unmount', async () => {
       let resolveSignIn: (value?: any) => void;
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => {
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => {
         resolveSignIn = resolve;
       }));
       
@@ -401,7 +402,7 @@ describe('Sign-Up Flow Integration Tests', () => {
 
     it('should handle multiple concurrent authentication attempts', async () => {
       let resolveCount = 0;
-      (signIn as vi.Mock).mockImplementation(() => 
+      (signIn as Mock).mockImplementation(() => 
         new Promise(resolve => {
           setTimeout(() => {
             resolveCount++;
@@ -462,7 +463,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         isNewUser: true,
       };
       
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: mockUserSession,
         status: 'authenticated',
       });

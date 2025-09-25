@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -111,39 +112,39 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('AdminUsers Page', () => {
-  let mockUpdateMutation: vi.Mock;
-  let mockDeleteMutation: vi.Mock;
+  let mockUpdateMutation: { mutateAsync: Mock };
+  let mockDeleteMutation: { mutateAsync: Mock };
 
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
-    
+
     // Setup mutation mocks
     mockUpdateMutation = {
       mutateAsync: vi.fn(),
     };
-    
+
     mockDeleteMutation = {
       mutateAsync: vi.fn(),
     };
 
     // Setup default mock implementations
-    (api.admin.users.list.useQuery as vi.Mock).mockReturnValue({
+    (api.admin.users.list.useQuery as Mock).mockReturnValue({
       data: mockUsersResponse,
       isLoading: false,
       error: null
     });
 
-    (api.admin.users.stats.useQuery as vi.Mock).mockReturnValue({
+    (api.admin.users.stats.useQuery as Mock).mockReturnValue({
       data: mockStatsResponse,
       isLoading: false,
       error: null
     });
 
-    (api.admin.users.update.useMutation as vi.Mock).mockReturnValue(mockUpdateMutation);
-    (api.admin.users.delete.useMutation as vi.Mock).mockReturnValue(mockDeleteMutation);
+    (api.admin.users.update.useMutation as Mock).mockReturnValue(mockUpdateMutation);
+    (api.admin.users.delete.useMutation as Mock).mockReturnValue(mockDeleteMutation);
 
-    (window.confirm as vi.Mock).mockReturnValue(true);
+    (window.confirm as Mock).mockReturnValue(true);
   });
 
   describe('Page Structure', () => {
@@ -194,7 +195,7 @@ describe('AdminUsers Page', () => {
 
   describe('Loading States', () => {
     it('should show loading state for stats', () => {
-      (api.admin.users.stats.useQuery as vi.Mock).mockReturnValue({
+      (api.admin.users.stats.useQuery as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -211,7 +212,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show loading state for users table', () => {
-      (api.admin.users.list.useQuery as vi.Mock).mockReturnValue({
+      (api.admin.users.list.useQuery as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -397,7 +398,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show empty state when no users exist', () => {
-      (api.admin.users.list.useQuery as vi.Mock).mockReturnValue({
+      (api.admin.users.list.useQuery as Mock).mockReturnValue({
         data: { success: true, users: [] },
         isLoading: false,
         error: null
@@ -496,7 +497,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should not delete user when deletion is cancelled', async () => {
-      (window.confirm as vi.Mock).mockReturnValue(false);
+      (window.confirm as Mock).mockReturnValue(false);
 
       render(
         <TestWrapper>

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import { renderHook, act } from '@testing-library/react';
 import { useSecureAPI, useRequireAuth } from '../useSecureAPI';
 
@@ -27,15 +28,12 @@ import { apiClient } from '@/lib/api-client';
 import { validateData } from '@/lib/validation';
 
 // Type the mocked functions
-const mockUseSession = useSession as vi.MockedFunction<typeof useSession>;
-const mockApiClient = apiClient as {
-  setAuthToken: vi.MockedFunction<typeof apiClient.setAuthToken>;
-  clearAuthToken: vi.MockedFunction<typeof apiClient.clearAuthToken>;
-};
-const mockValidateData = validateData as vi.MockedFunction<typeof validateData>;
+const mockUseSession = useSession as MockedFunction<typeof useSession>;
+const mockApiClient = apiClient as any;
+const mockValidateData = validateData as MockedFunction<typeof validateData>;
 
 // Test data fixtures
-const mockSessions = {
+const mockSessions: Record<string, any> = {
   loading: {
     data: null,
     status: 'loading' as const,
@@ -84,8 +82,8 @@ const mockSessions = {
 };
 
 describe('useSecureAPI Hooks', () => {
-  let consoleLogSpy: vi.SpyInstance;
-  let consoleErrorSpy: vi.SpyInstance;
+  let consoleLogSpy: any;
+  let consoleErrorSpy: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -182,15 +180,15 @@ describe('useSecureAPI Hooks', () => {
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
         mockValidateData.mockReturnValue({ 
           success: false, 
-          error: new Error('Invalid JWT token format') 
+          error: 'Invalid JWT token format' 
         });
 
         renderHook(() => useSecureAPI());
 
         expect(mockApiClient.clearAuthToken).toHaveBeenCalled();
         expect(consoleErrorSpy).toHaveBeenCalledWith(
-          'Invalid session token detected:', 
-          expect.any(Error)
+          'Invalid session token detected:',
+          'Invalid JWT token format'
         );
       });
     });
@@ -228,7 +226,7 @@ describe('useSecureAPI Hooks', () => {
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
         mockValidateData.mockReturnValue({ 
           success: false, 
-          error: new Error('Invalid token') 
+          error: 'Invalid token' 
         });
 
         const { result } = renderHook(() => useSecureAPI());
@@ -239,18 +237,17 @@ describe('useSecureAPI Hooks', () => {
       });
 
       it('should log appropriate error messages on validation failure', () => {
-        const validationError = new Error('Invalid JWT token format');
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
-        mockValidateData.mockReturnValue({ 
-          success: false, 
-          error: validationError 
+        mockValidateData.mockReturnValue({
+          success: false,
+          error: 'Invalid JWT token format'
         });
 
         renderHook(() => useSecureAPI());
 
         expect(consoleErrorSpy).toHaveBeenCalledWith(
-          'Invalid session token detected:', 
-          validationError
+          'Invalid session token detected:',
+          'Invalid JWT token format'
         );
       });
     });
@@ -283,7 +280,7 @@ describe('useSecureAPI Hooks', () => {
 
         // No valid token - invalid token
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
-        mockValidateData.mockReturnValue({ success: false, error: new Error('Invalid') });
+        mockValidateData.mockReturnValue({ success: false, error: 'Invalid' });
         const { result: result2 } = renderHook(() => useSecureAPI());
         expect(result2.current.hasValidToken).toBe(false);
 
@@ -305,7 +302,7 @@ describe('useSecureAPI Hooks', () => {
         expect(result.current.hasValidToken).toBe(true);
 
         // Change to invalid - the key is that the session still has backendToken but validation fails
-        mockValidateData.mockReturnValue({ success: false, error: new Error('Invalid') });
+        mockValidateData.mockReturnValue({ success: false, error: 'Invalid' });
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
         rerender(); // This should trigger the effect again
         rerender(); // And another rerender to get the updated state
@@ -353,9 +350,8 @@ describe('useSecureAPI Hooks', () => {
         mockUseSession.mockReturnValue({
           data: {
             user: { email: 'test@example.com' },
-            backendToken: undefined,
             expires: '2024-12-31'
-          },
+          } as any,
           status: 'authenticated' as const,
           update: vi.fn()
         });
@@ -416,7 +412,7 @@ describe('useSecureAPI Hooks', () => {
 
       it('should return unauthenticated with session but invalid token', () => {
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
-        mockValidateData.mockReturnValue({ success: false, error: new Error('Invalid') });
+        mockValidateData.mockReturnValue({ success: false, error: 'Invalid' });
 
         const { result } = renderHook(() => useRequireAuth());
 
@@ -458,7 +454,7 @@ describe('useSecureAPI Hooks', () => {
       it('should combine session status with token validation', () => {
         // Session exists but token is invalid
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
-        mockValidateData.mockReturnValue({ success: false, error: new Error('Invalid') });
+        mockValidateData.mockReturnValue({ success: false, error: 'Invalid' });
 
         const { result } = renderHook(() => useRequireAuth());
 

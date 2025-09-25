@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET, POST } from '../route';
-import { authOptions } from '@/lib/auth';
 
-// Mock NextAuth - use global reference to avoid hoisting issues
+// Mock NextAuth - use globalThis reference to avoid hoisting issues
 vi.mock('next-auth', () => ({
   default: vi.fn((options) => {
-    if (!globalThis.mockNextAuthCalls) {
-      globalThis.mockNextAuthCalls = [];
+    // Initialize on first use
+    if (!(globalThis as any).mockNextAuthCalls) {
+      (globalThis as any).mockNextAuthCalls = [];
     }
-    globalThis.mockNextAuthCalls.push(options);
+    (globalThis as any).mockNextAuthCalls.push(options);
     // Return a single handler function that can be used as both GET and POST
     const handler = vi.fn().mockName('NextAuth.handler');
     return handler;
@@ -28,24 +27,29 @@ vi.mock('@/lib/auth', () => ({
   }
 }));
 
+// Import after mocks are set up
+import { GET, POST } from '../route';
+import { authOptions } from '@/lib/auth';
+
 describe('NextAuth Route Handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Don't clear the calls array - we want to preserve calls from module load
+    // Don't reset the mock calls array as the import happens once at module level
+    // (globalThis as any).mockNextAuthCalls = [];
   });
 
   describe('Handler Creation', () => {
     it('should create NextAuth handler with auth options', () => {
       // Import triggers the NextAuth call
-      expect(globalThis.mockNextAuthCalls).toContain(authOptions);
+      expect((globalThis as any).mockNextAuthCalls).toContain(authOptions);
     });
 
     it('should call NextAuth exactly once during module load', () => {
-      expect(globalThis.mockNextAuthCalls).toHaveLength(1);
+      expect((globalThis as any).mockNextAuthCalls).toHaveLength(1);
     });
 
     it('should pass the correct auth options to NextAuth', () => {
-      expect(globalThis.mockNextAuthCalls[0]).toMatchObject({
+      expect((globalThis as any).mockNextAuthCalls[0]).toMatchObject({
         providers: expect.any(Array),
         pages: expect.objectContaining({
           signIn: '/auth/signin',
@@ -103,11 +107,11 @@ describe('NextAuth Route Handler', () => {
 
   describe('Integration with Auth Options', () => {
     it('should use imported auth options', () => {
-      expect(globalThis.mockNextAuthCalls).toContain(authOptions);
+      expect((globalThis as any).mockNextAuthCalls).toContain(authOptions);
     });
 
     it('should not modify auth options', () => {
-      const callArgs = globalThis.mockNextAuthCalls[0];
+      const callArgs = (globalThis as any).mockNextAuthCalls[0];
       
       // Should be the same reference, not a copy
       expect(callArgs).toBe(authOptions);
@@ -144,7 +148,7 @@ describe('NextAuth Route Handler', () => {
 
     it('should handle NextAuth initialization without errors', () => {
       // If NextAuth was called successfully, no errors should have been thrown
-      expect(globalThis.mockNextAuthCalls.length).toBeGreaterThan(0);
+      expect(mockNextAuthCalls.length).toBeGreaterThan(0);
     });
   });
 

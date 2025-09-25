@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import type { NextAuthOptions } from 'next-auth';
 import type { Account, Profile, User } from 'next-auth';
+import type { AdapterUser } from 'next-auth/adapters';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
+// Ensure our custom session types are loaded
+// Type augmentations don't need explicit import in test files
 
 // Use environment variable for backend URL
 const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -151,7 +154,7 @@ describe('Auth Configuration', () => {
 
     it('should set secure cookies in production', async () => {
       const originalNodeEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      (process.env as any).NODE_ENV = 'production';
 
       // Re-import the module to get fresh config
       vi.resetModules();
@@ -160,7 +163,7 @@ describe('Auth Configuration', () => {
 
       expect(prodAuthOptions.cookies?.sessionToken?.options?.secure).toBe(true);
 
-      process.env.NODE_ENV = originalNodeEnv;
+      (process.env as any).NODE_ENV = originalNodeEnv;
     });
   });
 
@@ -209,8 +212,8 @@ describe('Auth Configuration', () => {
     it('should reject sign-in for user without email', async () => {
       const userWithoutEmail = {
         ...mockUser,
-        email: undefined,
       };
+      delete (userWithoutEmail as any).email;
 
       const result = await authOptions.callbacks!.signIn!({
         user: userWithoutEmail,
@@ -324,11 +327,11 @@ describe('Auth Configuration', () => {
       // Test that user object can be modified
       const testUser = { ...mockUser };
       testUser.backendToken = 'test-token';
-      testUser.backendUser = { id: 'test-id', email: 'test@example.com' };
+      testUser.backendUser = { id: 'test-id', email: 'test@example.com', domain: 'example.com', isAdmin: false, isModerator: false } as any;
       (testUser as any).__isNewUser = true;
       
       expect(testUser.backendToken).toBe('test-token');
-      expect(testUser.backendUser).toEqual({ id: 'test-id', email: 'test@example.com' });
+      expect(testUser.backendUser).toEqual({ id: 'test-id', email: 'test@example.com', domain: 'example.com', isAdmin: false, isModerator: false });
       expect((testUser as any).__isNewUser).toBe(true);
       
       // The data storage capability is confirmed
@@ -400,10 +403,10 @@ describe('Auth Configuration', () => {
     });
 
     it('should pass backend token to JWT when user has backend token', async () => {
-      const userWithBackendData = {
+      const userWithBackendData: any = {
         ...mockUser,
         backendToken: 'backend-jwt-token',
-        backendUser: { id: 'backend-123', email: 'user@example.com' },
+        backendUser: { id: 'backend-123', email: 'user@example.com', domain: 'example.com', isAdmin: false, isModerator: false } as any,
       };
       (userWithBackendData as any).__isNewUser = true;
 
@@ -415,26 +418,28 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.jwt!({
         token: mockToken,
         user: userWithBackendData,
-      });
+        account: null
+      } as any);
 
       expect(mockValidateData).toHaveBeenCalledWith('mock-jwt-schema', 'backend-jwt-token');
-      expect(result.backendToken).toBe('validated-token');
-      expect(result.backendUser).toBe(userWithBackendData.backendUser);
-      expect(result.isNewUser).toBe(true);
+      expect((result as any).backendToken).toBe('validated-token');
+      expect((result as any).backendUser).toBe(userWithBackendData.backendUser);
+      expect((result as any).isNewUser).toBe(true);
     });
 
     it('should not modify token when user has no backend token', async () => {
       const result = await authOptions.callbacks!.jwt!({
         token: mockToken,
         user: mockUser,
-      });
+        account: null
+      } as any);
 
       expect(result).toEqual(mockToken);
-      expect(result.backendToken).toBeUndefined();
+      expect((result as any).backendToken).toBeUndefined();
     });
 
     it('should handle invalid backend token validation', async () => {
-      const userWithInvalidToken = {
+      const userWithInvalidToken: any = {
         ...mockUser,
         backendToken: 'invalid-token',
         backendUser: { id: 'user-123' },
@@ -450,7 +455,8 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.jwt!({
         token: mockToken,
         user: userWithInvalidToken,
-      });
+        account: null
+      } as any);
 
       expect(result).toEqual(mockToken);
       expect(errorSpy).toHaveBeenCalledWith(
@@ -460,11 +466,11 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle missing backend user when token is valid', async () => {
-      const userWithTokenButNoUser = {
+      const userWithTokenButNoUser: any = {
         ...mockUser,
         backendToken: 'valid-token',
-        backendUser: undefined,
       };
+      delete (userWithTokenButNoUser as any).backendUser;
 
       mockValidateData.mockReturnValue({
         success: true,
@@ -476,7 +482,8 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.jwt!({
         token: mockToken,
         user: userWithTokenButNoUser,
-      });
+        account: null
+      } as any);
 
       expect(result).toEqual(mockToken);
       expect(errorSpy).toHaveBeenCalledWith(
@@ -488,7 +495,9 @@ describe('Auth Configuration', () => {
     it('should return original token when no user is provided', async () => {
       const result = await authOptions.callbacks!.jwt!({
         token: mockToken,
-      });
+        user: undefined,
+        account: null
+      } as any);
 
       expect(result).toEqual(mockToken);
     });
@@ -497,11 +506,11 @@ describe('Auth Configuration', () => {
   describe('Session Callback', () => {
     let mockSession: Session;
     let mockToken: JWT;
+    let mockUser: AdapterUser;
 
     beforeEach(() => {
       mockSession = {
         user: {
-          id: 'user-123',
           email: 'user@example.com',
           name: 'Test User',
         },
@@ -512,8 +521,14 @@ describe('Auth Configuration', () => {
         sub: 'user-123',
         email: 'user@example.com',
         backendToken: 'backend-jwt-token',
-        backendUser: { id: 'backend-123', email: 'user@example.com' },
+        backendUser: { id: 'backend-123', email: 'user@example.com', domain: 'example.com', isAdmin: false, isModerator: false } as any,
         isNewUser: true,
+      };
+
+      mockUser = {
+        id: 'user-123',
+        email: 'user@example.com',
+        emailVerified: null,
       };
     });
 
@@ -526,12 +541,15 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.session!({
         session: mockSession,
         token: mockToken,
+        user: mockUser,
+        newSession: mockSession,
+        trigger: 'update' as any,
       });
 
       expect(mockValidateData).toHaveBeenCalledWith('mock-jwt-schema', 'backend-jwt-token');
-      expect(result.backendToken).toBe('validated-token');
-      expect(result.backendUser).toBe(mockToken.backendUser);
-      expect(result.isNewUser).toBe(true);
+      expect((result as any).backendToken).toBe('validated-token');
+      expect((result as any).backendUser).toBe(mockToken.backendUser);
+      expect((result as any).isNewUser).toBe(true);
     });
 
     it('should not modify session when token has no backend data', async () => {
@@ -543,6 +561,9 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.session!({
         session: mockSession,
         token: tokenWithoutBackendData,
+        user: mockUser,
+        newSession: mockSession,
+        trigger: 'update' as any,
       });
 
       expect(result).toEqual(mockSession);
@@ -559,26 +580,32 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.session!({
         session: mockSession,
         token: mockToken,
+        user: mockUser,
+        newSession: mockSession,
+        trigger: 'update' as any,
       });
 
       expect(errorSpy).toHaveBeenCalledWith(
         'Invalid token in session callback:',
         'Invalid token'
       );
-      expect(result.backendToken).toBeUndefined();
-      expect(result.backendUser).toBeUndefined();
+      expect((result as any).backendToken).toBeUndefined();
+      expect((result as any).backendUser).toBeUndefined();
       expect(result).toEqual(mockSession); // Original session without backend data
     });
 
     it('should handle missing backend user in token', async () => {
       const tokenWithoutUser = {
         ...mockToken,
-        backendUser: undefined,
       };
+      delete (tokenWithoutUser as any).backendUser;
 
       const result = await authOptions.callbacks!.session!({
         session: mockSession,
         token: tokenWithoutUser,
+        user: mockUser,
+        newSession: mockSession,
+        trigger: 'update' as any,
       });
 
       expect(result).toEqual(mockSession);
@@ -587,8 +614,8 @@ describe('Auth Configuration', () => {
     it('should handle undefined isNewUser in token', async () => {
       const tokenWithoutIsNewUser = {
         ...mockToken,
-        isNewUser: undefined,
       };
+      delete (tokenWithoutIsNewUser as any).isNewUser;
 
       mockValidateData.mockReturnValue({
         success: true,
@@ -598,11 +625,14 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.session!({
         session: mockSession,
         token: tokenWithoutIsNewUser,
+        user: mockUser,
+        newSession: mockSession,
+        trigger: 'update' as any,
       });
 
-      expect(result.backendToken).toBe('validated-token');
-      expect(result.backendUser).toBe(mockToken.backendUser);
-      expect(result.isNewUser).toBeUndefined();
+      expect((result as any).backendToken).toBe('validated-token');
+      expect((result as any).backendUser).toBe(mockToken.backendUser);
+      expect((result as any).isNewUser).toBeUndefined();
     });
 
     it('should handle isNewUser as false', async () => {
@@ -619,9 +649,12 @@ describe('Auth Configuration', () => {
       const result = await authOptions.callbacks!.session!({
         session: mockSession,
         token: tokenWithIsNewUserFalse,
+        user: mockUser,
+        newSession: mockSession,
+        trigger: 'update' as any,
       });
 
-      expect(result.isNewUser).toBe(false);
+      expect((result as any).isNewUser).toBe(false);
     });
   });
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -34,8 +35,8 @@ describe('SignUp Page - Comprehensive Tests', () => {
     cleanup();
     vi.clearAllMocks();
     mockConsoleError.mockClear();
-    (useSearchParams as vi.Mock).mockReturnValue(mockSearchParams);
-    (signIn as vi.Mock).mockResolvedValue(undefined);
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
+    (signIn as Mock).mockResolvedValue(undefined);
     mockSearchParams.get.mockReturnValue(null);
   });
 
@@ -61,7 +62,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('displays loading spinner when loading', async () => {
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
       render(<SignUp />);
       
@@ -135,7 +136,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('handles loading state during OAuth initiation', async () => {
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
       render(<SignUp />);
       
@@ -164,7 +165,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles OAuth initialization errors', async () => {
       const signInError = new Error('OAuth failed');
-      (signIn as vi.Mock).mockRejectedValue(signInError);
+      (signIn as Mock).mockRejectedValue(signInError);
       
       render(<SignUp />);
       
@@ -182,7 +183,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles network errors during OAuth', async () => {
       const networkError = new Error('Network error');
-      (signIn as vi.Mock).mockRejectedValue(networkError);
+      (signIn as Mock).mockRejectedValue(networkError);
       
       render(<SignUp />);
       
@@ -198,7 +199,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('prevents multiple rapid clicks during loading', async () => {
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
       render(<SignUp />);
       
@@ -215,7 +216,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('handles undefined signIn response', async () => {
-      (signIn as vi.Mock).mockResolvedValue(undefined);
+      (signIn as Mock).mockResolvedValue(undefined);
       
       render(<SignUp />);
       
@@ -236,7 +237,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles timeout scenarios gracefully', async () => {
       const timeoutError = new Error('Request timeout');
-      (signIn as vi.Mock).mockRejectedValue(timeoutError);
+      (signIn as Mock).mockRejectedValue(timeoutError);
       
       render(<SignUp />);
       
@@ -253,7 +254,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles OAuth provider unavailable', async () => {
       const providerError = new Error('Provider temporarily unavailable');
-      (signIn as vi.Mock).mockRejectedValue(providerError);
+      (signIn as Mock).mockRejectedValue(providerError);
       
       render(<SignUp />);
       
@@ -363,7 +364,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
   describe('Loading States & UX', () => {
     it('disables button during loading', async () => {
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
       render(<SignUp />);
       
@@ -375,7 +376,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('changes button text during loading', async () => {
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
       render(<SignUp />);
       
@@ -387,7 +388,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('shows loading spinner visibility', async () => {
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
       
       render(<SignUp />);
       
@@ -400,7 +401,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('resets loading state after successful OAuth', async () => {
-      (signIn as vi.Mock).mockResolvedValue(undefined);
+      (signIn as Mock).mockResolvedValue(undefined);
       
       render(<SignUp />);
       
@@ -417,7 +418,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('manages multiple loading state changes', async () => {
       let resolveSignIn: (value?: any) => void;
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => {
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => {
         resolveSignIn = resolve;
       }));
       
@@ -444,7 +445,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       const testError = new Error('Test error');
-      (signIn as vi.Mock).mockRejectedValue(testError);
+      (signIn as Mock).mockRejectedValue(testError);
       
       render(<SignUp />);
       
@@ -460,7 +461,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
 
     it('handles component unmounting during OAuth', async () => {
       let resolveSignIn: (value?: any) => void;
-      (signIn as vi.Mock).mockImplementation(() => new Promise(resolve => {
+      (signIn as Mock).mockImplementation(() => new Promise(resolve => {
         resolveSignIn = resolve;
       }));
       
@@ -487,7 +488,7 @@ describe('SignUp Page - Comprehensive Tests', () => {
     });
 
     it('handles missing search params gracefully', () => {
-      (useSearchParams as vi.Mock).mockReturnValue({
+      (useSearchParams as Mock).mockReturnValue({
         get: vi.fn().mockReturnValue(null)
       });
       

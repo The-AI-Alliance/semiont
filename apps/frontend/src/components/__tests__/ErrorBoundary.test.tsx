@@ -84,7 +84,7 @@ describe('ErrorBoundary', () => {
 
     it('should show error details in development mode', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      (process.env as any).NODE_ENV = 'development';
       
       render(
         <ErrorBoundary>
@@ -95,12 +95,12 @@ describe('ErrorBoundary', () => {
       expect(screen.getByText('Error Details (Development Only)')).toBeInTheDocument();
       expect(screen.getByText('Development error')).toBeInTheDocument();
       
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
 
     it('should hide error details in production mode', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      (process.env as any).NODE_ENV = 'production';
       
       render(
         <ErrorBoundary>
@@ -111,7 +111,7 @@ describe('ErrorBoundary', () => {
       expect(screen.queryByText('Error Details (Development Only)')).not.toBeInTheDocument();
       expect(screen.queryByText('Production error')).not.toBeInTheDocument();
       
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
 
     it('should call custom onError handler when provided', () => {
@@ -131,7 +131,7 @@ describe('ErrorBoundary', () => {
 
     it('should log error to console in development mode', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      (process.env as any).NODE_ENV = 'development';
       
       render(
         <ErrorBoundary>
@@ -145,12 +145,12 @@ describe('ErrorBoundary', () => {
         expect.objectContaining({ componentStack: expect.any(String) })
       );
       
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
 
     it('should not log error to console in production mode', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      (process.env as any).NODE_ENV = 'production';
       
       // Clear any previous calls
       mockConsoleError.mockClear();
@@ -169,7 +169,7 @@ describe('ErrorBoundary', () => {
         expect.any(Object)
       );
       
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
   });
 
@@ -251,7 +251,7 @@ describe('ErrorBoundary', () => {
   describe('Error Stack Display', () => {
     it('should display error stack in development when available', () => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      (process.env as any).NODE_ENV = 'development';
       
       const errorWithStack = new Error('Error with stack');
       errorWithStack.stack = 'Error: Error with stack\n    at TestComponent\n    at ErrorBoundary';
@@ -271,7 +271,7 @@ describe('ErrorBoundary', () => {
       const stackElement = screen.getByText(/at TestComponent/);
       expect(stackElement.tagName).toBe('PRE');
       
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
   });
 });

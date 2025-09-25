@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
+import type { Session } from 'next-auth';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -56,61 +58,195 @@ import { useDropdown } from '@/hooks/useUI';
 import { sanitizeImageURL } from '@/lib/validation';
 
 // Type the mocked functions
-const mockSignIn = signIn as vi.MockedFunction<typeof signIn>;
-const mockSignOut = signOut as vi.MockedFunction<typeof signOut>;
-const mockUseAuth = useAuth as vi.MockedFunction<typeof useAuth>;
-const mockUseDropdown = useDropdown as vi.MockedFunction<typeof useDropdown>;
-const mockSanitizeImageURL = sanitizeImageURL as vi.MockedFunction<typeof sanitizeImageURL>;
+const mockSignIn = signIn as MockedFunction<typeof signIn>;
+const mockSignOut = signOut as MockedFunction<typeof signOut>;
+const mockUseAuth = useAuth as MockedFunction<typeof useAuth>;
+const mockUseDropdown = useDropdown as MockedFunction<typeof useDropdown>;
+const mockSanitizeImageURL = sanitizeImageURL as MockedFunction<typeof sanitizeImageURL>;
 
 // Test data fixtures
 const mockAuthStates = {
   loading: {
+    session: null,
+    user: undefined,
+    backendUser: undefined,
     isLoading: true,
     isAuthenticated: false,
+    hasValidBackendToken: false,
+    userDomain: undefined,
     displayName: '',
-    avatarUrl: null,
-    userDomain: '',
-    isAdmin: false
+    avatarUrl: undefined,
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: false
   },
   unauthenticated: {
+    session: null,
+    user: undefined,
+    backendUser: undefined,
     isLoading: false,
     isAuthenticated: false,
+    hasValidBackendToken: false,
+    userDomain: undefined,
     displayName: '',
-    avatarUrl: null,
-    userDomain: '',
-    isAdmin: false
+    avatarUrl: undefined,
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: false
   },
   authenticatedUser: {
+    session: {
+      user: {
+        name: 'John Doe',
+        email: 'john@company.com',
+        image: 'https://example.com/avatar.jpg'
+      },
+      backendUser: {
+        id: '1',
+        email: 'john@company.com',
+        name: 'John Doe',
+        domain: 'company.com',
+        isAdmin: false,
+        isModerator: false,
+        termsAcceptedAt: null
+      },
+      backendToken: 'valid-token',
+      expires: '2024-01-01'
+    },
+    user: {
+      name: 'John Doe',
+      email: 'john@company.com',
+      image: 'https://example.com/avatar.jpg'
+    },
+    backendUser: {
+      id: '1',
+      email: 'john@company.com',
+      name: 'John Doe',
+      domain: 'company.com',
+      isAdmin: false,
+      isModerator: false,
+      termsAcceptedAt: null
+    },
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: true,
+    userDomain: 'company.com',
     displayName: 'John Doe',
     avatarUrl: 'https://example.com/avatar.jpg',
-    userDomain: 'company.com',
-    isAdmin: false
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: true
   },
   authenticatedAdmin: {
+    session: {
+      user: {
+        name: 'Admin User',
+        email: 'admin@company.com',
+        image: 'https://example.com/admin.jpg'
+      },
+      backendUser: {
+        id: '2',
+        email: 'admin@company.com',
+        name: 'Admin User',
+        domain: 'company.com',
+        isAdmin: true,
+        isModerator: false,
+        termsAcceptedAt: null
+      },
+      backendToken: 'valid-token',
+      expires: '2024-01-01'
+    },
+    user: {
+      name: 'Admin User',
+      email: 'admin@company.com',
+      image: 'https://example.com/admin.jpg'
+    },
+    backendUser: {
+      id: '2',
+      email: 'admin@company.com',
+      name: 'Admin User',
+      domain: 'company.com',
+      isAdmin: true,
+      isModerator: false,
+      termsAcceptedAt: null
+    },
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: true,
+    userDomain: 'company.com',
     displayName: 'Admin User',
     avatarUrl: 'https://example.com/admin.jpg',
-    userDomain: 'company.com',
-    isAdmin: true
+    isAdmin: true,
+    isModerator: false,
+    isFullyAuthenticated: true
   },
   userWithoutAvatar: {
+    session: {
+      user: {
+        name: 'Jane Smith',
+        email: 'jane@example.org',
+        image: null
+      },
+      backendUser: {
+        id: '3',
+        email: 'jane@example.org',
+        name: 'Jane Smith',
+        domain: 'example.org',
+        isAdmin: false,
+        isModerator: false,
+        termsAcceptedAt: null
+      },
+      backendToken: 'valid-token',
+      expires: '2024-01-01'
+    },
+    user: {
+      name: 'Jane Smith',
+      email: 'jane@example.org',
+      image: null
+    },
+    backendUser: {
+      id: '3',
+      email: 'jane@example.org',
+      name: 'Jane Smith',
+      domain: 'example.org',
+      isAdmin: false,
+      isModerator: false,
+      termsAcceptedAt: null
+    },
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: true,
+    userDomain: 'example.org',
     displayName: 'Jane Smith',
     avatarUrl: null,
-    userDomain: 'example.org',
-    isAdmin: false
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: true
   },
   userWithoutDomain: {
+    session: {
+      user: {
+        name: 'Bob Wilson',
+        email: 'bob@email.com',
+        image: 'https://example.com/bob.jpg'
+      },
+      expires: '2024-01-01'
+    } as any as Session,
+    user: {
+      name: 'Bob Wilson',
+      email: 'bob@email.com',
+      image: 'https://example.com/bob.jpg'
+    },
+    backendUser: undefined,
     isLoading: false,
     isAuthenticated: true,
+    hasValidBackendToken: false,
+    userDomain: undefined,
     displayName: 'Bob Wilson',
     avatarUrl: 'https://example.com/bob.jpg',
-    userDomain: '',
-    isAdmin: false
+    isAdmin: false,
+    isModerator: false,
+    isFullyAuthenticated: false
   }
 };
 
@@ -132,7 +268,7 @@ const mockDropdownStates = {
 };
 
 describe('UserMenu Component', () => {
-  let consoleWarnSpy: vi.SpyInstance;
+  let consoleWarnSpy: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -627,7 +763,7 @@ describe('UserMenu Component', () => {
     it('should handle missing displayName with fallback', () => {
       mockUseAuth.mockReturnValue({
         ...mockAuthStates.authenticatedUser,
-        displayName: null
+        displayName: ''
       });
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
 

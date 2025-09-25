@@ -105,8 +105,8 @@ describe('Providers', () => {
     );
     
     // Get the retry function that was passed to QueryClient
-    const queryClientConfig = MockedQueryClient.mock.calls[0][0];
-    const retryFunction = queryClientConfig.defaultOptions?.queries?.retry as Function;
+    const queryClientConfig = MockedQueryClient.mock.calls[0]?.[0];
+    const retryFunction = queryClientConfig?.defaultOptions?.queries?.retry as Function;
     
     expect(retryFunction).toBeDefined();
     
@@ -139,8 +139,8 @@ describe('Providers', () => {
       </Providers>
     );
     
-    const queryClientConfig = MockedQueryClient.mock.calls[0][0];
-    const retryFunction = queryClientConfig.defaultOptions?.queries?.retry as Function;
+    const queryClientConfig = MockedQueryClient.mock.calls[0]?.[0];
+    const retryFunction = queryClientConfig?.defaultOptions?.queries?.retry as Function;
     
     // Test with non-Error object
     const nonError = { message: '401 unauthorized' };
@@ -182,8 +182,8 @@ describe('Providers', () => {
       </Providers>
     );
     
-    const config = MockedQueryClient.mock.calls[0][0];
-    const staleTime = config.defaultOptions?.queries?.staleTime;
+    const config = MockedQueryClient.mock.calls[0]?.[0];
+    const staleTime = config?.defaultOptions?.queries?.staleTime;
     
     // 5 minutes in milliseconds
     expect(staleTime).toBe(5 * 60 * 1000);
