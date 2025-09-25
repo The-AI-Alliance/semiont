@@ -6,7 +6,7 @@ import { ErrorResponseSchema } from '../openapi';
 import { getGraphDatabase } from '../graph/factory';
 import { generateDocumentFromTopic } from '../inference/factory';
 import { getStorageService } from '../storage/filesystem';
-import type { Document, Selection } from '../graph/types';
+import type { Document, Selection } from '@semiont/core-types';
 import { calculateChecksum } from '../utils/checksum';
 import {
   SelectionSchema,

@@ -12,7 +12,7 @@ import {
   UpdateDocumentInput,
   CreateSelectionInput,
   ResolveSelectionInput,
-} from './types';
+} from '@semiont/core-types';
 
 export interface GraphDatabase {
   // Connection management

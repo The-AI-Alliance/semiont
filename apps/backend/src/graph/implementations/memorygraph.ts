@@ -17,7 +17,7 @@ import {
   isHighlight,
   isReference,
   isEntityReference,
-} from '../types';
+} from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Simple in-memory storage using Maps

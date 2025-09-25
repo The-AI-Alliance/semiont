@@ -39,6 +39,7 @@
     "@codemirror/view": "^6.38.2",
     "@heroicons/react": "^2.2.0",
     "@semiont/api-types": "*",
+    "@semiont/core-types": "*",
     "@tanstack/react-query": "^4.36.1",
     "@types/node": "^20",
     "@types/react": "^18",

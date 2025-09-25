@@ -14,7 +14,7 @@ import {
   UpdateDocumentInput,
   CreateSelectionInput,
   ResolveSelectionInput,
-} from '../types';
+} from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Dynamic imports for AWS SDK and Gremlin

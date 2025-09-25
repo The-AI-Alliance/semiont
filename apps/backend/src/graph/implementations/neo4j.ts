@@ -15,7 +15,7 @@ import {
   UpdateDocumentInput,
   CreateSelectionInput,
   ResolveSelectionInput,
-} from '../types';
+} from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class Neo4jGraphDatabase implements GraphDatabase {

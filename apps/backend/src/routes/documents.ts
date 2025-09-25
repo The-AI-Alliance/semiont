@@ -13,8 +13,8 @@ import {
 } from '../schemas/document-schemas';
 import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
-import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } from '../graph/types';
-import { CREATION_METHODS } from '../graph/types';
+import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } from '@semiont/core-types';
+import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '../utils/checksum';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../inference/factory';
 import { extractEntities } from '../inference/entity-extractor';
