@@ -29,7 +29,11 @@ import { validateData } from '@/lib/validation';
 
 // Type the mocked functions
 const mockUseSession = useSession as MockedFunction<typeof useSession>;
-const mockApiClient = apiClient as any;
+const mockApiClient = apiClient as unknown as {
+  setAuthToken: ReturnType<typeof vi.fn>;
+  clearAuthToken: ReturnType<typeof vi.fn>;
+  [key: string]: any;
+};
 const mockValidateData = validateData as MockedFunction<typeof validateData>;
 
 // Test data fixtures
@@ -82,8 +86,8 @@ const mockSessions: Record<string, any> = {
 };
 
 describe('useSecureAPI Hooks', () => {
-  let consoleLogSpy: any;
-  let consoleErrorSpy: any;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -178,9 +182,9 @@ describe('useSecureAPI Hooks', () => {
 
       it('should clear token when validation fails', () => {
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
-        mockValidateData.mockReturnValue({ 
-          success: false, 
-          error: 'Invalid JWT token format' 
+        mockValidateData.mockReturnValue({
+          success: false,
+          error: 'Invalid JWT token format' as any as any
         });
 
         renderHook(() => useSecureAPI());
@@ -226,7 +230,7 @@ describe('useSecureAPI Hooks', () => {
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
         mockValidateData.mockReturnValue({ 
           success: false, 
-          error: 'Invalid token' 
+          error: 'Invalid token' as any 
         });
 
         const { result } = renderHook(() => useSecureAPI());
@@ -240,7 +244,7 @@ describe('useSecureAPI Hooks', () => {
         mockUseSession.mockReturnValue(mockSessions.withInvalidToken);
         mockValidateData.mockReturnValue({
           success: false,
-          error: 'Invalid JWT token format'
+          error: 'Invalid JWT token format' as any
         });
 
         renderHook(() => useSecureAPI());

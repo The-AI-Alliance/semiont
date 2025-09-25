@@ -327,7 +327,13 @@ describe('Auth Configuration', () => {
       // Test that user object can be modified
       const testUser = { ...mockUser };
       testUser.backendToken = 'test-token';
-      testUser.backendUser = { id: 'test-id', email: 'test@example.com', domain: 'example.com', isAdmin: false, isModerator: false } as any;
+      testUser.backendUser = {
+        id: 'test-id',
+        email: 'test@example.com',
+        domain: 'example.com',
+        isAdmin: false,
+        isModerator: false
+      } as any;
       (testUser as any).__isNewUser = true;
       
       expect(testUser.backendToken).toBe('test-token');
@@ -403,11 +409,12 @@ describe('Auth Configuration', () => {
     });
 
     it('should pass backend token to JWT when user has backend token', async () => {
-      const userWithBackendData: any = {
+      const userWithBackendData = {
         ...mockUser,
         backendToken: 'backend-jwt-token',
-        backendUser: { id: 'backend-123', email: 'user@example.com', domain: 'example.com', isAdmin: false, isModerator: false } as any,
-      };
+        backendUser: { id: 'backend-123', email: 'user@example.com', domain: 'example.com', isAdmin: false, isModerator: false },
+        emailVerified: null
+      } as any;
       (userWithBackendData as any).__isNewUser = true;
 
       mockValidateData.mockReturnValue({
@@ -439,11 +446,12 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle invalid backend token validation', async () => {
-      const userWithInvalidToken: any = {
+      const userWithInvalidToken = {
         ...mockUser,
         backendToken: 'invalid-token',
-        backendUser: { id: 'user-123' },
-      };
+        backendUser: { id: 'user-123', email: 'user@example.com', domain: 'example.com', isAdmin: false, isModerator: false },
+        emailVerified: null
+      } as any;
 
       mockValidateData.mockReturnValue({
         success: false,
@@ -466,10 +474,11 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle missing backend user when token is valid', async () => {
-      const userWithTokenButNoUser: any = {
+      const userWithTokenButNoUser = {
         ...mockUser,
         backendToken: 'valid-token',
-      };
+        emailVerified: null
+      } as any;
       delete (userWithTokenButNoUser as any).backendUser;
 
       mockValidateData.mockReturnValue({
@@ -494,9 +503,7 @@ describe('Auth Configuration', () => {
 
     it('should return original token when no user is provided', async () => {
       const result = await authOptions.callbacks!.jwt!({
-        token: mockToken,
-        user: undefined,
-        account: null
+        token: mockToken
       } as any);
 
       expect(result).toEqual(mockToken);
@@ -513,7 +520,7 @@ describe('Auth Configuration', () => {
         user: {
           email: 'user@example.com',
           name: 'Test User',
-        },
+        } as any,
         expires: '2024-01-01T00:00:00.000Z',
       };
 
