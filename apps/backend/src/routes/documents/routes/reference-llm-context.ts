@@ -112,7 +112,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
       targetContext = {
         content: contentStr.slice(0, contextWindow * 2),
-        summary: await generateDocumentSummary(contentStr),
+        summary: await generateDocumentSummary(targetDoc.name, contentStr, targetDoc.entityTypes || []),
       };
     }
 

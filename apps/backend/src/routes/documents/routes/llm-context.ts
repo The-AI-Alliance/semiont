@@ -84,8 +84,9 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     const mainContent = includeContent ?
       (await storage.getDocument(id)).toString('utf-8') : undefined;
 
-    // Get related documents through graph traversal
-    const relatedDocs = await graphDb.getConnectedDocuments(id, depth);
+    // Get related documents through graph connections
+    const connections = await graphDb.getDocumentConnections(id);
+    const relatedDocs = connections.map(conn => conn.targetDocument);
     const limitedRelatedDocs = relatedDocs.slice(0, maxDocuments - 1);
 
     // Get content for related documents if requested
@@ -119,17 +120,16 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
       })),
     ];
 
-    const connections = await graphDb.getDocumentConnections(id, depth);
     const edges = connections.map(conn => ({
-      source: conn.sourceId,
-      target: conn.targetId,
-      type: conn.connectionType,
-      metadata: conn.metadata,
+      source: id,
+      target: conn.targetDocument.id,
+      type: conn.relationshipType || 'reference',
+      metadata: {},
     }));
 
     // Generate summary if requested
     const summary = includeSummary && mainContent ?
-      await generateDocumentSummary(mainContent) : undefined;
+      await generateDocumentSummary(mainDoc.name, mainContent, mainDoc.entityTypes || []) : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent ?

@@ -116,3 +116,19 @@ export const UpdateUserRequestSchema = z.object({
 // - src/routes/admin.ts
 // - src/routes/status.ts
 
+// OpenAPI configuration
+export const openApiConfig = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Semiont API',
+    version: '0.1.0',
+    description: 'Semantic Knowledge Platform API'
+  },
+  servers: [
+    {
+      url: process.env.API_URL || 'http://localhost:4000',
+      description: 'API Server'
+    }
+  ]
+};
+

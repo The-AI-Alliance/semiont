@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatSelection, detectSelectionsInDocument } from '../helpers';
+import { detectSelectionsInDocument } from '../helpers';
 import type { CreateSelectionInput } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 

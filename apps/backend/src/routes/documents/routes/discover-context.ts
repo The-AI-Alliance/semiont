@@ -50,19 +50,17 @@ export function registerDiscoverContext(router: DocumentsRouterType) {
     const { depth } = c.req.valid('json');
     const graphDb = await getGraphDatabase();
 
-    // Get connected documents up to the specified depth
-    const connectedDocs = await graphDb.getConnectedDocuments(id, depth);
-
-    // Get the connections between documents
-    const connections = await graphDb.getDocumentConnections(id, depth);
+    // Get document connections
+    const connections = await graphDb.getDocumentConnections(id);
+    const connectedDocs = connections.map(conn => conn.targetDocument);
 
     return c.json({
       documents: connectedDocs.map(formatDocument),
       connections: connections.map(conn => ({
-        fromId: conn.sourceId,
-        toId: conn.targetId,
-        type: conn.connectionType,
-        metadata: conn.metadata,
+        fromId: id,
+        toId: conn.targetDocument.id,
+        type: conn.relationshipType || 'reference',
+        metadata: {},
       })),
     });
   });

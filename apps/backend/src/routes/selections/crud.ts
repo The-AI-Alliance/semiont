@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createSelectionRouter, type SelectionsRouterType } from './shared';
 import { formatDocument, formatSelection } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
-import type { CreateSelectionInput, Selection } from '@semiont/core-types';
+import type { CreateSelectionInput } from '@semiont/core-types';
 
 // Create router with auth middleware
 export const crudRouter: SelectionsRouterType = createSelectionRouter();
@@ -60,9 +60,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     selectionType: body.selectionType,
     selectionData: body.selectionData,
     entityTypes: body.entityTypes,
-    referenceTags: body.referenceTags,
     provisional: body.provisional ?? true,
-    confidence: body.confidence,
     metadata: body.metadata,
     createdBy: user.id,
   };
@@ -242,7 +240,11 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
     throw new HTTPException(404, { message: 'Selection not found' });
   }
 
-  const resolved = await graphDb.resolveSelection(id, body.targetDocumentId, user.id);
+  const resolved = await graphDb.resolveSelection({
+    selectionId: id,
+    targetDocumentId: body.targetDocumentId,
+    resolvedBy: user.id
+  });
 
   const targetDocument = await graphDb.getDocument(body.targetDocumentId);
 

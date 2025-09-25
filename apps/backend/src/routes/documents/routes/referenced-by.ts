@@ -35,11 +35,13 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const graphDb = await getGraphDatabase();
 
-    // Find all selections that resolve to this document
-    const referencingDocs = await graphDb.getDocumentsReferencingDocument(id);
+    // Get all selections that reference this document
+    const references = await graphDb.getDocumentReferencedBy(id);
 
-    // Get the actual references/selections
-    const references = await graphDb.getReferencesToDocument(id);
+    // Get unique documents from the selections
+    const docIds = [...new Set(references.map(ref => ref.documentId))];
+    const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
+    const referencingDocs = documents.filter(doc => doc !== null);
 
     return c.json({
       documents: referencingDocs.map(formatDocument),

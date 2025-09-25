@@ -41,6 +41,6 @@ export function registerGetDocumentContent(router: DocumentsRouterType) {
 
     const content = await storage.getDocument(id);
     c.header('Content-Type', doc.contentType || 'text/plain');
-    return c.body(content);
+    return c.text(content.toString('utf-8'));
   });
 }
