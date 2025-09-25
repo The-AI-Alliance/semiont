@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import type { MockedFunction } from 'vitest'
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -42,7 +43,7 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('AdminSecurity Page', () => {
-  const mockUseQuery = api.admin.oauth.config.useQuery as vi.MockedFunction<typeof api.admin.oauth.config.useQuery>
+  const mockUseQuery = api.admin.oauth.config.useQuery as MockedFunction<typeof api.admin.oauth.config.useQuery>
 
   beforeEach(() => {
     vi.clearAllMocks()

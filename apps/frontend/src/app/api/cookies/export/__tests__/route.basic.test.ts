@@ -3,6 +3,8 @@
  * These test the core logic without complex Next.js API route setup
  */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { getServerSession } from 'next-auth';
 
 // Mock next-auth
@@ -22,7 +24,7 @@ describe('Cookie Export API - Basic Logic Tests', () => {
 
   describe('Authentication Logic', () => {
     it('should handle unauthenticated requests', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue(null);
+      (getServerSession as Mock).mockResolvedValue(null);
       
       const session = await getServerSession();
       expect(session).toBeNull();
@@ -37,7 +39,7 @@ describe('Cookie Export API - Basic Logic Tests', () => {
         }
       };
       
-      (getServerSession as vi.Mock).mockResolvedValue(mockSession);
+      (getServerSession as Mock).mockResolvedValue(mockSession);
       
       const session = await getServerSession();
       expect(session?.backendUser).toBeDefined();

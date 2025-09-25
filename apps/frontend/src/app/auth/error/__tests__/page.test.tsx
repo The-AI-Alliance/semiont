@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { useSearchParams } from 'next/navigation';
@@ -16,7 +17,7 @@ describe('AuthError Page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useSearchParams as vi.Mock).mockReturnValue(mockSearchParams);
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
   });
 
   describe('Error Display', () => {

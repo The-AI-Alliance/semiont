@@ -230,11 +230,11 @@ describe('Footer Component', () => {
           if (args.length === 0) {
             super('2025-01-01')
           } else {
-            super(...args)
+            super(...(args as []))
           }
         }
-        
-        getFullYear() {
+
+        override getFullYear() {
           return 2025
         }
       } as any
@@ -253,10 +253,10 @@ describe('Footer Component', () => {
       // Mock for 2024
       global.Date = class extends OriginalDate {
         constructor(...args: any[]) {
-          super(...args)
+          super(...(args as []))
         }
-        
-        getFullYear() {
+
+        override getFullYear() {
           return 2024
         }
       } as any
@@ -267,10 +267,10 @@ describe('Footer Component', () => {
       // Mock for 2025
       global.Date = class extends OriginalDate {
         constructor(...args: any[]) {
-          super(...args)
+          super(...(args as []))
         }
-        
-        getFullYear() {
+
+        override getFullYear() {
           return 2025
         }
       } as any

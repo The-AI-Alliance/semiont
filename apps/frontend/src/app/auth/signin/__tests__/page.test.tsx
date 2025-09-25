@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { signIn } from 'next-auth/react';
@@ -29,7 +30,7 @@ describe('SignIn Page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useSearchParams as vi.Mock).mockReturnValue(mockSearchParams);
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
     mockSearchParams.get.mockImplementation((param) => {
       if (param === 'callbackUrl') return null;
       if (param === 'error') return null;
@@ -173,7 +174,7 @@ describe('SignIn Page', () => {
 
     it('handles errors during sign-in attempt', async () => {
       const signInError = new Error('Sign-in failed');
-      (signIn as vi.Mock).mockRejectedValueOnce(signInError);
+      (signIn as Mock).mockRejectedValueOnce(signInError);
 
       render(<SignIn />);
       
@@ -193,7 +194,7 @@ describe('SignIn Page', () => {
       });
 
       const signInError = new Error('Sign-in failed');
-      (signIn as vi.Mock).mockRejectedValueOnce(signInError);
+      (signIn as Mock).mockRejectedValueOnce(signInError);
 
       render(<SignIn />);
       

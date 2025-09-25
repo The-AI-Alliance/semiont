@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { MockedFunction } from 'vitest'
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { getServerSession } from 'next-auth'
@@ -15,13 +16,13 @@ import { AdminAuthWrapper } from '@/components/admin/AdminAuthWrapper'
 
 // Mock next-auth
 vi.mock('next-auth')
-const mockGetServerSession = getServerSession as vi.MockedFunction<typeof getServerSession>
+const mockGetServerSession = getServerSession as MockedFunction<typeof getServerSession>
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   notFound: vi.fn()
 }))
-const mockNotFound = notFound as vi.MockedFunction<typeof notFound>
+const mockNotFound = notFound as MockedFunction<typeof notFound>
 
 describe('Admin Route Security - Regression Prevention', () => {
   beforeEach(() => {

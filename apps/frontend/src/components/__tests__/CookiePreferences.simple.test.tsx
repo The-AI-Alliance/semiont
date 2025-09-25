@@ -207,7 +207,7 @@ describe('CookiePreferences - Comprehensive Tests', () => {
     render(<CookiePreferences isOpen={true} onClose={mockOnClose} />);
     
     const deleteButtons = screen.getAllByText('Delete All Data');
-    fireEvent.click(deleteButtons[0]); // Click first delete button
+    fireEvent.click(deleteButtons[0]!); // Click first delete button
     
     // Should have more instances now (button, title, modal button)
     expect(screen.getAllByText('Delete All Data').length).toBeGreaterThan(1);
@@ -232,12 +232,12 @@ describe('CookiePreferences - Comprehensive Tests', () => {
     
     // Open delete modal
     const deleteButtons = screen.getAllByText('Delete All Data');
-    fireEvent.click(deleteButtons[0]);
+    fireEvent.click(deleteButtons[0]!);
     
     // Find and click the actual confirm button in the modal (should be the last one)
     const allDeleteButtons = screen.getAllByText('Delete All Data');
     const confirmButton = allDeleteButtons[allDeleteButtons.length - 1]; // Last button is the confirm button
-    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton!);
     
     expect(mockDeleteAllUserData).toHaveBeenCalled();
   });

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { CookieBanner } from '../CookieBanner';
@@ -34,7 +35,7 @@ describe('CookieBanner - Basic Tests', () => {
   });
 
   it('should not display when shouldShowBanner returns false', () => {
-    (cookieLib.shouldShowBanner as vi.Mock).mockReturnValue(false);
+    (cookieLib.shouldShowBanner as Mock).mockReturnValue(false);
     
     render(<CookieBanner />);
     
@@ -43,9 +44,9 @@ describe('CookieBanner - Basic Tests', () => {
   });
 
   it('should render without crashing when shouldShowBanner returns true', async () => {
-    (cookieLib.shouldShowBanner as vi.Mock).mockReturnValue(true);
-    (cookieLib.isGDPRApplicable as vi.Mock).mockResolvedValue(false);
-    (cookieLib.isCCPAApplicable as vi.Mock).mockResolvedValue(false);
+    (cookieLib.shouldShowBanner as Mock).mockReturnValue(true);
+    (cookieLib.isGDPRApplicable as Mock).mockResolvedValue(false);
+    (cookieLib.isCCPAApplicable as Mock).mockResolvedValue(false);
     
     render(<CookieBanner />);
     
@@ -54,7 +55,7 @@ describe('CookieBanner - Basic Tests', () => {
   });
 
   it('should call shouldShowBanner on mount', () => {
-    (cookieLib.shouldShowBanner as vi.Mock).mockReturnValue(false);
+    (cookieLib.shouldShowBanner as Mock).mockReturnValue(false);
     
     render(<CookieBanner />);
     
@@ -62,7 +63,7 @@ describe('CookieBanner - Basic Tests', () => {
   });
 
   it('should handle className prop', () => {
-    (cookieLib.shouldShowBanner as vi.Mock).mockReturnValue(false);
+    (cookieLib.shouldShowBanner as Mock).mockReturnValue(false);
     
     const { container } = render(<CookieBanner className="test-class" />);
     

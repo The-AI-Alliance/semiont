@@ -47,6 +47,7 @@ describe('JWT Service', () => {
     providerId: 'google-123',
     isAdmin: false,
     isActive: true,
+    isModerator: false,
     termsAcceptedAt: null,
     lastLogin: new Date(),
     createdAt: new Date(),

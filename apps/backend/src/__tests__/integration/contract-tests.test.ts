@@ -5,9 +5,8 @@
 
 import { describe, it, expect } from 'vitest';
 import type {
-  HelloResponse,
-  StatusResponse,
   HealthResponse,
+  StatusResponse,
   AuthResponse,
   UserResponse,
   LogoutResponse,
@@ -17,16 +16,22 @@ import type {
 
 describe('API Contract Tests', () => {
   describe('Response Type Contracts', () => {
-    it('should match HelloResponse contract', () => {
-      const mockResponse: HelloResponse = {
-        message: 'Hello, World! Welcome to Semiont.',
+    it('should match HealthResponse contract', () => {
+      const mockResponse: HealthResponse = {
+        status: 'operational',
+        message: 'Semiont API is running',
+        version: '0.1.0',
         timestamp: '2024-01-01T00:00:00.000Z',
-        platform: 'Semiont Semantic Knowledge Platform',
+        database: 'connected',
+        environment: 'test',
       };
 
+      expect(mockResponse.status).toBeDefined();
       expect(mockResponse.message).toBeDefined();
+      expect(mockResponse.version).toBeDefined();
       expect(mockResponse.timestamp).toBeDefined();
-      expect(mockResponse.platform).toBeDefined();
+      expect(mockResponse.database).toBeDefined();
+      expect(mockResponse.environment).toBeDefined();
     });
 
     it('should match StatusResponse contract', () => {
@@ -49,17 +54,18 @@ describe('API Contract Tests', () => {
 
     it('should match HealthResponse contract', () => {
       const mockResponse: HealthResponse = {
-        status: 'healthy',
-        timestamp: '2024-01-01T00:00:00.000Z',
-        uptime: 12345,
+        status: 'operational',
+        message: 'Semiont API is running',
         version: '0.1.0',
+        timestamp: '2024-01-01T00:00:00.000Z',
         database: 'connected',
+        environment: 'production',
       };
 
       expect(mockResponse.status).toBeDefined();
       expect(mockResponse.timestamp).toBeDefined();
-      expect(mockResponse.uptime).toBeDefined();
       expect(mockResponse.version).toBeDefined();
+      expect(mockResponse.database).toBeDefined();
     });
 
 
@@ -71,6 +77,7 @@ describe('API Contract Tests', () => {
           email: 'test@example.com',
           name: 'Test User',
           image: 'https://example.com/avatar.jpg',
+          domain: 'example.com',
           isAdmin: false,
         },
         token: 'mock-jwt-token',
@@ -87,28 +94,26 @@ describe('API Contract Tests', () => {
 
     it('should match UserResponse contract', () => {
       const mockResponse: UserResponse = {
-        user: {
-          id: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          image: 'https://example.com/avatar.jpg',
-          domain: 'example.com',
-          provider: 'google',
-          isAdmin: false,
-          isActive: true,
-          termsAcceptedAt: '2024-01-01T00:00:00.000Z',
-          lastLogin: '2024-01-01T00:00:00.000Z',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
+        id: 'user-123',
+        email: 'user@example.com',
+        name: 'Test User',
+        image: 'https://example.com/avatar.jpg',
+        domain: 'example.com',
+        provider: 'google',
+        isAdmin: false,
+        isActive: true,
+        termsAcceptedAt: '2024-01-01T00:00:00.000Z',
+        lastLogin: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z',
       };
 
-      expect(mockResponse.user).toBeDefined();
-      expect(mockResponse.user.id).toBeDefined();
-      expect(mockResponse.user.email).toBeDefined();
-      expect(mockResponse.user.domain).toBeDefined();
-      expect(mockResponse.user.provider).toBeDefined();
-      expect(mockResponse.user.isAdmin).toBeDefined();
-      expect(mockResponse.user.isActive).toBeDefined();
+      expect(mockResponse.id).toBeDefined();
+      expect(mockResponse.email).toBeDefined();
+      expect(mockResponse.name).toBeDefined();
+      expect(mockResponse.domain).toBeDefined();
+      expect(mockResponse.provider).toBeDefined();
+      expect(mockResponse.isAdmin).toBeDefined();
+      expect(mockResponse.isActive).toBeDefined();
     });
 
     it('should match LogoutResponse contract', () => {
@@ -151,6 +156,7 @@ describe('API Contract Tests', () => {
           email: 'test@example.com',
           name: 'Test User',
           image: 'https://example.com/avatar.jpg',
+          domain: 'example.com',
           isAdmin: false,
         },
         token: 'jwt-token',
@@ -304,23 +310,21 @@ describe('API Contract Tests', () => {
 
     it('should validate boolean fields', () => {
       const userResponse: UserResponse = {
-        user: {
-          id: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          image: null,
-          domain: 'example.com',
-          provider: 'google',
-          isAdmin: false,
-          isActive: true,
-          termsAcceptedAt: null,
-          lastLogin: '2024-01-01T00:00:00.000Z',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
+        id: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+        image: null,
+        domain: 'example.com',
+        provider: 'google',
+        isAdmin: false,
+        isActive: true,
+        termsAcceptedAt: null,
+        lastLogin: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z',
       };
 
-      expect(typeof userResponse.user.isAdmin).toBe('boolean');
-      expect(typeof userResponse.user.isActive).toBe('boolean');
+      expect(typeof userResponse.isAdmin).toBe('boolean');
+      expect(typeof userResponse.isActive).toBe('boolean');
     });
   });
 
@@ -338,7 +342,7 @@ describe('API Contract Tests', () => {
                 name: 'Optional name parameter',
               },
               responses: {
-                200: 'HelloResponse',
+                200: 'HealthResponse',
               },
             },
           },

@@ -25,7 +25,7 @@ const StopOptionsSchema = BaseOptionsSchema.extend({
   timeout: z.number().default(30).describe('Timeout for graceful shutdown in seconds'),
 });
 
-type StopOptions = z.output<typeof StopOptionsSchema>;
+export type StopOptions = z.output<typeof StopOptionsSchema>;
 
 // =====================================================================
 // COMMAND DESCRIPTOR

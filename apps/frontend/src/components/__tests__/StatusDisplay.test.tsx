@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -19,61 +20,142 @@ import { useBackendStatus } from '@/hooks/useAPI';
 import { useAuth } from '@/hooks/useAuth';
 
 // Type the mocked functions
-const mockUseBackendStatus = useBackendStatus as vi.MockedFunction<typeof useBackendStatus>;
-const mockUseAuth = useAuth as vi.MockedFunction<typeof useAuth>;
+const mockUseBackendStatus = useBackendStatus as MockedFunction<typeof useBackendStatus>;
+const mockUseAuth = useAuth as MockedFunction<typeof useAuth>;
+
+// Helper to create mock UseQueryResult objects
+function createMockQueryResult<T>(overrides: {
+  data?: T | null;
+  isLoading?: boolean;
+  error?: Error | null;
+}): any {
+  return {
+    data: overrides.data ?? null,
+    error: overrides.error ?? null,
+    isLoading: overrides.isLoading ?? false,
+    isError: !!overrides.error,
+    isSuccess: !overrides.error && !overrides.isLoading && overrides.data !== null,
+    isPending: overrides.isLoading ?? false,
+    isLoadingError: false,
+    isRefetchError: false,
+    dataUpdatedAt: Date.now(),
+    errorUpdateCount: 0,
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: overrides.error ?? null,
+    fetchStatus: overrides.isLoading ? 'fetching' : 'idle',
+    isFetched: !overrides.isLoading,
+    isFetchedAfterMount: !overrides.isLoading,
+    isFetching: overrides.isLoading ?? false,
+    isInitialLoading: overrides.isLoading ?? false,
+    isPaused: false,
+    isPlaceholderData: false,
+    isPreviousData: false,
+    isRefetching: false,
+    isStale: false,
+    refetch: vi.fn(),
+    remove: vi.fn(),
+    status: overrides.error ? 'error' : overrides.isLoading ? 'pending' : 'success',
+  };
+}
 
 // Test data fixtures
 const mockStatusStates = {
-  loading: {
+  loading: createMockQueryResult({
     data: null,
     isLoading: true,
     error: null
-  },
-  success: {
-    data: { status: 'healthy', version: '1.2.3' },
+  }),
+  success: createMockQueryResult({
+    data: {
+      status: 'operational' as const,
+      version: '1.2.3',
+      features: {
+        semanticContent: 'enabled',
+        collaboration: 'enabled',
+        rbac: 'enabled'
+      },
+      message: 'System operational'
+    },
     isLoading: false,
     error: null
-  },
-  successWithDifferentStatus: {
-    data: { status: 'operational', version: '2.0.0' },
+  }),
+  successWithDifferentStatus: createMockQueryResult({
+    data: {
+      status: 'operational' as const,
+      version: '2.0.0',
+      features: {
+        semanticContent: 'enabled',
+        collaboration: 'enabled',
+        rbac: 'enabled'
+      },
+      message: 'System operational'
+    },
     isLoading: false,
     error: null
-  },
-  error: {
+  }),
+  error: createMockQueryResult({
     data: null,
     isLoading: false,
     error: new Error('Connection failed')
-  },
-  errorWithDetails: {
+  }),
+  errorWithDetails: createMockQueryResult({
     data: null,
     isLoading: false,
     error: new Error('Network timeout')
-  },
-  unknown: {
+  }),
+  unknown: createMockQueryResult({
     data: null,
     isLoading: false,
     error: null
-  },
-  malformedData: {
-    data: { status: null, version: undefined },
+  }),
+  malformedData: createMockQueryResult({
+    data: { status: null, version: undefined, features: null, message: '' } as any,
     isLoading: false,
     error: null
-  },
-  partialData: {
-    data: { status: 'healthy' }, // Missing version
+  }),
+  partialData: createMockQueryResult({
+    data: {
+      status: 'operational' as const,
+      version: undefined,
+      features: {
+        semanticContent: 'enabled',
+        collaboration: 'enabled',
+        rbac: 'enabled'
+      },
+      message: 'System operational'
+    } as any,
     isLoading: false,
     error: null
-  },
-  longVersionData: {
-    data: { status: 'healthy', version: '1.2.3-alpha.beta.rc.build.12345' },
+  }),
+  longVersionData: createMockQueryResult({
+    data: {
+      status: 'operational' as const,
+      version: '1.2.3-alpha.beta.rc.build.12345',
+      features: {
+        semanticContent: 'enabled',
+        collaboration: 'enabled',
+        rbac: 'enabled'
+      },
+      message: 'System operational'
+    },
     isLoading: false,
     error: null
-  },
-  specialCharacterData: {
-    data: { status: 'healthy-🚀', version: '1.2.3-β' },
+  }),
+  specialCharacterData: createMockQueryResult({
+    data: {
+      status: 'operational' as const,
+      version: '1.2.3-β',
+      features: {
+        semanticContent: 'enabled',
+        collaboration: 'enabled',
+        rbac: 'enabled'
+      },
+      message: 'System operational'
+    },
     isLoading: false,
     error: null
-  }
+  })
 };
 
 describe('StatusDisplay Component', () => {
@@ -115,7 +197,7 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: healthy (v1.2.3)')).toBeInTheDocument();
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: operational (v1.2.3)')).toBeInTheDocument();
       
       const statusSection = screen.getByRole('status');
       expect(statusSection).toHaveClass('bg-blue-50', 'dark:bg-blue-900/20');
@@ -189,7 +271,7 @@ describe('StatusDisplay Component', () => {
       mockUseBackendStatus.mockReturnValue(mockStatusStates.success);
       rerender(<StatusDisplay />);
       
-      expect(screen.getByText(/healthy \(v1\.2\.3\)/)).toBeInTheDocument();
+      expect(screen.getByText(/operational \(v1\.2\.3\)/)).toBeInTheDocument();
       expect(screen.getByRole('status')).toHaveClass('bg-blue-50');
 
       // Transition to error
@@ -227,7 +309,7 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      const content = screen.getByText('🚀 Frontend Status: Ready • Backend: healthy (v1.2.3)');
+      const content = screen.getByText('🚀 Frontend Status: Ready • Backend: operational (v1.2.3)');
       expect(content).toBeInTheDocument();
     });
 
@@ -455,7 +537,7 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      expect(screen.getByText(/healthy/)).toBeInTheDocument();
+      expect(screen.getByText(/operational/)).toBeInTheDocument();
       expect(screen.getByText(/v1\.2\.3/)).toBeInTheDocument();
     });
 
@@ -501,15 +583,15 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: healthy (vundefined)')).toBeInTheDocument();
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: operational (vundefined)')).toBeInTheDocument();
     });
 
     it('should handle missing status information', () => {
-      const missingStatusData = {
-        data: { version: '1.2.3' },
+      const missingStatusData = createMockQueryResult({
+        data: { version: '1.2.3', features: { semanticContent: 'enabled', collaboration: 'enabled', rbac: 'enabled' }, message: 'Test' } as any,
         isLoading: false,
         error: null
-      };
+      });
       mockUseBackendStatus.mockReturnValue(missingStatusData);
 
       render(<StatusDisplay />);
@@ -518,11 +600,11 @@ describe('StatusDisplay Component', () => {
     });
 
     it('should handle null data gracefully', () => {
-      const nullData = {
+      const nullData = createMockQueryResult({
         data: null,
         isLoading: false,
         error: null
-      };
+      });
       mockUseBackendStatus.mockReturnValue(nullData);
 
       render(<StatusDisplay />);
@@ -543,7 +625,7 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      expect(screen.getByText(/healthy-🚀/)).toBeInTheDocument();
+      expect(screen.getByText(/operational/)).toBeInTheDocument();
       expect(screen.getByText(/v1\.2\.3-β/)).toBeInTheDocument();
     });
 
@@ -653,7 +735,7 @@ describe('StatusDisplay Component', () => {
 
       render(<StatusDisplay />);
 
-      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: healthy (v1.2.3)')).toBeInTheDocument();
+      expect(screen.getByText('🚀 Frontend Status: Ready • Backend: operational (v1.2.3)')).toBeInTheDocument();
       expect(screen.queryByText('Sign in to view backend status')).not.toBeInTheDocument();
       
       const statusSection = screen.getByRole('status');

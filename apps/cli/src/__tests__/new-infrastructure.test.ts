@@ -2,12 +2,12 @@
  * Tests for the new command infrastructure
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { CommandBuilder } from '../core/command-definition.js';
 import { createArgParser } from '../core/io/arg-parser.js';
 // import { loadCommand } from '../core/command-loader.js'; // TODO: Implement command-loader
-import type { BaseCommandOptions } from '../core/base-options-schema.js';
+// BaseCommandOptions type is internal to base-options-schema
 
 describe('Command Infrastructure', () => {
   describe('CommandBuilder', () => {
@@ -35,7 +35,7 @@ describe('Command Infrastructure', () => {
           environment: 'test',
           timestamp: new Date(),
           duration: 0,
-          services: [],
+          results: [],
           summary: { total: 0, succeeded: 0, failed: 0, warnings: 0 },
           executionContext: { user: 'test', workingDirectory: '.', dryRun: false },
         }))
@@ -49,7 +49,7 @@ describe('Command Infrastructure', () => {
     });
     
     it('should throw if required fields are missing', () => {
-      const builder = new CommandBuilder<BaseCommandOptions>();
+      const builder = new CommandBuilder<any>();
       
       expect(() => builder.build()).toThrow('Command name is required');
       
@@ -92,6 +92,7 @@ describe('Command Infrastructure', () => {
         .handler(async () => ({} as any))
         .build();
       
+      // @ts-expect-error - Test uses schema with defaults which creates type mismatch
       const parser = createArgParser(command);
       
       // Test with long form arguments
@@ -131,6 +132,7 @@ describe('Command Infrastructure', () => {
         .handler(async () => ({} as any))
         .build();
       
+      // @ts-expect-error - Test uses schema with defaults which creates type mismatch
       const parser = createArgParser(command);
       const result = parser(['--dry-run', '--skip-tests']);
       
@@ -159,6 +161,7 @@ describe('Command Infrastructure', () => {
         .handler(async () => ({} as any))
         .build();
       
+      // @ts-expect-error - Test uses schema with defaults which creates type mismatch
       const parser = createArgParser(command);
       const result = parser(['--no-compress']);
       
@@ -188,6 +191,7 @@ describe('Command Infrastructure', () => {
         .handler(async () => ({} as any))
         .build();
       
+      // @ts-expect-error - Test uses schema with defaults which creates type mismatch
       const parser = createArgParser(command);
       
       // Valid arguments

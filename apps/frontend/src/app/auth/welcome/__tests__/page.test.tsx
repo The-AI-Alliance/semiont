@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useSession, signOut } from 'next-auth/react';
@@ -46,8 +47,8 @@ describe('Welcome Page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useRouter as vi.Mock).mockReturnValue(mockRouter);
-    (useSession as vi.Mock).mockReturnValue({
+    (useRouter as Mock).mockReturnValue(mockRouter);
+    (useSession as Mock).mockReturnValue({
       data: mockSession,
       status: 'authenticated',
     });
@@ -55,7 +56,7 @@ describe('Welcome Page', () => {
 
   describe('Authentication Checks', () => {
     it('redirects to signin if unauthenticated', async () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: null,
         status: 'unauthenticated',
       });
@@ -68,7 +69,7 @@ describe('Welcome Page', () => {
     });
 
     it('shows loading state while checking session', () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: null,
         status: 'loading',
       });
@@ -110,7 +111,7 @@ describe('Welcome Page', () => {
     });
 
     it('redirects existing users (not new) to home', async () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: {
           ...mockSession,
           isNewUser: false,
@@ -126,7 +127,7 @@ describe('Welcome Page', () => {
     });
 
     it('handles missing backend token gracefully', () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: {
           ...mockSession,
           backendToken: undefined,
@@ -310,7 +311,7 @@ describe('Welcome Page', () => {
 
   describe('Edge Cases', () => {
     it('handles user without name gracefully', () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: {
           ...mockSession,
           user: {
@@ -327,7 +328,7 @@ describe('Welcome Page', () => {
     });
 
     it('handles user with single name', () => {
-      (useSession as vi.Mock).mockReturnValue({
+      (useSession as Mock).mockReturnValue({
         data: {
           ...mockSession,
           user: {

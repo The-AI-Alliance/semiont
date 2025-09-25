@@ -4,6 +4,7 @@
 
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { beforeAll, afterEach, afterAll } from 'vitest';
 
 // Mock handlers for external services
 export const handlers = [
