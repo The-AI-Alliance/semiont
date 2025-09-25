@@ -11,7 +11,6 @@ const fs = require('fs');
 const packages = [
   '@semiont/core-types',
   '@semiont/utils',
-  '@semiont/api-contracts',
   '@semiont/test-utils',
   '@semiont/mcp-server'
 ];

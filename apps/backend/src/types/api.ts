@@ -1,6 +1,6 @@
 // API Request and Response Type Definitions
-// Re-export all types from the shared API contracts package
-export * from '@semiont/api-contracts';
+// Re-export JWT types from local definitions to avoid TypeScript hanging
+export * from './jwt-types';
 
-// Import and re-export validation types for backward compatibility
-export type { GoogleAuthRequest } from '@semiont/api-contracts';
+// Note: Other types from api-contracts are not re-exported to prevent TypeScript hanging
+// If you need specific types, import them directly from their local definitions

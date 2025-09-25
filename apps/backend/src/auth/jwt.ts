@@ -1,6 +1,6 @@
 import * as jwt from 'jsonwebtoken';
-import { JWTPayloadSchema, validateData } from '../validation/schemas';
-import { JWTPayload as ValidatedJWTPayload } from '@semiont/api-contracts';
+import { JWTPayloadSchema } from '../types/jwt-types';
+import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 
 export interface JWTPayload {
   userId: string;
@@ -104,13 +104,13 @@ export class JWTService {
       const decoded = jwt.verify(token, this.getSecret());
       
       // Then validate the payload structure and content
-      const validation = validateData(JWTPayloadSchema, decoded);
-      
-      if (!validation.success) {
-        throw new Error(`Invalid token payload: ${validation.error}`);
+      const result = JWTPayloadSchema.safeParse(decoded);
+
+      if (!result.success) {
+        throw new Error(`Invalid token payload: ${result.error.message}`);
       }
-      
-      return validation.data as ValidatedJWTPayload;
+
+      return result.data;
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
         throw new Error('Invalid token signature');

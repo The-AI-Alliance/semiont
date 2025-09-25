@@ -34,8 +34,8 @@ import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
-import { documentsRouter } from './routes/documents';
-import { selectionsRouter } from './routes/selections';
+import { documentsRouter } from './routes/documents/index';
+import { selectionsRouter } from './routes/selections/index';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
