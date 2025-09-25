@@ -122,6 +122,7 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
+          OAUTH_ALLOWED_DOMAINS: test.semiont.com
 
   test-cli:
     name: CLI Tests
@@ -240,6 +241,7 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
+          OAUTH_ALLOWED_DOMAINS: test.semiont.com
           
 
   validate-config:
