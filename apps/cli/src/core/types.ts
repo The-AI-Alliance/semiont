@@ -32,24 +32,8 @@ export interface CommandResult {
   code?: number;
 }
 
-// Error types
-export class ScriptError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public details?: Record<string, any>
-  ) {
-    super(message);
-    this.name = 'ScriptError';
-  }
-}
-
-export class ValidationError extends ScriptError {
-  constructor(message: string, details?: Record<string, any>) {
-    super(message, 'VALIDATION_ERROR', details);
-    this.name = 'ValidationError';
-  }
-}
+// Re-export error types from utils for backward compatibility
+export { ScriptError, ValidationError } from '@semiont/utils';
 
 // Service types for script operations
 // export type ServiceType = 'frontend' | 'backend' | 'both';
@@ -64,18 +48,8 @@ export interface Awaitable<T> {
   ): Promise<TResult1 | TResult2>;
 }
 
-// Type guards
-export function isString(value: unknown): value is string {
-  return typeof value === 'string';
-}
-
-export function isNumber(value: unknown): value is number {
-  return typeof value === 'number' && !isNaN(value);
-}
-
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+// Re-export type guards from utils for backward compatibility
+export { isString, isNumber, isObject } from '@semiont/utils';
 
 export function isLogMode(value: string): value is LogMode {
   return ['tail', 'follow', 'all', 'waf'].includes(value);

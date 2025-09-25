@@ -3,7 +3,8 @@
  * Prevents injection attacks and ensures data integrity
  */
 
-import { ValidationResult, ValidationError } from './types.js';
+import { ValidationResult } from './types.js';
+import { ValidationError } from '@semiont/utils';
 import { logger } from './io/logger.js';
 
 /**

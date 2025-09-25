@@ -7,7 +7,7 @@ import { getGraphDatabase } from '../graph/factory';
 import { generateDocumentFromTopic } from '../inference/factory';
 import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection } from '@semiont/core-types';
-import { calculateChecksum } from '../utils/checksum';
+import { calculateChecksum } from '@semiont/utils';
 import {
   SelectionSchema,
   CreateSelectionRequestSchema,

@@ -15,7 +15,7 @@ import { getGraphDatabase } from '../graph/factory';
 import { getStorageService } from '../storage/filesystem';
 import type { Document, Selection, UpdateDocumentInput, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
-import { calculateChecksum } from '../utils/checksum';
+import { calculateChecksum } from '@semiont/utils';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../inference/factory';
 import { extractEntities } from '../inference/entity-extractor';
 
