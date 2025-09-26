@@ -242,7 +242,7 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
 
   const resolved = await graphDb.resolveSelection({
     selectionId: id,
-    targetDocumentId: body.targetDocumentId,
+    documentId: body.targetDocumentId,
     resolvedBy: user.id
   });
 

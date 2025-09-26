@@ -55,11 +55,7 @@ export const getDocumentLLMContextRoute = createRoute({
               })),
             }),
             summary: z.string().optional(),
-            suggestedReferences: z.array(z.object({
-              text: z.string(),
-              potentialEntity: z.string(),
-              confidence: z.number(),
-            })).optional(),
+            suggestedReferences: z.array(z.string()).optional(),
           }),
         },
       },
@@ -71,7 +67,7 @@ export const getDocumentLLMContextRoute = createRoute({
 export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
   router.openapi(getDocumentLLMContextRoute, async (c) => {
     const { id } = c.req.valid('param');
-    const { depth, maxDocuments, includeContent, includeSummary } = c.req.valid('query');
+    const { maxDocuments, includeContent, includeSummary } = c.req.valid('query');
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 

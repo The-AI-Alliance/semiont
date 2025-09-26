@@ -47,7 +47,6 @@ export const discoverContextRoute = createRoute({
 export function registerDiscoverContext(router: DocumentsRouterType) {
   router.openapi(discoverContextRoute, async (c) => {
     const { id } = c.req.valid('param');
-    const { depth } = c.req.valid('json');
     const graphDb = await getGraphDatabase();
 
     // Get document connections
