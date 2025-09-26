@@ -34,8 +34,10 @@ import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
-import { documentsRouter } from './routes/documents';
-import { selectionsRouter } from './routes/selections';
+import { documentsRouter } from './routes/documents/index';
+import { selectionsRouter } from './routes/selections/index';
+import { entityTypesRouter } from './routes/entity-types';
+import { referenceTypesRouter } from './routes/reference-types';
 
 // Import OpenAPI config
 import { openApiConfig } from './openapi';
@@ -103,6 +105,8 @@ app.route('/', statusRouter);
 app.route('/', adminRouter);
 app.route('/', documentsRouter);
 app.route('/', selectionsRouter);
+app.route('/', entityTypesRouter);
+app.route('/', referenceTypesRouter);
 
 // Test inference route
 app.get('/api/test-inference', async (c) => {
@@ -204,6 +208,11 @@ app.get('/api/swagger', (c) => {
   const token = c.req.query('token');
   const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
   return c.redirect(redirectUrl);
+});
+
+// 404 handler for non-existent API routes
+app.all('/api/*', (c) => {
+  return c.json({ error: 'Not found' }, 404);
 });
 
 // Start server

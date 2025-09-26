@@ -4,25 +4,103 @@ This document describes the overall architecture of the Semiont platform, focusi
 
 ## Overview
 
-Semiont is a cloud-native semantic knowledge platform built on AWS using Infrastructure as Code (CDK) with a modern microservices architecture. The platform is designed for scalability, security, and maintainability with a clean separation between infrastructure provisioning and application deployment.
+Semiont is a cloud-native semantic knowledge platform built on AWS using Infrastructure as Code (CDK) with a modern microservices architecture. The platform is designed for scalability, security, and maintainability with a clean separation between data infrastructure provisioning and application deployment.
+
+**Quick Navigation:**
+- [Data Infrastructure Components](#data-infrastructure-components) - VPC, RDS, EFS setup
+- [Application Architecture](#application-architecture) - Frontend/Backend services
+- [Authentication](#authentication-architecture) - OAuth and JWT implementation
+- [Security](#security-architecture) - Network and application security
+- [Database Management](./DATABASE.md) - PostgreSQL and migrations
+- [Graph Implementation](./GRAPH.md) - Graph database patterns
 
 ## High-Level Architecture
 
-```
-Internet → CloudFront → WAF → ALB → ECS Fargate Services
-                                      ├── Frontend (Next.js)
-                                      └── Backend (Node.js/Hono)
-                                           └── PostgreSQL RDS
+```mermaid
+graph TB
+    subgraph "Internet"
+        Users[Users/Browsers]
+    end
+
+    subgraph "AWS Edge"
+        CF[CloudFront CDN]
+        WAF[AWS WAF]
+    end
+
+    subgraph "Public Subnet"
+        ALB[Application Load Balancer]
+    end
+
+    subgraph "Private Subnet"
+        subgraph "ECS Fargate Cluster"
+            Frontend[Frontend Service<br/>Next.js 14]
+            Backend[Backend Service<br/>Hono API]
+        end
+    end
+
+    subgraph "Database Subnet"
+        RDS[(PostgreSQL RDS)]
+        EFS[EFS Storage]
+    end
+
+    subgraph "AWS Services"
+        SM[Secrets Manager]
+        CW[CloudWatch]
+        SNS[SNS Alerts]
+    end
+
+    Users --> CF
+    CF --> WAF
+    WAF --> ALB
+    ALB -->|/auth/*| Frontend
+    ALB -->|/api/*| Backend
+    ALB -->|/*| Frontend
+    Backend --> RDS
+    Backend --> EFS
+    Backend --> SM
+    Frontend --> SM
+    Backend --> CW
+    Frontend --> CW
+    CW --> SNS
 ```
 
-## Infrastructure Components
+## Data Infrastructure Components
 
 ### Two-Stack Architecture
 
-The Semiont platform uses a **two-stack deployment model** that separates long-lived infrastructure from frequently updated application code:
+The Semiont platform uses a **two-stack deployment model** that separates long-lived data infrastructure from frequently updated application code:
 
-#### 1. Infrastructure Stack (`SemiontInfraStack`)
-**Purpose**: Provisions foundational AWS resources that rarely change
+```mermaid
+graph LR
+    subgraph "Data Stack"
+        VPC[VPC & Networking]
+        RDS2[(RDS Database)]
+        EFS2[EFS Storage]
+        SEC[Security Groups]
+        IAM[IAM Roles]
+        SM2[Secrets Manager]
+    end
+
+    subgraph "Application Stack"
+        ECS[ECS Cluster]
+        SVCS[ECS Services]
+        ALB2[Load Balancer]
+        WAF2[WAF Rules]
+        CF2[CloudFront]
+        R53[Route 53]
+        CW2[CloudWatch]
+    end
+
+    VPC --> ECS
+    RDS2 --> SVCS
+    EFS2 --> SVCS
+    SEC --> SVCS
+    IAM --> SVCS
+    SM2 --> SVCS
+```
+
+#### 1. Data Stack (`SemiontDataStack`)
+**Purpose**: Provisions foundational AWS data resources that rarely change
 
 **Components**:
 - **VPC with 3-tier networking**:
@@ -54,11 +132,11 @@ The Semiont platform uses a **two-stack deployment model** that separates long-l
 
 ### Benefits of Two-Stack Model
 
-1. **Faster Deployments**: App stack deploys in ~5 minutes vs full infrastructure
-2. **Lower Risk**: Database and core infrastructure remain stable
+1. **Faster Deployments**: App stack deploys in ~5 minutes vs full data infrastructure
+2. **Lower Risk**: Database and core data infrastructure remain stable
 3. **Cost Control**: Avoid accidental deletion of expensive resources
-4. **Easier Rollbacks**: Application rollbacks don't affect infrastructure
-5. **Environment Isolation**: Different app stacks can share infrastructure
+4. **Easier Rollbacks**: Application rollbacks don't affect data infrastructure
+5. **Environment Isolation**: Different app stacks can share data infrastructure
 
 ## Application Architecture
 
@@ -85,9 +163,9 @@ The application layer consists of two separate ECS services running on Fargate:
 - **Architecture Pattern**: Backend for Frontend (BFF) - optimized API layer for the Next.js frontend
 - **Framework**: OpenAPIHono (Hono with OpenAPI integration)
 - **Language**: TypeScript
-- **Database ORM**: Prisma with PostgreSQL
-- **Authentication**: JWT tokens for API access
-- **API**: RESTful endpoints with automatic OpenAPI documentation
+- **Database ORM**: Prisma with PostgreSQL (see [DATABASE.md](./DATABASE.md) for details)
+- **Authentication**: JWT tokens for API access (see [Authentication Architecture](#authentication-architecture))
+- **API**: RESTful endpoints with automatic OpenAPI documentation (accessible at `/api`)
 - **Validation**: Zod schemas for request/response validation
 - **Container**: Alpine Linux with Node.js 18
 
@@ -128,8 +206,35 @@ Each router:
 
 ### Service Communication
 
-```
-Browser ↔ Frontend (Next.js) ↔ ALB ↔ Backend (Hono) ↔ PostgreSQL
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant CloudFront
+    participant ALB
+    participant Frontend
+    participant Backend
+    participant Database
+
+    Browser->>CloudFront: HTTPS Request
+    CloudFront->>ALB: Forward Request
+
+    alt OAuth Flow (/auth/*)
+        ALB->>Frontend: Route to NextAuth
+        Frontend->>Browser: Handle OAuth
+    else API Call (/api/*)
+        ALB->>Backend: Route to API
+        Backend->>Database: Query Data
+        Database-->>Backend: Return Data
+        Backend-->>ALB: JSON Response
+    else UI Request (/*)
+        ALB->>Frontend: Route to Next.js
+        Frontend->>Backend: API Request (if needed)
+        Backend-->>Frontend: JSON Data
+        Frontend-->>ALB: HTML/React
+    end
+
+    ALB-->>CloudFront: Response
+    CloudFront-->>Browser: Cached Response
 ```
 
 1. **Browser to Frontend**: Direct HTTPS connection via CloudFront/ALB
@@ -226,12 +331,56 @@ OAuth authentication handled by NextAuth.js:
 All infrastructure defined in TypeScript using AWS CDK:
 
 **Advantages**:
-- **Type Safety**: Compile-time infrastructure validation
+- **Type Safety**: Compile-time validation
 - **Reusability**: Shared constructs and patterns
-- **Version Control**: Infrastructure changes tracked in Git
+- **Version Control**: All changes tracked in Git
 - **Automated Rollbacks**: CloudFormation change sets
 
 ## Authentication Architecture
+
+```mermaid
+graph TD
+    subgraph "Browser"
+        User[User Login]
+        Session[Session Cookie]
+    end
+
+    subgraph "Frontend - Next.js"
+        NextAuth[NextAuth.js]
+        Pages[Protected Pages]
+    end
+
+    subgraph "OAuth Provider"
+        Google[Google OAuth 2.0]
+    end
+
+    subgraph "Backend - Hono"
+        JWT[JWT Validator]
+        API[Protected APIs]
+        TokenGen[Token Generator]
+    end
+
+    subgraph "Database"
+        Users[(Users Table)]
+    end
+
+    User -->|1. Login| NextAuth
+    NextAuth -->|2. OAuth Flow| Google
+    Google -->|3. User Info| NextAuth
+    NextAuth -->|4. Create Session| Session
+    NextAuth -->|5. Store User| Users
+
+    Pages -->|6. API Request + JWT| JWT
+    JWT -->|7. Validate| API
+    API -->|8. Response| Pages
+
+    subgraph "MCP Client Flow"
+        MCP[MCP Client]
+        MCP -->|Browser Auth| NextAuth
+        NextAuth -->|Get Token| TokenGen
+        TokenGen -->|Refresh Token| MCP
+    end
+```
 
 ### Authentication Model
 
@@ -350,6 +499,48 @@ Admin endpoints require additional authorization:
 
 ## Scalability Design
 
+```mermaid
+graph TB
+    subgraph "Auto Scaling"
+        ASG[Auto Scaling Group]
+        CPU[CPU Metric > 70%]
+        MEM[Memory Metric > 80%]
+    end
+
+    subgraph "ECS Services"
+        F1[Frontend Task 1]
+        F2[Frontend Task 2]
+        F3[Frontend Task N]
+        B1[Backend Task 1]
+        B2[Backend Task 2]
+        B3[Backend Task N]
+    end
+
+    subgraph "Load Distribution"
+        ALB3[Application Load Balancer]
+        TG_F[Frontend Target Group]
+        TG_B[Backend Target Group]
+    end
+
+    CPU --> ASG
+    MEM --> ASG
+    ASG --> F1
+    ASG --> F2
+    ASG --> F3
+    ASG --> B1
+    ASG --> B2
+    ASG --> B3
+
+    ALB3 --> TG_F
+    ALB3 --> TG_B
+    TG_F --> F1
+    TG_F --> F2
+    TG_F --> F3
+    TG_B --> B1
+    TG_B --> B2
+    TG_B --> B3
+```
+
 ### Horizontal Scaling
 - **ECS Auto Scaling**: CPU/memory-based task scaling
   - Backend: 1-10 tasks, scales at 70% CPU or 80% memory
@@ -384,7 +575,7 @@ Admin endpoints require additional authorization:
 - **Structured Logging**: JSON-formatted log entries with service-specific prefixes
 - **Error Tracking**: Application-level error monitoring
 
-### Infrastructure Monitoring  
+### System Monitoring
 - **ECS Service Metrics**: CPU, memory, task count
 - **ALB Metrics**: Request count, latency, error rates
 - **RDS Metrics**: Database performance and connections
@@ -408,18 +599,26 @@ Admin endpoints require additional authorization:
 ## Development Workflow
 
 ### Local Development
+
+For detailed local development instructions, see [LOCAL-DEVELOPMENT.md](./LOCAL-DEVELOPMENT.md).
+
 ```bash
 # Frontend development
 cd apps/frontend && npm run dev
 
-# Backend development  
+# Backend development
 cd apps/backend && npm run dev
 
 # Database migrations
 cd apps/backend && npm run prisma:migrate
 ```
 
+For testing strategies, see [TESTING.md](./TESTING.md).
+
 ### Deployment Pipeline
+
+For complete deployment procedures, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ```bash
 # Set default environment
 export SEMIONT_ENV=production
@@ -435,6 +634,8 @@ semiont restart  # All services
 semiont restart --service frontend  # Specific service
 semiont watch logs  # Monitor logs
 ```
+
+For configuration management, see [CONFIGURATION.md](./CONFIGURATION.md).
 
 ### Management Scripts
 TypeScript-based management scripts provide:

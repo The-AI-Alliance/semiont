@@ -383,8 +383,10 @@ await Promise.all(scriptFiles.map(async (name) => {
         // CDK is optional - projects can provide their own
         'aws-cdk-lib',
         'constructs',
-        // Local workspace packages
+        // Local workspace packages - keep external to avoid CommonJS/ESM issues
         '@semiont/api-types',
+        '@semiont/core-types',
+        '@semiont/utils',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',

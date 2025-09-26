@@ -14,7 +14,7 @@ import {
   UpdateDocumentInput,
   CreateSelectionInput,
   ResolveSelectionInput,
-} from '../types';
+} from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Dynamic imports for AWS SDK and Gremlin
@@ -117,7 +117,8 @@ function vertexToSelection(vertex: any): Selection {
   // Get required fields
   const id = getValue('id', true);
   const documentId = getValue('documentId', true);
-  const selectionType = getValue('selectionType', true);
+  // selectionType exists in the graph but not exposed in the Selection interface
+  getValue('selectionType', true); // Validate it exists but don't use
   const selectionDataRaw = getValue('selectionData', true);
   const provisional = getValue('provisional', true);
   const createdAtRaw = getValue('createdAt', true);
@@ -126,7 +127,6 @@ function vertexToSelection(vertex: any): Selection {
   const selection: Selection = {
     id,
     documentId,
-    selectionType,
     selectionData: JSON.parse(selectionDataRaw),
     provisional: provisional === 'true' || provisional === true,
     createdAt: new Date(createdAtRaw),
@@ -152,8 +152,6 @@ function vertexToSelection(vertex: any): Selection {
   const entityTypes = getValue('entityTypes');
   if (entityTypes) selection.entityTypes = JSON.parse(entityTypes);
 
-  const confidence = getValue('confidence');
-  if (confidence !== undefined) selection.confidence = parseFloat(confidence);
 
   const metadata = getValue('metadata');
   if (metadata) selection.metadata = JSON.parse(metadata);
@@ -473,10 +471,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const id = this.generateId();
     const now = new Date();
     
+    // Calculate selectionType for graph storage
+    const selectionType = input.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
+
     const selection: Selection = {
       id,
       documentId: input.documentId,
-      selectionType: input.selectionType,
       selectionData: input.selectionData,
       provisional: input.provisional || false,
       createdAt: now,
@@ -498,7 +498,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     
     if (input.referenceTags) selection.referenceTags = input.referenceTags;
     if (input.entityTypes) selection.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) selection.confidence = input.confidence;
     if (input.metadata) selection.metadata = input.metadata;
     
     try {
@@ -506,7 +505,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const vertex = this.g.addV('Selection')
         .property('id', selection.id)
         .property('documentId', selection.documentId)
-        .property('selectionType', selection.selectionType)
+        .property('selectionType', selectionType)
         .property('selectionData', JSON.stringify(selection.selectionData))
         .property('provisional', selection.provisional.toString())
         .property('createdAt', selection.createdAt.toISOString())
@@ -530,9 +529,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       if (selection.entityTypes) {
         vertex.property('entityTypes', JSON.stringify(selection.entityTypes));
-      }
-      if (selection.confidence !== undefined) {
-        vertex.property('confidence', selection.confidence.toString());
       }
       if (selection.metadata) {
         vertex.property('metadata', JSON.stringify(selection.metadata));
@@ -599,9 +595,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       if (updates.entityTypes !== undefined) {
         traversal = traversal.property('entityTypes', JSON.stringify(updates.entityTypes));
-      }
-      if (updates.confidence !== undefined) {
-        traversal = traversal.property('confidence', updates.confidence.toString());
       }
       if (updates.metadata !== undefined) {
         traversal = traversal.property('metadata', JSON.stringify(updates.metadata));
@@ -750,9 +743,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       if (input.entityTypes) {
         traversal = traversal.property('entityTypes', JSON.stringify(input.entityTypes));
-      }
-      if (input.confidence !== undefined) {
-        traversal = traversal.property('confidence', input.confidence.toString());
       }
       if (input.resolvedBy) {
         traversal = traversal.property('resolvedBy', input.resolvedBy);

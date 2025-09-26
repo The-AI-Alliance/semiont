@@ -118,7 +118,7 @@ aws application-autoscaling describe-scaling-activities \
   --service-namespace ecs --resource-id service/SemiontCluster/semiont-backend
 
 # Check EFS file system usage
-EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
+EFS_ID=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`EFSFileSystemId`].OutputValue' --output text)
 aws efs describe-file-systems --file-system-id $EFS_ID --query 'FileSystems[0].SizeInBytes'
 ```
 
@@ -138,9 +138,9 @@ aws efs describe-file-systems --file-system-id $EFS_ID --query 'FileSystems[0].S
 **Infrastructure Review:**
 
 - [ ] Review cost trends and optimize resource allocation
-- [ ] Check for AWS service updates or deprecation notices  
-- [ ] Review backup retention and test restore procedures
-- [ ] Update CDK dependencies and redeploy if needed
+- [ ] Check for AWS service updates or deprecation notices
+- [ ] Review backup retention and test restore procedures (Data Stack)
+- [ ] Update CDK dependencies for both stacks if needed
 - [ ] Review EFS backup policies and test file restoration
 - [ ] Validate two-stack deployment model is working efficiently
 
@@ -148,7 +148,7 @@ aws efs describe-file-systems --file-system-id $EFS_ID --query 'FileSystems[0].S
 
 ```bash
 # Rotate database password
-DB_SECRET_NAME=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretName`].OutputValue' --output text)
+DB_SECRET_NAME=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretName`].OutputValue' --output text)
 aws secretsmanager rotate-secret --secret-id $DB_SECRET_NAME
 
 # Update application dependencies
@@ -161,7 +161,7 @@ npm update
 npm audit fix
 
 # Deploy updates (two-stack model)
-npx cdk diff SemiontInfraStack
+npx cdk diff SemiontDataStack
 npx cdk diff SemiontAppStack
 npx cdk deploy SemiontAppStack  # Deploy app stack first for most updates
 
@@ -193,11 +193,11 @@ semiont restart
 - [ ] Review frontend/backend service communication efficiency
 - [ ] Optimize database connection pooling and query performance
 
-**Infrastructure Updates:**
+**Stack Updates:**
 
-- [ ] Update to latest PostgreSQL minor version
-- [ ] Update ECS platform version if available
-- [ ] Review and update CDK to latest version
+- [ ] Data Stack: Update to latest PostgreSQL minor version
+- [ ] App Stack: Update ECS platform version if available
+- [ ] Both Stacks: Review and update CDK to latest version
 - [ ] Test disaster recovery procedures for both stacks
 - [ ] Update Node.js runtime versions for ECS tasks
 - [ ] Review and update EFS backup and restore procedures
@@ -269,7 +269,7 @@ semiont restart --service backend
 semiont exec --service backend 'pg_isready -h $DB_HOST -p $DB_PORT'
 
 # Check RDS instance status
-DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontInfraStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
+DB_IDENTIFIER=$(aws cloudformation describe-stacks --stack-name SemiontDataStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseIdentifier`].OutputValue' --output text)
 aws rds describe-db-instances --db-instance-identifier $DB_IDENTIFIER
 
 # Check database connections

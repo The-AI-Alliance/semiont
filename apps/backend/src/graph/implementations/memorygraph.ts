@@ -17,7 +17,7 @@ import {
   isHighlight,
   isReference,
   isEntityReference,
-} from '../types';
+} from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Simple in-memory storage using Maps
@@ -173,7 +173,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const selection: Selection = {
       id,
       documentId: input.documentId,
-      selectionType: input.selectionType,
       selectionData: input.selectionData,
       provisional: input.provisional || false,
       createdAt: now,
@@ -195,7 +194,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     
     if (input.referenceTags) selection.referenceTags = input.referenceTags;
     if (input.entityTypes) selection.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) selection.confidence = input.confidence;
     if (input.metadata) selection.metadata = input.metadata;
     
     // Simply add to selections map
@@ -308,7 +306,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     
     if (input.referenceTags) updated.referenceTags = input.referenceTags;
     if (input.entityTypes) updated.entityTypes = input.entityTypes;
-    if (input.confidence !== undefined) updated.confidence = input.confidence;
     if (input.resolvedBy) updated.resolvedBy = input.resolvedBy;
     if (input.metadata || sel.metadata) {
       updated.metadata = { ...sel.metadata, ...input.metadata };

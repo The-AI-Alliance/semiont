@@ -10,6 +10,7 @@ import * as path from 'path';
 import { ConfigurationError } from './configuration-error.js';
 import { findProjectRoot } from './project-discovery.js';
 import { PlatformType } from './platform-types.js';
+import { isObject } from '@semiont/utils';
 
 /**
  * Environment configuration structure
@@ -131,9 +132,6 @@ function deepMerge(target: any, ...sources: any[]): any {
   return deepMerge(target, ...sources);
 }
 
-function isObject(item: any): boolean {
-  return item && typeof item === 'object' && !Array.isArray(item);
-}
 
 /**
  * Recursively resolve environment variable placeholders in configuration

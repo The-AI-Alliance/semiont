@@ -1,0 +1,29 @@
+{
+  "name": "@semiont/core-types",
+  "version": "0.1.0",
+  "description": "Core domain types for Semiont - Document, Selection, and Graph models",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "types",
+    "domain",
+    "document",
+    "selection",
+    "graph",
+    "semiont"
+  ],
+  "author": "Semiont Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

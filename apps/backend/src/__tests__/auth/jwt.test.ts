@@ -30,15 +30,22 @@ vi.mock('jsonwebtoken', () => ({
   },
 }));
 
-// Mock validation schemas
+// Mock validation schemas - not needed anymore since JWT uses direct imports
 vi.mock('../../validation/schemas', () => ({
   validateData: vi.fn((_schema, data) => ({ success: true, data })),
   JWTPayloadSchema: {},
 }));
 
+// Mock the jwt-types JWTPayloadSchema
+vi.mock('../../types/jwt-types', () => ({
+  JWTPayloadSchema: {
+    safeParse: vi.fn((data) => ({ success: true, data })),
+  },
+}));
+
 describe('JWT Service', () => {
   const mockUser: User = {
-    id: 'user-123',
+    id: 'clh1o0p0f0000qzrmn831i7rn', // Valid CUID format
     email: 'user@example.com',
     name: 'Test User',
     image: 'https://example.com/avatar.jpg',
@@ -85,7 +92,7 @@ describe('JWT Service', () => {
       expect(result).toBe(expectedToken);
       expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         {
-          userId: 'user-123',
+          userId: 'clh1o0p0f0000qzrmn831i7rn',
           email: 'user@example.com',
           name: 'Test User',
           domain: 'example.com',
@@ -138,7 +145,7 @@ describe('JWT Service', () => {
       expect(result).toBe(expectedToken);
       expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: 'user-123',
+          userId: 'clh1o0p0f0000qzrmn831i7rn',
           email: 'user@example.com',
           domain: 'example.com',
           provider: 'google',
@@ -189,7 +196,7 @@ describe('JWT Service', () => {
 
   describe('verifyToken', () => {
     const validPayload = {
-      userId: 'user-123',
+      userId: 'clh1o0p0f0000qzrmn831i7rn',
       email: 'user@example.com',
       name: 'Test User',
       domain: 'example.com',
@@ -200,9 +207,9 @@ describe('JWT Service', () => {
     };
 
     beforeEach(async () => {
-      // Mock successful validation
-      const { validateData } = await import('../../validation/schemas');
-      vi.mocked(validateData).mockReturnValue({ success: true, data: validPayload });
+      // Reset the mock for each test
+      const { JWTPayloadSchema } = await import('../../types/jwt-types');
+      vi.mocked(JWTPayloadSchema.safeParse).mockReturnValue({ success: true, data: validPayload });
     });
 
     it('should verify valid JWT token', () => {
@@ -220,9 +227,9 @@ describe('JWT Service', () => {
     it('should verify admin token correctly', async () => {
       const adminPayload = { ...validPayload, isAdmin: true };
       vi.mocked(jwt.verify).mockReturnValue(adminPayload as any);
-      
-      const { validateData } = await import('../../validation/schemas');
-      vi.mocked(validateData).mockReturnValue({ success: true, data: adminPayload });
+
+      const { JWTPayloadSchema } = await import('../../types/jwt-types');
+      vi.mocked(JWTPayloadSchema.safeParse).mockReturnValue({ success: true, data: adminPayload });
 
       const result = JWTService.verifyToken('admin.jwt.token');
 
@@ -258,12 +265,12 @@ describe('JWT Service', () => {
 
     it('should handle payload validation errors', async () => {
       vi.mocked(jwt.verify).mockReturnValue(validPayload as any);
-      
-      const { validateData } = await import('../../validation/schemas');
-      vi.mocked(validateData).mockReturnValue({ 
-        success: false, 
-        error: 'Invalid payload structure' 
-      });
+
+      const { JWTPayloadSchema } = await import('../../types/jwt-types');
+      vi.mocked(JWTPayloadSchema.safeParse).mockReturnValue({
+        success: false,
+        error: { message: 'Invalid payload structure' }
+      } as any);
 
       expect(() => JWTService.verifyToken('invalid.payload.token'))
         .toThrow('Invalid token payload: Invalid payload structure');

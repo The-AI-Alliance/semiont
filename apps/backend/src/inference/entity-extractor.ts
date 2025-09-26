@@ -21,6 +21,11 @@ export async function extractEntities(
   text: string,
   entityTypes: string[] | { type: string; examples?: string[] }[]
 ): Promise<ExtractedEntity[]> {
+  console.log('extractEntities called with:', {
+    textLength: text.length,
+    entityTypes: Array.isArray(entityTypes) ? entityTypes.map(et => typeof et === 'string' ? et : et.type) : []
+  });
+
   const client = await getInferenceClient();
 
   // Format entity types for the prompt
@@ -52,6 +57,7 @@ Do not include markdown formatting or code fences, just the raw JSON array.
 Example output:
 [{"text":"Alice","entityType":"Person","startOffset":0,"endOffset":5},{"text":"Paris","entityType":"Location","startOffset":20,"endOffset":25}]`;
 
+  console.log('Sending entity extraction request to model:', getInferenceModel());
   const response = await client.messages.create({
     model: getInferenceModel(),
     max_tokens: 1000,
@@ -63,11 +69,15 @@ Example output:
       }
     ]
   });
+  console.log('Got entity extraction response');
 
   const textContent = response.content.find(c => c.type === 'text');
   if (!textContent || textContent.type !== 'text') {
+    console.warn('No text content in entity extraction response');
     return [];
   }
+
+  console.log('Entity extraction raw response length:', textContent.text.length);
 
   try {
     // Clean up response if wrapped in markdown
@@ -77,6 +87,7 @@ Example output:
     }
 
     const entities = JSON.parse(jsonStr);
+    console.log('Parsed', entities.length, 'entities from response');
 
     // Validate and fix offsets
     return entities.map((entity: any) => {

@@ -34,16 +34,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and CLI
+      - name: Install dependencies and build packages
         run: |
           cd ../..
           npm install
-          cd apps/cli && npm run build && npm link
+          npm run build:packages
 
-      - name: Build required packages
+      - name: Build and install CLI
         run: |
           cd ../..
-          npm run build:packages
+          cd apps/cli && npm run build && npm link
 
       - name: Run security tests
         run: npm run test:security
@@ -170,16 +170,24 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install dependencies and CLI
+      - name: Cache TypeScript incremental build info
+        uses: actions/cache@v3
+        with:
+          path: apps/backend/.tscache
+          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/backend/src/**/*.ts', 'apps/backend/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-tsc-
+
+      - name: Install dependencies and build packages
         run: |
           cd ../..
           npm install
-          cd apps/cli && npm run build && npm link
+          npm run build:packages
 
-      - name: Build required packages
+      - name: Build and install CLI
         run: |
           cd ../..
-          npm run build:packages
+          cd apps/cli && npm run build && npm link
       
       - name: Setup test database and config
         run: |
@@ -239,8 +247,13 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
 
-      - name: Build application
-        run: npm run build
+      - name: Run TypeScript type checking
+        run: npm run typecheck
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
+
+      - name: Build application (fast)
+        run: npm run build:fast
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci

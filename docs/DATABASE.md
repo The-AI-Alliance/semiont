@@ -13,7 +13,7 @@ Semiont uses PostgreSQL as its primary database, managed through AWS RDS with th
 
 ## Database Architecture
 
-### Infrastructure
+### Data Infrastructure
 
 - **AWS RDS PostgreSQL**: Multi-AZ deployment in private subnets
 - **Security Groups**: Database access restricted to ECS tasks only
@@ -87,7 +87,7 @@ Database credentials are managed through AWS Secrets Manager and automatically i
 ```bash
 # Get database connection string
 SECRET_NAME=$(aws cloudformation describe-stacks \
-  --stack-name YourInfraStackName \
+  --stack-name YourDataStackName \
   --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretName`].OutputValue' \
   --output text)
 

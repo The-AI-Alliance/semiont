@@ -2,12 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { apiService } from '@/lib/api-client';
-import { 
-  mapBackendToFrontendSelection,
-  type HighlightsApiResponse,
-  type ReferencesApiResponse,
-  type SelectionsApiResponse
-} from '@/lib/api-types';
+import type { Selection } from '@semiont/core-types';
 
 export interface Annotation {
   id: string;
@@ -62,20 +57,26 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     
     try {
       // Load highlights
-      const highlightsResponse = await apiService.selections.getHighlights(documentId) as unknown as HighlightsApiResponse | SelectionsApiResponse;
-      const highlightData = 'highlights' in highlightsResponse 
-        ? highlightsResponse.highlights 
+      const highlightsResponse = await apiService.selections.getHighlights(documentId) as any;
+      const highlightData = 'highlights' in highlightsResponse
+        ? highlightsResponse.highlights
         : highlightsResponse.selections;
-      const mappedHighlights = highlightData.map(mapBackendToFrontendSelection);
-      setHighlights(mappedHighlights.map(h => ({ ...h, type: 'highlight' as const })));
+      setHighlights(highlightData.map((h: Selection) => ({
+        ...h,
+        referencedDocumentId: h.resolvedDocumentId,
+        type: 'highlight' as const
+      })));
 
       // Load references
-      const referencesResponse = await apiService.selections.getReferences(documentId) as unknown as ReferencesApiResponse | SelectionsApiResponse;
-      const referenceData = 'references' in referencesResponse 
-        ? referencesResponse.references 
+      const referencesResponse = await apiService.selections.getReferences(documentId) as any;
+      const referenceData = 'references' in referencesResponse
+        ? referencesResponse.references
         : referencesResponse.selections;
-      const mappedReferences = referenceData.map(mapBackendToFrontendSelection);
-      setReferences(mappedReferences.map(r => ({ ...r, type: 'reference' as const })));
+      setReferences(referenceData.map((r: Selection) => ({
+        ...r,
+        referencedDocumentId: r.resolvedDocumentId,
+        type: 'reference' as const
+      })));
     } catch (err) {
       console.error('Failed to load annotations:', err);
       setError('Failed to load annotations');

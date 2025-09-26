@@ -1,13 +1,65 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-// Import shared API types
-import type {
-  StatusResponse,
-  AuthResponse,
-  UserResponse,
-  LogoutResponse,
-  HealthResponse,
-  ErrorResponse
-} from '@semiont/api-types';
+
+// Local type definitions to replace api-contracts imports
+interface StatusResponse {
+  status: string;
+  version: string;
+  features: {
+    semanticContent: string;
+    collaboration: string;
+    rbac: string;
+  };
+  message: string;
+  authenticatedAs?: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    image: string | null;
+    domain: string;
+    isAdmin: boolean;
+  };
+  token: string;
+  isNewUser: boolean;
+}
+
+interface UserResponse {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  domain: string;
+  provider: string;
+  isAdmin: boolean;
+  isActive: boolean;
+  termsAcceptedAt: string | null;
+  lastLogin: string | null;
+  createdAt: string;
+}
+
+interface LogoutResponse {
+  success: boolean;
+  message: string;
+}
+
+interface HealthResponse {
+  status: string;
+  message: string;
+  version: string;
+  timestamp: string;
+  database: 'connected' | 'disconnected' | 'unknown';
+  environment: string;
+}
+
+interface ErrorResponse {
+  error: string;
+  code?: string;
+  details?: any;
+}
 
 // Admin API types
 interface AdminUser {
@@ -526,11 +578,11 @@ export const apiService = {
       targetDocumentId: string;
       referenceType?: string;
     }): Promise<SelectionResponse> =>
-      apiClient.put('/api/selections/:id/resolve', { 
+      apiClient.put('/api/selections/:id/resolve', {
         params: { id: data.selectionId },
-        body: { 
+        body: {
           documentId: data.targetDocumentId,
-          referenceType: data.referenceType 
+          referenceType: data.referenceType
         }
       }),
     

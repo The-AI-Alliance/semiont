@@ -4,14 +4,67 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type {
-  HealthResponse,
-  StatusResponse,
-  AuthResponse,
-  UserResponse,
-  LogoutResponse,
-  ErrorResponse,
-} from '@semiont/api-types';
+
+// Local type definitions to replace api-contracts imports
+interface HealthResponse {
+  status: string;
+  message: string;
+  version: string;
+  timestamp: string;
+  database: 'connected' | 'disconnected' | 'unknown';
+  environment: string;
+}
+
+interface StatusResponse {
+  status: string;
+  version: string;
+  features: {
+    semanticContent: string;
+    collaboration: string;
+    rbac: string;
+  };
+  message: string;
+  authenticatedAs?: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    image: string | null;
+    domain: string;
+    isAdmin: boolean;
+  };
+  token: string;
+  isNewUser: boolean;
+}
+
+interface UserResponse {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  domain: string;
+  provider: string;
+  isAdmin: boolean;
+  isActive: boolean;
+  termsAcceptedAt: string | null;
+  lastLogin: string | null;
+  createdAt: string;
+}
+
+interface LogoutResponse {
+  success: boolean;
+  message: string;
+}
+
+interface ErrorResponse {
+  error: string;
+  code?: string;
+  details?: any;
+}
 
 
 describe('API Contract Tests', () => {
