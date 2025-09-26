@@ -383,11 +383,19 @@ export default function KnowledgeDocumentPage() {
             <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
               <div className="flex justify-between">
                 <span>Last Updated</span>
-                <span className="font-medium">{new Date(document.updatedAt).toLocaleDateString()}</span>
+                <span className="font-medium">
+                  {document.updatedAt && !isNaN(Date.parse(document.updatedAt))
+                    ? new Date(document.updatedAt).toLocaleDateString()
+                    : '---'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Created At</span>
-                <span className="font-medium">{new Date(document.createdAt).toLocaleDateString()}</span>
+                <span className="font-medium">
+                  {document.createdAt && !isNaN(Date.parse(document.createdAt))
+                    ? new Date(document.createdAt).toLocaleDateString()
+                    : '---'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Created By</span>
