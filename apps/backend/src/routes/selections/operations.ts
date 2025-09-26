@@ -5,6 +5,8 @@ import { formatDocument, formatSelection } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import { getInferenceClient } from '../../inference/factory';
+import { calculateChecksum } from '@semiont/utils';
+import { CREATION_METHODS } from '@semiont/core-types';
 import type { CreateDocumentInput } from '@semiont/core-types';
 
 // Create router with auth middleware
@@ -103,10 +105,13 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   // Create the new document
   const createDocInput: CreateDocumentInput = {
     name: body.name,
+    content: body.content || '',
     contentType: body.contentType,
+    contentChecksum: calculateChecksum(body.content || ''),
     createdBy: user.id,
     entityTypes: body.entityTypes || [],
     metadata: body.metadata || {},
+    creationMethod: CREATION_METHODS.API,
   };
 
   const document = await graphDb.createDocument(createDocInput);
@@ -212,19 +217,24 @@ ${body.prompt || 'Generate a detailed explanation of this concept'}`;
     }]
   });
 
-  const generatedContent = response.content[0].type === 'text' ? response.content[0].text : '';
+  const generatedContent = response.content[0] && response.content[0].type === 'text'
+    ? (response.content[0] as any).text
+    : '';
 
   // Create the new document
   const documentName = body.name || `Generated from ${originalDoc.name}`;
   const createDocInput: CreateDocumentInput = {
     name: documentName,
+    content: generatedContent,
     contentType: 'text/markdown',
+    contentChecksum: calculateChecksum(generatedContent),
     createdBy: user.id,
     entityTypes: body.entityTypes || selection.entityTypes || [],
     metadata: {
       generatedFrom: selection.id,
       prompt: body.prompt,
     },
+    creationMethod: CREATION_METHODS.GENERATED,
   };
 
   const document = await graphDb.createDocument(createDocInput);
@@ -426,7 +436,9 @@ Entity types: ${(selection.entityTypes || []).join(', ')}`;
     }]
   });
 
-  const summary = summaryResponse.content[0].type === 'text' ? summaryResponse.content[0].text : '';
+  const summary = summaryResponse.content[0] && summaryResponse.content[0].type === 'text'
+    ? (summaryResponse.content[0] as any).text
+    : '';
 
   return c.json({
     summary,

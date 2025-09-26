@@ -194,6 +194,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const createInput: CreateDocumentInput = {
       name: document.name,
       entityTypes: document.entityTypes,
+      content: body.content,
       contentType: document.contentType,
       contentChecksum: document.contentChecksum!,
       metadata: document.metadata,
