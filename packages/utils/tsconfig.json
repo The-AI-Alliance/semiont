@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
@@ -13,8 +12,6 @@
   ],
   "exclude": [
     "dist",
-    "node_modules",
-    "**/*.test.ts",
-    "**/*.spec.ts"
+    "node_modules"
   ]
 }

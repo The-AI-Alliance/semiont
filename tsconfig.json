@@ -4,8 +4,8 @@
     "target": "ES2022",                          // Node 18+ supports ES2022
     "lib": ["ES2022"],                          // ES2022 standard library
     
-    // Module System (for packages that need ES modules)
-    "module": "ES2022",                          // ES modules for modern Node.js
+    // Module System (CommonJS by default, packages can override)
+    "module": "commonjs",                        // CommonJS for Node.js compatibility
     "moduleResolution": "node",                  // Standard Node.js resolution
     "esModuleInterop": true,                    // Interop between ES modules and CommonJS
     "allowSyntheticDefaultImports": true,       // Allow default imports from CommonJS
