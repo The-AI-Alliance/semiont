@@ -48,11 +48,15 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
     // Stream SSE events
     return streamSSE(c, async (stream) => {
       try {
+        // Determine document name early
+        const documentName = body.title || selection.selectionData?.text || 'New Document';
+
         // Send initial started event
         await stream.writeSSE({
           data: JSON.stringify({
             status: 'started',
             referenceId,
+            documentName,
             percentage: 0,
             message: 'Starting...'
           } as GenerationProgress),
@@ -65,6 +69,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
           data: JSON.stringify({
             status: 'fetching',
             referenceId,
+            documentName,
             percentage: 20,
             message: 'Fetching source document...'
           } as GenerationProgress),
@@ -78,19 +83,18 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
         }
 
         // Generate content
+        const prompt = body.prompt || `Create a comprehensive document about "${documentName}"`;
         await stream.writeSSE({
           data: JSON.stringify({
             status: 'generating',
             referenceId,
+            documentName,
             percentage: 40,
             message: 'Creating content...'
           } as GenerationProgress),
           event: 'generation-progress',
           id: String(Date.now())
         });
-
-        const documentName = body.title || selection.selectionData?.text || 'New Document';
-        const prompt = body.prompt || `Create a comprehensive document about "${documentName}"`;
 
         // Generate document content using existing function
         const generatedContent = await generateDocumentFromTopic(
