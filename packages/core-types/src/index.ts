@@ -6,7 +6,7 @@
  */
 
 // Document types
-export {
+export type {
   Document,
   CreateDocumentInput,
   UpdateDocumentInput,
@@ -14,17 +14,17 @@ export {
 } from './document';
 
 // Creation methods
-export {
-  CREATION_METHODS,
-  CreationMethod,
-} from './creation-methods';
+export { CREATION_METHODS } from './creation-methods';
+export type { CreationMethod } from './creation-methods';
 
 // Selection types
-export {
+export type {
   Selection,
   CreateSelectionInput,
   ResolveSelectionInput,
   SelectionFilter,
+} from './selection';
+export {
   isHighlight,
   isReference,
   isStubReference,
@@ -34,13 +34,11 @@ export {
 } from './selection';
 
 // Reference tags
-export {
-  REFERENCE_TAGS,
-  ReferenceTag,
-} from './reference-tags';
+export { REFERENCE_TAGS } from './reference-tags';
+export type { ReferenceTag } from './reference-tags';
 
 // Graph types
-export {
+export type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
