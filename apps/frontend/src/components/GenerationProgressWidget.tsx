@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { buttonStyles } from '@/lib/button-styles';
+import '@/styles/animations.css';
 import type { GenerationProgress } from '@/hooks/useGenerationProgress';
 
 interface GenerationProgressWidgetProps {
@@ -27,12 +28,12 @@ export function GenerationProgressWidget({ progress, onCancel, onDismiss }: Gene
   if (!progress) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-purple-500 dark:border-purple-600">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-cyan-500 dark:border-cyan-600">
       {/* Header with sparkle - hide when complete */}
       {progress.status !== 'complete' && (
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <span className="text-lg animate-sparkle-infinite">✨</span>
+            <span className="text-lg animate-sparkle-blue">✨</span>
             Generating Document
           </h3>
           {onCancel && (
@@ -91,7 +92,7 @@ export function GenerationProgressWidget({ progress, onCancel, onDismiss }: Gene
         <div className="mb-3">
           <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-purple-600 to-pink-600 transition-all duration-500 ease-out rounded-full"
+              className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500 ease-out rounded-full"
               style={{ width: `${progress.percentage}%` }}
             />
           </div>

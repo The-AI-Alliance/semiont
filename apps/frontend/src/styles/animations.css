@@ -90,3 +90,27 @@
 .animate-sparkle-infinite {
   animation: sparkle 1.2s ease-in-out infinite;
 }
+
+/* Blue sparkle for generation progress widget */
+@keyframes sparkle-blue {
+  0% {
+    filter: drop-shadow(0 0 2px rgba(6, 182, 212, 0.6))
+            drop-shadow(0 0 4px rgba(6, 182, 212, 0.4));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.8))
+            drop-shadow(0 0 8px rgba(6, 182, 212, 0.6));
+    transform: scale(1.1);
+  }
+  100% {
+    filter: drop-shadow(0 0 2px rgba(6, 182, 212, 0.6))
+            drop-shadow(0 0 4px rgba(6, 182, 212, 0.4));
+    transform: scale(1);
+  }
+}
+
+.animate-sparkle-blue {
+  animation: sparkle-blue 1.2s ease-in-out infinite;
+  display: inline-block;
+}
