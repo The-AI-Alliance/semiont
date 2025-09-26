@@ -17,6 +17,9 @@ import { registerGetReferenceLLMContext } from './routes/reference-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
 import { registerDiscoverContext } from './routes/discover-context';
 import { registerTokenRoutes } from './routes/token';
+import { registerDocumentHighlights } from './routes/highlights';
+import { registerDocumentReferences } from './routes/references';
+import { registerGetDocumentSelections } from './routes/get-selections';
 
 // Create main documents router
 export const documentsRouter: DocumentsRouterType = createDocumentRouter();
@@ -36,3 +39,6 @@ registerGetReferenceLLMContext(documentsRouter);
 registerGetReferencedBy(documentsRouter);
 registerDiscoverContext(documentsRouter);
 registerTokenRoutes(documentsRouter);
+registerDocumentHighlights(documentsRouter);
+registerDocumentReferences(documentsRouter);
+registerGetDocumentSelections(documentsRouter);
