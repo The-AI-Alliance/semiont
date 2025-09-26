@@ -4,8 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
-import { SelectionPopup } from '@/components/SelectionPopup';
-import { StubReferenceModal } from '@/components/StubReferenceModal';
+import { AnnotationPopup } from '@/components/AnnotationPopup';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
@@ -42,11 +41,9 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     referencedDocumentId?: string;
     referenceType?: string;
     entityType?: string;
+    resolvedDocumentName?: string;
   } | null>(null);
-  const [stubReferenceModal, setStubReferenceModal] = useState<{
-    isOpen: boolean;
-    annotation: any;
-  }>({ isOpen: false, annotation: null });
+  const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   
   // Load annotations when document changes
   useEffect(() => {
@@ -59,133 +56,77 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
   const handleTextSelection = useCallback((text: string, position: { start: number; end: number }) => {
     setSelectedText(text);
     setSelectionPosition(position);
+
+    // Get mouse position for popup
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setPopupPosition({ x: rect.left, y: rect.bottom + 10 });
+    }
+
     setShowSelectionPopup(true);
+    setEditingAnnotation(null);
   }, []);
   
   // Handle annotation clicks - memoized
-  const handleAnnotationClick = useCallback((annotation: any) => {
+  const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
     // If it's a reference with a target document, navigate to it
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${annotation.referencedDocumentId}`);
       return;
     }
-    
-    // If it's a reference WITHOUT a target document (stub)
-    if (annotation.type === 'reference' && !annotation.referencedDocumentId) {
-      // Only show modal in curation mode
-      if (curationMode) {
-        setStubReferenceModal({ isOpen: true, annotation });
-      }
-      // In view mode, do nothing (handled by CSS/hover text)
-      return;
-    }
-    
-    // Otherwise, show the editing popup (for highlights or editing existing references)
-    // Only in curation mode
+
+    // For any other case in curation mode, show the unified popup
     if (curationMode) {
       setEditingAnnotation({
         id: annotation.id,
         type: annotation.type,
-        referencedDocumentId: annotation.referencedDocumentId,
+        referencedDocumentId: annotation.referencedDocumentId || annotation.resolvedDocumentId,
         referenceType: annotation.referenceType,
-        entityType: annotation.entityType
+        entityType: annotation.entityType,
+        resolvedDocumentName: annotation.referencedDocumentName
       });
       setSelectedText(annotation.selectionData?.text || '');
       if (annotation.selectionData) {
-        setSelectionPosition({ 
-          start: annotation.selectionData.offset, 
-          end: annotation.selectionData.offset + annotation.selectionData.length 
+        setSelectionPosition({
+          start: annotation.selectionData.offset,
+          end: annotation.selectionData.offset + annotation.selectionData.length
         });
       }
+
+      // Set popup position based on click
+      if (event) {
+        setPopupPosition({ x: event.clientX, y: event.clientY + 10 });
+      } else {
+        // Fallback to center if no event
+        setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
+      }
+
       setShowSelectionPopup(true);
     }
   }, [router, curationMode]);
-  
+
   // Handle annotation right-clicks - memoized
-  const handleAnnotationRightClick = useCallback((annotation: any) => {
+  const handleAnnotationRightClick = useCallback((annotation: any, x: number, y: number) => {
     setEditingAnnotation({
       id: annotation.id,
       type: annotation.type,
-      referencedDocumentId: annotation.referencedDocumentId,
+      referencedDocumentId: annotation.referencedDocumentId || annotation.resolvedDocumentId,
       referenceType: annotation.referenceType,
-      entityType: annotation.entityType
+      entityType: annotation.entityType,
+      resolvedDocumentName: annotation.referencedDocumentName
     });
     setSelectedText(annotation.selectionData?.text || '');
     if (annotation.selectionData) {
-      setSelectionPosition({ 
-        start: annotation.selectionData.offset, 
-        end: annotation.selectionData.offset + annotation.selectionData.length 
+      setSelectionPosition({
+        start: annotation.selectionData.offset,
+        end: annotation.selectionData.offset + annotation.selectionData.length
       });
     }
+    setPopupPosition({ x, y: y + 10 });
     setShowSelectionPopup(true);
   }, []);
-  
-  // Handle stub reference modal confirmation
-  const handleStubReferenceConfirm = useCallback(() => {
-    const annotation = stubReferenceModal.annotation;
-    if (!annotation) return;
-    
-    const documentName = annotation.selectionData?.text || 'New Document';
-    const params = new URLSearchParams({
-      name: documentName,
-      referenceId: annotation.id,
-      sourceDocumentId: document.id
-    });
-    if (annotation.entityType) {
-      params.append('entityTypes', annotation.entityType);
-    } else if (annotation.entityTypes) {
-      params.append('entityTypes', annotation.entityTypes.join(','));
-    }
-    if (annotation.referenceType) {
-      params.append('referenceType', annotation.referenceType);
-    } else if (annotation.referenceTags && annotation.referenceTags.length > 0) {
-      params.append('referenceType', annotation.referenceTags[0]);
-    }
-    router.push(`/know/compose?${params.toString()}`);
-    setStubReferenceModal({ isOpen: false, annotation: null });
-  }, [stubReferenceModal.annotation, document.id, router]);
-  
-  // Handle stub reference modal generate
-  const handleStubReferenceGenerate = useCallback(() => {
-    const annotation = stubReferenceModal.annotation;
-    if (!annotation) return;
-
-    const documentName = annotation.selectionData?.text || 'New Document';
-    const referenceType = annotation.referenceType || annotation.referenceTags?.[0];
-
-    // Close modal immediately
-    setStubReferenceModal({ isOpen: false, annotation: null });
-
-    // If onGenerateDocument is provided, use it for in-page generation
-    if (onGenerateDocument) {
-      let prompt = `Create a comprehensive document about "${documentName}"`;
-      if (referenceType) {
-        prompt = `Create a document that ${referenceType} the source document.`;
-      }
-
-      onGenerateDocument(annotation.id, {
-        title: documentName,
-        prompt
-      });
-    } else {
-      // Fallback to old behavior - redirect to compose page
-      const params = new URLSearchParams({
-        name: documentName,
-        referenceId: annotation.id,
-        sourceDocumentId: document.id,
-        generate: 'true'
-      });
-      if (annotation.entityType) {
-        params.append('entityTypes', annotation.entityType);
-      } else if (annotation.entityTypes) {
-        params.append('entityTypes', annotation.entityTypes.join(','));
-      }
-      if (referenceType) {
-        params.append('referenceType', referenceType);
-      }
-      router.push(`/know/compose?${params.toString()}`);
-    }
-  }, [stubReferenceModal.annotation, document.id, router, onGenerateDocument]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
@@ -293,40 +234,54 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       )}
       
       
-      {/* Selection popup */}
-      {showSelectionPopup && selectedText && (
-        editingAnnotation ? (
-          <SelectionPopup
-            selectedText={selectedText}
-            sourceDocumentId={document.id}
-            onCreateHighlight={handleCreateHighlight}
-            onCreateReference={handleCreateReference}
-            onClose={handleClosePopup}
-            isEditMode={true}
-            existingAnnotation={editingAnnotation}
-            onDelete={handleDeleteAnnotation}
-          />
-        ) : (
-          <SelectionPopup
-            selectedText={selectedText}
-            sourceDocumentId={document.id}
-            onCreateHighlight={handleCreateHighlight}
-            onCreateReference={handleCreateReference}
-            onClose={handleClosePopup}
-            isEditMode={false}
-          />
-        )
-      )}
-      
-      {/* Stub Reference Modal */}
-      <StubReferenceModal
-        isOpen={stubReferenceModal.isOpen}
-        documentName={stubReferenceModal.annotation?.selectionData?.text || 'New Document'}
-        entityTypes={stubReferenceModal.annotation?.entityType ? [stubReferenceModal.annotation.entityType] : stubReferenceModal.annotation?.entityTypes}
-        referenceType={stubReferenceModal.annotation?.referenceType || stubReferenceModal.annotation?.referenceTags?.[0]}
-        onConfirm={handleStubReferenceConfirm}
-        onGenerate={handleStubReferenceGenerate}
-        onCancel={() => setStubReferenceModal({ isOpen: false, annotation: null })}
+      {/* Unified Annotation Popup */}
+      <AnnotationPopup
+        isOpen={showSelectionPopup}
+        onClose={handleClosePopup}
+        position={popupPosition}
+        selection={selectedText && selectionPosition ? {
+          text: selectedText,
+          start: selectionPosition.start,
+          end: selectionPosition.end
+        } : null}
+        {...(editingAnnotation && {
+          annotation: {
+            id: editingAnnotation.id,
+            type: editingAnnotation.type,
+            ...(editingAnnotation.entityType && { entityType: editingAnnotation.entityType }),
+            ...(editingAnnotation.referenceType && { referenceType: editingAnnotation.referenceType }),
+            ...(editingAnnotation.referencedDocumentId && { resolvedDocumentId: editingAnnotation.referencedDocumentId }),
+            ...(editingAnnotation.resolvedDocumentName && { resolvedDocumentName: editingAnnotation.resolvedDocumentName }),
+            provisional: !editingAnnotation.referencedDocumentId
+          }
+        })}
+        onCreateHighlight={handleCreateHighlight}
+        onCreateReference={handleCreateReference}
+        onUpdateAnnotation={async (updates) => {
+          if (editingAnnotation) {
+            // Handle updates to existing annotation
+            if (updates.type === 'highlight') {
+              await convertReferenceToHighlight(editingAnnotation.id);
+            } else if (updates.resolvedDocumentId === null) {
+              // Unlink document
+              await deleteAnnotation(editingAnnotation.id);
+              await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityType, editingAnnotation.referenceType);
+            }
+            setShowSelectionPopup(false);
+            setEditingAnnotation(null);
+          }
+        }}
+        onDeleteAnnotation={() => editingAnnotation && handleDeleteAnnotation(editingAnnotation.id)}
+        onGenerateDocument={(title, prompt) => {
+          if (editingAnnotation && onGenerateDocument) {
+            onGenerateDocument(editingAnnotation.id, {
+              title,
+              ...(prompt && { prompt })
+            });
+            setShowSelectionPopup(false);
+            setEditingAnnotation(null);
+          }
+        }}
       />
     </div>
   );
