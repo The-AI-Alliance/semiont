@@ -11,9 +11,19 @@ export const crudRouter: SelectionsRouterType = createSelectionRouter();
 // Local schemas to avoid TypeScript hanging
 const CreateSelectionRequest = z.object({
   documentId: z.string(),
-  selectionType: z.enum(['highlight', 'reference']),
-  selectionData: z.record(z.string(), z.any()),
+  selectionType: z.union([
+    z.enum(['highlight', 'reference']),
+    z.object({
+      type: z.string(),
+      offset: z.number(),
+      length: z.number(),
+      text: z.string()
+    })
+  ]),
+  selectionData: z.record(z.string(), z.any()).optional(),
   entityTypes: z.array(z.string()).optional(),
+  referenceTags: z.array(z.string()).optional(),
+  resolvedDocumentId: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
   provisional: z.boolean().optional(),
 });
@@ -55,10 +65,41 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   const user = c.get('user');
   const graphDb = await getGraphDatabase();
 
+  // Determine selection type and data based on input format
+  let selectionType: 'highlight' | 'reference';
+  let selectionData: any = {};
+
+  if (typeof body.selectionType === 'object' && 'type' in body.selectionType) {
+    // Frontend format with object
+    const st = body.selectionType;
+    selectionType = body.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
+    selectionData = {
+      start: st.offset,
+      end: st.offset + st.length,
+      text: st.text
+    };
+  } else if (typeof body.selectionType === 'string') {
+    // Direct string format
+    selectionType = body.selectionType;
+    selectionData = body.selectionData || {};
+  } else {
+    // Fallback based on presence of resolvedDocumentId
+    selectionType = body.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
+    selectionData = body.selectionData || {};
+  }
+
+  // Add reference-specific data
+  if (selectionType === 'reference' && body.resolvedDocumentId !== undefined) {
+    selectionData.resolvedDocumentId = body.resolvedDocumentId;
+  }
+  if (body.referenceTags) {
+    selectionData.referenceTags = body.referenceTags;
+  }
+
   const selectionInput: CreateSelectionInput = {
     documentId: body.documentId,
-    selectionType: body.selectionType,
-    selectionData: body.selectionData,
+    selectionType,
+    selectionData,
     entityTypes: body.entityTypes,
     provisional: body.provisional ?? true,
     metadata: body.metadata,
@@ -200,7 +241,7 @@ const ResolveSelectionResponse = z.object({
 
 // RESOLVE
 const resolveSelectionRoute = createRoute({
-  method: 'post',
+  method: 'put',
   path: '/api/selections/{id}/resolve',
   summary: 'Resolve Selection',
   description: 'Resolve a provisional selection to a target document',

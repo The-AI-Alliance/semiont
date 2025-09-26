@@ -1,10 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createSelectionRouter, type SelectionsRouterType } from './shared';
-import { formatDocument, formatSelection } from './helpers';
+import { formatDocument, formatDocumentWithContent, formatSelection } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
-import { getInferenceClient } from '../../inference/factory';
+import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
 import { CREATION_METHODS } from '@semiont/core-types';
 import type { CreateDocumentInput } from '@semiont/core-types';
@@ -128,8 +128,12 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     resolvedBy: user.id,
   });
 
+  if (!body.content) {
+    throw new HTTPException(400, { message: 'Content is required when creating a document' });
+  }
+
   return c.json({
-    document: formatDocument(document),
+    document: formatDocumentWithContent(document, body.content),
     selection: formatSelection(updatedSelection),
   }, 201);
 });
@@ -184,45 +188,28 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     throw new HTTPException(404, { message: 'Original document not found' });
   }
 
-  const originalContent = await storage.getDocument(selection.documentId);
-  const contentStr = originalContent.toString('utf-8');
+  // Extract selection text from selectionData
+  const data = selection.selectionData as any;
 
-  // Extract selection text
-  let selectedText = '';
-  if (selection.selectionType === 'highlight' && selection.selectionData) {
-    const data = selection.selectionData as any;
-    if (data.start && data.end) {
-      selectedText = contentStr.substring(data.start, data.end);
-    } else if (data.text) {
-      selectedText = data.text;
-    }
+  if (!data || !data.text) {
+    throw new HTTPException(400, { message: 'Selection must have text field in selectionData' });
   }
 
-  // Generate content using inference client
-  const inferenceClient = await getInferenceClient();
-  if (!inferenceClient) {
-    throw new HTTPException(500, { message: 'Inference service not available' });
+  const selectedText = data.text;
+
+  // Generate content using the proper document generation function
+  const { title, content: generatedContent } = await generateDocumentFromTopic(
+    selectedText,
+    body.entityTypes || selection.entityTypes || [],
+    body.prompt
+  );
+
+  if (!generatedContent) {
+    throw new HTTPException(500, { message: 'No content returned from generation service' });
   }
-
-  const prompt = `Given this text: "${selectedText}"
-
-${body.prompt || 'Generate a detailed explanation of this concept'}`;
-
-  const response = await inferenceClient.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 2000,
-    messages: [{
-      role: 'user',
-      content: prompt
-    }]
-  });
-
-  const generatedContent = response.content[0] && response.content[0].type === 'text'
-    ? (response.content[0] as any).text
-    : '';
 
   // Create the new document
-  const documentName = body.name || `Generated from ${originalDoc.name}`;
+  const documentName = body.name || title;
   const createDocInput: CreateDocumentInput = {
     name: documentName,
     content: generatedContent,
@@ -250,7 +237,7 @@ ${body.prompt || 'Generate a detailed explanation of this concept'}`;
   });
 
   return c.json({
-    document: formatDocument(document),
+    document: formatDocumentWithContent(document, generatedContent),
     selection: formatSelection(updatedSelection),
     generated: true,
   }, 201);
@@ -412,12 +399,7 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
     }
   }
 
-  // Generate summary using inference client
-  const inferenceClient = await getInferenceClient();
-  if (!inferenceClient) {
-    throw new HTTPException(500, { message: 'Inference service not available' });
-  }
-
+  // Generate summary using the proper inference function
   const summaryPrompt = `Summarize this text in context:
 
 Context before: "${before.substring(Math.max(0, before.length - 200))}"
@@ -427,18 +409,7 @@ Context after: "${after.substring(0, 200)}"
 Document: ${document.name}
 Entity types: ${(selection.entityTypes || []).join(', ')}`;
 
-  const summaryResponse = await inferenceClient.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 500,
-    messages: [{
-      role: 'user',
-      content: summaryPrompt
-    }]
-  });
-
-  const summary = summaryResponse.content[0] && summaryResponse.content[0].type === 'text'
-    ? (summaryResponse.content[0] as any).text
-    : '';
+  const summary = await generateText(summaryPrompt, 500, 0.5);
 
   return c.json({
     summary,

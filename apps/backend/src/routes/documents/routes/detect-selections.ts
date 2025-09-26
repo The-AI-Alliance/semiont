@@ -90,6 +90,7 @@ export function registerDetectSelections(router: DocumentsRouterType) {
       savedSelections.push(saved);
     }
 
+    console.log('Returning', savedSelections.length, 'saved selections');
     return c.json({
       selections: savedSelections.map(s => ({
         id: s.id,
