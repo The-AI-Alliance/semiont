@@ -185,7 +185,7 @@ export default function KnowledgeDocumentPage() {
   } = useDetectionProgress({
     documentId,
     onComplete: (progress) => {
-      showSuccess(`✨ Created ${progress.createdCount} entity references!`);
+      // Don't show toast - the widget already shows completion status
       // Reload annotations to show new references with sparkle animation
       loadAnnotations(documentId);
       setDetectionEntityTypes([]);
@@ -216,7 +216,7 @@ export default function KnowledgeDocumentPage() {
       }, 5000);
     },
     onError: (error) => {
-      showError(error);
+      // Don't show toast - the widget already shows error status
     }
   });
 
