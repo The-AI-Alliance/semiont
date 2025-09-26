@@ -208,6 +208,9 @@ export default function KnowledgeDocumentPage() {
       // Don't show toast - the widget already shows completion status
       // Don't auto-navigate, let user click the link when ready
 
+      // Refresh annotations to update the reference with the new resolvedDocumentId
+      loadAnnotations(documentId);
+
       // After 5 seconds (when widget auto-dismisses), trigger sparkle on the reference
       setTimeout(() => {
         if (progress.referenceId) {
