@@ -3,6 +3,8 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { annotationStyles } from '@/lib/annotation-styles';
 import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
+import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import '@/styles/animations.css';
 
 interface Props {
   content: string;
@@ -87,6 +89,7 @@ export function AnnotateView({
   onAnnotationRightClick,
   editable = false
 }: Props) {
+  const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectionState, setSelectionState] = useState<{
     text: string;
@@ -193,11 +196,15 @@ export function AnnotateView({
                 : hasTarget
                 ? 'Click to navigate • Right-click for options'
                 : 'Right-click for options';
-            
+
+            const isNew = newAnnotationIds.has(segment.annotation.id);
+            const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
+            const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
+
             return (
               <span
                 key={segment.annotation.id}
-                className={annotationStyles.getAnnotationStyle(segment.annotation)}
+                className={className}
                 data-annotation-id={segment.annotation.id}
                 title={hoverText}
                 onClick={(e) => {

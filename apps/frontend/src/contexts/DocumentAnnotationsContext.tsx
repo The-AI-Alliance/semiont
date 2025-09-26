@@ -28,7 +28,8 @@ interface DocumentAnnotationsContextType {
   references: Annotation[];
   isLoading: boolean;
   error: string | null;
-  
+  newAnnotationIds: Set<string>; // Track recently created annotations
+
   // Actions
   loadAnnotations: (documentId: string) => Promise<void>;
   addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<void>;
@@ -37,6 +38,7 @@ interface DocumentAnnotationsContextType {
   convertHighlightToReference: (highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (referenceId: string) => Promise<void>;
   refreshAnnotations: () => Promise<void>;
+  clearNewAnnotationId: (id: string) => void;
 }
 
 const DocumentAnnotationsContext = createContext<DocumentAnnotationsContextType | undefined>(undefined);
@@ -47,6 +49,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
+  const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   const loadAnnotations = useCallback(async (documentId: string) => {
     if (!documentId) return;
@@ -92,17 +95,36 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   }, [currentDocumentId, loadAnnotations]);
 
   const addHighlight = useCallback(async (
-    documentId: string, 
-    text: string, 
+    documentId: string,
+    text: string,
     position: { start: number; end: number }
   ) => {
     try {
-      await apiService.selections.saveAsHighlight({
+      const result = await apiService.selections.saveAsHighlight({
         documentId,
         text,
         position
       });
+
+      // Track this as a new annotation BEFORE refreshing
+      let newId: string | undefined;
+      if (result.selection?.id) {
+        newId = result.selection.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+      }
+
       await refreshAnnotations();
+
+      // Clear the ID after animation completes (6 seconds for 3 iterations)
+      if (newId) {
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
     } catch (err) {
       console.error('Failed to create highlight:', err);
       throw err;
@@ -142,9 +164,27 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // If none of the above, it's a highlight (no resolvedDocumentId key)
       
       // Create the selection with metadata
-      await apiService.selections.create(createData);
-      
+      const result = await apiService.selections.create(createData);
+
+      // Track this as a new annotation BEFORE refreshing
+      let newId: string | undefined;
+      if (result.selection?.id) {
+        newId = result.selection.id;
+        setNewAnnotationIds(prev => new Set(prev).add(newId!));
+      }
+
       await refreshAnnotations();
+
+      // Clear the ID after animation completes (6 seconds for 3 iterations)
+      if (newId) {
+        setTimeout(() => {
+          setNewAnnotationIds(prev => {
+            const next = new Set(prev);
+            next.delete(newId!);
+            return next;
+          });
+        }, 6000);
+      }
     } catch (err) {
       console.error('Failed to create reference:', err);
       throw err;
@@ -215,19 +255,29 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [references, addHighlight]);
 
+  const clearNewAnnotationId = useCallback((id: string) => {
+    setNewAnnotationIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   return (
     <DocumentAnnotationsContext.Provider value={{
       highlights,
       references,
       isLoading,
       error,
+      newAnnotationIds,
       loadAnnotations,
       addHighlight,
       addReference,
       deleteAnnotation,
       convertHighlightToReference,
       convertReferenceToHighlight,
-      refreshAnnotations
+      refreshAnnotations,
+      clearNewAnnotationId
     }}>
       {children}
     </DocumentAnnotationsContext.Provider>

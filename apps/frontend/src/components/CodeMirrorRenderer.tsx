@@ -8,6 +8,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { markdownPreview } from '@/lib/codemirror-markdown-preview';
 import type { TextSegment, AnnotationSelection } from './AnnotationRenderer';
 import { annotationStyles } from '@/lib/annotation-styles';
+import '@/styles/animations.css';
 
 interface Props {
   content: string;
@@ -17,6 +18,7 @@ interface Props {
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
   theme?: 'light' | 'dark';
   editable?: boolean;
+  newAnnotationIds?: Set<string>;
 }
 
 export function CodeMirrorRenderer({
@@ -26,7 +28,8 @@ export function CodeMirrorRenderer({
   onAnnotationRightClick,
   onTextSelect,
   theme = 'light',
-  editable = false
+  editable = false,
+  newAnnotationIds
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -46,7 +49,9 @@ export function CodeMirrorRenderer({
       if (!segment.annotation) continue;
       
       // Create decoration with appropriate styling
-      const className = annotationStyles.getAnnotationStyle(segment.annotation);
+      const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
+      const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
+      const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
       const decoration = Decoration.mark({
         class: className,
         attributes: {

@@ -3,6 +3,8 @@
 import React, { useMemo } from 'react';
 import { annotationStyles } from '@/lib/annotation-styles';
 import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
+import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import '@/styles/animations.css';
 
 interface Props {
   content: string;
@@ -17,7 +19,8 @@ function applyAnnotations(
   text: string,
   startOffset: number,
   annotations: Annotation[],
-  onAnnotationClick?: (annotation: Annotation) => void
+  onAnnotationClick?: (annotation: Annotation) => void,
+  newAnnotationIds?: Set<string>
 ): React.ReactNode {
   const endOffset = startOffset + text.length;
   
@@ -54,11 +57,16 @@ function applyAnnotations(
     }
     
     // Add annotated text
-    const className = annotationStyles.getAnnotationStyle(annotation);
+    const baseClassName = annotationStyles.getAnnotationStyle(annotation);
+    const isNew = newAnnotationIds?.has(annotation.id) || false;
+    if (isNew) {
+      console.log('[BrowseView] Applying animation to annotation:', annotation.id, annotation.selectionData?.text);
+    }
+    const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
     const isReference = annotation.type === 'reference';
     const hasTarget = annotation.referencedDocumentId;
     const isStubReference = isReference && !hasTarget;
-    
+
     segments.push(
       <span
         key={`ann-${annotation.id}`}
@@ -95,7 +103,9 @@ function applyAnnotations(
 function renderMarkdown(
   content: string,
   annotations: Annotation[],
-  onAnnotationClick?: (annotation: Annotation) => void
+  onAnnotationClick?: (annotation: Annotation) => void,
+  onWikiLinkClick?: (pageName: string) => void,
+  newAnnotationIds?: Set<string>
 ): React.ReactNode {
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
@@ -112,7 +122,7 @@ function renderMarkdown(
       const headerOffset = lineStart + 4; // Account for "### "
       elements.push(
         <h3 key={`h3-${i}`} className="text-xl font-bold mb-2">
-          {applyAnnotations(headerText, headerOffset, annotations, onAnnotationClick)}
+          {applyAnnotations(headerText, headerOffset, annotations, onAnnotationClick, newAnnotationIds)}
         </h3>
       );
       currentOffset += line.length + 1; // +1 for newline
@@ -121,7 +131,7 @@ function renderMarkdown(
       const headerOffset = lineStart + 3; // Account for "## "
       elements.push(
         <h2 key={`h2-${i}`} className="text-2xl font-bold mb-3">
-          {applyAnnotations(headerText, headerOffset, annotations, onAnnotationClick)}
+          {applyAnnotations(headerText, headerOffset, annotations, onAnnotationClick, newAnnotationIds)}
         </h2>
       );
       currentOffset += line.length + 1;
@@ -130,7 +140,7 @@ function renderMarkdown(
       const headerOffset = lineStart + 2; // Account for "# "
       elements.push(
         <h1 key={`h1-${i}`} className="text-3xl font-bold mb-4">
-          {applyAnnotations(headerText, headerOffset, annotations, onAnnotationClick)}
+          {applyAnnotations(headerText, headerOffset, annotations, onAnnotationClick, newAnnotationIds)}
         </h1>
       );
       currentOffset += line.length + 1;
@@ -163,7 +173,7 @@ function renderMarkdown(
         const listOffset = currentOffset + 2; // Account for "- "
         listItems.push(
           <li key={`li-${i}`}>
-            {applyAnnotations(listText, listOffset, annotations, onAnnotationClick)}
+            {applyAnnotations(listText, listOffset, annotations, onAnnotationClick, newAnnotationIds)}
           </li>
         );
         currentOffset += listLine.length + 1;
@@ -187,7 +197,7 @@ function renderMarkdown(
           const listOffset = currentOffset + match[1].length + 2; // Account for "1. "
           listItems.push(
             <li key={`li-${i}`}>
-              {applyAnnotations(listText, listOffset, annotations, onAnnotationClick)}
+              {applyAnnotations(listText, listOffset, annotations, onAnnotationClick, newAnnotationIds)}
             </li>
           );
         }
@@ -207,7 +217,7 @@ function renderMarkdown(
       const quoteOffset = lineStart + 2; // Account for "> "
       elements.push(
         <blockquote key={`bq-${i}`} className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic my-2">
-          {applyAnnotations(quoteText, quoteOffset, annotations, onAnnotationClick)}
+          {applyAnnotations(quoteText, quoteOffset, annotations, onAnnotationClick, newAnnotationIds)}
         </blockquote>
       );
       currentOffset += line.length + 1;
@@ -242,7 +252,7 @@ function renderMarkdown(
       const paragraphText = paragraphLines.join('\n');
       elements.push(
         <p key={`p-${i}`} className="mb-4">
-          {applyAnnotations(paragraphText, paragraphStart, annotations, onAnnotationClick)}
+          {applyAnnotations(paragraphText, paragraphStart, annotations, onAnnotationClick, newAnnotationIds)}
         </p>
       );
     }
@@ -259,14 +269,16 @@ export function BrowseView({
   references,
   onAnnotationClick
 }: Props) {
-  const allAnnotations = useMemo(() => 
+  const { newAnnotationIds } = useDocumentAnnotations();
+
+  const allAnnotations = useMemo(() =>
     [...highlights, ...references],
     [highlights, references]
   );
-  
-  const renderedContent = useMemo(() => 
-    renderMarkdown(content, allAnnotations, onAnnotationClick),
-    [content, allAnnotations, onAnnotationClick]
+
+  const renderedContent = useMemo(() =>
+    renderMarkdown(content, allAnnotations, onAnnotationClick, undefined, newAnnotationIds),
+    [content, allAnnotations, onAnnotationClick, newAnnotationIds]
   );
   
   return (

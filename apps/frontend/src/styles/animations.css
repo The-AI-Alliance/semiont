@@ -1,0 +1,87 @@
+/* Sparkle animation for newly created annotations - big and pulsing */
+@keyframes sparkle {
+  0% {
+    box-shadow:
+      0 0 5px rgba(147, 51, 234, 0.6),
+      0 0 10px rgba(147, 51, 234, 0.4),
+      0 0 20px rgba(147, 51, 234, 0.2);
+    transform: scale(1);
+  }
+  25% {
+    box-shadow:
+      0 0 10px rgba(147, 51, 234, 0.8),
+      0 0 20px rgba(147, 51, 234, 0.6),
+      0 0 30px rgba(147, 51, 234, 0.3);
+    transform: scale(1.05);
+  }
+  50% {
+    box-shadow:
+      0 0 5px rgba(147, 51, 234, 0.6),
+      0 0 10px rgba(147, 51, 234, 0.4),
+      0 0 20px rgba(147, 51, 234, 0.2);
+    transform: scale(1);
+  }
+  75% {
+    box-shadow:
+      0 0 15px rgba(147, 51, 234, 0.9),
+      0 0 25px rgba(147, 51, 234, 0.7),
+      0 0 35px rgba(147, 51, 234, 0.4);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow:
+      0 0 5px rgba(147, 51, 234, 0.6),
+      0 0 10px rgba(147, 51, 234, 0.4),
+      0 0 20px rgba(147, 51, 234, 0.2);
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.annotation-sparkle {
+  animation: sparkle 1.5s ease-in-out 3;
+  position: relative;
+  z-index: 10;
+  display: inline-block;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.annotation-shimmer {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(147, 51, 234, 0.2) 20%,
+    rgba(147, 51, 234, 0.4) 50%,
+    rgba(147, 51, 234, 0.2) 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out 2;
+}
+
+/* Pulse animation for stub references */
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(147, 51, 234, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(147, 51, 234, 0);
+  }
+}
+
+.annotation-pulse {
+  animation: pulse-glow 1.5s ease-out 3;
+}
