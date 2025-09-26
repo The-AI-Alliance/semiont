@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import * as fc from 'fast-check';
 import '@testing-library/jest-dom';
 import { AnnotationRenderer } from '../AnnotationRenderer';
+import { DocumentAnnotationsProvider } from '../../contexts/DocumentAnnotationsContext';
 
 /**
  * AXIOMS FOR ANNOTATION RENDERING
@@ -429,12 +430,14 @@ describe('Markdown Fidelity', () => {
 Regular paragraph text.`;
     
     const { container } = render(
-      <AnnotationRenderer 
-        content={markdownContent}
-        contentType="markdown"
-        highlights={[]}
-        references={[]}
-      />
+      <DocumentAnnotationsProvider>
+        <AnnotationRenderer
+          content={markdownContent}
+          contentType="markdown"
+          highlights={[]}
+          references={[]}
+        />
+      </DocumentAnnotationsProvider>
     );
     
     // CodeMirror renders content within a .cm-content container
@@ -456,12 +459,14 @@ Regular paragraph text.`;
 2. Numbered 2`;
     
     const { container } = render(
-      <AnnotationRenderer 
-        content={markdownContent}
-        contentType="markdown"
-        highlights={[]}
-        references={[]}
-      />
+      <DocumentAnnotationsProvider>
+        <AnnotationRenderer
+          content={markdownContent}
+          contentType="markdown"
+          highlights={[]}
+          references={[]}
+        />
+      </DocumentAnnotationsProvider>
     );
     
     // CodeMirror renders content within a .cm-content container
