@@ -16,6 +16,7 @@ import { registerGetDocumentLLMContext } from './routes/llm-context';
 import { registerGetReferenceLLMContext } from './routes/reference-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
 import { registerDiscoverContext } from './routes/discover-context';
+import { registerTokenRoutes } from './routes/token';
 
 // Create main documents router
 export const documentsRouter: DocumentsRouterType = createDocumentRouter();
@@ -34,3 +35,4 @@ registerGetDocumentLLMContext(documentsRouter);
 registerGetReferenceLLMContext(documentsRouter);
 registerGetReferencedBy(documentsRouter);
 registerDiscoverContext(documentsRouter);
+registerTokenRoutes(documentsRouter);
