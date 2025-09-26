@@ -15,6 +15,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
 import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
+import { useGenerationProgress } from '@/hooks/useGenerationProgress';
+import { GenerationProgressWidget } from '@/components/GenerationProgressWidget';
 
 export default function KnowledgeDocumentPage() {
   const params = useParams();
@@ -194,6 +196,23 @@ export default function KnowledgeDocumentPage() {
     }
   });
 
+  // Use SSE-based document generation progress
+  const {
+    isGenerating,
+    progress: generationProgress,
+    startGeneration,
+    cancelGeneration,
+    clearProgress: clearGenerationProgress
+  } = useGenerationProgress({
+    onComplete: (progress) => {
+      showSuccess(`✨ Document "${progress.documentName}" created successfully!`);
+      // Don't auto-navigate, let user click the link when ready
+    },
+    onError: (error) => {
+      showError(error);
+    }
+  });
+
   // Handle detect entity references - updated for SSE
   const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
     // Close modal immediately
@@ -205,6 +224,11 @@ export default function KnowledgeDocumentPage() {
     // Start detection with the selected entity types
     setTimeout(() => startDetection(selectedTypes), 100);
   }, [startDetection]);
+
+  // Handle document generation from stub reference
+  const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+    startGeneration(referenceId, options);
+  }, [startGeneration]);
 
   // Loading state
   if (loading) {
@@ -275,6 +299,7 @@ export default function KnowledgeDocumentPage() {
                 document={document}
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={curationMode}
+                onGenerateDocument={handleGenerateDocument}
               />
             </ErrorBoundary>
           </div>
@@ -364,6 +389,15 @@ export default function KnowledgeDocumentPage() {
             <DetectionProgressWidget
               progress={detectionProgress}
               onCancel={cancelDetection}
+            />
+          )}
+
+          {/* Generation Progress Widget - Show at top of sidebar when active */}
+          {generationProgress && (
+            <GenerationProgressWidget
+              progress={generationProgress}
+              onCancel={cancelGeneration}
+              onDismiss={clearGenerationProgress}
             />
           )}
 

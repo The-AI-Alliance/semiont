@@ -13,9 +13,10 @@ interface Props {
   document: SemiontDocument;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
+  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
 }
 
-export function DocumentViewer({ document, onWikiLinkClick, curationMode = false }: Props) {
+export function DocumentViewer({ document, onWikiLinkClick, curationMode = false, onGenerateDocument }: Props) {
   const router = useRouter();
   
   // Use prop directly instead of internal state
@@ -148,27 +149,43 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
   const handleStubReferenceGenerate = useCallback(() => {
     const annotation = stubReferenceModal.annotation;
     if (!annotation) return;
-    
+
     const documentName = annotation.selectionData?.text || 'New Document';
-    const params = new URLSearchParams({
-      name: documentName,
-      referenceId: annotation.id,
-      sourceDocumentId: document.id,
-      generate: 'true'  // Flag to indicate AI generation should be triggered
-    });
-    if (annotation.entityType) {
-      params.append('entityTypes', annotation.entityType);
-    } else if (annotation.entityTypes) {
-      params.append('entityTypes', annotation.entityTypes.join(','));
-    }
-    if (annotation.referenceType) {
-      params.append('referenceType', annotation.referenceType);
-    } else if (annotation.referenceTags && annotation.referenceTags.length > 0) {
-      params.append('referenceType', annotation.referenceTags[0]);
-    }
-    router.push(`/know/compose?${params.toString()}`);
+    const referenceType = annotation.referenceType || annotation.referenceTags?.[0];
+
+    // Close modal immediately
     setStubReferenceModal({ isOpen: false, annotation: null });
-  }, [stubReferenceModal.annotation, document.id, router]);
+
+    // If onGenerateDocument is provided, use it for in-page generation
+    if (onGenerateDocument) {
+      let prompt = `Create a comprehensive document about "${documentName}"`;
+      if (referenceType) {
+        prompt = `Create a document that ${referenceType} the source document.`;
+      }
+
+      onGenerateDocument(annotation.id, {
+        title: documentName,
+        prompt
+      });
+    } else {
+      // Fallback to old behavior - redirect to compose page
+      const params = new URLSearchParams({
+        name: documentName,
+        referenceId: annotation.id,
+        sourceDocumentId: document.id,
+        generate: 'true'
+      });
+      if (annotation.entityType) {
+        params.append('entityTypes', annotation.entityType);
+      } else if (annotation.entityTypes) {
+        params.append('entityTypes', annotation.entityTypes.join(','));
+      }
+      if (referenceType) {
+        params.append('referenceType', referenceType);
+      }
+      router.push(`/know/compose?${params.toString()}`);
+    }
+  }, [stubReferenceModal.annotation, document.id, router, onGenerateDocument]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {

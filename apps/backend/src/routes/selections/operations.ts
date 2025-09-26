@@ -8,6 +8,7 @@ import { generateDocumentFromTopic, generateText } from '../../inference/factory
 import { calculateChecksum } from '@semiont/utils';
 import { CREATION_METHODS } from '@semiont/core-types';
 import type { CreateDocumentInput } from '@semiont/core-types';
+import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 
 // Create router with auth middleware
 export const operationsRouter: SelectionsRouterType = createSelectionRouter();
@@ -431,3 +432,6 @@ Entity types: ${(selection.entityTypes || []).join(', ')}`;
     },
   });
 });
+
+// Register SSE route for document generation progress
+registerGenerateDocumentStream(operationsRouter);

@@ -35,7 +35,6 @@ function ComposeDocumentContent() {
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasGenerated, setHasGenerated] = useState(false);
   
   // Generate AI content using the backend inference service
   const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
@@ -71,11 +70,9 @@ function ComposeDocumentContent() {
       if (response.document.name && response.document.name !== documentName) {
         setNewDocName(response.document.name);
       }
-      setHasGenerated(true);
       showSuccess('Content generated using AI! You can now edit it before saving.');
     } catch (error: any) {
       console.error('Failed to generate content:', error);
-      setHasGenerated(false);
       // Re-throw to let caller handle navigation
       throw error;
     } finally {
@@ -95,9 +92,9 @@ function ComposeDocumentContent() {
           setSelectedEntityTypes(entityTypes);
         }
 
-        // Generate content if requested and not already generated
+        // Generate content if requested
         // Wait for session to be ready before attempting generation
-        if (shouldGenerate && !hasGenerated && session?.backendToken) {
+        if (shouldGenerate && session?.backendToken) {
           try {
             // referenceTypeFromUrl can be null from searchParams, convert to undefined for API
             const referenceType = referenceTypeFromUrl ?? undefined;
@@ -146,7 +143,7 @@ function ComposeDocumentContent() {
     
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, hasGenerated, session?.backendToken]);
+  }, [mode, tokenFromUrl, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, session?.backendToken]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,7 +237,7 @@ function ComposeDocumentContent() {
           {isClone ? 'Edit Cloned Document' : isReferenceCompletion ? 'Complete Reference' : 'Compose New Document'}
         </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          {isClone 
+          {isClone
             ? 'Review and edit your cloned document before saving'
             : isReferenceCompletion
             ? shouldGenerate ? 'AI-generated content has been created for your reference' : 'Create a document to complete the reference you started'
