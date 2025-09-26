@@ -85,3 +85,8 @@
 .annotation-pulse {
   animation: pulse-glow 1.5s ease-out 3;
 }
+
+/* Infinite sparkle for progress indicator */
+.animate-sparkle-infinite {
+  animation: sparkle 1.2s ease-in-out infinite;
+}

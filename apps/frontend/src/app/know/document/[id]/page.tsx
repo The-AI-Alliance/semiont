@@ -13,6 +13,8 @@ import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
+import { useDetectionProgress } from '@/hooks/useDetectionProgress';
+import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 
 export default function KnowledgeDocumentPage() {
   const params = useParams();
@@ -169,33 +171,40 @@ export default function KnowledgeDocumentPage() {
     }
   }, [curationMode]);
 
-  // Handle detect entity references - memoized
-  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
-    try {
-      console.log('Detecting entity references for types:', selectedTypes);
-      console.log('Document ID:', documentId);
-      console.log('Making API call to detectSelections...');
-      
-      const response = await apiService.documents.detectSelections(documentId, selectedTypes);
-      
-      console.log('Detection response:', response);
-      showSuccess(response.message || `Entity detection started for ${selectedTypes.length} type(s)`);
-      setShowProposeEntitiesModal(false);
-      
-      // Reload annotations after a delay to show new detections
-      setTimeout(() => {
-        console.log('Reloading annotations...');
-        loadAnnotations(documentId);
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to detect entity references - Full error:', err);
-      if (err instanceof Error) {
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-      }
-      showError('Failed to start entity detection. Please try again.');
+  // State for entity types being detected
+  const [detectionEntityTypes, setDetectionEntityTypes] = useState<string[]>([]);
+
+  // Use SSE-based detection progress
+  const {
+    isDetecting,
+    progress: detectionProgress,
+    startDetection,
+    cancelDetection
+  } = useDetectionProgress({
+    documentId,
+    onComplete: (progress) => {
+      showSuccess(`✨ Created ${progress.createdCount} entity references!`);
+      // Reload annotations to show new references with sparkle animation
+      loadAnnotations(documentId);
+      setDetectionEntityTypes([]);
+    },
+    onError: (error) => {
+      showError(error);
+      setDetectionEntityTypes([]);
     }
-  }, [documentId, showSuccess, showError, loadAnnotations]);
+  });
+
+  // Handle detect entity references - updated for SSE
+  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
+    // Close modal immediately
+    setShowProposeEntitiesModal(false);
+
+    // Set entity types for display and start detection
+    setDetectionEntityTypes(selectedTypes);
+
+    // Start detection with the selected entity types
+    setTimeout(() => startDetection(selectedTypes), 100);
+  }, [startDetection]);
 
   // Loading state
   if (loading) {
@@ -349,7 +358,15 @@ export default function KnowledgeDocumentPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-64">
+        <div className="w-64 space-y-3">
+          {/* Detection Progress Widget - Show at top of sidebar when active */}
+          {detectionProgress && (
+            <DetectionProgressWidget
+              progress={detectionProgress}
+              onCancel={cancelDetection}
+            />
+          )}
+
           {/* Curation Mode Toggle */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <button
