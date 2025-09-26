@@ -31,7 +31,7 @@
     "@prisma/client": "^6.13.0",
     "@semiont/core-types": "*",
     "@semiont/utils": "*",
-    "dotenv": "^16.3.1",
+    "dotenv": "^17.2.2",
     "google-auth-library": "^9.10.0",
     "gremlin": "^3.7.4",
     "hono": "^4.8.10",
