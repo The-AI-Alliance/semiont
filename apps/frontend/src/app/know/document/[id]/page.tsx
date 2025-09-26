@@ -13,13 +13,17 @@ import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
+import { useDetectionProgress } from '@/hooks/useDetectionProgress';
+import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
+import { useGenerationProgress } from '@/hooks/useGenerationProgress';
+import { GenerationProgressWidget } from '@/components/GenerationProgressWidget';
 
 export default function KnowledgeDocumentPage() {
   const params = useParams();
   const router = useRouter();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
-  const { highlights, references, loadAnnotations } = useDocumentAnnotations();
+  const { highlights, references, loadAnnotations, triggerSparkleAnimation } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
 
   const [document, setDocument] = useState<SemiontDocument | null>(null);
@@ -169,33 +173,72 @@ export default function KnowledgeDocumentPage() {
     }
   }, [curationMode]);
 
-  // Handle detect entity references - memoized
-  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
-    try {
-      console.log('Detecting entity references for types:', selectedTypes);
-      console.log('Document ID:', documentId);
-      console.log('Making API call to detectSelections...');
-      
-      const response = await apiService.documents.detectSelections(documentId, selectedTypes);
-      
-      console.log('Detection response:', response);
-      showSuccess(response.message || `Entity detection started for ${selectedTypes.length} type(s)`);
-      setShowProposeEntitiesModal(false);
-      
-      // Reload annotations after a delay to show new detections
-      setTimeout(() => {
-        console.log('Reloading annotations...');
-        loadAnnotations(documentId);
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to detect entity references - Full error:', err);
-      if (err instanceof Error) {
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-      }
-      showError('Failed to start entity detection. Please try again.');
+  // State for entity types being detected
+  const [detectionEntityTypes, setDetectionEntityTypes] = useState<string[]>([]);
+
+  // Use SSE-based detection progress
+  const {
+    isDetecting,
+    progress: detectionProgress,
+    startDetection,
+    cancelDetection
+  } = useDetectionProgress({
+    documentId,
+    onComplete: (progress) => {
+      // Don't show toast - the widget already shows completion status
+      // Reload annotations to show new references with sparkle animation
+      loadAnnotations(documentId);
+      setDetectionEntityTypes([]);
+    },
+    onError: (error) => {
+      showError(error);
+      setDetectionEntityTypes([]);
     }
-  }, [documentId, showSuccess, showError, loadAnnotations]);
+  });
+
+  // Use SSE-based document generation progress
+  const {
+    isGenerating,
+    progress: generationProgress,
+    startGeneration,
+    cancelGeneration,
+    clearProgress: clearGenerationProgress
+  } = useGenerationProgress({
+    onComplete: (progress) => {
+      // Don't show toast - the widget already shows completion status
+      // Don't auto-navigate, let user click the link when ready
+
+      // Refresh annotations to update the reference with the new resolvedDocumentId
+      loadAnnotations(documentId);
+
+      // After 5 seconds (when widget auto-dismisses), trigger sparkle on the reference
+      setTimeout(() => {
+        if (progress.referenceId) {
+          triggerSparkleAnimation(progress.referenceId);
+        }
+      }, 5000);
+    },
+    onError: (error) => {
+      // Don't show toast - the widget already shows error status
+    }
+  });
+
+  // Handle detect entity references - updated for SSE
+  const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
+    // Close modal immediately
+    setShowProposeEntitiesModal(false);
+
+    // Set entity types for display and start detection
+    setDetectionEntityTypes(selectedTypes);
+
+    // Start detection with the selected entity types
+    setTimeout(() => startDetection(selectedTypes), 100);
+  }, [startDetection]);
+
+  // Handle document generation from stub reference
+  const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+    startGeneration(referenceId, options);
+  }, [startGeneration]);
 
   // Loading state
   if (loading) {
@@ -242,35 +285,132 @@ export default function KnowledgeDocumentPage() {
       {/* Main Content */}
       <div className="flex gap-6">
         {/* Document Content - Left Side */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm px-6 py-4">
-          <ErrorBoundary
-            fallback={(error, reset) => (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">
-                  Error loading document viewer
-                </h3>
-                <p className="text-sm text-red-700 dark:text-red-400">
-                  {error.message}
-                </p>
-                <button
-                  onClick={reset}
-                  className="mt-2 text-sm text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 underline"
-                >
-                  Try again
-                </button>
+        <div className="flex-1">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm px-6 py-4">
+            <ErrorBoundary
+              fallback={(error, reset) => (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">
+                    Error loading document viewer
+                  </h3>
+                  <p className="text-sm text-red-700 dark:text-red-400">
+                    {error.message}
+                  </p>
+                  <button
+                    onClick={reset}
+                    className="mt-2 text-sm text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+            >
+              <DocumentViewer
+                document={document}
+                onWikiLinkClick={handleWikiLinkClick}
+                curationMode={curationMode}
+                onGenerateDocument={handleGenerateDocument}
+              />
+            </ErrorBoundary>
+          </div>
+
+          {/* Referenced by - moved to main panel */}
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              Referenced by
+              {referencedByLoading && (
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(loading...)</span>
+              )}
+            </h3>
+            {referencedBy.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {referencedBy.map((ref: any) => (
+                  <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
+                    <Link
+                      href={`/know/document/${ref.documentId}`}
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
+                    >
+                      {ref.documentName || 'Untitled Document'}
+                    </Link>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
+                      "{ref.selectionData?.text || 'No text'}"
+                    </span>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {referencedByLoading ? 'Loading...' : 'No incoming references'}
+              </p>
             )}
-          >
-            <DocumentViewer
-              document={document}
-              onWikiLinkClick={handleWikiLinkClick}
-              curationMode={curationMode}
-            />
-          </ErrorBoundary>
+          </div>
+
+          {/* Provenance - moved to main panel */}
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Last Updated</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {document.updatedAt && !isNaN(Date.parse(document.updatedAt))
+                    ? new Date(document.updatedAt).toLocaleDateString()
+                    : '---'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Created At</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {document.createdAt && !isNaN(Date.parse(document.createdAt))
+                    ? new Date(document.createdAt).toLocaleDateString()
+                    : '---'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Created By</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">---</span>
+              </div>
+              {document.creationMethod && (
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400 block">Creation Method</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 capitalize">
+                    {document.creationMethod}
+                  </span>
+                </div>
+              )}
+              {document.sourceDocumentId && document.creationMethod === 'clone' && (
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400 block">Cloned From</span>
+                  <Link
+                    href={`/know/document/${document.sourceDocumentId}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    View original
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}
-        <div className="w-64">
+        <div className="w-64 space-y-3">
+          {/* Detection Progress Widget - Show at top of sidebar when active */}
+          {detectionProgress && (
+            <DetectionProgressWidget
+              progress={detectionProgress}
+              onCancel={cancelDetection}
+            />
+          )}
+
+          {/* Generation Progress Widget - Show at top of sidebar when active */}
+          {generationProgress && (
+            <GenerationProgressWidget
+              progress={generationProgress}
+              onCancel={cancelGeneration}
+              onDismiss={clearGenerationProgress}
+            />
+          )}
+
           {/* Curation Mode Toggle */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <button
@@ -338,79 +478,12 @@ export default function KnowledgeDocumentPage() {
           
           {/* Document Tags */}
           <div className="mt-3">
-            <DocumentTags 
+            <DocumentTags
               documentId={documentId}
               initialTags={documentEntityTypes}
               onUpdate={updateDocumentTags}
               disabled={!curationMode || !!document.archived}
             />
-          </div>
-        
-          {/* Referenced by */}
-          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Referenced by
-              {referencedByLoading && (
-                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(loading...)</span>
-              )}
-            </h3>
-            {referencedBy.length > 0 ? (
-              <div className="space-y-2">
-                {referencedBy.map((ref: any) => (
-                  <div key={ref.id} className="text-xs">
-                    <Link
-                      href={`/know/document/${ref.documentId}`}
-                      className="text-blue-600 dark:text-blue-400 hover:underline block"
-                    >
-                      {ref.documentName || 'Untitled Document'}
-                    </Link>
-                    <span className="text-gray-500 dark:text-gray-400 italic">
-                      "{ref.selectionData?.text || 'No text'}"
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {referencedByLoading ? 'Loading...' : 'No incoming references'}
-              </p>
-            )}
-          </div>
-        
-          {/* Provenance */}
-          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
-            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-              <div className="flex justify-between">
-                <span>Last Updated</span>
-                <span className="font-medium">{new Date(document.updatedAt).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Created At</span>
-                <span className="font-medium">{new Date(document.createdAt).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Created By</span>
-                <span className="font-medium">---</span>
-              </div>
-              {document.creationMethod && (
-                <div className="flex justify-between">
-                  <span>Creation Method</span>
-                  <span className="font-medium capitalize">{document.creationMethod}</span>
-                </div>
-              )}
-              {document.sourceDocumentId && document.creationMethod === 'clone' && (
-                <div className="flex justify-between">
-                  <span>Cloned From</span>
-                  <Link
-                    href={`/know/document/${document.sourceDocumentId}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                  >
-                    View original
-                  </Link>
-                </div>
-              )}
-            </div>
           </div>
         
           {/* Statistics */}

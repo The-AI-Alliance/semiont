@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata } from "next";
 import { Inter, Orbitron } from "next/font/google";
 import "./globals.css";
+import "@/styles/animations.css";
 import { Providers } from "./providers";
 import { env } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";

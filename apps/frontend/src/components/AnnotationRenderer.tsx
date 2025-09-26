@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { CodeMirrorRenderer } from './CodeMirrorRenderer';
+import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import '@/styles/animations.css';
 
 /**
  * ANNOTATION RENDERER - AXIOMATIC IMPLEMENTATION
@@ -124,9 +126,15 @@ const SegmentRenderer: React.FC<{
   segment: TextSegment;
   onAnnotationClick?: (annotation: AnnotationSelection) => void;
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
-}> = React.memo(({ segment, onAnnotationClick, onAnnotationRightClick }) => {
+  isNew?: boolean;
+}> = React.memo(({ segment, onAnnotationClick, onAnnotationRightClick, isNew = false }) => {
   if (!segment.annotation) {
     return <>{segment.text}</>;
+  }
+
+  // Debug logging for animation
+  if (isNew) {
+    console.log('[SegmentRenderer] Rendering with animation for:', segment.annotation.id, segment.text);
   }
   
   // Determine hover text based on annotation type
@@ -138,9 +146,11 @@ const SegmentRenderer: React.FC<{
         ? `Entity: ${(segment.annotation as any).entityTypes?.[0] || segment.annotation.entityType} • Right-click for options`
         : 'Right-click to link to document or delete';
   
+  const animationClass = isNew ? 'annotation-sparkle' : '';
+
   return (
     <span
-      className={annotationStyles.getAnnotationStyle(segment.annotation)}
+      className={`${annotationStyles.getAnnotationStyle(segment.annotation)} ${animationClass}`}
       data-annotation-id={segment.annotation.id}
       data-start={segment.start}
       data-end={segment.end}
@@ -178,7 +188,11 @@ export function AnnotationRenderer({
   onReferenceClick,
   onAnnotationRightClick
 }: Props) {
+  const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Debug logging
+  console.log('[AnnotationRenderer] newAnnotationIds:', Array.from(newAnnotationIds));
   const [selectionState, setSelectionState] = useState<{
     text: string;
     start: number;
@@ -300,7 +314,8 @@ export function AnnotationRenderer({
         segments,
         onAnnotationClick: handleAnnotationClick,
         theme: "light",
-        editable: false
+        editable: false,
+        newAnnotationIds
       };
       if (onAnnotationRightClick) {
         props.onAnnotationRightClick = onAnnotationRightClick;
@@ -320,6 +335,7 @@ export function AnnotationRenderer({
             key={`${segment.start}-${segment.end}-${segment.annotation?.id || i}`}
             segment={segment}
             onAnnotationClick={handleAnnotationClick}
+            isNew={!!(segment.annotation && newAnnotationIds.has(segment.annotation.id))}
             {...(onAnnotationRightClick && { onAnnotationRightClick })}
           />
         ))}
