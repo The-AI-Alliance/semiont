@@ -210,6 +210,11 @@ app.get('/api/swagger', (c) => {
   return c.redirect(redirectUrl);
 });
 
+// 404 handler for non-existent API routes
+app.all('/api/*', (c) => {
+  return c.json({ error: 'Not found' }, 404);
+});
+
 // Start server
 const port = CONFIG.PORT;
 

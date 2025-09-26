@@ -6,7 +6,7 @@ import { getGraphDatabase } from '../graph/factory';
 
 // Create router with auth middleware
 export const referenceTypesRouter = new OpenAPIHono<{ Variables: { user: User } }>();
-referenceTypesRouter.use('*', authMiddleware);
+referenceTypesRouter.use('/api/reference-types/*', authMiddleware);
 
 // GET /api/reference-types
 const getReferenceTypesRoute = createRoute({

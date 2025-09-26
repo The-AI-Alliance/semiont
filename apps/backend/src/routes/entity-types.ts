@@ -6,7 +6,7 @@ import { getGraphDatabase } from '../graph/factory';
 
 // Create router with auth middleware
 export const entityTypesRouter = new OpenAPIHono<{ Variables: { user: User } }>();
-entityTypesRouter.use('*', authMiddleware);
+entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 // GET /api/entity-types
 const getEntityTypesRoute = createRoute({
