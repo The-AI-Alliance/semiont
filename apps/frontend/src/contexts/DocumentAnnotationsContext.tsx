@@ -39,6 +39,7 @@ interface DocumentAnnotationsContextType {
   convertReferenceToHighlight: (referenceId: string) => Promise<void>;
   refreshAnnotations: () => Promise<void>;
   clearNewAnnotationId: (id: string) => void;
+  triggerSparkleAnimation: (annotationId: string) => void;
 }
 
 const DocumentAnnotationsContext = createContext<DocumentAnnotationsContextType | undefined>(undefined);
@@ -263,6 +264,20 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     });
   }, []);
 
+  const triggerSparkleAnimation = useCallback((annotationId: string) => {
+    // Add the ID to trigger sparkle animation
+    setNewAnnotationIds(prev => new Set(prev).add(annotationId));
+
+    // Remove it after animation completes (6 seconds for 3 iterations)
+    setTimeout(() => {
+      setNewAnnotationIds(prev => {
+        const next = new Set(prev);
+        next.delete(annotationId);
+        return next;
+      });
+    }, 6000);
+  }, []);
+
   return (
     <DocumentAnnotationsContext.Provider value={{
       highlights,
@@ -277,7 +292,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       convertHighlightToReference,
       convertReferenceToHighlight,
       refreshAnnotations,
-      clearNewAnnotationId
+      clearNewAnnotationId,
+      triggerSparkleAnimation
     }}>
       {children}
     </DocumentAnnotationsContext.Provider>

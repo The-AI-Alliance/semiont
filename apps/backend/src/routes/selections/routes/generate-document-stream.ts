@@ -54,7 +54,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
             status: 'started',
             referenceId,
             percentage: 0,
-            message: 'Starting document generation...'
+            message: 'Starting...'
           } as GenerationProgress),
           event: 'generation-started',
           id: String(Date.now())
@@ -83,7 +83,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
             status: 'generating',
             referenceId,
             percentage: 40,
-            message: 'Generating document content with AI...'
+            message: 'Creating content...'
           } as GenerationProgress),
           event: 'generation-progress',
           id: String(Date.now())
@@ -105,7 +105,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
             referenceId,
             documentName,
             percentage: 70,
-            message: 'AI generation complete, saving draft...'
+            message: 'Content ready, saving draft...'
           } as GenerationProgress),
           event: 'generation-progress',
           id: String(Date.now())

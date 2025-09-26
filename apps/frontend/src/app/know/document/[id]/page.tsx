@@ -23,7 +23,7 @@ export default function KnowledgeDocumentPage() {
   const router = useRouter();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
-  const { highlights, references, loadAnnotations } = useDocumentAnnotations();
+  const { highlights, references, loadAnnotations, triggerSparkleAnimation } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
 
   const [document, setDocument] = useState<SemiontDocument | null>(null);
@@ -205,8 +205,15 @@ export default function KnowledgeDocumentPage() {
     clearProgress: clearGenerationProgress
   } = useGenerationProgress({
     onComplete: (progress) => {
-      showSuccess(`✨ Document "${progress.documentName}" created successfully!`);
+      // Don't show toast - the widget already shows completion status
       // Don't auto-navigate, let user click the link when ready
+
+      // After 5 seconds (when widget auto-dismisses), trigger sparkle on the reference
+      setTimeout(() => {
+        if (progress.referenceId) {
+          triggerSparkleAnimation(progress.referenceId);
+        }
+      }, 5000);
     },
     onError: (error) => {
       showError(error);
