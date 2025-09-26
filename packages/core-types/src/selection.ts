@@ -17,7 +17,6 @@ import { ReferenceTag } from './reference-tags';
 export interface Selection {
   id: string;
   documentId: string;
-  selectionType: string;  // 'text_span', 'ast_node', 'image_region', 'audio_segment'
   selectionData: any;     // Type-specific data (offset, length, coordinates, etc.)
 
   // Reference fields - presence determines selection type:
@@ -36,7 +35,6 @@ export interface Selection {
 
   // Provisional selections are auto-detected
   provisional: boolean;
-  confidence?: number;
 
   metadata?: Record<string, any>;
   createdBy?: string;  // User who created the selection
@@ -49,7 +47,6 @@ export interface Selection {
  */
 export interface CreateSelectionInput {
   documentId: string;
-  selectionType: string;
   selectionData: any;
 
   createdBy?: string;
@@ -65,7 +62,6 @@ export interface CreateSelectionInput {
   entityTypes?: string[];
 
   provisional?: boolean;
-  confidence?: number;
   metadata?: Record<string, any>;
 }
 
@@ -78,7 +74,6 @@ export interface ResolveSelectionInput {
   referenceTags?: ReferenceTag[];  // Semantic relationship tags
   entityTypes?: string[];  // Optionally specify which entity types are being referenced
   provisional?: boolean;
-  confidence?: number;
   resolvedBy?: string;
   metadata?: Record<string, any>;
 }

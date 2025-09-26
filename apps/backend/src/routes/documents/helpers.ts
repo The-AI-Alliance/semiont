@@ -31,7 +31,6 @@ export function formatSelection(sel: Selection): any {
   return {
     id: sel.id,
     documentId: sel.documentId,
-    selectionType: sel.selectionType,
     selectionData: sel.selectionData,
     resolvedDocumentId: sel.resolvedDocumentId,
     resolvedAt: sel.resolvedAt instanceof Date ? sel.resolvedAt.toISOString() : sel.resolvedAt,
@@ -39,7 +38,6 @@ export function formatSelection(sel: Selection): any {
     referenceTags: sel.referenceTags,
     entityTypes: sel.entityTypes,
     provisional: sel.provisional,
-    confidence: sel.confidence,
     metadata: sel.metadata,
     createdBy: sel.createdBy,
     createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
@@ -50,9 +48,7 @@ export function formatSelection(sel: Selection): any {
 // Types for the detection result
 export interface DetectedSelection {
   selection: {
-    selectionType: string;
     selectionData: {
-      type: string;
       offset: number;
       length: number;
       text: string;
@@ -83,9 +79,7 @@ export async function detectSelectionsInDocument(
     for (const entity of extractedEntities) {
       const selection: DetectedSelection = {
         selection: {
-          selectionType: 'text_span',
           selectionData: {
-            type: 'text_span',
             offset: entity.startOffset,
             length: entity.endOffset - entity.startOffset,
             text: entity.text,

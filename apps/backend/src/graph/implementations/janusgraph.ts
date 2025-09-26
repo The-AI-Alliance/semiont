@@ -122,13 +122,11 @@ export class JanusGraphDatabase implements GraphDatabase {
     return {
       id: this.getPropertyValue(props, 'id'),
       documentId: this.getPropertyValue(props, 'documentId'),
-      selectionType: this.getPropertyValue(props, 'selectionType'),
       selectionData: JSON.parse(this.getPropertyValue(props, 'selectionData') || '{}'),
       provisional: this.getPropertyValue(props, 'provisional') === 'true',
       createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
       updatedAt: new Date(this.getPropertyValue(props, 'updatedAt')),
       createdBy: this.getPropertyValue(props, 'createdBy'),
-      confidence: this.getPropertyValue(props, 'confidence'),
       metadata: JSON.parse(this.getPropertyValue(props, 'metadata') || '{}'),
       resolvedDocumentId: this.getPropertyValue(props, 'resolvedDocumentId'),
       resolvedAt: this.getPropertyValue(props, 'resolvedAt') ? new Date(this.getPropertyValue(props, 'resolvedAt')) : undefined,
@@ -267,16 +265,17 @@ export class JanusGraphDatabase implements GraphDatabase {
     const id = this.generateId();
     const now = new Date();
 
+    // Calculate selectionType for graph storage
+    const selectionType = input.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
+
     const selection: Selection = {
       id,
       documentId: input.documentId,
-      selectionType: input.selectionType,
       selectionData: input.selectionData,
       provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
       createdBy: input.createdBy,
-      confidence: input.confidence,
       metadata: input.metadata,
     };
 
@@ -296,7 +295,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .addV('Selection')
       .property('id', id)
       .property('documentId', input.documentId)
-      .property('selectionType', input.selectionType)
+      .property('selectionType', selectionType)
       .property('selectionData', JSON.stringify(input.selectionData))
       .property('provisional', input.provisional || false)
       .property('createdAt', now.toISOString())
@@ -348,9 +347,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
     if (updates.provisional !== undefined) {
       await traversalQuery.property('provisional', updates.provisional).next();
-    }
-    if (updates.confidence !== undefined) {
-      await traversalQuery.property('confidence', updates.confidence).next();
     }
     if (updates.metadata !== undefined) {
       await traversalQuery.property('metadata', JSON.stringify(updates.metadata)).next();

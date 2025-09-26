@@ -296,15 +296,18 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   let selected = '';
   let after = '';
 
-  if (selection.selectionType === 'highlight' && selection.selectionData) {
+  // Check if this is a highlight (no resolvedDocumentId field)
+  if (selection.resolvedDocumentId === undefined && selection.selectionData) {
     const data = selection.selectionData as any;
-    if (data.start !== undefined && data.end !== undefined) {
-      const start = Math.max(0, data.start - contextBefore);
-      const end = Math.min(contentStr.length, data.end + contextAfter);
+    if (data.offset !== undefined && data.length !== undefined) {
+      const selStart = data.offset;
+      const selEnd = data.offset + data.length;
+      const start = Math.max(0, selStart - contextBefore);
+      const end = Math.min(contentStr.length, selEnd + contextAfter);
 
-      before = contentStr.substring(start, data.start);
-      selected = contentStr.substring(data.start, data.end);
-      after = contentStr.substring(data.end, end);
+      before = contentStr.substring(start, selStart);
+      selected = contentStr.substring(selStart, selEnd);
+      after = contentStr.substring(selEnd, end);
     } else if (data.text) {
       selected = data.text;
       // Try to find the text in the content
@@ -378,15 +381,18 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   let after = '';
   const contextSize = 500; // Fixed context for summary
 
-  if (selection.selectionType === 'highlight' && selection.selectionData) {
+  // Check if this is a highlight (no resolvedDocumentId field)
+  if (selection.resolvedDocumentId === undefined && selection.selectionData) {
     const data = selection.selectionData as any;
-    if (data.start !== undefined && data.end !== undefined) {
-      const start = Math.max(0, data.start - contextSize);
-      const end = Math.min(contentStr.length, data.end + contextSize);
+    if (data.offset !== undefined && data.length !== undefined) {
+      const selStart = data.offset;
+      const selEnd = data.offset + data.length;
+      const start = Math.max(0, selStart - contextSize);
+      const end = Math.min(contentStr.length, selEnd + contextSize);
 
-      before = contentStr.substring(start, data.start);
-      selected = contentStr.substring(data.start, data.end);
-      after = contentStr.substring(data.end, end);
+      before = contentStr.substring(start, selStart);
+      selected = contentStr.substring(selStart, selEnd);
+      after = contentStr.substring(selEnd, end);
     } else if (data.text) {
       selected = data.text;
       const index = contentStr.indexOf(data.text);
@@ -416,7 +422,6 @@ Entity types: ${(selection.entityTypes || []).join(', ')}`;
     relevantFields: {
       documentId: document.id,
       documentName: document.name,
-      selectionType: selection.selectionType,
       entityTypes: selection.entityTypes || [],
     },
     context: {

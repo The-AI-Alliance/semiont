@@ -65,42 +65,29 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   const user = c.get('user');
   const graphDb = await getGraphDatabase();
 
-  // Determine selection type and data based on input format
-  let selectionType: 'highlight' | 'reference';
+  // Process selection data from frontend format
   let selectionData: any = {};
 
   if (typeof body.selectionType === 'object' && 'type' in body.selectionType) {
-    // Frontend format with object
+    // Frontend format with object - keep the same structure
     const st = body.selectionType;
-    selectionType = body.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
     selectionData = {
-      start: st.offset,
-      end: st.offset + st.length,
+      type: st.type,
+      offset: st.offset,
+      length: st.length,
       text: st.text
     };
-  } else if (typeof body.selectionType === 'string') {
-    // Direct string format
-    selectionType = body.selectionType;
-    selectionData = body.selectionData || {};
   } else {
-    // Fallback based on presence of resolvedDocumentId
-    selectionType = body.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
     selectionData = body.selectionData || {};
   }
 
-  // Add reference-specific data
-  if (selectionType === 'reference' && body.resolvedDocumentId !== undefined) {
-    selectionData.resolvedDocumentId = body.resolvedDocumentId;
-  }
-  if (body.referenceTags) {
-    selectionData.referenceTags = body.referenceTags;
-  }
-
-  const selectionInput: CreateSelectionInput = {
+  const selectionInput: CreateSelectionInput & { selectionType: string } = {
     documentId: body.documentId,
-    selectionType,
+    selectionType: body.resolvedDocumentId !== undefined ? 'reference' : 'highlight',  // Graph implementations need this
     selectionData,
+    resolvedDocumentId: body.resolvedDocumentId,  // undefined = highlight, null = stub ref, string = resolved ref
     entityTypes: body.entityTypes,
+    referenceTags: body.referenceTags,
     provisional: body.provisional ?? true,
     metadata: body.metadata,
     createdBy: user.id,
@@ -231,7 +218,7 @@ crudRouter.openapi(listSelectionsRoute, async (c) => {
 
 // Local schemas for RESOLVE
 const ResolveSelectionRequest = z.object({
-  targetDocumentId: z.string(),
+  documentId: z.string(),
 });
 
 const ResolveSelectionResponse = z.object({
@@ -283,11 +270,11 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
 
   const resolved = await graphDb.resolveSelection({
     selectionId: id,
-    documentId: body.targetDocumentId,
+    documentId: body.documentId,
     resolvedBy: user.id
   });
 
-  const targetDocument = await graphDb.getDocument(body.targetDocumentId);
+  const targetDocument = await graphDb.getDocument(body.documentId);
 
   return c.json({
     selection: formatSelection(resolved),

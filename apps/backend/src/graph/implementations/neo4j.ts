@@ -328,10 +328,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const id = this.generateId();
       const now = new Date().toISOString();
 
+      // Calculate selectionType for graph storage
+      const selectionType = input.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
+
       const selection: Selection = {
         id,
         documentId: input.documentId,
-        selectionType: input.selectionType,
         selectionData: input.selectionData,
         provisional: input.provisional || false,
         createdAt: new Date(now),
@@ -358,7 +360,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       if (input.referenceTags) selection.referenceTags = input.referenceTags;
       if (input.entityTypes) selection.entityTypes = input.entityTypes;
-      if (input.confidence !== undefined) selection.confidence = input.confidence;
       if (input.metadata) selection.metadata = input.metadata;
 
       // Create the selection node and relationships
@@ -378,7 +379,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              provisional: $provisional,
              referenceTags: $referenceTags,
              entityTypes: $entityTypes,
-             confidence: $confidence,
              metadata: $metadata,
              createdAt: datetime($createdAt),
              updatedAt: datetime($updatedAt),
@@ -435,13 +435,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         fromId: selection.documentId,
         toId: selection.resolvedDocumentId ?? null,
         resolvedDocumentId: selection.resolvedDocumentId ?? null,
-        selectionType: selection.selectionType,
+        selectionType: selectionType,
         selectionCategory,
         selectionData: JSON.stringify(selection.selectionData),
         provisional: selection.provisional,
         referenceTags: selection.referenceTags || [],
         entityTypes: selection.entityTypes || [],
-        confidence: selection.confidence ?? null,
         metadata: selection.metadata ? JSON.stringify(selection.metadata) : null,
         createdAt: now,
         updatedAt: now,
@@ -636,10 +635,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       if (input.entityTypes) {
         setClauses.push('s.entityTypes = $entityTypes');
         params.entityTypes = input.entityTypes;
-      }
-      if (input.confidence !== undefined) {
-        setClauses.push('s.confidence = $confidence');
-        params.confidence = input.confidence;
       }
       if (input.resolvedBy) {
         setClauses.push('s.resolvedBy = $resolvedBy');
@@ -1090,7 +1085,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const selection: Selection = {
       id: props.id,
       documentId: props.documentId,
-      selectionType: props.selectionType,
       selectionData: JSON.parse(props.selectionData),
       provisional: props.provisional,
       createdAt: new Date(props.createdAt.toString()),
@@ -1101,7 +1095,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (props.resolvedAt) selection.resolvedAt = new Date(props.resolvedAt.toString());
     if (props.referenceTags?.length > 0) selection.referenceTags = props.referenceTags;
     if (props.entityTypes?.length > 0) selection.entityTypes = props.entityTypes;
-    if (props.confidence !== null) selection.confidence = props.confidence;
     if (props.metadata) selection.metadata = JSON.parse(props.metadata);
     if (props.createdBy) selection.createdBy = props.createdBy;
     if (props.resolvedBy) selection.resolvedBy = props.resolvedBy;

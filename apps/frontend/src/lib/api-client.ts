@@ -578,11 +578,11 @@ export const apiService = {
       targetDocumentId: string;
       referenceType?: string;
     }): Promise<SelectionResponse> =>
-      apiClient.put('/api/selections/:id/resolve', { 
+      apiClient.put('/api/selections/:id/resolve', {
         params: { id: data.selectionId },
-        body: { 
+        body: {
           documentId: data.targetDocumentId,
-          referenceType: data.referenceType 
+          referenceType: data.referenceType
         }
       }),
     

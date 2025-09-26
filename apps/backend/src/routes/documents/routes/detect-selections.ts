@@ -15,8 +15,9 @@ const DetectSelectionsResponse = z.object({
   selections: z.array(z.object({
     id: z.string(),
     documentId: z.string(),
-    selectionType: z.string(),
     selectionData: z.any(),
+    resolvedDocumentId: z.string().nullable().optional(),
+    entityTypes: z.array(z.string()).optional(),
     provisional: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -77,10 +78,11 @@ export function registerDetectSelections(router: DocumentsRouterType) {
     // Save the provisional selections
     const savedSelections = [];
     for (const detected of detectedSelections) {
-      const selectionInput: CreateSelectionInput = {
+      const selectionInput: CreateSelectionInput & { selectionType: string } = {
         documentId: id,
-        selectionType: detected.selection.selectionType,
+        selectionType: 'reference',  // Graph implementations need this for stub references
         selectionData: detected.selection.selectionData,
+        resolvedDocumentId: null,  // null = stub reference
         entityTypes: detected.selection.entityTypes,
         provisional: true,
         metadata: detected.selection.metadata,
@@ -95,8 +97,9 @@ export function registerDetectSelections(router: DocumentsRouterType) {
       selections: savedSelections.map(s => ({
         id: s.id,
         documentId: s.documentId,
-        selectionType: s.selectionType,
         selectionData: s.selectionData,
+        resolvedDocumentId: s.resolvedDocumentId,
+        entityTypes: s.entityTypes,
         provisional: s.provisional || false,
         createdAt: s.createdAt?.toISOString() || new Date().toISOString(),
         updatedAt: s.updatedAt?.toISOString() || new Date().toISOString(),
