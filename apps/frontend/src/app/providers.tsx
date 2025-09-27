@@ -6,6 +6,7 @@ import { SessionProvider, useSession } from 'next-auth/react';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { ToastProvider } from '@/components/Toast';
 import { SessionProvider as CustomSessionProvider } from '@/contexts/SessionContext';
+import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 
 // Separate component to use the secure API hook
 function SecureAPIProvider({ children }: { children: React.ReactNode }) {
@@ -48,15 +49,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <SessionProvider>
-      <CustomSessionProvider>
-        <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <SecureAPIProvider>
-              {children}
-            </SecureAPIProvider>
-          </ToastProvider>
-        </QueryClientProvider>
-      </CustomSessionProvider>
+      <AuthErrorBoundary>
+        <CustomSessionProvider>
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <SecureAPIProvider>
+                {children}
+              </SecureAPIProvider>
+            </ToastProvider>
+          </QueryClientProvider>
+        </CustomSessionProvider>
+      </AuthErrorBoundary>
     </SessionProvider>
   );
 }
