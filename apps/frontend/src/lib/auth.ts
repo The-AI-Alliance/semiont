@@ -224,40 +224,6 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     
-    async redirect({ url, baseUrl }) {
-      // Always redirect to /know after sign in, unless it's a specific protected route
-      // that should be preserved (like /admin or /moderate)
-      const protectedRoutes = ['/admin', '/moderate'];
-      
-      // If user is signing in and no specific URL was requested, go to know page
-      if (url === baseUrl || url === `${baseUrl}/`) {
-        return `${baseUrl}/know`;
-      }
-      
-      // Check if it's an internal URL
-      if (url.startsWith('/')) {
-        // If it's a protected route, allow redirect to it
-        if (protectedRoutes.some(route => url.startsWith(route))) {
-          return `${baseUrl}${url}`;
-        }
-        // For all other internal URLs (like /about, /auth/*, etc), redirect to /know
-        return `${baseUrl}/know`;
-      }
-      
-      // Check if it's a same-origin URL
-      if (new URL(url).origin === baseUrl) {
-        const pathname = new URL(url).pathname;
-        // If it's a protected route, allow redirect to it
-        if (protectedRoutes.some(route => pathname.startsWith(route))) {
-          return url;
-        }
-        // For all other same-origin URLs, redirect to /know
-        return `${baseUrl}/know`;
-      }
-      
-      // External URLs - redirect to /know
-      return `${baseUrl}/know`;
-    },
   },
   pages: {
     signIn: '/auth/signin',

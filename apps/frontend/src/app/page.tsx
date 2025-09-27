@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Footer } from "@/components/Footer";
@@ -11,14 +10,6 @@ import { buttonStyles } from "@/lib/button-styles";
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const router = useRouter();
-
-  // Redirect authenticated users to know page
-  useEffect(() => {
-    if (session?.backendToken) {
-      router.push('/know');
-    }
-  }, [session, router]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -45,26 +36,46 @@ export default function Home() {
               
               {/* Action Buttons */}
               <div className="flex gap-4 justify-center items-center flex-wrap">
-                <Link
-                  href="/about"
-                  className={buttonStyles.secondary.base}
-                >
-                  Learn More
-                </Link>
-                <Link
-                  href="/auth/signup"
-                  className={buttonStyles.primary.base}
-                >
-                  Sign Up
-                </Link>
-                <button
-                  onClick={() => signIn(undefined, { callbackUrl: '/know' })}
-                  className={buttonStyles.primary.base}
-                  type="button"
-                >
-                  Sign In
-                </button>
-              </div>
+                {session?.backendToken ? (
+                  // Authenticated users see different actions
+                  <>
+                    <Link
+                      href="/know"
+                      className={buttonStyles.primary.base}
+                    >
+                      Continue to Knowledge Base
+                    </Link>
+                    <Link
+                      href="/about"
+                      className={buttonStyles.secondary.base}
+                    >
+                      Learn More
+                    </Link>
+                  </>
+                ) : (
+                  // Non-authenticated users see sign in/up options
+                  <>
+                    <Link
+                      href="/about"
+                      className={buttonStyles.secondary.base}
+                    >
+                      Learn More
+                    </Link>
+                    <Link
+                      href="/auth/signup"
+                      className={buttonStyles.primary.base}
+                    >
+                      Sign Up
+                    </Link>
+                    <button
+                      onClick={() => signIn(undefined, { callbackUrl: '/know' })}
+                      className={buttonStyles.primary.base}
+                      type="button"
+                    >
+                      Sign In
+                    </button>
+                  </>
+                )}</div>
             </div>
           )}
         </div>

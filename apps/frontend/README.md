@@ -225,6 +225,11 @@ Configure deployment behavior in `/config/environments/[env].json`:
 
 See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 
+## Documentation
+
+- [Authentication Architecture](docs/AUTHENTICATION.md) - Comprehensive guide to frontend authentication and 401 handling
+- [Authorization Architecture](docs/AUTHORIZATION.md) - Permission system and 403 error handling
+
 ## Technology Stack
 
 - **Framework**: [Next.js 14](https://nextjs.org/) with App Router

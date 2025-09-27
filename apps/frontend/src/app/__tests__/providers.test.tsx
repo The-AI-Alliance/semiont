@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
+import { APIError } from '@/lib/api-client';
 
 // Mock the useSecureAPI hook
 vi.mock('@/hooks/useSecureAPI', () => ({
@@ -84,15 +85,19 @@ describe('Providers', () => {
       </Providers>
     );
     
-    // Verify QueryClient was called with configuration
-    expect(MockedQueryClient).toHaveBeenCalledWith({
-      defaultOptions: {
-        queries: expect.objectContaining({
-          retry: expect.any(Function),
-          staleTime: 5 * 60 * 1000, // 5 minutes
-        }),
-      },
-    });
+    // Verify QueryClient was called with configuration including caches
+    expect(MockedQueryClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryCache: expect.any(Object),
+        mutationCache: expect.any(Object),
+        defaultOptions: {
+          queries: expect.objectContaining({
+            retry: expect.any(Function),
+            staleTime: 5 * 60 * 1000, // 5 minutes
+          }),
+        },
+      })
+    );
   });
 
   it('should configure retry logic to not retry on authentication errors', () => {
@@ -111,16 +116,16 @@ describe('Providers', () => {
     expect(retryFunction).toBeDefined();
     
     // Test retry logic for 401 errors
-    const error401 = new Error('401 Unauthorized');
+    const error401 = new APIError(401, { error: 'Unauthorized' });
     expect(retryFunction(0, error401)).toBe(false);
-    
+
     // Test retry logic for 403 errors
-    const error403 = new Error('403 Forbidden');
+    const error403 = new APIError(403, { error: 'Forbidden' });
     expect(retryFunction(0, error403)).toBe(false);
-    
-    // Test retry logic for unauthorized messages
-    const errorUnauth = new Error('Request failed with status unauthorized');
-    expect(retryFunction(0, errorUnauth)).toBe(false);
+
+    // Test retry logic for other API errors (should retry)
+    const error500 = new APIError(500, { error: 'Internal Server Error' });
+    expect(retryFunction(0, error500)).toBe(true);
     
     // Test retry logic for other errors (should retry up to 3 times)
     const networkError = new Error('Network error');
@@ -142,9 +147,9 @@ describe('Providers', () => {
     const queryClientConfig = MockedQueryClient.mock.calls[0]?.[0];
     const retryFunction = queryClientConfig?.defaultOptions?.queries?.retry as Function;
     
-    // Test with non-Error object
+    // Test with non-Error object (not an APIError)
     const nonError = { message: '401 unauthorized' };
-    expect(retryFunction(0, nonError)).toBe(true); // Should retry since it's not an Error instance
+    expect(retryFunction(0, nonError)).toBe(true); // Should retry since it's not an APIError instance
     
     // Test with null/undefined
     expect(retryFunction(0, null)).toBe(true);
