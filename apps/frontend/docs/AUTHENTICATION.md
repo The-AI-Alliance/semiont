@@ -38,7 +38,8 @@ The Semiont frontend implements a comprehensive authentication system built on N
 - Prompts users to extend their session
 
 #### SessionExpiredModal (`src/components/SessionExpiredModal.tsx`)
-- Modal overlay when session expires
+- Modal overlay when session expires or 401 errors occur
+- Triggered by both NextAuth session expiry and backend JWT expiry
 - Options to sign in again or navigate home
 - Prevents accidental data loss
 
@@ -98,6 +99,43 @@ sequenceDiagram
 - Automatic 401 handling and session clearing
 - Rate limiting and request validation
 - Secure headers on all requests
+
+## 401 Error Handling
+
+### Global Event System
+The frontend uses a custom event system to handle 401 errors consistently across the application:
+
+#### Auth Events (`src/lib/auth-events.ts`)
+- Custom events for authentication failures
+- `dispatch401Error()` triggers SessionExpiredModal
+- Type-safe event handling with cleanup
+
+#### Error Detection
+401 errors are detected and handled at multiple levels:
+
+1. **API Client Level** (`src/lib/api-client.ts`)
+   - Throws typed `APIError` with status code
+   - Enables precise error handling
+
+2. **React Query Level** (`src/app/providers.tsx`)
+   - Global `QueryCache` and `MutationCache` error handlers
+   - Catches 401s from all queries and mutations
+   - Dispatches auth events for modal display
+
+3. **Hook Level** (`src/hooks/useApiWithAuth.ts`)
+   - Handles 401s for specific API calls
+   - Clears cache and shows toast notifications
+   - Dispatches events to trigger modal
+
+### User Experience
+When a 401 error occurs:
+1. React Query cache is cleared (fresh start)
+2. Toast notification appears briefly
+3. SessionExpiredModal provides recovery options:
+   - **Sign In Again**: Re-authenticate and return to current page
+   - **Go to Home**: Navigate to home page
+
+This multi-layered approach ensures no 401 error goes unhandled, providing users with clear recovery paths when their session expires.
 
 ### Session Security
 - 24-hour session expiration
@@ -245,6 +283,8 @@ session: {
 - Security event logging
 
 ## Related Documentation
+
+- [Authorization Architecture](./AUTHORIZATION.md) - 403 handling and permissions
 - [NextAuth.js Documentation](https://next-auth.js.org/)
 - [Backend Security](/docs/SECURITY.md)
 - [API Documentation](/docs/API.md)

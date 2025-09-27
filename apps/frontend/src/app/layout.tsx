@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
 import { SessionExpiryBanner } from "@/components/SessionExpiryBanner";
 import { SessionExpiredModal } from "@/components/SessionExpiredModal";
+import { PermissionDeniedModal } from "@/components/PermissionDeniedModal";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({ 
@@ -31,6 +32,7 @@ export default function RootLayout({
         <Providers>
           <SessionExpiryBanner />
           <SessionExpiredModal />
+          <PermissionDeniedModal />
           {children}
           <CookieBanner />
         </Providers>
