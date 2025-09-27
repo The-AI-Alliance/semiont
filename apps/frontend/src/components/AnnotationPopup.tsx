@@ -46,7 +46,7 @@ export function AnnotationPopup({
   onGenerateDocument
 }: AnnotationPopupProps) {
   const router = useRouter();
-  const [selectedEntityType, setSelectedEntityType] = useState<string>('');
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [selectedReferenceType, setSelectedReferenceType] = useState<string>('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -73,7 +73,13 @@ export function AnnotationPopup({
   // Reset state when popup opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedEntityType(annotation?.entityType || '');
+      // Handle both single entityType and multiple entityTypes (comma-separated)
+      if (annotation?.entityType) {
+        const types = annotation.entityType.split(',').map(t => t.trim()).filter(t => t);
+        setSelectedEntityTypes(types);
+      } else {
+        setSelectedEntityTypes([]);
+      }
       setSelectedReferenceType(annotation?.referenceType || '');
       setShowSearchModal(false);
     }
@@ -127,6 +133,14 @@ export function AnnotationPopup({
     );
   }
 
+  const toggleEntityType = (type: string) => {
+    setSelectedEntityTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
   const handleCreateHighlight = () => {
     if (onCreateHighlight) {
       onCreateHighlight();
@@ -136,8 +150,9 @@ export function AnnotationPopup({
 
   const handleCreateReference = () => {
     if (onCreateReference) {
-      // Pass undefined for entity type if none selected (creating a stub reference)
-      onCreateReference(undefined, selectedEntityType || undefined, selectedReferenceType || undefined);
+      // Pass entity types as comma-separated string or undefined if none selected
+      const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+      onCreateReference(undefined, entityTypesStr, selectedReferenceType || undefined);
     }
     onClose();
   };
@@ -253,9 +268,15 @@ export function AnnotationPopup({
         {/* Current annotation info */}
         {annotation?.entityType && (
           <div className="mb-3">
-            <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-              {annotation.entityType}
-            </span>
+            {/* Split and display multiple entity types if comma-separated */}
+            {annotation.entityType.split(',').map((type, index) => (
+              <span
+                key={index}
+                className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 mr-1 mb-1"
+              >
+                {type.trim()}
+              </span>
+            ))}
             {annotation.referenceType && (
               <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                 ({annotation.referenceType})
@@ -292,15 +313,15 @@ export function AnnotationPopup({
 
                 {/* Entity Type Selection */}
                 <div className="mb-3">
-                  <label className="text-xs text-gray-600 dark:text-gray-400">Entity Type</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400">Entity Types (select multiple)</label>
                   <div className="grid grid-cols-3 gap-2 mt-1">
                     {entityTypes.map(type => (
                       <button
                         key={type}
-                        onClick={() => setSelectedEntityType(type)}
+                        onClick={() => toggleEntityType(type)}
                         className={`px-2 py-1 text-xs rounded-lg transition-colors ${
-                          selectedEntityType === type
-                            ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                          selectedEntityTypes.includes(type)
+                            ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500'
                             : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                       >
@@ -346,15 +367,15 @@ export function AnnotationPopup({
 
               {/* Entity Type Selection */}
               <div className="mb-3">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Entity Type</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Entity Types (select multiple)</label>
                 <div className="grid grid-cols-3 gap-2 mt-1">
                   {entityTypes.map(type => (
                     <button
                       key={type}
-                      onClick={() => setSelectedEntityType(type)}
+                      onClick={() => toggleEntityType(type)}
                       className={`px-2 py-1 text-xs rounded-lg transition-colors ${
-                        selectedEntityType === type
-                          ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                        selectedEntityTypes.includes(type)
+                          ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500'
                           : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
@@ -384,8 +405,9 @@ export function AnnotationPopup({
               <button
                 onClick={() => {
                   if (onCreateReference) {
-                    // Pass undefined for entity type if none selected
-                    onCreateReference(undefined, selectedEntityType || undefined, selectedReferenceType || undefined);
+                    // Pass entity types as comma-separated string or undefined if none selected
+                    const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+                    onCreateReference(undefined, entityTypesStr, selectedReferenceType || undefined);
                     onClose();
                   }
                 }}
