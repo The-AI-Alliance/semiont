@@ -8,10 +8,16 @@ The Semiont frontend uses a sophisticated rendering pipeline to display document
 
 ```
 Document Page (/know/document/[id]/page.tsx)
-└── AnnotationRenderer
-    ├── CodeMirrorRenderer (for markdown content)
-    │   └── CodeMirror with markdown mode
-    └── Plain Text Renderer (for non-markdown content)
+├── Main Content Area
+│   └── AnnotationRenderer
+│       ├── CodeMirrorRenderer (for markdown content)
+│       │   └── CodeMirror with markdown mode
+│       └── Plain Text Renderer (for non-markdown content)
+└── Right Sidebar
+    ├── Progress Display Area (top)
+    │   ├── GenerationProgressWidget
+    │   └── DetectionProgressWidget
+    └── Document Information (below progress)
 ```
 
 ## Key Components
@@ -73,6 +79,98 @@ Document Page (/know/document/[id]/page.tsx)
 1. **Decoration-based**: Hide syntax, apply CSS classes
 2. **Widget-based**: Replace ranges with custom HTML elements
 3. **Hybrid**: Combine both for optimal results
+
+## Progress Display System
+
+The document page features a progress display area at the top of the right sidebar for showing real-time progress of long-running operations.
+
+### Architecture
+
+**Location**: Top of right sidebar in `/app/know/document/[id]/page.tsx`
+
+**Components**:
+- `GenerationProgressWidget`: Shows document generation progress
+- `DetectionProgressWidget`: Shows entity detection progress
+
+### How It Works
+
+1. **Initiation**: User triggers an operation (e.g., "Generate Document" from AnnotationPopup)
+2. **SSE Connection**: Hook establishes Server-Sent Events connection to backend
+3. **Progress Updates**: Backend sends real-time updates via SSE
+4. **Widget Display**: Progress widget appears in right sidebar
+5. **Completion**: Widget shows success/error and auto-dismisses (or allows manual dismiss)
+
+### GenerationProgressWidget
+
+**Location**: `/src/components/GenerationProgressWidget.tsx`
+**Hook**: `/src/hooks/useGenerationProgress.ts`
+
+**Features**:
+- Real-time progress bar with percentage
+- Status messages for each generation phase
+- Sparkle animation during generation
+- Auto-dismiss after 5 seconds on success
+- Manual dismiss button for errors
+- Link to view generated document
+
+**SSE Events**:
+```typescript
+{
+  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error',
+  referenceId: string,
+  documentName?: string,
+  documentId?: string,  // Available when complete
+  percentage: number,
+  message?: string
+}
+```
+
+### DetectionProgressWidget
+
+**Location**: `/src/components/DetectionProgressWidget.tsx`
+**Hook**: `/src/hooks/useDetectionProgress.ts`
+
+**Features**:
+- Shows entity type being detected
+- Real-time counter of detections found
+- Progress indication
+- Error handling
+
+### Design Decisions
+
+**Why Right Sidebar Top?**
+- Prominent but non-blocking location
+- Doesn't interfere with document reading/editing
+- Consistent location for all progress indicators
+- Easy to dismiss or ignore
+
+**Why SSE Instead of WebSockets?**
+- Simpler unidirectional flow (server → client)
+- Built-in reconnection
+- Lower overhead for progress updates
+- No need for bidirectional communication
+
+**Auto-dismiss Behavior**:
+- Success: Auto-dismiss after 5 seconds (user can see completion)
+- Error: Requires manual dismiss (user must acknowledge error)
+- In-progress: No auto-dismiss (shows until operation completes)
+
+### Integration with AnnotationPopup
+
+When user clicks "Generate Document" in AnnotationPopup:
+1. Popup calls `onGenerateDocument` callback
+2. Document page starts SSE connection via `useGenerationProgress`
+3. Progress widget appears in sidebar
+4. Popup closes immediately (no waiting)
+5. User can continue working while generation happens
+
+### Styling
+
+Progress widgets use:
+- Blue color scheme (matching reference annotations)
+- Subtle animations (sparkle for generation)
+- Border highlights for visibility
+- Responsive design for different viewport sizes
 
 ### MarkdownWithAnnotations (Deprecated)
 
