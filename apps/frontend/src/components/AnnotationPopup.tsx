@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { buttonStyles } from '@/lib/button-styles';
 import { SearchDocumentsModal } from './SearchDocumentsModal';
-import { apiService } from '@/lib/api-client';
+import { apiService, api } from '@/lib/api-client';
 
 interface AnnotationPopupProps {
   isOpen: boolean;
@@ -33,24 +33,6 @@ interface AnnotationPopupProps {
 
 type PopupState = 'initial' | 'highlight' | 'stub_reference' | 'resolved_reference';
 
-const ENTITY_TYPES = [
-  'Person',
-  'Company',
-  'Technology',
-  'Product',
-  'Place',
-  'Event',
-  'Concept'
-];
-
-const REFERENCE_TYPES = [
-  { value: 'defines', label: 'Defines' },
-  { value: 'mentions', label: 'Mentions' },
-  { value: 'describes', label: 'Describes' },
-  { value: 'references', label: 'References' },
-  { value: 'cites', label: 'Cites' }
-];
-
 export function AnnotationPopup({
   isOpen,
   onClose,
@@ -64,10 +46,17 @@ export function AnnotationPopup({
   onGenerateDocument
 }: AnnotationPopupProps) {
   const router = useRouter();
-  const [selectedEntityType, setSelectedEntityType] = useState<string>('');
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [selectedReferenceType, setSelectedReferenceType] = useState<string>('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Fetch entity types and reference types from backend
+  const { data: entityTypesData, error: entityTypesError } = api.entityTypes.list.useQuery();
+  const { data: referenceTypesData, error: referenceTypesError } = api.referenceTypes.list.useQuery();
+
+  const entityTypes = entityTypesData?.entityTypes || [];
+  const referenceTypes = referenceTypesData?.referenceTypes || [];
 
   // Determine current state
   const getCurrentState = (): PopupState => {
@@ -84,13 +73,73 @@ export function AnnotationPopup({
   // Reset state when popup opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedEntityType(annotation?.entityType || '');
+      // Handle both single entityType and multiple entityTypes (comma-separated)
+      if (annotation?.entityType) {
+        const types = annotation.entityType.split(',').map(t => t.trim()).filter(t => t);
+        setSelectedEntityTypes(types);
+      } else {
+        setSelectedEntityTypes([]);
+      }
       setSelectedReferenceType(annotation?.referenceType || '');
       setShowSearchModal(false);
     }
   }, [isOpen, annotation]);
 
   if (!isOpen) return null;
+
+  // Show error if API calls fail
+  if (entityTypesError || referenceTypesError) {
+    return (
+      <>
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[999]"
+          onClick={onClose}
+        />
+        <div
+          className="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 rounded-lg shadow-xl p-4 w-96"
+          style={{
+            position: 'fixed',
+            left: `${Math.min(position.x, window.innerWidth - 400)}px`,
+            top: `${Math.min(position.y, window.innerHeight - 200)}px`,
+            zIndex: 1000,
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-red-700 dark:text-red-300">
+              API Error
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-red-400 hover:text-red-600"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="text-red-600 dark:text-red-400">
+            Failed to fetch configuration from backend:
+          </p>
+          {entityTypesError ? (
+            <p className="text-sm text-red-500 dark:text-red-400 mt-2">
+              Entity types: {String(entityTypesError)}
+            </p>
+          ) : null}
+          {referenceTypesError ? (
+            <p className="text-sm text-red-500 dark:text-red-400 mt-2">
+              Reference types: {String(referenceTypesError)}
+            </p>
+          ) : null}
+        </div>
+      </>
+    );
+  }
+
+  const toggleEntityType = (type: string) => {
+    setSelectedEntityTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
 
   const handleCreateHighlight = () => {
     if (onCreateHighlight) {
@@ -100,8 +149,10 @@ export function AnnotationPopup({
   };
 
   const handleCreateReference = () => {
-    if (onCreateReference && selectedEntityType) {
-      onCreateReference(undefined, selectedEntityType, selectedReferenceType || undefined);
+    if (onCreateReference) {
+      // Pass entity types as comma-separated string or undefined if none selected
+      const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+      onCreateReference(undefined, entityTypesStr, selectedReferenceType || undefined);
     }
     onClose();
   };
@@ -193,7 +244,7 @@ export function AnnotationPopup({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {currentState === 'initial' && 'Create Annotation'}
             {currentState === 'highlight' && '🟡 Highlight'}
-            {currentState === 'stub_reference' && '🟣 Stub Reference'}
+            {currentState === 'stub_reference' && '🔵 Stub Reference'}
             {currentState === 'resolved_reference' && '🔵 Linked Reference'}
           </h3>
           <button
@@ -217,9 +268,15 @@ export function AnnotationPopup({
         {/* Current annotation info */}
         {annotation?.entityType && (
           <div className="mb-3">
-            <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-              {annotation.entityType}
-            </span>
+            {/* Split and display multiple entity types if comma-separated */}
+            {annotation.entityType.split(',').map((type, index) => (
+              <span
+                key={index}
+                className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 mr-1 mb-1"
+              >
+                {type.trim()}
+              </span>
+            ))}
             {annotation.referenceType && (
               <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                 ({annotation.referenceType})
@@ -256,15 +313,15 @@ export function AnnotationPopup({
 
                 {/* Entity Type Selection */}
                 <div className="mb-3">
-                  <label className="text-xs text-gray-600 dark:text-gray-400">Entity Type</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400">Entity Types (select multiple)</label>
                   <div className="grid grid-cols-3 gap-2 mt-1">
-                    {ENTITY_TYPES.map(type => (
+                    {entityTypes.map(type => (
                       <button
                         key={type}
-                        onClick={() => setSelectedEntityType(type)}
+                        onClick={() => toggleEntityType(type)}
                         className={`px-2 py-1 text-xs rounded-lg transition-colors ${
-                          selectedEntityType === type
-                            ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                          selectedEntityTypes.includes(type)
+                            ? 'bg-blue-200 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500'
                             : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                       >
@@ -283,9 +340,9 @@ export function AnnotationPopup({
                     className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
                   >
                     <option value="">None</option>
-                    {REFERENCE_TYPES.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
+                    {referenceTypes.map(type => (
+                      <option key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
                       </option>
                     ))}
                   </select>
@@ -293,10 +350,9 @@ export function AnnotationPopup({
 
                 <button
                   onClick={handleCreateReference}
-                  disabled={!selectedEntityType}
-                  className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300 disabled:opacity-50"
+                  className="w-full py-2 bg-blue-200 hover:bg-blue-300 dark:bg-blue-900/50 dark:hover:bg-blue-800/50 border border-blue-400/30 dark:border-blue-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
                 >
-                  🟣 Create Reference
+                  🔵 Create Reference
                 </button>
               </div>
             </>
@@ -311,15 +367,15 @@ export function AnnotationPopup({
 
               {/* Entity Type Selection */}
               <div className="mb-3">
-                <label className="text-xs text-gray-600 dark:text-gray-400">Entity Type</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Entity Types (select multiple)</label>
                 <div className="grid grid-cols-3 gap-2 mt-1">
-                  {ENTITY_TYPES.map(type => (
+                  {entityTypes.map(type => (
                     <button
                       key={type}
-                      onClick={() => setSelectedEntityType(type)}
+                      onClick={() => toggleEntityType(type)}
                       className={`px-2 py-1 text-xs rounded-lg transition-colors ${
-                        selectedEntityType === type
-                          ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                        selectedEntityTypes.includes(type)
+                          ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500'
                           : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
@@ -338,9 +394,9 @@ export function AnnotationPopup({
                   className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
                 >
                   <option value="">None</option>
-                  {REFERENCE_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
+                  {referenceTypes.map(type => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
                     </option>
                   ))}
                 </select>
@@ -348,15 +404,16 @@ export function AnnotationPopup({
 
               <button
                 onClick={() => {
-                  if (onCreateReference && selectedEntityType) {
-                    onCreateReference(undefined, selectedEntityType, selectedReferenceType || undefined);
+                  if (onCreateReference) {
+                    // Pass entity types as comma-separated string or undefined if none selected
+                    const entityTypesStr = selectedEntityTypes.length > 0 ? selectedEntityTypes.join(',') : undefined;
+                    onCreateReference(undefined, entityTypesStr, selectedReferenceType || undefined);
                     onClose();
                   }
                 }}
-                disabled={!selectedEntityType}
-                className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300 disabled:opacity-50"
+                className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
               >
-                🟣 Convert to Reference
+                🔵 Convert to Reference
               </button>
 
               <div className="border-t dark:border-gray-700 pt-3 mt-3">
