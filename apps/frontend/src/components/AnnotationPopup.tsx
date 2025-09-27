@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { buttonStyles } from '@/lib/button-styles';
 import { SearchDocumentsModal } from './SearchDocumentsModal';
-import { apiService } from '@/lib/api-client';
+import { apiService, api } from '@/lib/api-client';
 
 interface AnnotationPopupProps {
   isOpen: boolean;
@@ -33,24 +33,6 @@ interface AnnotationPopupProps {
 
 type PopupState = 'initial' | 'highlight' | 'stub_reference' | 'resolved_reference';
 
-const ENTITY_TYPES = [
-  'Person',
-  'Company',
-  'Technology',
-  'Product',
-  'Place',
-  'Event',
-  'Concept'
-];
-
-const REFERENCE_TYPES = [
-  { value: 'defines', label: 'Defines' },
-  { value: 'mentions', label: 'Mentions' },
-  { value: 'describes', label: 'Describes' },
-  { value: 'references', label: 'References' },
-  { value: 'cites', label: 'Cites' }
-];
-
 export function AnnotationPopup({
   isOpen,
   onClose,
@@ -68,6 +50,13 @@ export function AnnotationPopup({
   const [selectedReferenceType, setSelectedReferenceType] = useState<string>('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Fetch entity types and reference types from backend
+  const { data: entityTypesData, error: entityTypesError } = api.entityTypes.list.useQuery();
+  const { data: referenceTypesData, error: referenceTypesError } = api.referenceTypes.list.useQuery();
+
+  const entityTypes = entityTypesData?.entityTypes || [];
+  const referenceTypes = referenceTypesData?.referenceTypes || [];
 
   // Determine current state
   const getCurrentState = (): PopupState => {
@@ -92,6 +81,52 @@ export function AnnotationPopup({
 
   if (!isOpen) return null;
 
+  // Show error if API calls fail
+  if (entityTypesError || referenceTypesError) {
+    return (
+      <>
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[999]"
+          onClick={onClose}
+        />
+        <div
+          className="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 rounded-lg shadow-xl p-4 w-96"
+          style={{
+            position: 'fixed',
+            left: `${Math.min(position.x, window.innerWidth - 400)}px`,
+            top: `${Math.min(position.y, window.innerHeight - 200)}px`,
+            zIndex: 1000,
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-red-700 dark:text-red-300">
+              API Error
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-red-400 hover:text-red-600"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="text-red-600 dark:text-red-400">
+            Failed to fetch configuration from backend:
+          </p>
+          {entityTypesError ? (
+            <p className="text-sm text-red-500 dark:text-red-400 mt-2">
+              Entity types: {String(entityTypesError)}
+            </p>
+          ) : null}
+          {referenceTypesError ? (
+            <p className="text-sm text-red-500 dark:text-red-400 mt-2">
+              Reference types: {String(referenceTypesError)}
+            </p>
+          ) : null}
+        </div>
+      </>
+    );
+  }
+
   const handleCreateHighlight = () => {
     if (onCreateHighlight) {
       onCreateHighlight();
@@ -100,8 +135,9 @@ export function AnnotationPopup({
   };
 
   const handleCreateReference = () => {
-    if (onCreateReference && selectedEntityType) {
-      onCreateReference(undefined, selectedEntityType, selectedReferenceType || undefined);
+    if (onCreateReference) {
+      // Pass undefined for entity type if none selected (creating a stub reference)
+      onCreateReference(undefined, selectedEntityType || undefined, selectedReferenceType || undefined);
     }
     onClose();
   };
@@ -258,7 +294,7 @@ export function AnnotationPopup({
                 <div className="mb-3">
                   <label className="text-xs text-gray-600 dark:text-gray-400">Entity Type</label>
                   <div className="grid grid-cols-3 gap-2 mt-1">
-                    {ENTITY_TYPES.map(type => (
+                    {entityTypes.map(type => (
                       <button
                         key={type}
                         onClick={() => setSelectedEntityType(type)}
@@ -283,9 +319,9 @@ export function AnnotationPopup({
                     className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
                   >
                     <option value="">None</option>
-                    {REFERENCE_TYPES.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
+                    {referenceTypes.map(type => (
+                      <option key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
                       </option>
                     ))}
                   </select>
@@ -293,8 +329,7 @@ export function AnnotationPopup({
 
                 <button
                   onClick={handleCreateReference}
-                  disabled={!selectedEntityType}
-                  className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300 disabled:opacity-50"
+                  className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
                 >
                   🟣 Create Reference
                 </button>
@@ -313,7 +348,7 @@ export function AnnotationPopup({
               <div className="mb-3">
                 <label className="text-xs text-gray-600 dark:text-gray-400">Entity Type</label>
                 <div className="grid grid-cols-3 gap-2 mt-1">
-                  {ENTITY_TYPES.map(type => (
+                  {entityTypes.map(type => (
                     <button
                       key={type}
                       onClick={() => setSelectedEntityType(type)}
@@ -338,9 +373,9 @@ export function AnnotationPopup({
                   className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
                 >
                   <option value="">None</option>
-                  {REFERENCE_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
+                  {referenceTypes.map(type => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
                     </option>
                   ))}
                 </select>
@@ -348,13 +383,13 @@ export function AnnotationPopup({
 
               <button
                 onClick={() => {
-                  if (onCreateReference && selectedEntityType) {
-                    onCreateReference(undefined, selectedEntityType, selectedReferenceType || undefined);
+                  if (onCreateReference) {
+                    // Pass undefined for entity type if none selected
+                    onCreateReference(undefined, selectedEntityType || undefined, selectedReferenceType || undefined);
                     onClose();
                   }
                 }}
-                disabled={!selectedEntityType}
-                className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300 disabled:opacity-50"
+                className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
               >
                 🟣 Convert to Reference
               </button>
