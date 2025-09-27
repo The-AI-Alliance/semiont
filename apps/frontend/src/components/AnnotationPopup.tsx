@@ -244,7 +244,7 @@ export function AnnotationPopup({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {currentState === 'initial' && 'Create Annotation'}
             {currentState === 'highlight' && '🟡 Highlight'}
-            {currentState === 'stub_reference' && '🟣 Stub Reference'}
+            {currentState === 'stub_reference' && '🔵 Stub Reference'}
             {currentState === 'resolved_reference' && '🔵 Linked Reference'}
           </h3>
           <button
@@ -272,7 +272,7 @@ export function AnnotationPopup({
             {annotation.entityType.split(',').map((type, index) => (
               <span
                 key={index}
-                className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 mr-1 mb-1"
+                className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 mr-1 mb-1"
               >
                 {type.trim()}
               </span>
@@ -321,7 +321,7 @@ export function AnnotationPopup({
                         onClick={() => toggleEntityType(type)}
                         className={`px-2 py-1 text-xs rounded-lg transition-colors ${
                           selectedEntityTypes.includes(type)
-                            ? 'bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500'
+                            ? 'bg-blue-200 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500'
                             : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                       >
@@ -350,9 +350,9 @@ export function AnnotationPopup({
 
                 <button
                   onClick={handleCreateReference}
-                  className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
+                  className="w-full py-2 bg-blue-200 hover:bg-blue-300 dark:bg-blue-900/50 dark:hover:bg-blue-800/50 border border-blue-400/30 dark:border-blue-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
                 >
-                  🟣 Create Reference
+                  🔵 Create Reference
                 </button>
               </div>
             </>
@@ -413,7 +413,7 @@ export function AnnotationPopup({
                 }}
                 className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
               >
-                🟣 Convert to Reference
+                🔵 Convert to Reference
               </button>
 
               <div className="border-t dark:border-gray-700 pt-3 mt-3">
