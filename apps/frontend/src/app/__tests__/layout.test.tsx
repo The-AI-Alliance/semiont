@@ -16,6 +16,21 @@ vi.mock('@/components/CookieBanner', () => ({
   CookieBanner: () => <div data-testid="cookie-banner">Cookie Banner</div>
 }));
 
+// Mock SessionExpiryBanner component
+vi.mock('@/components/SessionExpiryBanner', () => ({
+  SessionExpiryBanner: () => <div data-testid="session-expiry-banner">Session Expiry Banner</div>
+}));
+
+// Mock SessionExpiredModal component
+vi.mock('@/components/SessionExpiredModal', () => ({
+  SessionExpiredModal: () => <div data-testid="session-expired-modal">Session Expired Modal</div>
+}));
+
+// Mock PermissionDeniedModal component
+vi.mock('@/components/PermissionDeniedModal', () => ({
+  PermissionDeniedModal: () => <div data-testid="permission-denied-modal">Permission Denied Modal</div>
+}));
+
 // Mock the env library
 vi.mock('@/lib/env', () => ({
   env: {

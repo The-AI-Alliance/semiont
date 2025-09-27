@@ -46,6 +46,11 @@ vi.mock('next/link', () => ({
 vi.mock('@/hooks/useAuth');
 vi.mock('@/hooks/useUI');
 
+// Mock SessionTimer component to avoid SessionContext dependency
+vi.mock('../SessionTimer', () => ({
+  SessionTimer: () => <div data-testid="session-timer">Session Timer</div>
+}));
+
 // Mock validation utilities
 vi.mock('@/lib/validation', () => ({
   sanitizeImageURL: vi.fn()
@@ -286,8 +291,10 @@ describe('UserMenu Component', () => {
 
       render(<UserMenu />);
 
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
-      expect(screen.getByText('Loading...')).toHaveClass('text-gray-500', 'animate-pulse');
+      // Check for loading skeleton instead of text
+      const loadingSkeleton = screen.getByRole('status', { name: 'Loading user menu' });
+      expect(loadingSkeleton).toBeInTheDocument();
+      expect(loadingSkeleton).toHaveClass('animate-pulse');
     });
 
     it('should not show anything when unauthenticated', () => {
@@ -746,7 +753,7 @@ describe('UserMenu Component', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.loading);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
       rerender(<UserMenu />);
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      expect(screen.getByRole('status', { name: 'Loading user menu' })).toBeInTheDocument();
 
       // Unauthenticated state - component returns null
       mockUseAuth.mockReturnValue(mockAuthStates.unauthenticated);
