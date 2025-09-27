@@ -8,6 +8,8 @@ import { sanitizeImageURL } from '@/lib/validation';
 import { useAuth } from '@/hooks/useAuth';
 import { useDropdown } from '@/hooks/useUI';
 import { useState } from 'react';
+import { UserMenuSkeleton } from './UserMenuSkeleton';
+import { SessionTimer } from './SessionTimer';
 
 // Fallback avatar when image fails to load or is invalid
 const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QjcyODAiLz4KPHBhdGggZD0iTTE2IDE2QzE4LjIwOTEgMTYgMjAgMTQuMjA5MSAyMCAxMkMyMCA5Ljc5MDg2IDE4LjIwOTEgOCAxNiA4QzEzLjc5MDkgOCAxMiA5Ljc5MDg2IDEyIDEyQzEyIDE0LjIwOTEgMTMuNzkwOSAxNiAxNiAxNloiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0iTTI0IDI1QzI0IDIxLjY4NjMgMjAuNDE4MyAxOSAxNiAxOUMxMS41ODE3IDE5IDggMjEuNjg2MyA4IDI1IiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==';
@@ -67,11 +69,7 @@ export function UserMenu({ }: UserMenuProps) {
   }, [avatarUrl]);
 
   if (isLoading) {
-    return (
-      <div className="text-gray-500 animate-pulse">
-        Loading...
-      </div>
-    );
+    return <UserMenuSkeleton />;
   }
 
   if (!isAuthenticated) {
@@ -166,6 +164,7 @@ export function UserMenu({ }: UserMenuProps) {
                 <hr className="my-2 border-gray-200 dark:border-gray-600" />
               </>
             )}
+            <SessionTimer />
             <button
               ref={signOutButtonRef}
               onClick={async () => {
@@ -173,7 +172,7 @@ export function UserMenu({ }: UserMenuProps) {
                 await signOut({ callbackUrl: '/' });
               }}
               onKeyDown={handleKeyDown}
-              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
+              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
               role="menuitem"
               tabIndex={0}
               aria-label="Sign out of your account"
