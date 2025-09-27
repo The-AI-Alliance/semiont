@@ -4,6 +4,7 @@ import { useMutation, useQueryClient, UseMutationOptions } from '@tanstack/react
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
+import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 
 interface ApiCallOptions {
   route: string;
@@ -90,12 +91,15 @@ export function useApiWithAuth<TData = any, TError = ApiError>(
         // Show error notification
         showError('Your session has expired. Please sign in again.');
 
-        // The SessionExpiredModal will handle the UI for re-authentication
-        // We don't need to redirect here
+        // Dispatch event to trigger SessionExpiredModal
+        dispatch401Error('Your session has expired. Please sign in again.');
       }
       // Handle 403 Forbidden - insufficient permissions
       else if (apiError.status === 403) {
         showError('You do not have permission to perform this action.');
+
+        // Dispatch event for potential future handling
+        dispatch403Error('You do not have permission to perform this action.');
       }
       // Handle network errors
       else if (!apiError.status) {

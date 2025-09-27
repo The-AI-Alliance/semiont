@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSessionContext } from '@/contexts/SessionContext';
+import { AUTH_EVENTS, onAuthEvent } from '@/lib/auth-events';
 
 export function SessionExpiredModal() {
   const { isAuthenticated } = useSessionContext();
@@ -16,6 +17,16 @@ export function SessionExpiredModal() {
     }
     setWasAuthenticated(isAuthenticated);
   }, [isAuthenticated, wasAuthenticated]);
+
+  useEffect(() => {
+    // Listen for 401 unauthorized events
+    const cleanup = onAuthEvent(AUTH_EVENTS.UNAUTHORIZED, () => {
+      // Show modal when 401 error occurs
+      setShowModal(true);
+    });
+
+    return cleanup;
+  }, []);
 
   if (!showModal) {
     return null;

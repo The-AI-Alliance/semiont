@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider, useSession } from 'next-auth/react';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { ToastProvider } from '@/components/Toast';
 import { SessionProvider as CustomSessionProvider } from '@/contexts/SessionContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
+import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
+import { APIError } from '@/lib/api-client';
 
 // Separate component to use the secure API hook
 function SecureAPIProvider({ children }: { children: React.ReactNode }) {
@@ -29,13 +31,40 @@ function SecureAPIProvider({ children }: { children: React.ReactNode }) {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error) => {
+        // Handle 401 errors from queries globally
+        if (error instanceof APIError) {
+          if (error.status === 401) {
+            // Clear cache and dispatch event for modal
+            queryClient.clear();
+            dispatch401Error('Your session has expired. Please sign in again.');
+          } else if (error.status === 403) {
+            dispatch403Error('You do not have permission to access this resource.');
+          }
+        }
+      },
+    }),
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        // Handle 401 errors from mutations globally (backup for useApiWithAuth)
+        if (error instanceof APIError) {
+          if (error.status === 401) {
+            // Clear cache and dispatch event for modal
+            queryClient.clear();
+            dispatch401Error('Your session has expired. Please sign in again.');
+          } else if (error.status === 403) {
+            dispatch403Error('You do not have permission to perform this action.');
+          }
+        }
+      },
+    }),
     defaultOptions: {
       queries: {
         // Security: Don't retry on 401/403 errors
         retry: (failureCount, error) => {
-          if (error instanceof Error) {
-            const message = error.message.toLowerCase();
-            if (message.includes('401') || message.includes('403') || message.includes('unauthorized')) {
+          if (error instanceof APIError) {
+            if (error.status === 401 || error.status === 403) {
               return false;
             }
           }
