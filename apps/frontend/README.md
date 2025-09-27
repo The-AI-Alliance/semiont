@@ -225,6 +225,10 @@ Configure deployment behavior in `/config/environments/[env].json`:
 
 See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 
+## Documentation
+
+- [Authentication Architecture](docs/AUTHENTICATION.md) - Comprehensive guide to frontend authentication
+
 ## Technology Stack
 
 - **Framework**: [Next.js 14](https://nextjs.org/) with App Router
