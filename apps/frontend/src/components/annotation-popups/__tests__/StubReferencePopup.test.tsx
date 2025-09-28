@@ -133,7 +133,9 @@ describe('StubReferencePopup', () => {
       // Close the SearchDocumentsModal (there are multiple close buttons, get the last one)
       const closeButtons = screen.getAllByText('✕');
       const searchModalCloseButton = closeButtons[closeButtons.length - 1];
-      fireEvent.click(searchModalCloseButton);
+      if (searchModalCloseButton) {
+        fireEvent.click(searchModalCloseButton);
+      }
 
       // SearchDocumentsModal should close
       await waitFor(() => {
