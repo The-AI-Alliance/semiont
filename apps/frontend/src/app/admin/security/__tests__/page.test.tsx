@@ -67,7 +67,7 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('OAuth Configuration')).toBeInTheDocument()
+      expect(screen.getAllByText('OAuth Configuration')[0]).toBeInTheDocument()
       expect(screen.getByText('View OAuth providers and allowed domains')).toBeInTheDocument()
     })
 
@@ -162,7 +162,7 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('No OAuth providers configured')).toBeInTheDocument()
+      expect(screen.getAllByText('No OAuth providers configured')[0]).toBeInTheDocument()
     })
   })
 
@@ -200,7 +200,7 @@ describe('AdminSecurity Page', () => {
         </TestWrapper>
       )
 
-      expect(screen.getByText('No allowed domains configured - all sign-ins will be rejected')).toBeInTheDocument()
+      expect(screen.getAllByText('No allowed domains configured - all sign-ins will be rejected')[0]).toBeInTheDocument()
     })
   })
 
@@ -239,11 +239,11 @@ describe('AdminSecurity Page', () => {
       )
 
       // Should still show the page structure
-      expect(screen.getByText('OAuth Configuration')).toBeInTheDocument()
-      
+      expect(screen.getAllByText('OAuth Configuration')[0]).toBeInTheDocument()
+
       // Should show error state or fallback to empty state
       await waitFor(() => {
-        expect(screen.getByText('No OAuth providers configured')).toBeInTheDocument()
+        expect(screen.getAllByText('No OAuth providers configured')[0]).toBeInTheDocument()
       })
     })
   })

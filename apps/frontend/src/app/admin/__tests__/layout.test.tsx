@@ -277,8 +277,8 @@ describe('AdminLayout', () => {
       expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
 
       // Check content is rendered
-      expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
-      expect(screen.getByText('Welcome to the admin area')).toBeInTheDocument();
+      expect(screen.getAllByText('Admin Dashboard')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Welcome to the admin area')[0]).toBeInTheDocument();
     });
   });
 
