@@ -36,6 +36,7 @@ jobs:
           npm run typecheck
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Run frontend tests
         run: |
@@ -44,6 +45,7 @@ jobs:
           npm test
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
   test-backend:
     name: Backend Tests
@@ -245,6 +247,7 @@ jobs:
           echo "All tests completed successfully"
         env:
           CI: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
