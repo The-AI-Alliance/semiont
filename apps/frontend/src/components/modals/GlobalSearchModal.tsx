@@ -4,6 +4,7 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
+import { useSearchAnnouncements } from '@/components/LiveRegion';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface SearchResult {
 
 export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const router = useRouter();
+  const { announceSearchResults, announceSearching } = useSearchAnnouncements();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
 
     const searchTimer = setTimeout(async () => {
       setLoading(true);
+      announceSearching();
       try {
         // Search documents
         const docsResponse = await apiService.documents.search(query, 5);
@@ -57,18 +60,21 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         // TODO: Add entities search when API is ready
         const entityResults: SearchResult[] = [];
 
-        setResults([...docResults, ...entityResults]);
+        const allResults = [...docResults, ...entityResults];
+        setResults(allResults);
         setSelectedIndex(0);
+        announceSearchResults(allResults.length, query);
       } catch (error) {
         console.error('Search failed:', error);
         setResults([]);
+        announceSearchResults(0, query);
       } finally {
         setLoading(false);
       }
     }, 300); // Debounce search
 
     return () => clearTimeout(searchTimer);
-  }, [query]);
+  }, [query, announceSearching, announceSearchResults]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {

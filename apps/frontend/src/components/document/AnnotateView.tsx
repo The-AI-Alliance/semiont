@@ -4,6 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { annotationStyles } from '@/lib/annotation-styles';
 import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import '@/styles/animations.css';
 
 interface Props {
@@ -91,6 +92,7 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [focusedAnnotationIndex, setFocusedAnnotationIndex] = useState<number>(-1);
   const [selectionState, setSelectionState] = useState<{
     text: string;
     start: number;
@@ -101,6 +103,48 @@ export function AnnotateView({
   // Combine annotations
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
+  const annotatedSegments = segments.filter(s => s.annotation);
+
+  // Navigate through annotations with Tab key
+  const navigateToAnnotation = useCallback((direction: 'next' | 'prev') => {
+    if (annotatedSegments.length === 0) return;
+
+    let nextIndex = focusedAnnotationIndex;
+    if (direction === 'next') {
+      nextIndex = (focusedAnnotationIndex + 1) % annotatedSegments.length;
+    } else {
+      nextIndex = focusedAnnotationIndex === -1
+        ? annotatedSegments.length - 1
+        : (focusedAnnotationIndex - 1 + annotatedSegments.length) % annotatedSegments.length;
+    }
+
+    setFocusedAnnotationIndex(nextIndex);
+
+    // Find and focus the annotation element
+    const annotation = annotatedSegments[nextIndex].annotation;
+    if (annotation) {
+      const element = containerRef.current?.querySelector(
+        `[data-annotation-id="${annotation.id}"]`
+      ) as HTMLElement;
+      if (element) {
+        element.focus();
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [focusedAnnotationIndex, annotatedSegments]);
+
+  // Register keyboard shortcuts for annotation navigation
+  useKeyboardShortcuts([
+    {
+      key: 'Tab',
+      handler: (e) => {
+        if (!containerRef.current?.contains(document.activeElement)) return;
+        e.preventDefault();
+        navigateToAnnotation(e.shiftKey ? 'prev' : 'next');
+      },
+      description: 'Navigate through annotations'
+    }
+  ]);
   
   // Handle text selection with sparkle
   useEffect(() => {
@@ -201,16 +245,33 @@ export function AnnotateView({
             const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
             const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
 
+            const annotationIndex = annotatedSegments.findIndex(
+              s => s.annotation?.id === segment.annotation?.id
+            );
+            const isFocused = annotationIndex === focusedAnnotationIndex;
+
             return (
               <span
                 key={segment.annotation.id}
-                className={className}
+                className={`${className} ${isFocused ? 'ring-2 ring-cyan-500 ring-offset-2' : ''}`}
                 data-annotation-id={segment.annotation.id}
                 title={hoverText}
+                tabIndex={isFocused ? 0 : -1}
+                role="button"
+                aria-label={`${segment.annotation.type === 'reference' ? 'Reference' : 'Highlight'}: ${segment.text}`}
                 onClick={(e) => {
                   e.stopPropagation();
+                  setFocusedAnnotationIndex(annotationIndex);
                   if (onAnnotationClick) {
                     onAnnotationClick(segment.annotation!);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    if (onAnnotationClick) {
+                      onAnnotationClick(segment.annotation!);
+                    }
                   }
                 }}
                 onContextMenu={(e) => {
@@ -220,6 +281,7 @@ export function AnnotateView({
                     onAnnotationRightClick(segment.annotation!, e.clientX, e.clientY);
                   }
                 }}
+                onFocus={() => setFocusedAnnotationIndex(annotationIndex)}
               >
                 {segment.text}
               </span>

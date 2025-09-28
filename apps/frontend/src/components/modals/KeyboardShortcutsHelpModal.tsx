@@ -28,6 +28,14 @@ const shortcutGroups: ShortcutGroup[] = [
     ]
   },
   {
+    title: 'Document Annotations',
+    shortcuts: [
+      { keys: ['H'], description: 'Create highlight from selection' },
+      { keys: ['R'], description: 'Create reference from selection' },
+      { keys: ['Delete'], description: 'Delete focused annotation' },
+    ]
+  },
+  {
     title: 'In Search Modal',
     shortcuts: [
       { keys: ['↑', '↓'], description: 'Navigate search results' },
@@ -94,9 +102,10 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                     </DialogTitle>
                     <button
                       onClick={onClose}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      aria-label="Close dialog"
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
