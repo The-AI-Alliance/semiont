@@ -154,7 +154,7 @@ describe('StubReferencePopup', () => {
       // Focus should be within the parent modal
       const activeElement = document.activeElement;
       const parentModal = screen.getByText('Stub Reference').closest('[role="dialog"]');
-      expect(parentModal).toContainElement(activeElement);
+      expect(parentModal).toContainElement(activeElement as HTMLElement);
     });
   });
 

@@ -194,7 +194,7 @@ describe('PermissionDeniedModal', () => {
 
       // Focus should be within the modal
       const modal = screen.getByText('Access Denied').closest('[role="dialog"]');
-      expect(modal).toContainElement(document.activeElement);
+      expect(modal).toContainElement(document.activeElement as HTMLElement);
     });
   });
 

@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import Link from 'next/link';
 import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 
 export function Footer() {
   const [showCookiePreferences, setShowCookiePreferences] = useState(false);
+
+  // Get keyboard shortcuts context if available (may not be available in all contexts)
+  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
     <>
@@ -35,8 +39,19 @@ export function Footer() {
               >
                 Cookie Preferences
               </button>
-              <Link 
-                href="/terms" 
+              {keyboardContext && (
+                <button
+                  onClick={() => keyboardContext.openKeyboardHelp()}
+                  className="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1"
+                >
+                  Keyboard Shortcuts
+                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">
+                    ?
+                  </kbd>
+                </button>
+              )}
+              <Link
+                href="/terms"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 Terms of Service
