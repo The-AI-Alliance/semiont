@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Mock, MockedFunction } from 'vitest'
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { CookieBanner } from '../CookieBanner';
 import * as cookieLib from '@/lib/cookies';
 
@@ -47,11 +47,14 @@ describe('CookieBanner - Basic Tests', () => {
     (cookieLib.shouldShowBanner as Mock).mockReturnValue(true);
     (cookieLib.isGDPRApplicable as Mock).mockResolvedValue(false);
     (cookieLib.isCCPAApplicable as Mock).mockResolvedValue(false);
-    
+
     render(<CookieBanner />);
-    
-    // Should render the component without throwing
-    expect(screen.getByTestId).toBeDefined();
+
+    // Wait for async state updates to complete
+    await waitFor(() => {
+      // Should render the component without throwing
+      expect(screen.getByTestId).toBeDefined();
+    });
   });
 
   it('should call shouldShowBanner on mount', () => {

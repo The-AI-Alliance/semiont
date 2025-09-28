@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
 interface Props {
@@ -17,7 +18,8 @@ interface Props {
 
 export function DocumentViewer({ document, onWikiLinkClick, curationMode = false, onGenerateDocument }: Props) {
   const router = useRouter();
-  
+  const documentViewerRef = useRef<HTMLDivElement>(null);
+
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
   const {
@@ -30,9 +32,10 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     convertHighlightToReference,
     convertReferenceToHighlight
   } = useDocumentAnnotations();
-  
+
   // Selection popup state
   const [selectedText, setSelectedText] = useState<string>('');
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const [selectionPosition, setSelectionPosition] = useState<{ start: number; end: number } | null>(null);
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
   const [editingAnnotation, setEditingAnnotation] = useState<{
@@ -201,9 +204,138 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     setSelectionPosition(null);
     setEditingAnnotation(null);
   }, []);
+
+  // Handle keyboard shortcuts for annotations
+  const handleQuickHighlight = useCallback(() => {
+    if (!curationMode) return;
+
+    // Check if there's selected text
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim()) {
+      const text = selection.toString();
+      const range = selection.getRangeAt(0);
+
+      // Calculate position using the same method as AnnotateView
+      const container = documentViewerRef.current;
+      if (container) {
+        const preSelectionRange = window.document.createRange();
+        preSelectionRange.selectNodeContents(container);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+
+        const start = preSelectionRange.toString().length;
+        const end = start + text.length;
+
+        const position = { start, end };
+
+        // Directly create highlight
+        addHighlight(document.id, text, position);
+
+        // Clear selection to remove sparkle animation
+        selection.removeAllRanges();
+      }
+    }
+  }, [curationMode, document.id, addHighlight]);
+
+  const handleQuickReference = useCallback(() => {
+    if (!curationMode) return;
+
+    // Check if there's selected text
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim()) {
+      const text = selection.toString();
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      // Calculate position using the same method as AnnotateView
+      const container = documentViewerRef.current;
+      if (container) {
+        const preSelectionRange = window.document.createRange();
+        preSelectionRange.selectNodeContents(container);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+
+        const start = preSelectionRange.toString().length;
+        const end = start + text.length;
+
+        const position = { start, end };
+
+        // Set state to show the AnnotationPopup
+        setSelectedText(text);
+        setSelectionPosition(position);
+        setPopupPosition({ x: rect.left, y: rect.bottom + 10 });
+        setShowSelectionPopup(true);
+        setEditingAnnotation(null);
+
+        // Clear selection to remove sparkle animation
+        selection.removeAllRanges();
+      }
+    }
+  }, [curationMode]);
+
+  const handleDeleteFocusedAnnotation = useCallback(() => {
+    if (!curationMode || !focusedAnnotationId) return;
+
+    // Find the annotation
+    const annotation = [...highlights, ...references].find(a => a.id === focusedAnnotationId);
+    if (annotation) {
+      handleDeleteAnnotation(focusedAnnotationId);
+      setFocusedAnnotationId(null);
+    }
+  }, [curationMode, focusedAnnotationId, highlights, references, handleDeleteAnnotation]);
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: 'h',
+      handler: (e) => {
+        // Don't trigger if user is typing
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.contentEditable === 'true'
+        ) {
+          return;
+        }
+        handleQuickHighlight();
+      },
+      description: 'Create highlight from selection'
+    },
+    {
+      key: 'r',
+      handler: (e) => {
+        // Don't trigger if user is typing
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.contentEditable === 'true'
+        ) {
+          return;
+        }
+        handleQuickReference();
+      },
+      description: 'Create reference from selection'
+    },
+    {
+      key: 'Delete',
+      handler: (e) => {
+        // Don't trigger if user is typing
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.contentEditable === 'true'
+        ) {
+          return;
+        }
+        handleDeleteFocusedAnnotation();
+      },
+      description: 'Delete focused annotation'
+    }
+  ]);
   
   return (
-    <div>
+    <div ref={documentViewerRef}>
       {/* Content */}
       {activeView === 'annotate' ? (
         document.archived ? (

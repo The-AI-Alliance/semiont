@@ -7,8 +7,9 @@ import { Providers } from "./providers";
 import { env } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
 import { SessionExpiryBanner } from "@/components/SessionExpiryBanner";
-import { SessionExpiredModal } from "@/components/SessionExpiredModal";
-import { PermissionDeniedModal } from "@/components/PermissionDeniedModal";
+import { SessionExpiredModal } from "@/components/modals/SessionExpiredModal";
+import { PermissionDeniedModal } from "@/components/modals/PermissionDeniedModal";
+import { SkipLinks } from "@/components/SkipLinks";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({ 
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} ${orbitron.variable}`}>
         <Providers>
+          <SkipLinks />
           <SessionExpiryBanner />
           <SessionExpiredModal />
           <PermissionDeniedModal />

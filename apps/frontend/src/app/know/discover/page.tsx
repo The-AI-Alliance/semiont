@@ -5,18 +5,30 @@ import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
+import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 
 // Extract document card as a component
-const DocumentCard = React.memo(({ 
-  doc, 
-  onOpen 
-}: { 
-  doc: Document; 
+const DocumentCard = React.memo(({
+  doc,
+  onOpen,
+  tabIndex = 0
+}: {
+  doc: Document;
   onOpen: (doc: Document) => void;
+  tabIndex?: number;
 }) => (
   <div
     onClick={() => onOpen(doc)}
-    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-all hover:shadow-md group"
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onOpen(doc);
+      }
+    }}
+    role="button"
+    tabIndex={tabIndex}
+    aria-label={`Open document: ${doc.name}`}
+    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-all hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50"
   >
     <div className="flex justify-between items-start mb-2">
       <h4 className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -94,7 +106,7 @@ export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
-  
+
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -164,15 +176,27 @@ export default function DiscoverPage() {
     // If we have search results, show them; otherwise show recent
     // This ensures we show recent docs even when search returns nothing
     const baseDocuments = hasSearchResults
-      ? documents.search 
+      ? documents.search
       : documents.recent;
-    
+
     if (!selectedEntityType) return baseDocuments;
-    
-    return baseDocuments.filter(doc => 
+
+    return baseDocuments.filter(doc =>
       doc.entityTypes && doc.entityTypes.includes(selectedEntityType)
     );
   }, [documents.recent, documents.search, selectedEntityType, hasSearchResults]);
+
+  // Roving tabindex for entity type filters
+  const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(
+    entityTypes.length + 1, // +1 for "All" button
+    { orientation: 'horizontal' }
+  );
+
+  // Roving tabindex for document grid
+  const documentGridRoving = useRovingTabIndex<HTMLDivElement>(
+    filteredDocuments.length,
+    { orientation: 'grid', cols: 2 } // 2 columns on medium+ screens
+  );
 
   // Memoized callbacks
   const handleEntityTypeFilter = useCallback((entityType: string) => {
@@ -237,12 +261,20 @@ export default function DiscoverPage() {
         {entityTypes.length > 0 && (
           <div className="mb-6">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              Filter by Entity Type
+              Filter by Entity Type (use arrow keys to navigate)
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div
+              ref={entityFilterRoving.containerRef}
+              onKeyDown={entityFilterRoving.handleKeyDown}
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Entity type filters"
+            >
               <button
                 onClick={() => handleEntityTypeFilter('')}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                tabIndex={0}
+                aria-pressed={selectedEntityType === ''}
+                className={`px-3 py-1 rounded-full text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50 ${
                   selectedEntityType === ''
                     ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -254,7 +286,9 @@ export default function DiscoverPage() {
                 <button
                   key={type}
                   onClick={() => handleEntityTypeFilter(type)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                  tabIndex={-1}
+                  aria-pressed={selectedEntityType === type}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50 ${
                     selectedEntityType === type
                       ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -289,9 +323,20 @@ export default function DiscoverPage() {
           )}
           
           {filteredDocuments.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredDocuments.map((doc) => (
-                <DocumentCard key={doc.id} doc={doc} onOpen={openDocument} />
+            <div
+              ref={documentGridRoving.containerRef}
+              onKeyDown={documentGridRoving.handleKeyDown}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              role="group"
+              aria-label="Document grid"
+            >
+              {filteredDocuments.map((doc, index) => (
+                <DocumentCard
+                  key={doc.id}
+                  doc={doc}
+                  onOpen={openDocument}
+                  tabIndex={index === 0 ? 0 : -1}
+                />
               ))}
             </div>
           ) : (

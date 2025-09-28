@@ -240,7 +240,7 @@ describe('AdminSecurity Page', () => {
 
       // Should still show the page structure
       expect(screen.getByText('OAuth Configuration')).toBeInTheDocument()
-      
+
       // Should show error state or fallback to empty state
       await waitFor(() => {
         expect(screen.getByText('No OAuth providers configured')).toBeInTheDocument()

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { apiService } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTags } from '@/components/DocumentTags';
-import { ProposeEntitiesModal } from '@/components/ProposeEntitiesModal';
+import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';

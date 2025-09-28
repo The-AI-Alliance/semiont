@@ -5,11 +5,18 @@
 
 import '@testing-library/jest-dom';
 import { vi, beforeAll, afterEach, afterAll } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import { server } from './src/mocks/server';
 
 // Start MSW server
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  // Cleanup React components to prevent memory leaks
+  cleanup();
+  // Clear all timers to prevent hanging async operations
+  vi.clearAllTimers();
+});
 afterAll(() => server.close());
 
 // Mock Next.js navigation before any imports
@@ -62,6 +69,13 @@ global.fetch = async (input, init) => {
 
 // Mock window methods
 if (typeof window !== 'undefined') {
+  // Polyfill animations API for Headless UI
+  if (!window.Element.prototype.getAnimations) {
+    window.Element.prototype.getAnimations = function() {
+      return [];
+    };
+  }
+
   // Mock window.location
   Object.defineProperty(window, 'location', {
     value: {

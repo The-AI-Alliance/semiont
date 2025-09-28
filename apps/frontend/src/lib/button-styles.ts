@@ -23,6 +23,16 @@ export const buttonStyles = {
     base: "px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors",
   },
 
+  // Danger button - for destructive actions
+  danger: {
+    base: "px-6 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-all duration-300",
+  },
+
+  // Warning/Yellow button - for highlight actions
+  warning: {
+    base: "px-6 py-2 bg-yellow-400/20 hover:bg-yellow-400/30 dark:bg-yellow-500/20 dark:hover:bg-yellow-500/30 text-yellow-800 hover:text-yellow-900 dark:text-yellow-300 dark:hover:text-yellow-200 border border-yellow-400/30 hover:border-yellow-500 dark:border-yellow-500/30 dark:hover:border-yellow-400 rounded-lg transition-all duration-300 backdrop-blur-sm",
+  },
+
   // Utility function to combine classes
   combine: (...classes: string[]) => classes.filter(Boolean).join(' '),
 } as const;

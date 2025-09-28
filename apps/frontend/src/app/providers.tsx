@@ -6,6 +6,8 @@ import { SessionProvider, useSession } from 'next-auth/react';
 import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { ToastProvider } from '@/components/Toast';
 import { SessionProvider as CustomSessionProvider } from '@/contexts/SessionContext';
+import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
+import { LiveRegionProvider } from '@/components/LiveRegion';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 import { APIError } from '@/lib/api-client';
@@ -82,9 +84,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <CustomSessionProvider>
           <QueryClientProvider client={queryClient}>
             <ToastProvider>
-              <SecureAPIProvider>
-                {children}
-              </SecureAPIProvider>
+              <LiveRegionProvider>
+                <KeyboardShortcutsProvider>
+                  <SecureAPIProvider>
+                    {children}
+                  </SecureAPIProvider>
+                </KeyboardShortcutsProvider>
+              </LiveRegionProvider>
             </ToastProvider>
           </QueryClientProvider>
         </CustomSessionProvider>

@@ -47,6 +47,8 @@ jobs:
 
       - name: Run security tests
         run: npm run test:security
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Run all tests with coverage
         run: npm run test:coverage
@@ -234,6 +236,7 @@ jobs:
       - name: Run security tests
         run: npm run test:security
         env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id

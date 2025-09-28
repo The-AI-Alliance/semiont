@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
 import { signIn } from 'next-auth/react';
 import { useSessionContext } from '@/contexts/SessionContext';
 import { AUTH_EVENTS, onAuthEvent } from '@/lib/auth-events';
@@ -28,10 +29,6 @@ export function SessionExpiredModal() {
     return cleanup;
   }, []);
 
-  if (!showModal) {
-    return null;
-  }
-
   const handleSignIn = () => {
     // Sign in and redirect back to current page
     signIn(undefined, { callbackUrl: window.location.pathname });
@@ -44,22 +41,34 @@ export function SessionExpiredModal() {
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] animate-in fade-in duration-200"
-        aria-hidden="true"
-      />
+    <Transition appear show={showModal} as={Fragment}>
+      <Dialog as="div" className="relative z-[10000]" onClose={handleClose}>
+        {/* Backdrop */}
+        <TransitionChild
+          as={Fragment}
+          enter="ease-out duration-200"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+        </TransitionChild>
 
-      {/* Modal */}
-      <div
-        className="fixed inset-0 flex items-center justify-center z-[10000] p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="session-expired-title"
-        aria-describedby="session-expired-description"
-      >
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200">
+        {/* Modal panel */}
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <TransitionChild
+              as={Fragment}
+              enter="ease-out duration-200"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-150"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all">
           {/* Header */}
           <div className="p-6 pb-4">
             <div className="flex items-center gap-3 mb-4">
@@ -68,20 +77,14 @@ export function SessionExpiredModal() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2
-                id="session-expired-title"
-                className="text-xl font-semibold text-gray-900 dark:text-white"
-              >
+              <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
                 Session Expired
-              </h2>
+              </DialogTitle>
             </div>
 
-            <p
-              id="session-expired-description"
-              className="text-gray-600 dark:text-gray-300"
-            >
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               Your session has expired for security reasons. Please sign in again to continue working.
-            </p>
+            </DialogDescription>
           </div>
 
           {/* Actions */}
@@ -99,8 +102,11 @@ export function SessionExpiredModal() {
               Sign In Again
             </button>
           </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
         </div>
-      </div>
-    </>
+      </Dialog>
+    </Transition>
   );
 }
