@@ -9,7 +9,7 @@
     "build": "npm run typecheck && next build",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "next start",
-    "test": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json --exclude='**/admin/**/*.test.tsx' --exclude='**/admin/**/*.test.ts' --exclude='src/app/privacy/__tests__/page.test.tsx' --exclude='src/lib/__tests__/validation.test.ts' --exclude='src/app/api/auth/\[...nextauth\]/__tests__/route.test.ts'",
+    "test": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json --exclude='**/admin/**/*.test.tsx' --exclude='**/admin/**/*.test.ts' --exclude='src/app/privacy/__tests__/page.test.tsx' --exclude='src/lib/__tests__/validation.test.ts' --exclude='src/app/api/auth/\\[...nextauth\\]/__tests__/route.test.ts'",
     "test:all": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json",
     "test:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest",
     "test:coverage": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --coverage",
