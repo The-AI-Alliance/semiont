@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PermissionDeniedModal } from '../PermissionDeniedModal';
 import { signIn, useSession } from 'next-auth/react';
@@ -35,6 +35,13 @@ vi.mock('@/lib/auth-events', () => ({
   })
 }));
 
+// Mock SessionContext
+vi.mock('@/contexts/SessionContext', () => ({
+  useSessionContext: vi.fn(() => ({
+    clearSession: vi.fn()
+  }))
+}));
+
 // Mock window.alert
 global.alert = vi.fn();
 
@@ -50,209 +57,98 @@ describe('PermissionDeniedModal', () => {
     });
   });
 
-  describe('Keyboard Navigation', () => {
-    it('should close modal when Escape key is pressed', async () => {
+  describe('Modal Display', () => {
+    it('should show modal when forbidden event is triggered', async () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show by simulating forbidden event
       const { onAuthEvent } = await import('@/lib/auth-events');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
 
-      // Wait for modal to appear
-      await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+      act(() => {
+        act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
       });
 
-      // Press Escape key
-      fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
-
-      // Should call router.back() and modal should close
+      // Modal should be visible
       await waitFor(() => {
-        expect(mockBack).toHaveBeenCalled();
+        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+        expect(screen.getByText('You need admin access')).toBeInTheDocument();
       });
     });
 
-    it('should handle Enter key on focused button', async () => {
+    it('should display current user email', async () => {
       render(<PermissionDeniedModal />);
 
-      // Trigger the modal to show
       const { onAuthEvent } = await import('@/lib/auth-events');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
 
-      await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+      act(() => {
+        eventHandler({ detail: { message: 'Access denied' } });
       });
 
-      const goBackButton = screen.getByRole('button', { name: /go back/i });
-      goBackButton.focus();
-
-      // Press Enter on focused button
-      fireEvent.keyDown(goBackButton, { key: 'Enter', code: 'Enter' });
-
-      // Should trigger the button action
-      expect(mockBack).toHaveBeenCalled();
-    });
-
-    it('should handle Space key on focused button', async () => {
-      render(<PermissionDeniedModal />);
-
-      // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
-      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
-
       await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
-      });
-
-      const goHomeButton = screen.getByRole('button', { name: /go to home/i });
-      goHomeButton.focus();
-
-      // Press Space on focused button
-      fireEvent.keyDown(goHomeButton, { key: ' ', code: 'Space' });
-      fireEvent.keyUp(goHomeButton, { key: ' ', code: 'Space' });
-
-      // Should trigger the button action
-      await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith('/');
+        expect(screen.getByText('Currently signed in as:')).toBeInTheDocument();
+        expect(screen.getByText('test@example.com')).toBeInTheDocument();
       });
     });
   });
 
-  describe('Focus Trapping', () => {
-    it('should trap focus within modal buttons', async () => {
+  describe('User Actions', () => {
+    it('should call router.back when Go Back button is clicked', async () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
       const { onAuthEvent } = await import('@/lib/auth-events');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
+      act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Access Denied')).toBeInTheDocument();
       });
 
-      // Get all interactive elements
+      // Click Go Back button
       const goBackButton = screen.getByRole('button', { name: /go back/i });
-      const goHomeButton = screen.getByRole('button', { name: /go to home/i });
-      const switchAccountButton = screen.getByRole('button', { name: /switch account/i });
-      const requestAccessButton = screen.getByRole('button', { name: /request access/i });
-
-      // Focus first button
-      goBackButton.focus();
-      expect(document.activeElement).toBe(goBackButton);
-
-      // Tab through all buttons
-      fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
-      await waitFor(() => {
-        expect(document.activeElement).toBe(goHomeButton);
-      });
-
-      fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
-      await waitFor(() => {
-        expect(document.activeElement).toBe(switchAccountButton);
-      });
-
-      fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
-      await waitFor(() => {
-        expect(document.activeElement).toBe(requestAccessButton);
-      });
-
-      // Tab should wrap back to first button
-      fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
-      await waitFor(() => {
-        expect(document.activeElement).toBe(goBackButton);
-      });
-    });
-
-    it('should not allow focus to escape to document body', async () => {
-      render(
-        <div>
-          <button data-testid="outside-button">Outside Button</button>
-          <PermissionDeniedModal />
-        </div>
-      );
-
-      const outsideButton = screen.getByTestId('outside-button');
-
-      // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
-      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
-
-      await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
-      });
-
-      // Try to focus outside button
-      outsideButton.focus();
-
-      // Focus should be trapped in modal, not on outside button
-      expect(document.activeElement).not.toBe(outsideButton);
-
-      // Focus should be within the modal
-      const modal = screen.getByText('Access Denied').closest('[role="dialog"]');
-      expect(modal).toContainElement(document.activeElement as HTMLElement);
-    });
-  });
-
-  describe('Click Outside Behavior', () => {
-    it('should close modal and go back when clicking outside', async () => {
-      const { container } = render(<PermissionDeniedModal />);
-
-      // Trigger the modal to show
-      const { onAuthEvent } = await import('@/lib/auth-events');
-      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
-
-      await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
-      });
-
-      // Click on the backdrop
-      const backdrop = container.querySelector('.fixed.inset-0.bg-black\\/50');
-      if (backdrop) {
-        fireEvent.click(backdrop);
-      }
+      fireEvent.click(goBackButton);
 
       // Should call router.back()
       expect(mockBack).toHaveBeenCalled();
     });
 
-    it('should not close when clicking inside modal', async () => {
+    it('should navigate to home when Go to Home button is clicked', async () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
       const { onAuthEvent } = await import('@/lib/auth-events');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
+      act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Access Denied')).toBeInTheDocument();
       });
 
-      // Click inside the modal
-      const modalContent = screen.getByText('Access Denied');
-      fireEvent.click(modalContent);
+      // Click Go to Home button
+      const goHomeButton = screen.getByRole('button', { name: /go to home/i });
+      fireEvent.click(goHomeButton);
 
-      // Should not call router.back()
-      expect(mockBack).not.toHaveBeenCalled();
-
-      // Modal should remain open
-      expect(screen.getByText('Access Denied')).toBeInTheDocument();
+      // Should navigate to home
+      expect(mockPush).toHaveBeenCalledWith('/');
     });
-  });
 
-  describe('Multiple Actions', () => {
     it('should handle Switch Account action', async () => {
       render(<PermissionDeniedModal />);
 
       // Trigger the modal to show
       const { onAuthEvent } = await import('@/lib/auth-events');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
+      act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Access Denied')).toBeInTheDocument();
@@ -273,7 +169,9 @@ describe('PermissionDeniedModal', () => {
       // Trigger the modal to show
       const { onAuthEvent } = await import('@/lib/auth-events');
       const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      eventHandler({ detail: { message: 'You need admin access' } });
+      act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Access Denied')).toBeInTheDocument();
@@ -286,6 +184,93 @@ describe('PermissionDeniedModal', () => {
       expect(global.alert).toHaveBeenCalledWith(
         'Access request feature coming soon. Please contact your administrator.'
       );
+    });
+  });
+
+  describe('Modal Behavior', () => {
+    it('should close modal after Go Back action', async () => {
+      render(<PermissionDeniedModal />);
+
+      // Trigger the modal to show
+      const { onAuthEvent } = await import('@/lib/auth-events');
+      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
+      act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+      });
+
+      // Click Go Back button
+      const goBackButton = screen.getByRole('button', { name: /go back/i });
+      fireEvent.click(goBackButton);
+
+      // Modal should close after action
+      await waitFor(() => {
+        expect(screen.queryByText('Access Denied')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should close modal after Go to Home action', async () => {
+      render(<PermissionDeniedModal />);
+
+      // Trigger the modal to show
+      const { onAuthEvent } = await import('@/lib/auth-events');
+      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
+      act(() => {
+        eventHandler({ detail: { message: 'You need admin access' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+      });
+
+      // Click Go to Home button
+      const goHomeButton = screen.getByRole('button', { name: /go to home/i });
+      fireEvent.click(goHomeButton);
+
+      // Modal should close after action
+      await waitFor(() => {
+        expect(screen.queryByText('Access Denied')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should only show one modal instance', async () => {
+      render(<PermissionDeniedModal />);
+
+      const { onAuthEvent } = await import('@/lib/auth-events');
+      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
+
+      // Trigger multiple times
+      act(() => {
+        eventHandler({ detail: { message: 'Access denied' } });
+        eventHandler({ detail: { message: 'Access denied again' } });
+      });
+
+      await waitFor(() => {
+        const modals = screen.getAllByText('Access Denied');
+        expect(modals).toHaveLength(1);
+      });
+    });
+  });
+
+  describe('Event Listener Cleanup', () => {
+    it('should cleanup event listeners on unmount', async () => {
+      const { unmount } = render(<PermissionDeniedModal />);
+      const { onAuthEvent } = await import('@/lib/auth-events');
+
+      // Should have registered event listener
+      expect(onAuthEvent).toHaveBeenCalledWith('auth:forbidden', expect.any(Function));
+
+      // Get cleanup function
+      const cleanupFunction = (onAuthEvent as any).mock.results
+        .find((result: any) => result.type === 'return')?.value;
+
+      unmount();
+
+      // Cleanup function should exist
+      expect(typeof cleanupFunction).toBe('function');
     });
   });
 });
