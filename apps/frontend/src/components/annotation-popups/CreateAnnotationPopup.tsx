@@ -61,25 +61,14 @@ export function CreateAnnotationPopup({
 
       <SelectedTextDisplay text={selection.text} />
 
-      {/* Quick Actions */}
+      {/* Create Highlight Button */}
       <div className="mb-4">
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Quick Actions
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={handleCreateHighlight}
-            className={buttonStyles.secondary.base}
-          >
-            🖍 Create Highlight
-          </button>
-          <button
-            onClick={handleCreateStubReference}
-            className={buttonStyles.primary.base}
-          >
-            🔗 Create Reference
-          </button>
-        </div>
+        <button
+          onClick={handleCreateHighlight}
+          className={`${buttonStyles.warning.base} w-full justify-center`}
+        >
+          🖍 Create Highlight
+        </button>
       </div>
 
       {/* Entity Types */}
@@ -124,6 +113,19 @@ export function CreateAnnotationPopup({
           </select>
         </div>
       )}
+
+      {/* Divider */}
+      <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+
+      {/* Create Reference Button */}
+      <div>
+        <button
+          onClick={handleCreateStubReference}
+          className={`${buttonStyles.primary.base} w-full justify-center`}
+        >
+          🔗 Create Reference
+        </button>
+      </div>
     </PopupContainer>
   );
 }

@@ -10,46 +10,58 @@ interface ProposeEntitiesModalProps {
   onCancel: () => void;
 }
 
+const STORAGE_KEY = 'userPreferredEntityTypes';
+
 export function ProposeEntitiesModal({
   isOpen,
   onConfirm,
   onCancel
 }: ProposeEntitiesModalProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [selectAll, setSelectAll] = useState(false);
-  
+
   // Get available entity types
   const { data: entityTypesData } = api.entityTypes.list.useQuery();
   const allEntityTypes = entityTypesData?.entityTypes || [];
 
-  // Reset state when modal opens
+  // Load saved preferences when modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedTypes([]);
-      setSelectAll(false);
+      // Try to load saved preferences from sessionStorage
+      try {
+        const saved = sessionStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const savedTypes = JSON.parse(saved);
+          // Only use saved types that are still available
+          const validSavedTypes = savedTypes.filter((type: string) =>
+            allEntityTypes.includes(type)
+          );
+          setSelectedTypes(validSavedTypes.length > 0 ? validSavedTypes : []);
+        } else {
+          setSelectedTypes([]);
+        }
+      } catch (error) {
+        console.error('Failed to load entity type preferences:', error);
+        setSelectedTypes([]);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, allEntityTypes]);
 
   const handleToggleType = (type: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(type) 
+    setSelectedTypes(prev =>
+      prev.includes(type)
         ? prev.filter(t => t !== type)
         : [...prev, type]
     );
   };
 
-  const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedTypes([]);
-      setSelectAll(false);
-    } else {
-      setSelectedTypes([...allEntityTypes]);
-      setSelectAll(true);
-    }
-  };
-
   const handleConfirm = () => {
     if (selectedTypes.length > 0) {
+      // Save preferences to sessionStorage
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(selectedTypes));
+      } catch (error) {
+        console.error('Failed to save entity type preferences:', error);
+      }
       onConfirm(selectedTypes);
     }
   };
@@ -102,46 +114,30 @@ export function ProposeEntitiesModal({
                 </div>
 
                 {/* Entity Types Selection */}
-                <div className="max-h-[50vh] overflow-y-auto mb-4">
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
-                    {/* Select All Checkbox */}
-                    <label className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={selectAll}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-                      />
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        Select All
-                      </span>
-                    </label>
-
-                    {/* Individual Entity Types */}
-                    <div className="space-y-2">
-                      {allEntityTypes.length > 0 ? (
-                        allEntityTypes.map(type => (
-                          <label
-                            key={type}
-                            className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded transition-colors"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTypes.includes(type)}
-                              onChange={() => handleToggleType(type)}
-                              className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {type}
-                            </span>
-                          </label>
-                        ))
-                      ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                          No entity types available
-                        </p>
-                      )}
-                    </div>
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select entity types to detect:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {allEntityTypes.length > 0 ? (
+                      allEntityTypes.map(type => (
+                        <button
+                          key={type}
+                          onClick={() => handleToggleType(type)}
+                          className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                            selectedTypes.includes(type)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No entity types available
+                      </p>
+                    )}
                   </div>
                 </div>
 

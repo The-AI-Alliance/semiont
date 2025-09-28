@@ -74,7 +74,8 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     }, 300); // Debounce search
 
     return () => clearTimeout(searchTimer);
-  }, [query, announceSearching, announceSearchResults]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {

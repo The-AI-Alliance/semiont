@@ -98,14 +98,14 @@ export function StubReferencePopup({
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Link to Document
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             <button
               onClick={handleGenerateDocument}
               disabled={isGenerating}
-              className={`${buttonStyles.primary.base} justify-center`}
+              className={`${buttonStyles.primary.base} w-full justify-center`}
             >
               {isGenerating ? (
-                <span className="flex items-center">
+                <span className="flex items-center justify-center">
                   <span className="animate-spin mr-2">⏳</span>
                   Generating...
                 </span>
@@ -115,13 +115,13 @@ export function StubReferencePopup({
             </button>
             <button
               onClick={handleSearchDocuments}
-              className={`${buttonStyles.secondary.base} justify-center`}
+              className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
               🔍 Search
             </button>
             <button
               onClick={handleComposeDocument}
-              className={`${buttonStyles.secondary.base} justify-center col-span-2`}
+              className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
               ✏️ Compose New
             </button>
