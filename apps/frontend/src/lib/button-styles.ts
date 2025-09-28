@@ -23,6 +23,11 @@ export const buttonStyles = {
     base: "px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors",
   },
 
+  // Danger button - for destructive actions
+  danger: {
+    base: "px-6 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-all duration-300",
+  },
+
   // Utility function to combine classes
   combine: (...classes: string[]) => classes.filter(Boolean).join(' '),
 } as const;
