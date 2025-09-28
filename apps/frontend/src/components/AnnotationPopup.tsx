@@ -82,6 +82,7 @@ export function AnnotationPopup({
       }
       setSelectedReferenceType(annotation?.referenceType || '');
       setShowSearchModal(false);
+      setIsGenerating(false);  // Reset generating state when popup reopens
     }
   }, [isOpen, annotation]);
 
@@ -243,9 +244,9 @@ export function AnnotationPopup({
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {currentState === 'initial' && 'Create Annotation'}
-            {currentState === 'highlight' && '🟡 Highlight'}
-            {currentState === 'stub_reference' && '🔵 Stub Reference'}
-            {currentState === 'resolved_reference' && '🔵 Linked Reference'}
+            {currentState === 'highlight' && 'Highlight'}
+            {currentState === 'stub_reference' && 'Stub Reference'}
+            {currentState === 'resolved_reference' && 'Linked Reference'}
           </h3>
           <button
             onClick={onClose}
@@ -303,7 +304,7 @@ export function AnnotationPopup({
                 onClick={handleCreateHighlight}
                 className="w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50 border border-yellow-400/30 dark:border-yellow-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
               >
-                🟡 Create Highlight
+                Create Highlight
               </button>
 
               <div className="border-t dark:border-gray-700 pt-3">
@@ -352,7 +353,7 @@ export function AnnotationPopup({
                   onClick={handleCreateReference}
                   className="w-full py-2 bg-blue-200 hover:bg-blue-300 dark:bg-blue-900/50 dark:hover:bg-blue-800/50 border border-blue-400/30 dark:border-blue-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
                 >
-                  🔵 Create Reference
+                  Create Reference
                 </button>
               </div>
             </>
@@ -413,7 +414,7 @@ export function AnnotationPopup({
                 }}
                 className="w-full py-2 bg-purple-200 hover:bg-purple-300 dark:bg-purple-900/50 dark:hover:bg-purple-800/50 border border-purple-400/30 dark:border-purple-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
               >
-                🔵 Convert to Reference
+                Convert to Reference
               </button>
 
               <div className="border-t dark:border-gray-700 pt-3 mt-3">

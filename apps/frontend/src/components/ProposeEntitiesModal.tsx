@@ -127,7 +127,7 @@ export function ProposeEntitiesModal({
                 type="checkbox"
                 checked={selectAll}
                 onChange={handleSelectAll}
-                className="w-4 h-4 text-purple-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
+                className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
               />
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 Select All
@@ -146,7 +146,7 @@ export function ProposeEntitiesModal({
                       type="checkbox"
                       checked={selectedTypes.includes(type)}
                       onChange={() => handleToggleType(type)}
-                      className="w-4 h-4 text-purple-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
+                      className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
                       {type}
@@ -182,7 +182,7 @@ export function ProposeEntitiesModal({
             disabled={selectedTypes.length === 0}
             className={`flex-1 px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
               selectedTypes.length > 0
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-md hover:shadow-lg'
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
             }`}
           >
