@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
+import {
   PlusIcon,
   DocumentTextIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChevronLeftIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 
@@ -34,14 +36,30 @@ export function KnowledgeNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   const { openDocuments, removeDocument } = useOpenDocuments();
-  
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load collapsed state from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('knowledgeNavCollapsed');
+    if (saved === 'true') {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  // Save collapsed state to localStorage
+  const toggleCollapsed = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('knowledgeNavCollapsed', newState.toString());
+  };
+
   // Function to close a document tab
   const closeDocument = (docId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     removeDocument(docId);
-    
+
     // If we're closing the currently viewed document, navigate to Discover
     if (pathname === `/know/document/${docId}`) {
       router.push('/know/discover');
@@ -49,37 +67,61 @@ export function KnowledgeNavigation() {
   };
 
   return (
-    <nav className="w-64 bg-white dark:bg-gray-900 shadow border-r border-gray-200 dark:border-gray-700">
-      <div className="p-4">
+    <nav
+      className={`bg-white dark:bg-gray-900 shadow border-r border-gray-200 dark:border-gray-700 flex-shrink-0 transition-all duration-300 ease-in-out ${
+        isCollapsed ? 'w-14' : 'w-64'
+      }`}
+    >
+      <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
         <div className="space-y-1">
           <div>
-            <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-              Knowledge
+            {/* Header with collapse button */}
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} mb-3`}>
+              {!isCollapsed && (
+                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  Knowledge
+                </div>
+              )}
+              <button
+                onClick={toggleCollapsed}
+                className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+              >
+                {isCollapsed ? (
+                  <Bars3Icon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                ) : (
+                  <ChevronLeftIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                )}
+              </button>
             </div>
             
             {/* Fixed navigation items */}
             {fixedNavigation.map((item) => {
               const isActive = pathname === item.href;
-              
+
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  className={`group flex items-center ${
+                    isCollapsed ? 'justify-center px-2' : 'px-3'
+                  } py-2 text-sm font-medium rounded-md transition-colors ${
                     isActive
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-r-2 border-blue-500'
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                       : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
-                  title={item.description}
+                  title={isCollapsed ? item.name : item.description}
                 >
                   <item.icon
-                    className={`flex-shrink-0 -ml-1 mr-3 h-5 w-5 ${
-                      isActive 
-                        ? 'text-blue-500 dark:text-blue-400' 
+                    className={`flex-shrink-0 h-5 w-5 ${
+                      isCollapsed ? '' : '-ml-1 mr-3'
+                    } ${
+                      isActive
+                        ? 'text-blue-500 dark:text-blue-400'
                         : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
                     }`}
                   />
-                  {item.name}
+                  {!isCollapsed && item.name}
                 </Link>
               );
             })}
@@ -88,37 +130,43 @@ export function KnowledgeNavigation() {
             {openDocuments.map((doc) => {
               const docHref = `/know/document/${doc.id}`;
               const isActive = pathname === docHref;
-              
+
               return (
                 <div
                   key={doc.id}
-                  className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  className={`group flex items-center ${
+                    isCollapsed ? 'justify-center px-2' : 'px-3'
+                  } py-2 text-sm font-medium rounded-md transition-colors ${
                     isActive
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-r-2 border-blue-500'
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                       : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
                   <Link
                     href={docHref}
-                    className="flex items-center flex-1 min-w-0"
+                    className={`flex items-center ${isCollapsed ? '' : 'flex-1 min-w-0'}`}
                     title={doc.name}
                   >
                     <DocumentTextIcon
-                      className={`flex-shrink-0 -ml-1 mr-3 h-5 w-5 ${
-                        isActive 
-                          ? 'text-blue-500 dark:text-blue-400' 
+                      className={`flex-shrink-0 h-5 w-5 ${
+                        isCollapsed ? '' : '-ml-1 mr-3'
+                      } ${
+                        isActive
+                          ? 'text-blue-500 dark:text-blue-400'
                           : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
                       }`}
                     />
-                    <span className="truncate">{doc.name}</span>
+                    {!isCollapsed && <span className="truncate">{doc.name}</span>}
                   </Link>
-                  <button
-                    onClick={(e) => closeDocument(doc.id, e)}
-                    className="ml-1 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Close document"
-                  >
-                    <XMarkIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
-                  </button>
+                  {!isCollapsed && (
+                    <button
+                      onClick={(e) => closeDocument(doc.id, e)}
+                      className="ml-1 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Close document"
+                    >
+                      <XMarkIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
+                    </button>
+                  )}
                 </div>
               );
             })}
