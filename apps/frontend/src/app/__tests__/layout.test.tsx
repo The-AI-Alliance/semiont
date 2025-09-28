@@ -22,13 +22,18 @@ vi.mock('@/components/SessionExpiryBanner', () => ({
 }));
 
 // Mock SessionExpiredModal component
-vi.mock('@/components/SessionExpiredModal', () => ({
+vi.mock('@/components/modals/SessionExpiredModal', () => ({
   SessionExpiredModal: () => <div data-testid="session-expired-modal">Session Expired Modal</div>
 }));
 
 // Mock PermissionDeniedModal component
-vi.mock('@/components/PermissionDeniedModal', () => ({
+vi.mock('@/components/modals/PermissionDeniedModal', () => ({
   PermissionDeniedModal: () => <div data-testid="permission-denied-modal">Permission Denied Modal</div>
+}));
+
+// Mock SkipLinks component
+vi.mock('@/components/SkipLinks', () => ({
+  SkipLinks: () => <div data-testid="skip-links">Skip Links</div>
 }));
 
 // Mock the env library
