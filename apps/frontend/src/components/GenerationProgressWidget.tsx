@@ -75,7 +75,7 @@ export function GenerationProgressWidget({ progress, onCancel, onDismiss }: Gene
         <div className="mb-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {progress.status === 'complete' ? (
-              <span className="text-green-600 dark:text-green-400 font-medium">
+              <span className="text-gray-900 dark:text-white font-medium">
                 ✅ Document generated!
               </span>
             ) : (

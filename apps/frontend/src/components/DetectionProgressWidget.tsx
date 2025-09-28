@@ -12,7 +12,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
   if (!progress) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-purple-500 dark:border-purple-600">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-blue-500 dark:border-blue-600">
       {/* Header with sparkle */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -58,7 +58,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
         <div className="mb-3">
           <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-purple-600 to-pink-600 transition-all duration-300 ease-out rounded-full"
+              className="h-full bg-gradient-to-r from-blue-600 to-cyan-600 transition-all duration-300 ease-out rounded-full"
               style={{ width: `${progress.percentage}%` }}
             />
           </div>

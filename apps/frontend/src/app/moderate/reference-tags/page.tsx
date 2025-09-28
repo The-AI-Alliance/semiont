@@ -112,8 +112,8 @@ export default function ReferenceTagsPage() {
       {/* Reference Tags Management */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-start mb-6">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/20 mr-3">
-            <LinkIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 mr-3">
+            <LinkIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Document Relationship Types</h3>
@@ -129,7 +129,7 @@ export default function ReferenceTagsPage() {
             {referenceTypes.map((tag) => (
               <span
                 key={tag}
-                className="px-3 py-1 rounded-md text-sm border bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+                className="px-3 py-1 rounded-md text-sm border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
               >
                 {tag}
               </span>
@@ -145,13 +145,13 @@ export default function ReferenceTagsPage() {
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
             placeholder="Enter new reference tag..."
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
             disabled={isAdding}
           />
           <button
             onClick={handleAddTag}
             disabled={isAdding || !newTag.trim()}
-            className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-purple-600 hover:bg-purple-700 text-white"
+            className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
           >
             {isAdding ? (
               'Adding...'

@@ -43,7 +43,7 @@ const DocumentCard = React.memo(({
           {doc.entityTypes.slice(0, 2).map((type) => (
             <span
               key={type}
-              className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded"
+              className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded"
             >
               {type}
             </span>
@@ -256,7 +256,7 @@ export default function DiscoverPage() {
                   onClick={() => handleEntityTypeFilter(type)}
                   className={`px-3 py-1 rounded-full text-sm transition-colors ${
                     selectedEntityType === type
-                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >

@@ -19,8 +19,8 @@ export function DetectionProgressOverlay({ progress, onCancel }: DetectionProgre
           className="fixed left-0 right-0 h-1 pointer-events-none z-40 transition-all duration-500"
           style={{
             top: `${Math.min(90, 10 + progress.percentage)}%`,
-            background: 'linear-gradient(90deg, transparent, rgba(147, 51, 234, 0.8), transparent)',
-            boxShadow: '0 0 20px rgba(147, 51, 234, 0.6)',
+            background: 'linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.8), transparent)',
+            boxShadow: '0 0 20px rgba(59, 130, 246, 0.6)',
             animation: 'pulse 1s ease-in-out infinite'
           }}
         />
@@ -33,7 +33,7 @@ export function DetectionProgressOverlay({ progress, onCancel }: DetectionProgre
           <div className="relative">
             <span className="text-2xl animate-pulse">✨</span>
             {progress.status === 'scanning' && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full animate-ping" />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-ping" />
             )}
           </div>
 
@@ -51,7 +51,7 @@ export function DetectionProgressOverlay({ progress, onCancel }: DetectionProgre
 
             {/* Current entity type */}
             {progress.currentEntityType && (
-              <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-2">
+              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-2">
                 Scanning: {progress.currentEntityType}
               </div>
             )}
@@ -60,7 +60,7 @@ export function DetectionProgressOverlay({ progress, onCancel }: DetectionProgre
             <div className="relative">
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500 relative"
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-500 relative"
                   style={{ width: `${progress.percentage}%` }}
                 >
                   {/* Shimmer effect */}
