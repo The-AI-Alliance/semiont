@@ -33,6 +33,17 @@ const shortcutGroups: ShortcutGroup[] = [
       { keys: ['H'], description: 'Create highlight from selection' },
       { keys: ['R'], description: 'Create reference from selection' },
       { keys: ['Delete'], description: 'Delete focused annotation' },
+      { keys: ['Tab'], description: 'Navigate through annotations' },
+      { keys: ['Shift Tab'], description: 'Navigate annotations backward' },
+    ]
+  },
+  {
+    title: 'Lists & Grids',
+    shortcuts: [
+      { keys: ['←', '→'], description: 'Navigate entity type filters' },
+      { keys: ['↑', '↓', '←', '→'], description: 'Navigate document grid' },
+      { keys: ['Home'], description: 'Jump to first item' },
+      { keys: ['End'], description: 'Jump to last item' },
     ]
   },
   {
