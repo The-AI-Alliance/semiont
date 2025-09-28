@@ -227,8 +227,17 @@ See [DEPLOYMENT.md](../../docs/DEPLOYMENT.md) for detailed deployment workflows.
 
 ## Documentation
 
+### Core Architecture
+- [Annotations & References](docs/ANNOTATIONS.md) - Complete annotation system architecture and UI components
+- [Keyboard Navigation & Accessibility](docs/KEYBOARD-NAV.md) - WCAG 2.1 Level AA compliant keyboard navigation
 - [Authentication Architecture](docs/AUTHENTICATION.md) - Comprehensive guide to frontend authentication and 401 handling
 - [Authorization Architecture](docs/AUTHORIZATION.md) - Permission system and 403 error handling
+
+### Development Guides
+- [Style Guide](docs/style-guide.md) - UI/UX patterns and component guidelines
+- [Performance Optimization](docs/PERFORMANCE.md) - Bundle optimization and monitoring
+- [Rendering Architecture](docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+- [CodeMirror Integration](docs/CODEMIRROR-INTEGRATION.md) - Editor implementation details
 
 ## Technology Stack
 
