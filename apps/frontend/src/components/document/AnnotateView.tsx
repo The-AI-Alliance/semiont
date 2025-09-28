@@ -121,10 +121,10 @@ export function AnnotateView({
     setFocusedAnnotationIndex(nextIndex);
 
     // Find and focus the annotation element
-    const annotation = annotatedSegments[nextIndex].annotation;
-    if (annotation) {
+    const segment = annotatedSegments[nextIndex];
+    if (segment && segment.annotation) {
       const element = containerRef.current?.querySelector(
-        `[data-annotation-id="${annotation.id}"]`
+        `[data-annotation-id="${segment.annotation.id}"]`
       ) as HTMLElement;
       if (element) {
         element.focus();

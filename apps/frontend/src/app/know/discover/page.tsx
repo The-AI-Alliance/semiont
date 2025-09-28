@@ -107,18 +107,6 @@ export default function DiscoverPage() {
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
 
-  // Roving tabindex for entity type filters
-  const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(
-    entityTypes.length + 1, // +1 for "All" button
-    { orientation: 'horizontal' }
-  );
-
-  // Roving tabindex for document grid
-  const documentGridRoving = useRovingTabIndex<HTMLDivElement>(
-    filteredDocuments.length,
-    { orientation: 'grid', cols: 2 } // 2 columns on medium+ screens
-  );
-  
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -188,15 +176,27 @@ export default function DiscoverPage() {
     // If we have search results, show them; otherwise show recent
     // This ensures we show recent docs even when search returns nothing
     const baseDocuments = hasSearchResults
-      ? documents.search 
+      ? documents.search
       : documents.recent;
-    
+
     if (!selectedEntityType) return baseDocuments;
-    
-    return baseDocuments.filter(doc => 
+
+    return baseDocuments.filter(doc =>
       doc.entityTypes && doc.entityTypes.includes(selectedEntityType)
     );
   }, [documents.recent, documents.search, selectedEntityType, hasSearchResults]);
+
+  // Roving tabindex for entity type filters
+  const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(
+    entityTypes.length + 1, // +1 for "All" button
+    { orientation: 'horizontal' }
+  );
+
+  // Roving tabindex for document grid
+  const documentGridRoving = useRovingTabIndex<HTMLDivElement>(
+    filteredDocuments.length,
+    { orientation: 'grid', cols: 2 } // 2 columns on medium+ screens
+  );
 
   // Memoized callbacks
   const handleEntityTypeFilter = useCallback((entityType: string) => {

@@ -138,7 +138,10 @@ export function useRovingTabIndex<T extends HTMLElement>(
     // Cleanup
     return () => {
       items.forEach((item, i) => {
-        item.removeEventListener('click', clickHandlers[i]);
+        const handler = clickHandlers[i];
+        if (handler) {
+          item.removeEventListener('click', handler);
+        }
       });
     };
   }, [itemCount, getFocusableItems]);
