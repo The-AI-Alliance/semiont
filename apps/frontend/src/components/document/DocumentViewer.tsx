@@ -214,28 +214,27 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     if (selection && selection.toString().trim()) {
       const text = selection.toString();
       const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
 
-      // Calculate position in document
-      const textContent = document.content;
-      const selectedTextNormalized = text.replace(/\s+/g, ' ').trim();
-      const contentNormalized = textContent.replace(/\s+/g, ' ');
-      const start = contentNormalized.indexOf(selectedTextNormalized);
+      // Calculate position using the same method as AnnotateView
+      const container = documentViewerRef.current;
+      if (container) {
+        const preSelectionRange = window.document.createRange();
+        preSelectionRange.selectNodeContents(container);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
 
-      if (start !== -1) {
-        const position = { start, end: start + selectedTextNormalized.length };
-        setSelectedText(text);
-        setSelectionPosition(position);
-        setPopupPosition({ x: rect.left, y: rect.bottom + 10 });
+        const start = preSelectionRange.toString().length;
+        const end = start + text.length;
+
+        const position = { start, end };
 
         // Directly create highlight
         addHighlight(document.id, text, position);
 
-        // Clear selection
+        // Clear selection to remove sparkle animation
         selection.removeAllRanges();
       }
     }
-  }, [curationMode, document.id, document.content, addHighlight]);
+  }, [curationMode, document.id, addHighlight]);
 
   const handleQuickReference = useCallback(() => {
     if (!curationMode) return;
@@ -247,22 +246,30 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
 
-      // Calculate position in document
-      const textContent = document.content;
-      const selectedTextNormalized = text.replace(/\s+/g, ' ').trim();
-      const contentNormalized = textContent.replace(/\s+/g, ' ');
-      const start = contentNormalized.indexOf(selectedTextNormalized);
+      // Calculate position using the same method as AnnotateView
+      const container = documentViewerRef.current;
+      if (container) {
+        const preSelectionRange = window.document.createRange();
+        preSelectionRange.selectNodeContents(container);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
 
-      if (start !== -1) {
-        const position = { start, end: start + selectedTextNormalized.length };
+        const start = preSelectionRange.toString().length;
+        const end = start + text.length;
+
+        const position = { start, end };
+
+        // Set state to show the AnnotationPopup
         setSelectedText(text);
         setSelectionPosition(position);
         setPopupPosition({ x: rect.left, y: rect.bottom + 10 });
         setShowSelectionPopup(true);
         setEditingAnnotation(null);
+
+        // Clear selection to remove sparkle animation
+        selection.removeAllRanges();
       }
     }
-  }, [curationMode, document.content]);
+  }, [curationMode]);
 
   const handleDeleteFocusedAnnotation = useCallback(() => {
     if (!curationMode || !focusedAnnotationId) return;
