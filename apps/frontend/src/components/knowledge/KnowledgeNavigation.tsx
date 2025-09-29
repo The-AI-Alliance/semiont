@@ -5,12 +5,26 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   PlusIcon,
-  DocumentTextIcon,
   XMarkIcon,
   ChevronLeftIcon,
   Bars3Icon
 } from '@heroicons/react/24/outline';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortableDocumentTab } from './SortableDocumentTab';
 
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
@@ -35,8 +49,20 @@ const fixedNavigation = [
 export function KnowledgeNavigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const { openDocuments, removeDocument } = useOpenDocuments();
+  const { openDocuments, removeDocument, reorderDocuments } = useOpenDocuments();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Setup drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -63,6 +89,17 @@ export function KnowledgeNavigation() {
     // If we're closing the currently viewed document, navigate to Discover
     if (pathname === `/know/document/${docId}`) {
       router.push('/know/discover');
+    }
+  };
+
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = openDocuments.findIndex((doc) => doc.id === active.id);
+      const newIndex = openDocuments.findIndex((doc) => doc.id === over.id);
+      reorderDocuments(oldIndex, newIndex);
     }
   };
 
@@ -126,50 +163,39 @@ export function KnowledgeNavigation() {
               );
             })}
             
-            {/* Document tabs */}
-            {openDocuments.map((doc) => {
-              const docHref = `/know/document/${doc.id}`;
-              const isActive = pathname === docHref;
-
-              return (
-                <div
+            {/* Document tabs with drag and drop */}
+            {isCollapsed ? (
+              // When collapsed, dragging is disabled - just render simple tabs
+              openDocuments.map((doc) => (
+                <SortableDocumentTab
                   key={doc.id}
-                  className={`group flex items-center ${
-                    isCollapsed ? 'justify-center px-2' : 'px-3'
-                  } py-2 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                      : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
+                  doc={doc}
+                  isCollapsed={isCollapsed}
+                  onClose={closeDocument}
+                />
+              ))
+            ) : (
+              // When expanded, enable drag and drop
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={openDocuments.map((doc) => doc.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <Link
-                    href={docHref}
-                    className={`flex items-center ${isCollapsed ? '' : 'flex-1 min-w-0'}`}
-                    title={doc.name}
-                  >
-                    <DocumentTextIcon
-                      className={`flex-shrink-0 h-5 w-5 ${
-                        isCollapsed ? '' : '-ml-1 mr-3'
-                      } ${
-                        isActive
-                          ? 'text-blue-500 dark:text-blue-400'
-                          : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-                      }`}
+                  {openDocuments.map((doc) => (
+                    <SortableDocumentTab
+                      key={doc.id}
+                      doc={doc}
+                      isCollapsed={isCollapsed}
+                      onClose={closeDocument}
                     />
-                    {!isCollapsed && <span className="truncate">{doc.name}</span>}
-                  </Link>
-                  {!isCollapsed && (
-                    <button
-                      onClick={(e) => closeDocument(doc.id, e)}
-                      className="ml-1 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Close document"
-                    >
-                      <XMarkIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
           </div>
         </div>
       </div>
