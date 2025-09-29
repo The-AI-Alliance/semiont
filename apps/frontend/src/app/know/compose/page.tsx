@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { apiService } from '@/lib/api-client';
+import { apiService, api } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';
@@ -35,6 +35,10 @@ function ComposeDocumentContent() {
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Fetch available entity types
+  const { data: entityTypesData } = api.entityTypes.list.useQuery();
+  const availableEntityTypes = entityTypesData?.entityTypes || [];
   
   // Generate AI content using the backend inference service
   const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
@@ -169,13 +173,12 @@ function ComposeDocumentContent() {
         documentId = response.document.id;
         documentName = response.document.name || newDocName;
       } else {
-        // Create a new document
-        // Note: entityTypes would need to be stored separately since the API doesn't accept them here
-        // The backend would need to be updated to support entity types on document creation
+        // Create a new document with entity types
         const response = await apiService.documents.create({
           name: newDocName,
           content: newDocContent,
-          contentType: 'text/markdown'
+          contentType: 'text/markdown',
+          entityTypes: selectedEntityTypes
         });
         
         if (!response.document?.id) {
@@ -236,13 +239,13 @@ function ComposeDocumentContent() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           {isClone ? 'Edit Cloned Document' : isReferenceCompletion ? 'Complete Reference' : 'Compose New Document'}
         </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          {isClone
-            ? 'Review and edit your cloned document before saving'
-            : isReferenceCompletion
-            ? shouldGenerate ? 'AI-generated content has been created for your reference' : 'Create a document to complete the reference you started'
-            : 'Start a new document in your knowledge base'}
-        </p>
+        {(isClone || isReferenceCompletion) && (
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
+            {isClone
+              ? 'Review and edit your cloned document before saving'
+              : shouldGenerate ? 'AI-generated content has been created for your reference' : 'Create a document to complete the reference you started'}
+          </p>
+        )}
         {isReferenceCompletion && (
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
             <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -258,20 +261,95 @@ function ComposeDocumentContent() {
         <form onSubmit={handleSaveDocument} className="space-y-6">
           <div>
             <label htmlFor="docName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Document Name
+              Title
             </label>
             <input
               id="docName"
               type="text"
               value={newDocName}
               onChange={(e) => setNewDocName(e.target.value)}
-              placeholder="Enter document name..."
+              placeholder="Enter document title..."
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               required
               disabled={isCreating}
             />
           </div>
-          
+
+          {/* Entity Types Selection */}
+          {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Entity Types (Optional)
+              </legend>
+              <div
+                className="flex flex-wrap gap-2 mb-2"
+                role="group"
+                aria-describedby="entity-types-description"
+              >
+                {availableEntityTypes.map((type: string) => {
+                  const isSelected = selectedEntityTypes.includes(type);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setSelectedEntityTypes(prev =>
+                          prev.includes(type)
+                            ? prev.filter(t => t !== type)
+                            : [...prev, type]
+                        );
+                      }}
+                      className={`px-3 py-1 rounded-full text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                        isSelected
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                      disabled={isCreating}
+                      aria-pressed={isSelected}
+                      aria-label={`${type} entity type, ${isSelected ? 'selected' : 'not selected'}`}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedEntityTypes.length > 0 && (
+                <div
+                  className="sr-only"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {selectedEntityTypes.length} entity type{selectedEntityTypes.length !== 1 ? 's' : ''} selected: {selectedEntityTypes.join(', ')}
+                </div>
+              )}
+            </fieldset>
+          )}
+
+          {/* Entity Types Display for reference completion */}
+          {isReferenceCompletion && selectedEntityTypes.length > 0 && (
+            <div role="region" aria-labelledby="selected-entity-types-label">
+              <h3 id="selected-entity-types-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Entity Types
+              </h3>
+              <div className="flex flex-wrap gap-2" role="list">
+                {selectedEntityTypes.map((type) => (
+                  <span
+                    key={type}
+                    role="listitem"
+                    className="px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                    aria-label={`Entity type: ${type}`}
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" id="reference-entity-types-description">
+                These entity types were selected when creating the reference
+              </p>
+            </div>
+          )}
+
+          {/* Content textarea */}
           <div>
             <label htmlFor="docContent" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {isClone ? 'Document Content' : 'Content'}
@@ -286,29 +364,7 @@ function ComposeDocumentContent() {
               disabled={isCreating}
             />
           </div>
-          
-          {/* Entity Types Selection for reference completion */}
-          {isReferenceCompletion && selectedEntityTypes.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Entity Types
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {selectedEntityTypes.map((type) => (
-                  <span
-                    key={type}
-                    className="px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
-                  >
-                    {type}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                These entity types were selected when creating the reference
-              </p>
-            </div>
-          )}
-          
+
           {isClone && (
             <div className="flex items-center">
               <input

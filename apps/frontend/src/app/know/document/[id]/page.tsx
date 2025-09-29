@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiService } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
-import { DocumentTags } from '@/components/DocumentTags';
+import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
 import { buttonStyles } from '@/lib/button-styles';
 import type { Document as SemiontDocument } from '@/lib/api-client';
@@ -39,6 +39,7 @@ export default function KnowledgeDocumentPage() {
     return false;
   });
   const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
+  // Tag editing removed - documents are immutable after creation
 
   // Session is guaranteed by SecureAPIProvider
 
@@ -273,6 +274,14 @@ export default function KnowledgeDocumentPage() {
             {document.name}
           </h2>
         </div>
+        {/* Document Tags - inline display */}
+        <DocumentTagsInline
+          documentId={documentId}
+          tags={documentEntityTypes}
+          isEditing={false}
+          onUpdate={updateDocumentTags}
+          disabled={!!document.archived}
+        />
       </div>
 
       {/* Error Message Banner */}
@@ -314,7 +323,38 @@ export default function KnowledgeDocumentPage() {
             </ErrorBoundary>
           </div>
 
-          {/* Referenced by - moved to main panel */}
+          {/* Statistics */}
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {highlights.length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Total References</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {references.length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Stub References</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {references.filter(r => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Resolved References</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {references.filter(r => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Referenced by */}
           <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               Referenced by
@@ -343,52 +383,6 @@ export default function KnowledgeDocumentPage() {
                 {referencedByLoading ? 'Loading...' : 'No incoming references'}
               </p>
             )}
-          </div>
-
-          {/* Provenance - moved to main panel */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Provenance</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Last Updated</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {document.updatedAt && !isNaN(Date.parse(document.updatedAt))
-                    ? new Date(document.updatedAt).toLocaleDateString()
-                    : '---'}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Created At</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {document.createdAt && !isNaN(Date.parse(document.createdAt))
-                    ? new Date(document.createdAt).toLocaleDateString()
-                    : '---'}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Created By</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">---</span>
-              </div>
-              {document.creationMethod && (
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400 block">Creation Method</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 capitalize">
-                    {document.creationMethod}
-                  </span>
-                </div>
-              )}
-              {document.sourceDocumentId && document.creationMethod === 'clone' && (
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400 block">Cloned From</span>
-                  <Link
-                    href={`/know/document/${document.sourceDocumentId}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                  >
-                    View original
-                  </Link>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -449,6 +443,8 @@ export default function KnowledgeDocumentPage() {
                 ) : (
                   // Non-archived documents show all actions
                   <>
+                    {/* Tags are immutable after creation - can only be set when creating document */}
+
                     <button
                       onClick={() => setShowProposeEntitiesModal(true)}
                       className={`${buttonStyles.secondary.base} w-full`}
@@ -456,14 +452,14 @@ export default function KnowledgeDocumentPage() {
                     >
                       ✨ Detect Entity References
                     </button>
-                    
+
                     <button
                       onClick={handleClone}
                       className={`${buttonStyles.secondary.base} w-full`}
                     >
                       Clone
                     </button>
-                    
+
                     <button
                       onClick={handleArchiveToggle}
                       className={`${buttonStyles.secondary.base} w-full`}
@@ -476,28 +472,41 @@ export default function KnowledgeDocumentPage() {
             </div>
           )}
           
-          {/* Document Tags */}
-          <div className="mt-3">
-            <DocumentTags
-              documentId={documentId}
-              initialTags={documentEntityTypes}
-              onUpdate={updateDocumentTags}
-              disabled={!curationMode || !!document.archived}
-            />
-          </div>
-        
-          {/* Statistics */}
+          {/* Creation */}
           <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-              <div className="flex justify-between">
-                <span>Highlights</span>
-                <span className="font-medium">{highlights.length}</span>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Creation</h3>
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block text-xs">Date</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {document.createdAt && !isNaN(Date.parse(document.createdAt))
+                    ? new Date(document.createdAt).toLocaleDateString()
+                    : '---'}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span>References</span>
-                <span className="font-medium">{references.length}</span>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block text-xs">User</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">---</span>
               </div>
+              {document.creationMethod && (
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400 block text-xs">Method</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 capitalize">
+                    {document.creationMethod}
+                  </span>
+                </div>
+              )}
+              {document.sourceDocumentId && document.creationMethod === 'clone' && (
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400 block text-xs">Cloned From</span>
+                  <Link
+                    href={`/know/document/${document.sourceDocumentId}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    View original
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

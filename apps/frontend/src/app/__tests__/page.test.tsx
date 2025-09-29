@@ -12,11 +12,7 @@ vi.mock('@/components/UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu</div>
 }));
 
-// FeatureCards component was removed from the home page
-
-vi.mock('@/components/AuthenticatedHome', () => ({
-  AuthenticatedHome: () => <div data-testid="authenticated-home">AuthenticatedHome</div>
-}));
+// Removed unused components: FeatureCards, AuthenticatedHome
 
 vi.mock('@/components/SemiontBranding', () => ({
   SemiontBranding: ({ size, animated, className }: any) => (
