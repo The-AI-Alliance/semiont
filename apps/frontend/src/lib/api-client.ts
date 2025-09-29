@@ -406,8 +406,119 @@ export const apiClient = new Proxy({} as TypedAPIClient, {
   },
 });
 
+// API Service Interface - defines the shape of direct API calls
+interface APIService {
+  status: () => Promise<StatusResponse>;
+
+  auth: {
+    google: (access_token: string) => Promise<AuthResponse>;
+    me: () => Promise<UserResponse>;
+    logout: () => Promise<LogoutResponse>;
+  };
+
+  health: () => Promise<HealthResponse>;
+
+  documents: {
+    create: (data: {
+      name: string;
+      content: string;
+      contentType?: string;
+      entityTypes?: string[];
+      creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
+      sourceSelectionId?: string;
+      sourceDocumentId?: string;
+    }) => Promise<DocumentResponse>;
+    get: (id: string) => Promise<DocumentResponse>;
+    update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }) => Promise<DocumentResponse>;
+    clone: (id: string) => Promise<{ token: string; expiresAt: string; sourceDocument: any }>;
+    getReferencedBy: (id: string) => Promise<{ referencedBy: SelectionResponse[] }>;
+    detectSelections: (id: string, entityTypes: string[]) => Promise<{ message: string; detectionsStarted: number }>;
+    getByToken: (token: string) => Promise<{ sourceDocument: any; expiresAt: string }>;
+    createFromToken: (data: { token: string; name: string; content: string; archiveOriginal?: boolean }) => Promise<DocumentResponse>;
+    delete: (id: string) => Promise<{ success: boolean }>;
+    list: (params?: {
+      limit?: number;
+      offset?: number;
+      contentType?: string;
+      archived?: boolean;
+      entityType?: string;
+      search?: string;
+    }) => Promise<DocumentsResponse>;
+    search: (query: string, limit?: number) => Promise<DocumentsResponse>;
+    schemaDescription: () => Promise<SchemaDescriptionResponse>;
+    llmContext: (id: string, selectionId?: string) => Promise<LLMContextResponse>;
+    discoverContext: (text: string) => Promise<DiscoverContextResponse>;
+  };
+
+  selections: {
+    create: (data: {
+      documentId: string;
+      text: string;
+      position: { start: number; end: number };
+      type?: 'provisional' | 'highlight' | 'reference';
+      entityTypes?: string[];
+      referenceTags?: string[];
+      resolvedDocumentId?: string | null;
+    }) => Promise<SelectionResponse>;
+    get: (id: string) => Promise<SelectionResponse>;
+    update: (id: string, data: Partial<Selection>) => Promise<SelectionResponse>;
+    delete: (id: string) => Promise<{ success: boolean }>;
+    list: (params?: {
+      documentId?: string;
+      type?: string;
+      limit?: number;
+      offset?: number;
+    }) => Promise<SelectionsResponse>;
+    saveAsHighlight: (data: {
+      documentId: string;
+      text: string;
+      position: { start: number; end: number };
+    }) => Promise<SelectionResponse>;
+    resolveToDocument: (data: {
+      selectionId: string;
+      targetDocumentId: string;
+      referenceType?: string;
+    }) => Promise<SelectionResponse>;
+    createDocument: (data: {
+      selectionId: string;
+      name: string;
+      content: string;
+      referenceType?: string;
+    }) => Promise<DocumentResponse>;
+    generateDocument: (
+      selectionId: string,
+      data?: {
+        entityTypes?: string[];
+        prompt?: string;
+      }
+    ) => Promise<any>;
+    getHighlights: (documentId: string) => Promise<SelectionsResponse>;
+    getReferences: (documentId: string) => Promise<SelectionsResponse>;
+  };
+
+  entityTypes: {
+    list: () => Promise<{ entityTypes: string[] }>;
+  };
+
+  referenceTypes: {
+    list: () => Promise<{ referenceTypes: string[] }>;
+  };
+
+  admin: {
+    users: {
+      list: () => Promise<AdminUsersResponse>;
+      stats: () => Promise<AdminUserStatsResponse>;
+      update: (id: string, data: { isAdmin?: boolean; isActive?: boolean; name?: string }) => Promise<AdminUserUpdateResponse>;
+      delete: (id: string) => Promise<AdminUserDeleteResponse>;
+    };
+    oauth: {
+      config: () => Promise<OAuthConfigResponse>;
+    };
+  };
+}
+
 // Type-safe convenience methods
-export const apiService = {
+export const apiService: APIService = {
   status: (): Promise<StatusResponse> => 
     apiClient.get('/api/status'),
 
@@ -429,10 +540,11 @@ export const apiService = {
 
   // Document endpoints
   documents: {
-    create: (data: { 
-      name: string; 
-      content: string; 
+    create: (data: {
+      name: string;
+      content: string;
       contentType?: string;
+      entityTypes?: string[];  // Entity types can be set at creation time
       // Only context fields - backend calculates checksum, sets createdBy/createdAt
       creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
       sourceSelectionId?: string;  // For reference-created documents
@@ -444,7 +556,7 @@ export const apiService = {
       apiClient.get('/api/documents/:id', { params: { id } }),
     
     update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }): Promise<DocumentResponse> =>
-      apiClient.put('/api/documents/:id', { params: { id }, body: data }),
+      apiClient.patch('/api/documents/:id', { params: { id }, body: data }),
     
     clone: (id: string): Promise<{ token: string; expiresAt: string; sourceDocument: any }> =>
       apiClient.post('/api/documents/:id/clone', { params: { id }, body: {} }),
@@ -651,8 +763,63 @@ export const apiService = {
   },
 };
 
+// React Query Hooks Interface - defines available React Query hooks
+interface ReactQueryAPI {
+  auth: {
+    google: {
+      useMutation: () => any;
+    };
+    me: {
+      useQuery: () => any;
+    };
+    logout: {
+      useMutation: () => any;
+    };
+  };
+
+  health: {
+    useQuery: () => any;
+  };
+
+  admin: {
+    users: {
+      list: {
+        useQuery: (options?: { enabled?: boolean }) => any;
+      };
+      stats: {
+        useQuery: (options?: { enabled?: boolean }) => any;
+      };
+      update: {
+        useMutation: () => any;
+      };
+      delete: {
+        useMutation: () => any;
+      };
+    };
+    oauth: {
+      config: {
+        useQuery: (options?: { enabled?: boolean }) => any;
+      };
+    };
+  };
+
+  entityTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => any;
+    };
+  };
+
+  referenceTypes: {
+    list: {
+      useQuery: (options?: { enabled?: boolean }) => any;
+    };
+  };
+}
+
 // React Query hooks with type safety
-export const api = {
+// Use `api` for React Query hooks (useQuery/useMutation)
+// Use `apiService` for direct API calls
+export const api: ReactQueryAPI = {
   auth: {
     google: {
       useMutation: () => {
@@ -763,9 +930,6 @@ export const api = {
     }
   }
 };
-
-// Export the API client
-export const client = apiService;
 
 // Export types for use in components
 export type { 

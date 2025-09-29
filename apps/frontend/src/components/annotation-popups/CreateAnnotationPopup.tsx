@@ -77,7 +77,7 @@ export function CreateAnnotationPopup({
           Entity Types (Optional)
         </p>
         <div className="flex flex-wrap gap-2">
-          {entityTypes.map((type) => (
+          {entityTypes.map((type: string) => (
             <button
               key={type}
               onClick={() => toggleEntityType(type)}
@@ -105,7 +105,7 @@ export function CreateAnnotationPopup({
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             <option value="">None</option>
-            {referenceTypes.map((type) => (
+            {referenceTypes.map((type: string) => (
               <option key={type} value={type}>
                 {type}
               </option>

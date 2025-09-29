@@ -120,7 +120,7 @@ export function ProposeEntitiesModal({
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {allEntityTypes.length > 0 ? (
-                      allEntityTypes.map(type => (
+                      allEntityTypes.map((type: string) => (
                         <button
                           key={type}
                           onClick={() => handleToggleType(type)}
