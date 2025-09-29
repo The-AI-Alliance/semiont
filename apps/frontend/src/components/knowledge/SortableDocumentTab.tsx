@@ -51,43 +51,49 @@ export function SortableDocumentTab({ doc, isCollapsed, onClose }: SortableDocum
           : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
       } ${isDragging ? 'z-50 shadow-lg' : ''}`}
     >
-      {/* Document Icon as Drag Handle - only draggable when not collapsed */}
-      {!isCollapsed ? (
-        <div
-          {...attributes}
-          {...listeners}
-          className="flex-shrink-0 -ml-1 mr-3 cursor-move"
-          title="Drag to reorder"
-          aria-label={`Drag to reorder ${doc.name}`}
-          aria-describedby="drag-instructions"
-          role="button"
-          tabIndex={0}
-        >
-          <DocumentTextIcon
-            className={`h-5 w-5 ${
-              isActive
-                ? 'text-blue-500 dark:text-blue-400'
-                : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-            }`}
-          />
-        </div>
-      ) : (
-        // When collapsed, icon is not draggable
-        <DocumentTextIcon
-          className={`flex-shrink-0 h-5 w-5 ${
-            isActive
-              ? 'text-blue-500 dark:text-blue-400'
-              : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-          }`}
-        />
-      )}
-
-      {/* Document Link */}
+      {/* Document Link with Icon */}
       <Link
         href={docHref}
         className={`flex items-center ${isCollapsed ? '' : 'flex-1 min-w-0'}`}
         title={doc.name}
       >
+        {/* Document Icon - draggable when expanded, clickable when collapsed */}
+        {!isCollapsed ? (
+          <div
+            {...attributes}
+            {...listeners}
+            className="flex-shrink-0 -ml-1 mr-3 cursor-move"
+            title="Drag to reorder"
+            aria-label={`Drag to reorder ${doc.name}`}
+            aria-describedby="drag-instructions"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              // Prevent navigation when dragging
+              if (isDragging) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+          >
+            <DocumentTextIcon
+              className={`h-5 w-5 ${
+                isActive
+                  ? 'text-blue-500 dark:text-blue-400'
+                  : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+              }`}
+            />
+          </div>
+        ) : (
+          // When collapsed, icon is clickable for navigation
+          <DocumentTextIcon
+            className={`flex-shrink-0 h-5 w-5 ${
+              isActive
+                ? 'text-blue-500 dark:text-blue-400'
+                : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+            }`}
+          />
+        )}
         {!isCollapsed && <span className="truncate">{doc.name}</span>}
       </Link>
 
