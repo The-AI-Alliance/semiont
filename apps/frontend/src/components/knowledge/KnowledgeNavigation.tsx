@@ -108,6 +108,10 @@ export function KnowledgeNavigation() {
         isCollapsed ? 'w-14' : 'w-64'
       }`}
     >
+      {/* Screen reader instructions for drag and drop */}
+      <div id="drag-instructions" className="sr-only">
+        Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop.
+      </div>
       <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
         <div className="space-y-1">
           <div>
@@ -122,6 +126,8 @@ export function KnowledgeNavigation() {
                 onClick={toggleCollapsed}
                 className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 title={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                aria-expanded={!isCollapsed}
+                aria-controls="knowledge-nav-content"
               >
                 {isCollapsed ? (
                   <Bars3Icon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
@@ -131,6 +137,8 @@ export function KnowledgeNavigation() {
               </button>
             </div>
             
+            {/* Navigation content */}
+            <div id="knowledge-nav-content">
             {/* Fixed navigation items */}
             {fixedNavigation.map((item) => {
               const isActive = pathname === item.href;
@@ -195,6 +203,7 @@ export function KnowledgeNavigation() {
                 </SortableContext>
               </DndContext>
             )}
+            </div>
           </div>
         </div>
       </div>

@@ -58,6 +58,10 @@ export function SortableDocumentTab({ doc, isCollapsed, onClose }: SortableDocum
           {...listeners}
           className="flex-shrink-0 -ml-1 mr-3 cursor-move"
           title="Drag to reorder"
+          aria-label={`Drag to reorder ${doc.name}`}
+          aria-describedby="drag-instructions"
+          role="button"
+          tabIndex={0}
         >
           <DocumentTextIcon
             className={`h-5 w-5 ${

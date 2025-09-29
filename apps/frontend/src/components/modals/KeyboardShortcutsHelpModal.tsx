@@ -28,10 +28,21 @@ const shortcutGroups: ShortcutGroup[] = [
     ]
   },
   {
+    title: 'Knowledge Sidebar',
+    shortcuts: [
+      { keys: ['Click <'], description: 'Collapse sidebar' },
+      { keys: ['Click ☰'], description: 'Expand sidebar' },
+      { keys: ['Space'], description: 'Pick up document tab (when focused)' },
+      { keys: ['↑', '↓'], description: 'Move document tab (when dragging)' },
+      { keys: ['Space'], description: 'Drop document tab (when dragging)' },
+      { keys: ['Esc'], description: 'Cancel drag operation' },
+    ]
+  },
+  {
     title: 'Document Annotations',
     shortcuts: [
-      { keys: ['H'], description: 'Create highlight from selection' },
-      { keys: ['R'], description: 'Create reference from selection' },
+      { keys: ['H'], description: 'Create highlight from selection (direct)' },
+      { keys: ['R'], description: 'Open reference popup for selection' },
       { keys: ['Delete'], description: 'Delete focused annotation' },
       { keys: ['Tab'], description: 'Navigate through annotations' },
       { keys: ['Shift Tab'], description: 'Navigate annotations backward' },
