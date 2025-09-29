@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { arrayMove } from '@dnd-kit/sortable';
 
 interface OpenDocument {
   id: string;
@@ -13,6 +14,7 @@ interface OpenDocumentsContextType {
   addDocument: (id: string, name: string) => void;
   removeDocument: (id: string) => void;
   updateDocumentName: (id: string, name: string) => void;
+  reorderDocuments: (oldIndex: number, newIndex: number) => void;
 }
 
 const OpenDocumentsContext = createContext<OpenDocumentsContextType | undefined>(undefined);
@@ -78,17 +80,22 @@ export function OpenDocumentsProvider({ children }: { children: React.ReactNode 
   }, []);
   
   const updateDocumentName = useCallback((id: string, name: string) => {
-    setOpenDocuments(prev => 
+    setOpenDocuments(prev =>
       prev.map(doc => doc.id === id ? { ...doc, name } : doc)
     );
   }, []);
-  
+
+  const reorderDocuments = useCallback((oldIndex: number, newIndex: number) => {
+    setOpenDocuments(prev => arrayMove(prev, oldIndex, newIndex));
+  }, []);
+
   return (
-    <OpenDocumentsContext.Provider value={{ 
-      openDocuments, 
-      addDocument, 
-      removeDocument, 
-      updateDocumentName 
+    <OpenDocumentsContext.Provider value={{
+      openDocuments,
+      addDocument,
+      removeDocument,
+      updateDocumentName,
+      reorderDocuments
     }}>
       {children}
     </OpenDocumentsContext.Provider>
