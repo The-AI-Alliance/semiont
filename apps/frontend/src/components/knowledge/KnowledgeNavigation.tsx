@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   PlusIcon,
-  XMarkIcon,
   ChevronLeftIcon,
   Bars3Icon
 } from '@heroicons/react/24/outline';
