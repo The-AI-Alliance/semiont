@@ -85,7 +85,8 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     documentId: body.documentId,
     selectionType: body.resolvedDocumentId !== undefined ? 'reference' : 'highlight',  // Graph implementations need this
     selectionData,
-    resolvedDocumentId: body.resolvedDocumentId,  // undefined = highlight, null = stub ref, string = resolved ref
+    // Only include resolvedDocumentId if it's defined (null or string = reference, omitted = highlight)
+    ...(body.resolvedDocumentId !== undefined && { resolvedDocumentId: body.resolvedDocumentId }),
     entityTypes: body.entityTypes,
     referenceTags: body.referenceTags,
     provisional: body.provisional ?? true,
