@@ -2,12 +2,11 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
-import { emitDocumentCloned } from '../../../events/emit';
+import { emitDocumentCloned, emitHighlightAdded, emitReferenceCreated } from '../../../events/emit';
 
 // Local schema to avoid TypeScript hanging
 const CloneDocumentResponse = z.object({
@@ -64,46 +63,21 @@ export function registerCloneDocument(router: DocumentsRouterType) {
     const content = await storage.getDocument(id);
     const contentStr = content.toString('utf-8');
     const checksum = calculateChecksum(contentStr);
+    const newDocId = `doc-sha256:${checksum}`;
 
-    const document: Document = {
-      id: `doc-sha256:${checksum}`,
-      name: body.name,
-      archived: false,
-      contentType: sourceDoc.contentType,
-      metadata: { ...sourceDoc.metadata, clonedFrom: id },
-      entityTypes: sourceDoc.entityTypes,
-      creationMethod: CREATION_METHODS.API,
-      sourceDocumentId: id,
-      contentChecksum: checksum,
-      createdBy: user.id,
-      createdAt: new Date(),
-    };
+    // Save to filesystem (Layer 1)
+    await storage.saveDocument(newDocId, content);
 
-    const createInput: CreateDocumentInput = {
-      name: document.name,
-      entityTypes: document.entityTypes,
-      content: contentStr,
-      contentType: document.contentType,
-      contentChecksum: document.contentChecksum!,
-      metadata: document.metadata,
-      createdBy: document.createdBy!,
-      creationMethod: document.creationMethod,
-      sourceDocumentId: document.sourceDocumentId,
-    };
-
-    const savedDoc = await graphDb.createDocument(createInput);
-    await storage.saveDocument(savedDoc.id, content);
-
-    // Emit document.cloned event
+    // Emit document.cloned event (consumer will create in GraphDB)
     await emitDocumentCloned({
-      documentId: savedDoc.id,
+      documentId: newDocId,
       userId: user.id,
-      name: savedDoc.name,
-      contentType: savedDoc.contentType,
-      contentHash: savedDoc.contentChecksum || checksum,
+      name: body.name,
+      contentType: sourceDoc.contentType,
+      contentHash: checksum,
       parentDocumentId: id,
-      entityTypes: savedDoc.entityTypes,
-      metadata: savedDoc.metadata,
+      entityTypes: sourceDoc.entityTypes,
+      metadata: { ...sourceDoc.metadata, clonedFrom: id },
     });
 
     // Propagate annotations from source document
@@ -111,39 +85,78 @@ export function registerCloneDocument(router: DocumentsRouterType) {
     const sourceHighlights = await graphDb.getHighlights(id);
     const sourceReferences = await graphDb.getReferences(id);
 
-    // Copy highlights to new document
+    const clonedSelections: any[] = [];
+
+    // Copy highlights to new document (emit events - consumer will create in GraphDB)
     for (const highlight of sourceHighlights) {
-      await graphDb.createSelection({
-        documentId: savedDoc.id,
+      const highlightId = graphDb.generateId();
+      await emitHighlightAdded({
+        documentId: newDocId,
+        userId: user.id,
+        highlightId,
+        text: highlight.selectionData.text,
+        position: {
+          offset: highlight.selectionData.offset,
+          length: highlight.selectionData.length,
+        },
+      });
+      clonedSelections.push({
+        id: highlightId,
+        documentId: newDocId,
+        selectionType: 'highlight',
         selectionData: highlight.selectionData,
         entityTypes: highlight.entityTypes,
-        referenceTags: highlight.referenceTags,
-        provisional: highlight.provisional,
-        metadata: { ...highlight.metadata, clonedFrom: highlight.id },
         createdBy: user.id,
+        createdAt: new Date().toISOString(),
       });
     }
 
-    // Copy references to new document
+    // Copy references to new document (emit events - consumer will create in GraphDB)
     for (const reference of sourceReferences) {
-      await graphDb.createSelection({
-        documentId: savedDoc.id,
+      const referenceId = graphDb.generateId();
+      await emitReferenceCreated({
+        documentId: newDocId,
+        userId: user.id,
+        referenceId,
+        text: reference.selectionData.text,
+        position: {
+          offset: reference.selectionData.offset,
+          length: reference.selectionData.length,
+        },
+        entityTypes: reference.entityTypes,
+        referenceType: reference.referenceTags?.[0],
+        targetDocumentId: reference.resolvedDocumentId || undefined,
+      });
+      clonedSelections.push({
+        id: referenceId,
+        documentId: newDocId,
+        selectionType: 'reference',
         selectionData: reference.selectionData,
         resolvedDocumentId: reference.resolvedDocumentId,
         entityTypes: reference.entityTypes,
         referenceTags: reference.referenceTags,
         provisional: reference.provisional,
-        metadata: { ...reference.metadata, clonedFrom: reference.id },
         createdBy: user.id,
+        createdAt: new Date().toISOString(),
       });
     }
 
-    const highlights = await graphDb.getHighlights(savedDoc.id);
-    const references = await graphDb.getReferences(savedDoc.id);
-
+    // Return optimistic response
     return c.json({
-      document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatSelection),
+      document: {
+        id: newDocId,
+        name: body.name,
+        archived: false,
+        contentType: sourceDoc.contentType,
+        metadata: { ...sourceDoc.metadata, clonedFrom: id },
+        entityTypes: sourceDoc.entityTypes,
+        creationMethod: CREATION_METHODS.API,
+        sourceDocumentId: id,
+        contentChecksum: checksum,
+        createdBy: user.id,
+        createdAt: new Date().toISOString(),
+      },
+      selections: clonedSelections.map(formatSelection),
     }, 201);
   });
 }

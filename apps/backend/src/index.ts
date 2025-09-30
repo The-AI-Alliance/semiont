@@ -262,6 +262,17 @@ if (CONFIG.NODE_ENV !== 'test') {
       console.error('⚠️ Failed to initialize inference client:', error);
       // Continue running even if inference initialization fails
     }
+
+    // Initialize GraphDB consumer (event-driven Layer 4)
+    try {
+      console.log('📊 Starting GraphDB consumer...');
+      const { startGraphConsumer } = await import('./events/consumers/graph-consumer');
+      await startGraphConsumer();
+      console.log('✅ GraphDB consumer started');
+    } catch (error) {
+      console.error('⚠️ Failed to start GraphDB consumer:', error);
+      // Continue running even if consumer fails to start
+    }
   });
 }
 

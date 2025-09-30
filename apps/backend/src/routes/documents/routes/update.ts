@@ -2,7 +2,6 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import type { UpdateDocumentInput } from '@semiont/core-types';
 import { formatDocument, formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '../schemas';
@@ -52,17 +51,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    // Only allow append-only operations
-    // Document name and content are immutable after creation
-    const updateInput: UpdateDocumentInput = {
-      entityTypes: body.entityTypes,
-      metadata: body.metadata,
-      archived: body.archived,
-    };
-
-    const updatedDoc = await graphDb.updateDocument(id, updateInput);
-
-    // Emit archived/unarchived events
+    // Emit archived/unarchived events (consumer will update GraphDB)
     if (body.archived !== undefined && body.archived !== doc.archived) {
       if (body.archived) {
         await emitDocumentArchived({
@@ -77,7 +66,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
     }
 
-    // Emit entity tag change events
+    // Emit entity tag change events (consumer will update GraphDB)
     if (body.entityTypes && doc.entityTypes) {
       const added = body.entityTypes.filter(et => !doc.entityTypes.includes(et));
       const removed = doc.entityTypes.filter(et => !body.entityTypes!.includes(et));
@@ -95,9 +84,15 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const references = await graphDb.getReferences(id);
     const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
 
+    // Return optimistic response
     return c.json({
       document: {
-        ...formatDocument(updatedDoc),
+        ...formatDocument({
+          ...doc,
+          archived: body.archived !== undefined ? body.archived : doc.archived,
+          entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
+          metadata: body.metadata !== undefined ? body.metadata : doc.metadata,
+        }),
         content: content.toString('utf-8')
       },
       selections: [...highlights, ...references].map(formatSelection),

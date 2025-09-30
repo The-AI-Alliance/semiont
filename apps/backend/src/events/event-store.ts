@@ -646,6 +646,58 @@ export class EventStore {
   }
 
   /**
+   * Get all document IDs in the event store
+   * Scans shard directories to find all documents
+   */
+  async getAllDocumentIds(): Promise<string[]> {
+    const documentIds: string[] = [];
+
+    if (!this.config.enableSharding) {
+      const documentsPath = path.join(this.config.dataDir, 'documents');
+      try {
+        const docs = await fs.readdir(documentsPath);
+        return docs;
+      } catch (error: any) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+      }
+    }
+
+    // Scan all shards
+    const shardsPath = path.join(this.config.dataDir, 'shards');
+    try {
+      const prefixes = await fs.readdir(shardsPath);
+
+      for (const prefix of prefixes) {
+        const prefixPath = path.join(shardsPath, prefix);
+        const stat = await fs.stat(prefixPath);
+        if (!stat.isDirectory()) continue;
+
+        const suffixes = await fs.readdir(prefixPath);
+        for (const suffix of suffixes) {
+          const suffixPath = path.join(prefixPath, suffix);
+          const suffixStat = await fs.stat(suffixPath);
+          if (!suffixStat.isDirectory()) continue;
+
+          const documentsPath = path.join(suffixPath, 'documents');
+          try {
+            const docs = await fs.readdir(documentsPath);
+            documentIds.push(...docs);
+          } catch (error: any) {
+            if (error.code === 'ENOENT') continue;
+            throw error;
+          }
+        }
+      }
+    } catch (error: any) {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    }
+
+    return documentIds;
+  }
+
+  /**
    * Validate projection matches event stream
    * Useful for debugging and ensuring Layer 3 stays in sync with Layer 2
    */

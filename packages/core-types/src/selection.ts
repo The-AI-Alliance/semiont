@@ -46,6 +46,7 @@ export interface Selection {
  * Input for creating a new selection
  */
 export interface CreateSelectionInput {
+  id?: string;  // Optional - for event-driven consumers to specify deterministic ID
   documentId: string;
   selectionData: any;
 
