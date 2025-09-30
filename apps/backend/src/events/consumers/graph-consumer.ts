@@ -51,7 +51,7 @@ export class GraphDBConsumer {
   /**
    * Process event with ordering guarantee (sequential per document)
    */
-  private async processEvent(storedEvent: StoredEvent): Promise<void> {
+  protected async processEvent(storedEvent: StoredEvent): Promise<void> {
     const { documentId } = storedEvent.event;
 
     // Wait for previous event on this document to complete
@@ -78,7 +78,7 @@ export class GraphDBConsumer {
   /**
    * Apply event to GraphDB
    */
-  private async applyEventToGraph(storedEvent: StoredEvent): Promise<void> {
+  protected async applyEventToGraph(storedEvent: StoredEvent): Promise<void> {
     const graphDb = this.ensureInitialized();
     const event = storedEvent.event;
 
