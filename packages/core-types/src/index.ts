@@ -44,5 +44,52 @@ export type {
   EntityTypeStats,
 } from './graph';
 
+// Event types
+export type {
+  BaseEvent,
+  DocumentEvent,
+  DocumentCreatedEvent,
+  DocumentClonedEvent,
+  DocumentArchivedEvent,
+  DocumentUnarchivedEvent,
+  HighlightAddedEvent,
+  HighlightRemovedEvent,
+  ReferenceCreatedEvent,
+  ReferenceResolvedEvent,
+  ReferenceDeletedEvent,
+  EntityTagAddedEvent,
+  EntityTagRemovedEvent,
+  EventMetadata,
+  EventSignature,
+  StoredEvent,
+  EventQuery,
+  DocumentProjection,
+} from './events';
+export {
+  isDocumentEvent,
+  getEventType,
+} from './events';
+
+// Event Zod schemas
+export {
+  DocumentCreatedPayloadSchema,
+  DocumentClonedPayloadSchema,
+  DocumentArchivedPayloadSchema,
+  DocumentUnarchivedPayloadSchema,
+  HighlightAddedPayloadSchema,
+  HighlightRemovedPayloadSchema,
+  ReferenceCreatedPayloadSchema,
+  ReferenceResolvedPayloadSchema,
+  ReferenceDeletedPayloadSchema,
+  EntityTagAddedPayloadSchema,
+  EntityTagRemovedPayloadSchema,
+  EventPayloadSchema,
+  EventMetadataSchema,
+  BaseEventSchema,
+  StoredEventSchema,
+  StoredEventApiSchema,
+  EventQuerySchema,
+} from './event-schemas';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';

@@ -21,6 +21,8 @@ import { registerTokenRoutes } from './routes/token';
 import { registerDocumentHighlights } from './routes/highlights';
 import { registerDocumentReferences } from './routes/references';
 import { registerGetDocumentSelections } from './routes/get-selections';
+import { registerGetEvents } from './routes/events';
+import { registerGetEventStream } from './routes/events-stream';
 
 // Create main documents router
 export const documentsRouter: DocumentsRouterType = createDocumentRouter();
@@ -44,3 +46,5 @@ registerTokenRoutes(documentsRouter);
 registerDocumentHighlights(documentsRouter);
 registerDocumentReferences(documentsRouter);
 registerGetDocumentSelections(documentsRouter);
+registerGetEvents(documentsRouter);
+registerGetEventStream(documentsRouter);

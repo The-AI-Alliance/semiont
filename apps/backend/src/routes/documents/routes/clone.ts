@@ -7,6 +7,7 @@ import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import { formatDocument, formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
+import { emitDocumentCloned } from '../../../events/emit';
 
 // Local schema to avoid TypeScript hanging
 const CloneDocumentResponse = z.object({
@@ -65,7 +66,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
     const checksum = calculateChecksum(contentStr);
 
     const document: Document = {
-      id: Math.random().toString(36).substring(2, 11),
+      id: `doc-sha256:${checksum}`,
       name: body.name,
       archived: false,
       contentType: sourceDoc.contentType,
@@ -92,6 +93,50 @@ export function registerCloneDocument(router: DocumentsRouterType) {
 
     const savedDoc = await graphDb.createDocument(createInput);
     await storage.saveDocument(savedDoc.id, content);
+
+    // Emit document.cloned event
+    await emitDocumentCloned({
+      documentId: savedDoc.id,
+      userId: user.id,
+      name: savedDoc.name,
+      contentType: savedDoc.contentType,
+      contentHash: savedDoc.contentChecksum || checksum,
+      parentDocumentId: id,
+      entityTypes: savedDoc.entityTypes,
+      metadata: savedDoc.metadata,
+    });
+
+    // Propagate annotations from source document
+    // Since content is identical, all text positions remain valid
+    const sourceHighlights = await graphDb.getHighlights(id);
+    const sourceReferences = await graphDb.getReferences(id);
+
+    // Copy highlights to new document
+    for (const highlight of sourceHighlights) {
+      await graphDb.createSelection({
+        documentId: savedDoc.id,
+        selectionData: highlight.selectionData,
+        entityTypes: highlight.entityTypes,
+        referenceTags: highlight.referenceTags,
+        provisional: highlight.provisional,
+        metadata: { ...highlight.metadata, clonedFrom: highlight.id },
+        createdBy: user.id,
+      });
+    }
+
+    // Copy references to new document
+    for (const reference of sourceReferences) {
+      await graphDb.createSelection({
+        documentId: savedDoc.id,
+        selectionData: reference.selectionData,
+        resolvedDocumentId: reference.resolvedDocumentId,
+        entityTypes: reference.entityTypes,
+        referenceTags: reference.referenceTags,
+        provisional: reference.provisional,
+        metadata: { ...reference.metadata, clonedFrom: reference.id },
+        createdBy: user.id,
+      });
+    }
 
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);

@@ -3,6 +3,8 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { User } from '@prisma/client';
 import { crudRouter } from './crud';
 import { operationsRouter } from './operations';
+import { createSelectionRouter } from './shared';
+import { registerGetAnnotationHistory } from './routes/history';
 
 // Create main selections router
 export const selectionsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
@@ -10,3 +12,8 @@ export const selectionsRouter = new OpenAPIHono<{ Variables: { user: User } }>()
 // Mount all sub-routers
 selectionsRouter.route('/', crudRouter);
 selectionsRouter.route('/', operationsRouter);
+
+// Register annotation history endpoint
+const historyRouter = createSelectionRouter();
+registerGetAnnotationHistory(historyRouter);
+selectionsRouter.route('/', historyRouter);

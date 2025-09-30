@@ -7,6 +7,7 @@ import { calculateChecksum } from '@semiont/utils';
 import { formatDocument, formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '../schemas';
+import { emitDocumentCreated } from '../../../events/emit';
 
 export const createDocumentRoute = createRoute({
   method: 'post',
@@ -45,7 +46,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
 
     const checksum = calculateChecksum(body.content);
     const document: Document = {
-      id: Math.random().toString(36).substring(2, 11),
+      id: `doc-sha256:${checksum}`,
       name: body.name,
       archived: false,
       contentType: body.contentType || 'text/plain',
@@ -74,6 +75,17 @@ export function registerCreateDocument(router: DocumentsRouterType) {
 
     const savedDoc = await graphDb.createDocument(createInput);
     await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
+
+    // Emit document.created event
+    await emitDocumentCreated({
+      documentId: savedDoc.id,
+      userId: user.id,
+      name: savedDoc.name,
+      contentType: savedDoc.contentType,
+      contentHash: savedDoc.contentChecksum || checksum,
+      entityTypes: savedDoc.entityTypes,
+      metadata: savedDoc.metadata,
+    });
 
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);

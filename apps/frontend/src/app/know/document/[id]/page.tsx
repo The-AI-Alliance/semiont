@@ -17,6 +17,8 @@ import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { GenerationProgressWidget } from '@/components/GenerationProgressWidget';
+import { AnnotationHistory } from '@/components/document/AnnotationHistory';
+import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 
 export default function KnowledgeDocumentPage() {
   const params = useParams();
@@ -241,6 +243,76 @@ export default function KnowledgeDocumentPage() {
     startGeneration(referenceId, options);
   }, [startGeneration]);
 
+  // Real-time document events for collaboration
+  const { status: eventStreamStatus, isConnected, eventCount } = useDocumentEvents({
+    documentId,
+
+    // Highlight events
+    onHighlightAdded: useCallback((event) => {
+      console.log('[RealTime] Highlight added:', event.payload);
+      // Reload annotations to show new highlight
+      loadAnnotations(documentId);
+    }, [documentId, loadAnnotations]),
+
+    onHighlightRemoved: useCallback((event) => {
+      console.log('[RealTime] Highlight removed:', event.payload);
+      // Reload annotations to remove highlight from UI
+      loadAnnotations(documentId);
+    }, [documentId, loadAnnotations]),
+
+    // Reference events
+    onReferenceCreated: useCallback((event) => {
+      console.log('[RealTime] Reference created:', event.payload);
+      // Reload annotations to show new reference
+      loadAnnotations(documentId);
+    }, [documentId, loadAnnotations]),
+
+    onReferenceResolved: useCallback((event) => {
+      console.log('[RealTime] Reference resolved:', event.payload);
+      // Reload annotations to update reference state
+      loadAnnotations(documentId);
+    }, [documentId, loadAnnotations]),
+
+    onReferenceDeleted: useCallback((event) => {
+      console.log('[RealTime] Reference deleted:', event.payload);
+      // Reload annotations to remove reference from UI
+      loadAnnotations(documentId);
+    }, [documentId, loadAnnotations]),
+
+    // Document status events
+    onDocumentArchived: useCallback((event) => {
+      console.log('[RealTime] Document archived');
+      // Reload document to show archived status
+      loadDocument();
+      showSuccess('This document has been archived');
+    }, [loadDocument, showSuccess]),
+
+    onDocumentUnarchived: useCallback((event) => {
+      console.log('[RealTime] Document unarchived');
+      // Reload document to show unarchived status
+      loadDocument();
+      showSuccess('This document has been unarchived');
+    }, [loadDocument, showSuccess]),
+
+    // Entity tag events
+    onEntityTagAdded: useCallback((event) => {
+      console.log('[RealTime] Entity tag added:', event.payload.entityType);
+      // Reload document to show updated tags
+      loadDocument();
+    }, [loadDocument]),
+
+    onEntityTagRemoved: useCallback((event) => {
+      console.log('[RealTime] Entity tag removed:', event.payload.entityType);
+      // Reload document to show updated tags
+      loadDocument();
+    }, [loadDocument]),
+
+    onError: useCallback((error) => {
+      console.error('[RealTime] Event stream error:', error);
+      // Don't show error toast - will auto-reconnect
+    }, []),
+  });
+
   // Loading state
   if (loading) {
     return (
@@ -269,10 +341,24 @@ export default function KnowledgeDocumentPage() {
     <div className="space-y-2 pt-6">
       {/* Document Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="px-6 py-2">
+        <div className="px-6 py-2 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             {document.name}
           </h2>
+          {/* Real-time connection indicator */}
+          {isConnected && (
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Live
+              </span>
+              {eventCount > 0 && (
+                <span className="text-gray-400 dark:text-gray-500">
+                  ({eventCount} events)
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {/* Document Tags - inline display */}
         <DocumentTagsInline
@@ -471,7 +557,12 @@ export default function KnowledgeDocumentPage() {
               </div>
             </div>
           )}
-          
+
+          {/* Annotation History */}
+          <div className="mt-3">
+            <AnnotationHistory documentId={documentId} />
+          </div>
+
           {/* Creation */}
           <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Creation</h3>

@@ -4,6 +4,7 @@ import { createSelectionRouter, type SelectionsRouterType } from './shared';
 import { formatDocument, formatSelection } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import type { CreateSelectionInput } from '@semiont/core-types';
+import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 
 // Create router with auth middleware
 export const crudRouter: SelectionsRouterType = createSelectionRouter();
@@ -95,6 +96,36 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   };
 
   const selection = await graphDb.createSelection(selectionInput);
+
+  // Emit highlight or reference event
+  if (selection.resolvedDocumentId !== null && selection.resolvedDocumentId !== undefined) {
+    // It's a reference
+    await emitReferenceCreated({
+      documentId: selection.documentId,
+      userId: user.id,
+      referenceId: selection.id,
+      text: selection.selectionData.text,
+      position: {
+        offset: selection.selectionData.offset,
+        length: selection.selectionData.length,
+      },
+      entityTypes: selection.entityTypes,
+      referenceType: selection.referenceTags?.[0],
+      targetDocumentId: selection.resolvedDocumentId,
+    });
+  } else {
+    // It's a highlight
+    await emitHighlightAdded({
+      documentId: selection.documentId,
+      userId: user.id,
+      highlightId: selection.id,
+      text: selection.selectionData.text,
+      position: {
+        offset: selection.selectionData.offset,
+        length: selection.selectionData.length,
+      },
+    });
+  }
 
   return c.json({
     selection: formatSelection(selection),
@@ -275,6 +306,15 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
     resolvedBy: user.id
   });
 
+  // Emit reference.resolved event
+  await emitReferenceResolved({
+    documentId: selection.documentId,
+    userId: user.id,
+    referenceId: id,
+    targetDocumentId: body.documentId,
+    referenceType: resolved.referenceTags?.[0],
+  });
+
   const targetDocument = await graphDb.getDocument(body.documentId);
 
   return c.json({
@@ -304,6 +344,7 @@ const deleteSelectionRoute = createRoute({
 });
 crudRouter.openapi(deleteSelectionRoute, async (c) => {
   const { id } = c.req.valid('param');
+  const user = c.get('user');
   const graphDb = await getGraphDatabase();
 
   const selection = await graphDb.getSelection(id);
@@ -312,6 +353,23 @@ crudRouter.openapi(deleteSelectionRoute, async (c) => {
   }
 
   await graphDb.deleteSelection(id);
+
+  // Emit highlight.removed or reference.deleted event
+  if (selection.resolvedDocumentId !== null && selection.resolvedDocumentId !== undefined) {
+    // It's a reference
+    await emitReferenceDeleted({
+      documentId: selection.documentId,
+      userId: user.id,
+      referenceId: id,
+    });
+  } else {
+    // It's a highlight
+    await emitHighlightRemoved({
+      documentId: selection.documentId,
+      userId: user.id,
+      highlightId: id,
+    });
+  }
 
   return c.body(null, 204);
 });

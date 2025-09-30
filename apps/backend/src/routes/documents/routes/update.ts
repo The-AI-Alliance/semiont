@@ -6,6 +6,7 @@ import type { UpdateDocumentInput } from '@semiont/core-types';
 import { formatDocument, formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '../schemas';
+import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
 
 export const updateDocumentRoute = createRoute({
   method: 'patch',
@@ -42,6 +43,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
   router.openapi(updateDocumentRoute, async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
+    const user = c.get('user');
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
@@ -59,6 +61,34 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     };
 
     const updatedDoc = await graphDb.updateDocument(id, updateInput);
+
+    // Emit archived/unarchived events
+    if (body.archived !== undefined && body.archived !== doc.archived) {
+      if (body.archived) {
+        await emitDocumentArchived({
+          documentId: id,
+          userId: user.id,
+        });
+      } else {
+        await emitDocumentUnarchived({
+          documentId: id,
+          userId: user.id,
+        });
+      }
+    }
+
+    // Emit entity tag change events
+    if (body.entityTypes && doc.entityTypes) {
+      const added = body.entityTypes.filter(et => !doc.entityTypes.includes(et));
+      const removed = doc.entityTypes.filter(et => !body.entityTypes!.includes(et));
+
+      for (const entityType of added) {
+        await emitEntityTagAdded({ documentId: id, userId: user.id, entityType });
+      }
+      for (const entityType of removed) {
+        await emitEntityTagRemoved({ documentId: id, userId: user.id, entityType });
+      }
+    }
 
     const content = await storage.getDocument(id);
     const highlights = await graphDb.getHighlights(id);

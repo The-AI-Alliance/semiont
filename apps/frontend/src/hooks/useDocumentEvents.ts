@@ -1,0 +1,279 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { apiClient } from '@/lib/api-client';
+
+/**
+ * Document event structure from the event store
+ */
+export interface DocumentEvent {
+  id: string;
+  type: string;
+  timestamp: string;
+  userId: string;
+  documentId: string;
+  payload: Record<string, any>;
+  metadata: {
+    sequenceNumber: number;
+    prevEventHash?: string;
+    checksum?: string;
+  };
+}
+
+/**
+ * Stream connection status
+ */
+export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+interface UseDocumentEventsOptions {
+  documentId: string;
+  onEvent?: (event: DocumentEvent) => void;
+  onHighlightAdded?: (event: DocumentEvent) => void;
+  onHighlightRemoved?: (event: DocumentEvent) => void;
+  onReferenceCreated?: (event: DocumentEvent) => void;
+  onReferenceResolved?: (event: DocumentEvent) => void;
+  onReferenceDeleted?: (event: DocumentEvent) => void;
+  onEntityTagAdded?: (event: DocumentEvent) => void;
+  onEntityTagRemoved?: (event: DocumentEvent) => void;
+  onDocumentArchived?: (event: DocumentEvent) => void;
+  onDocumentUnarchived?: (event: DocumentEvent) => void;
+  onError?: (error: string) => void;
+  autoConnect?: boolean; // Default: true
+}
+
+/**
+ * React hook for subscribing to real-time document events via SSE
+ *
+ * Opens a long-lived SSE connection to receive events as they happen.
+ * Automatically reconnects on disconnect (with exponential backoff).
+ *
+ * @example
+ * ```tsx
+ * const { status, connect, disconnect } = useDocumentEvents({
+ *   documentId: 'doc-123',
+ *   onHighlightAdded: (event) => {
+ *     console.log('New highlight:', event.payload);
+ *     // Update UI to show new highlight
+ *   },
+ *   onReferenceCreated: (event) => {
+ *     console.log('New reference:', event.payload);
+ *     // Refresh references list
+ *   }
+ * });
+ * ```
+ */
+export function useDocumentEvents({
+  documentId,
+  onEvent,
+  onHighlightAdded,
+  onHighlightRemoved,
+  onReferenceCreated,
+  onReferenceResolved,
+  onReferenceDeleted,
+  onEntityTagAdded,
+  onEntityTagRemoved,
+  onDocumentArchived,
+  onDocumentUnarchived,
+  onError,
+  autoConnect = true,
+}: UseDocumentEventsOptions) {
+  const [status, setStatus] = useState<StreamStatus>('disconnected');
+  const [lastEvent, setLastEvent] = useState<DocumentEvent | null>(null);
+  const [eventCount, setEventCount] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+
+  const handleEvent = useCallback((event: DocumentEvent) => {
+    setLastEvent(event);
+    setEventCount(prev => prev + 1);
+
+    // Call generic handler
+    onEvent?.(event);
+
+    // Call specific handlers
+    switch (event.type) {
+      case 'highlight.added':
+        onHighlightAdded?.(event);
+        break;
+      case 'highlight.removed':
+        onHighlightRemoved?.(event);
+        break;
+      case 'reference.created':
+        onReferenceCreated?.(event);
+        break;
+      case 'reference.resolved':
+        onReferenceResolved?.(event);
+        break;
+      case 'reference.deleted':
+        onReferenceDeleted?.(event);
+        break;
+      case 'entitytag.added':
+        onEntityTagAdded?.(event);
+        break;
+      case 'entitytag.removed':
+        onEntityTagRemoved?.(event);
+        break;
+      case 'document.archived':
+        onDocumentArchived?.(event);
+        break;
+      case 'document.unarchived':
+        onDocumentUnarchived?.(event);
+        break;
+    }
+  }, [
+    onEvent,
+    onHighlightAdded,
+    onHighlightRemoved,
+    onReferenceCreated,
+    onReferenceResolved,
+    onReferenceDeleted,
+    onEntityTagAdded,
+    onEntityTagRemoved,
+    onDocumentArchived,
+    onDocumentUnarchived,
+  ]);
+
+  const connect = useCallback(async () => {
+    // Close any existing connection
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Clear any pending reconnect
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    // Get auth token
+    const authHeader = apiClient.getAuthToken();
+    if (!authHeader) {
+      onError?.('Authentication required');
+      setStatus('error');
+      return;
+    }
+
+    setStatus('connecting');
+
+    // Create new abort controller
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    // Build SSE URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const url = `${apiUrl}/api/documents/${documentId}/events/stream`;
+
+    console.log(`[DocumentEvents] Connecting to event stream for document ${documentId}`);
+
+    try {
+      await fetchEventSource(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader,
+        },
+        signal: abortController.signal,
+
+        async onopen(response) {
+          if (response.ok) {
+            console.log(`[DocumentEvents] Stream opened for document ${documentId}`);
+            setStatus('connected');
+            reconnectAttemptsRef.current = 0; // Reset reconnect counter
+          } else {
+            throw new Error(`Failed to open stream: ${response.status}`);
+          }
+        },
+
+        onmessage(msg) {
+          // Handle stream-connected event
+          if (msg.event === 'stream-connected') {
+            const data = JSON.parse(msg.data);
+            console.log('[DocumentEvents] Stream connected:', data.message);
+            return;
+          }
+
+          // Handle document events
+          try {
+            const event = JSON.parse(msg.data) as DocumentEvent;
+            console.log(`[DocumentEvents] Received event:`, event.type);
+            handleEvent(event);
+          } catch (error) {
+            console.error('[DocumentEvents] Failed to parse event:', error);
+          }
+        },
+
+        onerror(err) {
+          // If manually aborted, don't reconnect
+          if (abortController.signal.aborted) {
+            console.log('[DocumentEvents] Connection manually closed');
+            return;
+          }
+
+          console.error('[DocumentEvents] Stream error:', err);
+          setStatus('error');
+
+          // Exponential backoff for reconnection
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
+
+          console.log(`[DocumentEvents] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (!abortController.signal.aborted) {
+              connect();
+            }
+          }, delay);
+
+          throw err; // Throw to stop automatic reconnection by fetchEventSource
+        },
+
+        openWhenHidden: true, // Keep connection open when tab is in background
+      });
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        console.error('[DocumentEvents] Failed to connect:', error);
+        setStatus('error');
+        onError?.('Failed to connect to event stream');
+      }
+    }
+  }, [documentId, handleEvent, onError]);
+
+  const disconnect = useCallback(() => {
+    console.log(`[DocumentEvents] Disconnecting from document ${documentId}`);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    setStatus('disconnected');
+    reconnectAttemptsRef.current = 0;
+  }, [documentId]);
+
+  // Auto-connect on mount if enabled
+  useEffect(() => {
+    if (autoConnect) {
+      connect();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      disconnect();
+    };
+  }, [autoConnect, connect, disconnect]);
+
+  return {
+    status,
+    lastEvent,
+    eventCount,
+    connect,
+    disconnect,
+    isConnected: status === 'connected',
+  };
+}

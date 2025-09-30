@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
+import type { StoredEvent } from '@semiont/core-types';
 
 // Local type definitions to replace api-contracts imports
 interface StatusResponse {
@@ -448,6 +449,7 @@ interface APIService {
     schemaDescription: () => Promise<SchemaDescriptionResponse>;
     llmContext: (id: string, selectionId?: string) => Promise<LLMContextResponse>;
     discoverContext: (text: string) => Promise<DiscoverContextResponse>;
+    getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }) => Promise<{ events: StoredEvent[]; total: number; documentId: string }>;
   };
 
   selections: {
@@ -609,6 +611,9 @@ export const apiService: APIService = {
     
     discoverContext: (text: string): Promise<DiscoverContextResponse> =>
       apiClient.post('/api/documents/discover-context', { body: { text } }),
+
+    getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }): Promise<{ events: StoredEvent[]; total: number; documentId: string }> =>
+      apiClient.get('/api/documents/:id/events', { params: { id, ...params } }),
   },
 
   // Selection endpoints
