@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { apiService } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
+import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { Selection } from '@semiont/core-types';
 
 export interface Annotation {
@@ -24,20 +25,17 @@ export interface Annotation {
 }
 
 interface DocumentAnnotationsContextType {
-  highlights: Annotation[];
-  references: Annotation[];
-  isLoading: boolean;
-  error: string | null;
-  newAnnotationIds: Set<string>; // Track recently created annotations
+  // UI state only - data comes from React Query hooks in components
+  newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
-  // Actions
-  loadAnnotations: (documentId: string) => Promise<void>;
-  addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<void>;
-  addReference: (documentId: string, text: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
+  // Mutation actions (still in context for consistency)
+  addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (documentId: string, text: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string) => Promise<void>;
-  convertHighlightToReference: (highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
-  convertReferenceToHighlight: (referenceId: string) => Promise<void>;
-  refreshAnnotations: () => Promise<void>;
+  convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
+  convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
+
+  // UI actions
   clearNewAnnotationId: (id: string) => void;
   triggerSparkleAnimation: (annotationId: string) => void;
 }
@@ -45,79 +43,33 @@ interface DocumentAnnotationsContextType {
 const DocumentAnnotationsContext = createContext<DocumentAnnotationsContextType | undefined>(undefined);
 
 export function DocumentAnnotationsProvider({ children }: { children: React.ReactNode }) {
-  const [highlights, setHighlights] = useState<Annotation[]>([]);
-  const [references, setReferences] = useState<Annotation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
+  // UI state only - no data management
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
-  const loadAnnotations = useCallback(async (documentId: string) => {
-    if (!documentId) return;
-    
-    setIsLoading(true);
-    setError(null);
-    setCurrentDocumentId(documentId);
-    
-    try {
-      // Load highlights
-      const highlightsResponse = await apiService.selections.getHighlights(documentId) as any;
-      const highlightData = 'highlights' in highlightsResponse
-        ? highlightsResponse.highlights
-        : highlightsResponse.selections;
-      setHighlights(highlightData.map((h: Selection) => ({
-        ...h,
-        referencedDocumentId: h.resolvedDocumentId,
-        type: 'highlight' as const
-      })));
-
-      // Load references
-      const referencesResponse = await apiService.selections.getReferences(documentId) as any;
-      const referenceData = 'references' in referencesResponse
-        ? referencesResponse.references
-        : referencesResponse.selections;
-      setReferences(referenceData.map((r: Selection) => ({
-        ...r,
-        referencedDocumentId: r.resolvedDocumentId,
-        type: 'reference' as const
-      })));
-    } catch (err) {
-      console.error('Failed to load annotations:', err);
-      setError('Failed to load annotations');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const refreshAnnotations = useCallback(async () => {
-    if (currentDocumentId) {
-      await loadAnnotations(currentDocumentId);
-    }
-  }, [currentDocumentId, loadAnnotations]);
+  // Set up mutation hooks
+  const saveHighlightMutation = api.selections.saveAsHighlight.useMutation();
+  const createSelectionMutation = api.selections.create.useMutation();
+  const deleteSelectionMutation = api.selections.delete.useMutation();
 
   const addHighlight = useCallback(async (
     documentId: string,
     text: string,
     position: { start: number; end: number }
-  ) => {
+  ): Promise<string | undefined> => {
     try {
-      const result = await apiService.selections.saveAsHighlight({
+      const result = await saveHighlightMutation.mutateAsync({
         documentId,
         text,
         position
       });
 
-      // Track this as a new annotation BEFORE refreshing
+      // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
       if (result.selection?.id) {
         newId = result.selection.id;
         setNewAnnotationIds(prev => new Set(prev).add(newId!));
-      }
 
-      await refreshAnnotations();
-
-      // Clear the ID after animation completes (6 seconds for 3 iterations)
-      if (newId) {
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
         setTimeout(() => {
           setNewAnnotationIds(prev => {
             const next = new Set(prev);
@@ -126,11 +78,14 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
           });
         }, 6000);
       }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
     } catch (err) {
       console.error('Failed to create highlight:', err);
       throw err;
     }
-  }, [refreshAnnotations]);
+  }, [saveHighlightMutation]);
 
   const addReference = useCallback(async (
     documentId: string,
@@ -139,7 +94,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     targetDocId?: string,
     entityType?: string,
     referenceType?: string
-  ) => {
+  ): Promise<string | undefined> => {
     try {
       // Build the create selection request with all metadata
       const createData: any = {
@@ -147,37 +102,32 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         text,
         position
       };
-      
+
       // For references (both stub and resolved)
       if (targetDocId !== undefined || referenceType || entityType) {
         // Include resolvedDocumentId key (null for stubs, string for resolved)
         createData.resolvedDocumentId = targetDocId || null;
-        
+
         if (entityType) {
           // Entity types is an array of strings
-          createData.entityTypes = entityType.split(',').map(t => t.trim()).filter(t => t);
+          createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
         }
         if (referenceType) {
           // Reference tags is an array, but we have a single reference type
           createData.referenceTags = [referenceType];
         }
       }
-      // If none of the above, it's a highlight (no resolvedDocumentId key)
-      
-      // Create the selection with metadata
-      const result = await apiService.selections.create(createData);
 
-      // Track this as a new annotation BEFORE refreshing
+      // Create the selection with metadata
+      const result = await createSelectionMutation.mutateAsync(createData);
+
+      // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
       if (result.selection?.id) {
         newId = result.selection.id;
         setNewAnnotationIds(prev => new Set(prev).add(newId!));
-      }
 
-      await refreshAnnotations();
-
-      // Clear the ID after animation completes (6 seconds for 3 iterations)
-      if (newId) {
+        // Clear the ID after animation completes (6 seconds for 3 iterations)
         setTimeout(() => {
           setNewAnnotationIds(prev => {
             const next = new Set(prev);
@@ -186,23 +136,27 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
           });
         }, 6000);
       }
+
+      // Return the new ID so component can invalidate queries
+      return newId;
     } catch (err) {
       console.error('Failed to create reference:', err);
       throw err;
     }
-  }, [refreshAnnotations]);
+  }, [createSelectionMutation]);
 
   const deleteAnnotation = useCallback(async (annotationId: string) => {
     try {
-      await apiService.selections.delete(annotationId);
-      await refreshAnnotations();
+      await deleteSelectionMutation.mutateAsync(annotationId);
+      // Component will invalidate queries to refetch data
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
     }
-  }, [refreshAnnotations]);
+  }, [deleteSelectionMutation]);
 
   const convertHighlightToReference = useCallback(async (
+    highlights: Annotation[],
     highlightId: string,
     targetDocId?: string,
     entityType?: string,
@@ -210,11 +164,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   ) => {
     const highlight = highlights.find(h => h.id === highlightId);
     if (!highlight || !highlight.selectionData) return;
-    
+
     try {
       // Delete the highlight
-      await apiService.selections.delete(highlightId);
-      
+      await deleteSelectionMutation.mutateAsync(highlightId);
+
       // Create new reference
       await addReference(
         highlight.documentId,
@@ -227,20 +181,24 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         entityType,
         referenceType
       );
+      // Component will invalidate queries to refetch data
     } catch (err) {
       console.error('Failed to convert highlight to reference:', err);
       throw err;
     }
-  }, [highlights, addReference]);
+  }, [addReference, deleteSelectionMutation]);
 
-  const convertReferenceToHighlight = useCallback(async (referenceId: string) => {
+  const convertReferenceToHighlight = useCallback(async (
+    references: Annotation[],
+    referenceId: string
+  ) => {
     const reference = references.find(r => r.id === referenceId);
     if (!reference || !reference.selectionData) return;
-    
+
     try {
       // Delete the reference
-      await apiService.selections.delete(referenceId);
-      
+      await deleteSelectionMutation.mutateAsync(referenceId);
+
       // Create new highlight
       await addHighlight(
         reference.documentId,
@@ -250,11 +208,12 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
           end: reference.selectionData.offset + reference.selectionData.length
         }
       );
+      // Component will invalidate queries to refetch data
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);
       throw err;
     }
-  }, [references, addHighlight]);
+  }, [addHighlight, deleteSelectionMutation]);
 
   const clearNewAnnotationId = useCallback((id: string) => {
     setNewAnnotationIds(prev => {
@@ -280,18 +239,12 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
   return (
     <DocumentAnnotationsContext.Provider value={{
-      highlights,
-      references,
-      isLoading,
-      error,
       newAnnotationIds,
-      loadAnnotations,
       addHighlight,
       addReference,
       deleteAnnotation,
       convertHighlightToReference,
       convertReferenceToHighlight,
-      refreshAnnotations,
       clearNewAnnotationId,
       triggerSparkleAnimation
     }}>

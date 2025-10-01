@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { useRouter } from 'next/navigation';
-import { apiService } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import { useSearchAnnouncements } from '@/components/LiveRegion';
 
 interface GlobalSearchModalProps {
@@ -23,59 +23,62 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const router = useRouter();
   const { announceSearchResults, announceSearching } = useSearchAnnouncements();
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Debounce query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Use React Query for search
+  const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
+    debouncedQuery,
+    5,
+    { enabled: debouncedQuery.trim() !== '' }
+  );
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setQuery('');
+      setDebouncedQuery('');
       setResults([]);
       setSelectedIndex(0);
     }
   }, [isOpen]);
 
-  // Perform search
+  // Update results when search data changes
   useEffect(() => {
-    if (!query.trim()) {
+    if (!debouncedQuery.trim()) {
       setResults([]);
       return;
     }
 
-    const searchTimer = setTimeout(async () => {
-      setLoading(true);
+    if (loading) {
       announceSearching();
-      try {
-        // Search documents
-        const docsResponse = await apiService.documents.search(query, 5);
-        const docResults: SearchResult[] = (docsResponse.documents || []).map(doc => ({
-          type: 'document' as const,
-          id: doc.id,
-          name: doc.name,
-          content: doc.content?.substring(0, 150)
-        }));
+    } else if (searchData) {
+      const docResults: SearchResult[] = (searchData.documents || []).map((doc: any) => ({
+        type: 'document' as const,
+        id: doc.id,
+        name: doc.name,
+        content: doc.content?.substring(0, 150)
+      }));
 
-        // Search entities - Currently entities API may not be available
-        // TODO: Add entities search when API is ready
-        const entityResults: SearchResult[] = [];
+      // Search entities - Currently entities API may not be available
+      // TODO: Add entities search when API is ready
+      const entityResults: SearchResult[] = [];
 
-        const allResults = [...docResults, ...entityResults];
-        setResults(allResults);
-        setSelectedIndex(0);
-        announceSearchResults(allResults.length, query);
-      } catch (error) {
-        console.error('Search failed:', error);
-        setResults([]);
-        announceSearchResults(0, query);
-      } finally {
-        setLoading(false);
-      }
-    }, 300); // Debounce search
-
-    return () => clearTimeout(searchTimer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+      const allResults = [...docResults, ...entityResults];
+      setResults(allResults);
+      setSelectedIndex(0);
+      announceSearchResults(allResults.length, debouncedQuery);
+    }
+  }, [searchData, loading, debouncedQuery, announceSearchResults, announceSearching]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {

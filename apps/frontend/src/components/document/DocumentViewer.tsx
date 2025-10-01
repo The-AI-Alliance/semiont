@@ -5,27 +5,35 @@ import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
-import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useDocumentAnnotations, type Annotation } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
 interface Props {
   document: SemiontDocument;
+  highlights: Annotation[];
+  references: Annotation[];
+  onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
 }
 
-export function DocumentViewer({ document, onWikiLinkClick, curationMode = false, onGenerateDocument }: Props) {
+export function DocumentViewer({
+  document,
+  highlights,
+  references,
+  onRefetchAnnotations,
+  onWikiLinkClick,
+  curationMode = false,
+  onGenerateDocument
+}: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
   const {
-    highlights,
-    references,
-    loadAnnotations,
     addHighlight,
     addReference,
     deleteAnnotation,
@@ -47,14 +55,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     resolvedDocumentName?: string;
   } | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  
-  // Load annotations when document changes
-  useEffect(() => {
-    if (document.id) {
-      loadAnnotations(document.id);
-    }
-  }, [document.id, loadAnnotations]);
-  
+
   // Handle text selection from SourceView - memoized
   const handleTextSelection = useCallback((text: string, position: { start: number; end: number }) => {
     setSelectedText(text);
@@ -139,7 +140,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       if (editingAnnotation) {
         if (editingAnnotation.type === 'reference') {
           // Convert reference to highlight
-          await convertReferenceToHighlight(editingAnnotation.id);
+          await convertReferenceToHighlight(references, editingAnnotation.id);
         }
         // If already a highlight, do nothing
       } else {
@@ -155,7 +156,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight]);
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
@@ -165,7 +166,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       if (editingAnnotation) {
         if (editingAnnotation.type === 'highlight') {
           // Convert highlight to reference
-          await convertHighlightToReference(editingAnnotation.id, targetDocId, entityType, referenceType);
+          await convertHighlightToReference(highlights, editingAnnotation.id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
           await deleteAnnotation(editingAnnotation.id);
@@ -184,7 +185,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference]);
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights]);
   
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
@@ -393,7 +394,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
           if (editingAnnotation) {
             // Handle updates to existing annotation
             if (updates.type === 'highlight') {
-              await convertReferenceToHighlight(editingAnnotation.id);
+              await convertReferenceToHighlight(references, editingAnnotation.id);
             } else if (updates.resolvedDocumentId === null) {
               // Unlink document
               await deleteAnnotation(editingAnnotation.id);

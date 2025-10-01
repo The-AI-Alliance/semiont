@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiService } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
@@ -13,6 +13,7 @@ import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useToast } from '@/components/Toast';
+import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
@@ -25,15 +26,31 @@ export default function KnowledgeDocumentPage() {
   const router = useRouter();
   const documentId = params?.id as string;
   const { addDocument } = useOpenDocuments();
-  const { highlights, references, loadAnnotations, triggerSparkleAnimation } = useDocumentAnnotations();
+  const { triggerSparkleAnimation, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
+  const { fetchAPI } = useAuthenticatedAPI();
 
-  const [document, setDocument] = useState<SemiontDocument | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [documentEntityTypes, setDocumentEntityTypes] = useState<string[]>([]);
-  const [referencedBy, setReferencedBy] = useState<any[]>([]);
-  const [referencedByLoading, setReferencedByLoading] = useState(false);
+  // Use React Query for annotations data
+  const { data: highlightsData, refetch: refetchHighlights } = api.selections.getHighlights.useQuery(documentId);
+  const { data: referencesData, refetch: refetchReferences } = api.selections.getReferences.useQuery(documentId);
+  const highlights = highlightsData?.selections || [];
+  const references = referencesData?.selections || [];
+
+  // Use React Query for document data
+  const { data: docData, isLoading: loading, isError, refetch: refetchDocument } = api.documents.get.useQuery(documentId);
+  const document = docData?.document || null;
+  const error = isError ? 'Failed to load document. Please try again.' : null;
+  const documentEntityTypes = document?.entityTypes || [];
+
+  // Use React Query for referenced-by data
+  const { data: referencedByData, isLoading: referencedByLoading } = api.documents.getReferencedBy.useQuery(documentId);
+  const referencedBy = referencedByData?.referencedBy || [];
+
+  // Set up mutations
+  const updateDocMutation = api.documents.update.useMutation();
+  const createDocMutation = api.documents.create.useMutation();
+  const cloneDocMutation = api.documents.clone.useMutation();
+
   const [curationMode, setCurationMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('curationMode') === 'true';
@@ -41,55 +58,11 @@ export default function KnowledgeDocumentPage() {
     return false;
   });
   const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
-  // Tag editing removed - documents are immutable after creation
 
-  // Session is guaranteed by SecureAPIProvider
-
-  // Load document - memoized to prevent recreating on every render
+  // Helper to reload document after mutations
   const loadDocument = useCallback(async () => {
-    if (!documentId) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiService.documents.get(documentId);
-      setDocument(response.document);
-      setDocumentEntityTypes(response.document.entityTypes || []);
-    } catch (err) {
-      console.error('Failed to load document:', err);
-      setError('Failed to load document. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [documentId]);
-
-  // Load incoming references - memoized
-  const loadReferencedBy = useCallback(async () => {
-    if (!documentId) return;
-    
-    try {
-      setReferencedByLoading(true);
-      const response = await apiService.documents.getReferencedBy(documentId);
-      setReferencedBy(response.referencedBy || []);
-    } catch (err) {
-      console.error('Failed to load incoming references:', err);
-      // Don't show error for this secondary data
-    } finally {
-      setReferencedByLoading(false);
-    }
-  }, [documentId]);
-
-  // Load document when authentication is ready
-  useEffect(() => {
-    loadDocument();
-  }, [loadDocument]);
-
-  // Load incoming references when document loads
-  useEffect(() => {
-    if (document) {
-      loadReferencedBy();
-    }
-  }, [document, loadReferencedBy]);
+    await refetchDocument();
+  }, [refetchDocument]);
 
   // Add document to open tabs when it loads
   useEffect(() => {
@@ -102,13 +75,16 @@ export default function KnowledgeDocumentPage() {
   // Handle wiki link clicks - memoized
   const handleWikiLinkClick = useCallback(async (pageName: string) => {
     try {
-      const response = await apiService.documents.search(pageName, 1);
-      if (response.documents.length > 0 && response.documents[0]) {
+      // Search for the document using authenticated API
+      const response = await fetchAPI(`/api/documents/search?query=${encodeURIComponent(pageName)}&limit=1`) as any;
+
+      if (response.documents?.length > 0 && response.documents[0]) {
+        // Document found - navigate to it
         router.push(`/know/document/${response.documents[0].id}`);
       } else {
-        // Optionally create a new document
+        // Document not found - offer to create it
         if (confirm(`Document "${pageName}" not found. Would you like to create it?`)) {
-          const newDoc = await apiService.documents.create({
+          const newDoc = await createDocMutation.mutateAsync({
             name: pageName,
             content: `# ${pageName}\n\nThis page was created from a wiki link.`,
             contentType: 'text/markdown'
@@ -118,31 +94,33 @@ export default function KnowledgeDocumentPage() {
       }
     } catch (err) {
       console.error('Failed to navigate to wiki link:', err);
-      setError('Failed to navigate to wiki link');
+      showError('Failed to navigate to wiki link');
     }
-  }, [router]);
+  }, [router, createDocMutation, showError, fetchAPI]);
 
   // Update document tags - memoized
   const updateDocumentTags = useCallback(async (tags: string[]) => {
     try {
-      await apiService.documents.update(documentId, {
-        entityTypes: tags
+      await updateDocMutation.mutateAsync({
+        id: documentId,
+        data: { entityTypes: tags }
       });
-      setDocumentEntityTypes(tags);
       showSuccess('Document tags updated successfully');
+      await refetchDocument();
     } catch (err) {
       console.error('Failed to update document tags:', err);
       showError('Failed to update document tags');
     }
-  }, [documentId, showSuccess, showError]);
+  }, [documentId, updateDocMutation, refetchDocument, showSuccess, showError]);
 
   // Handle archive toggle - memoized
   const handleArchiveToggle = useCallback(async () => {
     if (!document) return;
-    
+
     try {
-      await apiService.documents.update(documentId, {
-        archived: !document.archived
+      await updateDocMutation.mutateAsync({
+        id: documentId,
+        data: { archived: !document.archived }
       });
       await loadDocument();
       showSuccess(document.archived ? 'Document unarchived' : 'Document archived');
@@ -150,12 +128,12 @@ export default function KnowledgeDocumentPage() {
       console.error('Failed to update archive status:', err);
       showError('Failed to update archive status');
     }
-  }, [document, documentId, loadDocument, showSuccess, showError]);
+  }, [document, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
 
   // Handle clone - memoized
   const handleClone = useCallback(async () => {
     try {
-      const response = await apiService.documents.clone(documentId);
+      const response = await cloneDocMutation.mutateAsync(documentId);
       if (response.token) {
         router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
       } else {
@@ -165,7 +143,7 @@ export default function KnowledgeDocumentPage() {
       console.error('Failed to clone document:', err);
       showError('Failed to clone document');
     }
-  }, [documentId, router, showError]);
+  }, [documentId, cloneDocMutation, router, showError]);
 
   // Handle curation mode toggle - memoized
   const handleCurationModeToggle = useCallback(() => {
@@ -190,7 +168,8 @@ export default function KnowledgeDocumentPage() {
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Reload annotations to show new references with sparkle animation
-      loadAnnotations(documentId);
+      refetchHighlights();
+      refetchReferences();
       setDetectionEntityTypes([]);
     },
     onError: (error) => {
@@ -212,7 +191,7 @@ export default function KnowledgeDocumentPage() {
       // Don't auto-navigate, let user click the link when ready
 
       // Refresh annotations to update the reference with the new resolvedDocumentId
-      loadAnnotations(documentId);
+      refetchReferences();
 
       // After 5 seconds (when widget auto-dismisses), trigger sparkle on the reference
       setTimeout(() => {
@@ -251,33 +230,33 @@ export default function KnowledgeDocumentPage() {
     onHighlightAdded: useCallback((event) => {
       console.log('[RealTime] Highlight added:', event.payload);
       // Reload annotations to show new highlight
-      loadAnnotations(documentId);
-    }, [documentId, loadAnnotations]),
+      refetchHighlights();
+    }, [refetchHighlights]),
 
     onHighlightRemoved: useCallback((event) => {
       console.log('[RealTime] Highlight removed:', event.payload);
       // Reload annotations to remove highlight from UI
-      loadAnnotations(documentId);
-    }, [documentId, loadAnnotations]),
+      refetchHighlights();
+    }, [refetchHighlights]),
 
     // Reference events
     onReferenceCreated: useCallback((event) => {
       console.log('[RealTime] Reference created:', event.payload);
       // Reload annotations to show new reference
-      loadAnnotations(documentId);
-    }, [documentId, loadAnnotations]),
+      refetchReferences();
+    }, [refetchReferences]),
 
     onReferenceResolved: useCallback((event) => {
       console.log('[RealTime] Reference resolved:', event.payload);
       // Reload annotations to update reference state
-      loadAnnotations(documentId);
-    }, [documentId, loadAnnotations]),
+      refetchReferences();
+    }, [refetchReferences]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);
       // Reload annotations to remove reference from UI
-      loadAnnotations(documentId);
-    }, [documentId, loadAnnotations]),
+      refetchReferences();
+    }, [refetchReferences]),
 
     // Document status events
     onDocumentArchived: useCallback((event) => {
@@ -402,6 +381,12 @@ export default function KnowledgeDocumentPage() {
             >
               <DocumentViewer
                 document={document}
+                highlights={highlights}
+                references={references}
+                onRefetchAnnotations={() => {
+                  refetchHighlights();
+                  refetchReferences();
+                }}
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={curationMode}
                 onGenerateDocument={handleGenerateDocument}
@@ -428,13 +413,13 @@ export default function KnowledgeDocumentPage() {
               <div>
                 <span className="text-gray-500 dark:text-gray-400 block">Stub References</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.filter(r => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
+                  {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
                 </span>
               </div>
               <div>
                 <span className="text-gray-500 dark:text-gray-400 block">Resolved References</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.filter(r => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
+                  {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
                 </span>
               </div>
             </div>

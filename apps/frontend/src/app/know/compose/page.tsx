@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { apiService, api } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';
@@ -39,6 +39,18 @@ function ComposeDocumentContent() {
   // Fetch available entity types
   const { data: entityTypesData } = api.entityTypes.list.useQuery();
   const availableEntityTypes = entityTypesData?.entityTypes || [];
+
+  // Set up mutation hooks
+  const generateDocMutation = api.selections.generateDocument.useMutation();
+  const createDocMutation = api.documents.create.useMutation();
+  const createFromTokenMutation = api.documents.createFromToken.useMutation();
+  const resolveToDocMutation = api.selections.resolveToDocument.useMutation();
+
+  // Query for clone mode - only run when we have a token
+  const { data: cloneData } = api.documents.getByToken.useQuery(
+    tokenFromUrl || '',
+    { enabled: mode === 'clone' && !!tokenFromUrl }
+  );
   
   // Generate AI content using the backend inference service
   const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
@@ -59,10 +71,10 @@ function ComposeDocumentContent() {
         requestData.prompt = `Create a document that ${referenceType} the source document.`;
       }
 
-      const response = await apiService.selections.generateDocument(
+      const response = await generateDocMutation.mutateAsync({
         referenceId,
-        requestData
-      );
+        data: requestData
+      });
 
       if (!response.document || !response.document.content) {
         throw new Error('No content returned from generation service');
@@ -116,27 +128,18 @@ function ComposeDocumentContent() {
         return;
       }
       
-      // Handle clone mode
-      if (mode === 'clone' && tokenFromUrl) {
-        try {
-          // Fetch the document data using the token
-          const response = await apiService.documents.getByToken(tokenFromUrl);
-          if (response.sourceDocument) {
-            setIsClone(true);
-            setCloneToken(tokenFromUrl);
-            setNewDocName(response.sourceDocument.name);
-            setNewDocContent(response.sourceDocument.content);
-          } else {
-            showError('Invalid or expired clone token');
-            router.push('/know/discover');
-          }
-        } catch (err) {
-          console.error('Failed to load clone data:', err);
-          showError('Failed to load clone data. Please try again.');
+      // Handle clone mode - data loaded via React Query
+      if (mode === 'clone' && cloneData) {
+        if (cloneData.sourceDocument) {
+          setIsClone(true);
+          setCloneToken(tokenFromUrl || null);
+          setNewDocName(cloneData.sourceDocument.name);
+          setNewDocContent(cloneData.sourceDocument.content);
+        } else {
+          showError('Invalid or expired clone token');
           router.push('/know/discover');
-        } finally {
-          setIsLoading(false);
         }
+        setIsLoading(false);
       } else if (mode === 'clone' && !tokenFromUrl) {
         showError('Clone token not found. Please try cloning again.');
         router.push('/know/discover');
@@ -147,7 +150,7 @@ function ComposeDocumentContent() {
     
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, session?.backendToken]);
+  }, [mode, tokenFromUrl, cloneData, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, session?.backendToken]);
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,13 +163,13 @@ function ComposeDocumentContent() {
       
       if (isClone && cloneToken) {
         // Create document from clone token with edited content
-        const response = await apiService.documents.createFromToken({
+        const response = await createFromTokenMutation.mutateAsync({
           token: cloneToken,
           name: newDocName,
           content: newDocContent,
           archiveOriginal: archiveOriginal
         });
-        
+
         if (!response.document?.id) {
           throw new Error('No document ID returned from server');
         }
@@ -174,30 +177,34 @@ function ComposeDocumentContent() {
         documentName = response.document.name || newDocName;
       } else {
         // Create a new document with entity types
-        const response = await apiService.documents.create({
+        const response = await createDocMutation.mutateAsync({
           name: newDocName,
           content: newDocContent,
           contentType: 'text/markdown',
           entityTypes: selectedEntityTypes
         });
-        
+
         if (!response.document?.id) {
           throw new Error('No document ID returned from server');
         }
         documentId = response.document.id;
         documentName = response.document.name || newDocName;
-        
+
         // If this is a reference completion, update the reference to point to the new document
         if (isReferenceCompletion && referenceId && documentId) {
           try {
-            const resolveData: Parameters<typeof apiService.selections.resolveToDocument>[0] = {
+            const resolveData: {
+              selectionId: string;
+              targetDocumentId: string;
+              referenceType?: string;
+            } = {
               selectionId: referenceId,
               targetDocumentId: documentId
             };
             if (referenceTypeFromUrl) {
               resolveData.referenceType = referenceTypeFromUrl;
             }
-            await apiService.selections.resolveToDocument(resolveData);
+            await resolveToDocMutation.mutateAsync(resolveData);
             showSuccess('Reference successfully linked to the new document');
           } catch (error) {
             console.error('Failed to update reference:', error);

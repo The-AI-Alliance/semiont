@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { apiService } from '@/lib/api-client';
+import React, { useMemo } from 'react';
+import { api } from '@/lib/api-client';
 import type { StoredEvent } from '@semiont/core-types';
 
 interface Props {
@@ -54,31 +54,16 @@ function formatRelativeTime(timestamp: string): string {
 }
 
 export function AnnotationHistory({ documentId }: Props) {
-  const [events, setEvents] = useState<StoredEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Load events using React Query
+  const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
 
-  useEffect(() => {
-    async function loadEvents() {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await apiService.documents.getEvents(documentId);
-        // Sort by most recent first
-        const sortedEvents = response.events.sort((a: StoredEvent, b: StoredEvent) =>
-          b.metadata.sequenceNumber - a.metadata.sequenceNumber
-        );
-        setEvents(sortedEvents);
-      } catch (err) {
-        console.error('Failed to load annotation history:', err);
-        setError('Failed to load history');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadEvents();
-  }, [documentId]);
+  // Sort events by most recent first
+  const events = useMemo(() => {
+    if (!eventsData?.events) return [];
+    return [...eventsData.events].sort((a: StoredEvent, b: StoredEvent) =>
+      b.metadata.sequenceNumber - a.metadata.sequenceNumber
+    );
+  }, [eventsData]);
 
   if (loading) {
     return (

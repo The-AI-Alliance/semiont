@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { apiService } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 
 interface SearchDocumentsModalProps {
   isOpen: boolean;
@@ -13,38 +13,41 @@ interface SearchDocumentsModalProps {
 
 export function SearchDocumentsModal({ isOpen, onClose, onSelect, searchTerm = '' }: SearchDocumentsModalProps) {
   const [search, setSearch] = useState(searchTerm);
-  const [results, setResults] = useState<Array<{ id: string; name: string; content: string | null }>>([]);
-  const [loading, setLoading] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Use React Query for search
+  const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
+    debouncedSearch,
+    10,
+    { enabled: debouncedSearch.trim() !== '' }
+  );
+
+  // Extract results from search data
+  const results = searchData?.documents?.map((doc: any) => ({
+    id: doc.id,
+    name: doc.name,
+    content: doc.content
+  })) || [];
+
+  // Update search term when modal opens
   useEffect(() => {
     if (isOpen && searchTerm) {
-      performSearch(searchTerm);
+      setSearch(searchTerm);
+      setDebouncedSearch(searchTerm);
     }
   }, [isOpen, searchTerm]);
 
-  const performSearch = async (query: string) => {
-    if (!query) return;
-
-    setLoading(true);
-    try {
-      const response = await apiService.documents.search(query, 10);
-      const documents = response.documents || [];
-      setResults(documents.map(doc => ({
-        id: doc.id,
-        name: doc.name,
-        content: doc.content
-      })));
-    } catch (error) {
-      console.error('Failed to search documents:', error);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    performSearch(search);
+    // Search is handled by React Query hook
   };
 
   return (
@@ -114,7 +117,7 @@ export function SearchDocumentsModal({ isOpen, onClose, onSelect, searchTerm = '
 
                   {!loading && results.length > 0 && (
                     <div className="space-y-2">
-                      {results.map((doc) => (
+                      {results.map((doc: any) => (
                         <div
                           key={doc.id}
                           className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"

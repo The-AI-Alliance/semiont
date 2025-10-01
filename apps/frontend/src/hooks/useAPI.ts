@@ -1,6 +1,7 @@
 import { useQuery, useMutation, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
-import { api, apiService } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import { useAuth } from './useAuth';
+import { useAuthenticatedAPI as useAuthAPI } from './useAuthenticatedAPI';
 
 /**
  * Hook for backend status with automatic polling
@@ -9,30 +10,12 @@ export function useBackendStatus(options?: {
   pollingInterval?: number;
   enabled?: boolean;
 }) {
-  const { session, isFullyAuthenticated } = useAuth();
-  
+  const { isFullyAuthenticated } = useAuth();
+  const { fetchAPI } = useAuthAPI();
+
   return useQuery({
-    queryKey: ['status'],
-    queryFn: async () => {
-      // If token is provided, use an authenticated request
-      if (session?.backendToken) {
-        const instance = (await import('@/lib/api-client')).LazyTypedAPIClient.getInstance();
-        const originalAuth = instance.getAuthToken();
-        try {
-          instance.setAuthToken(session.backendToken);
-          return await apiService.status();
-        } finally {
-          // Restore original auth state
-          if (originalAuth) {
-            instance.setAuthHeader(originalAuth);
-          } else {
-            instance.clearAuthToken();
-          }
-        }
-      }
-      // Otherwise make unauthenticated request
-      return apiService.status();
-    },
+    queryKey: ['/api/status'],
+    queryFn: () => fetchAPI('/api/status'),
     enabled: options?.enabled !== false && isFullyAuthenticated,
     ...(options?.pollingInterval !== undefined ? { refetchInterval: options.pollingInterval } : {}),
   });
