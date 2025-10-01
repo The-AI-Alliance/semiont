@@ -51,7 +51,7 @@ describe('Event Store', () => {
 
     const events = await eventStore.getDocumentEvents(docId);
     expect(events).toHaveLength(1);
-    expect(events[0].event.type).toBe('document.created');
+    expect(events[0]?.event.type).toBe('document.created');
   });
 
   it('should create event chain with prevEventHash', async () => {

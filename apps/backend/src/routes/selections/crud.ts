@@ -25,7 +25,6 @@ const CreateSelectionRequest = z.object({
   referenceTags: z.array(z.string()).optional(),
   resolvedDocumentId: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
-  provisional: z.boolean().optional(),
 });
 
 const CreateSelectionResponse = z.object({
@@ -123,7 +122,6 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       resolvedDocumentId: body.resolvedDocumentId,
       entityTypes: body.entityTypes || [],
       referenceTags: body.referenceTags || [],
-      provisional: body.provisional ?? true,
       metadata: body.metadata || {},
       createdBy: user.id,
       createdAt: new Date().toISOString(),
@@ -203,11 +201,6 @@ const listSelectionsRoute = createRoute({
       documentId: z.string().optional(),
       resolvedDocumentId: z.string().optional(),
       entityType: z.string().optional(),
-      provisional: z.union([
-        z.literal('true').transform(() => true),
-        z.literal('false').transform(() => false),
-        z.boolean()
-      ]).optional(),
       offset: z.coerce.number().default(0),
       limit: z.coerce.number().default(50),
     }),
@@ -231,7 +224,6 @@ crudRouter.openapi(listSelectionsRoute, async (c) => {
   if (query.documentId) filters.documentId = query.documentId;
   if (query.resolvedDocumentId) filters.resolvedDocumentId = query.resolvedDocumentId;
   if (query.entityType) filters.entityType = query.entityType;
-  if (query.provisional !== undefined) filters.provisional = query.provisional;
 
   const result = await graphDb.listSelections({
     ...filters,
@@ -315,7 +307,6 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
     selection: formatSelection({
       ...selection,
       resolvedDocumentId: body.documentId,
-      provisional: false,
     }),
     targetDocument: targetDocument ? formatDocument(targetDocument) : null,
   });

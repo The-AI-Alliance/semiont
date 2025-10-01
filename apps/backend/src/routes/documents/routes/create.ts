@@ -57,6 +57,16 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       metadata: body.metadata || {},
     });
 
+    // Subscribe GraphDB consumer to new document
+    try {
+      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToDocument(documentId);
+    } catch (error) {
+      console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the request - consumer can catch up later
+    }
+
     // Return optimistic response
     return c.json({
       document: {

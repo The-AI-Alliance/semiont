@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { 
+import {
   PlusIcon,
   MagnifyingGlassIcon,
   UserCircleIcon,
@@ -11,9 +11,9 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { buttonStyles } from '@/lib/button-styles';
 
 function UserTableRow({ 
@@ -107,22 +107,21 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  
-  // Ensure API client has authentication token
-  const { hasValidToken, isAuthenticated } = useSecureAPI();
-  
+  const { data: session } = useSession();
+  const isAuthenticated = !!session?.backendToken;
+
   // Debug logging
   React.useEffect(() => {
-    console.log('Admin Users Component - Auth Status:', { hasValidToken, isAuthenticated });
-  }, [hasValidToken, isAuthenticated]);
-  
+    console.log('Admin Users Component - Auth Status:', { isAuthenticated });
+  }, [isAuthenticated]);
+
   const queryClient = useQueryClient();
-  // Only run queries when we have a valid token
+  // Only run queries when authenticated
   const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.list.useQuery(
-    { enabled: hasValidToken }
+    { enabled: isAuthenticated }
   );
   const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery(
-    { enabled: hasValidToken }
+    { enabled: isAuthenticated }
   );
   
   // Debug logging for API responses

@@ -53,7 +53,6 @@ const createMockGraphDB = (): GraphDatabase => ({
     documentId: 'doc-123',
     selectionData: { text: 'test', offset: 0, length: 4 },
     resolvedDocumentId: 'doc-456',
-    provisional: false,
     createdBy: 'user1',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -67,7 +66,6 @@ const createMockGraphDB = (): GraphDatabase => ({
     documentId: 'doc-123',
     selectionData: { text: 'test', offset: 0, length: 4 },
     resolvedDocumentId: 'doc-456',
-    provisional: false,
     createdBy: 'user1',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -498,7 +496,6 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.updateSelection).toHaveBeenCalledWith('ref-456', {
         resolvedDocumentId: 'doc-789',
-        provisional: false,
       });
     });
   });

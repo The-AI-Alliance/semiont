@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider, useSession } from 'next-auth/react';
-import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { ToastProvider } from '@/components/Toast';
 import { SessionProvider as CustomSessionProvider } from '@/contexts/SessionContext';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
@@ -12,34 +11,13 @@ import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { dispatch401Error, dispatch403Error } from '@/lib/auth-events';
 import { APIError } from '@/lib/api-client';
 
-// Separate component to use the secure API hook
-function SecureAPIProvider({ children }: { children: React.ReactNode }) {
-  // This hook automatically manages API authentication
-  useSecureAPI();
-  const { status } = useSession();
-
-  // Block rendering until we know if we have auth or not
-  // This prevents any child components from making API calls before auth is set up
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600 dark:text-gray-300">Loading authentication...</p>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
-}
-
-export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({
+// Create authenticated query client
+function createAuthenticatedQueryClient(getToken: () => string | null) {
+  return new QueryClient({
     queryCache: new QueryCache({
       onError: (error) => {
-        // Handle 401 errors from queries globally
         if (error instanceof APIError) {
           if (error.status === 401) {
-            // Clear cache and dispatch event for modal
-            queryClient.clear();
             dispatch401Error('Your session has expired. Please sign in again.');
           } else if (error.status === 403) {
             dispatch403Error('You do not have permission to access this resource.');
@@ -49,11 +27,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }),
     mutationCache: new MutationCache({
       onError: (error) => {
-        // Handle 401 errors from mutations globally (backup for useApiWithAuth)
         if (error instanceof APIError) {
           if (error.status === 401) {
-            // Clear cache and dispatch event for modal
-            queryClient.clear();
             dispatch401Error('Your session has expired. Please sign in again.');
           } else if (error.status === 403) {
             dispatch403Error('You do not have permission to perform this action.');
@@ -63,7 +38,39 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }),
     defaultOptions: {
       queries: {
-        // Security: Don't retry on 401/403 errors
+        // Default queryFn that automatically adds auth header
+        queryFn: async ({ queryKey }) => {
+          const [url, ...params] = queryKey as [string, ...any[]];
+          const token = getToken();
+
+          // Build full URL
+          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+          const fullUrl = `${baseUrl}${url}`;
+
+          // Make authenticated request
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+          };
+
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const response = await fetch(fullUrl, { headers });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { error: errorText };
+            }
+            throw new APIError(response.status, errorData);
+          }
+
+          return response.json();
+        },
         retry: (failureCount, error) => {
           if (error instanceof APIError) {
             if (error.status === 401 || error.status === 403) {
@@ -72,27 +79,42 @@ export function Providers({ children }: { children: React.ReactNode }) {
           }
           return failureCount < 3;
         },
-        // Stale time for security-sensitive data
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: 5 * 60 * 1000,
       },
     },
-  }));
+  });
+}
 
+// Wrapper that provides session token to query client
+function QueryClientProviderWithAuth({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
+
+  // Create query client with current session token
+  const [queryClient] = useState(() =>
+    createAuthenticatedQueryClient(() => session?.backendToken || null)
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}
+
+export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <AuthErrorBoundary>
         <CustomSessionProvider>
-          <QueryClientProvider client={queryClient}>
+          <QueryClientProviderWithAuth>
             <ToastProvider>
               <LiveRegionProvider>
                 <KeyboardShortcutsProvider>
-                  <SecureAPIProvider>
-                    {children}
-                  </SecureAPIProvider>
+                  {children}
                 </KeyboardShortcutsProvider>
               </LiveRegionProvider>
             </ToastProvider>
-          </QueryClientProvider>
+          </QueryClientProviderWithAuth>
         </CustomSessionProvider>
       </AuthErrorBoundary>
     </SessionProvider>

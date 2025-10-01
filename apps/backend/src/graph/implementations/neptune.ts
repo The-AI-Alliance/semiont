@@ -120,7 +120,6 @@ function vertexToSelection(vertex: any): Selection {
   // selectionType exists in the graph but not exposed in the Selection interface
   getValue('selectionType', true); // Validate it exists but don't use
   const selectionDataRaw = getValue('selectionData', true);
-  const provisional = getValue('provisional', true);
   const createdAtRaw = getValue('createdAt', true);
   const updatedAtRaw = getValue('updatedAt', true);
 
@@ -128,7 +127,6 @@ function vertexToSelection(vertex: any): Selection {
     id,
     documentId,
     selectionData: JSON.parse(selectionDataRaw),
-    provisional: provisional === 'true' || provisional === true,
     createdAt: new Date(createdAtRaw),
     updatedAt: new Date(updatedAtRaw),
   };
@@ -478,7 +476,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       id,
       documentId: input.documentId,
       selectionData: input.selectionData,
-      provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
     };
@@ -507,7 +504,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('documentId', selection.documentId)
         .property('selectionType', selectionType)
         .property('selectionData', JSON.stringify(selection.selectionData))
-        .property('provisional', selection.provisional.toString())
         .property('createdAt', selection.createdAt.toISOString())
         .property('updatedAt', selection.updatedAt.toISOString());
 
@@ -584,9 +580,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id);
       
       // Update properties
-      if (updates.provisional !== undefined) {
-        traversal = traversal.property('provisional', updates.provisional.toString());
-      }
       if (updates.resolvedDocumentId !== undefined) {
         traversal = traversal.property('resolvedDocumentId', updates.resolvedDocumentId);
       }
@@ -650,9 +643,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         traversal = traversal.has('resolvedDocumentId', filter.resolvedDocumentId);
       }
       
-      if (filter.provisional !== undefined) {
-        traversal = traversal.has('provisional', filter.provisional.toString());
-      }
       
       
       if (filter.resolved !== undefined) {
@@ -734,7 +724,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       traversal = traversal
         .property('resolvedDocumentId', input.documentId)
         .property('resolvedAt', now.toISOString())
-        .property('provisional', (input.provisional || false).toString())
         .property('updatedAt', now.toISOString());
 
       // Add optional properties

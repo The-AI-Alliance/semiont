@@ -80,6 +80,16 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       metadata: { ...sourceDoc.metadata, clonedFrom: id },
     });
 
+    // Subscribe GraphDB consumer to new document
+    try {
+      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToDocument(newDocId);
+    } catch (error) {
+      console.error('[CloneDocument] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the request - consumer can catch up later
+    }
+
     // Propagate annotations from source document
     // Since content is identical, all text positions remain valid
     const sourceHighlights = await graphDb.getHighlights(id);
@@ -135,7 +145,6 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         resolvedDocumentId: reference.resolvedDocumentId,
         entityTypes: reference.entityTypes,
         referenceTags: reference.referenceTags,
-        provisional: reference.provisional,
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       });

@@ -20,8 +20,7 @@ export class GraphDBConsumer {
   async initialize() {
     if (!this.graphDb) {
       this.graphDb = await getGraphDatabase();
-      await this.graphDb.connect();
-      console.log('[GraphDBConsumer] Initialized and connected');
+      console.log('[GraphDBConsumer] Initialized');
     }
   }
 
@@ -89,6 +88,7 @@ export class GraphDBConsumer {
         const storage = getStorageService();
         const content = await storage.getDocument(event.documentId);
         await graphDb.createDocument({
+          id: event.documentId,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
@@ -105,6 +105,7 @@ export class GraphDBConsumer {
         const storage = getStorageService();
         const content = await storage.getDocument(event.documentId);
         await graphDb.createDocument({
+          id: event.documentId,
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
@@ -165,7 +166,6 @@ export class GraphDBConsumer {
       case 'reference.resolved':
         await graphDb.updateSelection(event.payload.referenceId, {
           resolvedDocumentId: event.payload.targetDocumentId,
-          provisional: false,
         });
         break;
 

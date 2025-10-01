@@ -25,7 +25,6 @@ export const SelectionSchema = z.object({
   selectionData: z.record(z.string(), z.any()),
   entityTypes: z.array(z.string()).optional(),
   resolvedDocumentId: z.string().optional(),
-  provisional: z.boolean(),
   metadata: z.record(z.string(), z.any()).optional(),
   createdBy: z.string(),
   createdAt: z.string(),

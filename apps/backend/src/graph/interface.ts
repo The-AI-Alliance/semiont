@@ -19,9 +19,10 @@ export interface GraphDatabase {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   isConnected(): boolean;
-  
+
   // Document operations
-  createDocument(input: CreateDocumentInput): Promise<Document>;
+  // Note: id is required because GraphDB is Layer 4 (downstream of Layer 1 which generates content-addressed IDs)
+  createDocument(input: CreateDocumentInput & { id: string }): Promise<Document>;
   getDocument(id: string): Promise<Document | null>;
   updateDocument(id: string, input: UpdateDocumentInput): Promise<Document>;
   deleteDocument(id: string): Promise<void>;

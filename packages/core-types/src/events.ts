@@ -187,11 +187,11 @@ export interface EventQuery {
   limit?: number;
 }
 
-// Document state projection from events
+// Document state projection from events (Layer 3)
+// NOTE: content is NOT here - it lives in Layer 1 (filesystem)
 export interface DocumentProjection {
   id: string;
   name: string;
-  content: string;
   contentType: string;
   entityTypes: string[];
   highlights: Array<{

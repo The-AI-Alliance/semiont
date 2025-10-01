@@ -104,11 +104,15 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   }
 
   // Create the new document
-  const createDocInput: CreateDocumentInput = {
+  const checksum = calculateChecksum(body.content || '');
+  const documentId = `doc-sha256:${checksum}`;
+
+  const createDocInput: CreateDocumentInput & { id: string } = {
+    id: documentId,
     name: body.name,
     content: body.content || '',
     contentType: body.contentType,
-    contentChecksum: calculateChecksum(body.content || ''),
+    contentChecksum: checksum,
     createdBy: user.id,
     entityTypes: body.entityTypes || [],
     metadata: body.metadata || {},
@@ -119,7 +123,7 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
 
   // Store content if provided
   if (body.content) {
-    await storage.saveDocument(document.id, Buffer.from(body.content));
+    await storage.saveDocument(documentId, Buffer.from(body.content));
   }
 
   // Resolve the selection to the new document
@@ -211,11 +215,15 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
 
   // Create the new document
   const documentName = body.name || title;
-  const createDocInput: CreateDocumentInput = {
+  const checksum = calculateChecksum(generatedContent);
+  const documentId = `doc-sha256:${checksum}`;
+
+  const createDocInput: CreateDocumentInput & { id: string } = {
+    id: documentId,
     name: documentName,
     content: generatedContent,
     contentType: 'text/markdown',
-    contentChecksum: calculateChecksum(generatedContent),
+    contentChecksum: checksum,
     createdBy: user.id,
     entityTypes: body.entityTypes || selection.entityTypes || [],
     metadata: {
@@ -228,7 +236,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   const document = await graphDb.createDocument(createDocInput);
 
   // Store generated content
-  await storage.saveDocument(document.id, Buffer.from(generatedContent));
+  await storage.saveDocument(documentId, Buffer.from(generatedContent));
 
   // Resolve the selection to the new document
   const updatedSelection = await graphDb.resolveSelection({

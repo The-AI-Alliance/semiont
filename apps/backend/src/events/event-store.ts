@@ -296,7 +296,6 @@ export class EventStore {
     const projection: DocumentProjection = {
       id: documentId,
       name: '',
-      content: '',
       contentType: 'text/markdown',
       entityTypes: [],
       highlights: [],

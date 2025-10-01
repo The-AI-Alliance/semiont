@@ -33,9 +33,6 @@ export interface Selection {
   // If resolved document has entity types and selection specifies them
   entityTypes?: string[];  // Specific entity types this selection references
 
-  // Provisional selections are auto-detected
-  provisional: boolean;
-
   metadata?: Record<string, any>;
   createdBy?: string;  // User who created the selection
   createdAt: Date;
@@ -62,7 +59,6 @@ export interface CreateSelectionInput {
   // Optional - makes it an entity reference
   entityTypes?: string[];
 
-  provisional?: boolean;
   metadata?: Record<string, any>;
 }
 
@@ -74,7 +70,6 @@ export interface ResolveSelectionInput {
   documentId: string;
   referenceTags?: ReferenceTag[];  // Semantic relationship tags
   entityTypes?: string[];  // Optionally specify which entity types are being referenced
-  provisional?: boolean;
   resolvedBy?: string;
   metadata?: Record<string, any>;
 }
@@ -85,7 +80,6 @@ export interface ResolveSelectionInput {
 export interface SelectionFilter {
   documentId?: string;
   resolvedDocumentId?: string;
-  provisional?: boolean;
   resolved?: boolean;  // Filter for references
   hasEntityTypes?: boolean;  // Filter for entity references
   referenceTags?: ReferenceTag[];  // Filter by reference tags

@@ -11,14 +11,12 @@
  */
 
 import { getEventStore } from '../events/event-store';
-import { getProjectionStorage } from '../storage/projection-storage';
 import { getFilesystemConfig } from '../config/environment-loader';
 
 async function rebuildProjections(documentId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');
 
   const config = getFilesystemConfig();
-  const projectionStorage = getProjectionStorage();
   const eventStore = await getEventStore({
     dataDir: config.path,
   });

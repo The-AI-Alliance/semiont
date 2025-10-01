@@ -109,7 +109,6 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
               selectionData: detected.selection.selectionData,
               resolvedDocumentId: null,
               entityTypes: detected.selection.entityTypes,
-              provisional: true,
               metadata: detected.selection.metadata,
               createdBy: user.id,
             };

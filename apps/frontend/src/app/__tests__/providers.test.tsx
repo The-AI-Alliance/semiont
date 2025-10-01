@@ -5,18 +5,13 @@ import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
 import { APIError } from '@/lib/api-client';
 
-// Mock the useSecureAPI hook
-vi.mock('@/hooks/useSecureAPI', () => ({
-  useSecureAPI: vi.fn()
-}));
-
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
   SessionProvider: ({ children }: { children: React.ReactNode }) =>
     <div data-testid="session-provider">{children}</div>,
   useSession: () => ({
     status: 'authenticated',
-    data: null
+    data: { backendToken: 'mock-token' }
   })
 }));
 

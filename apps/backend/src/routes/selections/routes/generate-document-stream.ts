@@ -128,11 +128,15 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
           id: String(Date.now())
         });
 
-        const documentInput: CreateDocumentInput = {
+        const checksum = calculateChecksum(generatedContent.content);
+        const documentId = `doc-sha256:${checksum}`;
+
+        const documentInput: CreateDocumentInput & { id: string } = {
+          id: documentId,
           name: documentName,
           content: generatedContent.content,
           contentType: 'text/markdown',
-          contentChecksum: calculateChecksum(generatedContent.content),
+          contentChecksum: checksum,
           entityTypes: selection.entityTypes || [],
           creationMethod: 'generated',
           sourceDocumentId: selection.documentId,
@@ -146,12 +150,11 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
         const newDocument = await graphDb.createDocument(documentInput);
 
         // Save the content to storage
-        await storage.saveDocument(newDocument.id, Buffer.from(generatedContent.content));
+        await storage.saveDocument(documentId, Buffer.from(generatedContent.content));
 
         // Update the selection to point to the new document
         await graphDb.updateSelection(referenceId, {
           resolvedDocumentId: newDocument.id,
-          provisional: false
         });
 
         // Send completion event with the new document ID

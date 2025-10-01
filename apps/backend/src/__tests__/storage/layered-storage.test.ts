@@ -74,7 +74,6 @@ describe('Layered Storage', () => {
       const projection: DocumentProjection = {
         id: docId,
         name: 'Test Doc',
-        content: '',
         contentType: 'text/plain',
         entityTypes: ['note'],
         highlights: [],
@@ -97,7 +96,6 @@ describe('Layered Storage', () => {
       const projection: DocumentProjection = {
         id: docId,
         name: 'Projection Test',
-        content: '',
         contentType: 'text/markdown',
         entityTypes: ['article', 'research'],
         highlights: [
@@ -126,7 +124,6 @@ describe('Layered Storage', () => {
       const projection: DocumentProjection = {
         id: docId,
         name: 'To Delete',
-        content: '',
         contentType: 'text/plain',
         entityTypes: [],
         highlights: [],
@@ -203,7 +200,7 @@ describe('Layered Storage', () => {
       // Projection should be updated
       const after = await projectionStorage.getProjection(docId);
       expect(after!.highlights).toHaveLength(1);
-      expect(after!.highlights[0].id).toBe('hl1');
+      expect(after!.highlights[0]?.id).toBe('hl1');
       expect(after!.version).toBe(2);
     });
 

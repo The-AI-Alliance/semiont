@@ -356,17 +356,16 @@ export class TypedAPIClient {
     return this.call(route, 'DELETE', options);
   }
 
-  // Set authorization header
+  // Legacy methods - no longer needed with React Query auth integration
+  // Kept for backwards compatibility with non-query code
   setAuthToken(token: string) {
     this.defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
 
-  // Remove authorization header
   clearAuthToken() {
     delete this.defaultHeaders['Authorization'];
   }
 
-  // Get current authorization header
   getAuthToken(): string | undefined {
     return this.defaultHeaders['Authorization'];
   }
@@ -403,7 +402,12 @@ export class LazyTypedAPIClient {
 export const apiClient = new Proxy({} as TypedAPIClient, {
   get(target, prop: string | symbol) {
     const instance = LazyTypedAPIClient.getInstance();
-    return instance[prop as keyof TypedAPIClient];
+    const value = instance[prop as keyof TypedAPIClient];
+    // Bind methods to preserve `this` context
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    return value;
   },
 });
 
@@ -915,8 +919,7 @@ export const api: ReactQueryAPI = {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
         return useQuery({
-          queryKey: ['entityTypes.list'],
-          queryFn: () => apiService.entityTypes.list(),
+          queryKey: ['/api/entity-types'],
           ...options,
         });
       }
@@ -927,8 +930,7 @@ export const api: ReactQueryAPI = {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
         return useQuery({
-          queryKey: ['referenceTypes.list'],
-          queryFn: () => apiService.referenceTypes.list(),
+          queryKey: ['/api/reference-types'],
           ...options,
         });
       }
