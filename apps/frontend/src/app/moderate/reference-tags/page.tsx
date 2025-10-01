@@ -92,7 +92,7 @@ export default function ReferenceTagsPage() {
         {/* Existing tags */}
         <div className="mb-6">
           <div className="flex flex-wrap gap-2">
-            {referenceTypes.map((tag) => (
+            {referenceTypes.map((tag: string) => (
               <span
                 key={tag}
                 className="px-3 py-1 rounded-md text-sm border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"

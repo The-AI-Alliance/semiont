@@ -89,6 +89,10 @@ const expectFetchCalledWith = (url: string, options?: RequestInit) => {
   expect(mockFetch).toHaveBeenCalled();
   const call = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
 
+  if (!call) {
+    throw new Error('Expected fetch to be called but no calls found');
+  }
+
   if (call[0] instanceof Request) {
     // Modern fetch with Request object
     expect(call[0].url).toBe(url);

@@ -95,6 +95,7 @@ describe('useAuthenticatedAPI', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const call = mockFetch.mock.calls[0];
+    if (!call) throw new Error('Expected fetch to be called');
 
     // Check URL (can be Request object or string)
     if (call[0] instanceof Request) {
@@ -132,6 +133,7 @@ describe('useAuthenticatedAPI', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const call = mockFetch.mock.calls[0];
+    if (!call) throw new Error('Expected fetch to be called');
 
     if (call[0] instanceof Request) {
       expect(call[0].url).toBe('http://localhost:4000/api/test');
@@ -166,6 +168,7 @@ describe('useAuthenticatedAPI', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const call = mockFetch.mock.calls[0];
+    if (!call) throw new Error('Expected fetch to be called');
 
     if (call[0] instanceof Request) {
       expect(call[0].url).toBe('http://localhost:4000/api/test');
@@ -286,6 +289,7 @@ describe('useAuthenticatedAPI', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     let call = mockFetch.mock.calls[0];
+    if (!call) throw new Error('Expected fetch to be called');
 
     if (call[0] instanceof Request) {
       expect(call[0].headers.get('Authorization')).toBe('Bearer token-1');
@@ -310,6 +314,7 @@ describe('useAuthenticatedAPI', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     call = mockFetch.mock.calls[1];
+    if (!call) throw new Error('Expected fetch to be called');
 
     if (call[0] instanceof Request) {
       expect(call[0].headers.get('Authorization')).toBe('Bearer token-2');
