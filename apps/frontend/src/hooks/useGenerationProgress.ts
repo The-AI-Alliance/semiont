@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { apiClient } from '@/lib/api-client';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -25,6 +25,7 @@ export function useGenerationProgress({
   onError,
   onProgress
 }: UseGenerationProgressOptions) {
+  const { data: session } = useSession();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -38,9 +39,8 @@ export function useGenerationProgress({
       abortControllerRef.current.abort();
     }
 
-    // Get auth token from API client
-    const authHeader = apiClient.getAuthToken();
-    if (!authHeader) {
+    // Get auth token from session
+    if (!session?.backendToken) {
       onError?.('Authentication required');
       return;
     }
@@ -63,7 +63,7 @@ export function useGenerationProgress({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader
+          'Authorization': `Bearer ${session.backendToken}`
         },
         body: JSON.stringify(options || {}),
         signal: abortController.signal,
@@ -111,7 +111,7 @@ export function useGenerationProgress({
         onError?.('Failed to start document generation');
       }
     }
-  }, [onComplete, onError, onProgress]);
+  }, [onComplete, onError, onProgress, session]);
 
   const cancelGeneration = useCallback(() => {
     if (abortControllerRef.current) {

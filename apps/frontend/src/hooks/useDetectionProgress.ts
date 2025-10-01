@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { apiClient } from '@/lib/api-client';
 
 export interface DetectionProgress {
   status: 'started' | 'scanning' | 'creating' | 'complete' | 'error';
@@ -29,6 +29,7 @@ export function useDetectionProgress({
   onError,
   onProgress
 }: UseDetectionProgressOptions) {
+  const { data: session } = useSession();
   const [isDetecting, setIsDetecting] = useState(false);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -39,9 +40,8 @@ export function useDetectionProgress({
       abortControllerRef.current.abort();
     }
 
-    // Get auth token from API client
-    const authHeader = apiClient.getAuthToken();
-    if (!authHeader) {
+    // Get auth token from session
+    if (!session?.backendToken) {
       onError?.('Authentication required');
       return;
     }
@@ -64,7 +64,7 @@ export function useDetectionProgress({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader
+          'Authorization': `Bearer ${session.backendToken}`
         },
         body: JSON.stringify({ entityTypes }),
         signal: abortController.signal,
@@ -112,7 +112,7 @@ export function useDetectionProgress({
         onError?.('Failed to start detection');
       }
     }
-  }, [documentId, onComplete, onError, onProgress]);
+  }, [documentId, onComplete, onError, onProgress, session]);
 
   const cancelDetection = useCallback(() => {
     if (abortControllerRef.current) {

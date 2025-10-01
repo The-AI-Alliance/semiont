@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { apiClient } from '@/lib/api-client';
 
 /**
  * Document event structure from the event store
@@ -78,6 +78,7 @@ export function useDocumentEvents({
   onError,
   autoConnect = true,
 }: UseDocumentEventsOptions) {
+  const { data: session, status: sessionStatus } = useSession();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<DocumentEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
@@ -147,9 +148,8 @@ export function useDocumentEvents({
       reconnectTimeoutRef.current = null;
     }
 
-    // Get auth token
-    const authHeader = apiClient.getAuthToken();
-    if (!authHeader) {
+    // Get auth token from session
+    if (!session?.backendToken) {
       onError?.('Authentication required');
       setStatus('error');
       return;
@@ -171,7 +171,7 @@ export function useDocumentEvents({
       await fetchEventSource(url, {
         method: 'GET',
         headers: {
-          'Authorization': authHeader,
+          'Authorization': `Bearer ${session.backendToken}`,
         },
         signal: abortController.signal,
 
@@ -237,7 +237,7 @@ export function useDocumentEvents({
         onError?.('Failed to connect to event stream');
       }
     }
-  }, [documentId, handleEvent, onError]);
+  }, [documentId, handleEvent, onError, session]);
 
   const disconnect = useCallback(() => {
     console.log(`[DocumentEvents] Disconnecting from document ${documentId}`);
@@ -256,9 +256,9 @@ export function useDocumentEvents({
     reconnectAttemptsRef.current = 0;
   }, [documentId]);
 
-  // Auto-connect on mount if enabled
+  // Auto-connect on mount if enabled and authenticated
   useEffect(() => {
-    if (autoConnect) {
+    if (autoConnect && sessionStatus === 'authenticated') {
       connect();
     }
 
@@ -266,7 +266,7 @@ export function useDocumentEvents({
     return () => {
       disconnect();
     };
-  }, [autoConnect, connect, disconnect]);
+  }, [autoConnect, sessionStatus, connect, disconnect]);
 
   return {
     status,
