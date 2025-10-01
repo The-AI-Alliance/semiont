@@ -1,14 +1,14 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createSelectionRouter, type SelectionsRouterType } from './shared';
-import { formatDocument, formatDocumentWithContent, formatSelection } from './helpers';
-import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
 import { CREATION_METHODS } from '@semiont/core-types';
-import type { CreateDocumentInput } from '@semiont/core-types';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
+import { AnnotationQueryService } from '../../services/annotation-queries';
+import { DocumentQueryService } from '../../services/document-queries';
+import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
 
 // Create router with auth middleware
 export const operationsRouter: SelectionsRouterType = createSelectionRouter();
@@ -95,51 +95,73 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user');
-  const graphDb = await getGraphDatabase();
   const storage = getStorageService();
-
-  const selection = await graphDb.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
-  }
-
-  // Create the new document
-  const checksum = calculateChecksum(body.content || '');
-  const documentId = `doc-sha256:${checksum}`;
-
-  const createDocInput: CreateDocumentInput & { id: string } = {
-    id: documentId,
-    name: body.name,
-    content: body.content || '',
-    contentType: body.contentType,
-    contentChecksum: checksum,
-    createdBy: user.id,
-    entityTypes: body.entityTypes || [],
-    metadata: body.metadata || {},
-    creationMethod: CREATION_METHODS.API,
-  };
-
-  const document = await graphDb.createDocument(createDocInput);
-
-  // Store content if provided
-  if (body.content) {
-    await storage.saveDocument(documentId, Buffer.from(body.content));
-  }
-
-  // Resolve the selection to the new document
-  const updatedSelection = await graphDb.resolveSelection({
-    selectionId: id,
-    documentId: document.id,
-    resolvedBy: user.id,
-  });
 
   if (!body.content) {
     throw new HTTPException(400, { message: 'Content is required when creating a document' });
   }
 
+  // Get selection from Layer 3
+  const selection = await AnnotationQueryService.getSelection(id);
+  if (!selection) {
+    throw new HTTPException(404, { message: 'Selection not found' });
+  }
+
+  // Create the new document
+  const checksum = calculateChecksum(body.content);
+  const documentId = `doc-sha256:${checksum}`;
+
+  // Save content to Layer 1 (filesystem)
+  await storage.saveDocument(documentId, Buffer.from(body.content));
+
+  // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
+  await emitDocumentCreated({
+    documentId,
+    userId: user.id,
+    name: body.name,
+    contentType: body.contentType,
+    contentHash: checksum,
+    entityTypes: body.entityTypes || [],
+    metadata: body.metadata || {},
+  });
+
+  // Emit reference.resolved event to link the selection to the new document
+  await emitReferenceResolved({
+    documentId: selection.documentId,
+    referenceId: id,
+    userId: user.id,
+    targetDocumentId: documentId,
+  });
+
+  // Return optimistic response
   return c.json({
-    document: formatDocumentWithContent(document, body.content),
-    selection: formatSelection(updatedSelection),
+    document: {
+      id: documentId,
+      name: body.name,
+      contentType: body.contentType,
+      content: body.content,
+      entityTypes: body.entityTypes || [],
+      metadata: body.metadata || {},
+      creationMethod: CREATION_METHODS.API,
+      contentChecksum: checksum,
+      createdBy: user.id,
+      createdAt: new Date().toISOString(),
+      archived: false,
+    },
+    selection: {
+      id,
+      documentId: selection.documentId,
+      selectionData: {
+        text: selection.text,
+        offset: selection.position.offset,
+        length: selection.position.length,
+      },
+      resolvedDocumentId: documentId,
+      entityTypes: selection.entityTypes,
+      createdBy: user.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
   }, 201);
 });
 
@@ -179,28 +201,22 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user');
-  const graphDb = await getGraphDatabase();
   const storage = getStorageService();
 
-  const selection = await graphDb.getSelection(id);
+  // Get selection from Layer 3
+  const selection = await AnnotationQueryService.getSelection(id);
   if (!selection) {
     throw new HTTPException(404, { message: 'Selection not found' });
   }
 
-  // Get the original document content for context
-  const originalDoc = await graphDb.getDocument(selection.documentId);
+  // Get the original document metadata from Layer 3
+  const originalDoc = await DocumentQueryService.getDocumentMetadata(selection.documentId);
   if (!originalDoc) {
     throw new HTTPException(404, { message: 'Original document not found' });
   }
 
-  // Extract selection text from selectionData
-  const data = selection.selectionData as any;
-
-  if (!data || !data.text) {
-    throw new HTTPException(400, { message: 'Selection must have text field in selectionData' });
-  }
-
-  const selectedText = data.text;
+  // Use selection text
+  const selectedText = selection.text;
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
@@ -218,36 +234,63 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   const checksum = calculateChecksum(generatedContent);
   const documentId = `doc-sha256:${checksum}`;
 
-  const createDocInput: CreateDocumentInput & { id: string } = {
-    id: documentId,
-    name: documentName,
-    content: generatedContent,
-    contentType: 'text/markdown',
-    contentChecksum: checksum,
-    createdBy: user.id,
-    entityTypes: body.entityTypes || selection.entityTypes || [],
-    metadata: {
-      generatedFrom: selection.id,
-      prompt: body.prompt,
-    },
-    creationMethod: CREATION_METHODS.GENERATED,
-  };
-
-  const document = await graphDb.createDocument(createDocInput);
-
-  // Store generated content
+  // Store generated content to Layer 1
   await storage.saveDocument(documentId, Buffer.from(generatedContent));
 
-  // Resolve the selection to the new document
-  const updatedSelection = await graphDb.resolveSelection({
-    selectionId: id,
-    documentId: document.id,
-    resolvedBy: user.id,
+  // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
+  await emitDocumentCreated({
+    documentId,
+    userId: user.id,
+    name: documentName,
+    contentType: 'text/markdown',
+    contentHash: checksum,
+    entityTypes: body.entityTypes || selection.entityTypes || [],
+    metadata: {
+      generatedFrom: id,
+      prompt: body.prompt,
+    },
   });
 
+  // Emit reference.resolved event to link the selection to the new document
+  await emitReferenceResolved({
+    documentId: selection.documentId,
+    referenceId: id,
+    userId: user.id,
+    targetDocumentId: documentId,
+  });
+
+  // Return optimistic response
   return c.json({
-    document: formatDocumentWithContent(document, generatedContent),
-    selection: formatSelection(updatedSelection),
+    document: {
+      id: documentId,
+      name: documentName,
+      contentType: 'text/markdown',
+      content: generatedContent,
+      entityTypes: body.entityTypes || selection.entityTypes || [],
+      metadata: {
+        generatedFrom: id,
+        prompt: body.prompt,
+      },
+      creationMethod: CREATION_METHODS.GENERATED,
+      contentChecksum: checksum,
+      createdBy: user.id,
+      createdAt: new Date().toISOString(),
+      archived: false,
+    },
+    selection: {
+      id,
+      documentId: selection.documentId,
+      selectionData: {
+        text: selection.text,
+        offset: selection.position.offset,
+        length: selection.position.length,
+      },
+      resolvedDocumentId: documentId,
+      entityTypes: selection.entityTypes,
+      createdBy: user.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
     generated: true,
   }, 201);
 });
@@ -284,60 +327,65 @@ const getSelectionContextRoute = createRoute({
 operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const { id } = c.req.valid('param');
   const { contextBefore, contextAfter } = c.req.valid('query');
-  const graphDb = await getGraphDatabase();
   const storage = getStorageService();
 
-  const selection = await graphDb.getSelection(id);
+  // Get selection from Layer 3
+  const selection = await AnnotationQueryService.getSelection(id);
   if (!selection) {
     throw new HTTPException(404, { message: 'Selection not found' });
   }
 
-  const document = await graphDb.getDocument(selection.documentId);
+  // Get document metadata from Layer 3
+  const document = await DocumentQueryService.getDocumentMetadata(selection.documentId);
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
+  // Get content from Layer 1
   const content = await storage.getDocument(selection.documentId);
   const contentStr = content.toString('utf-8');
 
-  // Extract context based on selection type
-  let before = '';
-  let selected = '';
-  let after = '';
+  // Extract context based on selection position
+  const selStart = selection.position.offset;
+  const selEnd = selection.position.offset + selection.position.length;
+  const start = Math.max(0, selStart - contextBefore);
+  const end = Math.min(contentStr.length, selEnd + contextAfter);
 
-  // Check if this is a highlight (no resolvedDocumentId field)
-  if (selection.resolvedDocumentId === undefined && selection.selectionData) {
-    const data = selection.selectionData as any;
-    if (data.offset !== undefined && data.length !== undefined) {
-      const selStart = data.offset;
-      const selEnd = data.offset + data.length;
-      const start = Math.max(0, selStart - contextBefore);
-      const end = Math.min(contentStr.length, selEnd + contextAfter);
-
-      before = contentStr.substring(start, selStart);
-      selected = contentStr.substring(selStart, selEnd);
-      after = contentStr.substring(selEnd, end);
-    } else if (data.text) {
-      selected = data.text;
-      // Try to find the text in the content
-      const index = contentStr.indexOf(data.text);
-      if (index !== -1) {
-        const start = Math.max(0, index - contextBefore);
-        const end = Math.min(contentStr.length, index + data.text.length + contextAfter);
-        before = contentStr.substring(start, index);
-        after = contentStr.substring(index + data.text.length, end);
-      }
-    }
-  }
+  const before = contentStr.substring(start, selStart);
+  const selected = contentStr.substring(selStart, selEnd);
+  const after = contentStr.substring(selEnd, end);
 
   return c.json({
-    selection: formatSelection(selection),
+    selection: {
+      id: selection.id,
+      documentId: selection.documentId,
+      selectionData: {
+        text: selection.text,
+        offset: selection.position.offset,
+        length: selection.position.length,
+      },
+      resolvedDocumentId: selection.targetDocumentId,
+      entityTypes: selection.entityTypes,
+      createdBy: 'user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
     context: {
       before,
       selected,
       after,
     },
-    document: formatDocument(document),
+    document: {
+      id: document.id,
+      name: document.name,
+      contentType: document.contentType,
+      metadata: document.metadata,
+      entityTypes: document.entityTypes,
+      archived: document.archived,
+      creationMethod: document.creationMethod,
+      createdBy: document.createdBy,
+      createdAt: document.createdAt,
+    },
   });
 });
 
@@ -368,51 +416,34 @@ const getContextualSummaryRoute = createRoute({
 
 operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const graphDb = await getGraphDatabase();
   const storage = getStorageService();
 
-  const selection = await graphDb.getSelection(id);
+  // Get selection from Layer 3
+  const selection = await AnnotationQueryService.getSelection(id);
   if (!selection) {
     throw new HTTPException(404, { message: 'Selection not found' });
   }
 
-  const document = await graphDb.getDocument(selection.documentId);
+  // Get document from Layer 3
+  const document = await DocumentQueryService.getDocumentMetadata(selection.documentId);
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
+  // Get content from Layer 1
   const content = await storage.getDocument(selection.documentId);
   const contentStr = content.toString('utf-8');
 
   // Extract selection text with context
-  let before = '';
-  let selected = '';
-  let after = '';
   const contextSize = 500; // Fixed context for summary
+  const selStart = selection.position.offset;
+  const selEnd = selection.position.offset + selection.position.length;
+  const start = Math.max(0, selStart - contextSize);
+  const end = Math.min(contentStr.length, selEnd + contextSize);
 
-  // Check if this is a highlight (no resolvedDocumentId field)
-  if (selection.resolvedDocumentId === undefined && selection.selectionData) {
-    const data = selection.selectionData as any;
-    if (data.offset !== undefined && data.length !== undefined) {
-      const selStart = data.offset;
-      const selEnd = data.offset + data.length;
-      const start = Math.max(0, selStart - contextSize);
-      const end = Math.min(contentStr.length, selEnd + contextSize);
-
-      before = contentStr.substring(start, selStart);
-      selected = contentStr.substring(selStart, selEnd);
-      after = contentStr.substring(selEnd, end);
-    } else if (data.text) {
-      selected = data.text;
-      const index = contentStr.indexOf(data.text);
-      if (index !== -1) {
-        const start = Math.max(0, index - contextSize);
-        const end = Math.min(contentStr.length, index + data.text.length + contextSize);
-        before = contentStr.substring(start, index);
-        after = contentStr.substring(index + data.text.length, end);
-      }
-    }
-  }
+  const before = contentStr.substring(start, selStart);
+  const selected = contentStr.substring(selStart, selEnd);
+  const after = contentStr.substring(selEnd, end);
 
   // Generate summary using the proper inference function
   const summaryPrompt = `Summarize this text in context:

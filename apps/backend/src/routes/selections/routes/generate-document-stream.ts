@@ -1,11 +1,12 @@
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentFromTopic } from '../../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
 import type { SelectionsRouterType } from '../shared';
-import type { CreateDocumentInput } from '@semiont/core-types';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { DocumentQueryService } from '../../../services/document-queries';
+import { emitDocumentCreated, emitReferenceResolved } from '../../../events/emit';
 
 interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -36,11 +37,10 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
 
     console.log(`[GenerateDocument] Starting generation for reference ${referenceId}`);
 
-    // Validate reference exists
-    const graphDb = await getGraphDatabase();
+    // Validate reference exists using Layer 3
     const storage = getStorageService();
 
-    const selection = await graphDb.getSelection(referenceId);
+    const selection = await AnnotationQueryService.getSelection(referenceId);
     if (!selection) {
       throw new HTTPException(404, { message: 'Reference not found' });
     }
@@ -49,7 +49,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
     return streamSSE(c, async (stream) => {
       try {
         // Determine document name early
-        const documentName = body.title || selection.selectionData?.text || 'New Document';
+        const documentName = body.title || selection.text || 'New Document';
 
         // Send initial started event
         await stream.writeSSE({
@@ -64,7 +64,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
           id: String(Date.now())
         });
 
-        // Fetch source document
+        // Fetch source document from Layer 3
         await stream.writeSSE({
           data: JSON.stringify({
             status: 'fetching',
@@ -77,7 +77,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
           id: String(Date.now())
         });
 
-        const sourceDocument = await graphDb.getDocument(selection.documentId);
+        const sourceDocument = await DocumentQueryService.getDocumentMetadata(selection.documentId);
         if (!sourceDocument) {
           throw new Error('Source document not found');
         }
@@ -131,30 +131,29 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
         const checksum = calculateChecksum(generatedContent.content);
         const documentId = `doc-sha256:${checksum}`;
 
-        const documentInput: CreateDocumentInput & { id: string } = {
-          id: documentId,
-          name: documentName,
-          content: generatedContent.content,
-          contentType: 'text/markdown',
-          contentChecksum: checksum,
-          entityTypes: selection.entityTypes || [],
-          creationMethod: 'generated',
-          sourceDocumentId: selection.documentId,
-          metadata: {
-            isDraft: true,
-            generatedFrom: referenceId
-          },
-          createdBy: user.id
-        };
-
-        const newDocument = await graphDb.createDocument(documentInput);
-
-        // Save the content to storage
+        // Save content to Layer 1 (filesystem)
         await storage.saveDocument(documentId, Buffer.from(generatedContent.content));
 
-        // Update the selection to point to the new document
-        await graphDb.updateSelection(referenceId, {
-          resolvedDocumentId: newDocument.id,
+        // Emit document.created event (event store updates Layer 3, graph consumer updates Layer 4)
+        await emitDocumentCreated({
+          documentId,
+          userId: user.id,
+          name: documentName,
+          contentType: 'text/markdown',
+          contentHash: checksum,
+          entityTypes: selection.entityTypes || [],
+          metadata: {
+            isDraft: true,
+            generatedFrom: referenceId,
+          },
+        });
+
+        // Emit reference.resolved event to link the reference to the new document
+        await emitReferenceResolved({
+          documentId: selection.documentId,
+          referenceId,
+          userId: user.id,
+          targetDocumentId: documentId,
         });
 
         // Send completion event with the new document ID
@@ -163,7 +162,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
             status: 'complete',
             referenceId,
             documentName,
-            documentId: newDocument.id,
+            documentId,
             sourceDocumentId: selection.documentId,
             percentage: 100,
             message: 'Draft document created! Ready for review.'
