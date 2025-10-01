@@ -24,11 +24,8 @@ describe('query-helpers', () => {
         mutations: { retry: false },
       },
     });
-    wrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    );
+    wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
   });
 
   describe('useAuthenticatedQuery', () => {
@@ -63,7 +60,7 @@ describe('query-helpers', () => {
       );
 
       expect(mockFetchAPI).not.toHaveBeenCalled();
-      expect(result.current.isPending).toBe(true);
+      expect(result.current.isLoading).toBe(true);
       expect(result.current.fetchStatus).toBe('idle');
     });
 
@@ -97,7 +94,7 @@ describe('query-helpers', () => {
       );
 
       expect(mockFetchAPI).not.toHaveBeenCalled();
-      expect(result.current.isPending).toBe(true);
+      expect(result.current.isLoading).toBe(true);
       expect(result.current.fetchStatus).toBe('idle');
     });
 
@@ -247,7 +244,7 @@ describe('query-helpers', () => {
       );
 
       expect(mockFetchAPI).not.toHaveBeenCalled();
-      expect(result.current.isPending).toBe(true);
+      expect(result.current.isLoading).toBe(true);
     });
   });
 });

@@ -824,6 +824,63 @@ interface ReactQueryAPI {
       useQuery: (options?: { enabled?: boolean }) => any;
     };
   };
+
+  documents: {
+    list: {
+      useQuery: (options?: { enabled?: boolean; limit?: number; archived?: boolean }) => any;
+    };
+    get: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => any;
+    };
+    getByToken: {
+      useQuery: (token: string, options?: { enabled?: boolean }) => any;
+    };
+    search: {
+      useQuery: (query: string, limit?: number, options?: { enabled?: boolean }) => any;
+    };
+    getReferencedBy: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => any;
+    };
+    getEvents: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => any;
+    };
+    create: {
+      useMutation: () => any;
+    };
+    createFromToken: {
+      useMutation: () => any;
+    };
+    update: {
+      useMutation: () => any;
+    };
+    clone: {
+      useMutation: () => any;
+    };
+  };
+
+  selections: {
+    getHighlights: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => any;
+    };
+    getReferences: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => any;
+    };
+    create: {
+      useMutation: () => any;
+    };
+    saveAsHighlight: {
+      useMutation: () => any;
+    };
+    delete: {
+      useMutation: () => any;
+    };
+    generateDocument: {
+      useMutation: () => any;
+    };
+    resolveToDocument: {
+      useMutation: () => any;
+    };
+  };
 }
 
 // React Query hooks with type safety
@@ -946,6 +1003,187 @@ export const api: ReactQueryAPI = {
           ['/api/reference-types'],
           '/api/reference-types',
           options
+        );
+      }
+    }
+  },
+
+  documents: {
+    list: {
+      useQuery: (options?: { enabled?: boolean; limit?: number; archived?: boolean }) => {
+        const params = new URLSearchParams();
+        if (options?.limit) params.set('limit', options.limit.toString());
+        if (options?.archived !== undefined) params.set('archived', options.archived.toString());
+        const queryString = params.toString();
+        const url = queryString ? `/api/documents?${queryString}` : '/api/documents';
+
+        return useAuthenticatedQuery(
+          ['/api/documents', options?.limit, options?.archived],
+          url,
+          options?.enabled !== undefined ? { enabled: options.enabled } : undefined
+        );
+      }
+    },
+    get: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/documents', id],
+          `/api/documents/${id}`,
+          options
+        );
+      }
+    },
+    getByToken: {
+      useQuery: (token: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/documents/by-token', token],
+          `/api/documents/by-token/${token}`,
+          options
+        );
+      }
+    },
+    search: {
+      useQuery: (query: string, limit = 10, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/documents/search', query, limit],
+          `/api/documents/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+          options
+        );
+      }
+    },
+    getReferencedBy: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/documents', id, 'referenced-by'],
+          `/api/documents/${id}/referenced-by`,
+          options
+        );
+      }
+    },
+    getEvents: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/documents', id, 'events'],
+          `/api/documents/${id}/events`,
+          options
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { name: string; content: string; entityTypes?: string[] }, fetchAPI) =>
+            fetchAPI('/api/documents', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    createFromToken: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { token: string; name: string; content: string; entityTypes?: string[] }, fetchAPI) =>
+            fetchAPI('/api/documents/from-token', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    update: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { id: string; data: { name?: string; content?: string; archived?: boolean } }, fetchAPI) =>
+            fetchAPI(`/api/documents/${input.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify(input.data),
+            })
+        );
+      }
+    },
+    clone: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { id: string }, fetchAPI) =>
+            fetchAPI(`/api/documents/${input.id}/clone`, {
+              method: 'POST',
+            })
+        );
+      }
+    }
+  },
+
+  selections: {
+    getHighlights: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/selections/highlights', documentId],
+          `/api/selections/highlights/${documentId}`,
+          options
+        );
+      }
+    },
+    getReferences: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          ['/api/selections/references', documentId],
+          `/api/selections/references/${documentId}`,
+          options
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: any, fetchAPI) =>
+            fetchAPI('/api/selections', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    saveAsHighlight: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: any, fetchAPI) =>
+            fetchAPI('/api/selections/highlight', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    delete: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { id: string }, fetchAPI) =>
+            fetchAPI(`/api/selections/${input.id}`, {
+              method: 'DELETE',
+            })
+        );
+      }
+    },
+    generateDocument: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: any, fetchAPI) =>
+            fetchAPI('/api/selections/generate-document', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    resolveToDocument: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: any, fetchAPI) =>
+            fetchAPI('/api/selections/resolve-to-document', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
         );
       }
     }
