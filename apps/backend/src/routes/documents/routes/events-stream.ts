@@ -3,7 +3,6 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { DocumentsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
-import { getGraphDatabase } from '../../../graph/factory';
 
 /**
  * Document-scoped SSE event stream for real-time collaboration
@@ -47,17 +46,16 @@ export function registerGetEventStream(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const user = c.get('user');
 
-    // Verify document exists before opening stream
-    const graphDb = await getGraphDatabase();
-    const document = await graphDb.getDocument(id);
-    if (!document) {
-      throw new HTTPException(404, { message: 'Document not found' });
+    // Verify document exists in event store (Layer 2 - source of truth)
+    const eventStore = await getEventStore();
+    const events = await eventStore.getDocumentEvents(id);
+    if (events.length === 0) {
+      throw new HTTPException(404, { message: 'Document not found - no events exist for this document' });
     }
 
     console.log(`[EventStream] Opening stream for document ${id}, user ${user.id}`);
 
     return streamSSE(c, async (stream) => {
-      const eventStore = await getEventStore();
 
       // Send initial connection message
       await stream.writeSSE({
