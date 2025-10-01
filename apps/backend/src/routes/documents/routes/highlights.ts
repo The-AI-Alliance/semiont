@@ -35,42 +35,25 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
   router.openapi(getDocumentHighlightsRoute, async (c) => {
     const { id } = c.req.valid('param');
 
-    try {
-      // Try Layer 3 first (fast path - O(1) file read)
-      const projectionHighlights = await AnnotationQueryService.getHighlights(id);
+    // Layer 3 only - projection storage is source of truth
+    const projectionHighlights = await AnnotationQueryService.getHighlights(id);
 
-      // Transform projection format to component format
-      const highlights = projectionHighlights.map(hl => ({
-        id: hl.id,
-        documentId: id,
-        text: hl.text,
-        selectionData: {
-          type: 'text_span',
-          offset: hl.position.offset,
-          length: hl.position.length,
-          text: hl.text
-        },
-        type: 'highlight' as const,
-      }));
+    // Transform projection format to component format
+    const highlights = projectionHighlights.map(hl => ({
+      id: hl.id,
+      documentId: id,
+      text: hl.text,
+      selectionData: {
+        type: 'text_span',
+        offset: hl.position.offset,
+        length: hl.position.length,
+        text: hl.text
+      },
+      type: 'highlight' as const,
+    }));
 
-      return c.json({
-        highlights
-      });
-    } catch (error) {
-      // Fallback to GraphDB if projection missing
-      console.warn(`[Highlights] Layer 3 miss for ${id}, falling back to GraphDB`);
-
-      const graphDb = await getGraphDatabase();
-      const document = await graphDb.getDocument(id);
-      if (!document) {
-        throw new HTTPException(404, { message: 'Document not found' });
-      }
-
-      const highlights = await graphDb.getHighlights(id);
-
-      return c.json({
-        highlights: highlights.map(formatSelection)
-      });
-    }
+    return c.json({
+      highlights
+    });
   });
 }
