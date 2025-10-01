@@ -22,7 +22,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
         {progress.status !== 'complete' && onCancel && (
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-sm"
             title="Cancel detection"
           >
             ✕

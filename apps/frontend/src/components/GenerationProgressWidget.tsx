@@ -39,7 +39,7 @@ export function GenerationProgressWidget({ progress, onCancel, onDismiss }: Gene
           {onCancel && (
             <button
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm"
+              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-sm"
               title="Cancel generation"
             >
               ✕
@@ -53,7 +53,7 @@ export function GenerationProgressWidget({ progress, onCancel, onDismiss }: Gene
         <div className="flex justify-end mb-2">
           <button
             onClick={onDismiss}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-sm"
             title="Dismiss"
           >
             ✕
