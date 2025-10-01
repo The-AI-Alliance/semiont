@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { SessionProvider, useSession } from 'next-auth/react';
 import { ToastProvider } from '@/components/Toast';
@@ -89,9 +89,17 @@ function createAuthenticatedQueryClient(getToken: () => string | null) {
 function QueryClientProviderWithAuth({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
 
-  // Create query client with current session token
+  // Use ref to track current token - closure will read latest value
+  const tokenRef = useRef<string | null>(null);
+
+  // Update ref when session changes
+  useEffect(() => {
+    tokenRef.current = session?.backendToken || null;
+  }, [session?.backendToken]);
+
+  // Create query client once - getToken reads from ref
   const [queryClient] = useState(() =>
-    createAuthenticatedQueryClient(() => session?.backendToken || null)
+    createAuthenticatedQueryClient(() => tokenRef.current)
   );
 
   return (
