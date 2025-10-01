@@ -2,8 +2,17 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import * as fc from 'fast-check';
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnnotationRenderer } from '../AnnotationRenderer';
 import { DocumentAnnotationsProvider } from '../../contexts/DocumentAnnotationsContext';
+
+// Create a test QueryClient
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
 
 /**
  * AXIOMS FOR ANNOTATION RENDERING
@@ -429,15 +438,18 @@ describe('Markdown Fidelity', () => {
 
 Regular paragraph text.`;
     
+    const queryClient = createTestQueryClient();
     const { container } = render(
-      <DocumentAnnotationsProvider>
-        <AnnotationRenderer
-          content={markdownContent}
-          contentType="markdown"
-          highlights={[]}
-          references={[]}
-        />
-      </DocumentAnnotationsProvider>
+      <QueryClientProvider client={queryClient}>
+        <DocumentAnnotationsProvider>
+          <AnnotationRenderer
+            content={markdownContent}
+            contentType="markdown"
+            highlights={[]}
+            references={[]}
+          />
+        </DocumentAnnotationsProvider>
+      </QueryClientProvider>
     );
     
     // CodeMirror renders content within a .cm-content container
@@ -458,15 +470,18 @@ Regular paragraph text.`;
 1. Numbered 1
 2. Numbered 2`;
     
+    const queryClient = createTestQueryClient();
     const { container } = render(
-      <DocumentAnnotationsProvider>
-        <AnnotationRenderer
-          content={markdownContent}
-          contentType="markdown"
-          highlights={[]}
-          references={[]}
-        />
-      </DocumentAnnotationsProvider>
+      <QueryClientProvider client={queryClient}>
+        <DocumentAnnotationsProvider>
+          <AnnotationRenderer
+            content={markdownContent}
+            contentType="markdown"
+            highlights={[]}
+            references={[]}
+          />
+        </DocumentAnnotationsProvider>
+      </QueryClientProvider>
     );
     
     // CodeMirror renders content within a .cm-content container

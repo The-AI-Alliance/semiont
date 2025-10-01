@@ -406,6 +406,7 @@ interface APIService {
     google: (access_token: string) => Promise<AuthResponse>;
     me: () => Promise<UserResponse>;
     logout: () => Promise<LogoutResponse>;
+    acceptTerms: () => Promise<{ success: boolean; message: string }>;
   };
 
   health: () => Promise<HealthResponse>;
@@ -491,10 +492,12 @@ interface APIService {
 
   entityTypes: {
     list: () => Promise<{ entityTypes: string[] }>;
+    create: (tag: string) => Promise<{ success: boolean; entityTypes: string[] }>;
   };
 
   referenceTypes: {
     list: () => Promise<{ referenceTypes: string[] }>;
+    create: (tag: string) => Promise<{ success: boolean; referenceTypes: string[] }>;
   };
 
   admin: {
@@ -519,12 +522,15 @@ export const apiService: APIService = {
   auth: {
     google: (access_token: string): Promise<AuthResponse> =>
       apiClient.post('/api/tokens/google', { body: { access_token } }),
-    
+
     me: (): Promise<UserResponse> =>
       apiClient.get('/api/users/me'),
-    
+
     logout: (): Promise<LogoutResponse> =>
       apiClient.post('/api/users/logout'),
+
+    acceptTerms: (): Promise<{ success: boolean; message: string }> =>
+      apiClient.post('/api/users/accept-terms'),
   },
 
   // Health endpoints
@@ -725,12 +731,18 @@ export const apiService: APIService = {
   entityTypes: {
     list: (): Promise<{ entityTypes: string[] }> =>
       apiClient.get('/api/entity-types'),
+
+    create: (tag: string): Promise<{ success: boolean; entityTypes: string[] }> =>
+      apiClient.post('/api/entity-types', { body: { tag } }),
   },
 
   // Reference types endpoint
   referenceTypes: {
     list: (): Promise<{ referenceTypes: string[] }> =>
       apiClient.get('/api/reference-types'),
+
+    create: (tag: string): Promise<{ success: boolean; referenceTypes: string[] }> =>
+      apiClient.post('/api/reference-types', { body: { tag } }),
   },
 
   // Admin endpoints
@@ -771,6 +783,9 @@ interface ReactQueryAPI {
     logout: {
       useMutation: () => any;
     };
+    acceptTerms: {
+      useMutation: () => any;
+    };
   };
 
   health: {
@@ -803,11 +818,17 @@ interface ReactQueryAPI {
     list: {
       useQuery: (options?: { enabled?: boolean }) => any;
     };
+    create: {
+      useMutation: () => any;
+    };
   };
 
   referenceTypes: {
     list: {
       useQuery: (options?: { enabled?: boolean }) => any;
+    };
+    create: {
+      useMutation: () => any;
     };
   };
 
@@ -902,6 +923,16 @@ export const api: ReactQueryAPI = {
             })
         );
       }
+    },
+    acceptTerms: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (_input: void, fetchAPI) =>
+            fetchAPI('/api/users/accept-terms', {
+              method: 'POST',
+            })
+        );
+      }
     }
   },
 
@@ -979,6 +1010,17 @@ export const api: ReactQueryAPI = {
           options
         );
       }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { tag: string }, fetchAPI) =>
+            fetchAPI('/api/entity-types', {
+              method: 'POST',
+              body: JSON.stringify({ tag: input.tag }),
+            })
+        );
+      }
     }
   },
 
@@ -989,6 +1031,17 @@ export const api: ReactQueryAPI = {
           ['/api/reference-types'],
           '/api/reference-types',
           options
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { tag: string }, fetchAPI) =>
+            fetchAPI('/api/reference-types', {
+              method: 'POST',
+              body: JSON.stringify({ tag: input.tag }),
+            })
         );
       }
     }

@@ -3,20 +3,27 @@
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { 
+import {
   LinkIcon,
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
+import { api } from '@/lib/api-client';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function ReferenceTagsPage() {
   const { data: session, status } = useSession();
-  const [referenceTypes, setReferenceTypes] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [newTag, setNewTag] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState('');
-  
+  const queryClient = useQueryClient();
+
+  // Query reference types
+  const { data: referenceTypesData, isLoading } = api.referenceTypes.list.useQuery();
+  const referenceTypes = referenceTypesData?.referenceTypes || [];
+
+  // Mutation for creating new reference type
+  const createReferenceTypeMutation = api.referenceTypes.create.useMutation();
+
   // Check authentication and moderator/admin status
   useEffect(() => {
     if (status === 'loading') return;
@@ -28,59 +35,18 @@ export default function ReferenceTagsPage() {
     }
   }, [status, session]);
 
-  // Load existing tags
-  useEffect(() => {
-    if (!session?.backendToken) return;
-
-    const loadTags = async () => {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/reference-types`, {
-          headers: {
-            'Authorization': `Bearer ${session.backendToken}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setReferenceTypes(data.referenceTypes || []);
-        }
-      } catch (error) {
-        console.error('Failed to load reference types:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadTags();
-  }, [session]);
-
   const handleAddTag = async () => {
     if (!newTag.trim()) return;
-    
-    setIsAdding(true);
+
     setError('');
-    
+
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/reference-types`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.backendToken}`
-        },
-        body: JSON.stringify({ tag: newTag.trim() })
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to add tag');
-      }
-      
-      const data = await response.json();
-      setReferenceTypes(data.referenceTypes || []);
+      await createReferenceTypeMutation.mutateAsync({ tag: newTag.trim() });
+      // Invalidate the reference types query to refetch
+      queryClient.invalidateQueries({ queryKey: ['/api/reference-types'] });
       setNewTag('');
     } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsAdding(false);
+      setError(err.message || 'Failed to add tag');
     }
   };
 
@@ -146,14 +112,14 @@ export default function ReferenceTagsPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
             placeholder="Enter new reference tag..."
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-            disabled={isAdding}
+            disabled={createReferenceTypeMutation.isPending}
           />
           <button
             onClick={handleAddTag}
-            disabled={isAdding || !newTag.trim()}
+            disabled={createReferenceTypeMutation.isPending || !newTag.trim()}
             className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {isAdding ? (
+            {createReferenceTypeMutation.isPending ? (
               'Adding...'
             ) : (
               <>

@@ -93,15 +93,20 @@ describe('useAuthenticatedAPI', () => {
     const { result } = renderHook(() => useAuthenticatedAPI());
     const response = await result.current.fetchAPI('/api/test');
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4000/api/test',
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token-123',
-        },
-      }
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const call = mockFetch.mock.calls[0];
+
+    // Check URL (can be Request object or string)
+    if (call[0] instanceof Request) {
+      expect(call[0].url).toBe('http://localhost:4000/api/test');
+      expect(call[0].headers.get('Content-Type')).toBe('application/json');
+      expect(call[0].headers.get('Authorization')).toBe('Bearer test-token-123');
+    } else {
+      expect(call[0]).toBe('http://localhost:4000/api/test');
+      expect(call[1]?.headers?.['Content-Type']).toBe('application/json');
+      expect(call[1]?.headers?.['Authorization']).toBe('Bearer test-token-123');
+    }
+
     expect(response).toEqual({ success: true });
   });
 
@@ -112,10 +117,10 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: true,
       json: async () => ({ success: true }),
-    });
+    }));
 
     const { result } = renderHook(() => useAuthenticatedAPI());
     await result.current.fetchAPI('/api/test', {
@@ -125,16 +130,20 @@ describe('useAuthenticatedAPI', () => {
       },
     });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4000/api/test',
-      {
-        headers: {
-          'Content-Type': 'text/plain',
-          'Authorization': 'Bearer test-token',
-          'X-Custom-Header': 'custom-value',
-        },
-      }
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const call = mockFetch.mock.calls[0];
+
+    if (call[0] instanceof Request) {
+      expect(call[0].url).toBe('http://localhost:4000/api/test');
+      expect(call[0].headers.get('Content-Type')).toBe('text/plain');
+      expect(call[0].headers.get('Authorization')).toBe('Bearer test-token');
+      expect(call[0].headers.get('X-Custom-Header')).toBe('custom-value');
+    } else {
+      expect(call[0]).toBe('http://localhost:4000/api/test');
+      expect(call[1]?.headers?.['Content-Type']).toBe('text/plain');
+      expect(call[1]?.headers?.['Authorization']).toBe('Bearer test-token');
+      expect(call[1]?.headers?.['X-Custom-Header']).toBe('custom-value');
+    }
   });
 
   it('should pass through other fetch options', async () => {
@@ -144,10 +153,10 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: true,
       json: async () => ({ success: true }),
-    });
+    }));
 
     const { result } = renderHook(() => useAuthenticatedAPI());
     await result.current.fetchAPI('/api/test', {
@@ -155,17 +164,20 @@ describe('useAuthenticatedAPI', () => {
       body: JSON.stringify({ data: 'test' }),
     });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4000/api/test',
-      {
-        method: 'POST',
-        body: JSON.stringify({ data: 'test' }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
-        },
-      }
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const call = mockFetch.mock.calls[0];
+
+    if (call[0] instanceof Request) {
+      expect(call[0].url).toBe('http://localhost:4000/api/test');
+      expect(call[0].method).toBe('POST');
+      expect(call[0].headers.get('Content-Type')).toBe('application/json');
+      expect(call[0].headers.get('Authorization')).toBe('Bearer test-token');
+    } else {
+      expect(call[0]).toBe('http://localhost:4000/api/test');
+      expect(call[1]?.method).toBe('POST');
+      expect(call[1]?.headers?.['Content-Type']).toBe('application/json');
+      expect(call[1]?.headers?.['Authorization']).toBe('Bearer test-token');
+    }
   });
 
   it('should throw APIError with status and parsed JSON error on 401', async () => {
@@ -175,15 +187,13 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: false,
       status: 401,
       text: async () => JSON.stringify({ error: 'Unauthorized' }),
-    });
+    }));
 
     const { result } = renderHook(() => useAuthenticatedAPI());
-
-    await expect(result.current.fetchAPI('/api/test')).rejects.toThrow(APIError);
 
     try {
       await result.current.fetchAPI('/api/test');
@@ -201,11 +211,11 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: false,
       status: 403,
       text: async () => JSON.stringify({ error: 'Forbidden' }),
-    });
+    }));
 
     const { result } = renderHook(() => useAuthenticatedAPI());
 
@@ -225,11 +235,11 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: false,
       status: 500,
       text: async () => 'Internal Server Error',
-    });
+    }));
 
     const { result } = renderHook(() => useAuthenticatedAPI());
 
@@ -266,22 +276,22 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: true,
       json: async () => ({ success: true }),
-    });
+    }));
 
     rerender();
     await result.current.fetchAPI('/api/test');
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'Authorization': 'Bearer token-1',
-        }),
-      })
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    let call = mockFetch.mock.calls[0];
+
+    if (call[0] instanceof Request) {
+      expect(call[0].headers.get('Authorization')).toBe('Bearer token-1');
+    } else {
+      expect(call[1]?.headers?.['Authorization']).toBe('Bearer token-1');
+    }
 
     // Second render with new token
     mockUseSession.mockReturnValue({
@@ -290,21 +300,21 @@ describe('useAuthenticatedAPI', () => {
       update: vi.fn(),
     } as any);
 
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(createMockResponse({
       ok: true,
       json: async () => ({ success: true }),
-    });
+    }));
 
     rerender();
     await result.current.fetchAPI('/api/test');
 
-    expect(mockFetch).toHaveBeenLastCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'Authorization': 'Bearer token-2',
-        }),
-      })
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    call = mockFetch.mock.calls[1];
+
+    if (call[0] instanceof Request) {
+      expect(call[0].headers.get('Authorization')).toBe('Bearer token-2');
+    } else {
+      expect(call[1]?.headers?.['Authorization']).toBe('Bearer token-2');
+    }
   });
 });

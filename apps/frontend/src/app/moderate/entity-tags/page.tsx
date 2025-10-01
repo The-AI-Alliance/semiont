@@ -3,20 +3,27 @@
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { 
+import {
   TagIcon,
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
+import { api } from '@/lib/api-client';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function EntityTagsPage() {
   const { data: session, status } = useSession();
-  const [entityTypes, setEntityTypes] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [newTag, setNewTag] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState('');
-  
+  const queryClient = useQueryClient();
+
+  // Query entity types
+  const { data: entityTypesData, isLoading } = api.entityTypes.list.useQuery();
+  const entityTypes = entityTypesData?.entityTypes || [];
+
+  // Mutation for creating new entity type
+  const createEntityTypeMutation = api.entityTypes.create.useMutation();
+
   // Check authentication and moderator/admin status
   useEffect(() => {
     if (status === 'loading') return;
@@ -28,59 +35,18 @@ export default function EntityTagsPage() {
     }
   }, [status, session]);
 
-  // Load existing tags
-  useEffect(() => {
-    if (!session?.backendToken) return;
-
-    const loadTags = async () => {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/entity-types`, {
-          headers: {
-            'Authorization': `Bearer ${session.backendToken}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setEntityTypes(data.entityTypes || []);
-        }
-      } catch (error) {
-        console.error('Failed to load entity types:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadTags();
-  }, [session]);
-
   const handleAddTag = async () => {
     if (!newTag.trim()) return;
-    
-    setIsAdding(true);
+
     setError('');
-    
+
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/entity-types`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.backendToken}`
-        },
-        body: JSON.stringify({ tag: newTag.trim() })
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to add tag');
-      }
-      
-      const data = await response.json();
-      setEntityTypes(data.entityTypes || []);
+      await createEntityTypeMutation.mutateAsync({ tag: newTag.trim() });
+      // Invalidate the entity types query to refetch
+      queryClient.invalidateQueries({ queryKey: ['/api/entity-types'] });
       setNewTag('');
     } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsAdding(false);
+      setError(err.message || 'Failed to add tag');
     }
   };
 
@@ -146,14 +112,14 @@ export default function EntityTagsPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
             placeholder="Enter new entity tag..."
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-            disabled={isAdding}
+            disabled={createEntityTypeMutation.isPending}
           />
           <button
             onClick={handleAddTag}
-            disabled={isAdding || !newTag.trim()}
+            disabled={createEntityTypeMutation.isPending || !newTag.trim()}
             className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {isAdding ? (
+            {createEntityTypeMutation.isPending ? (
               'Adding...'
             ) : (
               <>

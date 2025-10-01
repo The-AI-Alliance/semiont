@@ -17,6 +17,17 @@ vi.mock('@/lib/api-client', () => ({
     documents: {
       search: vi.fn(() => Promise.resolve({ documents: [] }))
     }
+  },
+  api: {
+    documents: {
+      search: {
+        useQuery: vi.fn(() => ({
+          data: { documents: [] },
+          isLoading: false,
+          error: null
+        }))
+      }
+    }
   }
 }));
 
