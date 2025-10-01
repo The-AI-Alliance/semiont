@@ -91,5 +91,20 @@ export {
   EventQuerySchema,
 } from './event-schemas';
 
+// API Contract schemas and types
+export {
+  CreateSelectionRequestSchema,
+  CreateSelectionResponseSchema,
+  GetHighlightsResponseSchema,
+  GetReferencesResponseSchema,
+} from './api-contracts';
+export type {
+  CreateSelectionRequest,
+  CreateSelectionResponse,
+  Annotation,
+  GetHighlightsResponse,
+  GetReferencesResponse,
+} from './api-contracts';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
