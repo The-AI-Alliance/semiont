@@ -68,6 +68,17 @@ export function registerCloneDocument(router: DocumentsRouterType) {
     // Save to filesystem (Layer 1)
     await storage.saveDocument(newDocId, content);
 
+    // Subscribe GraphDB consumer to new document BEFORE emitting event
+    // This ensures the consumer receives the document.cloned event
+    try {
+      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToDocument(newDocId);
+    } catch (error) {
+      console.error('[CloneDocument] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the request - consumer can catch up later
+    }
+
     // Emit document.cloned event (consumer will create in GraphDB)
     await emitDocumentCloned({
       documentId: newDocId,
@@ -79,16 +90,6 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       entityTypes: sourceDoc.entityTypes,
       metadata: { ...sourceDoc.metadata, clonedFrom: id },
     });
-
-    // Subscribe GraphDB consumer to new document
-    try {
-      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer();
-      await consumer.subscribeToDocument(newDocId);
-    } catch (error) {
-      console.error('[CloneDocument] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the request - consumer can catch up later
-    }
 
     // Propagate annotations from source document
     // Since content is identical, all text positions remain valid

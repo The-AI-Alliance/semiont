@@ -461,6 +461,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const result = await session.run(cypher, params);
 
+      if (result.records.length === 0) {
+        throw new Error(`Failed to create selection: Document ${selection.documentId} not found in graph database`);
+      }
+
       return this.parseSelectionNode(result.records[0]!.get('s'));
     } finally {
       await session.close();

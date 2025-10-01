@@ -1,12 +1,17 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import type { StoredEvent } from '@semiont/core-types';
+import type { StoredEvent, CreateSelectionRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
 import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
 
 // Local type definitions to replace api-contracts imports
 
 /**
  * Frontend convenience format for creating selections
- * This is transformed to backend API format by the api client
+ *
+ * This is a simpler, more ergonomic format for React components to use.
+ * It gets transformed to CreateSelectionRequest (from @semiont/core-types) by the API client.
+ *
+ * Transformation:
+ * - { text, position: { start, end } } → { selectionType: { type: 'text_span', offset, length, text } }
  */
 export interface CreateSelectionInput {
   documentId: string;
@@ -500,8 +505,8 @@ interface APIService {
         prompt?: string;
       }
     ) => Promise<any>;
-    getHighlights: (documentId: string) => Promise<SelectionsResponse>;
-    getReferences: (documentId: string) => Promise<SelectionsResponse>;
+    getHighlights: (documentId: string) => Promise<GetHighlightsResponse>;
+    getReferences: (documentId: string) => Promise<GetReferencesResponse>;
   };
 
   entityTypes: {
@@ -740,10 +745,10 @@ export const apiService: APIService = {
         body: data || {}
       }),
     
-    getHighlights: (documentId: string): Promise<SelectionsResponse> =>
+    getHighlights: (documentId: string): Promise<GetHighlightsResponse> =>
       apiClient.get('/api/documents/:documentId/highlights', { params: { documentId } }),
-    
-    getReferences: (documentId: string): Promise<SelectionsResponse> =>
+
+    getReferences: (documentId: string): Promise<GetReferencesResponse> =>
       apiClient.get('/api/documents/:documentId/references', { params: { documentId } }),
   },
 
@@ -1196,8 +1201,9 @@ export const api: ReactQueryAPI = {
       useMutation: () => {
         return useAuthenticatedMutation<SelectionResponse, CreateSelectionInput>(
           async (input: CreateSelectionInput, fetchAPI) => {
-            // Transform frontend format to backend format
-            const body: any = {
+            // Transform frontend convenience format to backend API contract format
+            // CreateSelectionInput → CreateSelectionRequest (from @semiont/core-types)
+            const body: CreateSelectionRequest = {
               documentId: input.documentId,
               selectionType: {
                 type: 'text_span',

@@ -46,6 +46,17 @@ export function registerCreateDocument(router: DocumentsRouterType) {
     // Save to filesystem (Layer 1)
     await storage.saveDocument(documentId, Buffer.from(body.content));
 
+    // Subscribe GraphDB consumer to new document BEFORE emitting event
+    // This ensures the consumer receives the document.created event
+    try {
+      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToDocument(documentId);
+    } catch (error) {
+      console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the request - consumer can catch up later
+    }
+
     // Emit document.created event (consumer will update GraphDB)
     await emitDocumentCreated({
       documentId,
@@ -56,16 +67,6 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       entityTypes: body.entityTypes || [],
       metadata: body.metadata || {},
     });
-
-    // Subscribe GraphDB consumer to new document
-    try {
-      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer();
-      await consumer.subscribeToDocument(documentId);
-    } catch (error) {
-      console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the request - consumer can catch up later
-    }
 
     // Return optimistic response
     return c.json({

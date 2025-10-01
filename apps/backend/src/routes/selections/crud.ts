@@ -4,32 +4,10 @@ import { createSelectionRouter, type SelectionsRouterType } from './shared';
 import { formatDocument, formatSelection } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
+import { CreateSelectionRequestSchema, CreateSelectionResponseSchema } from '@semiont/core-types';
 
 // Create router with auth middleware
 export const crudRouter: SelectionsRouterType = createSelectionRouter();
-
-// Local schemas to avoid TypeScript hanging
-const CreateSelectionRequest = z.object({
-  documentId: z.string(),
-  selectionType: z.union([
-    z.enum(['highlight', 'reference']),
-    z.object({
-      type: z.string(),
-      offset: z.number(),
-      length: z.number(),
-      text: z.string()
-    })
-  ]),
-  selectionData: z.record(z.string(), z.any()).optional(),
-  entityTypes: z.array(z.string()).optional(),
-  referenceTags: z.array(z.string()).optional(),
-  resolvedDocumentId: z.string().nullable().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-});
-
-const CreateSelectionResponse = z.object({
-  selection: z.any(),
-});
 
 // CREATE
 const createSelectionRoute = createRoute({
@@ -43,7 +21,7 @@ const createSelectionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateSelectionRequest,
+          schema: CreateSelectionRequestSchema,
         },
       },
     },
@@ -52,7 +30,7 @@ const createSelectionRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateSelectionResponse,
+          schema: CreateSelectionResponseSchema,
         },
       },
       description: 'Selection created successfully',

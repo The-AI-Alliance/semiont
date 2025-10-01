@@ -4,11 +4,7 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { formatSelection } from '../../selections/helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-
-// Local schema
-const GetHighlightsResponse = z.object({
-  highlights: z.array(z.any()),
-});
+import { GetHighlightsResponseSchema } from '@semiont/core-types';
 
 // GET /api/documents/{id}/highlights
 export const getDocumentHighlightsRoute = createRoute({
@@ -27,7 +23,7 @@ export const getDocumentHighlightsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetHighlightsResponse,
+          schema: GetHighlightsResponseSchema,
         },
       },
       description: 'Document highlights',
@@ -41,9 +37,22 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
 
     try {
       // Try Layer 3 first (fast path - O(1) file read)
-      const highlights = await AnnotationQueryService.getHighlights(id);
+      const projectionHighlights = await AnnotationQueryService.getHighlights(id);
 
-      // Layer 3 projections have simplified format - return directly
+      // Transform projection format to component format
+      const highlights = projectionHighlights.map(hl => ({
+        id: hl.id,
+        documentId: id,
+        text: hl.text,
+        selectionData: {
+          type: 'text_span',
+          offset: hl.position.offset,
+          length: hl.position.length,
+          text: hl.text
+        },
+        type: 'highlight' as const,
+      }));
+
       return c.json({
         highlights
       });

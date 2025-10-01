@@ -174,9 +174,15 @@ export function DocumentViewer({
         }
       } else {
         // Create new reference
-        await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
+        console.log('[DocumentViewer] Created reference:', newId);
       }
-      
+
+      // Refetch annotations to update UI
+      console.log('[DocumentViewer] Calling onRefetchAnnotations');
+      onRefetchAnnotations?.();
+      console.log('[DocumentViewer] onRefetchAnnotations called');
+
       // Close popup
       setShowSelectionPopup(false);
       setSelectedText('');
@@ -185,18 +191,22 @@ export function DocumentViewer({
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights]);
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
   
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     try {
       await deleteAnnotation(id);
+
+      // Refetch annotations to update UI
+      onRefetchAnnotations?.();
+
       setShowSelectionPopup(false);
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to delete annotation:', err);
     }
-  }, [deleteAnnotation]);
+  }, [deleteAnnotation, onRefetchAnnotations]);
   
   // Close popup - memoized
   const handleClosePopup = useCallback(() => {

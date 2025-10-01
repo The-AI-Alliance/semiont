@@ -114,8 +114,16 @@ function DocumentView({
   // Now that document exists, we can safely fetch dependent data
   const { data: highlightsData, refetch: refetchHighlights } = api.selections.getHighlights.useQuery(documentId);
   const { data: referencesData, refetch: refetchReferences } = api.selections.getReferences.useQuery(documentId);
-  const highlights = highlightsData?.selections || [];
-  const references = referencesData?.selections || [];
+  const highlights = highlightsData?.highlights || [];
+  const references = referencesData?.references || [];
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[DocumentPage] References data updated:', {
+      count: references.length,
+      references: references.map((r: { id: string; text: string }) => ({ id: r.id, text: r.text }))
+    });
+  }, [references]);
 
   const { data: referencedByData, isLoading: referencedByLoading } = api.documents.getReferencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
@@ -434,8 +442,10 @@ function DocumentView({
                 highlights={highlights}
                 references={references}
                 onRefetchAnnotations={() => {
+                  console.log('[DocumentPage] Refetching highlights and references');
                   refetchHighlights();
                   refetchReferences();
+                  console.log('[DocumentPage] Refetch triggered');
                 }}
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={curationMode}

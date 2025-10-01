@@ -4,11 +4,7 @@ import { getGraphDatabase } from '../../../graph/factory';
 import { formatSelection } from '../../selections/helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-
-// Local schema
-const GetReferencesResponse = z.object({
-  references: z.array(z.any()),
-});
+import { GetReferencesResponseSchema } from '@semiont/core-types';
 
 // GET /api/documents/{id}/references
 export const getDocumentReferencesRoute = createRoute({
@@ -27,7 +23,7 @@ export const getDocumentReferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetReferencesResponse,
+          schema: GetReferencesResponseSchema,
         },
       },
       description: 'Document references',
@@ -41,9 +37,27 @@ export function registerDocumentReferences(router: DocumentsRouterType) {
 
     try {
       // Try Layer 3 first (fast path - O(1) file read)
-      const references = await AnnotationQueryService.getReferences(id);
+      const projectionRefs = await AnnotationQueryService.getReferences(id);
 
-      // Layer 3 projections have simplified format - return directly
+      // Transform projection format to component format
+      const references = projectionRefs.map(ref => ({
+        id: ref.id,
+        documentId: id,
+        text: ref.text,
+        selectionData: {
+          type: 'text_span',
+          offset: ref.position.offset,
+          length: ref.position.length,
+          text: ref.text
+        },
+        type: 'reference' as const,
+        referencedDocumentId: ref.targetDocumentId,
+        entityTypes: ref.entityTypes,
+        referenceType: ref.referenceType,
+      }));
+
+      console.log(`[References] Returning ${references.length} references for ${id} from Layer 3`);
+
       return c.json({
         references
       });

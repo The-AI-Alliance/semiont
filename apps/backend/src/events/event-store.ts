@@ -270,15 +270,19 @@ export class EventStore {
    * Falls back to full rebuild if projection doesn't exist
    */
   private async updateProjectionIncremental(documentId: string, event: DocumentEvent): Promise<void> {
+    console.log(`[EventStore] Updating projection for ${documentId} with event ${event.type}`);
+
     // Try to load existing projection
     let projection = await this.projectionStorage.getProjection(documentId);
 
     if (!projection) {
       // No projection exists - do full rebuild from all events
+      console.log(`[EventStore] No projection found, rebuilding from scratch`);
       const events = await this.getDocumentEvents(documentId);
       projection = this.buildProjectionFromEvents(events, documentId);
     } else {
       // Apply single event incrementally to existing projection
+      console.log(`[EventStore] Applying event incrementally to existing projection (version ${projection.version})`);
       this.applyEventToProjection(projection, event);
       projection.version++;
       projection.updatedAt = event.timestamp;
@@ -286,6 +290,7 @@ export class EventStore {
 
     // Save updated projection
     await this.projectionStorage.saveProjection(documentId, projection);
+    console.log(`[EventStore] Projection saved (version ${projection.version}, ${projection.highlights.length} highlights, ${projection.references.length} references)`);
   }
 
   /**
