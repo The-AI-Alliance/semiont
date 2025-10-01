@@ -88,6 +88,60 @@ export class AnnotationQueryService {
     return await projectionStorage.projectionExists(documentId);
   }
 
+  /**
+   * Get a single selection (highlight or reference) by ID
+   * NOTE: This requires scanning projections since selections are stored within document projections
+   * TODO: Add selection ID → document ID index for O(1) lookup
+   */
+  static async getSelection(selectionId: string): Promise<{
+    id: string;
+    documentId: string;
+    text: string;
+    position: { offset: number; length: number };
+    type: 'highlight' | 'reference';
+    targetDocumentId?: string;
+    entityTypes?: string[];
+    referenceType?: string;
+  } | null> {
+    // For now, fall back to graph for selection lookups
+    // This is a known limitation - we'd need to scan all projections or maintain an index
+    const graphDb = await getGraphDatabase();
+    const selection = await graphDb.getSelection(selectionId);
+    if (!selection) return null;
+
+    return {
+      id: selection.id,
+      documentId: selection.documentId,
+      text: selection.selectionData.text,
+      position: {
+        offset: selection.selectionData.offset,
+        length: selection.selectionData.length,
+      },
+      type: selection.resolvedDocumentId ? 'reference' : 'highlight',
+      targetDocumentId: selection.resolvedDocumentId,
+      entityTypes: selection.entityTypes,
+      referenceType: selection.referenceTags?.[0],
+    };
+  }
+
+  /**
+   * List selections with optional filtering
+   * @param filters - Optional filters like documentId
+   */
+  static async listSelections(filters?: { documentId?: string }): Promise<any[]> {
+    if (filters?.documentId) {
+      // If filtering by document ID, use Layer 3 directly
+      const highlights = await this.getHighlights(filters.documentId);
+      const references = await this.getReferences(filters.documentId);
+      return [...highlights, ...references];
+    }
+
+    // For now, fall back to graph for cross-document listing
+    // TODO: Implement by scanning all projections
+    const graphDb = await getGraphDatabase();
+    return await graphDb.listSelections(filters || {});
+  }
+
   // ========================================
   // Graph Queries (Layer 4 only)
   // ========================================

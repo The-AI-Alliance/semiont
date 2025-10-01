@@ -5,6 +5,7 @@ import { formatDocument, formatSelection } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import { CreateSelectionRequestSchema, CreateSelectionResponseSchema } from '@semiont/core-types';
+import { generateAnnotationId } from '../../utils/id-generator';
 
 // Create router with auth middleware
 export const crudRouter: SelectionsRouterType = createSelectionRouter();
@@ -40,7 +41,6 @@ const createSelectionRoute = createRoute({
 crudRouter.openapi(createSelectionRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
-  const graphDb = await getGraphDatabase();
 
   // Process selection data from frontend format
   let selectionData: any = {};
@@ -58,8 +58,8 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     selectionData = body.selectionData || {};
   }
 
-  // Generate ID upfront (deterministic)
-  const selectionId = graphDb.generateId();
+  // Generate ID - backend-internal, not graph-dependent
+  const selectionId = generateAnnotationId();
   const isReference = body.resolvedDocumentId !== undefined;
 
   // Emit event first (single source of truth)

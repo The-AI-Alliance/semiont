@@ -302,6 +302,7 @@ export class EventStore {
       id: documentId,
       name: '',
       contentType: 'text/markdown',
+      metadata: {},
       entityTypes: [],
       highlights: [],
       references: [],
@@ -309,6 +310,8 @@ export class EventStore {
       createdAt: '',
       updatedAt: '',
       version: 0,
+      creationMethod: 'UNKNOWN',
+      createdBy: '',
     };
 
     // Apply events in sequenceNumber order
@@ -332,7 +335,10 @@ export class EventStore {
         projection.name = event.payload.name;
         projection.contentType = event.payload.contentType;
         projection.entityTypes = event.payload.entityTypes || [];
+        projection.metadata = event.payload.metadata || {};
         projection.createdAt = event.timestamp;
+        projection.creationMethod = 'API';
+        projection.createdBy = event.userId;
         // Note: content is NOT in events - must be loaded from filesystem separately
         break;
 
@@ -340,7 +346,11 @@ export class EventStore {
         projection.name = event.payload.name;
         projection.contentType = event.payload.contentType;
         projection.entityTypes = event.payload.entityTypes || [];
+        projection.metadata = event.payload.metadata || {};
         projection.createdAt = event.timestamp;
+        projection.creationMethod = 'CLONE';
+        projection.sourceDocumentId = event.payload.parentDocumentId;
+        projection.createdBy = event.userId;
         // Note: content is NOT in events - must be loaded from filesystem separately
         break;
 

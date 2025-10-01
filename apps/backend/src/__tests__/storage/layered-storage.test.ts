@@ -75,6 +75,7 @@ describe('Layered Storage', () => {
         id: docId,
         name: 'Test Doc',
         contentType: 'text/plain',
+        metadata: {},
         entityTypes: ['note'],
         highlights: [],
         references: [],
@@ -82,6 +83,8 @@ describe('Layered Storage', () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: 1,
+        creationMethod: 'API',
+        createdBy: 'did:web:test.com:users:test',
       };
 
       await projectionStorage.saveProjection(docId, projection);
@@ -97,6 +100,7 @@ describe('Layered Storage', () => {
         id: docId,
         name: 'Projection Test',
         contentType: 'text/markdown',
+        metadata: {},
         entityTypes: ['article', 'research'],
         highlights: [
           { id: 'hl1', text: 'important', position: { offset: 0, length: 9 } },
@@ -106,6 +110,8 @@ describe('Layered Storage', () => {
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:00:00Z',
         version: 2,
+        creationMethod: 'API',
+        createdBy: 'did:web:test.com:users:test',
       };
 
       await projectionStorage.saveProjection(docId, projection);
@@ -125,6 +131,7 @@ describe('Layered Storage', () => {
         id: docId,
         name: 'To Delete',
         contentType: 'text/plain',
+        metadata: {},
         entityTypes: [],
         highlights: [],
         references: [],
@@ -132,6 +139,8 @@ describe('Layered Storage', () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: 1,
+        creationMethod: 'API',
+        createdBy: 'did:web:test.com:users:test',
       };
 
       await projectionStorage.saveProjection(docId, projection);

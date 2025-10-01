@@ -193,6 +193,7 @@ export interface DocumentProjection {
   id: string;
   name: string;
   contentType: string;
+  metadata: Record<string, any>;
   entityTypes: string[];
   highlights: Array<{
     id: string;
@@ -211,4 +212,8 @@ export interface DocumentProjection {
   createdAt: string;
   updatedAt: string;
   version: number;  // Number of events applied
+  creationMethod: string;  // 'API', 'CLONE', 'FROM_SELECTION', etc.
+  sourceSelectionId?: string;
+  sourceDocumentId?: string;
+  createdBy: string;  // userId (DID format)
 }

@@ -2,7 +2,19 @@
 import type { Document, Selection } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
 
-export function formatDocument(doc: Document & { content?: string }): any {
+export function formatDocument(doc: (Document | {
+  id: string;
+  name: string;
+  contentType: string;
+  metadata: Record<string, any>;
+  archived: boolean;
+  entityTypes: string[];
+  creationMethod: string;
+  sourceSelectionId?: string;
+  sourceDocumentId?: string;
+  createdBy: string;
+  createdAt: Date | string;
+}) & { content?: string }): any {
   const formatted: any = {
     id: doc.id,
     name: doc.name,

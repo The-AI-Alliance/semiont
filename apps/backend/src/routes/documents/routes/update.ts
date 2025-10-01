@@ -1,11 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument, formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '../schemas';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
+import { DocumentQueryService } from '../../../services/document-queries';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
 
 export const updateDocumentRoute = createRoute({
   method: 'patch',
@@ -43,15 +44,15 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const user = c.get('user');
-    const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const doc = await graphDb.getDocument(id);
+    // Check document exists using Layer 3
+    const doc = await DocumentQueryService.getDocumentMetadata(id);
     if (!doc) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    // Emit archived/unarchived events (consumer will update GraphDB)
+    // Emit archived/unarchived events (consumer will update Layer 3 projection)
     if (body.archived !== undefined && body.archived !== doc.archived) {
       if (body.archived) {
         await emitDocumentArchived({
@@ -66,7 +67,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
     }
 
-    // Emit entity tag change events (consumer will update GraphDB)
+    // Emit entity tag change events (consumer will update Layer 3 projection)
     if (body.entityTypes && doc.entityTypes) {
       const added = body.entityTypes.filter(et => !doc.entityTypes.includes(et));
       const removed = doc.entityTypes.filter(et => !body.entityTypes!.includes(et));
@@ -79,10 +80,36 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
     }
 
+    // Read content from Layer 1, annotations from Layer 3
     const content = await storage.getDocument(id);
-    const highlights = await graphDb.getHighlights(id);
-    const references = await graphDb.getReferences(id);
-    const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
+    const highlights = await AnnotationQueryService.getHighlights(id);
+    const references = await AnnotationQueryService.getReferences(id);
+
+    // Transform Layer 3 projection format to Selection format for response
+    const highlightSelections = highlights.map(h => ({
+      id: h.id,
+      documentId: id,
+      selectionData: { offset: h.position.offset, length: h.position.length, text: h.text },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: user.id,
+      entityTypes: [],
+      metadata: {},
+      referenceTags: [],
+    }));
+
+    const referenceSelections = references.map(r => ({
+      id: r.id,
+      documentId: id,
+      selectionData: { offset: r.position.offset, length: r.position.length, text: r.text },
+      resolvedDocumentId: r.targetDocumentId,
+      entityTypes: r.entityTypes || [],
+      referenceTags: r.referenceType ? [r.referenceType] : [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: user.id,
+      metadata: {},
+    }));
 
     // Return optimistic response
     return c.json({
@@ -95,10 +122,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         }),
         content: content.toString('utf-8')
       },
-      selections: [...highlights, ...references].map(formatSelection),
-      highlights: highlights.map(formatSelection),
-      references: references.map(formatSelection),
-      entityReferences: entityReferences.map(formatSelection),
+      selections: [...highlightSelections, ...referenceSelections].map(formatSelection),
+      highlights: highlightSelections.map(formatSelection),
+      references: referenceSelections.map(formatSelection),
+      entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatSelection),
     });
   });
 }

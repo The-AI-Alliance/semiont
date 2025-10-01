@@ -1,6 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import type { DocumentsRouterType } from '../shared';
 
@@ -31,16 +30,16 @@ export const getDocumentContentRoute = createRoute({
 export function registerGetDocumentContent(router: DocumentsRouterType) {
   router.openapi(getDocumentContentRoute, async (c) => {
     const { id } = c.req.valid('param');
-    const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const doc = await graphDb.getDocument(id);
-    if (!doc) {
+    // Read directly from Layer 1 (filesystem) - no graph needed
+    const content = await storage.getDocument(id);
+    if (!content) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    const content = await storage.getDocument(id);
-    c.header('Content-Type', doc.contentType || 'text/plain');
+    // Content type is text/plain by default (can be enhanced with metadata from Layer 3 projection later)
+    c.header('Content-Type', 'text/plain');
     return c.text(content.toString('utf-8'));
   });
 }

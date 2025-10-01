@@ -1,7 +1,4 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
-import { formatSelection } from '../../selections/helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { GetReferencesResponseSchema } from '@semiont/core-types';

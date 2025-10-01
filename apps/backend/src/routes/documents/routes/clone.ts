@@ -1,12 +1,14 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import { formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { emitDocumentCloned, emitHighlightAdded, emitReferenceCreated } from '../../../events/emit';
+import { generateAnnotationId } from '../../../utils/id-generator';
+import { DocumentQueryService } from '../../../services/document-queries';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
 
 // Local schema to avoid TypeScript hanging
 const CloneDocumentResponse = z.object({
@@ -52,14 +54,15 @@ export function registerCloneDocument(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const user = c.get('user');
-    const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const sourceDoc = await graphDb.getDocument(id);
+    // Read source document metadata from Layer 3
+    const sourceDoc = await DocumentQueryService.getDocumentMetadata(id);
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source document not found' });
     }
 
+    // Read content from Layer 1
     const content = await storage.getDocument(id);
     const contentStr = content.toString('utf-8');
     const checksum = calculateChecksum(contentStr);
@@ -79,7 +82,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       // Don't fail the request - consumer can catch up later
     }
 
-    // Emit document.cloned event (consumer will create in GraphDB)
+    // Emit document.cloned event (consumer will update Layer 3 projection)
     await emitDocumentCloned({
       documentId: newDocId,
       userId: user.id,
@@ -91,61 +94,63 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       metadata: { ...sourceDoc.metadata, clonedFrom: id },
     });
 
-    // Propagate annotations from source document
+    // Propagate annotations from source document using Layer 3
     // Since content is identical, all text positions remain valid
-    const sourceHighlights = await graphDb.getHighlights(id);
-    const sourceReferences = await graphDb.getReferences(id);
+    const sourceHighlights = await AnnotationQueryService.getHighlights(id);
+    const sourceReferences = await AnnotationQueryService.getReferences(id);
 
     const clonedSelections: any[] = [];
 
-    // Copy highlights to new document (emit events - consumer will create in GraphDB)
+    // Copy highlights to new document (emit events - consumer will update Layer 3)
     for (const highlight of sourceHighlights) {
-      const highlightId = graphDb.generateId();
+      const highlightId = generateAnnotationId();
       await emitHighlightAdded({
         documentId: newDocId,
         userId: user.id,
         highlightId,
-        text: highlight.selectionData.text,
-        position: {
-          offset: highlight.selectionData.offset,
-          length: highlight.selectionData.length,
-        },
+        text: highlight.text,
+        position: highlight.position,
       });
       clonedSelections.push({
         id: highlightId,
         documentId: newDocId,
         selectionType: 'highlight',
-        selectionData: highlight.selectionData,
-        entityTypes: highlight.entityTypes,
+        selectionData: {
+          text: highlight.text,
+          offset: highlight.position.offset,
+          length: highlight.position.length,
+        },
+        entityTypes: [],
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       });
     }
 
-    // Copy references to new document (emit events - consumer will create in GraphDB)
+    // Copy references to new document (emit events - consumer will update Layer 3)
     for (const reference of sourceReferences) {
-      const referenceId = graphDb.generateId();
+      const referenceId = generateAnnotationId();
       await emitReferenceCreated({
         documentId: newDocId,
         userId: user.id,
         referenceId,
-        text: reference.selectionData.text,
-        position: {
-          offset: reference.selectionData.offset,
-          length: reference.selectionData.length,
-        },
-        entityTypes: reference.entityTypes,
-        referenceType: reference.referenceTags?.[0],
-        targetDocumentId: reference.resolvedDocumentId || undefined,
+        text: reference.text,
+        position: reference.position,
+        entityTypes: reference.entityTypes || [],
+        referenceType: reference.referenceType,
+        targetDocumentId: reference.targetDocumentId,
       });
       clonedSelections.push({
         id: referenceId,
         documentId: newDocId,
         selectionType: 'reference',
-        selectionData: reference.selectionData,
-        resolvedDocumentId: reference.resolvedDocumentId,
-        entityTypes: reference.entityTypes,
-        referenceTags: reference.referenceTags,
+        selectionData: {
+          text: reference.text,
+          offset: reference.position.offset,
+          length: reference.position.length,
+        },
+        resolvedDocumentId: reference.targetDocumentId,
+        entityTypes: reference.entityTypes || [],
+        referenceTags: reference.referenceType ? [reference.referenceType] : [],
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       });
