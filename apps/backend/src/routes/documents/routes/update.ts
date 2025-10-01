@@ -52,7 +52,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    // Emit archived/unarchived events (consumer will update Layer 3 projection)
+    // Emit archived/unarchived events (event store updates Layer 3, graph consumer updates Layer 4)
     if (body.archived !== undefined && body.archived !== doc.archived) {
       if (body.archived) {
         await emitDocumentArchived({
@@ -67,7 +67,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
     }
 
-    // Emit entity tag change events (consumer will update Layer 3 projection)
+    // Emit entity tag change events (event store updates Layer 3, graph consumer updates Layer 4)
     if (body.entityTypes && doc.entityTypes) {
       const added = body.entityTypes.filter(et => !doc.entityTypes.includes(et));
       const removed = doc.entityTypes.filter(et => !body.entityTypes!.includes(et));

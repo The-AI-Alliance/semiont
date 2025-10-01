@@ -82,7 +82,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       // Don't fail the request - consumer can catch up later
     }
 
-    // Emit document.cloned event (consumer will update Layer 3 projection)
+    // Emit document.cloned event (event store updates Layer 3, graph consumer updates Layer 4)
     await emitDocumentCloned({
       documentId: newDocId,
       userId: user.id,
@@ -101,7 +101,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
 
     const clonedSelections: any[] = [];
 
-    // Copy highlights to new document (emit events - consumer will update Layer 3)
+    // Copy highlights to new document (emit events - event store updates Layer 3, graph consumer updates Layer 4)
     for (const highlight of sourceHighlights) {
       const highlightId = generateAnnotationId();
       await emitHighlightAdded({
@@ -126,7 +126,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       });
     }
 
-    // Copy references to new document (emit events - consumer will update Layer 3)
+    // Copy references to new document (emit events - event store updates Layer 3, graph consumer updates Layer 4)
     for (const reference of sourceReferences) {
       const referenceId = generateAnnotationId();
       await emitReferenceCreated({

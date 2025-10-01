@@ -1,10 +1,11 @@
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { detectSelectionsInDocument } from '../helpers';
-import type { CreateSelectionInput } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
+import { DocumentQueryService } from '../../../services/document-queries';
+import { emitReferenceCreated } from '../../../events/emit';
+import { generateAnnotationId } from '../../../utils/id-generator';
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'creating' | 'complete' | 'error';
@@ -35,11 +36,10 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
       throw new HTTPException(401, { message: 'Authentication required' });
     }
 
-    // Validate document exists
-    const graphDb = await getGraphDatabase();
+    // Validate document exists using Layer 3
     const storage = getStorageService();
 
-    const document = await graphDb.getDocument(id);
+    const document = await DocumentQueryService.getDocumentMetadata(id);
     if (!document) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
@@ -101,19 +101,23 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
 
           totalFound += detectedSelections.length;
 
-          // Save the provisional selections
+          // Create provisional references via events (event store updates Layer 3, graph consumer updates Layer 4)
           for (const detected of detectedSelections) {
-            const selectionInput: CreateSelectionInput & { selectionType: string } = {
-              documentId: id,
-              selectionType: 'reference',
-              selectionData: detected.selection.selectionData,
-              resolvedDocumentId: null,
-              entityTypes: detected.selection.entityTypes,
-              metadata: detected.selection.metadata,
-              createdBy: user.id,
-            };
+            const referenceId = generateAnnotationId();
 
-            await graphDb.createSelection(selectionInput);
+            await emitReferenceCreated({
+              documentId: id,
+              userId: user.id,
+              referenceId,
+              text: detected.selection.selectionData.text,
+              position: {
+                offset: detected.selection.selectionData.offset,
+                length: detected.selection.selectionData.length,
+              },
+              entityTypes: detected.selection.entityTypes,
+              referenceType: undefined, // Unresolved reference
+              targetDocumentId: undefined, // Will be resolved later
+            });
             totalCreated++;
 
             // Send creation progress

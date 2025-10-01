@@ -118,7 +118,7 @@ export class AnnotationQueryService {
         length: selection.selectionData.length,
       },
       type: selection.resolvedDocumentId ? 'reference' : 'highlight',
-      targetDocumentId: selection.resolvedDocumentId,
+      targetDocumentId: selection.resolvedDocumentId || undefined,
       entityTypes: selection.entityTypes,
       referenceType: selection.referenceTags?.[0],
     };
@@ -128,7 +128,7 @@ export class AnnotationQueryService {
    * List selections with optional filtering
    * @param filters - Optional filters like documentId
    */
-  static async listSelections(filters?: { documentId?: string }): Promise<any[]> {
+  static async listSelections(filters?: { documentId?: string }): Promise<any> {
     if (filters?.documentId) {
       // If filtering by document ID, use Layer 3 directly
       const highlights = await this.getHighlights(filters.documentId);
@@ -139,7 +139,8 @@ export class AnnotationQueryService {
     // For now, fall back to graph for cross-document listing
     // TODO: Implement by scanning all projections
     const graphDb = await getGraphDatabase();
-    return await graphDb.listSelections(filters || {});
+    const result = await graphDb.listSelections(filters || {});
+    return result.selections || [];
   }
 
   // ========================================
