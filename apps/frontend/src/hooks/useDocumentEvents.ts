@@ -213,6 +213,13 @@ export function useDocumentEvents({
           console.error('[DocumentEvents] Stream error:', err);
           setStatus('error');
 
+          // Don't retry on 404 - document doesn't exist
+          if (err instanceof Error && err.message.includes('404')) {
+            console.error(`[DocumentEvents] Document ${documentId} not found (404). Stopping reconnection attempts.`);
+            onError?.('Document not found');
+            throw err;
+          }
+
           // Exponential backoff for reconnection
           reconnectAttemptsRef.current++;
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
@@ -232,9 +239,12 @@ export function useDocumentEvents({
       });
     } catch (error) {
       if (!abortController.signal.aborted) {
-        console.error('[DocumentEvents] Failed to connect:', error);
-        setStatus('error');
-        onError?.('Failed to connect to event stream');
+        // Don't log 404s - already handled in onerror
+        if (!(error instanceof Error && error.message.includes('404'))) {
+          console.error('[DocumentEvents] Failed to connect:', error);
+          setStatus('error');
+          onError?.('Failed to connect to event stream');
+        }
       }
     }
   }, [documentId, handleEvent, onError, session]);

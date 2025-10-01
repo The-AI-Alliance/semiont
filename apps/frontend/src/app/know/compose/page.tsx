@@ -119,7 +119,7 @@ function ComposeDocumentContent() {
             console.error('Failed to generate content:', error);
             showError('Failed to generate content. Returning to source document.');
             // Navigate back to the source document
-            router.push(`/know/document/${sourceDocumentId}`);
+            router.push(`/know/document/${encodeURIComponent(sourceDocumentId)}`);
             return;
           }
         }
@@ -214,11 +214,8 @@ function ComposeDocumentContent() {
         }
       }
       
-      // Add the new document to open tabs using the context
-      addDocument(documentId, documentName);
-      
-      // Navigate to the new document
-      router.push(`/know/document/${documentId}`);
+      // Navigate to the new document (will add to tabs on page load)
+      router.push(`/know/document/${encodeURIComponent(documentId)}`);
     } catch (error) {
       console.error('Failed to save document:', error);
       showError('Failed to save document. Please try again.');

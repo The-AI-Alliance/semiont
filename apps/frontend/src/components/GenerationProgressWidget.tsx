@@ -112,7 +112,7 @@ export function GenerationProgressWidget({ progress, onCancel, onDismiss }: Gene
       {progress.status === 'complete' && progress.documentId && (
         <div className="mt-3">
           <Link
-            href={`/know/document/${progress.documentId}`}
+            href={`/know/document/${encodeURIComponent(progress.documentId)}`}
             className={`${buttonStyles.primary.base} w-full text-center`}
           >
             View Draft Document

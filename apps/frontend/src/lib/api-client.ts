@@ -3,6 +3,20 @@ import type { StoredEvent } from '@semiont/core-types';
 import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
 
 // Local type definitions to replace api-contracts imports
+
+/**
+ * Frontend convenience format for creating selections
+ * This is transformed to backend API format by the api client
+ */
+export interface CreateSelectionInput {
+  documentId: string;
+  text: string;
+  position: { start: number; end: number };
+  type?: 'provisional' | 'highlight' | 'reference';
+  entityTypes?: string[];
+  referenceTags?: string[];
+  resolvedDocumentId?: string | null;
+}
 interface StatusResponse {
   status: string;
   version: string;
@@ -615,16 +629,22 @@ export const apiService: APIService = {
 
   // Selection endpoints
   selections: {
-    create: (data: { 
-      documentId: string; 
-      text: string; 
-      position: { start: number; end: number };
-      type?: 'provisional' | 'highlight' | 'reference';
-      entityTypes?: string[];
-      referenceTags?: string[];
-      resolvedDocumentId?: string | null;
-    }): Promise<SelectionResponse> => {
-      const body: any = {
+    create: (data: CreateSelectionInput): Promise<SelectionResponse> => {
+      // Transform frontend convenience format to backend API format
+      interface CreateSelectionRequestBody {
+        documentId: string;
+        selectionType: {
+          type: 'text_span';
+          offset: number;
+          length: number;
+          text: string;
+        };
+        entityTypes?: string[];
+        referenceTags?: string[];
+        resolvedDocumentId?: string | null;
+      }
+
+      const body: CreateSelectionRequestBody = {
         documentId: data.documentId,
         selectionType: {
           type: 'text_span',
@@ -632,16 +652,16 @@ export const apiService: APIService = {
           length: data.position.end - data.position.start,
           text: data.text
         },
-        entityTypes: data.entityTypes,
-        referenceTags: data.referenceTags
+        ...(data.entityTypes && { entityTypes: data.entityTypes }),
+        ...(data.referenceTags && { referenceTags: data.referenceTags })
       };
-      
+
       // Only include resolvedDocumentId if it's explicitly provided
       // This preserves the distinction between undefined (not sent) and null (sent as null)
       if ('resolvedDocumentId' in data) {
         body.resolvedDocumentId = data.resolvedDocumentId;
       }
-      
+
       return apiClient.post('/api/selections', { body });
     },
     
@@ -1157,47 +1177,73 @@ export const api: ReactQueryAPI = {
     getHighlights: {
       useQuery: (documentId: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/selections/highlights', documentId],
-          `/api/selections/highlights/${documentId}`,
-          options
+          ['/api/documents/:id/highlights', documentId],
+          `/api/documents/${documentId}/highlights`,
+          { ...options, retry: false }
         );
       }
     },
     getReferences: {
       useQuery: (documentId: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/selections/references', documentId],
-          `/api/selections/references/${documentId}`,
-          options
+          ['/api/documents/:id/references', documentId],
+          `/api/documents/${documentId}/references`,
+          { ...options, retry: false }
         );
       }
     },
     create: {
       useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: any, fetchAPI) =>
-            fetchAPI('/api/selections', {
+        return useAuthenticatedMutation<SelectionResponse, CreateSelectionInput>(
+          async (input: CreateSelectionInput, fetchAPI) => {
+            // Transform frontend format to backend format
+            const body: any = {
+              documentId: input.documentId,
+              selectionType: {
+                type: 'text_span',
+                offset: input.position.start,
+                length: input.position.end - input.position.start,
+                text: input.text
+              },
+              ...(input.entityTypes && { entityTypes: input.entityTypes }),
+              ...(input.referenceTags && { referenceTags: input.referenceTags })
+            };
+
+            if ('resolvedDocumentId' in input) {
+              body.resolvedDocumentId = input.resolvedDocumentId;
+            }
+
+            return fetchAPI('/api/selections', {
               method: 'POST',
-              body: JSON.stringify(input),
-            })
+              body: JSON.stringify(body),
+            });
+          }
         );
       }
     },
     saveAsHighlight: {
       useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: any, fetchAPI) =>
-            fetchAPI('/api/selections/highlight', {
+        return useAuthenticatedMutation<SelectionResponse, { documentId: string; text: string; position: { start: number; end: number } }>(
+          (input, fetchAPI) =>
+            fetchAPI('/api/selections', {
               method: 'POST',
-              body: JSON.stringify(input),
+              body: JSON.stringify({
+                documentId: input.documentId,
+                selectionType: {
+                  type: 'text_span',
+                  offset: input.position.start,
+                  length: input.position.end - input.position.start,
+                  text: input.text
+                }
+              }),
             })
         );
       }
     },
     delete: {
       useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { id: string }, fetchAPI) =>
+        return useAuthenticatedMutation<void, { id: string }>(
+          (input, fetchAPI) =>
             fetchAPI(`/api/selections/${input.id}`, {
               method: 'DELETE',
             })
@@ -1206,22 +1252,29 @@ export const api: ReactQueryAPI = {
     },
     generateDocument: {
       useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: any, fetchAPI) =>
+        return useAuthenticatedMutation<any, { selectionId: string; entityTypes?: string[]; prompt?: string }>(
+          (input, fetchAPI) =>
             fetchAPI('/api/selections/generate-document', {
               method: 'POST',
-              body: JSON.stringify(input),
+              body: JSON.stringify({
+                selectionId: input.selectionId,
+                entityTypes: input.entityTypes,
+                prompt: input.prompt
+              }),
             })
         );
       }
     },
     resolveToDocument: {
       useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: any, fetchAPI) =>
-            fetchAPI('/api/selections/resolve-to-document', {
-              method: 'POST',
-              body: JSON.stringify(input),
+        return useAuthenticatedMutation<SelectionResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
+          (input, fetchAPI) =>
+            fetchAPI(`/api/selections/${input.selectionId}/resolve`, {
+              method: 'PUT',
+              body: JSON.stringify({
+                documentId: input.targetDocumentId,
+                referenceType: input.referenceType
+              }),
             })
         );
       }

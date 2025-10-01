@@ -158,9 +158,8 @@ export default function DiscoverPage() {
   }, []);
 
   const openDocument = useCallback((doc: Document) => {
-    addDocument(doc.id, doc.name);
-    router.push(`/know/document/${doc.id}`);
-  }, [addDocument, router]);
+    router.push(`/know/document/${encodeURIComponent(doc.id)}`);
+  }, [router]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();

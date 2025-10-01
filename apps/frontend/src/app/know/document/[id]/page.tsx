@@ -21,30 +21,107 @@ import { GenerationProgressWidget } from '@/components/GenerationProgressWidget'
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 
+// Loading state component
+function DocumentLoadingState() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <p className="text-gray-600 dark:text-gray-300">Loading document...</p>
+    </div>
+  );
+}
+
+// Error state component
+function DocumentErrorState({
+  error,
+  onRetry
+}: {
+  error: unknown;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 space-y-4">
+      <p className="text-red-600 dark:text-red-400">
+        {error instanceof Error ? error.message : 'Failed to load document'}
+      </p>
+      <button
+        onClick={onRetry}
+        className={buttonStyles.secondary.base}
+      >
+        Try Again
+      </button>
+    </div>
+  );
+}
+
+// Main page component with proper early returns
 export default function KnowledgeDocumentPage() {
   const params = useParams();
-  const router = useRouter();
   const documentId = params?.id as string;
+
+  // Load document data - this is the ONLY hook before early returns
+  const {
+    data: docData,
+    isLoading,
+    isError,
+    error,
+    refetch: refetchDocument
+  } = api.documents.get.useQuery(documentId);
+
+  // Log error for debugging
+  useEffect(() => {
+    if (isError && !isLoading) {
+      console.error(`[Document] Failed to load document ${documentId}:`, error);
+    }
+  }, [isError, isLoading, documentId, error]);
+
+  // Early return: Loading state
+  if (isLoading) {
+    return <DocumentLoadingState />;
+  }
+
+  // Early return: Error state
+  if (isError) {
+    return <DocumentErrorState error={error} onRetry={() => refetchDocument()} />;
+  }
+
+  // Early return: Document not found
+  if (!docData?.document) {
+    return <DocumentErrorState error={new Error('Document not found')} onRetry={() => refetchDocument()} />;
+  }
+
+  // From here on, TypeScript knows document exists
+  const document = docData.document;
+
+  return <DocumentView document={document} documentId={documentId} refetchDocument={refetchDocument} />;
+}
+
+// Main document view - document is guaranteed to exist here
+function DocumentView({
+  document,
+  documentId,
+  refetchDocument
+}: {
+  document: SemiontDocument;
+  documentId: string;
+  refetchDocument: () => Promise<unknown>;
+}) {
+  const router = useRouter();
   const { addDocument } = useOpenDocuments();
   const { triggerSparkleAnimation, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
 
-  // Use React Query for annotations data
+  // Now that document exists, we can safely fetch dependent data
   const { data: highlightsData, refetch: refetchHighlights } = api.selections.getHighlights.useQuery(documentId);
   const { data: referencesData, refetch: refetchReferences } = api.selections.getReferences.useQuery(documentId);
   const highlights = highlightsData?.selections || [];
   const references = referencesData?.selections || [];
 
-  // Use React Query for document data
-  const { data: docData, isLoading: loading, isError, refetch: refetchDocument } = api.documents.get.useQuery(documentId);
-  const document = docData?.document || null;
-  const error = isError ? 'Failed to load document. Please try again.' : null;
-  const documentEntityTypes = document?.entityTypes || [];
-
-  // Use React Query for referenced-by data
   const { data: referencedByData, isLoading: referencedByLoading } = api.documents.getReferencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
+
+  // Derived state
+  const documentEntityTypes = document.entityTypes || [];
 
   // Set up mutations
   const updateDocMutation = api.documents.update.useMutation();
@@ -80,7 +157,7 @@ export default function KnowledgeDocumentPage() {
 
       if (response.documents?.length > 0 && response.documents[0]) {
         // Document found - navigate to it
-        router.push(`/know/document/${response.documents[0].id}`);
+        router.push(`/know/document/${encodeURIComponent(response.documents[0].id)}`);
       } else {
         // Document not found - offer to create it
         if (confirm(`Document "${pageName}" not found. Would you like to create it?`)) {
@@ -89,7 +166,7 @@ export default function KnowledgeDocumentPage() {
             content: `# ${pageName}\n\nThis page was created from a wiki link.`,
             contentType: 'text/markdown'
           });
-          router.push(`/know/document/${newDoc.document.id}`);
+          router.push(`/know/document/${encodeURIComponent(newDoc.document.id)}`);
         }
       }
     } catch (err) {
@@ -222,9 +299,10 @@ export default function KnowledgeDocumentPage() {
     startGeneration(referenceId, options);
   }, [startGeneration]);
 
-  // Real-time document events for collaboration
+  // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount } = useDocumentEvents({
     documentId,
+    autoConnect: true,  // Document exists, safe to connect
 
     // Highlight events
     onHighlightAdded: useCallback((event) => {
@@ -292,30 +370,7 @@ export default function KnowledgeDocumentPage() {
     }, []),
   });
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">Loading document...</p>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error || !document) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <p className="text-red-600 dark:text-red-400">{error || 'Failed to load document'}</p>
-        <button
-          onClick={loadDocument}
-          className={buttonStyles.secondary.base}
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
-
+  // Document is guaranteed to exist here, render the view
   return (
     <div className="space-y-2 pt-6">
       {/* Document Header */}
@@ -349,12 +404,7 @@ export default function KnowledgeDocumentPage() {
         />
       </div>
 
-      {/* Error Message Banner */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-        </div>
-      )}
+      {/* Error Message Banner - removed, errors handled by early returns */}
 
       {/* Main Content */}
       <div className="flex gap-6">
@@ -438,7 +488,7 @@ export default function KnowledgeDocumentPage() {
                 {referencedBy.map((ref: any) => (
                   <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
                     <Link
-                      href={`/know/document/${ref.documentId}`}
+                      href={`/know/document/${encodeURIComponent(ref.documentId)}`}
                       className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
                     >
                       {ref.documentName || 'Untitled Document'}
@@ -576,7 +626,7 @@ export default function KnowledgeDocumentPage() {
                 <div>
                   <span className="text-gray-500 dark:text-gray-400 block text-xs">Cloned From</span>
                   <Link
-                    href={`/know/document/${document.sourceDocumentId}`}
+                    href={`/know/document/${encodeURIComponent(document.sourceDocumentId)}`}
                     className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
                   >
                     View original

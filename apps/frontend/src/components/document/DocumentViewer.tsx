@@ -77,7 +77,7 @@ export function DocumentViewer({
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
     // If it's a reference with a target document, navigate to it
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
-      router.push(`/know/document/${annotation.referencedDocumentId}`);
+      router.push(`/know/document/${encodeURIComponent(annotation.referencedDocumentId)}`);
       return;
     }
 
