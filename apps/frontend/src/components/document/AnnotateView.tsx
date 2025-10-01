@@ -14,6 +14,7 @@ interface Props {
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
   editable?: boolean;
 }
 
@@ -88,6 +89,7 @@ export function AnnotateView({
   onTextSelect,
   onAnnotationClick,
   onAnnotationRightClick,
+  onAnnotationHover,
   editable = false
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
@@ -279,6 +281,16 @@ export function AnnotateView({
                   e.stopPropagation();
                   if (onAnnotationRightClick) {
                     onAnnotationRightClick(segment.annotation!, e.clientX, e.clientY);
+                  }
+                }}
+                onMouseEnter={() => {
+                  if (onAnnotationHover) {
+                    onAnnotationHover(segment.annotation!.id);
+                  }
+                }}
+                onMouseLeave={() => {
+                  if (onAnnotationHover) {
+                    onAnnotationHover(null);
                   }
                 }}
                 onFocus={() => setFocusedAnnotationIndex(annotationIndex)}

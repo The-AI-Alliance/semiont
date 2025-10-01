@@ -17,6 +17,7 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
 }
 
 export function DocumentViewer({
@@ -26,7 +27,8 @@ export function DocumentViewer({
   onRefetchAnnotations,
   onWikiLinkClick,
   curationMode = false,
-  onGenerateDocument
+  onGenerateDocument,
+  onAnnotationHover
 }: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -355,6 +357,7 @@ export function DocumentViewer({
             highlights={highlights}
             references={references}
             onAnnotationClick={handleAnnotationClick}
+            {...(onAnnotationHover && { onAnnotationHover })}
           />
         ) : (
           <AnnotateView
@@ -364,6 +367,7 @@ export function DocumentViewer({
             onTextSelect={handleTextSelection}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
+            {...(onAnnotationHover && { onAnnotationHover })}
           />
         )
       ) : (

@@ -143,6 +143,14 @@ function DocumentView({
     return false;
   });
   const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
+  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
+
+  // Handle event hover - trigger sparkle animation
+  const handleEventHover = useCallback((annotationId: string | null) => {
+    if (annotationId) {
+      triggerSparkleAnimation(annotationId);
+    }
+  }, [triggerSparkleAnimation]);
 
   // Helper to reload document after mutations
   const loadDocument = useCallback(async () => {
@@ -161,7 +169,7 @@ function DocumentView({
   const handleWikiLinkClick = useCallback(async (pageName: string) => {
     try {
       // Search for the document using authenticated API
-      const response = await fetchAPI(`/api/documents/search?query=${encodeURIComponent(pageName)}&limit=1`) as any;
+      const response = await fetchAPI(`/api/documents/search?q=${encodeURIComponent(pageName)}&limit=1`) as any;
 
       if (response.documents?.length > 0 && response.documents[0]) {
         // Document found - navigate to it
@@ -450,6 +458,7 @@ function DocumentView({
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={curationMode}
                 onGenerateDocument={handleGenerateDocument}
+                onAnnotationHover={setHoveredAnnotationId}
               />
             </ErrorBoundary>
           </div>
@@ -605,7 +614,11 @@ function DocumentView({
 
           {/* Annotation History */}
           <div className="mt-3">
-            <AnnotationHistory documentId={documentId} />
+            <AnnotationHistory
+              documentId={documentId}
+              hoveredAnnotationId={hoveredAnnotationId}
+              onEventHover={handleEventHover}
+            />
           </div>
 
           {/* Creation */}

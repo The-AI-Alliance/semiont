@@ -6,12 +6,14 @@ import type { StoredEvent } from '@semiont/core-types';
 
 interface Props {
   documentId: string;
+  hoveredAnnotationId?: string | null;
+  onEventHover?: (annotationId: string | null) => void;
 }
 
 // Format event type for display
 function formatEventType(type: string): string {
   const typeMap: Record<string, string> = {
-    'document.created': 'Created',
+    'document.created': 'Created Document',
     'document.cloned': 'Cloned',
     'document.archived': 'Archived',
     'document.unarchived': 'Unarchived',
@@ -53,7 +55,50 @@ function formatRelativeTime(timestamp: string): string {
   return date.toLocaleDateString();
 }
 
-export function AnnotationHistory({ documentId }: Props) {
+// Extract text snippet from event payload
+function getEventTextSnippet(event: StoredEvent): string | null {
+  const payload = event.event.payload as any;
+
+  // For highlight and reference events, show the text
+  if ('text' in payload && typeof payload.text === 'string') {
+    const maxLength = 50;
+    const text = payload.text.trim();
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  }
+
+  // For entity tag events, show the tag
+  if ('entityType' in payload && typeof payload.entityType === 'string') {
+    return payload.entityType;
+  }
+
+  return null;
+}
+
+// Extract annotation ID from event payload
+function getAnnotationIdFromEvent(event: StoredEvent): string | null {
+  const payload = event.event.payload as any;
+
+  // Check for highlightId or referenceId in payload
+  if ('highlightId' in payload && typeof payload.highlightId === 'string') {
+    return payload.highlightId;
+  }
+  if ('referenceId' in payload && typeof payload.referenceId === 'string') {
+    return payload.referenceId;
+  }
+
+  return null;
+}
+
+// Check if event relates to the hovered annotation
+function isEventRelatedToAnnotation(event: StoredEvent, annotationId: string): boolean {
+  const eventAnnotationId = getAnnotationIdFromEvent(event);
+  return eventAnnotationId === annotationId;
+}
+
+export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover }: Props) {
   // Load events using React Query
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
 
@@ -90,22 +135,46 @@ export function AnnotationHistory({ documentId }: Props) {
         Annotation History
       </h3>
       <div className="space-y-2 max-h-64 overflow-y-auto">
-        {events.map((stored) => (
-          <div
-            key={stored.event.id}
-            className="text-sm border-l-2 border-gray-200 dark:border-gray-700 pl-3 py-1"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-base">{getEventEmoji(stored.event.type)}</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                {formatEventType(stored.event.type)}
-              </span>
+        {events.map((stored) => {
+          const textSnippet = getEventTextSnippet(stored);
+          const annotationId = getAnnotationIdFromEvent(stored);
+          const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId) : false;
+          const borderClass = isRelated
+            ? 'border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-l-2 border-gray-200 dark:border-gray-700';
+
+          return (
+            <div
+              key={stored.event.id}
+              className={`text-sm ${borderClass} pl-3 py-1 transition-all duration-200 ${annotationId ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''}`}
+              onMouseEnter={() => {
+                if (annotationId && onEventHover) {
+                  onEventHover(annotationId);
+                }
+              }}
+              onMouseLeave={() => {
+                if (annotationId && onEventHover) {
+                  onEventHover(null);
+                }
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">{getEventEmoji(stored.event.type)}</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatEventType(stored.event.type)}
+                </span>
+              </div>
+              {textSnippet && (
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                  &ldquo;{textSnippet}&rdquo;
+                </div>
+              )}
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {formatRelativeTime(stored.event.timestamp)}
+              </div>
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {formatRelativeTime(stored.event.timestamp)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
