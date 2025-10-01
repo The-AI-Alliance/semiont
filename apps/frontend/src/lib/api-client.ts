@@ -357,44 +357,6 @@ export class TypedAPIClient {
     return this.call(route, 'DELETE', options);
   }
 
-  /**
-   * @deprecated DO NOT USE - This method is deprecated and will be removed.
-   * Use useAuthenticatedAPI hook instead for authenticated requests.
-   * This method manipulates global mutable state and causes race conditions.
-   *
-   * Migration guide:
-   * - In React components: Use useAuthenticatedAPI() hook
-   * - In React Query hooks: Use useAuthenticatedQuery() or useAuthenticatedMutation()
-   *
-   * @see apps/frontend/src/hooks/useAuthenticatedAPI.ts
-   * @see apps/frontend/src/lib/query-helpers.ts
-   */
-  setAuthToken(token: string) {
-    this.defaultHeaders['Authorization'] = `Bearer ${token}`;
-  }
-
-  /**
-   * @deprecated DO NOT USE - This method is deprecated and will be removed.
-   * Use useAuthenticatedAPI hook instead for authenticated requests.
-   * This method manipulates global mutable state and causes race conditions.
-   *
-   * @see apps/frontend/src/hooks/useAuthenticatedAPI.ts
-   */
-  clearAuthToken() {
-    delete this.defaultHeaders['Authorization'];
-  }
-
-  /**
-   * @deprecated DO NOT USE - This method is deprecated and will be removed.
-   * Use useAuthenticatedAPI hook instead for authenticated requests.
-   * This method reads from global mutable state.
-   *
-   * @see apps/frontend/src/hooks/useAuthenticatedAPI.ts
-   */
-  getAuthToken(): string | undefined {
-    return this.defaultHeaders['Authorization'];
-  }
-
   // Set authorization header directly (with Bearer prefix already included)
   setAuthHeader(header: string) {
     this.defaultHeaders['Authorization'] = header;

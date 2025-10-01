@@ -334,34 +334,6 @@ describe('TypedAPIClient', () => {
     });
   });
 
-  describe('authentication', () => {
-    it('should set authorization header', () => {
-      client.setAuthToken('test-token');
-      expect(client['defaultHeaders']['Authorization']).toBe('Bearer test-token');
-    });
-
-    it('should clear authorization header', () => {
-      client.setAuthToken('test-token');
-      client.clearAuthToken();
-      expect(client['defaultHeaders']['Authorization']).toBeUndefined();
-    });
-
-    it('should include auth header in requests', async () => {
-      mockFetch.mockResolvedValue(createMockResponse({ success: true }));
-
-      client.setAuthToken('test-token');
-      await client.get('/api/test');
-
-      expect(mockFetch).toHaveBeenCalledWith(`${getBackendUrl()}/api/test`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
-        }
-      });
-    });
-  });
-
   describe('parameter replacement edge cases', () => {
     it('should handle multiple parameters', async () => {
       mockFetch.mockResolvedValue(createMockResponse({ success: true }));
@@ -429,22 +401,6 @@ describe('apiClient proxy', () => {
         method: 'GET'
       })
     );
-  });
-  
-  it('should maintain authorization across proxy calls', () => {
-    // Reset to ensure clean state
-    LazyTypedAPIClient.reset();
-    
-    // Set auth token through proxy
-    apiClient.setAuthToken('test-token');
-    
-    // Get the instance and verify token was set
-    const instance = LazyTypedAPIClient.getInstance();
-    expect(instance['defaultHeaders']['Authorization']).toBe('Bearer test-token');
-    
-    // Clear auth token through proxy
-    apiClient.clearAuthToken();
-    expect(instance['defaultHeaders']['Authorization']).toBeUndefined();
   });
 });
 
