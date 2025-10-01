@@ -27,7 +27,7 @@ export function SearchDocumentsModal({ isOpen, onClose, onSelect, searchTerm = '
   const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
     debouncedSearch,
     10,
-    { enabled: debouncedSearch.trim() !== '' }
+    { enabled: isOpen && debouncedSearch.trim() !== '' }
   );
 
   // Extract results from search data

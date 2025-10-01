@@ -29,10 +29,10 @@ export const documentsRouter: DocumentsRouterType = createDocumentRouter();
 
 // Register all routes
 registerCreateDocument(documentsRouter);
-registerGetDocument(documentsRouter);
 registerListDocuments(documentsRouter);
+registerSearchDocuments(documentsRouter);  // Must be before registerGetDocument to avoid {id} matching "search"
+registerGetDocument(documentsRouter);
 registerUpdateDocument(documentsRouter);
-registerSearchDocuments(documentsRouter);
 registerGetDocumentContent(documentsRouter);
 registerCloneDocument(documentsRouter);
 registerCreateDocumentFromSelection(documentsRouter);
