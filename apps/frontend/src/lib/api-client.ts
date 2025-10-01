@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import type { StoredEvent } from '@semiont/core-types';
+import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
 
 // Local type definitions to replace api-contracts imports
 interface StatusResponse {
@@ -832,35 +833,41 @@ export const api: ReactQueryAPI = {
   auth: {
     google: {
       useMutation: () => {
-        return useMutation({
-          mutationFn: (input: { access_token: string }) => 
-            apiService.auth.google(input.access_token),
-        });
+        return useAuthenticatedMutation(
+          (input: { access_token: string }, fetchAPI) =>
+            fetchAPI('/api/tokens/google', {
+              method: 'POST',
+              body: JSON.stringify({ access_token: input.access_token }),
+            })
+        );
       }
     },
     me: {
       useQuery: () => {
-        return useQuery({
-          queryKey: ['auth.me'],
-          queryFn: () => apiService.auth.me(),
-        });
+        return useAuthenticatedQuery(
+          ['/api/auth/me'],
+          '/api/auth/me'
+        );
       }
     },
     logout: {
       useMutation: () => {
-        return useMutation({
-          mutationFn: () => apiService.auth.logout(),
-        });
+        return useAuthenticatedMutation(
+          (_input: void, fetchAPI) =>
+            fetchAPI('/api/auth/logout', {
+              method: 'POST',
+            })
+        );
       }
     }
   },
 
   health: {
     useQuery: () => {
-      return useQuery({
-        queryKey: ['health'],
-        queryFn: () => apiService.health(),
-      });
+      return useAuthenticatedQuery(
+        ['/api/health'],
+        '/api/health'
+      );
     }
   },
 
@@ -868,48 +875,53 @@ export const api: ReactQueryAPI = {
     users: {
       list: {
         useQuery: (options?: { enabled?: boolean }) => {
-          return useQuery({
-            queryKey: ['admin.users.list'],
-            queryFn: () => apiService.admin.users.list(),
-            ...options,
-          });
+          return useAuthenticatedQuery(
+            ['/api/admin/users'],
+            '/api/admin/users',
+            options
+          );
         }
       },
       stats: {
         useQuery: (options?: { enabled?: boolean }) => {
-          return useQuery({
-            queryKey: ['admin.users.stats'],
-            queryFn: () => apiService.admin.users.stats(),
-            ...options,
-          });
+          return useAuthenticatedQuery(
+            ['/api/admin/users/stats'],
+            '/api/admin/users/stats',
+            options
+          );
         }
       },
       update: {
         useMutation: () => {
-          return useMutation({
-            mutationFn: (input: { id: string; data: { isAdmin?: boolean; isActive?: boolean; name?: string } }) =>
-              apiService.admin.users.update(input.id, input.data),
-          });
+          return useAuthenticatedMutation(
+            (input: { id: string; data: { isAdmin?: boolean; isActive?: boolean; name?: string } }, fetchAPI) =>
+              fetchAPI(`/api/admin/users/${input.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(input.data),
+              })
+          );
         }
       },
       delete: {
         useMutation: () => {
-          return useMutation({
-            mutationFn: (input: { id: string }) =>
-              apiService.admin.users.delete(input.id),
-          });
+          return useAuthenticatedMutation(
+            (input: { id: string }, fetchAPI) =>
+              fetchAPI(`/api/admin/users/${input.id}`, {
+                method: 'DELETE',
+              })
+          );
         }
       }
     },
-    
+
     oauth: {
       config: {
         useQuery: (options?: { enabled?: boolean }) => {
-          return useQuery({
-            queryKey: ['admin.oauth.config'],
-            queryFn: () => apiService.admin.oauth.config(),
-            ...options,
-          });
+          return useAuthenticatedQuery(
+            ['/api/admin/oauth/config'],
+            '/api/admin/oauth/config',
+            options
+          );
         }
       }
     }
@@ -918,10 +930,11 @@ export const api: ReactQueryAPI = {
   entityTypes: {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
-        return useQuery({
-          queryKey: ['/api/entity-types'],
-          ...options,
-        });
+        return useAuthenticatedQuery(
+          ['/api/entity-types'],
+          '/api/entity-types',
+          options
+        );
       }
     }
   },
@@ -929,10 +942,11 @@ export const api: ReactQueryAPI = {
   referenceTypes: {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
-        return useQuery({
-          queryKey: ['/api/reference-types'],
-          ...options,
-        });
+        return useAuthenticatedQuery(
+          ['/api/reference-types'],
+          '/api/reference-types',
+          options
+        );
       }
     }
   }

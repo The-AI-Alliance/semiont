@@ -9,7 +9,8 @@ vi.mock('@/hooks/useAuthenticatedAPI', () => ({
   useAuthenticatedAPI: vi.fn(),
 }));
 
-const mockUseAuthenticatedAPI = vi.mocked(await import('@/hooks/useAuthenticatedAPI')).useAuthenticatedAPI;
+import { useAuthenticatedAPI as mockUseAuthenticatedAPIImport } from '@/hooks/useAuthenticatedAPI';
+const mockUseAuthenticatedAPI = vi.mocked(mockUseAuthenticatedAPIImport);
 
 describe('query-helpers', () => {
   let queryClient: QueryClient;
