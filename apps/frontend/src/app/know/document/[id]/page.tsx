@@ -161,6 +161,7 @@ function DocumentView({
   });
   const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
+  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -168,6 +169,11 @@ function DocumentView({
       triggerSparkleAnimation(annotationId);
     }
   }, [triggerSparkleAnimation]);
+
+  // Handle event click - scroll to annotation
+  const handleEventClick = useCallback((annotationId: string | null) => {
+    setScrollToAnnotationId(annotationId);
+  }, []);
 
   // Helper to reload document after mutations
   const loadDocument = useCallback(async () => {
@@ -413,13 +419,28 @@ function DocumentView({
 
   // Document is guaranteed to exist here, render the view
   return (
-    <div className="space-y-2 pt-6">
-      {/* Document Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="px-6 py-2 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {document.name}
-          </h2>
+    <div className="h-screen flex flex-col">
+      {/* Document Header - Fixed height */}
+      <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-2 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {document.name}
+            </h2>
+            {/* Document Tags - inline with title */}
+            {documentEntityTypes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {documentEntityTypes.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           {/* Real-time connection indicator */}
           {isConnected && (
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -435,23 +456,13 @@ function DocumentView({
             </div>
           )}
         </div>
-        {/* Document Tags - inline display */}
-        <DocumentTagsInline
-          documentId={documentId}
-          tags={documentEntityTypes}
-          isEditing={false}
-          onUpdate={updateDocumentTags}
-          disabled={!!document.archived}
-        />
       </div>
 
-      {/* Error Message Banner - removed, errors handled by early returns */}
-
-      {/* Main Content */}
-      <div className="flex gap-6">
+      {/* Main Content - Fills remaining height */}
+      <div className="flex-1 flex gap-6 p-6 min-h-0">
         {/* Document Content - Left Side */}
-        <div className="flex-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm px-6 py-4">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm px-6 py-4 overflow-y-auto">
             <ErrorBoundary
               fallback={(error, reset) => (
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
@@ -484,75 +495,15 @@ function DocumentView({
                 curationMode={curationMode}
                 onGenerateDocument={handleGenerateDocument}
                 onAnnotationHover={setHoveredAnnotationId}
+                hoveredAnnotationId={hoveredAnnotationId}
+                scrollToAnnotationId={scrollToAnnotationId}
               />
             </ErrorBoundary>
-          </div>
-
-          {/* Statistics */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {highlights.length}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Total References</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.length}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Stub References</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Resolved References</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Referenced by */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Referenced by
-              {referencedByLoading && (
-                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(loading...)</span>
-              )}
-            </h3>
-            {referencedBy.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {referencedBy.map((ref: any) => (
-                  <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
-                    <Link
-                      href={`/know/document/${encodeURIComponent(ref.documentId)}`}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
-                    >
-                      {ref.documentName || 'Untitled Document'}
-                    </Link>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                      "{ref.selectionData?.text || 'No text'}"
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {referencedByLoading ? 'Loading...' : 'No incoming references'}
-              </p>
-            )}
           </div>
         </div>
 
         {/* Sidebar */}
-        <div className="w-64 space-y-3">
+        <div className="w-64 flex-none flex flex-col space-y-3 overflow-y-auto">
           {/* Detection Progress Widget - Show at top of sidebar when active */}
           {detectionProgress && (
             <DetectionProgressWidget
@@ -643,7 +594,70 @@ function DocumentView({
               documentId={documentId}
               hoveredAnnotationId={hoveredAnnotationId}
               onEventHover={handleEventHover}
+              onEventClick={handleEventClick}
             />
+          </div>
+
+          {/* Statistics */}
+          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {highlights.length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">References</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {references.length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Stubs</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 block">Resolved</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                  {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Referenced by */}
+          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              Referenced by
+              {referencedByLoading && (
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(loading...)</span>
+              )}
+            </h3>
+            {referencedBy.length > 0 ? (
+              <div className="space-y-2">
+                {referencedBy.map((ref: any) => (
+                  <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
+                    <Link
+                      href={`/know/document/${encodeURIComponent(ref.documentId)}`}
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
+                    >
+                      {ref.documentName || 'Untitled Document'}
+                    </Link>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
+                      "{ref.selectionData?.text || 'No text'}"
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {referencedByLoading ? 'Loading...' : 'No incoming references'}
+              </p>
+            )}
           </div>
         </div>
       </div>

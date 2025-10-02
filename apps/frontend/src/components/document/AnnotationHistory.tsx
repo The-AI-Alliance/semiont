@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { api } from '@/lib/api-client';
 import type { StoredEvent } from '@semiont/core-types';
 
@@ -8,6 +8,7 @@ interface Props {
   documentId: string;
   hoveredAnnotationId?: string | null;
   onEventHover?: (annotationId: string | null) => void;
+  onEventClick?: (annotationId: string | null) => void;
 }
 
 // Format event type for display
@@ -96,13 +97,6 @@ function getDocumentCreationDetails(event: StoredEvent): { method?: string; sour
   const payload = event.event.payload as any;
   const metadata = payload.metadata || {};
 
-  console.log('[AnnotationHistory] Document creation event payload:', {
-    eventType: event.event.type,
-    payload,
-    metadata,
-    creationMethod: metadata.creationMethod,
-  });
-
   return {
     method: metadata.creationMethod,
     sourceDocId: event.event.type === 'document.cloned' ? payload.parentDocumentId : undefined,
@@ -131,10 +125,13 @@ function isEventRelatedToAnnotation(event: StoredEvent, annotationId: string): b
   return eventAnnotationId === annotationId;
 }
 
-export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover }: Props) {
+export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
+
+  // Refs to track event elements for scrolling
+  const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Sort events by most recent first
   const events = useMemo(() => {
@@ -143,6 +140,19 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       b.metadata.sequenceNumber - a.metadata.sequenceNumber
     );
   }, [eventsData]);
+
+  // Scroll to hovered annotation's event when hoveredAnnotationId changes
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+
+    const eventElement = eventRefs.current.get(hoveredAnnotationId);
+    if (eventElement) {
+      eventElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [hoveredAnnotationId]);
 
   if (loading) {
     return (
@@ -168,7 +178,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
         History
       </h3>
-      <div className="space-y-2 max-h-[1200px] overflow-y-auto">
+      <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
           const textSnippet = getEventTextSnippet(stored);
           const annotationId = getAnnotationIdFromEvent(stored);
@@ -181,7 +191,19 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
           return (
             <div
               key={stored.event.id}
-              className={`text-sm ${borderClass} pl-3 py-1 transition-all duration-200 ${annotationId ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''}`}
+              ref={(el) => {
+                if (el && annotationId) {
+                  eventRefs.current.set(annotationId, el);
+                } else if (!el && annotationId) {
+                  eventRefs.current.delete(annotationId);
+                }
+              }}
+              className={`text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 ${annotationId ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''}`}
+              onClick={() => {
+                if (annotationId && onEventClick) {
+                  onEventClick(annotationId);
+                }
+              }}
               onMouseEnter={() => {
                 if (annotationId && onEventHover) {
                   onEventHover(annotationId);
@@ -193,48 +215,43 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
                 }
               }}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-base">{getEventEmoji(stored.event.type)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">{getEventEmoji(stored.event.type)}</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
                   {formatEventType(stored.event.type)}
                 </span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
+                  {formatRelativeTime(stored.event.timestamp)}
+                </span>
               </div>
               {textSnippet && (
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                <div className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5 italic line-clamp-1">
                   &ldquo;{textSnippet}&rdquo;
                 </div>
               )}
               {creationDetails && (
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
+                <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
                   {creationDetails.userId && (
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-500">User:</span>{' '}
-                      <span className="font-mono text-[10px]">{creationDetails.userId}</span>
-                    </div>
+                    <span className="mr-2">
+                      User: <span className="font-mono">{creationDetails.userId.substring(0, 8)}</span>
+                    </span>
                   )}
                   {creationDetails.method && (
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-500">Method:</span>{' '}
-                      <span className="capitalize">{creationDetails.method}</span>
-                    </div>
+                    <span className="mr-2">
+                      Method: <span className="capitalize">{creationDetails.method}</span>
+                    </span>
                   )}
                   {creationDetails.sourceDocId && (
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-500">Cloned from:</span>{' '}
-                      <a
-                        href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId)}`}
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View original
-                      </a>
-                    </div>
+                    <a
+                      href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId)}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      View original
+                    </a>
                   )}
                 </div>
               )}
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {formatRelativeTime(stored.event.timestamp)}
-              </div>
             </div>
           );
         })}

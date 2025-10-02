@@ -15,6 +15,8 @@ interface Props {
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
+  hoveredAnnotationId?: string | null;
+  scrollToAnnotationId?: string | null;
   editable?: boolean;
 }
 
@@ -90,10 +92,14 @@ export function AnnotateView({
   onAnnotationClick,
   onAnnotationRightClick,
   onAnnotationHover,
+  hoveredAnnotationId,
+  scrollToAnnotationId,
   editable = false
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const annotationRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
+  const lastHoveredFromSelfRef = useRef<string | null>(null);
   const [focusedAnnotationIndex, setFocusedAnnotationIndex] = useState<number>(-1);
   const [selectionState, setSelectionState] = useState<{
     text: string;
@@ -101,11 +107,43 @@ export function AnnotateView({
     end: number;
     rects: DOMRect[];
   } | null>(null);
-  
+
   // Combine annotations
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
   const annotatedSegments = segments.filter(s => s.annotation);
+
+  // Scroll to hovered annotation when hoveredAnnotationId changes FROM EXTERNAL SOURCE (History)
+  // Don't scroll if we're the ones who triggered the hover
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+
+    // If this hover came from our own mouseEnter, don't scroll
+    if (lastHoveredFromSelfRef.current === hoveredAnnotationId) {
+      return;
+    }
+
+    const annotationElement = annotationRefs.current.get(hoveredAnnotationId);
+    if (annotationElement) {
+      annotationElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [hoveredAnnotationId]);
+
+  // Scroll to annotation when clicked in History
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+
+    const annotationElement = annotationRefs.current.get(scrollToAnnotationId);
+    if (annotationElement) {
+      annotationElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [scrollToAnnotationId]);
 
   // Navigate through annotations with Tab key
   const navigateToAnnotation = useCallback((direction: 'next' | 'prev') => {
@@ -255,6 +293,13 @@ export function AnnotateView({
             return (
               <span
                 key={segment.annotation.id}
+                ref={(el) => {
+                  if (el && segment.annotation) {
+                    annotationRefs.current.set(segment.annotation.id, el);
+                  } else if (!el && segment.annotation) {
+                    annotationRefs.current.delete(segment.annotation.id);
+                  }
+                }}
                 className={`${className} ${isFocused ? 'ring-2 ring-cyan-500 ring-offset-2' : ''}`}
                 data-annotation-id={segment.annotation.id}
                 title={hoverText}
@@ -284,12 +329,15 @@ export function AnnotateView({
                   }
                 }}
                 onMouseEnter={() => {
-                  if (onAnnotationHover) {
-                    onAnnotationHover(segment.annotation!.id);
+                  if (onAnnotationHover && segment.annotation) {
+                    // Track that this hover originated from within the document
+                    lastHoveredFromSelfRef.current = segment.annotation.id;
+                    onAnnotationHover(segment.annotation.id);
                   }
                 }}
                 onMouseLeave={() => {
                   if (onAnnotationHover) {
+                    lastHoveredFromSelfRef.current = null;
                     onAnnotationHover(null);
                   }
                 }}

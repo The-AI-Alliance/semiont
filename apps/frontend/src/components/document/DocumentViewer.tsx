@@ -18,6 +18,8 @@ interface Props {
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
+  hoveredAnnotationId?: string | null;
+  scrollToAnnotationId?: string | null;
 }
 
 export function DocumentViewer({
@@ -28,7 +30,9 @@ export function DocumentViewer({
   onWikiLinkClick,
   curationMode = false,
   onGenerateDocument,
-  onAnnotationHover
+  onAnnotationHover,
+  hoveredAnnotationId,
+  scrollToAnnotationId
 }: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -361,6 +365,7 @@ export function DocumentViewer({
             references={references}
             onAnnotationClick={handleAnnotationClick}
             {...(onAnnotationHover && { onAnnotationHover })}
+            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
           />
         ) : (
           <AnnotateView
@@ -371,6 +376,8 @@ export function DocumentViewer({
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
             {...(onAnnotationHover && { onAnnotationHover })}
+            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
           />
         )
       ) : (
