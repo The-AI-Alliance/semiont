@@ -78,6 +78,7 @@ export function useDetectionProgress({
 
           // Track completed entity types
           if (data.foundCount !== undefined && data.currentEntityType) {
+            console.log('[Detection] Adding to log:', data.currentEntityType, data.foundCount);
             completedEntityTypesRef.current.push({
               entityType: data.currentEntityType,
               foundCount: data.foundCount
@@ -90,6 +91,7 @@ export function useDetectionProgress({
             completedEntityTypes: [...completedEntityTypesRef.current]
           };
 
+          console.log('[Detection] Progress with history:', progressWithHistory);
           setProgress(progressWithHistory);
           onProgress?.(progressWithHistory);
 

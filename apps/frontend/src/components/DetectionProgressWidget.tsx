@@ -11,6 +11,12 @@ interface DetectionProgressWidgetProps {
 export function DetectionProgressWidget({ progress, onCancel }: DetectionProgressWidgetProps) {
   if (!progress) return null;
 
+  console.log('[DetectionProgressWidget] Rendering with:', {
+    completedEntityTypes: progress.completedEntityTypes,
+    currentEntityType: progress.currentEntityType,
+    status: progress.status
+  });
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-blue-500 dark:border-blue-600">
       {/* Header with pulsing sparkle */}
@@ -69,7 +75,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
       {/* Info text */}
       {progress.status !== 'error' && progress.status !== 'complete' && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic">
-          New references appear in Annotation History as they're detected
+          New references appear in document's History as they're detected
         </p>
       )}
     </div>
