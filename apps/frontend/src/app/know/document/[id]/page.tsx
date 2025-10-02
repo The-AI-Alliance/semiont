@@ -475,10 +475,10 @@ function DocumentView({
                 highlights={highlights}
                 references={references}
                 onRefetchAnnotations={() => {
-                  console.log('[DocumentPage] Refetching highlights and references');
+                  console.log('[DocumentPage] Refetching highlights and references, invalidating events');
                   refetchHighlights();
                   refetchReferences();
-                  console.log('[DocumentPage] Refetch triggered');
+                  queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
                 }}
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={curationMode}
