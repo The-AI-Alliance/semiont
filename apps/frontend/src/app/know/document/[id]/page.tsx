@@ -566,7 +566,7 @@ function DocumentView({
                       className={`${buttonStyles.secondary.base} w-full`}
                       title="Automatically detect entity references"
                     >
-                      ✨ Detect Entity References
+                      ✨ Detect References
                     </button>
 
                     <button
@@ -601,30 +601,37 @@ function DocumentView({
           {/* Statistics */}
           <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="space-y-3 text-sm">
+              {/* Highlights */}
               <div>
                 <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
                   {highlights.length}
                 </span>
               </div>
+
+              {/* References */}
               <div>
                 <span className="text-gray-500 dark:text-gray-400 block">References</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
                   {references.length}
                 </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Stubs</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Resolved</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
-                </span>
+
+                {/* Sub-categories indented */}
+                <div className="ml-4 mt-2 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Stub</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Resolved</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
