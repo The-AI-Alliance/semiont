@@ -420,49 +420,48 @@ function DocumentView({
   // Document is guaranteed to exist here, render the view
   return (
     <div className="h-screen flex flex-col">
-      {/* Document Header - Fixed height */}
-      <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="px-6 py-2 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {document.name}
-            </h2>
-            {/* Document Tags - inline with title */}
-            {documentEntityTypes.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {documentEntityTypes.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* Real-time connection indicator */}
-          {isConnected && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Live
-              </span>
-              {eventCount > 0 && (
-                <span className="text-gray-400 dark:text-gray-500">
-                  ({eventCount} events)
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Main Content - Fills remaining height */}
       <div className="flex-1 flex gap-6 p-6 min-h-0">
         {/* Document Content - Left Side */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm px-6 py-4 overflow-y-auto">
+          {/* Document Header - Only spans document content width */}
+          <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
+            <div className="px-6 py-2 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {document.name}
+                </h2>
+                {/* Document Tags - inline with title */}
+                {documentEntityTypes.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {documentEntityTypes.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Real-time connection indicator */}
+              {isConnected && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    Live
+                  </span>
+                  {eventCount > 0 && (
+                    <span className="text-gray-400 dark:text-gray-500">
+                      ({eventCount} events)
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 bg-white dark:bg-gray-800 rounded-b-lg shadow-sm px-6 py-4 overflow-y-auto">
             <ErrorBoundary
               fallback={(error, reset) => (
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
