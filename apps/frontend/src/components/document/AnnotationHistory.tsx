@@ -66,23 +66,38 @@ function formatRelativeTime(timestamp: string): string {
   return date.toLocaleDateString();
 }
 
-// Extract text snippet from event payload
-function getEventTextSnippet(event: StoredEvent): string | null {
+// Extract display content from event payload
+function getEventDisplayContent(event: StoredEvent): { text: string; isQuoted: boolean; isTag: boolean } | null {
   const payload = event.event.payload as any;
 
-  // For highlight and reference events, show the text
+  // For document creation/clone events, show the document name (not quoted)
+  if ((event.event.type === 'document.created' || event.event.type === 'document.cloned') && 'name' in payload && typeof payload.name === 'string') {
+    return { text: payload.name, isQuoted: false, isTag: false };
+  }
+
+  // For highlight and reference events, show the text (quoted)
   if ('text' in payload && typeof payload.text === 'string') {
     const maxLength = 50;
     const text = payload.text.trim();
-    if (text.length > maxLength) {
-      return text.substring(0, maxLength) + '...';
-    }
-    return text;
+    const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    return { text: displayText, isQuoted: true, isTag: false };
   }
 
-  // For entity tag events, show the tag
+  // For entity tag events, show the tag (as tag style)
   if ('entityType' in payload && typeof payload.entityType === 'string') {
-    return payload.entityType;
+    return { text: payload.entityType, isQuoted: false, isTag: true };
+  }
+
+  return null;
+}
+
+// Extract entity types from event payload
+function getEventEntityTypes(event: StoredEvent): string[] | null {
+  const payload = event.event.payload as any;
+
+  // For reference events, show entity types if present
+  if (event.event.type === 'reference.created' && 'entityTypes' in payload && Array.isArray(payload.entityTypes)) {
+    return payload.entityTypes;
   }
 
   return null;
@@ -180,9 +195,10 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       </h3>
       <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
-          const textSnippet = getEventTextSnippet(stored);
+          const displayContent = getEventDisplayContent(stored);
           const annotationId = getAnnotationIdFromEvent(stored);
           const creationDetails = getDocumentCreationDetails(stored);
+          const entityTypes = getEventEntityTypes(stored);
           const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId) : false;
           const borderClass = isRelated
             ? 'border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
@@ -217,16 +233,39 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
             >
               <div className="flex items-center gap-1.5">
                 <span className="text-sm">{getEventEmoji(stored.event.type)}</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {formatEventType(stored.event.type)}
-                </span>
+                {displayContent ? (
+                  displayContent.isTag ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-medium">
+                      {displayContent.text}
+                    </span>
+                  ) : displayContent.isQuoted ? (
+                    <span className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1 italic">
+                      &ldquo;{displayContent.text}&rdquo;
+                    </span>
+                  ) : (
+                    <span className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1">
+                      {displayContent.text}
+                    </span>
+                  )
+                ) : (
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {formatEventType(stored.event.type)}
+                  </span>
+                )}
                 <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
                   {formatRelativeTime(stored.event.timestamp)}
                 </span>
               </div>
-              {textSnippet && (
-                <div className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5 italic line-clamp-1">
-                  &ldquo;{textSnippet}&rdquo;
+              {entityTypes && entityTypes.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {entityTypes.map((type) => (
+                    <span
+                      key={type}
+                      className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[10px]"
+                    >
+                      {type}
+                    </span>
+                  ))}
                 </div>
               )}
               {creationDetails && (
