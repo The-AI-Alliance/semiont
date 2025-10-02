@@ -148,6 +148,10 @@ function DocumentView({
   // Derived state
   const documentEntityTypes = document.entityTypes || [];
 
+  // Get entity types for detection
+  const { data: entityTypesData } = api.entityTypes.list.useQuery();
+  const allEntityTypes = entityTypesData?.entityTypes || [];
+
   // Set up mutations
   const updateDocMutation = api.documents.update.useMutation();
   const createDocMutation = api.documents.create.useMutation();
@@ -159,9 +163,17 @@ function DocumentView({
     }
     return false;
   });
-  const [showProposeEntitiesModal, setShowProposeEntitiesModal] = useState(false);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState<'history' | 'stats' | 'references' | 'detect' | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activeSidebarPanel');
+      if (saved === 'history' || saved === 'stats' || saved === 'references' || saved === 'detect') {
+        return saved;
+      }
+    }
+    return null;
+  });
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -270,6 +282,21 @@ function DocumentView({
     }
   }, [annotateMode]);
 
+  // Handle sidebar panel toggle
+  const handleSidebarPanelToggle = useCallback((panel: 'history' | 'stats' | 'references' | 'detect') => {
+    setActiveSidebarPanel(current => {
+      const newPanel = current === panel ? null : panel;
+      if (typeof window !== 'undefined') {
+        if (newPanel) {
+          localStorage.setItem('activeSidebarPanel', newPanel);
+        } else {
+          localStorage.removeItem('activeSidebarPanel');
+        }
+      }
+      return newPanel;
+    });
+  }, []);
+
   // State for entity types being detected
   const [detectionEntityTypes, setDetectionEntityTypes] = useState<string[]>([]);
 
@@ -332,9 +359,6 @@ function DocumentView({
 
   // Handle detect entity references - updated for SSE
   const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
-    // Close modal immediately
-    setShowProposeEntitiesModal(false);
-
     // Set entity types for display and start detection
     setDetectionEntityTypes(selectedTypes);
 
@@ -458,17 +482,6 @@ function DocumentView({
                   </button>
                 )}
 
-                {/* Detect References Button - only show in Annotate Mode */}
-                {annotateMode && !document.archived && (
-                  <button
-                    onClick={() => setShowProposeEntitiesModal(true)}
-                    className={`${buttonStyles.secondary.base} text-xs px-3 py-1`}
-                    title="Automatically detect entity references"
-                  >
-                    ✨ Detect
-                  </button>
-                )}
-
                 {/* Annotate Mode Toggle */}
                 <button
                   onClick={handleAnnotateModeToggle}
@@ -551,46 +564,119 @@ function DocumentView({
         </div>
 
         {/* Sidebar */}
-        <div className="w-64 flex-none flex flex-col space-y-3 overflow-y-auto">
-          {/* Detection Progress Widget - Show at top of sidebar when active */}
-          {detectionProgress && (
-            <DetectionProgressWidget
-              progress={detectionProgress}
-              onCancel={cancelDetection}
-            />
-          )}
+        <div className="flex-none flex gap-0">
+          {/* Content Panel - Conditional based on active panel */}
+          {activeSidebarPanel && (
+            <div className="w-64 flex flex-col overflow-y-auto p-3 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
+              {/* Generation Progress Widget - shown at top when active */}
+              {generationProgress && (
+                <GenerationProgressWidget
+                  progress={generationProgress}
+                  onCancel={cancelGeneration}
+                  onDismiss={clearGenerationProgress}
+                />
+              )}
 
-          {/* Generation Progress Widget - Show at top of sidebar when active */}
-          {generationProgress && (
-            <GenerationProgressWidget
-              progress={generationProgress}
-              onCancel={cancelGeneration}
-              onDismiss={clearGenerationProgress}
-            />
-          )}
+              {/* Archived Status */}
+              {annotateMode && document.archived && (
+                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mb-3">
+                  <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
+                    📦 Archived
+                  </div>
+                </div>
+              )}
 
-          {/* Archived Status - show above Manage when document is archived */}
-          {annotateMode && document.archived && (
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mt-3">
-              <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
-                📦 Archived
-              </div>
-            </div>
-          )}
+              {/* Detect Panel */}
+              {activeSidebarPanel === 'detect' && !document.archived && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Detect References
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-xs">
+                      Select entity types to automatically detect and create references for in this document.
+                    </p>
+                  </div>
 
+                  {/* Entity Types Selection */}
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Select entity types to detect:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {allEntityTypes.length > 0 ? (
+                        allEntityTypes.map((type: string) => (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              setDetectionEntityTypes(prev =>
+                                prev.includes(type)
+                                  ? prev.filter(t => t !== type)
+                                  : [...prev, type]
+                              );
+                            }}
+                            className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                              detectionEntityTypes.includes(type)
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No entity types available
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-          {/* Annotation History */}
-          <div className="mt-3">
-            <AnnotationHistory
-              documentId={documentId}
-              hoveredAnnotationId={hoveredAnnotationId}
-              onEventHover={handleEventHover}
-              onEventClick={handleEventClick}
-            />
-          </div>
+                  {/* Selected Count */}
+                  {detectionEntityTypes.length > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">
+                      {detectionEntityTypes.length} type{detectionEntityTypes.length !== 1 ? 's' : ''} selected
+                    </p>
+                  )}
 
-          {/* Statistics */}
-          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                  {/* Start Detection Button */}
+                  <button
+                    onClick={() => handleDetectEntityReferences(detectionEntityTypes)}
+                    disabled={detectionEntityTypes.length === 0 || !!detectionProgress}
+                    className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
+                      detectionEntityTypes.length > 0 && !detectionProgress
+                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    ✨ Start Detection
+                  </button>
+
+                  {/* Detection Progress - shown below when active */}
+                  {detectionProgress && (
+                    <div className="mt-4">
+                      <DetectionProgressWidget
+                        progress={detectionProgress}
+                        onCancel={cancelDetection}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* History Panel */}
+              {activeSidebarPanel === 'history' && (
+                <AnnotationHistory
+                  documentId={documentId}
+                  hoveredAnnotationId={hoveredAnnotationId}
+                  onEventHover={handleEventHover}
+                  onEventClick={handleEventClick}
+                />
+              )}
+
+              {/* Statistics Panel */}
+              {activeSidebarPanel === 'stats' && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
             <div className="space-y-3 text-sm">
               {/* Highlights */}
@@ -625,10 +711,12 @@ function DocumentView({
                 </div>
               </div>
             </div>
-          </div>
+                </div>
+              )}
 
-          {/* Referenced by */}
-          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+              {/* Referenced By Panel */}
+              {activeSidebarPanel === 'references' && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               Referenced by
               {referencedByLoading && (
@@ -656,16 +744,75 @@ function DocumentView({
                 {referencedByLoading ? 'Loading...' : 'No incoming references'}
               </p>
             )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Icon Bar - Always visible on the right */}
+          <div className="w-12 flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+            {/* Detect Icon - only show in Annotate Mode */}
+            {annotateMode && !document.archived && (
+              <button
+                onClick={() => handleSidebarPanelToggle('detect')}
+                className={`p-2 rounded-md transition-colors ${
+                  activeSidebarPanel === 'detect'
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}
+                title="Detect References"
+              >
+                <span className="text-xl">✨</span>
+              </button>
+            )}
+
+            {/* History Icon */}
+            <button
+              onClick={() => handleSidebarPanelToggle('history')}
+              className={`p-2 rounded-md transition-colors ${
+                activeSidebarPanel === 'history'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+              }`}
+              title="History"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+
+            {/* Statistics Icon */}
+            <button
+              onClick={() => handleSidebarPanelToggle('stats')}
+              className={`p-2 rounded-md transition-colors ${
+                activeSidebarPanel === 'stats'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+              }`}
+              title="Statistics"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </button>
+
+            {/* References Icon */}
+            <button
+              onClick={() => handleSidebarPanelToggle('references')}
+              className={`p-2 rounded-md transition-colors ${
+                activeSidebarPanel === 'references'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+              }`}
+              title="Referenced By"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
-      
-      {/* Detect Entity References Modal */}
-      <ProposeEntitiesModal
-        isOpen={showProposeEntitiesModal}
-        onConfirm={handleDetectEntityReferences}
-        onCancel={() => setShowProposeEntitiesModal(false)}
-      />
     </div>
   );
 }

@@ -11,6 +11,8 @@ export interface DetectionProgress {
   totalEntityTypes: number;
   processedEntityTypes: number;
   message?: string;
+  foundCount?: number;
+  completedEntityTypes?: Array<{ entityType: string; foundCount: number }>;
 }
 
 interface UseDetectionProgressOptions {
@@ -30,6 +32,7 @@ export function useDetectionProgress({
   const [isDetecting, setIsDetecting] = useState(false);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const completedEntityTypesRef = useRef<Array<{ entityType: string; foundCount: number }>>([]);
 
   const startDetection = useCallback(async (entityTypes: string[]) => {
     // Close any existing connection
@@ -45,6 +48,7 @@ export function useDetectionProgress({
 
     setIsDetecting(true);
     setProgress(null);
+    completedEntityTypesRef.current = [];
 
     // Create new abort controller for this request
     const abortController = new AbortController();
@@ -71,14 +75,29 @@ export function useDetectionProgress({
 
         onmessage(ev) {
           const data = JSON.parse(ev.data) as DetectionProgress;
-          setProgress(data);
-          onProgress?.(data);
+
+          // Track completed entity types
+          if (data.foundCount !== undefined && data.currentEntityType) {
+            completedEntityTypesRef.current.push({
+              entityType: data.currentEntityType,
+              foundCount: data.foundCount
+            });
+          }
+
+          // Add completed entity types to progress data
+          const progressWithHistory = {
+            ...data,
+            completedEntityTypes: [...completedEntityTypesRef.current]
+          };
+
+          setProgress(progressWithHistory);
+          onProgress?.(progressWithHistory);
 
           // Handle specific event types
           if (ev.event === 'detection-complete') {
             setIsDetecting(false);
             setProgress(null); // Clear progress to hide overlay
-            onComplete?.(data);
+            onComplete?.(progressWithHistory);
             abortController.abort(); // Close connection
             abortControllerRef.current = null;
           } else if (ev.event === 'detection-error') {
@@ -126,6 +145,7 @@ export function useDetectionProgress({
     }
     setIsDetecting(false);
     setProgress(null);
+    completedEntityTypesRef.current = [];
   }, []);
 
   // Cleanup on unmount

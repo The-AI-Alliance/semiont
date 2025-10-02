@@ -30,7 +30,20 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
         )}
       </div>
 
-      {/* Entity type progress */}
+      {/* Completed entity types log */}
+      {progress.completedEntityTypes && progress.completedEntityTypes.length > 0 && (
+        <div className="mb-3 space-y-1">
+          {progress.completedEntityTypes.map((item, index) => (
+            <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
+              <span className="text-green-600 dark:text-green-400">✓</span>
+              <span className="font-medium">{item.entityType}:</span>
+              <span>{item.foundCount} found</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Current entity type progress */}
       <div className="mb-3">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {progress.status === 'complete' ? (

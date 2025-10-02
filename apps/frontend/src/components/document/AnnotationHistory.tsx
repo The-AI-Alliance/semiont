@@ -133,9 +133,6 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Collapsible state
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
   // Sort events by most recent first
   const events = useMemo(() => {
     if (!eventsData?.events) return [];
@@ -145,9 +142,8 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   }, [eventsData]);
 
   // Scroll to hovered annotation's event when hoveredAnnotationId changes
-  // Only scroll if not collapsed
   useEffect(() => {
-    if (!hoveredAnnotationId || isCollapsed) return;
+    if (!hoveredAnnotationId) return;
 
     const eventElement = eventRefs.current.get(hoveredAnnotationId);
     if (eventElement) {
@@ -156,16 +152,14 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
         block: 'nearest',
       });
     }
-  }, [hoveredAnnotationId, isCollapsed]);
+  }, [hoveredAnnotationId]);
 
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            History
-          </h3>
-        </div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          History
+        </h3>
         <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
       </div>
     );
@@ -179,85 +173,12 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     return null; // No history to show
   }
 
-  // Find the first document.created event (will be last in the array since sorted by most recent first)
-  const documentCreatedEvent = events.find(e => e.event.type === 'document.created');
-
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          History
-        </h3>
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          title={isCollapsed ? "Expand" : "Collapse"}
-        >
-          {isCollapsed ? (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
-          )}
-        </button>
-      </div>
-      {isCollapsed ? (
-        documentCreatedEvent && (
-          <div className="space-y-1.5">
-            {(() => {
-              const stored = documentCreatedEvent;
-              const textSnippet = getEventTextSnippet(stored);
-              const annotationId = getAnnotationIdFromEvent(stored);
-              const creationDetails = getDocumentCreationDetails(stored);
-              const borderClass = 'border-l-2 border-gray-200 dark:border-gray-700';
-
-              return (
-                <div
-                  key={stored.event.id}
-                  className={`text-xs ${borderClass} pl-2 py-0.5`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">{getEventEmoji(stored.event.type)}</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {formatEventType(stored.event.type)}
-                    </span>
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
-                      {formatRelativeTime(stored.event.timestamp)}
-                    </span>
-                  </div>
-                  {creationDetails && (
-                    <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
-                      {creationDetails.userId && (
-                        <span className="mr-2">
-                          User: <span className="font-mono">{creationDetails.userId.substring(0, 8)}</span>
-                        </span>
-                      )}
-                      {creationDetails.method && (
-                        <span className="mr-2">
-                          Method: <span className="capitalize">{creationDetails.method}</span>
-                        </span>
-                      )}
-                      {creationDetails.sourceDocId && (
-                        <a
-                          href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId)}`}
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          View original
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        )
-      ) : (
-        <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+        History
+      </h3>
+      <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
           const textSnippet = getEventTextSnippet(stored);
           const annotationId = getAnnotationIdFromEvent(stored);
@@ -334,8 +255,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
             </div>
           );
         })}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
