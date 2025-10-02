@@ -447,6 +447,28 @@ function DocumentView({
               </div>
 
               <div className="flex items-center gap-3">
+                {/* Clone Button - only show in Annotate Mode */}
+                {annotateMode && !document.archived && (
+                  <button
+                    onClick={handleClone}
+                    className={`${buttonStyles.secondary.base} text-xs px-3 py-1`}
+                    title="Clone document"
+                  >
+                    Clone
+                  </button>
+                )}
+
+                {/* Detect References Button - only show in Annotate Mode */}
+                {annotateMode && !document.archived && (
+                  <button
+                    onClick={() => setShowProposeEntitiesModal(true)}
+                    className={`${buttonStyles.secondary.base} text-xs px-3 py-1`}
+                    title="Automatically detect entity references"
+                  >
+                    ✨ Detect
+                  </button>
+                )}
+
                 {/* Annotate Mode Toggle */}
                 <button
                   onClick={handleAnnotateModeToggle}
@@ -513,6 +535,19 @@ function DocumentView({
               />
             </ErrorBoundary>
           </div>
+
+          {/* Archive/Unarchive Button - below document content */}
+          {annotateMode && (
+            <div className="mt-3 flex justify-center">
+              <button
+                onClick={handleArchiveToggle}
+                className="text-xs px-3 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg transition-colors"
+                title={document.archived ? "Unarchive document" : "Archive document"}
+              >
+                {document.archived ? '📦 Unarchive' : '📦 Archive'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -543,50 +578,6 @@ function DocumentView({
             </div>
           )}
 
-          {/* Manage - only show in Annotate Mode */}
-          {annotateMode && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mt-3">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
-              <div className="space-y-2">
-                {document.archived ? (
-                  // Archived documents only show Unarchive button
-                  <button
-                    onClick={handleArchiveToggle}
-                    className={`${buttonStyles.secondary.base} w-full`}
-                  >
-                    Unarchive
-                  </button>
-                ) : (
-                  // Non-archived documents show all actions
-                  <>
-                    {/* Tags are immutable after creation - can only be set when creating document */}
-
-                    <button
-                      onClick={() => setShowProposeEntitiesModal(true)}
-                      className={`${buttonStyles.secondary.base} w-full`}
-                      title="Automatically detect entity references"
-                    >
-                      ✨ Detect References
-                    </button>
-
-                    <button
-                      onClick={handleClone}
-                      className={`${buttonStyles.secondary.base} w-full`}
-                    >
-                      Clone
-                    </button>
-
-                    <button
-                      onClick={handleArchiveToggle}
-                      className={`${buttonStyles.secondary.base} w-full`}
-                    >
-                      Archive
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Annotation History */}
           <div className="mt-3">
