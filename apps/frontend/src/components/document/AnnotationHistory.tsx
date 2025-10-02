@@ -158,7 +158,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
         History
       </h3>
-      <div className="space-y-2 max-h-[600px] overflow-y-auto">
+      <div className="space-y-2 max-h-[1200px] overflow-y-auto">
         {events.map((stored) => {
           const textSnippet = getEventTextSnippet(stored);
           const annotationId = getAnnotationIdFromEvent(stored);
