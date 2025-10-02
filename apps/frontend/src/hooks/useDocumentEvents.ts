@@ -165,8 +165,6 @@ export function useDocumentEvents({
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const url = `${apiUrl}/api/documents/${documentId}/events/stream`;
 
-    console.log(`[DocumentEvents] Connecting to event stream for document ${documentId}`);
-
     try {
       await fetchEventSource(url, {
         method: 'GET',
@@ -177,7 +175,6 @@ export function useDocumentEvents({
 
         async onopen(response) {
           if (response.ok) {
-            console.log(`[DocumentEvents] Stream opened for document ${documentId}`);
             setStatus('connected');
             reconnectAttemptsRef.current = 0; // Reset reconnect counter
           } else {
@@ -186,31 +183,31 @@ export function useDocumentEvents({
         },
 
         onmessage(msg) {
+          // Ignore keep-alive messages
+          if (msg.data === ':keep-alive') {
+            return;
+          }
+
           // Handle stream-connected event
           if (msg.event === 'stream-connected') {
-            const data = JSON.parse(msg.data);
-            console.log('[DocumentEvents] Stream connected:', data.message);
             return;
           }
 
           // Handle document events
           try {
             const event = JSON.parse(msg.data) as DocumentEvent;
-            console.log(`[DocumentEvents] Received event:`, event.type);
             handleEvent(event);
           } catch (error) {
-            console.error('[DocumentEvents] Failed to parse event:', error);
+            console.error('[DocumentEvents] Failed to parse event:', error, msg.data);
           }
         },
 
         onerror(err) {
           // If manually aborted, don't reconnect
           if (abortController.signal.aborted) {
-            console.log('[DocumentEvents] Connection manually closed');
             return;
           }
 
-          console.error('[DocumentEvents] Stream error:', err);
           setStatus('error');
 
           // Don't retry on 404 - document doesn't exist
@@ -250,8 +247,6 @@ export function useDocumentEvents({
   }, [documentId, handleEvent, onError, session]);
 
   const disconnect = useCallback(() => {
-    console.log(`[DocumentEvents] Disconnecting from document ${documentId}`);
-
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -276,7 +271,8 @@ export function useDocumentEvents({
     return () => {
       disconnect();
     };
-  }, [autoConnect, sessionStatus, connect, disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoConnect, sessionStatus]); // Only reconnect when auth status or autoConnect changes, not when connect/disconnect change
 
   return {
     status,

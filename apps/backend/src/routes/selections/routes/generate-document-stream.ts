@@ -1,3 +1,4 @@
+import { createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
@@ -21,13 +22,55 @@ interface GenerationProgress {
 /**
  * SSE endpoint for real-time document generation progress updates
  */
+export const generateDocumentStreamRoute = createRoute({
+  method: 'post',
+  path: '/api/selections/{id}/generate-document-stream',
+  summary: 'Generate Document from Reference (SSE)',
+  description: 'Stream real-time document generation progress via Server-Sent Events',
+  tags: ['Selections', 'Documents', 'Real-time', 'AI'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().describe('Reference/selection ID'),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            documentId: z.string().describe('Document ID containing the reference'),
+            title: z.string().optional().describe('Custom title for generated document'),
+            prompt: z.string().optional().describe('Custom prompt for content generation'),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'SSE stream opened successfully',
+      content: {
+        'text/event-stream': {
+          schema: z.object({
+            event: z.string(),
+            data: z.string(),
+            id: z.string().optional(),
+          }),
+        },
+      },
+    },
+    401: {
+      description: 'Authentication required',
+    },
+    404: {
+      description: 'Reference not found',
+    },
+  },
+});
+
 export function registerGenerateDocumentStream(router: SelectionsRouterType) {
-  router.post('/api/selections/:id/generate-document-stream', async (c) => {
-    const { id: referenceId } = c.req.param();
-    const body = await c.req.json() as {
-      prompt?: string;
-      title?: string;
-    };
+  router.openapi(generateDocumentStreamRoute, async (c) => {
+    const { id: referenceId } = c.req.valid('param');
+    const body = c.req.valid('json');
 
     // User will be available from auth middleware
     const user = c.get('user');
@@ -35,15 +78,27 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
       throw new HTTPException(401, { message: 'Authentication required' });
     }
 
-    console.log(`[GenerateDocument] Starting generation for reference ${referenceId}`);
+    console.log(`[GenerateDocument] Starting generation for reference ${referenceId} in document ${body.documentId}`);
 
-    // Validate reference exists using Layer 3
+    // Validate reference exists using Layer 3 - O(1) lookup since we know the document
     const storage = getStorageService();
+    const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
 
-    const selection = await AnnotationQueryService.getSelection(referenceId);
-    if (!selection) {
-      throw new HTTPException(404, { message: 'Reference not found' });
+    // Find the reference in this document's annotations
+    const reference = projection.references.find((r: any) => r.id === referenceId);
+    if (!reference) {
+      throw new HTTPException(404, { message: 'Reference not found in document' });
     }
+
+    const selection = {
+      id: reference.id,
+      documentId: body.documentId,
+      text: reference.text,
+      position: reference.position,
+      type: 'reference' as const,
+      targetDocumentId: reference.targetDocumentId,
+      entityTypes: reference.entityTypes,
+    };
 
     // Stream SSE events
     return streamSSE(c, async (stream) => {
@@ -52,6 +107,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
         const documentName = body.title || selection.text || 'New Document';
 
         // Send initial started event
+        console.log('[SSE] Sending generation-started event');
         await stream.writeSSE({
           data: JSON.stringify({
             status: 'started',
@@ -63,6 +119,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
           event: 'generation-started',
           id: String(Date.now())
         });
+        console.log('[SSE] generation-started event sent');
 
         // Fetch source document from Layer 3
         await stream.writeSSE({

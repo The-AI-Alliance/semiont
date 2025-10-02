@@ -15,6 +15,7 @@ interface DetectionProgress {
   totalEntityTypes: number;
   processedEntityTypes: number;
   message?: string;
+  foundCount?: number;
 }
 
 /**
@@ -157,6 +158,7 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
               currentEntityType: entityType,
               totalEntityTypes: entityTypes.length,
               processedEntityTypes: i + 1,
+              foundCount: detectedSelections.length,
               message: `Completed ${entityType}`
             } as DetectionProgress),
             event: 'detection-progress',

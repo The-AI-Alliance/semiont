@@ -626,7 +626,9 @@ export class EventStore {
    */
   private async notifySubscribers(documentId: string, event: StoredEvent): Promise<void> {
     const callbacks = this.subscriptions.get(documentId);
-    if (!callbacks || callbacks.size === 0) return;
+    if (!callbacks || callbacks.size === 0) {
+      return;
+    }
 
     // Call all callbacks in parallel
     await Promise.all(

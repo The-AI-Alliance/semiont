@@ -6,6 +6,7 @@ import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import { CreateSelectionRequestSchema, CreateSelectionResponseSchema } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
+import { AnnotationQueryService } from '../../services/annotation-queries';
 
 // Create router with auth middleware
 export const crudRouter: SelectionsRouterType = createSelectionRouter();
@@ -295,45 +296,67 @@ const deleteSelectionRoute = createRoute({
   method: 'delete',
   path: '/api/selections/{id}',
   summary: 'Delete Selection',
-  description: 'Delete a selection',
+  description: 'Delete a selection (requires documentId in body for O(1) Layer 3 lookup)',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string(),
     }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            documentId: z.string().describe('Document ID containing the selection'),
+          }),
+        },
+      },
+    },
   },
   responses: {
     204: {
       description: 'Selection deleted successfully',
     },
+    404: {
+      description: 'Selection not found',
+    },
   },
 });
 crudRouter.openapi(deleteSelectionRoute, async (c) => {
   const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
   const user = c.get('user');
-  const graphDb = await getGraphDatabase();
 
-  const selection = await graphDb.getSelection(id);
+  // O(1) lookup in Layer 3 using document ID
+  const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
+
+  // Find the selection in this document's annotations
+  const highlight = projection.highlights.find((h: any) => h.id === id);
+  const reference = projection.references.find((r: any) => r.id === id);
+  const selection = highlight || reference;
+
   if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
+    throw new HTTPException(404, { message: 'Selection not found in document' });
   }
 
-  // Emit event first (consumer will delete from GraphDB)
-  if (selection.resolvedDocumentId !== null && selection.resolvedDocumentId !== undefined) {
-    // It's a reference
-    await emitReferenceDeleted({
-      documentId: selection.documentId,
+  // Emit event first (consumer will delete from GraphDB and update Layer 3)
+  if (reference) {
+    console.log('[DeleteSelection] Emitting reference.deleted event for:', id);
+    const storedEvent = await emitReferenceDeleted({
+      documentId: body.documentId,
       userId: user.id,
       referenceId: id,
     });
+    console.log('[DeleteSelection] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   } else {
     // It's a highlight
-    await emitHighlightRemoved({
-      documentId: selection.documentId,
+    console.log('[DeleteSelection] Emitting highlight.removed event for:', id);
+    const storedEvent = await emitHighlightRemoved({
+      documentId: body.documentId,
       userId: user.id,
       highlightId: id,
     });
+    console.log('[DeleteSelection] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   }
 
   return c.body(null, 204);

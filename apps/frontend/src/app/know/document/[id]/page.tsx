@@ -125,10 +125,9 @@ function DocumentView({
   // and triggers automatic refetch for all components using those queries
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      console.log('[DocumentPage] Invalidating annotations queries');
-      // Invalidate highlights, references, and events queries
-      queryClient.invalidateQueries({ queryKey: ['/api/selections', documentId, 'highlights'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/selections', documentId, 'references'] });
+      // Invalidate highlights, references, and events queries using correct query keys
+      queryClient.invalidateQueries({ queryKey: ['/api/documents/:id/highlights', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents/:id/references', documentId] });
       queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
@@ -540,10 +539,9 @@ function DocumentView({
                 highlights={highlights}
                 references={references}
                 onRefetchAnnotations={() => {
-                  console.log('[DocumentPage] Refetching highlights and references, invalidating events');
-                  refetchHighlights();
-                  refetchReferences();
-                  queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
+                  console.log('[DocumentPage] Annotation mutation - waiting for real-time event to trigger refetch');
+                  // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
+                  // This prevents race condition where we refetch before the event is processed
                 }}
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={annotateMode}

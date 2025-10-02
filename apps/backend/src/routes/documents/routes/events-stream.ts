@@ -44,7 +44,6 @@ export const getEventStreamRoute = createRoute({
 export function registerGetEventStream(router: DocumentsRouterType) {
   router.openapi(getEventStreamRoute, async (c) => {
     const { id } = c.req.valid('param');
-    const user = c.get('user');
 
     // Verify document exists in event store (Layer 2 - source of truth)
     const eventStore = await getEventStore();
@@ -52,8 +51,6 @@ export function registerGetEventStream(router: DocumentsRouterType) {
     if (events.length === 0) {
       throw new HTTPException(404, { message: 'Document not found - no events exist for this document' });
     }
-
-    console.log(`[EventStream] Opening stream for document ${id}, user ${user.id}`);
 
     return streamSSE(c, async (stream) => {
 
@@ -69,8 +66,41 @@ export function registerGetEventStream(router: DocumentsRouterType) {
         id: String(Date.now()),
       });
 
+      // Track if stream is closed to prevent double cleanup
+      let isStreamClosed = false;
+      let subscription: ReturnType<typeof eventStore.subscribe> | null = null;
+      let keepAliveInterval: NodeJS.Timeout | null = null;
+      let closeStreamCallback: (() => void) | null = null;
+
+      // Return a Promise that only resolves when the stream should close
+      // This prevents streamSSE from auto-closing the stream
+      const streamPromise = new Promise<void>((resolve) => {
+        closeStreamCallback = resolve;
+      });
+
+      // Centralized cleanup function
+      const cleanup = () => {
+        if (isStreamClosed) return;
+        isStreamClosed = true;
+
+        if (keepAliveInterval) {
+          clearInterval(keepAliveInterval);
+        }
+
+        if (subscription) {
+          subscription.unsubscribe();
+        }
+
+        // Close the stream by resolving the promise
+        if (closeStreamCallback) {
+          closeStreamCallback();
+        }
+      };
+
       // Subscribe to events for this document
-      const subscription = eventStore.subscribe(id, async (storedEvent) => {
+      subscription = eventStore.subscribe(id, async (storedEvent) => {
+        if (isStreamClosed) return;
+
         try {
           await stream.writeSSE({
             data: JSON.stringify({
@@ -90,37 +120,36 @@ export function registerGetEventStream(router: DocumentsRouterType) {
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
         } catch (error) {
-          console.error(`[EventStream] Error writing to stream:`, error);
-          // Stream likely closed, subscription will be cleaned up below
+          cleanup();
         }
       });
 
       // Keep-alive ping every 30 seconds
-      const keepAliveInterval = setInterval(async () => {
+      keepAliveInterval = setInterval(async () => {
+        if (isStreamClosed) {
+          if (keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+          }
+          return;
+        }
+
         try {
-          // Send a comment (keep-alive) using data field
           await stream.writeSSE({
             data: ':keep-alive',
           });
         } catch (error) {
-          // Stream closed, interval will be cleared below
-          clearInterval(keepAliveInterval);
+          cleanup();
         }
       }, 30000);
 
       // Cleanup on disconnect
       c.req.raw.signal.addEventListener('abort', () => {
-        console.log(`[EventStream] Client disconnected from document ${id}`);
-        clearInterval(keepAliveInterval);
-        subscription.unsubscribe();
-
-        const remainingCount = eventStore.getSubscriptionCount(id);
-        console.log(`[EventStream] Remaining subscribers for document ${id}: ${remainingCount}`);
+        cleanup();
       });
 
-      // Log active subscription
-      const subscriberCount = eventStore.getSubscriptionCount(id);
-      console.log(`[EventStream] Active subscribers for document ${id}: ${subscriberCount}`);
+      // Return promise that resolves when stream should close
+      // This keeps the SSE connection open until cleanup() is called
+      return streamPromise;
     });
   });
 }

@@ -90,8 +90,8 @@ export class AnnotationQueryService {
 
   /**
    * Get a single selection (highlight or reference) by ID
-   * NOTE: This requires scanning projections since selections are stored within document projections
-   * TODO: Add selection ID → document ID index for O(1) lookup
+   * Scans Layer 3 projections to find the selection
+   * O(n) complexity - needs selection ID → document ID index for O(1)
    */
   static async getSelection(selectionId: string): Promise<{
     id: string;
@@ -103,25 +103,38 @@ export class AnnotationQueryService {
     entityTypes?: string[];
     referenceType?: string;
   } | null> {
-    // For now, fall back to graph for selection lookups
-    // This is a known limitation - we'd need to scan all projections or maintain an index
-    const graphDb = await getGraphDatabase();
-    const selection = await graphDb.getSelection(selectionId);
-    if (!selection) return null;
+    const projectionStorage = getProjectionStorage();
+    const allProjections = await projectionStorage.getAllProjections();
 
-    return {
-      id: selection.id,
-      documentId: selection.documentId,
-      text: selection.selectionData.text,
-      position: {
-        offset: selection.selectionData.offset,
-        length: selection.selectionData.length,
-      },
-      type: selection.resolvedDocumentId ? 'reference' : 'highlight',
-      targetDocumentId: selection.resolvedDocumentId || undefined,
-      entityTypes: selection.entityTypes,
-      referenceType: selection.referenceTags?.[0],
-    };
+    for (const projection of allProjections) {
+      // Check highlights
+      const highlight = projection.highlights.find((h: any) => h.id === selectionId);
+      if (highlight) {
+        return {
+          id: highlight.id,
+          documentId: projection.id,
+          text: highlight.text,
+          position: highlight.position,
+          type: 'highlight',
+        };
+      }
+
+      // Check references
+      const reference = projection.references.find((r: any) => r.id === selectionId);
+      if (reference) {
+        return {
+          id: reference.id,
+          documentId: projection.id,
+          text: reference.text,
+          position: reference.position,
+          type: 'reference',
+          targetDocumentId: reference.targetDocumentId,
+          entityTypes: reference.entityTypes,
+        };
+      }
+    }
+
+    return null;
   }
 
   /**

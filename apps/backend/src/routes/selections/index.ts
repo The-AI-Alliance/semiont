@@ -10,8 +10,11 @@ import { registerGetAnnotationHistory } from './routes/history';
 export const selectionsRouter = new OpenAPIHono<{ Variables: { user: User } }>();
 
 // Mount all sub-routers
+// IMPORTANT: operationsRouter must come BEFORE crudRouter so that specific routes
+// like /api/selections/{id}/generate-document-stream are registered before the
+// catch-all /api/selections/{id} route
+selectionsRouter.route('/', operationsRouter); // operationsRouter already includes generate-document-stream
 selectionsRouter.route('/', crudRouter);
-selectionsRouter.route('/', operationsRouter);
 
 // Register annotation history endpoint
 const historyRouter = createSelectionRouter();

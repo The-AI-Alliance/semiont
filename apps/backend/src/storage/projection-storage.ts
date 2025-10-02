@@ -16,6 +16,7 @@ export interface ProjectionStorage {
   getProjection(documentId: string): Promise<DocumentProjection | null>;
   deleteProjection(documentId: string): Promise<void>;
   projectionExists(documentId: string): Promise<boolean>;
+  getAllProjections(): Promise<DocumentProjection[]>;
 }
 
 export class FilesystemProjectionStorage implements ProjectionStorage {
@@ -83,6 +84,45 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     } catch {
       return false;
     }
+  }
+
+  async getAllProjections(): Promise<DocumentProjection[]> {
+    const projections: DocumentProjection[] = [];
+    const annotationsPath = path.join(this.basePath, 'annotations');
+
+    try {
+      // Recursively walk through all shard directories
+      const walkDir = async (dir: string): Promise<void> => {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            await walkDir(fullPath);
+          } else if (entry.isFile() && entry.name.endsWith('.json')) {
+            try {
+              const content = await fs.readFile(fullPath, 'utf-8');
+              const projection = JSON.parse(content) as DocumentProjection;
+              projections.push(projection);
+            } catch (error) {
+              console.error(`[ProjectionStorage] Failed to read projection ${fullPath}:`, error);
+              // Skip invalid projection files
+            }
+          }
+        }
+      };
+
+      await walkDir(annotationsPath);
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        // Annotations directory doesn't exist yet
+        return [];
+      }
+      throw error;
+    }
+
+    return projections;
   }
 }
 
