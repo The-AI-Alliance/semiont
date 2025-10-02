@@ -41,26 +41,17 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
             <span className="text-red-600 dark:text-red-400 font-medium">
               ❌ {progress.message || 'Detection failed'}
             </span>
+          ) : progress.currentEntityType ? (
+            <span className="font-medium">
+              Current: {progress.currentEntityType}
+            </span>
           ) : (
             <span className="font-medium">
               {progress.processedEntityTypes} of {progress.totalEntityTypes} entity types
             </span>
           )}
         </p>
-
-        {progress.currentEntityType && progress.status !== 'complete' && (
-          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-            Current: {progress.currentEntityType}
-          </p>
-        )}
       </div>
-
-      {/* Message */}
-      {progress.message && progress.status !== 'complete' && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          {progress.message}
-        </p>
-      )}
 
       {/* Info text */}
       {progress.status !== 'error' && progress.status !== 'complete' && (
