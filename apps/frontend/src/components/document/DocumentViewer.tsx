@@ -149,7 +149,10 @@ export function DocumentViewer({
         // Create new highlight
         await addHighlight(document.id, selectedText, selectionPosition);
       }
-      
+
+      // Refetch annotations to update UI
+      onRefetchAnnotations?.();
+
       // Close popup
       setShowSelectionPopup(false);
       setSelectedText('');
@@ -158,7 +161,7 @@ export function DocumentViewer({
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references]);
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
