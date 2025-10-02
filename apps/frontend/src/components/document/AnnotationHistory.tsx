@@ -77,6 +77,29 @@ function getEventTextSnippet(event: StoredEvent): string | null {
   return null;
 }
 
+// Extract additional metadata for document creation events
+function getDocumentCreationDetails(event: StoredEvent): { method?: string; sourceDocId?: string; userId?: string } | null {
+  if (event.event.type !== 'document.created' && event.event.type !== 'document.cloned') {
+    return null;
+  }
+
+  const payload = event.event.payload as any;
+  const metadata = payload.metadata || {};
+
+  console.log('[AnnotationHistory] Document creation event payload:', {
+    eventType: event.event.type,
+    payload,
+    metadata,
+    creationMethod: metadata.creationMethod,
+  });
+
+  return {
+    method: metadata.creationMethod,
+    sourceDocId: event.event.type === 'document.cloned' ? payload.parentDocumentId : undefined,
+    userId: event.event.userId,
+  };
+}
+
 // Extract annotation ID from event payload
 function getAnnotationIdFromEvent(event: StoredEvent): string | null {
   const payload = event.event.payload as any;
@@ -115,7 +138,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          Annotation History
+          History
         </h3>
         <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
       </div>
@@ -133,12 +156,13 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-        Annotation History
+        History
       </h3>
-      <div className="space-y-2 max-h-64 overflow-y-auto">
+      <div className="space-y-2 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
           const textSnippet = getEventTextSnippet(stored);
           const annotationId = getAnnotationIdFromEvent(stored);
+          const creationDetails = getDocumentCreationDetails(stored);
           const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId) : false;
           const borderClass = isRelated
             ? 'border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
@@ -168,6 +192,34 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
               {textSnippet && (
                 <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
                   &ldquo;{textSnippet}&rdquo;
+                </div>
+              )}
+              {creationDetails && (
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
+                  {creationDetails.userId && (
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">User:</span>{' '}
+                      <span className="font-mono text-[10px]">{creationDetails.userId}</span>
+                    </div>
+                  )}
+                  {creationDetails.method && (
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">Method:</span>{' '}
+                      <span className="capitalize">{creationDetails.method}</span>
+                    </div>
+                  )}
+                  {creationDetails.sourceDocId && (
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">Cloned from:</span>{' '}
+                      <a
+                        href={`/know/document/${encodeURIComponent(creationDetails.sourceDocId)}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View original
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">

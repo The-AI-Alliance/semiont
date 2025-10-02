@@ -645,44 +645,6 @@ function DocumentView({
               onEventHover={handleEventHover}
             />
           </div>
-
-          {/* Creation */}
-          <div className="mt-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Creation</h3>
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block text-xs">Date</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {document.createdAt && !isNaN(Date.parse(document.createdAt))
-                    ? new Date(document.createdAt).toLocaleDateString()
-                    : '---'}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block text-xs">User</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">---</span>
-              </div>
-              {document.creationMethod && (
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400 block text-xs">Method</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 capitalize">
-                    {document.creationMethod}
-                  </span>
-                </div>
-              )}
-              {document.sourceDocumentId && document.creationMethod === 'clone' && (
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400 block text-xs">Cloned From</span>
-                  <Link
-                    href={`/know/document/${encodeURIComponent(document.sourceDocumentId)}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                  >
-                    View original
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
       

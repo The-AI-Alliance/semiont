@@ -91,7 +91,11 @@ export function registerCloneDocument(router: DocumentsRouterType) {
       contentHash: checksum,
       parentDocumentId: id,
       entityTypes: sourceDoc.entityTypes,
-      metadata: { ...sourceDoc.metadata, clonedFrom: id },
+      metadata: {
+        ...sourceDoc.metadata,
+        clonedFrom: id,
+        creationMethod: CREATION_METHODS.CLONE,
+      },
     });
 
     // Propagate annotations from source document using Layer 3

@@ -22,8 +22,10 @@ export async function emitDocumentCreated(params: {
 }): Promise<StoredEvent> {
   const eventStore = await getEventStore();
 
-  return eventStore.appendEvent({
-    type: 'document.created',
+  console.log('[emitDocumentCreated] Received metadata:', params.metadata);
+
+  const event = {
+    type: 'document.created' as const,
     documentId: params.documentId,
     userId: params.userId,
     version: 1,
@@ -34,7 +36,11 @@ export async function emitDocumentCreated(params: {
       entityTypes: params.entityTypes,
       metadata: params.metadata,
     },
-  });
+  };
+
+  console.log('[emitDocumentCreated] Event payload.metadata:', event.payload.metadata);
+
+  return eventStore.appendEvent(event);
 }
 
 /**
