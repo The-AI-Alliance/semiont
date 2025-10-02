@@ -67,12 +67,23 @@ function formatRelativeTime(timestamp: string): string {
 }
 
 // Extract display content from event payload
-function getEventDisplayContent(event: StoredEvent): { text: string; isQuoted: boolean; isTag: boolean } | null {
+function getEventDisplayContent(event: StoredEvent, references: any[]): { text: string; isQuoted: boolean; isTag: boolean } | null {
   const payload = event.event.payload as any;
 
   // For document creation/clone events, show the document name (not quoted)
   if ((event.event.type === 'document.created' || event.event.type === 'document.cloned') && 'name' in payload && typeof payload.name === 'string') {
     return { text: payload.name, isQuoted: false, isTag: false };
+  }
+
+  // For reference.resolved events, look up the reference text
+  if (event.event.type === 'reference.resolved' && 'referenceId' in payload) {
+    const reference = references.find((r: any) => r.id === payload.referenceId);
+    if (reference?.text) {
+      const maxLength = 50;
+      const text = reference.text.trim();
+      const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+      return { text: displayText, isQuoted: true, isTag: false };
+    }
   }
 
   // For highlight and reference events, show the text (quoted)
@@ -145,6 +156,10 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // React Query will automatically refetch when the query is invalidated by the parent
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
 
+  // Load references to look up text for reference.resolved events
+  const { data: referencesData } = api.selections.getReferences.useQuery(documentId);
+  const references = referencesData?.references || [];
+
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -195,7 +210,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       </h3>
       <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
-          const displayContent = getEventDisplayContent(stored);
+          const displayContent = getEventDisplayContent(stored, references);
           const annotationId = getAnnotationIdFromEvent(stored);
           const creationDetails = getDocumentCreationDetails(stored);
           const entityTypes = getEventEntityTypes(stored);
