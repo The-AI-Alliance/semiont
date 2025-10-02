@@ -165,10 +165,10 @@ function DocumentView({
   });
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeSidebarPanel, setActiveSidebarPanel] = useState<'history' | 'stats' | 'references' | 'detect' | null>(() => {
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState<'history' | 'stats' | 'detect' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeSidebarPanel');
-      if (saved === 'history' || saved === 'stats' || saved === 'references' || saved === 'detect') {
+      if (saved === 'history' || saved === 'stats' || saved === 'detect') {
         return saved;
       }
     }
@@ -283,7 +283,7 @@ function DocumentView({
   }, [annotateMode]);
 
   // Handle sidebar panel toggle
-  const handleSidebarPanelToggle = useCallback((panel: 'history' | 'stats' | 'references' | 'detect') => {
+  const handleSidebarPanelToggle = useCallback((panel: 'history' | 'stats' | 'detect') => {
     setActiveSidebarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
@@ -706,73 +706,71 @@ function DocumentView({
               {/* Statistics Panel */}
               {activeSidebarPanel === 'stats' && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-            <div className="space-y-3 text-sm">
-              {/* Highlights */}
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {highlights.length}
-                </span>
-              </div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
+                  <div className="space-y-3 text-sm">
+                    {/* Highlights */}
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                        {highlights.length}
+                      </span>
+                    </div>
 
-              {/* References */}
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 block">References</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                  {references.length}
-                </span>
+                    {/* References */}
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400 block">References</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
+                        {references.length}
+                      </span>
 
-                {/* Sub-categories indented */}
-                <div className="ml-4 mt-2 space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">Stub</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">Resolved</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-                </div>
-              )}
+                      {/* Sub-categories indented */}
+                      <div className="ml-4 mt-2 space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">Stub</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">Resolved</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-              {/* Referenced By Panel */}
-              {activeSidebarPanel === 'references' && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Referenced by
-              {referencedByLoading && (
-                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(loading...)</span>
-              )}
-            </h3>
-            {referencedBy.length > 0 ? (
-              <div className="space-y-2">
-                {referencedBy.map((ref: any) => (
-                  <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
-                    <Link
-                      href={`/know/document/${encodeURIComponent(ref.documentId)}`}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
-                    >
-                      {ref.documentName || 'Untitled Document'}
-                    </Link>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                      "{ref.selectionData?.text || 'No text'}"
-                    </span>
+                    {/* Referenced By section */}
+                    <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Referenced by
+                        {referencedByLoading && (
+                          <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(loading...)</span>
+                        )}
+                      </h4>
+                      {referencedBy.length > 0 ? (
+                        <div className="space-y-2">
+                          {referencedBy.map((ref: any) => (
+                            <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
+                              <Link
+                                href={`/know/document/${encodeURIComponent(ref.documentId)}`}
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
+                              >
+                                {ref.documentName || 'Untitled Document'}
+                              </Link>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
+                                "{ref.selectionData?.text || 'No text'}"
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {referencedByLoading ? 'Loading...' : 'No incoming references'}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {referencedByLoading ? 'Loading...' : 'No incoming references'}
-              </p>
-            )}
                 </div>
               )}
             </div>
@@ -822,21 +820,6 @@ function DocumentView({
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </button>
-
-            {/* References Icon */}
-            <button
-              onClick={() => handleSidebarPanelToggle('references')}
-              className={`p-2 rounded-md transition-colors ${
-                activeSidebarPanel === 'references'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
-              }`}
-              title="Referenced By"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
             </button>
           </div>
