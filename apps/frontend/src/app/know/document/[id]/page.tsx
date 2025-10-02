@@ -58,7 +58,7 @@ function DocumentErrorState({
 // Main page component with proper early returns
 export default function KnowledgeDocumentPage() {
   const params = useParams();
-  const documentId = params?.id as string;
+  const documentId = decodeURIComponent(params?.id as string);
 
   // Load document data - this is the ONLY hook before early returns
   const {
@@ -374,8 +374,8 @@ function DocumentView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
-    startGeneration(referenceId, options);
-  }, [startGeneration]);
+    startGeneration(referenceId, documentId, options);
+  }, [startGeneration, documentId]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount } = useDocumentEvents({

@@ -32,6 +32,7 @@ export function useGenerationProgress({
 
   const startGeneration = useCallback(async (
     referenceId: string,
+    documentId: string,
     options?: { prompt?: string; title?: string }
   ) => {
     // Close any existing connection
@@ -57,6 +58,9 @@ export function useGenerationProgress({
     const url = `${apiUrl}/api/selections/${referenceId}/generate-document-stream`;
 
     console.log('[Generation] Starting document generation for reference:', referenceId);
+    console.log('[Generation] Document ID:', documentId);
+    console.log('[Generation] Full URL:', url);
+    console.log('[Generation] Auth token present:', !!session.backendToken);
 
     try {
       await fetchEventSource(url, {
@@ -65,7 +69,7 @@ export function useGenerationProgress({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.backendToken}`
         },
-        body: JSON.stringify(options || {}),
+        body: JSON.stringify({ documentId, ...options }),
         signal: abortController.signal,
 
         onmessage(ev) {
