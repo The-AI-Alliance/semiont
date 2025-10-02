@@ -31,11 +31,21 @@ function formatEventType(type: string): string {
 
 // Get emoji for event type
 function getEventEmoji(type: string): string {
-  if (type.startsWith('document.')) return '📄';
-  if (type.includes('highlight')) return '✨';
-  if (type.includes('reference')) return '🔗';
-  if (type.includes('entitytag')) return '🏷️';
-  return '📝';
+  const emojiMap: Record<string, string> = {
+    'document.created': '📄',
+    'document.cloned': '📄',
+    'document.archived': '📄',
+    'document.unarchived': '📄',
+    'highlight.added': '🟡',
+    'highlight.removed': '🗑️',
+    'reference.created': '🔵',
+    'reference.resolved': '🔗',
+    'reference.deleted': '🗑️',
+    'entitytag.added': '🏷️',
+    'entitytag.removed': '🗑️',
+  };
+
+  return emojiMap[type] || '📝';
 }
 
 // Format relative time
