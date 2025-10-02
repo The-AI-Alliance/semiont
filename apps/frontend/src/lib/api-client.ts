@@ -1248,10 +1248,11 @@ export const api: ReactQueryAPI = {
     },
     delete: {
       useMutation: () => {
-        return useAuthenticatedMutation<void, { id: string }>(
+        return useAuthenticatedMutation<void, { id: string; documentId: string }>(
           (input, fetchAPI) =>
             fetchAPI(`/api/selections/${input.id}`, {
               method: 'DELETE',
+              body: JSON.stringify({ documentId: input.documentId }),
             })
         );
       }

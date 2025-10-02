@@ -81,6 +81,8 @@ export function DocumentViewer({
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
+    console.log('[DocumentViewer] Annotation clicked:', annotation);
+
     // If it's a reference with a target document, navigate to it
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${encodeURIComponent(annotation.referencedDocumentId)}`);
@@ -96,6 +98,10 @@ export function DocumentViewer({
         referenceType: annotation.referenceType,
         entityType: annotation.entityType,
         resolvedDocumentName: annotation.referencedDocumentName
+      });
+      console.log('[DocumentViewer] editingAnnotation set to:', {
+        id: annotation.id,
+        type: annotation.type
       });
       setSelectedText(annotation.selectionData?.text || '');
       if (annotation.selectionData) {
@@ -178,7 +184,7 @@ export function DocumentViewer({
           await convertHighlightToReference(highlights, editingAnnotation.id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation(editingAnnotation.id);
+          await deleteAnnotation(editingAnnotation.id, document.id);
           await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
         }
       } else {
@@ -204,8 +210,9 @@ export function DocumentViewer({
   
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
+    console.log('[DocumentViewer] handleDeleteAnnotation called with id:', id);
     try {
-      await deleteAnnotation(id);
+      await deleteAnnotation(id, document.id);
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
@@ -421,7 +428,7 @@ export function DocumentViewer({
               await convertReferenceToHighlight(references, editingAnnotation.id);
             } else if (updates.resolvedDocumentId === null) {
               // Unlink document
-              await deleteAnnotation(editingAnnotation.id);
+              await deleteAnnotation(editingAnnotation.id, document.id);
               await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityType, editingAnnotation.referenceType);
             }
             setShowSelectionPopup(false);

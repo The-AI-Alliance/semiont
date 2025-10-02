@@ -67,7 +67,7 @@ function formatRelativeTime(timestamp: string): string {
 }
 
 // Extract display content from event payload
-function getEventDisplayContent(event: StoredEvent, references: any[]): { text: string; isQuoted: boolean; isTag: boolean } | null {
+function getEventDisplayContent(event: StoredEvent, references: any[], highlights: any[], allEvents: StoredEvent[]): { text: string; isQuoted: boolean; isTag: boolean } | null {
   const payload = event.event.payload as any;
 
   // For document creation/clone events, show the document name (not quoted)
@@ -81,6 +81,34 @@ function getEventDisplayContent(event: StoredEvent, references: any[]): { text: 
     if (reference?.text) {
       const maxLength = 50;
       const text = reference.text.trim();
+      const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+      return { text: displayText, isQuoted: true, isTag: false };
+    }
+  }
+
+  // For highlight.removed events, look up the text from the original highlight.added event
+  if (event.event.type === 'highlight.removed' && 'highlightId' in payload) {
+    const addedEvent = allEvents.find((e: StoredEvent) =>
+      e.event.type === 'highlight.added' &&
+      (e.event.payload as any).highlightId === payload.highlightId
+    );
+    if (addedEvent && (addedEvent.event.payload as any).text) {
+      const maxLength = 50;
+      const text = ((addedEvent.event.payload as any).text as string).trim();
+      const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+      return { text: displayText, isQuoted: true, isTag: false };
+    }
+  }
+
+  // For reference.deleted events, look up the text from the original reference.created event
+  if (event.event.type === 'reference.deleted' && 'referenceId' in payload) {
+    const createdEvent = allEvents.find((e: StoredEvent) =>
+      e.event.type === 'reference.created' &&
+      (e.event.payload as any).referenceId === payload.referenceId
+    );
+    if (createdEvent && (createdEvent.event.payload as any).text) {
+      const maxLength = 50;
+      const text = ((createdEvent.event.payload as any).text as string).trim();
       const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
       return { text: displayText, isQuoted: true, isTag: false };
     }
@@ -156,9 +184,11 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // React Query will automatically refetch when the query is invalidated by the parent
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
 
-  // Load references to look up text for reference.resolved events
+  // Load annotations to look up text for removed/resolved events
   const { data: referencesData } = api.selections.getReferences.useQuery(documentId);
+  const { data: highlightsData } = api.selections.getHighlights.useQuery(documentId);
   const references = referencesData?.references || [];
+  const highlights = highlightsData?.highlights || [];
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -210,7 +240,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       </h3>
       <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
-          const displayContent = getEventDisplayContent(stored, references);
+          const displayContent = getEventDisplayContent(stored, references, highlights, events);
           const annotationId = getAnnotationIdFromEvent(stored);
           const creationDetails = getDocumentCreationDetails(stored);
           const entityTypes = getEventEntityTypes(stored);

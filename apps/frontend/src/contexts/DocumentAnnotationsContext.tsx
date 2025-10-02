@@ -31,7 +31,7 @@ interface DocumentAnnotationsContextType {
   // Mutation actions (still in context for consistency)
   addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<string | undefined>;
   addReference: (documentId: string, text: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
-  deleteAnnotation: (annotationId: string) => Promise<void>;
+  deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
 
@@ -145,9 +145,9 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createSelectionMutation]);
 
-  const deleteAnnotation = useCallback(async (annotationId: string) => {
+  const deleteAnnotation = useCallback(async (annotationId: string, documentId: string) => {
     try {
-      await deleteSelectionMutation.mutateAsync(annotationId);
+      await deleteSelectionMutation.mutateAsync({ id: annotationId, documentId });
       // Component will invalidate queries to refetch data
     } catch (err) {
       console.error('Failed to delete annotation:', err);
@@ -167,7 +167,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
     try {
       // Delete the highlight
-      await deleteSelectionMutation.mutateAsync(highlightId);
+      await deleteSelectionMutation.mutateAsync({ id: highlightId });
 
       // Create new reference
       await addReference(
@@ -197,7 +197,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
     try {
       // Delete the reference
-      await deleteSelectionMutation.mutateAsync(referenceId);
+      await deleteSelectionMutation.mutateAsync({ id: referenceId });
 
       // Create new highlight
       await addHighlight(
