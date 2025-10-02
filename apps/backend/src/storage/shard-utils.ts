@@ -8,28 +8,37 @@
 import { createHash } from 'crypto';
 
 /**
- * Google's Jump Consistent Hash Algorithm
+ * TEMPORARY: Simple modulo-based hash sharding
  *
- * Provides minimal disruption when changing shard counts with O(ln n) remapping.
+ * ⚠️ TODO: Replace with proper Jump Consistent Hash implementation
+ *
+ * This is a TEMPORARY implementation using simple modulo. It works and provides
+ * good distribution, but does NOT provide the minimal reshuffling property of
+ * Jump Consistent Hash when changing bucket counts.
+ *
+ * The proper implementation should use Google's Jump Consistent Hash algorithm:
  * Reference: "A Fast, Minimal Memory, Consistent Hash Algorithm" by Lamping & Veach (2014)
  * https://arxiv.org/abs/1406.2294
+ *
+ * Working implementations exist in npm packages like:
+ * - jumphash (https://www.npmjs.com/package/jumphash)
+ * - jump-gouache (https://github.com/bhoudu/jump-gouache)
+ *
+ * The algorithm requires proper 64-bit integer handling with BigInt to avoid
+ * precision loss in JavaScript. The previous attempt failed due to incorrect
+ * BigInt arithmetic in the while loop condition.
+ *
+ * Until replaced, this modulo approach will cause ALL data to be reshuffled
+ * if bucket count changes, rather than the optimal O(n/k) reshuffling that
+ * Jump Consistent Hash provides.
  *
  * @param key - The key to hash (typically a document ID)
  * @param numBuckets - Number of shards/buckets (default: 65536 for 4-hex sharding)
  * @returns Shard number (0 to numBuckets-1)
  */
 export function jumpConsistentHash(key: string, numBuckets: number = 65536): number {
-  let hash = hashToUint32(key);
-  let b = -1;
-  let j = 0;
-
-  while (j < numBuckets) {
-    b = j;
-    hash = hash * 2862933555777941757 + 1;
-    j = Math.floor((b + 1) * (Math.pow(2, 31) / ((hash >>> 1) + 1)));
-  }
-
-  return b;
+  const hash = hashToUint32(key);
+  return hash % numBuckets;
 }
 
 /**

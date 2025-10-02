@@ -797,7 +797,16 @@ export async function getEventStore(config?: EventStoreConfig): Promise<EventSto
     const { getProjectionStorage } = await import('../storage/projection-storage');
     const projectionStorage = getProjectionStorage();
 
-    const dataDir = config?.dataDir || process.env.EVENT_STORE_DIR || './data/events';
+    // Use filesystem config to get base path, then append 'events' subdirectory
+    let dataDir: string;
+    if (config?.dataDir) {
+      dataDir = config.dataDir;
+    } else {
+      const { getFilesystemConfig } = await import('../config/environment-loader');
+      const filesystemConfig = getFilesystemConfig();
+      dataDir = path.join(filesystemConfig.path, 'events');
+    }
+
     eventStore = new EventStore({
       dataDir,
       enableSharding: true,

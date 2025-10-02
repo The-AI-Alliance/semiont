@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { api } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
@@ -20,6 +21,7 @@ import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { GenerationProgressWidget } from '@/components/GenerationProgressWidget';
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
+import { useDebouncedCallback } from '@/hooks/useDebounce';
 
 // Loading state component
 function DocumentLoadingState() {
@@ -110,12 +112,27 @@ function DocumentView({
   const { triggerSparkleAnimation, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
+  const queryClient = useQueryClient();
 
   // Now that document exists, we can safely fetch dependent data
   const { data: highlightsData, refetch: refetchHighlights } = api.selections.getHighlights.useQuery(documentId);
   const { data: referencesData, refetch: refetchReferences } = api.selections.getReferences.useQuery(documentId);
   const highlights = highlightsData?.highlights || [];
   const references = referencesData?.references || [];
+
+  // Create debounced invalidation for real-time events (batches rapid updates)
+  // Using React Query's invalidateQueries is the best practice - it invalidates cache
+  // and triggers automatic refetch for all components using those queries
+  const debouncedInvalidateAnnotations = useDebouncedCallback(
+    () => {
+      console.log('[DocumentPage] Invalidating annotations queries');
+      // Invalidate highlights, references, and events queries
+      queryClient.invalidateQueries({ queryKey: ['/api/selections', documentId, 'highlights'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/selections', documentId, 'references'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
+    },
+    500 // Wait 500ms after last event before invalidating (batches rapid updates)
+  );
 
   // Debug logging
   useEffect(() => {
@@ -258,11 +275,20 @@ function DocumentView({
     cancelDetection
   } = useDetectionProgress({
     documentId,
+    onProgress: (progress) => {
+      // When an entity type completes, refetch to show new references immediately
+      // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
+      console.log('[DocumentPage] Detection progress - refetching annotations', progress);
+      refetchReferences();
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
+    },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
-      // Reload annotations to show new references with sparkle animation
+      // Final refetch + invalidation when ALL entity types complete
+      console.log('[DocumentPage] Detection complete - final refetch');
       refetchHighlights();
       refetchReferences();
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
       setDetectionEntityTypes([]);
     },
     onError: (error) => {
@@ -320,37 +346,32 @@ function DocumentView({
     documentId,
     autoConnect: true,  // Document exists, safe to connect
 
-    // Highlight events
+    // Highlight events - use debounced invalidation to batch rapid updates
     onHighlightAdded: useCallback((event) => {
       console.log('[RealTime] Highlight added:', event.payload);
-      // Reload annotations to show new highlight
-      refetchHighlights();
-    }, [refetchHighlights]),
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
 
     onHighlightRemoved: useCallback((event) => {
       console.log('[RealTime] Highlight removed:', event.payload);
-      // Reload annotations to remove highlight from UI
-      refetchHighlights();
-    }, [refetchHighlights]),
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
 
-    // Reference events
+    // Reference events - use debounced invalidation to batch rapid updates
     onReferenceCreated: useCallback((event) => {
       console.log('[RealTime] Reference created:', event.payload);
-      // Reload annotations to show new reference
-      refetchReferences();
-    }, [refetchReferences]),
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
 
     onReferenceResolved: useCallback((event) => {
       console.log('[RealTime] Reference resolved:', event.payload);
-      // Reload annotations to update reference state
-      refetchReferences();
-    }, [refetchReferences]),
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);
-      // Reload annotations to remove reference from UI
-      refetchReferences();
-    }, [refetchReferences]),
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
 
     // Document status events
     onDocumentArchived: useCallback((event) => {
@@ -358,27 +379,31 @@ function DocumentView({
       // Reload document to show archived status
       loadDocument();
       showSuccess('This document has been archived');
-    }, [loadDocument, showSuccess]),
+      debouncedInvalidateAnnotations();
+    }, [loadDocument, showSuccess, debouncedInvalidateAnnotations]),
 
     onDocumentUnarchived: useCallback((event) => {
       console.log('[RealTime] Document unarchived');
       // Reload document to show unarchived status
       loadDocument();
       showSuccess('This document has been unarchived');
-    }, [loadDocument, showSuccess]),
+      debouncedInvalidateAnnotations();
+    }, [loadDocument, showSuccess, debouncedInvalidateAnnotations]),
 
     // Entity tag events
     onEntityTagAdded: useCallback((event) => {
       console.log('[RealTime] Entity tag added:', event.payload.entityType);
       // Reload document to show updated tags
       loadDocument();
-    }, [loadDocument]),
+      debouncedInvalidateAnnotations();
+    }, [loadDocument, debouncedInvalidateAnnotations]),
 
     onEntityTagRemoved: useCallback((event) => {
       console.log('[RealTime] Entity tag removed:', event.payload.entityType);
       // Reload document to show updated tags
       loadDocument();
-    }, [loadDocument]),
+      debouncedInvalidateAnnotations();
+    }, [loadDocument, debouncedInvalidateAnnotations]),
 
     onError: useCallback((error) => {
       console.error('[RealTime] Event stream error:', error);

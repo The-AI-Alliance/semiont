@@ -100,6 +100,7 @@ function isEventRelatedToAnnotation(event: StoredEvent, annotationId: string): b
 
 export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover }: Props) {
   // Load events using React Query
+  // React Query will automatically refetch when the query is invalidated by the parent
   const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
 
   // Sort events by most recent first

@@ -5,14 +5,11 @@ import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 export interface DetectionProgress {
-  status: 'started' | 'scanning' | 'creating' | 'complete' | 'error';
+  status: 'started' | 'scanning' | 'complete' | 'error';
   documentId: string;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;
-  foundCount: number;
-  createdCount: number;
-  percentage: number;
   message?: string;
 }
 
@@ -58,6 +55,9 @@ export function useDetectionProgress({
     const url = `${apiUrl}/api/documents/${documentId}/detect-selections-stream`;
 
     console.log('[Detection] Starting with entity types:', entityTypes);
+    console.log('[Detection] URL:', url);
+    console.log('[Detection] Has backendToken:', !!session.backendToken);
+    console.log('[Detection] Calling fetchEventSource...');
 
     try {
       await fetchEventSource(url, {
@@ -107,7 +107,12 @@ export function useDetectionProgress({
       });
     } catch (error) {
       if (!abortController.signal.aborted) {
-        console.error('Failed to start detection:', error);
+        console.error('[Detection] Failed to start detection:', error);
+        console.error('[Detection] Error details:', {
+          name: (error as Error)?.name,
+          message: (error as Error)?.message,
+          stack: (error as Error)?.stack
+        });
         setIsDetecting(false);
         onError?.('Failed to start detection');
       }
