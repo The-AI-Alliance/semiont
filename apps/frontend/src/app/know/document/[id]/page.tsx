@@ -153,9 +153,9 @@ function DocumentView({
   const createDocMutation = api.documents.create.useMutation();
   const cloneDocMutation = api.documents.clone.useMutation();
 
-  const [curationMode, setCurationMode] = useState(() => {
+  const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('curationMode') === 'true';
+      return localStorage.getItem('annotateMode') === 'true';
     }
     return false;
   });
@@ -261,14 +261,14 @@ function DocumentView({
     }
   }, [documentId, cloneDocMutation, router, showError]);
 
-  // Handle curation mode toggle - memoized
-  const handleCurationModeToggle = useCallback(() => {
-    const newMode = !curationMode;
-    setCurationMode(newMode);
+  // Handle annotate mode toggle - memoized
+  const handleAnnotateModeToggle = useCallback(() => {
+    const newMode = !annotateMode;
+    setAnnotateMode(newMode);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('curationMode', newMode.toString());
+      localStorage.setItem('annotateMode', newMode.toString());
     }
-  }, [curationMode]);
+  }, [annotateMode]);
 
   // State for entity types being detected
   const [detectionEntityTypes, setDetectionEntityTypes] = useState<string[]>([]);
@@ -445,20 +445,34 @@ function DocumentView({
                   </div>
                 )}
               </div>
-              {/* Real-time connection indicator */}
-              {isConnected && (
-                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    Live
-                  </span>
-                  {eventCount > 0 && (
-                    <span className="text-gray-400 dark:text-gray-500">
-                      ({eventCount} events)
+
+              <div className="flex items-center gap-3">
+                {/* Annotate Mode Toggle */}
+                <button
+                  onClick={handleAnnotateModeToggle}
+                  className={`${
+                    annotateMode ? buttonStyles.primary.base : buttonStyles.secondary.base
+                  } text-xs px-3 py-1`}
+                  title="Toggle annotation mode"
+                >
+                  {annotateMode ? '✏️ Annotate ON' : '👁️ Annotate OFF'}
+                </button>
+
+                {/* Real-time connection indicator */}
+                {isConnected && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Live
                     </span>
-                  )}
-                </div>
-              )}
+                    {eventCount > 0 && (
+                      <span className="text-gray-400 dark:text-gray-500">
+                        ({eventCount} events)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex-1 bg-white dark:bg-gray-800 rounded-b-lg shadow-sm px-6 py-4 overflow-y-auto">
@@ -491,7 +505,7 @@ function DocumentView({
                   queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
                 }}
                 onWikiLinkClick={handleWikiLinkClick}
-                curationMode={curationMode}
+                curationMode={annotateMode}
                 onGenerateDocument={handleGenerateDocument}
                 onAnnotationHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
@@ -520,21 +534,8 @@ function DocumentView({
             />
           )}
 
-          {/* Curation Mode Toggle */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-            <button
-              onClick={handleCurationModeToggle}
-              className={`${
-                curationMode ? buttonStyles.primary.base : buttonStyles.secondary.base
-              } w-full`}
-              title="Toggle global curation mode"
-            >
-              {curationMode ? '✏️ Curation Mode ON' : '👁️ Curation Mode OFF'}
-            </button>
-          </div>
-
           {/* Archived Status - show above Manage when document is archived */}
-          {curationMode && document.archived && (
+          {annotateMode && document.archived && (
             <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mt-3">
               <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
                 📦 Archived
@@ -542,8 +543,8 @@ function DocumentView({
             </div>
           )}
 
-          {/* Manage - only show in Curation Mode */}
-          {curationMode && (
+          {/* Manage - only show in Annotate Mode */}
+          {annotateMode && (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mt-3">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manage</h3>
               <div className="space-y-2">
