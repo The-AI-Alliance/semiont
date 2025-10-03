@@ -164,9 +164,9 @@ function DocumentView({
   });
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeSidebarPanel, setActiveSidebarPanel] = useState<'history' | 'stats' | 'detect' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'stats' | 'detect' | null>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('activeSidebarPanel');
+      const saved = localStorage.getItem('activeToolbarPanel');
       if (saved === 'history' || saved === 'stats' || saved === 'detect') {
         return saved;
       }
@@ -282,15 +282,15 @@ function DocumentView({
     }
   }, [annotateMode]);
 
-  // Handle sidebar panel toggle
-  const handleSidebarPanelToggle = useCallback((panel: 'history' | 'stats' | 'detect') => {
-    setActiveSidebarPanel(current => {
+  // Handle toolbar panel toggle
+  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'stats' | 'detect') => {
+    setActiveToolbarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
         if (newPanel) {
-          localStorage.setItem('activeSidebarPanel', newPanel);
+          localStorage.setItem('activeToolbarPanel', newPanel);
         } else {
-          localStorage.removeItem('activeSidebarPanel');
+          localStorage.removeItem('activeToolbarPanel');
         }
       }
       return newPanel;
@@ -570,8 +570,8 @@ function DocumentView({
 
         {/* Sidebar */}
         <div className="flex-none flex gap-0">
-          {/* Content Panel - Conditional based on active panel */}
-          {activeSidebarPanel && (
+          {/* Right Panel - Conditional based on active toolbar panel */}
+          {activeToolbarPanel && (
             <div className="w-64 flex flex-col overflow-y-auto p-3 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
               {/* Generation Progress Widget - shown at top when active */}
               {generationProgress && (
@@ -592,7 +592,7 @@ function DocumentView({
               )}
 
               {/* Detect Panel */}
-              {activeSidebarPanel === 'detect' && !document.archived && (
+              {activeToolbarPanel === 'detect' && !document.archived && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -693,7 +693,7 @@ function DocumentView({
               )}
 
               {/* History Panel */}
-              {activeSidebarPanel === 'history' && (
+              {activeToolbarPanel === 'history' && (
                 <AnnotationHistory
                   documentId={documentId}
                   hoveredAnnotationId={hoveredAnnotationId}
@@ -703,7 +703,7 @@ function DocumentView({
               )}
 
               {/* Statistics Panel */}
-              {activeSidebarPanel === 'stats' && (
+              {activeToolbarPanel === 'stats' && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
                   <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
                   <div className="space-y-3 text-sm">
@@ -775,14 +775,14 @@ function DocumentView({
             </div>
           )}
 
-          {/* Icon Bar - Always visible on the right */}
+          {/* Toolbar - Always visible on the right */}
           <div className="w-12 flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
             {/* Detect Icon - only show in Annotate Mode */}
             {annotateMode && !document.archived && (
               <button
-                onClick={() => handleSidebarPanelToggle('detect')}
+                onClick={() => handleToolbarPanelToggle('detect')}
                 className={`p-2 rounded-md transition-colors ${
-                  activeSidebarPanel === 'detect'
+                  activeToolbarPanel === 'detect'
                     ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                     : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
                 }`}
@@ -794,9 +794,9 @@ function DocumentView({
 
             {/* History Icon */}
             <button
-              onClick={() => handleSidebarPanelToggle('history')}
+              onClick={() => handleToolbarPanelToggle('history')}
               className={`p-2 rounded-md transition-colors ${
-                activeSidebarPanel === 'history'
+                activeToolbarPanel === 'history'
                   ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
               }`}
@@ -809,9 +809,9 @@ function DocumentView({
 
             {/* Statistics Icon */}
             <button
-              onClick={() => handleSidebarPanelToggle('stats')}
+              onClick={() => handleToolbarPanelToggle('stats')}
               className={`p-2 rounded-md transition-colors ${
-                activeSidebarPanel === 'stats'
+                activeToolbarPanel === 'stats'
                   ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
               }`}
