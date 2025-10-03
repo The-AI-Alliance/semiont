@@ -4,23 +4,49 @@ import React, { useEffect, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { markdownPreview } from '@/lib/codemirror-markdown-preview';
-import type { TextSegment, AnnotationSelection } from './AnnotationRenderer';
 import { annotationStyles } from '@/lib/annotation-styles';
 import '@/styles/animations.css';
+
+// Export types for use by other components
+export interface AnnotationSelection {
+  id: string;
+  documentId: string;
+  selectionData?: {
+    type: string;
+    offset: number;
+    length: number;
+    text: string;
+  };
+  text?: string;
+  referencedDocumentId?: string;
+  entityType?: string;
+  entityTypes?: string[];
+  referenceType?: string;
+  type?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TextSegment {
+  text: string;
+  annotation?: AnnotationSelection;
+  start: number;
+  end: number;
+}
 
 interface Props {
   content: string;
   segments: TextSegment[];
   onAnnotationClick?: (annotation: AnnotationSelection) => void;
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
-  theme?: 'light' | 'dark';
   editable?: boolean;
   newAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
+  sourceView?: boolean; // If true, show raw source (no markdown rendering)
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -91,12 +117,13 @@ export function CodeMirrorRenderer({
   segments,
   onAnnotationClick,
   onAnnotationRightClick,
+  onAnnotationHover,
   onTextSelect,
-  theme = 'light',
   editable = false,
   newAnnotationIds,
   hoveredAnnotationId,
-  scrollToAnnotationId
+  scrollToAnnotationId,
+  sourceView = false
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -115,8 +142,7 @@ export function CodeMirrorRenderer({
       doc: content,
       extensions: [
         markdown(),
-        markdownPreview(),
-        theme === 'dark' ? oneDark : [],
+        sourceView ? [] : markdownPreview(),
         EditorView.editable.of(editable),
         annotationDecorationsField,
         // Handle clicks on annotations
@@ -148,27 +174,49 @@ export function CodeMirrorRenderer({
               }
             }
             return false;
+          },
+          mouseenter: (event, view) => {
+            const target = event.target as HTMLElement;
+            const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+
+            if (annotationId && onAnnotationHover) {
+              onAnnotationHover(annotationId);
+            }
+            return false;
+          },
+          mouseleave: (event, view) => {
+            const target = event.target as HTMLElement;
+            const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+
+            if (annotationId && onAnnotationHover) {
+              onAnnotationHover(null);
+            }
+            return false;
           }
         }),
-        // Style the editor to look like rendered content
+        // Style the editor
         EditorView.theme({
           '.cm-content': {
-            padding: '0',
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-            lineHeight: '1.6'
+            padding: sourceView ? '1rem' : '0',
+            fontFamily: sourceView ? 'ui-monospace, monospace' : 'inherit',
+            fontSize: sourceView ? '0.875rem' : 'inherit',
+            lineHeight: '1.6',
+            whiteSpace: sourceView ? 'pre-wrap' : 'pre'
           },
           '.cm-line': {
-            padding: '0'
+            padding: '0',
+            wordBreak: sourceView ? 'break-word' : 'normal'
           },
           '.cm-editor': {
-            outline: 'none'
+            outline: 'none',
+            backgroundColor: 'transparent'
           },
           '.cm-editor.cm-focused': {
             outline: 'none'
           },
           '.cm-scroller': {
-            fontFamily: 'inherit'
+            fontFamily: sourceView ? 'ui-monospace, monospace' : 'inherit',
+            overflowX: sourceView ? 'auto' : 'visible'
           },
           '.cm-cursor': {
             display: editable ? 'block' : 'none'
@@ -216,22 +264,12 @@ export function CodeMirrorRenderer({
     });
   }, [segments, newAnnotationIds]);
 
-  // Update theme when it changes
-  useEffect(() => {
-    if (!viewRef.current) return;
-
-    const compartment = new Compartment();
-    viewRef.current.dispatch({
-      effects: compartment.reconfigure(theme === 'dark' ? oneDark : [])
-    });
-  }, [theme]);
-
   // Handle hovered annotation - add pulse effect
   useEffect(() => {
-    if (!viewRef.current || !hoveredAnnotationId) return;
+    if (!viewRef.current || !hoveredAnnotationId) return undefined;
 
     const segment = segments.find(s => s.annotation?.id === hoveredAnnotationId);
-    if (!segment) return;
+    if (!segment) return undefined;
 
     const element = viewRef.current.contentDOM.querySelector(
       `[data-annotation-id="${hoveredAnnotationId}"]`
@@ -244,6 +282,7 @@ export function CodeMirrorRenderer({
         element.classList.remove('annotation-pulse');
       };
     }
+    return undefined;
   }, [hoveredAnnotationId, segments]);
 
   // Handle scroll to annotation
@@ -264,5 +303,9 @@ export function CodeMirrorRenderer({
     });
   }, [scrollToAnnotationId, segments]);
 
-  return <div ref={containerRef} className="codemirror-renderer" data-markdown-container />;
+  const containerClasses = sourceView
+    ? "codemirror-renderer bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg overflow-x-auto"
+    : "codemirror-renderer";
+
+  return <div ref={containerRef} className={containerClasses} data-markdown-container />;
 }

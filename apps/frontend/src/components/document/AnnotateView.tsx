@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { annotationStyles } from '@/lib/annotation-styles';
 import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
+import type { TextSegment as CMTextSegment } from '@/components/CodeMirrorRenderer';
 import '@/styles/animations.css';
 
 interface Props {
@@ -98,9 +98,6 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const annotationRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
-  const lastHoveredFromSelfRef = useRef<string | null>(null);
-  const [focusedAnnotationIndex, setFocusedAnnotationIndex] = useState<number>(-1);
   const [selectionState, setSelectionState] = useState<{
     text: string;
     start: number;
@@ -111,80 +108,6 @@ export function AnnotateView({
   // Combine annotations
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
-  const annotatedSegments = segments.filter(s => s.annotation);
-
-  // Scroll to hovered annotation when hoveredAnnotationId changes FROM EXTERNAL SOURCE (History)
-  // Don't scroll if we're the ones who triggered the hover
-  useEffect(() => {
-    if (!hoveredAnnotationId) return;
-
-    // If this hover came from our own mouseEnter, don't scroll
-    if (lastHoveredFromSelfRef.current === hoveredAnnotationId) {
-      return;
-    }
-
-    const annotationElement = annotationRefs.current.get(hoveredAnnotationId);
-    if (annotationElement) {
-      annotationElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-      });
-    }
-  }, [hoveredAnnotationId]);
-
-  // Scroll to annotation when clicked in History
-  useEffect(() => {
-    if (!scrollToAnnotationId) return;
-
-    const annotationElement = annotationRefs.current.get(scrollToAnnotationId);
-    if (annotationElement) {
-      annotationElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [scrollToAnnotationId]);
-
-  // Navigate through annotations with Tab key
-  const navigateToAnnotation = useCallback((direction: 'next' | 'prev') => {
-    if (annotatedSegments.length === 0) return;
-
-    let nextIndex = focusedAnnotationIndex;
-    if (direction === 'next') {
-      nextIndex = (focusedAnnotationIndex + 1) % annotatedSegments.length;
-    } else {
-      nextIndex = focusedAnnotationIndex === -1
-        ? annotatedSegments.length - 1
-        : (focusedAnnotationIndex - 1 + annotatedSegments.length) % annotatedSegments.length;
-    }
-
-    setFocusedAnnotationIndex(nextIndex);
-
-    // Find and focus the annotation element
-    const segment = annotatedSegments[nextIndex];
-    if (segment && segment.annotation) {
-      const element = containerRef.current?.querySelector(
-        `[data-annotation-id="${segment.annotation.id}"]`
-      ) as HTMLElement;
-      if (element) {
-        element.focus();
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }, [focusedAnnotationIndex, annotatedSegments]);
-
-  // Register keyboard shortcuts for annotation navigation
-  useKeyboardShortcuts([
-    {
-      key: 'Tab',
-      handler: (e) => {
-        if (!containerRef.current?.contains(document.activeElement)) return;
-        e.preventDefault();
-        navigateToAnnotation(e.shiftKey ? 'prev' : 'next');
-      },
-      description: 'Navigate through annotations'
-    }
-  ]);
   
   // Handle text selection with sparkle
   useEffect(() => {
@@ -256,99 +179,28 @@ export function AnnotateView({
     }
   }, [selectionState, onTextSelect]);
   
+  // Convert segments to CodeMirror format
+  const cmSegments: CMTextSegment[] = segments.map(seg => ({
+    text: seg.text,
+    annotation: seg.annotation as any, // Types are compatible
+    start: seg.start,
+    end: seg.end
+  }));
+
   return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className="font-mono text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto"
-        onContextMenu={handleContextMenu}
-      >
-        <pre className="whitespace-pre-wrap break-words">
-          {segments.map((segment, i) => {
-            if (!segment.annotation) {
-              return <span key={`${segment.start}-${segment.end}`}>{segment.text}</span>;
-            }
-            
-            const isReference = segment.annotation.type === 'reference';
-            const hasTarget = segment.annotation.referencedDocumentId;
-            const isStubReference = isReference && !hasTarget;
-            
-            const hoverText = segment.annotation.type === 'highlight'
-              ? 'Right-click to delete or convert to reference'
-              : isStubReference
-                ? 'Click to create referenced document • Right-click for options'
-                : hasTarget
-                ? 'Click to navigate • Right-click for options'
-                : 'Right-click for options';
-
-            const isNew = newAnnotationIds.has(segment.annotation.id);
-            const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
-            const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
-
-            const annotationIndex = annotatedSegments.findIndex(
-              s => s.annotation?.id === segment.annotation?.id
-            );
-            const isFocused = annotationIndex === focusedAnnotationIndex;
-
-            return (
-              <span
-                key={segment.annotation.id}
-                ref={(el) => {
-                  if (el && segment.annotation) {
-                    annotationRefs.current.set(segment.annotation.id, el);
-                  } else if (!el && segment.annotation) {
-                    annotationRefs.current.delete(segment.annotation.id);
-                  }
-                }}
-                className={`${className} ${isFocused ? 'ring-2 ring-cyan-500 ring-offset-2' : ''}`}
-                data-annotation-id={segment.annotation.id}
-                title={hoverText}
-                tabIndex={isFocused ? 0 : -1}
-                role="button"
-                aria-label={`${segment.annotation.type === 'reference' ? 'Reference' : 'Highlight'}: ${segment.text}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFocusedAnnotationIndex(annotationIndex);
-                  if (onAnnotationClick) {
-                    onAnnotationClick(segment.annotation!);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    if (onAnnotationClick) {
-                      onAnnotationClick(segment.annotation!);
-                    }
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (onAnnotationRightClick) {
-                    onAnnotationRightClick(segment.annotation!, e.clientX, e.clientY);
-                  }
-                }}
-                onMouseEnter={() => {
-                  if (onAnnotationHover && segment.annotation) {
-                    // Track that this hover originated from within the document
-                    lastHoveredFromSelfRef.current = segment.annotation.id;
-                    onAnnotationHover(segment.annotation.id);
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (onAnnotationHover) {
-                    lastHoveredFromSelfRef.current = null;
-                    onAnnotationHover(null);
-                  }
-                }}
-                onFocus={() => setFocusedAnnotationIndex(annotationIndex)}
-              >
-                {segment.text}
-              </span>
-            );
-          })}
-        </pre>
-      </div>
+    <div className="relative" ref={containerRef} onContextMenu={handleContextMenu}>
+      <CodeMirrorRenderer
+        content={content}
+        segments={cmSegments}
+        onAnnotationClick={onAnnotationClick as any}
+        onAnnotationRightClick={onAnnotationRightClick as any}
+        {...(onAnnotationHover && { onAnnotationHover })}
+        editable={false}
+        newAnnotationIds={newAnnotationIds}
+        {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+        {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+        sourceView={true}
+      />
       
       {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
       {selectionState && onTextSelect && (
