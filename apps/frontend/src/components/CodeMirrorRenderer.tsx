@@ -19,6 +19,8 @@ interface Props {
   theme?: 'light' | 'dark';
   editable?: boolean;
   newAnnotationIds?: Set<string>;
+  hoveredAnnotationId?: string | null;
+  scrollToAnnotationId?: string | null;
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -92,7 +94,9 @@ export function CodeMirrorRenderer({
   onTextSelect,
   theme = 'light',
   editable = false,
-  newAnnotationIds
+  newAnnotationIds,
+  hoveredAnnotationId,
+  scrollToAnnotationId
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -221,6 +225,44 @@ export function CodeMirrorRenderer({
       effects: compartment.reconfigure(theme === 'dark' ? oneDark : [])
     });
   }, [theme]);
+
+  // Handle hovered annotation - add pulse effect
+  useEffect(() => {
+    if (!viewRef.current || !hoveredAnnotationId) return;
+
+    const segment = segments.find(s => s.annotation?.id === hoveredAnnotationId);
+    if (!segment) return;
+
+    const element = viewRef.current.contentDOM.querySelector(
+      `[data-annotation-id="${hoveredAnnotationId}"]`
+    ) as HTMLElement;
+
+    if (element) {
+      element.classList.add('annotation-pulse');
+
+      return () => {
+        element.classList.remove('annotation-pulse');
+      };
+    }
+  }, [hoveredAnnotationId, segments]);
+
+  // Handle scroll to annotation
+  useEffect(() => {
+    if (!viewRef.current || !scrollToAnnotationId) return;
+
+    const segment = segments.find(s => s.annotation?.id === scrollToAnnotationId);
+    if (!segment) return;
+
+    const pos = segment.start;
+    const view = viewRef.current;
+
+    view.dispatch({
+      effects: EditorView.scrollIntoView(pos, {
+        y: 'center',
+        yMargin: 100
+      })
+    });
+  }, [scrollToAnnotationId, segments]);
 
   return <div ref={containerRef} className="codemirror-renderer" data-markdown-container />;
 }

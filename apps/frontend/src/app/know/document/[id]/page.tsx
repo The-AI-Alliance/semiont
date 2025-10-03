@@ -176,6 +176,7 @@ function DocumentView({
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
+    setHoveredAnnotationId(annotationId);
     if (annotationId) {
       triggerSparkleAnimation(annotationId);
     }

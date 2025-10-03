@@ -372,6 +372,7 @@ export function DocumentViewer({
             references={references}
             onAnnotationClick={handleAnnotationClick}
             {...(onAnnotationHover && { onAnnotationHover })}
+            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
           />
         ) : (
