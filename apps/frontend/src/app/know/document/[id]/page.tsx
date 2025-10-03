@@ -277,6 +277,20 @@ function DocumentView({
     }
   }, [document, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
 
+  const handleClone = useCallback(async () => {
+    try {
+      const response = await cloneDocMutation.mutateAsync(documentId);
+      if (response.token) {
+        router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
+      } else {
+        showError('Failed to prepare document for cloning');
+      }
+    } catch (err) {
+      console.error('Failed to clone document:', err);
+      showError('Failed to clone document');
+    }
+  }, [documentId, cloneDocMutation, router, showError]);
+
   // Handle annotate mode toggle - memoized
   const handleAnnotateModeToggle = useCallback(() => {
     const newMode = !annotateMode;
@@ -580,7 +594,7 @@ function DocumentView({
                   isArchived={document.archived ?? false}
                   onArchive={handleArchive}
                   onUnarchive={handleUnarchive}
-                  onClone={() => router.push(`/know/compose?cloneFrom=${encodeURIComponent(documentId)}`)}
+                  onClone={handleClone}
                 />
               )}
             </div>
