@@ -25,7 +25,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   const highlights = highlightsData?.highlights || [];
 
   // Refs to track event elements for scrolling
-  const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort events by oldest first (most recent at bottom)

@@ -57,7 +57,7 @@ export function HistoryEvent({
 
   return (
     <EventWrapper
-      ref={(el) => {
+      ref={(el: HTMLElement | null) => {
         if (onEventRef) {
           onEventRef(annotationId, el);
         }
