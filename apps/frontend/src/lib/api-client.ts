@@ -2,6 +2,43 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import type { StoredEvent, CreateSelectionRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
 import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
 
+/**
+ * Centralized query keys for React Query
+ * Following TanStack Query best practices for type-safe cache invalidation
+ * @see https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
+ */
+export const QUERY_KEYS = {
+  auth: {
+    me: () => ['/api/auth/me'],
+  },
+  health: () => ['/api/health'],
+  admin: {
+    users: {
+      all: () => ['/api/admin/users'],
+      stats: () => ['/api/admin/users/stats'],
+    },
+    oauth: {
+      config: () => ['/api/admin/oauth/config'],
+    },
+  },
+  entityTypes: {
+    all: () => ['/api/entity-types'],
+  },
+  referenceTypes: {
+    all: () => ['/api/reference-types'],
+  },
+  documents: {
+    all: (limit?: number, archived?: boolean) => ['/api/documents', limit, archived],
+    detail: (id: string) => ['/api/documents', id],
+    byToken: (token: string) => ['/api/documents/by-token', token],
+    search: (query: string, limit: number) => ['/api/documents/search', query, limit],
+    referencedBy: (id: string) => ['/api/documents', id, 'referenced-by'],
+    events: (id: string) => ['/api/documents', id, 'events'],
+    highlights: (documentId: string) => ['/api/documents/:id/highlights', documentId],
+    references: (documentId: string) => ['/api/documents/:id/references', documentId],
+  },
+};
+
 // Local type definitions to replace api-contracts imports
 
 /**
@@ -934,7 +971,7 @@ export const api: ReactQueryAPI = {
     me: {
       useQuery: () => {
         return useAuthenticatedQuery(
-          ['/api/auth/me'],
+          QUERY_KEYS.auth.me(),
           '/api/auth/me'
         );
       }
@@ -964,7 +1001,7 @@ export const api: ReactQueryAPI = {
   health: {
     useQuery: () => {
       return useAuthenticatedQuery(
-        ['/api/health'],
+        QUERY_KEYS.health(),
         '/api/health'
       );
     }
@@ -975,7 +1012,7 @@ export const api: ReactQueryAPI = {
       list: {
         useQuery: (options?: { enabled?: boolean }) => {
           return useAuthenticatedQuery(
-            ['/api/admin/users'],
+            QUERY_KEYS.admin.users.all(),
             '/api/admin/users',
             options
           );
@@ -984,7 +1021,7 @@ export const api: ReactQueryAPI = {
       stats: {
         useQuery: (options?: { enabled?: boolean }) => {
           return useAuthenticatedQuery(
-            ['/api/admin/users/stats'],
+            QUERY_KEYS.admin.users.stats(),
             '/api/admin/users/stats',
             options
           );
@@ -1017,7 +1054,7 @@ export const api: ReactQueryAPI = {
       config: {
         useQuery: (options?: { enabled?: boolean }) => {
           return useAuthenticatedQuery(
-            ['/api/admin/oauth/config'],
+            QUERY_KEYS.admin.oauth.config(),
             '/api/admin/oauth/config',
             options
           );
@@ -1030,7 +1067,7 @@ export const api: ReactQueryAPI = {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/entity-types'],
+          QUERY_KEYS.entityTypes.all(),
           '/api/entity-types',
           options
         );
@@ -1053,7 +1090,7 @@ export const api: ReactQueryAPI = {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/reference-types'],
+          QUERY_KEYS.referenceTypes.all(),
           '/api/reference-types',
           options
         );
@@ -1082,7 +1119,7 @@ export const api: ReactQueryAPI = {
         const url = queryString ? `/api/documents?${queryString}` : '/api/documents';
 
         return useAuthenticatedQuery(
-          ['/api/documents', options?.limit, options?.archived],
+          QUERY_KEYS.documents.all(options?.limit, options?.archived),
           url,
           options?.enabled !== undefined ? { enabled: options.enabled } : undefined
         );
@@ -1091,7 +1128,7 @@ export const api: ReactQueryAPI = {
     get: {
       useQuery: (id: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents', id],
+          QUERY_KEYS.documents.detail(id),
           `/api/documents/${id}`,
           options
         );
@@ -1100,7 +1137,7 @@ export const api: ReactQueryAPI = {
     getByToken: {
       useQuery: (token: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents/by-token', token],
+          QUERY_KEYS.documents.byToken(token),
           `/api/documents/by-token/${token}`,
           options
         );
@@ -1109,7 +1146,7 @@ export const api: ReactQueryAPI = {
     search: {
       useQuery: (query: string, limit = 10, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents/search', query, limit],
+          QUERY_KEYS.documents.search(query, limit),
           `/api/documents/search?q=${encodeURIComponent(query)}&limit=${limit}`,
           options
         );
@@ -1118,7 +1155,7 @@ export const api: ReactQueryAPI = {
     getReferencedBy: {
       useQuery: (id: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents', id, 'referenced-by'],
+          QUERY_KEYS.documents.referencedBy(id),
           `/api/documents/${id}/referenced-by`,
           options
         );
@@ -1127,7 +1164,7 @@ export const api: ReactQueryAPI = {
     getEvents: {
       useQuery: (id: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents', id, 'events'],
+          QUERY_KEYS.documents.events(id),
           `/api/documents/${id}/events`,
           options
         );
@@ -1182,7 +1219,7 @@ export const api: ReactQueryAPI = {
     getHighlights: {
       useQuery: (documentId: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents/:id/highlights', documentId],
+          QUERY_KEYS.documents.highlights(documentId),
           `/api/documents/${documentId}/highlights`,
           { ...options, retry: false }
         );
@@ -1191,7 +1228,7 @@ export const api: ReactQueryAPI = {
     getReferences: {
       useQuery: (documentId: string, options?: { enabled?: boolean }) => {
         return useAuthenticatedQuery(
-          ['/api/documents/:id/references', documentId],
+          QUERY_KEYS.documents.references(documentId),
           `/api/documents/${documentId}/references`,
           { ...options, retry: false }
         );

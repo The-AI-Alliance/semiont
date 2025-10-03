@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { api } from '@/lib/api-client';
+import { api, QUERY_KEYS } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { DocumentTagsInline } from '@/components/DocumentTagsInline';
 import { ProposeEntitiesModal } from '@/components/modals/ProposeEntitiesModal';
@@ -125,10 +125,10 @@ function DocumentView({
   // and triggers automatic refetch for all components using those queries
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      // Invalidate highlights, references, and events queries using correct query keys
-      queryClient.invalidateQueries({ queryKey: ['/api/documents/:id/highlights', documentId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/documents/:id/references', documentId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
+      // Invalidate highlights, references, and events queries using type-safe query keys
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
   );
@@ -313,7 +313,7 @@ function DocumentView({
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
       console.log('[DocumentPage] Detection progress - refetching annotations', progress);
       refetchReferences();
-      queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
@@ -321,7 +321,7 @@ function DocumentView({
       console.log('[DocumentPage] Detection complete - final refetch');
       refetchHighlights();
       refetchReferences();
-      queryClient.invalidateQueries({ queryKey: ['/api/documents', documentId, 'events'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
 
       // Save the log entries for display after completion
       if (progress.completedEntityTypes) {
