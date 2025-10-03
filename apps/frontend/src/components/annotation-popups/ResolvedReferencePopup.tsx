@@ -34,6 +34,20 @@ export function ResolvedReferencePopup({
     }
   };
 
+  const handleOpenInNewTab = () => {
+    if (annotation.resolvedDocumentId) {
+      window.open(`/know/document/${encodeURIComponent(annotation.resolvedDocumentId)}`, '_blank');
+    }
+  };
+
+  const handleCopyLinkText = async () => {
+    try {
+      await navigator.clipboard.writeText(selection.text);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
       resolvedDocumentId: null,
@@ -83,12 +97,21 @@ export function ResolvedReferencePopup({
 
       {/* Primary Actions */}
       <div className="mb-4">
-        <button
-          onClick={handleViewDocument}
-          className={`${buttonStyles.primary.base} w-full justify-center`}
-        >
-          📄 View Document
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleOpenInNewTab}
+            className={`${buttonStyles.primary.base} flex-1 justify-center`}
+          >
+            🔗 Open in New Tab
+          </button>
+          <button
+            onClick={handleCopyLinkText}
+            className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
+            title="Copy link text"
+          >
+            📋
+          </button>
+        </div>
       </div>
 
       {/* Secondary Actions */}
