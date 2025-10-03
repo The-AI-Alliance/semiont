@@ -143,6 +143,30 @@ export function DocumentViewer({
     setPopupPosition({ x, y: y + 10 });
     setShowSelectionPopup(true);
   }, []);
+
+  // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
+  const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
+    const reference = references.find(r => r.referencedDocumentId === documentId);
+    if (reference) {
+      setEditingAnnotation({
+        id: reference.id,
+        type: reference.type,
+        referencedDocumentId: reference.referencedDocumentId,
+        referenceType: reference.referenceType,
+        entityType: reference.entityType,
+        resolvedDocumentName: reference.referencedDocumentName
+      });
+      setSelectedText(reference.selectionData?.text || '');
+      if (reference.selectionData) {
+        setSelectionPosition({
+          start: reference.selectionData.offset,
+          end: reference.selectionData.offset + reference.selectionData.length
+        });
+      }
+      setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
+      setShowSelectionPopup(true);
+    }
+  }, [references]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
@@ -406,13 +430,7 @@ export function DocumentViewer({
             onEntityTypeClick={(entityType) => {
               router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
             }}
-            onReferenceNavigate={(documentId) => {
-              // Find the reference annotation to show popup
-              const reference = references.find(r => r.referencedDocumentId === documentId);
-              if (reference) {
-                handleAnnotationClick(reference);
-              }
-            }}
+            onReferenceNavigate={handleResolvedReferenceWidgetClick}
             onUnresolvedReferenceClick={handleAnnotationClick}
             getTargetDocumentName={(documentId) => {
               // TODO: Add document cache lookup for better UX
@@ -437,13 +455,7 @@ export function DocumentViewer({
             onEntityTypeClick={(entityType) => {
               router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
             }}
-            onReferenceNavigate={(documentId) => {
-              // Find the reference annotation to show popup
-              const reference = references.find(r => r.referencedDocumentId === documentId);
-              if (reference) {
-                handleAnnotationClick(reference);
-              }
-            }}
+            onReferenceNavigate={handleResolvedReferenceWidgetClick}
             onUnresolvedReferenceClick={handleAnnotationClick}
             getTargetDocumentName={(documentId) => {
               // TODO: Add document cache lookup for better UX
