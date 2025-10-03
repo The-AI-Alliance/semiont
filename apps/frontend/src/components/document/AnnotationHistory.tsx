@@ -192,14 +192,22 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sort events by most recent first
+  // Sort events by oldest first (most recent at bottom)
   const events = useMemo(() => {
     if (!eventsData?.events) return [];
     return [...eventsData.events].sort((a: StoredEvent, b: StoredEvent) =>
-      b.metadata.sequenceNumber - a.metadata.sequenceNumber
+      a.metadata.sequenceNumber - b.metadata.sequenceNumber
     );
   }, [eventsData]);
+
+  // Scroll to bottom when History is first shown or when events change
+  useEffect(() => {
+    if (containerRef.current && events.length > 0) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [events.length]); // Only trigger when number of events changes
 
   // Scroll to hovered annotation's event when hoveredAnnotationId changes
   useEffect(() => {
@@ -244,7 +252,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
         History
       </h3>
-      <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
+      <div ref={containerRef} className="space-y-1.5 max-h-[600px] overflow-y-auto">
         {events.map((stored) => {
           const displayContent = getEventDisplayContent(stored, references, highlights, events);
           const annotationId = getAnnotationIdFromEvent(stored);
