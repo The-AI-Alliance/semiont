@@ -69,7 +69,9 @@ export function DetectPanel({
                           : [...prev, type]
                       );
                     }}
-                    className={`px-3 py-1 text-sm rounded-full transition-colors border ${
+                    aria-pressed={selectedEntityTypes.includes(type)}
+                    aria-label={`${selectedEntityTypes.includes(type) ? 'Deselect' : 'Select'} ${type}`}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       selectedEntityTypes.includes(type)
                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
                         : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'

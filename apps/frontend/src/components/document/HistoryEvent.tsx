@@ -18,7 +18,7 @@ interface Props {
   highlights: any[];
   allEvents: StoredEvent[];
   isRelated: boolean;
-  onEventRef?: (annotationId: string | null, element: HTMLDivElement | null) => void;
+  onEventRef?: (annotationId: string | null, element: HTMLElement | null) => void;
   onEventClick?: (annotationId: string | null) => void;
   onEventHover?: (annotationId: string | null) => void;
 }
@@ -42,31 +42,27 @@ export function HistoryEvent({
     ? 'border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
     : 'border-l-2 border-gray-200 dark:border-gray-700';
 
+  // Interactive events should be buttons for keyboard accessibility
+  const EventWrapper = annotationId ? 'button' : 'div';
+  const eventWrapperProps = annotationId ? {
+    type: 'button' as const,
+    onClick: () => onEventClick?.(annotationId),
+    onMouseEnter: () => onEventHover?.(annotationId),
+    onMouseLeave: () => onEventHover?.(null),
+    'aria-label': `View annotation: ${displayContent?.text || formatEventType(event.event.type)}`,
+    className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
+  } : {
+    className: `text-xs ${borderClass} pl-2 py-0.5`
+  };
+
   return (
-    <div
-      ref={(el) => {
+    <EventWrapper
+      ref={(el: HTMLElement | null) => {
         if (onEventRef) {
           onEventRef(annotationId, el);
         }
       }}
-      className={`text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 ${
-        annotationId ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''
-      }`}
-      onClick={() => {
-        if (annotationId && onEventClick) {
-          onEventClick(annotationId);
-        }
-      }}
-      onMouseEnter={() => {
-        if (annotationId && onEventHover) {
-          onEventHover(annotationId);
-        }
-      }}
-      onMouseLeave={() => {
-        if (annotationId && onEventHover) {
-          onEventHover(null);
-        }
-      }}
+      {...eventWrapperProps}
     >
       <div className="flex items-center gap-1.5">
         <span className="text-sm">{getEventEmoji(event.event.type)}</span>
@@ -128,6 +124,6 @@ export function HistoryEvent({
           )}
         </div>
       )}
-    </div>
+    </EventWrapper>
   );
 }

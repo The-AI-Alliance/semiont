@@ -167,6 +167,15 @@ export function AnnotateView({
 
       if (start >= 0 && rects.length > 0) {
         setSelectionState({ text, start, end, rects });
+
+        // Announce to screen readers
+        const announcement = document.createElement('div');
+        announcement.setAttribute('role', 'status');
+        announcement.setAttribute('aria-live', 'polite');
+        announcement.className = 'sr-only';
+        announcement.textContent = 'Text selected. Sparkle button available to create annotation, or press H for highlight, R for reference.';
+        document.body.appendChild(announcement);
+        setTimeout(() => announcement.remove(), 1000);
       }
     };
     
@@ -270,21 +279,22 @@ export function AnnotateView({
             return (
               <button
                 onClick={handleSparkleClick}
-                className="absolute z-50 hover:scale-125 transition-transform cursor-pointer animate-bounce"
+                className="absolute z-50 hover:scale-125 transition-transform cursor-pointer animate-bounce focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
                 style={{
                   left: `${lastRect.right - containerRect.left + 5}px`,
                   top: `${lastRect.top - containerRect.top + lastRect.height / 2}px`,
                   transform: 'translateY(-50%)'
                 }}
+                aria-label="Create annotation from selected text. Press H for highlight or R for reference."
                 title="Click to create highlight • Right-click for more options"
                 data-selection-ui
               >
                 <span className="relative inline-flex items-center justify-center">
                   {/* Pulsing ring animation */}
-                  <span className="absolute inset-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-75 animate-ping"></span>
+                  <span className="absolute inset-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-75 animate-ping" aria-hidden="true"></span>
                   {/* Solid background circle */}
                   <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 ring-2 ring-yellow-400 dark:ring-yellow-500 shadow-lg">
-                    <span className="text-xl">✨</span>
+                    <span className="text-xl" aria-hidden="true">✨</span>
                   </span>
                 </span>
               </button>
