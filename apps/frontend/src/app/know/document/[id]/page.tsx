@@ -474,17 +474,6 @@ function DocumentView({
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Annotate Mode Toggle */}
-                <button
-                  onClick={handleAnnotateModeToggle}
-                  className={`${
-                    annotateMode ? buttonStyles.primary.base : buttonStyles.secondary.base
-                  } text-xs px-3 py-1`}
-                  title="Toggle annotation mode"
-                >
-                  {annotateMode ? '✏️ Annotate ON' : '👁️ Annotate OFF'}
-                </button>
-
                 {/* Real-time connection indicator */}
                 {isConnected && (
                   <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -595,6 +584,8 @@ function DocumentView({
                   onArchive={handleArchive}
                   onUnarchive={handleUnarchive}
                   onClone={handleClone}
+                  annotateMode={annotateMode}
+                  onAnnotateModeToggle={handleAnnotateModeToggle}
                 />
               )}
             </div>
