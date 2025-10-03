@@ -552,7 +552,7 @@ function DocumentView({
                 <CollaborationPanel
                   isConnected={isConnected}
                   eventCount={eventCount}
-                  lastEventTimestamp={lastEvent?.timestamp}
+                  {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
                 />
               )}
 
