@@ -438,7 +438,7 @@ export function DocumentViewer({
               // TODO: Add document cache lookup for better UX
               return undefined;
             }}
-            generatingReferenceId={generatingReferenceId}
+            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
           />
@@ -464,7 +464,7 @@ export function DocumentViewer({
               // TODO: Add document cache lookup for better UX
               return undefined;
             }}
-            generatingReferenceId={generatingReferenceId}
+            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
           />

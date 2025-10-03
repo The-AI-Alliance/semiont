@@ -167,11 +167,11 @@ function DocumentView({
   });
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'stats' | 'detect' | 'settings' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'history' || saved === 'stats' || saved === 'detect' || saved === 'settings') {
-        return saved;
+      if (saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings') {
+        return saved === 'stats' ? 'info' : saved;
       }
     }
     return null;
@@ -301,7 +301,7 @@ function DocumentView({
   }, [annotateMode]);
 
   // Handle toolbar panel toggle
-  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'stats' | 'detect') => {
+  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'info' | 'detect' | 'settings') => {
     setActiveToolbarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
@@ -533,7 +533,7 @@ function DocumentView({
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={annotateMode}
                 onGenerateDocument={handleGenerateDocument}
-                generatingReferenceId={generationProgress?.referenceId || null}
+                generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
@@ -578,8 +578,8 @@ function DocumentView({
                 />
               )}
 
-              {/* Statistics Panel */}
-              {activeToolbarPanel === 'stats' && (
+              {/* Document Info Panel */}
+              {activeToolbarPanel === 'info' && (
                 <DocumentInfoPanel
                   highlights={highlights}
                   references={references}

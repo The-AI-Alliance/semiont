@@ -71,7 +71,7 @@ const updateAnnotationsEffect = StateEffect.define<AnnotationUpdate>();
 interface WidgetUpdate {
   content: string;
   segments: TextSegment[];
-  generatingReferenceId?: string | null;
+  generatingReferenceId?: string | null | undefined;
   callbacks: {
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
