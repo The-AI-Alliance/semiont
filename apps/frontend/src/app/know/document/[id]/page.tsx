@@ -22,7 +22,7 @@ import { AnnotationHistory } from '@/components/document/AnnotationHistory';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
-import { StatsPanel } from '@/components/document/panels/StatsPanel';
+import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
 import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
 import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
 
@@ -580,7 +580,7 @@ function DocumentView({
 
               {/* Statistics Panel */}
               {activeToolbarPanel === 'stats' && (
-                <StatsPanel
+                <DocumentInfoPanel
                   highlights={highlights}
                   references={references}
                   referencedBy={referencedBy}

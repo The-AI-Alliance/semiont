@@ -26,7 +26,7 @@ interface Props {
   referencedByLoading: boolean;
 }
 
-export function StatsPanel({
+export function DocumentInfoPanel({
   highlights,
   references,
   referencedBy,
