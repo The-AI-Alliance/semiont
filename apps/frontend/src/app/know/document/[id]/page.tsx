@@ -18,7 +18,6 @@ import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
-import { GenerationProgressWidget } from '@/components/GenerationProgressWidget';
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
@@ -329,30 +328,22 @@ function DocumentView({
     }
   });
 
-  // Use SSE-based document generation progress
+  // Use SSE-based document generation progress - provides inline sparkle animation
   const {
-    isGenerating,
     progress: generationProgress,
-    startGeneration,
-    cancelGeneration,
-    clearProgress: clearGenerationProgress
+    startGeneration
   } = useGenerationProgress({
     onComplete: (progress) => {
-      // Don't show toast - the widget already shows completion status
-      // Don't auto-navigate, let user click the link when ready
-
       // Refresh annotations to update the reference with the new resolvedDocumentId
       refetchReferences();
 
-      // After 5 seconds (when widget auto-dismisses), trigger sparkle on the reference
-      setTimeout(() => {
-        if (progress.referenceId) {
-          triggerSparkleAnimation(progress.referenceId);
-        }
-      }, 5000);
+      // Trigger sparkle animation on the now-resolved reference
+      if (progress.referenceId) {
+        triggerSparkleAnimation(progress.referenceId);
+      }
     },
     onError: (error) => {
-      // Don't show toast - the widget already shows error status
+      console.error('[Generation] Error:', error);
     }
   });
 
@@ -537,6 +528,7 @@ function DocumentView({
                 onWikiLinkClick={handleWikiLinkClick}
                 curationMode={annotateMode}
                 onGenerateDocument={handleGenerateDocument}
+                generatingReferenceId={generationProgress?.referenceId || null}
                 onAnnotationHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
@@ -563,15 +555,6 @@ function DocumentView({
           {/* Right Panel - Conditional based on active toolbar panel */}
           {activeToolbarPanel && (
             <div className="w-64 flex flex-col overflow-y-auto p-3 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
-              {/* Generation Progress Widget - shown at top when active */}
-              {generationProgress && (
-                <GenerationProgressWidget
-                  progress={generationProgress}
-                  onCancel={cancelGeneration}
-                  onDismiss={clearGenerationProgress}
-                />
-              )}
-
               {/* Archived Status */}
               {annotateMode && document.archived && (
                 <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mb-3">

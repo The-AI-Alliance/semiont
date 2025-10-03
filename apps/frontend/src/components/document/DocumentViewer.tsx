@@ -17,6 +17,7 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
@@ -30,6 +31,7 @@ export function DocumentViewer({
   onWikiLinkClick,
   curationMode = false,
   onGenerateDocument,
+  generatingReferenceId,
   onAnnotationHover,
   hoveredAnnotationId,
   scrollToAnnotationId
@@ -436,6 +438,7 @@ export function DocumentViewer({
               // TODO: Add document cache lookup for better UX
               return undefined;
             }}
+            generatingReferenceId={generatingReferenceId}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
           />
@@ -461,6 +464,7 @@ export function DocumentViewer({
               // TODO: Add document cache lookup for better UX
               return undefined;
             }}
+            generatingReferenceId={generatingReferenceId}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
           />

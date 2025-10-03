@@ -54,6 +54,7 @@ interface Props {
   onReferenceNavigate?: (documentId: string) => void;
   onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
+  generatingReferenceId?: string | null; // ID of reference currently generating a document
   onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
   onConvertAnnotation?: (annotation: AnnotationSelection) => void;
 }
@@ -70,6 +71,7 @@ const updateAnnotationsEffect = StateEffect.define<AnnotationUpdate>();
 interface WidgetUpdate {
   content: string;
   segments: TextSegment[];
+  generatingReferenceId?: string | null;
   callbacks: {
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
@@ -142,6 +144,7 @@ const annotationDecorationsField = StateField.define<DecorationSet>({
 function buildWidgetDecorations(
   content: string,
   segments: TextSegment[],
+  generatingReferenceId: string | null | undefined,
   callbacks: {
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
@@ -167,17 +170,18 @@ function buildWidgetDecorations(
 
     const annotation = segment.annotation;
 
-    // For references: add preview widget
+    // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
     if (annotation.type === 'reference') {
-      // Add reference resolution widget (🔗 or ❓)
       const targetName = annotation.referencedDocumentId
         ? callbacks.getTargetDocumentName?.(annotation.referencedDocumentId)
         : undefined;
+      const isGenerating = generatingReferenceId === annotation.id;
       const widget = new ReferenceResolutionWidget(
         annotation,
         targetName,
         callbacks.onReferenceNavigate,
-        callbacks.onUnresolvedReferenceClick
+        callbacks.onUnresolvedReferenceClick,
+        isGenerating
       );
       builder.add(
         segment.end,
@@ -204,6 +208,7 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
         decorations = buildWidgetDecorations(
           effect.value.content,
           effect.value.segments,
+          effect.value.generatingReferenceId,
           effect.value.callbacks
         );
       }
@@ -232,6 +237,7 @@ export function CodeMirrorRenderer({
   onReferenceNavigate,
   onUnresolvedReferenceClick,
   getTargetDocumentName,
+  generatingReferenceId,
   onDeleteAnnotation,
   onConvertAnnotation
 }: Props) {
@@ -409,7 +415,7 @@ export function CodeMirrorRenderer({
     });
   }, [segments, newAnnotationIds]);
 
-  // Update widgets when content or segments change
+  // Update widgets when content, segments, or generatingReferenceId changes
   useEffect(() => {
     if (!viewRef.current || !enableWidgets) return;
 
@@ -417,10 +423,11 @@ export function CodeMirrorRenderer({
       effects: updateWidgetsEffect.of({
         content,
         segments,
+        generatingReferenceId,
         callbacks: callbacksRef.current
       })
     });
-  }, [content, segments, enableWidgets]);
+  }, [content, segments, enableWidgets, generatingReferenceId]);
 
   // Handle hovered annotation - add pulse effect and scroll if not visible
   useEffect(() => {

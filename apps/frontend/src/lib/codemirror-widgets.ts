@@ -19,14 +19,16 @@ export class ReferenceResolutionWidget extends WidgetType {
     readonly annotation: AnnotationSelection,
     readonly targetDocumentName?: string,
     readonly onNavigate?: (documentId: string) => void,
-    readonly onUnresolvedClick?: (annotation: AnnotationSelection) => void
+    readonly onUnresolvedClick?: (annotation: AnnotationSelection) => void,
+    readonly isGenerating?: boolean
   ) {
     super();
   }
 
   override eq(other: ReferenceResolutionWidget) {
     return other.annotation.id === this.annotation.id &&
-           other.targetDocumentName === this.targetDocumentName;
+           other.targetDocumentName === this.targetDocumentName &&
+           other.isGenerating === this.isGenerating;
   }
 
   override toDOM() {
@@ -42,7 +44,7 @@ export class ReferenceResolutionWidget extends WidgetType {
     const indicator = document.createElement('span');
     indicator.className = 'reference-indicator';
 
-    // Different styles for resolved vs unresolved
+    // Different states: resolved, generating, or stub
     const isResolved = !!this.annotation.referencedDocumentId;
 
     if (isResolved) {
@@ -50,49 +52,86 @@ export class ReferenceResolutionWidget extends WidgetType {
       indicator.title = this.targetDocumentName
         ? `Links to: ${this.targetDocumentName}`
         : 'Links to document';
+      indicator.style.cssText = `
+        font-size: 10px;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s ease;
+      `;
+    } else if (this.isGenerating) {
+      // Create circled sparkle matching the text selection sparkle
+      indicator.innerHTML = `
+        <span style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+          <span style="position: absolute; inset: 0; border-radius: 9999px; background: rgb(250, 204, 21); opacity: 0.75; animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+          <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 9999px; background: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); border: 2px solid rgb(250, 204, 21);">
+            <span style="font-size: 14px;">✨</span>
+          </span>
+        </span>
+      `;
+      indicator.title = 'Generating document...';
+      indicator.style.cssText = `
+        cursor: default;
+        display: inline-flex;
+        vertical-align: middle;
+      `;
+
+      // Add dark mode support
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        const innerCircle = indicator.querySelector('span > span:last-child') as HTMLElement;
+        if (innerCircle) {
+          innerCircle.style.background = 'rgb(31, 41, 55)'; // gray-800
+          innerCircle.style.borderColor = 'rgb(234, 179, 8)'; // yellow-500
+        }
+        const pingCircle = indicator.querySelector('span > span:first-child') as HTMLElement;
+        if (pingCircle) {
+          pingCircle.style.background = 'rgb(234, 179, 8)'; // yellow-500
+        }
+      }
     } else {
       indicator.textContent = '❓';
       indicator.title = 'Stub reference. Click to resolve.';
+      indicator.style.cssText = `
+        font-size: 10px;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s ease;
+      `;
     }
 
-    indicator.style.cssText = `
-      font-size: 10px;
-      cursor: pointer;
-      opacity: 0.6;
-      transition: opacity 0.2s ease;
-    `;
+    // Only add hover/click handlers if not generating
+    if (!this.isGenerating) {
+      indicator.addEventListener('mouseenter', () => {
+        indicator.style.opacity = '1';
 
-    indicator.addEventListener('mouseenter', () => {
-      indicator.style.opacity = '1';
-
-      // NEVER show custom preview tooltip for unresolved references
-      // Only show it for resolved references that have a valid document name
-      if (isResolved && this.targetDocumentName && this.targetDocumentName.trim() !== '') {
-        this.showPreview(container, this.targetDocumentName);
-      }
-    });
-
-    indicator.addEventListener('mouseleave', () => {
-      indicator.style.opacity = '0.6';
-      // Only hide preview if it was shown (for resolved references)
-      if (isResolved) {
-        this.hidePreview(container);
-      }
-    });
-
-    // Click handler: navigate for resolved, show popup for unresolved
-    if (isResolved && this.annotation.referencedDocumentId && this.onNavigate) {
-      indicator.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.onNavigate!(this.annotation.referencedDocumentId!);
+        // NEVER show custom preview tooltip for unresolved references
+        // Only show it for resolved references that have a valid document name
+        if (isResolved && this.targetDocumentName && this.targetDocumentName.trim() !== '') {
+          this.showPreview(container, this.targetDocumentName);
+        }
       });
-    } else if (!isResolved && this.onUnresolvedClick) {
-      indicator.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.onUnresolvedClick!(this.annotation);
+
+      indicator.addEventListener('mouseleave', () => {
+        indicator.style.opacity = '0.6';
+        // Only hide preview if it was shown (for resolved references)
+        if (isResolved) {
+          this.hidePreview(container);
+        }
       });
+
+      // Click handler: navigate for resolved, show popup for unresolved
+      if (isResolved && this.annotation.referencedDocumentId && this.onNavigate) {
+        indicator.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.onNavigate!(this.annotation.referencedDocumentId!);
+        });
+      } else if (!isResolved && this.onUnresolvedClick) {
+        indicator.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.onUnresolvedClick!(this.annotation);
+        });
+      }
     }
 
     container.appendChild(indicator);

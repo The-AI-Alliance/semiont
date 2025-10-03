@@ -24,6 +24,7 @@ interface Props {
   onReferenceNavigate?: (documentId: string) => void;
   onUnresolvedReferenceClick?: (annotation: any) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
+  generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: any) => void;
   onConvertAnnotation?: (annotation: any) => void;
 }
@@ -109,6 +110,7 @@ export function AnnotateView({
   onReferenceNavigate,
   onUnresolvedReferenceClick,
   getTargetDocumentName,
+  generatingReferenceId,
   onDeleteAnnotation,
   onConvertAnnotation
 }: Props) {
@@ -233,6 +235,7 @@ export function AnnotateView({
         {...(onReferenceNavigate && { onReferenceNavigate })}
         {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
         {...(getTargetDocumentName && { getTargetDocumentName })}
+        {...(generatingReferenceId !== undefined && { generatingReferenceId })}
         {...(onDeleteAnnotation && { onDeleteAnnotation })}
         {...(onConvertAnnotation && { onConvertAnnotation })}
       />
