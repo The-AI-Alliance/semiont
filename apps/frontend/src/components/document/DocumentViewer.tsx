@@ -151,9 +151,9 @@ export function DocumentViewer({
       setEditingAnnotation({
         id: reference.id,
         type: reference.type,
-        referencedDocumentId: reference.referencedDocumentId,
-        referenceType: reference.referenceType,
-        entityType: reference.entityType,
+        ...(reference.referencedDocumentId && { referencedDocumentId: reference.referencedDocumentId }),
+        ...(reference.referenceType && { referenceType: reference.referenceType }),
+        ...(reference.entityType && { entityType: reference.entityType }),
         resolvedDocumentName: 'Document'
       });
       setSelectedText(reference.selectionData?.text || '');
