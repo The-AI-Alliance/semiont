@@ -23,6 +23,7 @@ import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { StatsPanel } from '@/components/document/panels/StatsPanel';
+import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
 import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
 
 // Loading state component
@@ -166,10 +167,10 @@ function DocumentView({
   });
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'stats' | 'detect' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'stats' | 'detect' | 'settings' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'history' || saved === 'stats' || saved === 'detect') {
+      if (saved === 'history' || saved === 'stats' || saved === 'detect' || saved === 'settings') {
         return saved;
       }
     }
@@ -244,36 +245,37 @@ function DocumentView({
   }, [documentId, updateDocMutation, refetchDocument, showSuccess, showError]);
 
   // Handle archive toggle - memoized
-  const handleArchiveToggle = useCallback(async () => {
+  const handleArchive = useCallback(async () => {
     if (!document) return;
 
     try {
       await updateDocMutation.mutateAsync({
         id: documentId,
-        data: { archived: !document.archived }
+        data: { archived: true }
       });
       await loadDocument();
-      showSuccess(document.archived ? 'Document unarchived' : 'Document archived');
+      showSuccess('Document archived');
     } catch (err) {
-      console.error('Failed to update archive status:', err);
-      showError('Failed to update archive status');
+      console.error('Failed to archive document:', err);
+      showError('Failed to archive document');
     }
   }, [document, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
 
-  // Handle clone - memoized
-  const handleClone = useCallback(async () => {
+  const handleUnarchive = useCallback(async () => {
+    if (!document) return;
+
     try {
-      const response = await cloneDocMutation.mutateAsync(documentId);
-      if (response.token) {
-        router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
-      } else {
-        showError('Failed to prepare document for cloning');
-      }
+      await updateDocMutation.mutateAsync({
+        id: documentId,
+        data: { archived: false }
+      });
+      await loadDocument();
+      showSuccess('Document unarchived');
     } catch (err) {
-      console.error('Failed to clone document:', err);
-      showError('Failed to clone document');
+      console.error('Failed to unarchive document:', err);
+      showError('Failed to unarchive document');
     }
-  }, [documentId, cloneDocMutation, router, showError]);
+  }, [document, documentId, updateDocMutation, loadDocument, showSuccess, showError]);
 
   // Handle annotate mode toggle - memoized
   const handleAnnotateModeToggle = useCallback(() => {
@@ -458,17 +460,6 @@ function DocumentView({
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Clone Button - only show in Annotate Mode */}
-                {annotateMode && !document.archived && (
-                  <button
-                    onClick={handleClone}
-                    className={`${buttonStyles.secondary.base} text-xs px-3 py-1`}
-                    title="Clone document"
-                  >
-                    Clone
-                  </button>
-                )}
-
                 {/* Annotate Mode Toggle */}
                 <button
                   onClick={handleAnnotateModeToggle}
@@ -536,18 +527,6 @@ function DocumentView({
             </ErrorBoundary>
           </div>
 
-          {/* Archive/Unarchive Button - below document content */}
-          {annotateMode && (
-            <div className="mt-3 flex justify-center">
-              <button
-                onClick={handleArchiveToggle}
-                className="text-xs px-3 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg transition-colors"
-                title={document.archived ? "Unarchive document" : "Archive document"}
-              >
-                {document.archived ? '📦 Unarchive' : '📦 Archive'}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Sidebar */}
@@ -592,6 +571,16 @@ function DocumentView({
                   references={references}
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}
+                />
+              )}
+
+              {/* Settings Panel */}
+              {activeToolbarPanel === 'settings' && (
+                <SettingsPanel
+                  isArchived={document.archived ?? false}
+                  onArchive={handleArchive}
+                  onUnarchive={handleUnarchive}
+                  onClone={() => router.push(`/know/compose?cloneFrom=${encodeURIComponent(documentId)}`)}
                 />
               )}
             </div>

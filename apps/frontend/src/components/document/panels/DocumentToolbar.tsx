@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-type ToolbarPanel = 'history' | 'stats' | 'detect';
+type ToolbarPanel = 'history' | 'stats' | 'detect' | 'settings';
 
 interface Props {
   activePanel: ToolbarPanel | null;
@@ -53,6 +53,15 @@ export function DocumentToolbar({
         title="Document Info"
       >
         <span className="text-xl">ℹ️</span>
+      </button>
+
+      {/* Settings Icon */}
+      <button
+        onClick={() => onPanelToggle('settings')}
+        className={buttonClass('settings')}
+        title="Settings"
+      >
+        <span className="text-xl">⚙️</span>
       </button>
     </div>
   );
