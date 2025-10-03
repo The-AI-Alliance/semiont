@@ -206,11 +206,17 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     if (!hoveredAnnotationId) return;
 
     const eventElement = eventRefs.current.get(hoveredAnnotationId);
+
     if (eventElement) {
       eventElement.scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
       });
+      // Also add a visual pulse to the history event
+      eventElement.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+      setTimeout(() => {
+        eventElement.classList.remove('bg-blue-100', 'dark:bg-blue-900/30');
+      }, 1500);
     }
   }, [hoveredAnnotationId]);
 

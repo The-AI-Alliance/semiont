@@ -176,22 +176,20 @@ export function CodeMirrorRenderer({
             }
             return false;
           },
-          mouseenter: (event, view) => {
-            const target = event.target as HTMLElement;
-            const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+          mousemove: (event, view) => {
+            if (!onAnnotationHover) return false;
 
-            if (annotationId && onAnnotationHover) {
-              onAnnotationHover(annotationId);
-            }
-            return false;
-          },
-          mouseleave: (event, view) => {
             const target = event.target as HTMLElement;
-            const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+            const annotationElement = target.closest('[data-annotation-id]');
+            const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
-            if (annotationId && onAnnotationHover) {
-              onAnnotationHover(null);
+            // Track last hovered ID to avoid redundant calls
+            const lastHovered = (view.dom as any).__lastHoveredAnnotation;
+            if (annotationId !== lastHovered) {
+              (view.dom as any).__lastHoveredAnnotation = annotationId || null;
+              onAnnotationHover(annotationId || null);
             }
+
             return false;
           }
         }),
