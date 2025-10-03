@@ -43,18 +43,14 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     }
   }, [events.length]); // Only trigger when number of events changes
 
-  // Scroll to hovered annotation's event when hoveredAnnotationId changes
+  // Add visual pulse to hovered annotation's event (without scrolling the History panel)
   useEffect(() => {
     if (!hoveredAnnotationId) return;
 
     const eventElement = eventRefs.current.get(hoveredAnnotationId);
 
     if (eventElement) {
-      eventElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-      });
-      // Also add a visual pulse to the history event
+      // Add a visual pulse to the history event (but don't scroll the History panel)
       eventElement.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
       setTimeout(() => {
         eventElement.classList.remove('bg-blue-100', 'dark:bg-blue-900/30');
