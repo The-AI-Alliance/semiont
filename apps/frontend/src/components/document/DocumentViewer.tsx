@@ -147,14 +147,14 @@ export function DocumentViewer({
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
     const reference = references.find(r => r.referencedDocumentId === documentId);
-    if (reference) {
+    if (reference && reference.type) {
       setEditingAnnotation({
         id: reference.id,
         type: reference.type,
         referencedDocumentId: reference.referencedDocumentId,
         referenceType: reference.referenceType,
         entityType: reference.entityType,
-        resolvedDocumentName: reference.referencedDocumentName
+        resolvedDocumentName: 'Document'
       });
       setSelectedText(reference.selectionData?.text || '');
       if (reference.selectionData) {
