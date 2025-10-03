@@ -278,25 +278,43 @@ export function CodeMirrorRenderer({
     });
   }, [segments, newAnnotationIds]);
 
-  // Handle hovered annotation - add pulse effect
+  // Handle hovered annotation - add pulse effect and scroll if not visible
   useEffect(() => {
     if (!viewRef.current || !hoveredAnnotationId) return undefined;
 
     const segment = segments.find(s => s.annotation?.id === hoveredAnnotationId);
     if (!segment) return undefined;
 
-    const element = viewRef.current.contentDOM.querySelector(
-      `[data-annotation-id="${hoveredAnnotationId}"]`
-    ) as HTMLElement;
+    const view = viewRef.current;
 
-    if (element) {
-      element.classList.add('annotation-pulse');
+    // Scroll first
+    view.dispatch({
+      effects: EditorView.scrollIntoView(segment.start, {
+        y: 'nearest',
+        yMargin: 50
+      })
+    });
 
-      return () => {
+    // Add pulse effect after a brief delay to ensure element is visible
+    const timeoutId = setTimeout(() => {
+      const element = view.contentDOM.querySelector(
+        `[data-annotation-id="${hoveredAnnotationId}"]`
+      ) as HTMLElement;
+
+      if (element) {
+        element.classList.add('annotation-pulse');
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      const element = view.contentDOM.querySelector(
+        `[data-annotation-id="${hoveredAnnotationId}"]`
+      ) as HTMLElement;
+      if (element) {
         element.classList.remove('annotation-pulse');
-      };
-    }
-    return undefined;
+      }
+    };
   }, [hoveredAnnotationId, segments]);
 
   // Handle scroll to annotation
