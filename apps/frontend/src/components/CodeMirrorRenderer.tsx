@@ -283,6 +283,7 @@ export function CodeMirrorRenderer({
         sourceView ? [] : markdownPreview(),
         sourceView ? lineNumbers() : [],
         EditorView.editable.of(editable),
+        EditorView.lineWrapping,
         annotationDecorationsField,
         enableWidgets ? widgetDecorationsField : [],
         // Handle clicks on annotations

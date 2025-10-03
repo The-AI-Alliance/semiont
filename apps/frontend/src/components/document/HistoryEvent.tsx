@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import type { StoredEvent } from '@semiont/core-types';
 import {
   formatEventType,
@@ -37,18 +37,45 @@ export function HistoryEvent({
   const annotationId = getAnnotationIdFromEvent(event);
   const creationDetails = getDocumentCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const borderClass = isRelated
     ? 'border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
     : 'border-l-2 border-gray-200 dark:border-gray-700';
+
+  // Handle hover on emoji icon with 300ms delay
+  const handleEmojiMouseEnter = useCallback(() => {
+    if (!annotationId || !onEventHover) return;
+
+    // Clear any existing timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    // Set new timeout for 300ms delay
+    hoverTimeoutRef.current = setTimeout(() => {
+      onEventHover(annotationId);
+    }, 300);
+  }, [annotationId, onEventHover]);
+
+  const handleEmojiMouseLeave = useCallback(() => {
+    // Clear the timeout if mouse leaves before 500ms
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+
+    // Clear the hover state
+    if (onEventHover) {
+      onEventHover(null);
+    }
+  }, [onEventHover]);
 
   // Interactive events should be buttons for keyboard accessibility
   const EventWrapper = annotationId ? 'button' : 'div';
   const eventWrapperProps = annotationId ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationId),
-    onMouseEnter: () => onEventHover?.(annotationId),
-    onMouseLeave: () => onEventHover?.(null),
     'aria-label': `View annotation: ${displayContent?.text || formatEventType(event.event.type)}`,
     className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
   } : {
@@ -65,7 +92,13 @@ export function HistoryEvent({
       {...eventWrapperProps}
     >
       <div className="flex items-center gap-1.5">
-        <span className="text-sm">{getEventEmoji(event.event.type)}</span>
+        <span
+          className="text-sm cursor-pointer"
+          onMouseEnter={handleEmojiMouseEnter}
+          onMouseLeave={handleEmojiMouseLeave}
+        >
+          {getEventEmoji(event.event.type)}
+        </span>
         {displayContent ? (
           displayContent.isTag ? (
             <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-medium">
