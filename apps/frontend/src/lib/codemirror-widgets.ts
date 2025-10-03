@@ -41,14 +41,19 @@ export class ReferenceResolutionWidget extends WidgetType {
       position: relative;
     `;
 
-    const indicator = document.createElement('span');
+    // Use button element for keyboard accessibility
+    const indicator = document.createElement('button');
     indicator.className = 'reference-indicator';
+    indicator.type = 'button';
 
     // Different states: resolved, generating, or stub
     const isResolved = !!this.annotation.referencedDocumentId;
 
     if (isResolved) {
-      indicator.textContent = '🔗';
+      indicator.innerHTML = '<span aria-hidden="true">🔗</span>';
+      indicator.setAttribute('aria-label', this.targetDocumentName
+        ? `Reference link to ${this.targetDocumentName}`
+        : 'Reference link to document');
       indicator.title = this.targetDocumentName
         ? `Links to: ${this.targetDocumentName}`
         : 'Links to document';
@@ -57,22 +62,42 @@ export class ReferenceResolutionWidget extends WidgetType {
         cursor: pointer;
         opacity: 0.6;
         transition: opacity 0.2s ease;
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        vertical-align: baseline;
+      `;
+      // Add focus styles
+      indicator.style.cssText += `
+        &:focus {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+          opacity: 1;
+        }
       `;
     } else if (this.isGenerating) {
       // Create circled sparkle matching the text selection sparkle
       indicator.innerHTML = `
-        <span style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+        <span style="position: relative; display: inline-flex; align-items: center; justify-content: center;" aria-hidden="true">
           <span style="position: absolute; inset: 0; border-radius: 9999px; background: rgb(250, 204, 21); opacity: 0.75; animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
           <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 9999px; background: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); border: 2px solid rgb(250, 204, 21);">
             <span style="font-size: 14px;">✨</span>
           </span>
         </span>
       `;
+      indicator.setAttribute('aria-label', 'Generating document');
+      indicator.setAttribute('aria-busy', 'true');
       indicator.title = 'Generating document...';
+      indicator.disabled = true;
       indicator.style.cssText = `
         cursor: default;
         display: inline-flex;
         vertical-align: middle;
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
       `;
 
       // Add dark mode support
@@ -88,13 +113,27 @@ export class ReferenceResolutionWidget extends WidgetType {
         }
       }
     } else {
-      indicator.textContent = '❓';
+      indicator.innerHTML = '<span aria-hidden="true">❓</span>';
+      indicator.setAttribute('aria-label', 'Stub reference - click to resolve');
       indicator.title = 'Stub reference. Click to resolve.';
       indicator.style.cssText = `
         font-size: 10px;
         cursor: pointer;
         opacity: 0.6;
         transition: opacity 0.2s ease;
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        vertical-align: baseline;
+      `;
+      // Add focus styles
+      indicator.style.cssText += `
+        &:focus {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+          opacity: 1;
+        }
       `;
     }
 
