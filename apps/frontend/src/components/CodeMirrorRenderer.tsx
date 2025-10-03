@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate } from '@codemirror/view';
+import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { markdownPreview } from '@/lib/codemirror-markdown-preview';
@@ -143,6 +143,7 @@ export function CodeMirrorRenderer({
       extensions: [
         markdown(),
         sourceView ? [] : markdownPreview(),
+        sourceView ? lineNumbers() : [],
         EditorView.editable.of(editable),
         annotationDecorationsField,
         // Handle clicks on annotations
@@ -220,6 +221,16 @@ export function CodeMirrorRenderer({
           },
           '.cm-cursor': {
             display: editable ? 'block' : 'none'
+          },
+          '.cm-gutters': {
+            backgroundColor: 'transparent',
+            border: 'none',
+            paddingRight: '0.5rem'
+          },
+          '.cm-lineNumbers .cm-gutterElement': {
+            minWidth: '2rem',
+            color: 'inherit',
+            opacity: '0.4'
           }
         })
       ]
