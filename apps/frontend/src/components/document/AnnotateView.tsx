@@ -112,30 +112,41 @@ export function AnnotateView({
   // Handle text selection with sparkle
   useEffect(() => {
     if (!onTextSelect) return;
-    
+
     const container = containerRef.current;
     if (!container) return;
-    
+
     const handleMouseUp = () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
         setSelectionState(null);
         return;
       }
-      
+
       const range = selection.getRangeAt(0);
       const rects = Array.from(range.getClientRects());
       const text = selection.toString();
-      
-      // For source view, position calculation is SIMPLE!
-      // Just count characters from the start
-      const preSelectionRange = document.createRange();
-      preSelectionRange.selectNodeContents(container);
-      preSelectionRange.setEnd(range.startContainer, range.startOffset);
-      
-      const start = preSelectionRange.toString().length;
+
+      // Get the CodeMirror EditorView instance stored on the CodeMirror container
+      const cmContainer = container.querySelector('.codemirror-renderer');
+      const view = (cmContainer as any)?.__cmView;
+      if (!view || !view.posAtDOM) {
+        // Fallback: try to find text in source (won't work for duplicates)
+        const start = content.indexOf(text);
+        if (start === -1) {
+          return;
+        }
+        const end = start + text.length;
+        if (rects.length > 0) {
+          setSelectionState({ text, start, end, rects });
+        }
+        return;
+      }
+
+      // CodeMirror's posAtDOM gives us the position in the document from a DOM node/offset
+      const start = view.posAtDOM(range.startContainer, range.startOffset);
       const end = start + text.length;
-      
+
       if (start >= 0 && rects.length > 0) {
         setSelectionState({ text, start, end, rects });
       }

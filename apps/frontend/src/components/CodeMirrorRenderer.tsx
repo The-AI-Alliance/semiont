@@ -234,6 +234,9 @@ export function CodeMirrorRenderer({
     viewRef.current = view;
     contentRef.current = content;
 
+    // Store the view on the container for position calculation
+    (containerRef.current as any).__cmView = view;
+
     return () => {
       view.destroy();
       viewRef.current = null;
