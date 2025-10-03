@@ -68,7 +68,7 @@ export function SettingsPanel({
           onClick={onClone}
           className={`${buttonStyles.secondary.base} w-full justify-center`}
         >
-          📋 Clone Document
+          📋 Clone
         </button>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Create a copy of this document
@@ -83,7 +83,7 @@ export function SettingsPanel({
               onClick={onUnarchive}
               className={`${buttonStyles.secondary.base} w-full justify-center`}
             >
-              📤 Unarchive Document
+              📤 Unarchive
             </button>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Restore this document to active status
@@ -95,7 +95,7 @@ export function SettingsPanel({
               onClick={onArchive}
               className="w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 justify-center bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              📦 Archive Document
+              📦 Archive
             </button>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Move this document to archived status
