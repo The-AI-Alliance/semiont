@@ -458,19 +458,6 @@ function DocumentView({
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   {document.name}
                 </h2>
-                {/* Document Tags - inline with title */}
-                {documentEntityTypes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {documentEntityTypes.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -574,6 +561,7 @@ function DocumentView({
                   references={references}
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}
+                  documentEntityTypes={documentEntityTypes}
                 />
               )}
 

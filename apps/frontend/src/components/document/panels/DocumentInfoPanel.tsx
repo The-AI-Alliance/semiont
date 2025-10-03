@@ -24,13 +24,15 @@ interface Props {
   references: Reference[];
   referencedBy: ReferencedBy[];
   referencedByLoading: boolean;
+  documentEntityTypes: string[];
 }
 
 export function DocumentInfoPanel({
   highlights,
   references,
   referencedBy,
-  referencedByLoading
+  referencedByLoading,
+  documentEntityTypes
 }: Props) {
   // Count stub vs resolved references
   const stubCount = useMemo(
@@ -57,9 +59,28 @@ export function DocumentInfoPanel({
   }, [references]);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-      <div className="space-y-3 text-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 space-y-4">
+      {/* Entity Type Tags Section */}
+      {documentEntityTypes.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Entity Type Tags</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {documentEntityTypes.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Statistics Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
+        <div className="space-y-3 text-sm">
         {/* Highlights */}
         <div>
           <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
@@ -141,6 +162,7 @@ export function DocumentInfoPanel({
               {referencedByLoading ? 'Loading...' : 'No incoming references'}
             </p>
           )}
+        </div>
         </div>
       </div>
     </div>
