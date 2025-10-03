@@ -89,7 +89,7 @@ export function DocumentViewer({
       return;
     }
 
-    // For other annotations in curation mode, show the popup
+    // For other annotations in Annotate mode, show the popup
     if (curationMode) {
       setEditingAnnotation({
         id: annotation.id,

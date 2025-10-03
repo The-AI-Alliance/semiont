@@ -73,10 +73,10 @@ function applyAnnotations(
         className={className}
         onClick={() => isReference && hasTarget && onAnnotationClick?.(annotation)}
         title={
-          isStubReference 
-            ? 'Reference to a document that doesn\'t exist yet. Switch to curation mode to create it.'
-            : isReference 
-            ? 'Click to navigate to referenced document' 
+          isStubReference
+            ? 'Reference to a document that doesn\'t exist yet. Switch to Annotate mode to create it.'
+            : isReference
+            ? 'Click to navigate to referenced document'
             : 'Highlight'
         }
         style={{ 
