@@ -22,6 +22,9 @@ import { GenerationProgressWidget } from '@/components/GenerationProgressWidget'
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
+import { DetectPanel } from '@/components/document/panels/DetectPanel';
+import { StatsPanel } from '@/components/document/panels/StatsPanel';
+import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
 
 // Loading state component
 function DocumentLoadingState() {
@@ -297,9 +300,6 @@ function DocumentView({
     });
   }, []);
 
-  // State for entity types being detected
-  const [detectionEntityTypes, setDetectionEntityTypes] = useState<string[]>([]);
-  const [lastDetectionLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
 
   // Use SSE-based detection progress
   const {
@@ -323,16 +323,9 @@ function DocumentView({
       refetchHighlights();
       refetchReferences();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
-
-      // Save the log entries for display after completion
-      if (progress.completedEntityTypes) {
-        setLastDetectionLog(progress.completedEntityTypes);
-      }
-      setDetectionEntityTypes([]);
     },
     onError: (error) => {
       showError(error);
-      setDetectionEntityTypes([]);
     }
   });
 
@@ -365,9 +358,6 @@ function DocumentView({
 
   // Handle detect entity references - updated for SSE
   const handleDetectEntityReferences = useCallback(async (selectedTypes: string[]) => {
-    // Set entity types for display and start detection
-    setDetectionEntityTypes(selectedTypes);
-
     // Start detection with the selected entity types
     setTimeout(() => startDetection(selectedTypes), 100);
   }, [startDetection]);
@@ -593,103 +583,13 @@ function DocumentView({
 
               {/* Detect Panel */}
               {activeToolbarPanel === 'detect' && !document.archived && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      Detect References
-                    </h3>
-                  </div>
-
-                  {/* Show selection UI only when not detecting and no completed log */}
-                  {!detectionProgress && !lastDetectionLog && (
-                    <>
-                      {/* Entity Types Selection */}
-                      <div className="mb-4">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Select entity types to detect:
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {allEntityTypes.length > 0 ? (
-                            allEntityTypes.map((type: string) => (
-                              <button
-                                key={type}
-                                onClick={() => {
-                                  setDetectionEntityTypes(prev =>
-                                    prev.includes(type)
-                                      ? prev.filter(t => t !== type)
-                                      : [...prev, type]
-                                  );
-                                }}
-                                className={`px-3 py-1 text-sm rounded-full transition-colors border ${
-                                  detectionEntityTypes.includes(type)
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                                    : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                              >
-                                {type}
-                              </button>
-                            ))
-                          ) : (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              No entity types available
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Selected Count */}
-                      {detectionEntityTypes.length > 0 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">
-                          {detectionEntityTypes.length} type{detectionEntityTypes.length !== 1 ? 's' : ''} selected
-                        </p>
-                      )}
-
-                      {/* Start Detection Button */}
-                      <button
-                        onClick={() => handleDetectEntityReferences(detectionEntityTypes)}
-                        disabled={detectionEntityTypes.length === 0}
-                        className={`w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
-                          detectionEntityTypes.length > 0
-                            ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                        }`}
-                      >
-                        ✨ Start Detection
-                      </button>
-                    </>
-                  )}
-
-                  {/* Detection Progress - shown when active */}
-                  {detectionProgress && (
-                    <div className="mt-4">
-                      <DetectionProgressWidget
-                        progress={detectionProgress}
-                        onCancel={cancelDetection}
-                      />
-                    </div>
-                  )}
-
-                  {/* Completed detection log - shown after completion */}
-                  {!detectionProgress && lastDetectionLog && lastDetectionLog.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        {lastDetectionLog.map((item, index) => (
-                          <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                            <span className="text-green-600 dark:text-green-400">✓</span>
-                            <span className="font-medium">{item.entityType}:</span>
-                            <span>{item.foundCount} found</span>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => setLastDetectionLog(null)}
-                        className="w-full px-4 py-2 rounded-lg transition-colors duration-200 font-medium bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg"
-                      >
-                        More
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <DetectPanel
+                  allEntityTypes={allEntityTypes}
+                  isDetecting={isDetecting}
+                  detectionProgress={detectionProgress}
+                  onDetect={handleDetectEntityReferences}
+                  onCancelDetection={cancelDetection}
+                />
               )}
 
               {/* History Panel */}
@@ -704,156 +604,23 @@ function DocumentView({
 
               {/* Statistics Panel */}
               {activeToolbarPanel === 'stats' && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Statistics</h3>
-                  <div className="space-y-3 text-sm">
-                    {/* Highlights */}
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400 block">Highlights</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                        {highlights.length}
-                      </span>
-                    </div>
-
-                    {/* References */}
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400 block">References</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100 text-lg">
-                        {references.length}
-                      </span>
-
-                      {/* Sub-categories indented */}
-                      <div className="ml-4 mt-2 space-y-1.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">Stub</span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {references.filter((r: any) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">Resolved</span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {references.filter((r: any) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Entity Types */}
-                    {(() => {
-                      // Count entity types from references
-                      const entityTypeCounts = new Map<string, number>();
-                      references.forEach((ref: any) => {
-                        const entityTypes = ref.entityTypes || (ref.entityType ? [ref.entityType] : []);
-                        entityTypes.forEach((type: string) => {
-                          entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
-                        });
-                      });
-
-                      const entityTypesList = Array.from(entityTypeCounts.entries())
-                        .sort((a, b) => b[1] - a[1]); // Sort by count descending
-
-                      if (entityTypesList.length === 0) return null;
-
-                      return (
-                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                          <span className="text-gray-500 dark:text-gray-400 block mb-2">Entity Types</span>
-                          <div className="space-y-2">
-                            {entityTypesList.map(([type, count]) => (
-                              <div
-                                key={type}
-                                className="flex justify-between items-center text-xs p-2 rounded bg-gray-50 dark:bg-gray-700/50"
-                              >
-                                <span className="text-gray-700 dark:text-gray-300">{type}</span>
-                                <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
-                                  {count}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Referenced By section */}
-                    <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        Referenced by
-                        {referencedByLoading && (
-                          <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(loading...)</span>
-                        )}
-                      </h4>
-                      {referencedBy.length > 0 ? (
-                        <div className="space-y-2">
-                          {referencedBy.map((ref: any) => (
-                            <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
-                              <Link
-                                href={`/know/document/${encodeURIComponent(ref.documentId)}`}
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
-                              >
-                                {ref.documentName || 'Untitled Document'}
-                              </Link>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                                "{ref.selectionData?.text || 'No text'}"
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {referencedByLoading ? 'Loading...' : 'No incoming references'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <StatsPanel
+                  highlights={highlights}
+                  references={references}
+                  referencedBy={referencedBy}
+                  referencedByLoading={referencedByLoading}
+                />
               )}
             </div>
           )}
 
           {/* Toolbar - Always visible on the right */}
-          <div className="w-12 flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
-            {/* Detect Icon - only show in Annotate Mode */}
-            {annotateMode && !document.archived && (
-              <button
-                onClick={() => handleToolbarPanelToggle('detect')}
-                className={`p-2 rounded-md transition-colors relative ${
-                  activeToolbarPanel === 'detect'
-                    ? 'bg-blue-200 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 border-l-4 border-blue-600 dark:border-blue-400'
-                    : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
-                }`}
-                title="Detect References"
-              >
-                <span className="text-xl">🔵</span>
-              </button>
-            )}
-
-            {/* History Icon */}
-            <button
-              onClick={() => handleToolbarPanelToggle('history')}
-              className={`p-2 rounded-md transition-colors relative ${
-                activeToolbarPanel === 'history'
-                  ? 'bg-blue-200 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 border-l-4 border-blue-600 dark:border-blue-400'
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
-              }`}
-              title="History"
-            >
-              <span className="text-xl">📒</span>
-            </button>
-
-            {/* Statistics Icon */}
-            <button
-              onClick={() => handleToolbarPanelToggle('stats')}
-              className={`p-2 rounded-md transition-colors relative ${
-                activeToolbarPanel === 'stats'
-                  ? 'bg-blue-200 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 border-l-4 border-blue-600 dark:border-blue-400'
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
-              }`}
-              title="Statistics"
-            >
-              <span className="text-xl">ℹ️</span>
-            </button>
-          </div>
+          <DocumentToolbar
+            activePanel={activeToolbarPanel}
+            annotateMode={annotateMode}
+            isArchived={document.archived}
+            onPanelToggle={handleToolbarPanelToggle}
+          />
         </div>
       </div>
     </div>
