@@ -18,6 +18,15 @@ interface Props {
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
   editable?: boolean;
+  enableWidgets?: boolean;
+  onWikiLinkClick?: (pageName: string) => void;
+  onEntityTypeClick?: (entityType: string) => void;
+  onReferenceNavigate?: (documentId: string) => void;
+  onUnresolvedReferenceClick?: (annotation: any) => void;
+  getTargetDocumentName?: (documentId: string) => string | undefined;
+  generatingReferenceId?: string | null;
+  onDeleteAnnotation?: (annotation: any) => void;
+  onConvertAnnotation?: (annotation: any) => void;
 }
 
 interface TextSegment {
@@ -94,7 +103,16 @@ export function AnnotateView({
   onAnnotationHover,
   hoveredAnnotationId,
   scrollToAnnotationId,
-  editable = false
+  editable = false,
+  enableWidgets = false,
+  onWikiLinkClick,
+  onEntityTypeClick,
+  onReferenceNavigate,
+  onUnresolvedReferenceClick,
+  getTargetDocumentName,
+  generatingReferenceId,
+  onDeleteAnnotation,
+  onConvertAnnotation
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,6 +229,15 @@ export function AnnotateView({
         {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
         {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
         sourceView={true}
+        enableWidgets={enableWidgets}
+        {...(onWikiLinkClick && { onWikiLinkClick })}
+        {...(onEntityTypeClick && { onEntityTypeClick })}
+        {...(onReferenceNavigate && { onReferenceNavigate })}
+        {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
+        {...(getTargetDocumentName && { getTargetDocumentName })}
+        {...(generatingReferenceId !== undefined && { generatingReferenceId })}
+        {...(onDeleteAnnotation && { onDeleteAnnotation })}
+        {...(onConvertAnnotation && { onConvertAnnotation })}
       />
       
       {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}

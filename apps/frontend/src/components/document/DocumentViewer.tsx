@@ -17,6 +17,7 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  generatingReferenceId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
@@ -30,6 +31,7 @@ export function DocumentViewer({
   onWikiLinkClick,
   curationMode = false,
   onGenerateDocument,
+  generatingReferenceId,
   onAnnotationHover,
   hoveredAnnotationId,
   scrollToAnnotationId
@@ -83,13 +85,13 @@ export function DocumentViewer({
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
     console.log('[DocumentViewer] Annotation clicked:', annotation);
 
-    // If it's a reference with a target document, navigate to it
+    // If it's a resolved reference, navigate to it (in both curation and browse mode)
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${encodeURIComponent(annotation.referencedDocumentId)}`);
       return;
     }
 
-    // For any other case in curation mode, show the unified popup
+    // For other annotations in Annotate mode, show the popup
     if (curationMode) {
       setEditingAnnotation({
         id: annotation.id,
@@ -143,6 +145,30 @@ export function DocumentViewer({
     setPopupPosition({ x, y: y + 10 });
     setShowSelectionPopup(true);
   }, []);
+
+  // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
+  const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
+    const reference = references.find(r => r.referencedDocumentId === documentId);
+    if (reference && reference.type) {
+      setEditingAnnotation({
+        id: reference.id,
+        type: reference.type,
+        ...(reference.referencedDocumentId && { referencedDocumentId: reference.referencedDocumentId }),
+        ...(reference.referenceType && { referenceType: reference.referenceType }),
+        ...(reference.entityType && { entityType: reference.entityType }),
+        resolvedDocumentName: 'Document'
+      });
+      setSelectedText(reference.selectionData?.text || '');
+      if (reference.selectionData) {
+        setSelectionPosition({
+          start: reference.selectionData.offset,
+          end: reference.selectionData.offset + reference.selectionData.length
+        });
+      }
+      setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
+      setShowSelectionPopup(true);
+    }
+  }, [references]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
@@ -223,7 +249,34 @@ export function DocumentViewer({
       console.error('Failed to delete annotation:', err);
     }
   }, [deleteAnnotation, onRefetchAnnotations]);
-  
+
+  // Quick action: Delete annotation from widget
+  const handleDeleteAnnotationWidget = useCallback(async (annotation: any) => {
+    console.log('[DocumentViewer] Delete annotation from widget:', annotation);
+    await handleDeleteAnnotation(annotation.id);
+  }, [handleDeleteAnnotation]);
+
+  // Quick action: Convert annotation from widget
+  const handleConvertAnnotationWidget = useCallback(async (annotation: any) => {
+    console.log('[DocumentViewer] Convert annotation from widget:', annotation);
+    try {
+      if (annotation.type === 'highlight') {
+        // Convert highlight to reference (open dialog to get target)
+        setEditingAnnotation({
+          id: annotation.id,
+          type: 'highlight'
+        });
+        setShowSelectionPopup(true);
+      } else if (annotation.type === 'reference') {
+        // Convert reference to highlight
+        await convertReferenceToHighlight(references, annotation.id);
+        onRefetchAnnotations?.();
+      }
+    } catch (err) {
+      console.error('Failed to convert annotation:', err);
+    }
+  }, [convertReferenceToHighlight, references, onRefetchAnnotations]);
+
   // Close popup - memoized
   const handleClosePopup = useCallback(() => {
     setShowSelectionPopup(false);
@@ -374,6 +427,20 @@ export function DocumentViewer({
             {...(onAnnotationHover && { onAnnotationHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+            enableWidgets={true}
+            {...(onWikiLinkClick && { onWikiLinkClick })}
+            onEntityTypeClick={(entityType) => {
+              router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
+            }}
+            onReferenceNavigate={handleResolvedReferenceWidgetClick}
+            onUnresolvedReferenceClick={handleAnnotationClick}
+            getTargetDocumentName={(documentId) => {
+              // TODO: Add document cache lookup for better UX
+              return undefined;
+            }}
+            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
+            onDeleteAnnotation={handleDeleteAnnotationWidget}
+            onConvertAnnotation={handleConvertAnnotationWidget}
           />
         ) : (
           <AnnotateView
@@ -386,6 +453,20 @@ export function DocumentViewer({
             {...(onAnnotationHover && { onAnnotationHover })}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+            enableWidgets={true}
+            {...(onWikiLinkClick && { onWikiLinkClick })}
+            onEntityTypeClick={(entityType) => {
+              router.push(`/know?entityType=${encodeURIComponent(entityType)}`);
+            }}
+            onReferenceNavigate={handleResolvedReferenceWidgetClick}
+            onUnresolvedReferenceClick={handleAnnotationClick}
+            getTargetDocumentName={(documentId) => {
+              // TODO: Add document cache lookup for better UX
+              return undefined;
+            }}
+            {...(generatingReferenceId !== undefined && { generatingReferenceId })}
+            onDeleteAnnotation={handleDeleteAnnotationWidget}
+            onConvertAnnotation={handleConvertAnnotationWidget}
           />
         )
       ) : (

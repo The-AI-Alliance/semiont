@@ -34,6 +34,20 @@ export function ResolvedReferencePopup({
     }
   };
 
+  const handleOpenInNewTab = () => {
+    if (annotation.resolvedDocumentId) {
+      window.open(`/know/document/${encodeURIComponent(annotation.resolvedDocumentId)}`, '_blank');
+    }
+  };
+
+  const handleCopyLinkText = async () => {
+    try {
+      await navigator.clipboard.writeText(selection.text);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
       resolvedDocumentId: null,
@@ -57,7 +71,7 @@ export function ResolvedReferencePopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title="Linked Reference" onClose={onClose} />
+      <PopupHeader title="Resolved Reference" onClose={onClose} />
 
       <SelectedTextDisplay text={selection.text} />
 
@@ -71,10 +85,10 @@ export function ResolvedReferencePopup({
         </div>
       )}
 
-      {/* Linked Document Info */}
+      {/* Resolved Document Info */}
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
-          Linked to:
+          Resolved to:
         </p>
         <p className="text-sm text-blue-700 dark:text-blue-300">
           {annotation.resolvedDocumentName || 'Document'}
@@ -83,12 +97,21 @@ export function ResolvedReferencePopup({
 
       {/* Primary Actions */}
       <div className="mb-4">
-        <button
-          onClick={handleViewDocument}
-          className={`${buttonStyles.primary.base} w-full justify-center`}
-        >
-          📄 View Document
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleOpenInNewTab}
+            className={`${buttonStyles.primary.base} flex-1 justify-center`}
+          >
+            🔗 Open in New Tab
+          </button>
+          <button
+            onClick={handleCopyLinkText}
+            className={`${buttonStyles.secondary.base} px-3 flex items-center justify-center`}
+            title="Copy link text"
+          >
+            📋
+          </button>
+        </div>
       </div>
 
       {/* Secondary Actions */}

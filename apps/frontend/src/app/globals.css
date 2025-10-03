@@ -113,6 +113,15 @@ body {
 .md-header-widget.md-h2 { font-size: 1.5em; font-weight: bold; }
 
 /* Animations for SelectionPopup entity types */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes fadeInScale {
   from {
     opacity: 0;
@@ -141,5 +150,10 @@ body {
 
 .animate-slideDown {
   animation: slideDown 0.3s ease-out;
+}
+
+/* Quick action widgets - show on annotation hover */
+[data-annotation-id]:hover .quick-actions-widget {
+  opacity: 1 !important;
 }
 .md-header-widget.md-h3 { font-size: 1.25em; font-weight: bold; }
