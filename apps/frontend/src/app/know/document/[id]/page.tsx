@@ -739,6 +739,42 @@ function DocumentView({
                       </div>
                     </div>
 
+                    {/* Entity Types */}
+                    {(() => {
+                      // Count entity types from references
+                      const entityTypeCounts = new Map<string, number>();
+                      references.forEach((ref: any) => {
+                        const entityTypes = ref.entityTypes || (ref.entityType ? [ref.entityType] : []);
+                        entityTypes.forEach((type: string) => {
+                          entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
+                        });
+                      });
+
+                      const entityTypesList = Array.from(entityTypeCounts.entries())
+                        .sort((a, b) => b[1] - a[1]); // Sort by count descending
+
+                      if (entityTypesList.length === 0) return null;
+
+                      return (
+                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                          <span className="text-gray-500 dark:text-gray-400 block mb-2">Entity Types</span>
+                          <div className="space-y-2">
+                            {entityTypesList.map(([type, count]) => (
+                              <div
+                                key={type}
+                                className="flex justify-between items-center text-xs p-2 rounded bg-gray-50 dark:bg-gray-700/50"
+                              >
+                                <span className="text-gray-700 dark:text-gray-300">{type}</span>
+                                <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
+                                  {count}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Referenced By section */}
                     <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                       <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
