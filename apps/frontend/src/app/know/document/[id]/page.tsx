@@ -24,6 +24,7 @@ import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
 import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
 
 // Loading state component
@@ -167,10 +168,10 @@ function DocumentView({
   });
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings') {
+      if (saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
         return saved === 'stats' ? 'info' : saved;
       }
     }
@@ -301,7 +302,7 @@ function DocumentView({
   }, [annotateMode]);
 
   // Handle toolbar panel toggle
-  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'info' | 'detect' | 'settings') => {
+  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
     setActiveToolbarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
@@ -375,7 +376,7 @@ function DocumentView({
   }, [startGeneration, documentId]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
-  const { status: eventStreamStatus, isConnected, eventCount } = useDocumentEvents({
+  const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
     documentId,
     autoConnect: true,  // Document exists, safe to connect
 
@@ -454,52 +455,9 @@ function DocumentView({
           {/* Document Header - Only spans document content width */}
           <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
             <div className="px-6 py-2 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {document.name}
-                </h2>
-                {/* Document Tags - inline with title */}
-                {documentEntityTypes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {documentEntityTypes.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Annotate Mode Toggle */}
-                <button
-                  onClick={handleAnnotateModeToggle}
-                  className={`${
-                    annotateMode ? buttonStyles.primary.base : buttonStyles.secondary.base
-                  } text-xs px-3 py-1`}
-                  title="Toggle annotation mode"
-                >
-                  {annotateMode ? '✏️ Annotate ON' : '👁️ Annotate OFF'}
-                </button>
-
-                {/* Real-time connection indicator */}
-                {isConnected && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      Live
-                    </span>
-                    {eventCount > 0 && (
-                      <span className="text-gray-400 dark:text-gray-500">
-                        ({eventCount} events)
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {document.name}
+              </h2>
             </div>
           </div>
           <div className="flex-1 bg-white dark:bg-gray-800 rounded-b-lg shadow-sm px-6 py-4 overflow-y-auto">
@@ -585,6 +543,16 @@ function DocumentView({
                   references={references}
                   referencedBy={referencedBy}
                   referencedByLoading={referencedByLoading}
+                  documentEntityTypes={documentEntityTypes}
+                />
+              )}
+
+              {/* Collaboration Panel */}
+              {activeToolbarPanel === 'collaboration' && (
+                <CollaborationPanel
+                  isConnected={isConnected}
+                  eventCount={eventCount}
+                  {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
                 />
               )}
 
@@ -595,6 +563,8 @@ function DocumentView({
                   onArchive={handleArchive}
                   onUnarchive={handleUnarchive}
                   onClone={handleClone}
+                  annotateMode={annotateMode}
+                  onAnnotateModeToggle={handleAnnotateModeToggle}
                 />
               )}
             </div>

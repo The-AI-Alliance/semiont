@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-type ToolbarPanel = 'history' | 'info' | 'detect' | 'settings';
+type ToolbarPanel = 'history' | 'info' | 'detect' | 'settings' | 'collaboration';
 
 interface Props {
   activePanel: ToolbarPanel | null;
@@ -59,6 +59,17 @@ export function DocumentToolbar({
         title="Document Info"
       >
         <span className="text-xl" aria-hidden="true">ℹ️</span>
+      </button>
+
+      {/* Collaboration Icon */}
+      <button
+        onClick={() => onPanelToggle('collaboration')}
+        className={buttonClass('collaboration')}
+        aria-label="Collaboration"
+        aria-pressed={activePanel === 'collaboration'}
+        title="Collaboration"
+      >
+        <span className="text-xl" aria-hidden="true">👥</span>
       </button>
 
       {/* Settings Icon */}
