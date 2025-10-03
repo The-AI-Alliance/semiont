@@ -1,5 +1,7 @@
 # Archive and Clone Features
 
+> **⚠️ Note:** Code examples in this document use the old `apiService.*` pattern. The current architecture uses React Query hooks (`api.*`). See [ARCHITECTURE.md](./ARCHITECTURE.md) and [AUTHENTICATION.md](./AUTHENTICATION.md) for current patterns.
+
 ## Overview
 
 The Archive and Clone features provide document lifecycle management capabilities, allowing users to preserve important documents and create working copies.
