@@ -160,6 +160,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
+        id: 'doc-123',
         name: 'Test Document',
         entityTypes: ['entity1', 'entity2'],
         content: 'test content',
@@ -198,6 +199,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
+        id: 'doc-123',
         name: 'Test Document',
         entityTypes: [],
         content: 'test content',
@@ -241,6 +243,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createDocument).toHaveBeenCalledWith({
+        id: 'doc-456',
         name: 'Cloned Document',
         entityTypes: ['entity1'],
         content: 'test content',
