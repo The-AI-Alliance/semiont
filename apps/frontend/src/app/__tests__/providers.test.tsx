@@ -5,19 +5,37 @@ import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
 import { APIError } from '@/lib/api-client';
 
-// Mock the useSecureAPI hook
-vi.mock('@/hooks/useSecureAPI', () => ({
-  useSecureAPI: vi.fn()
-}));
-
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
   SessionProvider: ({ children }: { children: React.ReactNode }) =>
     <div data-testid="session-provider">{children}</div>,
   useSession: () => ({
     status: 'authenticated',
-    data: null
+    data: { backendToken: 'mock-token' }
   })
+}));
+
+// Mock custom contexts
+vi.mock('@/contexts/SessionContext', () => ({
+  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useCustomSession: () => ({ isFullyAuthenticated: true })
+}));
+
+vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
+  KeyboardShortcutsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
+}));
+
+vi.mock('@/components/Toast', () => ({
+  ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() })
+}));
+
+vi.mock('@/components/LiveRegion', () => ({
+  LiveRegionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
+}));
+
+vi.mock('@/components/AuthErrorBoundary', () => ({
+  AuthErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }));
 
 // Mock react-query to spy on QueryClient creation
@@ -26,7 +44,7 @@ vi.mock('@tanstack/react-query', async () => {
   return {
     ...actual,
     QueryClient: vi.fn().mockImplementation((options) => new (actual as any).QueryClient(options)),
-    QueryClientProvider: ({ children }: { children: React.ReactNode }) => 
+    QueryClientProvider: ({ children }: { children: React.ReactNode }) =>
       <div data-testid="query-client-provider">{children}</div>
   };
 });

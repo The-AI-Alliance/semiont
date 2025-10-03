@@ -1,13 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
-import { formatSelection } from '../../selections/helpers';
 import type { DocumentsRouterType } from '../shared';
-
-// Local schema
-const GetHighlightsResponse = z.object({
-  highlights: z.array(z.any()),
-});
+import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { GetHighlightsResponseSchema } from '@semiont/core-types';
 
 // GET /api/documents/{id}/highlights
 export const getDocumentHighlightsRoute = createRoute({
@@ -26,7 +20,7 @@ export const getDocumentHighlightsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetHighlightsResponse,
+          schema: GetHighlightsResponseSchema,
         },
       },
       description: 'Document highlights',
@@ -37,17 +31,26 @@ export const getDocumentHighlightsRoute = createRoute({
 export function registerDocumentHighlights(router: DocumentsRouterType) {
   router.openapi(getDocumentHighlightsRoute, async (c) => {
     const { id } = c.req.valid('param');
-    const graphDb = await getGraphDatabase();
 
-    const document = await graphDb.getDocument(id);
-    if (!document) {
-      throw new HTTPException(404, { message: 'Document not found' });
-    }
+    // Layer 3 only - projection storage is source of truth
+    const projectionHighlights = await AnnotationQueryService.getHighlights(id);
 
-    const highlights = await graphDb.getHighlights(id);
+    // Transform projection format to component format
+    const highlights = projectionHighlights.map(hl => ({
+      id: hl.id,
+      documentId: id,
+      text: hl.text,
+      selectionData: {
+        type: 'text_span',
+        offset: hl.position.offset,
+        length: hl.position.length,
+        text: hl.text
+      },
+      type: 'highlight' as const,
+    }));
 
     return c.json({
-      highlights: highlights.map(formatSelection)
+      highlights
     });
   });
 }

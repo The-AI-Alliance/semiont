@@ -6,14 +6,30 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-interface GraphServiceConfig {
-  type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';  // Required field
-  port?: number;
-  host?: string;
-  storage?: 'cassandra' | 'berkeleydb';
-  index?: 'elasticsearch' | 'none';
-  [key: string]: any;
-}
+type GraphServiceConfig =
+  | {
+      type: 'janusgraph';
+      host?: string;
+      port?: number;
+      storage?: 'cassandra' | 'berkeleydb';
+      index?: 'elasticsearch' | 'none';
+    }
+  | {
+      type: 'neptune';
+      endpoint?: string;
+      port?: number;
+      region?: string;
+    }
+  | {
+      type: 'neo4j';
+      uri?: string;
+      username?: string;
+      password?: string;
+      database?: string;
+    }
+  | {
+      type: 'memory';
+    };
 
 interface FilesystemServiceConfig {
   path: string;  // Required field
@@ -80,52 +96,27 @@ export function loadEnvironmentConfig(): EnvironmentConfig | null {
 /**
  * Get graph database configuration from environment
  */
-export function getGraphConfig(): {
-  type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
-  host?: string;
-  port?: number;
-  storage?: string;
-  index?: string;
-} {
+export function getGraphConfig(): GraphServiceConfig {
   // First try to load from environment JSON
   const envConfig = loadEnvironmentConfig();
-  
-  if (envConfig?.services?.graph) {
-    const graphService = envConfig.services.graph;
-    
-    if (!graphService.type) {
-      throw new Error('Graph service configuration must specify a "type" field (janusgraph, neptune, neo4j, or memory)');
-    }
-    
-    const validTypes = ['janusgraph', 'neptune', 'neo4j', 'memory'];
-    if (!validTypes.includes(graphService.type)) {
-      throw new Error(`Invalid graph service type: ${graphService.type}. Must be one of: ${validTypes.join(', ')}`);
-    }
-    
-    const result: {
-      type: 'janusgraph' | 'neptune' | 'neo4j' | 'memory';
-      host?: string;
-      port?: number;
-      storage?: string;
-      index?: string;
-    } = {
-      type: graphService.type,
-      host: graphService.host || 'localhost',
-      port: graphService.port || 8182
-    };
-    
-    if (graphService.storage) {
-      result.storage = graphService.storage;
-    }
-    if (graphService.index) {
-      result.index = graphService.index;
-    }
-    
-    return result;
+
+  if (!envConfig?.services?.graph) {
+    throw new Error('Graph service configuration not found. Please specify graph service settings in your environment configuration.');
   }
 
-  // If no configuration found, error
-  throw new Error('Graph service configuration not found. Please specify graph service settings your environment configuration.');
+  const graphService = envConfig.services.graph as any;
+
+  if (!graphService.type) {
+    throw new Error('Graph service configuration must specify a "type" field (janusgraph, neptune, neo4j, or memory)');
+  }
+
+  const validTypes = ['janusgraph', 'neptune', 'neo4j', 'memory'];
+  if (!validTypes.includes(graphService.type)) {
+    throw new Error(`Invalid graph service type: ${graphService.type}. Must be one of: ${validTypes.join(', ')}`);
+  }
+
+  // Return the config as-is, typed as GraphServiceConfig discriminated union
+  return graphService as GraphServiceConfig;
 }
 
 /**

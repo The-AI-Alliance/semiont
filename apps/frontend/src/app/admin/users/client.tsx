@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { 
+import {
   PlusIcon,
   MagnifyingGlassIcon,
   UserCircleIcon,
@@ -11,9 +11,9 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSecureAPI } from '@/hooks/useSecureAPI';
 import { buttonStyles } from '@/lib/button-styles';
 
 function UserTableRow({ 
@@ -42,7 +42,7 @@ function UserTableRow({
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center">
-          <UserCircleIcon className="h-8 w-8 text-gray-400 mr-3" />
+          <UserCircleIcon className="h-8 w-8 text-gray-600 dark:text-gray-400 mr-3" />
           <div>
             <div className="text-sm font-medium text-gray-900 dark:text-white">
               {user.name || 'No name'}
@@ -107,22 +107,21 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  
-  // Ensure API client has authentication token
-  const { hasValidToken, isAuthenticated } = useSecureAPI();
-  
+  const { data: session } = useSession();
+  const isAuthenticated = !!session?.backendToken;
+
   // Debug logging
   React.useEffect(() => {
-    console.log('Admin Users Component - Auth Status:', { hasValidToken, isAuthenticated });
-  }, [hasValidToken, isAuthenticated]);
-  
+    console.log('Admin Users Component - Auth Status:', { isAuthenticated });
+  }, [isAuthenticated]);
+
   const queryClient = useQueryClient();
-  // Only run queries when we have a valid token
+  // Only run queries when authenticated
   const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.list.useQuery(
-    { enabled: hasValidToken }
+    { enabled: isAuthenticated }
   );
   const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery(
-    { enabled: hasValidToken }
+    { enabled: isAuthenticated }
   );
   
   // Debug logging for API responses
@@ -271,7 +270,7 @@ export default function AdminUsers() {
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </div>
               <input
                 type="text"
@@ -375,7 +374,7 @@ export default function AdminUsers() {
         
         {!usersLoading && filteredUsers.length === 0 && (
           <div className="p-6 text-center">
-            <UserCircleIcon className="mx-auto h-12 w-12 text-gray-400" />
+            <UserCircleIcon className="mx-auto h-12 w-12 text-gray-600 dark:text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No users found</h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Try adjusting your search criteria or filters.

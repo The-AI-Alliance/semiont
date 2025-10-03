@@ -191,7 +191,10 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       createdAt: new Date(),
     };
 
-    const createInput: CreateDocumentInput = {
+    const documentId = `doc-sha256:${checksum}`;
+
+    const createInput: CreateDocumentInput & { id: string } = {
+      id: documentId,
       name: document.name,
       entityTypes: document.entityTypes,
       content: body.content,
@@ -204,7 +207,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     };
 
     const savedDoc = await graphDb.createDocument(createInput);
-    await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
+    await storage.saveDocument(documentId, Buffer.from(body.content));
 
     // Archive original if requested
     if (body.archiveOriginal) {

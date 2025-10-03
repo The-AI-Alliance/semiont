@@ -1,31 +1,73 @@
+import { createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { detectSelectionsInDocument } from '../helpers';
-import type { CreateSelectionInput } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
+import { DocumentQueryService } from '../../../services/document-queries';
+import { emitReferenceCreated } from '../../../events/emit';
+import { generateAnnotationId } from '../../../utils/id-generator';
 
 interface DetectionProgress {
-  status: 'started' | 'scanning' | 'creating' | 'complete' | 'error';
+  status: 'started' | 'scanning' | 'complete' | 'error';
   documentId: string;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;
-  foundCount: number;
-  createdCount: number;
-  percentage: number;
   message?: string;
+  foundCount?: number;
 }
 
 /**
  * SSE endpoint for real-time detection progress updates
  */
+export const detectSelectionsStreamRoute = createRoute({
+  method: 'post',
+  path: '/api/documents/{id}/detect-selections-stream',
+  summary: 'Detect Selections with Progress (SSE)',
+  description: 'Stream real-time entity detection progress via Server-Sent Events',
+  tags: ['Documents', 'Selections', 'Real-time'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string(),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            entityTypes: z.array(z.string()),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'SSE stream opened successfully',
+      content: {
+        'text/event-stream': {
+          schema: z.object({
+            event: z.string(),
+            data: z.string(),
+            id: z.string().optional(),
+          }),
+        },
+      },
+    },
+    401: {
+      description: 'Authentication required',
+    },
+    404: {
+      description: 'Document not found',
+    },
+  },
+});
+
 export function registerDetectSelectionsStream(router: DocumentsRouterType) {
-  router.post('/api/documents/:id/detect-selections-stream', async (c) => {
-    const { id } = c.req.param();
-    const body = await c.req.json() as { entityTypes: string[] };
-    const entityTypes = body.entityTypes || [];
+  router.openapi(detectSelectionsStreamRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const { entityTypes } = c.req.valid('json');
 
     console.log(`[DetectSelections] Starting detection for document ${id} with entity types:`, entityTypes);
 
@@ -35,13 +77,12 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
       throw new HTTPException(401, { message: 'Authentication required' });
     }
 
-    // Validate document exists
-    const graphDb = await getGraphDatabase();
+    // Validate document exists using Layer 3
     const storage = getStorageService();
 
-    const document = await graphDb.getDocument(id);
+    const document = await DocumentQueryService.getDocumentMetadata(id);
     if (!document) {
-      throw new HTTPException(404, { message: 'Document not found' });
+      throw new HTTPException(404, { message: 'Document not found in Layer 3 projections - document may need to be recreated' });
     }
 
     // Stream SSE events
@@ -54,9 +95,6 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
             documentId: id,
             totalEntityTypes: entityTypes.length,
             processedEntityTypes: 0,
-            foundCount: 0,
-            createdCount: 0,
-            percentage: 0,
             message: 'Starting entity detection...'
           } as DetectionProgress),
           event: 'detection-started',
@@ -67,16 +105,12 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
         const content = await storage.getDocument(id);
         const docWithContent = { ...document, content: content.toString('utf-8') };
 
-        let totalFound = 0;
-        let totalCreated = 0;
-
         // Process each entity type
         for (let i = 0; i < entityTypes.length; i++) {
           const entityType = entityTypes[i];
           if (!entityType) continue; // Skip if undefined
-          const percentage = Math.floor((i / entityTypes.length) * 80); // Reserve 20% for saving
 
-          // Send scanning progress
+          // Send scanning progress for this entity type
           await stream.writeSSE({
             data: JSON.stringify({
               status: 'scanning',
@@ -84,10 +118,7 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
               currentEntityType: entityType,
               totalEntityTypes: entityTypes.length,
               processedEntityTypes: i,
-              foundCount: totalFound,
-              createdCount: totalCreated,
-              percentage,
-              message: `Scanning for ${entityType} entities...`
+              message: `Scanning for ${entityType}...`
             } as DetectionProgress),
             event: 'detection-progress',
             id: String(Date.now())
@@ -99,42 +130,40 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
             [entityType]
           );
 
-          totalFound += detectedSelections.length;
-
-          // Save the provisional selections
+          // Create provisional references via events (event store updates Layer 3, graph consumer updates Layer 4)
+          // References will appear in Annotation History as they're created (via debounced refetch)
           for (const detected of detectedSelections) {
-            const selectionInput: CreateSelectionInput & { selectionType: string } = {
+            const referenceId = generateAnnotationId();
+
+            await emitReferenceCreated({
               documentId: id,
-              selectionType: 'reference',
-              selectionData: detected.selection.selectionData,
-              resolvedDocumentId: null,
+              userId: user.id,
+              referenceId,
+              text: detected.selection.selectionData.text,
+              position: {
+                offset: detected.selection.selectionData.offset,
+                length: detected.selection.selectionData.length,
+              },
               entityTypes: detected.selection.entityTypes,
-              provisional: true,
-              metadata: detected.selection.metadata,
-              createdBy: user.id,
-            };
-
-            await graphDb.createSelection(selectionInput);
-            totalCreated++;
-
-            // Send creation progress
-            const creationPercentage = 80 + Math.floor((totalCreated / totalFound) * 20);
-            await stream.writeSSE({
-              data: JSON.stringify({
-                status: 'creating',
-                documentId: id,
-                currentEntityType: entityType,
-                totalEntityTypes: entityTypes.length,
-                processedEntityTypes: i + 1,
-                foundCount: totalFound,
-                createdCount: totalCreated,
-                percentage: creationPercentage,
-                message: `Creating reference ${totalCreated} of ${totalFound}...`
-              } as DetectionProgress),
-              event: 'reference-created',
-              id: String(Date.now())
+              referenceType: undefined, // Unresolved reference
+              targetDocumentId: undefined, // Will be resolved later
             });
           }
+
+          // Update progress after completing this entity type
+          await stream.writeSSE({
+            data: JSON.stringify({
+              status: 'scanning',
+              documentId: id,
+              currentEntityType: entityType,
+              totalEntityTypes: entityTypes.length,
+              processedEntityTypes: i + 1,
+              foundCount: detectedSelections.length,
+              message: `Completed ${entityType}`
+            } as DetectionProgress),
+            event: 'detection-progress',
+            id: String(Date.now())
+          });
         }
 
         // Send completion event
@@ -144,10 +173,7 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
             documentId: id,
             totalEntityTypes: entityTypes.length,
             processedEntityTypes: entityTypes.length,
-            foundCount: totalFound,
-            createdCount: totalCreated,
-            percentage: 100,
-            message: `Detection complete! Created ${totalCreated} entity references.`
+            message: 'Detection complete!'
           } as DetectionProgress),
           event: 'detection-complete',
           id: String(Date.now())
@@ -161,9 +187,6 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
             documentId: id,
             totalEntityTypes: entityTypes.length,
             processedEntityTypes: 0,
-            foundCount: 0,
-            createdCount: 0,
-            percentage: 0,
             message: error instanceof Error ? error.message : 'Detection failed'
           } as DetectionProgress),
           event: 'detection-error',

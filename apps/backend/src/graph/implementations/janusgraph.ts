@@ -123,7 +123,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       id: this.getPropertyValue(props, 'id'),
       documentId: this.getPropertyValue(props, 'documentId'),
       selectionData: JSON.parse(this.getPropertyValue(props, 'selectionData') || '{}'),
-      provisional: this.getPropertyValue(props, 'provisional') === 'true',
       createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
       updatedAt: new Date(this.getPropertyValue(props, 'updatedAt')),
       createdBy: this.getPropertyValue(props, 'createdBy'),
@@ -272,7 +271,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       documentId: input.documentId,
       selectionData: input.selectionData,
-      provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
       createdBy: input.createdBy,
@@ -297,7 +295,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('documentId', input.documentId)
       .property('selectionType', selectionType)
       .property('selectionData', JSON.stringify(input.selectionData))
-      .property('provisional', input.provisional || false)
       .property('createdAt', now.toISOString())
       .property('updatedAt', now.toISOString())
       .next();
@@ -344,9 +341,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Update properties
     if (updates.selectionData !== undefined) {
       await traversalQuery.property('selectionData', JSON.stringify(updates.selectionData)).next();
-    }
-    if (updates.provisional !== undefined) {
-      await traversalQuery.property('provisional', updates.provisional).next();
     }
     if (updates.metadata !== undefined) {
       await traversalQuery.property('metadata', JSON.stringify(updates.metadata)).next();
@@ -399,9 +393,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       traversalQuery = traversalQuery.has('resolvedDocumentId', filter.resolvedDocumentId);
     }
 
-    if (filter.provisional !== undefined) {
-      traversalQuery = traversalQuery.has('provisional', filter.provisional);
-    }
 
     const sels = await traversalQuery.toList();
     let selections = sels.map((v: any) => this.vertexToSelection(v));

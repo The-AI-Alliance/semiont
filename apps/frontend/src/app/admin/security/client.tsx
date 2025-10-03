@@ -1,23 +1,22 @@
 'use client';
 
 import React from 'react';
-import { 
+import {
   ShieldCheckIcon,
   GlobeAltIcon,
   CheckCircleIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
+import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api-client';
-import { useSecureAPI } from '@/hooks/useSecureAPI';
 import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api-client';
 
 export default function AdminSecurity() {
-  // Ensure API client has authentication token
-  const { hasValidToken } = useSecureAPI();
-  
+  const { data: session } = useSession();
+
   // Get OAuth configuration from API - only run when authenticated
   const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery(
-    { enabled: hasValidToken }
+    { enabled: !!session?.backendToken }
   );
   
   const allowedDomains = (oauthConfig as OAuthConfigResponse | undefined)?.allowedDomains ?? [];

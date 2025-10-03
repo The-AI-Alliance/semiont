@@ -1,13 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '../../../graph/factory';
-import { formatSelection } from '../../selections/helpers';
 import type { DocumentsRouterType } from '../shared';
-
-// Local schema
-const GetReferencesResponse = z.object({
-  references: z.array(z.any()),
-});
+import { AnnotationQueryService } from '../../../services/annotation-queries';
+import { GetReferencesResponseSchema } from '@semiont/core-types';
 
 // GET /api/documents/{id}/references
 export const getDocumentReferencesRoute = createRoute({
@@ -26,7 +20,7 @@ export const getDocumentReferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetReferencesResponse,
+          schema: GetReferencesResponseSchema,
         },
       },
       description: 'Document references',
@@ -37,17 +31,31 @@ export const getDocumentReferencesRoute = createRoute({
 export function registerDocumentReferences(router: DocumentsRouterType) {
   router.openapi(getDocumentReferencesRoute, async (c) => {
     const { id } = c.req.valid('param');
-    const graphDb = await getGraphDatabase();
 
-    const document = await graphDb.getDocument(id);
-    if (!document) {
-      throw new HTTPException(404, { message: 'Document not found' });
-    }
+    // Layer 3 only - projection storage is source of truth
+    const projectionRefs = await AnnotationQueryService.getReferences(id);
 
-    const references = await graphDb.getReferences(id);
+    // Transform projection format to component format
+    const references = projectionRefs.map(ref => ({
+      id: ref.id,
+      documentId: id,
+      text: ref.text,
+      selectionData: {
+        type: 'text_span',
+        offset: ref.position.offset,
+        length: ref.position.length,
+        text: ref.text
+      },
+      type: 'reference' as const,
+      referencedDocumentId: ref.targetDocumentId,
+      entityTypes: ref.entityTypes,
+      referenceType: ref.referenceType,
+    }));
+
+    console.log(`[References] Returning ${references.length} references for ${id} from Layer 3`);
 
     return c.json({
-      references: references.map(formatSelection)
+      references
     });
   });
 }

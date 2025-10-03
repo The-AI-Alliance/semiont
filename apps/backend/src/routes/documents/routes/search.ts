@@ -1,9 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { getGraphDatabase } from '../../../graph/factory';
 import { formatDocument } from '../helpers';
-import type { Document } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 import { ListDocumentsResponseSchema } from '../schemas';
+import { DocumentQueryService } from '../../../services/document-queries';
 
 export const searchDocumentsRoute = createRoute({
   method: 'get',
@@ -33,17 +32,18 @@ export const searchDocumentsRoute = createRoute({
 export function registerSearchDocuments(router: DocumentsRouterType) {
   router.openapi(searchDocumentsRoute, async (c) => {
     const { q, limit } = c.req.valid('query');
-    const graphDb = await getGraphDatabase();
 
-    const allDocs = await graphDb.listDocuments({});
-    const query = q.toLowerCase();
-    const matchingDocs = allDocs.documents
-      .filter((doc: Document) => doc.name.toLowerCase().includes(query))
-      .slice(0, limit);
+    // Search using Layer 3 projection storage
+    const matchingDocs = await DocumentQueryService.listDocuments({
+      search: q,
+    });
+
+    // Limit results
+    const limitedDocs = matchingDocs.slice(0, limit);
 
     return c.json({
-      documents: matchingDocs.map(formatDocument),
-      total: matchingDocs.length,
+      documents: limitedDocs.map(doc => formatDocument(doc)),
+      total: limitedDocs.length,
       offset: 0,
       limit,
     });

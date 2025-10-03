@@ -7,13 +7,19 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
 import { useToast } from '@/components/Toast';
+import { api } from '@/lib/api-client';
 
 export default function Welcome() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [isLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const { showError } = useToast();
+
+  // Query user data to check if terms already accepted
+  const { data: userData } = api.auth.me.useQuery();
+
+  // Mutation for accepting terms
+  const acceptTermsMutation = api.auth.acceptTerms.useMutation();
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -22,40 +28,19 @@ export default function Welcome() {
       router.push('/auth/signin');
       return;
     }
-    
-    // Check if user has accepted terms by calling the /me endpoint
-    const checkTermsAcceptance = async () => {
-      if (!session?.backendToken) return;
-      
-      try {
-        const response = await fetch('/api/users/me', {
-          headers: {
-            'Authorization': `Bearer ${session.backendToken}`,
-          },
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          if (userData.termsAcceptedAt) {
-            router.push('/');
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Error checking terms acceptance:', error);
-      }
-    };
-    
-    if (session?.backendToken) {
-      checkTermsAcceptance();
+
+    // Check if user has accepted terms
+    if (userData?.termsAcceptedAt) {
+      router.push('/');
+      return;
     }
-    
+
     // If not a new user, redirect to main app (existing users don't need to accept terms again)
     if (session && !session.isNewUser) {
       router.push('/');
       return;
     }
-  }, [status, session, router]);
+  }, [status, session, router, userData]);
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
@@ -66,28 +51,15 @@ export default function Welcome() {
     }
 
     try {
-      // Call backend API to record terms acceptance
-      const response = await fetch('/api/users/accept-terms', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.backendToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to record terms acceptance');
-      }
-
+      await acceptTermsMutation.mutateAsync();
       setTermsAccepted(true);
-      
+
       // Small delay to show the acceptance state
       setTimeout(() => {
         router.push('/');
       }, 1000);
     } catch (error) {
       console.error('Terms acceptance error:', error);
-      // Handle error - maybe show a message to the user
       showError('There was an error recording your terms acceptance. Please try again.');
     }
   };
@@ -225,17 +197,17 @@ export default function Welcome() {
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => handleTermsAcceptance(false)}
-                disabled={isLoading}
+                disabled={acceptTermsMutation.isPending}
                 className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
                 Decline & Sign Out
               </button>
               <button
                 onClick={() => handleTermsAcceptance(true)}
-                disabled={isLoading}
+                disabled={acceptTermsMutation.isPending}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                {isLoading ? 'Processing...' : 'Accept & Continue'}
+                {acceptTermsMutation.isPending ? 'Processing...' : 'Accept & Continue'}
               </button>
             </div>
 

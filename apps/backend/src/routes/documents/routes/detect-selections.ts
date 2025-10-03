@@ -18,7 +18,6 @@ const DetectSelectionsResponse = z.object({
     selectionData: z.any(),
     resolvedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
-    provisional: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })),
@@ -84,7 +83,6 @@ export function registerDetectSelections(router: DocumentsRouterType) {
         selectionData: detected.selection.selectionData,
         resolvedDocumentId: null,  // null = stub reference
         entityTypes: detected.selection.entityTypes,
-        provisional: true,
         metadata: detected.selection.metadata,
         createdBy: user.id,
       };
@@ -100,7 +98,6 @@ export function registerDetectSelections(router: DocumentsRouterType) {
         selectionData: s.selectionData,
         resolvedDocumentId: s.resolvedDocumentId,
         entityTypes: s.entityTypes,
-        provisional: s.provisional || false,
         createdAt: s.createdAt?.toISOString() || new Date().toISOString(),
         updatedAt: s.updatedAt?.toISOString() || new Date().toISOString(),
       })),

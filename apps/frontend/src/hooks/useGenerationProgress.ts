@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { apiClient } from '@/lib/api-client';
 
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -25,12 +25,14 @@ export function useGenerationProgress({
   onError,
   onProgress
 }: UseGenerationProgressOptions) {
+  const { data: session } = useSession();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const startGeneration = useCallback(async (
     referenceId: string,
+    documentId: string,
     options?: { prompt?: string; title?: string }
   ) => {
     // Close any existing connection
@@ -38,9 +40,8 @@ export function useGenerationProgress({
       abortControllerRef.current.abort();
     }
 
-    // Get auth token from API client
-    const authHeader = apiClient.getAuthToken();
-    if (!authHeader) {
+    // Get auth token from session
+    if (!session?.backendToken) {
       onError?.('Authentication required');
       return;
     }
@@ -57,15 +58,18 @@ export function useGenerationProgress({
     const url = `${apiUrl}/api/selections/${referenceId}/generate-document-stream`;
 
     console.log('[Generation] Starting document generation for reference:', referenceId);
+    console.log('[Generation] Document ID:', documentId);
+    console.log('[Generation] Full URL:', url);
+    console.log('[Generation] Auth token present:', !!session.backendToken);
 
     try {
       await fetchEventSource(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader
+          'Authorization': `Bearer ${session.backendToken}`
         },
-        body: JSON.stringify(options || {}),
+        body: JSON.stringify({ documentId, ...options }),
         signal: abortController.signal,
 
         onmessage(ev) {
@@ -111,7 +115,7 @@ export function useGenerationProgress({
         onError?.('Failed to start document generation');
       }
     }
-  }, [onComplete, onError, onProgress]);
+  }, [onComplete, onError, onProgress, session]);
 
   const cancelGeneration = useCallback(() => {
     if (abortControllerRef.current) {

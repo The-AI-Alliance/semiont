@@ -1,12 +1,10 @@
 import { createRoute } from '@hono/zod-openapi';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument, formatSelection } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '../schemas';
+import { emitDocumentCreated } from '../../../events/emit';
 
 export const createDocumentRoute = createRoute({
   method: 'post',
@@ -40,47 +38,57 @@ export function registerCreateDocument(router: DocumentsRouterType) {
   router.openapi(createDocumentRoute, async (c) => {
     const body = c.req.valid('json');
     const user = c.get('user');
-    const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
     const checksum = calculateChecksum(body.content);
-    const document: Document = {
-      id: Math.random().toString(36).substring(2, 11),
-      name: body.name,
-      archived: false,
-      contentType: body.contentType || 'text/plain',
-      metadata: body.metadata || {},
-      entityTypes: body.entityTypes || [],
+    const documentId = `doc-sha256:${checksum}`;
+
+    // Save to filesystem (Layer 1)
+    await storage.saveDocument(documentId, Buffer.from(body.content));
+
+    // Subscribe GraphDB consumer to new document BEFORE emitting event
+    // This ensures the consumer receives the document.created event
+    try {
+      const { getGraphConsumer } = await import('../../../events/consumers/graph-consumer');
+      const consumer = await getGraphConsumer();
+      await consumer.subscribeToDocument(documentId);
+    } catch (error) {
+      console.error('[CreateDocument] Failed to subscribe GraphDB consumer:', error);
+      // Don't fail the request - consumer can catch up later
+    }
+
+    // Emit document.created event (consumer will update GraphDB)
+    const eventMetadata = {
+      ...(body.metadata || {}),
       creationMethod: CREATION_METHODS.API,
-      sourceSelectionId: body.sourceSelectionId,
-      sourceDocumentId: body.sourceDocumentId,
-      contentChecksum: checksum,
-      createdBy: user.id,
-      createdAt: new Date(),
     };
+    console.log('[CreateDocument] Event metadata:', eventMetadata);
 
-    const createInput: CreateDocumentInput = {
-      name: document.name,
-      entityTypes: document.entityTypes,
-      content: body.content,
-      contentType: document.contentType,
-      contentChecksum: document.contentChecksum!,
-      metadata: document.metadata,
-      createdBy: document.createdBy!,
-      creationMethod: document.creationMethod,
-      ...(document.sourceSelectionId ? { sourceSelectionId: document.sourceSelectionId } : {}),
-      ...(document.sourceDocumentId ? { sourceDocumentId: document.sourceDocumentId } : {}),
-    };
+    await emitDocumentCreated({
+      documentId,
+      userId: user.id,
+      name: body.name,
+      contentType: body.contentType || 'text/plain',
+      contentHash: checksum,
+      entityTypes: body.entityTypes || [],
+      metadata: eventMetadata,
+    });
 
-    const savedDoc = await graphDb.createDocument(createInput);
-    await storage.saveDocument(savedDoc.id, Buffer.from(body.content));
-
-    const highlights = await graphDb.getHighlights(savedDoc.id);
-    const references = await graphDb.getReferences(savedDoc.id);
-
+    // Return optimistic response
     return c.json({
-      document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatSelection),
+      document: {
+        id: documentId,
+        name: body.name,
+        archived: false,
+        contentType: body.contentType || 'text/plain',
+        metadata: body.metadata || {},
+        entityTypes: body.entityTypes || [],
+        creationMethod: CREATION_METHODS.API,
+        contentChecksum: checksum,
+        createdBy: user.id,
+        createdAt: new Date().toISOString(),
+      },
+      selections: [],
     }, 201);
   });
 }

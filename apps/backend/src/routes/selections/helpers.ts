@@ -31,7 +31,6 @@ export function formatSelection(sel: Selection): any {
     resolvedBy: sel.resolvedBy,
     referenceTags: sel.referenceTags,
     entityTypes: sel.entityTypes,
-    provisional: sel.provisional,
     metadata: sel.metadata,
     createdBy: sel.createdBy,
     createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,

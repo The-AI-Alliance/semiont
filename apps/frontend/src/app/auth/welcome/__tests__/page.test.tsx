@@ -8,13 +8,25 @@ import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import Welcome from '../page';
 import { ToastProvider } from '@/components/Toast';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Helper to create test query client
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
 
 // Helper function to render with providers
 const renderWithProviders = (component: React.ReactElement) => {
+  const queryClient = createTestQueryClient();
   return render(
-    <ToastProvider>
-      {component}
-    </ToastProvider>
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        {component}
+      </ToastProvider>
+    </QueryClientProvider>
   );
 };
 
@@ -93,7 +105,7 @@ describe('Welcome Page', () => {
     it('redirects to home if terms already accepted', async () => {
       // Override MSW handler to return terms already accepted
       server.use(
-        http.get('*/api/users/me', () => {
+        http.get('*/api/auth/me', () => {
           return HttpResponse.json({
             id: 'user123',
             email: 'test@example.com',
@@ -146,7 +158,7 @@ describe('Welcome Page', () => {
       
       // Override MSW handler to throw an error
       server.use(
-        http.get('*/api/users/me', () => {
+        http.get('*/api/auth/me', () => {
           throw new Error('Network error');
         })
       );

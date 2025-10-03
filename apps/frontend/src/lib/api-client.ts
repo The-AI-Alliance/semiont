@@ -1,6 +1,64 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
+import type { StoredEvent, CreateSelectionRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
+import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
+
+/**
+ * Centralized query keys for React Query
+ * Following TanStack Query best practices for type-safe cache invalidation
+ * @see https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
+ */
+export const QUERY_KEYS = {
+  auth: {
+    me: () => ['/api/auth/me'],
+  },
+  health: () => ['/api/health'],
+  admin: {
+    users: {
+      all: () => ['/api/admin/users'],
+      stats: () => ['/api/admin/users/stats'],
+    },
+    oauth: {
+      config: () => ['/api/admin/oauth/config'],
+    },
+  },
+  entityTypes: {
+    all: () => ['/api/entity-types'],
+  },
+  referenceTypes: {
+    all: () => ['/api/reference-types'],
+  },
+  documents: {
+    all: (limit?: number, archived?: boolean) => ['/api/documents', limit, archived],
+    detail: (id: string) => ['/api/documents', id],
+    byToken: (token: string) => ['/api/documents/by-token', token],
+    search: (query: string, limit: number) => ['/api/documents/search', query, limit],
+    referencedBy: (id: string) => ['/api/documents', id, 'referenced-by'],
+    events: (id: string) => ['/api/documents', id, 'events'],
+    highlights: (documentId: string) => ['/api/documents/:id/highlights', documentId],
+    references: (documentId: string) => ['/api/documents/:id/references', documentId],
+  },
+};
 
 // Local type definitions to replace api-contracts imports
+
+/**
+ * Frontend convenience format for creating selections
+ *
+ * This is a simpler, more ergonomic format for React components to use.
+ * It gets transformed to CreateSelectionRequest (from @semiont/core-types) by the API client.
+ *
+ * Transformation:
+ * - { text, position: { start, end } } → { selectionType: { type: 'text_span', offset, length, text } }
+ */
+export interface CreateSelectionInput {
+  documentId: string;
+  text: string;
+  position: { start: number; end: number };
+  type?: 'provisional' | 'highlight' | 'reference';
+  entityTypes?: string[];
+  referenceTags?: string[];
+  resolvedDocumentId?: string | null;
+}
 interface StatusResponse {
   status: string;
   version: string;
@@ -355,21 +413,6 @@ export class TypedAPIClient {
     return this.call(route, 'DELETE', options);
   }
 
-  // Set authorization header
-  setAuthToken(token: string) {
-    this.defaultHeaders['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Remove authorization header
-  clearAuthToken() {
-    delete this.defaultHeaders['Authorization'];
-  }
-
-  // Get current authorization header
-  getAuthToken(): string | undefined {
-    return this.defaultHeaders['Authorization'];
-  }
-
   // Set authorization header directly (with Bearer prefix already included)
   setAuthHeader(header: string) {
     this.defaultHeaders['Authorization'] = header;
@@ -402,7 +445,12 @@ export class LazyTypedAPIClient {
 export const apiClient = new Proxy({} as TypedAPIClient, {
   get(target, prop: string | symbol) {
     const instance = LazyTypedAPIClient.getInstance();
-    return instance[prop as keyof TypedAPIClient];
+    const value = instance[prop as keyof TypedAPIClient];
+    // Bind methods to preserve `this` context
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    return value;
   },
 });
 
@@ -414,6 +462,7 @@ interface APIService {
     google: (access_token: string) => Promise<AuthResponse>;
     me: () => Promise<UserResponse>;
     logout: () => Promise<LogoutResponse>;
+    acceptTerms: () => Promise<{ success: boolean; message: string }>;
   };
 
   health: () => Promise<HealthResponse>;
@@ -448,6 +497,7 @@ interface APIService {
     schemaDescription: () => Promise<SchemaDescriptionResponse>;
     llmContext: (id: string, selectionId?: string) => Promise<LLMContextResponse>;
     discoverContext: (text: string) => Promise<DiscoverContextResponse>;
+    getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }) => Promise<{ events: StoredEvent[]; total: number; documentId: string }>;
   };
 
   selections: {
@@ -492,16 +542,18 @@ interface APIService {
         prompt?: string;
       }
     ) => Promise<any>;
-    getHighlights: (documentId: string) => Promise<SelectionsResponse>;
-    getReferences: (documentId: string) => Promise<SelectionsResponse>;
+    getHighlights: (documentId: string) => Promise<GetHighlightsResponse>;
+    getReferences: (documentId: string) => Promise<GetReferencesResponse>;
   };
 
   entityTypes: {
     list: () => Promise<{ entityTypes: string[] }>;
+    create: (tag: string) => Promise<{ success: boolean; entityTypes: string[] }>;
   };
 
   referenceTypes: {
     list: () => Promise<{ referenceTypes: string[] }>;
+    create: (tag: string) => Promise<{ success: boolean; referenceTypes: string[] }>;
   };
 
   admin: {
@@ -526,12 +578,15 @@ export const apiService: APIService = {
   auth: {
     google: (access_token: string): Promise<AuthResponse> =>
       apiClient.post('/api/tokens/google', { body: { access_token } }),
-    
+
     me: (): Promise<UserResponse> =>
       apiClient.get('/api/users/me'),
-    
+
     logout: (): Promise<LogoutResponse> =>
       apiClient.post('/api/users/logout'),
+
+    acceptTerms: (): Promise<{ success: boolean; message: string }> =>
+      apiClient.post('/api/users/accept-terms'),
   },
 
   // Health endpoints
@@ -609,20 +664,29 @@ export const apiService: APIService = {
     
     discoverContext: (text: string): Promise<DiscoverContextResponse> =>
       apiClient.post('/api/documents/discover-context', { body: { text } }),
+
+    getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }): Promise<{ events: StoredEvent[]; total: number; documentId: string }> =>
+      apiClient.get('/api/documents/:id/events', { params: { id, ...params } }),
   },
 
   // Selection endpoints
   selections: {
-    create: (data: { 
-      documentId: string; 
-      text: string; 
-      position: { start: number; end: number };
-      type?: 'provisional' | 'highlight' | 'reference';
-      entityTypes?: string[];
-      referenceTags?: string[];
-      resolvedDocumentId?: string | null;
-    }): Promise<SelectionResponse> => {
-      const body: any = {
+    create: (data: CreateSelectionInput): Promise<SelectionResponse> => {
+      // Transform frontend convenience format to backend API format
+      interface CreateSelectionRequestBody {
+        documentId: string;
+        selectionType: {
+          type: 'text_span';
+          offset: number;
+          length: number;
+          text: string;
+        };
+        entityTypes?: string[];
+        referenceTags?: string[];
+        resolvedDocumentId?: string | null;
+      }
+
+      const body: CreateSelectionRequestBody = {
         documentId: data.documentId,
         selectionType: {
           type: 'text_span',
@@ -630,16 +694,16 @@ export const apiService: APIService = {
           length: data.position.end - data.position.start,
           text: data.text
         },
-        entityTypes: data.entityTypes,
-        referenceTags: data.referenceTags
+        ...(data.entityTypes && { entityTypes: data.entityTypes }),
+        ...(data.referenceTags && { referenceTags: data.referenceTags })
       };
-      
+
       // Only include resolvedDocumentId if it's explicitly provided
       // This preserves the distinction between undefined (not sent) and null (sent as null)
       if ('resolvedDocumentId' in data) {
         body.resolvedDocumentId = data.resolvedDocumentId;
       }
-      
+
       return apiClient.post('/api/selections', { body });
     },
     
@@ -718,10 +782,10 @@ export const apiService: APIService = {
         body: data || {}
       }),
     
-    getHighlights: (documentId: string): Promise<SelectionsResponse> =>
+    getHighlights: (documentId: string): Promise<GetHighlightsResponse> =>
       apiClient.get('/api/documents/:documentId/highlights', { params: { documentId } }),
-    
-    getReferences: (documentId: string): Promise<SelectionsResponse> =>
+
+    getReferences: (documentId: string): Promise<GetReferencesResponse> =>
       apiClient.get('/api/documents/:documentId/references', { params: { documentId } }),
   },
 
@@ -729,12 +793,18 @@ export const apiService: APIService = {
   entityTypes: {
     list: (): Promise<{ entityTypes: string[] }> =>
       apiClient.get('/api/entity-types'),
+
+    create: (tag: string): Promise<{ success: boolean; entityTypes: string[] }> =>
+      apiClient.post('/api/entity-types', { body: { tag } }),
   },
 
   // Reference types endpoint
   referenceTypes: {
     list: (): Promise<{ referenceTypes: string[] }> =>
       apiClient.get('/api/reference-types'),
+
+    create: (tag: string): Promise<{ success: boolean; referenceTypes: string[] }> =>
+      apiClient.post('/api/reference-types', { body: { tag } }),
   },
 
   // Admin endpoints
@@ -775,6 +845,9 @@ interface ReactQueryAPI {
     logout: {
       useMutation: () => any;
     };
+    acceptTerms: {
+      useMutation: () => any;
+    };
   };
 
   health: {
@@ -807,11 +880,74 @@ interface ReactQueryAPI {
     list: {
       useQuery: (options?: { enabled?: boolean }) => any;
     };
+    create: {
+      useMutation: () => any;
+    };
   };
 
   referenceTypes: {
     list: {
       useQuery: (options?: { enabled?: boolean }) => any;
+    };
+    create: {
+      useMutation: () => any;
+    };
+  };
+
+  documents: {
+    list: {
+      useQuery: (options?: { enabled?: boolean; limit?: number; archived?: boolean }) => any;
+    };
+    get: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => any;
+    };
+    getByToken: {
+      useQuery: (token: string, options?: { enabled?: boolean }) => any;
+    };
+    search: {
+      useQuery: (query: string, limit?: number, options?: { enabled?: boolean }) => any;
+    };
+    getReferencedBy: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => any;
+    };
+    getEvents: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => any;
+    };
+    create: {
+      useMutation: () => any;
+    };
+    createFromToken: {
+      useMutation: () => any;
+    };
+    update: {
+      useMutation: () => any;
+    };
+    clone: {
+      useMutation: () => any;
+    };
+  };
+
+  selections: {
+    getHighlights: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => any;
+    };
+    getReferences: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => any;
+    };
+    create: {
+      useMutation: () => any;
+    };
+    saveAsHighlight: {
+      useMutation: () => any;
+    };
+    delete: {
+      useMutation: () => any;
+    };
+    generateDocument: {
+      useMutation: () => any;
+    };
+    resolveToDocument: {
+      useMutation: () => any;
     };
   };
 }
@@ -823,35 +959,51 @@ export const api: ReactQueryAPI = {
   auth: {
     google: {
       useMutation: () => {
-        return useMutation({
-          mutationFn: (input: { access_token: string }) => 
-            apiService.auth.google(input.access_token),
-        });
+        return useAuthenticatedMutation(
+          (input: { access_token: string }, fetchAPI) =>
+            fetchAPI('/api/tokens/google', {
+              method: 'POST',
+              body: JSON.stringify({ access_token: input.access_token }),
+            })
+        );
       }
     },
     me: {
       useQuery: () => {
-        return useQuery({
-          queryKey: ['auth.me'],
-          queryFn: () => apiService.auth.me(),
-        });
+        return useAuthenticatedQuery(
+          QUERY_KEYS.auth.me(),
+          '/api/auth/me'
+        );
       }
     },
     logout: {
       useMutation: () => {
-        return useMutation({
-          mutationFn: () => apiService.auth.logout(),
-        });
+        return useAuthenticatedMutation(
+          (_input: void, fetchAPI) =>
+            fetchAPI('/api/auth/logout', {
+              method: 'POST',
+            })
+        );
+      }
+    },
+    acceptTerms: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (_input: void, fetchAPI) =>
+            fetchAPI('/api/users/accept-terms', {
+              method: 'POST',
+            })
+        );
       }
     }
   },
 
   health: {
     useQuery: () => {
-      return useQuery({
-        queryKey: ['health'],
-        queryFn: () => apiService.health(),
-      });
+      return useAuthenticatedQuery(
+        QUERY_KEYS.health(),
+        '/api/health'
+      );
     }
   },
 
@@ -859,48 +1011,53 @@ export const api: ReactQueryAPI = {
     users: {
       list: {
         useQuery: (options?: { enabled?: boolean }) => {
-          return useQuery({
-            queryKey: ['admin.users.list'],
-            queryFn: () => apiService.admin.users.list(),
-            ...options,
-          });
+          return useAuthenticatedQuery(
+            QUERY_KEYS.admin.users.all(),
+            '/api/admin/users',
+            options
+          );
         }
       },
       stats: {
         useQuery: (options?: { enabled?: boolean }) => {
-          return useQuery({
-            queryKey: ['admin.users.stats'],
-            queryFn: () => apiService.admin.users.stats(),
-            ...options,
-          });
+          return useAuthenticatedQuery(
+            QUERY_KEYS.admin.users.stats(),
+            '/api/admin/users/stats',
+            options
+          );
         }
       },
       update: {
         useMutation: () => {
-          return useMutation({
-            mutationFn: (input: { id: string; data: { isAdmin?: boolean; isActive?: boolean; name?: string } }) =>
-              apiService.admin.users.update(input.id, input.data),
-          });
+          return useAuthenticatedMutation(
+            (input: { id: string; data: { isAdmin?: boolean; isActive?: boolean; name?: string } }, fetchAPI) =>
+              fetchAPI(`/api/admin/users/${input.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(input.data),
+              })
+          );
         }
       },
       delete: {
         useMutation: () => {
-          return useMutation({
-            mutationFn: (input: { id: string }) =>
-              apiService.admin.users.delete(input.id),
-          });
+          return useAuthenticatedMutation(
+            (input: { id: string }, fetchAPI) =>
+              fetchAPI(`/api/admin/users/${input.id}`, {
+                method: 'DELETE',
+              })
+          );
         }
       }
     },
-    
+
     oauth: {
       config: {
         useQuery: (options?: { enabled?: boolean }) => {
-          return useQuery({
-            queryKey: ['admin.oauth.config'],
-            queryFn: () => apiService.admin.oauth.config(),
-            ...options,
-          });
+          return useAuthenticatedQuery(
+            QUERY_KEYS.admin.oauth.config(),
+            '/api/admin/oauth/config',
+            options
+          );
         }
       }
     }
@@ -909,11 +1066,22 @@ export const api: ReactQueryAPI = {
   entityTypes: {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
-        return useQuery({
-          queryKey: ['entityTypes.list'],
-          queryFn: () => apiService.entityTypes.list(),
-          ...options,
-        });
+        return useAuthenticatedQuery(
+          QUERY_KEYS.entityTypes.all(),
+          '/api/entity-types',
+          options
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { tag: string }, fetchAPI) =>
+            fetchAPI('/api/entity-types', {
+              method: 'POST',
+              body: JSON.stringify({ tag: input.tag }),
+            })
+        );
       }
     }
   },
@@ -921,11 +1089,238 @@ export const api: ReactQueryAPI = {
   referenceTypes: {
     list: {
       useQuery: (options?: { enabled?: boolean }) => {
-        return useQuery({
-          queryKey: ['referenceTypes.list'],
-          queryFn: () => apiService.referenceTypes.list(),
-          ...options,
-        });
+        return useAuthenticatedQuery(
+          QUERY_KEYS.referenceTypes.all(),
+          '/api/reference-types',
+          options
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { tag: string }, fetchAPI) =>
+            fetchAPI('/api/reference-types', {
+              method: 'POST',
+              body: JSON.stringify({ tag: input.tag }),
+            })
+        );
+      }
+    }
+  },
+
+  documents: {
+    list: {
+      useQuery: (options?: { enabled?: boolean; limit?: number; archived?: boolean }) => {
+        const params = new URLSearchParams();
+        if (options?.limit) params.set('limit', options.limit.toString());
+        if (options?.archived !== undefined) params.set('archived', options.archived.toString());
+        const queryString = params.toString();
+        const url = queryString ? `/api/documents?${queryString}` : '/api/documents';
+
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.all(options?.limit, options?.archived),
+          url,
+          options?.enabled !== undefined ? { enabled: options.enabled } : undefined
+        );
+      }
+    },
+    get: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.detail(id),
+          `/api/documents/${id}`,
+          options
+        );
+      }
+    },
+    getByToken: {
+      useQuery: (token: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.byToken(token),
+          `/api/documents/by-token/${token}`,
+          options
+        );
+      }
+    },
+    search: {
+      useQuery: (query: string, limit = 10, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.search(query, limit),
+          `/api/documents/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+          options
+        );
+      }
+    },
+    getReferencedBy: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.referencedBy(id),
+          `/api/documents/${id}/referenced-by`,
+          options
+        );
+      }
+    },
+    getEvents: {
+      useQuery: (id: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.events(id),
+          `/api/documents/${id}/events`,
+          options
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { name: string; content: string; entityTypes?: string[] }, fetchAPI) =>
+            fetchAPI('/api/documents', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    createFromToken: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { token: string; name: string; content: string; entityTypes?: string[] }, fetchAPI) =>
+            fetchAPI('/api/documents/from-token', {
+              method: 'POST',
+              body: JSON.stringify(input),
+            })
+        );
+      }
+    },
+    update: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { id: string; data: { name?: string; content?: string; archived?: boolean } }, fetchAPI) =>
+            fetchAPI(`/api/documents/${input.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify(input.data),
+            })
+        );
+      }
+    },
+    clone: {
+      useMutation: () => {
+        return useAuthenticatedMutation(
+          (input: { id: string }, fetchAPI) =>
+            fetchAPI(`/api/documents/${input.id}/clone`, {
+              method: 'POST',
+            })
+        );
+      }
+    }
+  },
+
+  selections: {
+    getHighlights: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.highlights(documentId),
+          `/api/documents/${documentId}/highlights`,
+          { ...options, retry: false }
+        );
+      }
+    },
+    getReferences: {
+      useQuery: (documentId: string, options?: { enabled?: boolean }) => {
+        return useAuthenticatedQuery(
+          QUERY_KEYS.documents.references(documentId),
+          `/api/documents/${documentId}/references`,
+          { ...options, retry: false }
+        );
+      }
+    },
+    create: {
+      useMutation: () => {
+        return useAuthenticatedMutation<SelectionResponse, CreateSelectionInput>(
+          async (input: CreateSelectionInput, fetchAPI) => {
+            // Transform frontend convenience format to backend API contract format
+            // CreateSelectionInput → CreateSelectionRequest (from @semiont/core-types)
+            const body: CreateSelectionRequest = {
+              documentId: input.documentId,
+              selectionType: {
+                type: 'text_span',
+                offset: input.position.start,
+                length: input.position.end - input.position.start,
+                text: input.text
+              },
+              ...(input.entityTypes && { entityTypes: input.entityTypes }),
+              ...(input.referenceTags && { referenceTags: input.referenceTags })
+            };
+
+            if ('resolvedDocumentId' in input) {
+              body.resolvedDocumentId = input.resolvedDocumentId;
+            }
+
+            return fetchAPI('/api/selections', {
+              method: 'POST',
+              body: JSON.stringify(body),
+            });
+          }
+        );
+      }
+    },
+    saveAsHighlight: {
+      useMutation: () => {
+        return useAuthenticatedMutation<SelectionResponse, { documentId: string; text: string; position: { start: number; end: number } }>(
+          (input, fetchAPI) =>
+            fetchAPI('/api/selections', {
+              method: 'POST',
+              body: JSON.stringify({
+                documentId: input.documentId,
+                selectionType: {
+                  type: 'text_span',
+                  offset: input.position.start,
+                  length: input.position.end - input.position.start,
+                  text: input.text
+                }
+              }),
+            })
+        );
+      }
+    },
+    delete: {
+      useMutation: () => {
+        return useAuthenticatedMutation<void, { id: string; documentId: string }>(
+          (input, fetchAPI) =>
+            fetchAPI(`/api/selections/${input.id}`, {
+              method: 'DELETE',
+              body: JSON.stringify({ documentId: input.documentId }),
+            })
+        );
+      }
+    },
+    generateDocument: {
+      useMutation: () => {
+        return useAuthenticatedMutation<any, { selectionId: string; entityTypes?: string[]; prompt?: string }>(
+          (input, fetchAPI) =>
+            fetchAPI('/api/selections/generate-document', {
+              method: 'POST',
+              body: JSON.stringify({
+                selectionId: input.selectionId,
+                entityTypes: input.entityTypes,
+                prompt: input.prompt
+              }),
+            })
+        );
+      }
+    },
+    resolveToDocument: {
+      useMutation: () => {
+        return useAuthenticatedMutation<SelectionResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
+          (input, fetchAPI) =>
+            fetchAPI(`/api/selections/${input.selectionId}/resolve`, {
+              method: 'PUT',
+              body: JSON.stringify({
+                documentId: input.targetDocumentId,
+                referenceType: input.referenceType
+              }),
+            })
+        );
       }
     }
   }

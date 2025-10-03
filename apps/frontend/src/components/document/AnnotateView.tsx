@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { annotationStyles } from '@/lib/annotation-styles';
 import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
+import type { TextSegment as CMTextSegment } from '@/components/CodeMirrorRenderer';
 import '@/styles/animations.css';
 
 interface Props {
@@ -14,6 +14,9 @@ interface Props {
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  hoveredAnnotationId?: string | null;
+  scrollToAnnotationId?: string | null;
   editable?: boolean;
 }
 
@@ -88,91 +91,62 @@ export function AnnotateView({
   onTextSelect,
   onAnnotationClick,
   onAnnotationRightClick,
+  onAnnotationHover,
+  hoveredAnnotationId,
+  scrollToAnnotationId,
   editable = false
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [focusedAnnotationIndex, setFocusedAnnotationIndex] = useState<number>(-1);
   const [selectionState, setSelectionState] = useState<{
     text: string;
     start: number;
     end: number;
     rects: DOMRect[];
   } | null>(null);
-  
+
   // Combine annotations
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
-  const annotatedSegments = segments.filter(s => s.annotation);
-
-  // Navigate through annotations with Tab key
-  const navigateToAnnotation = useCallback((direction: 'next' | 'prev') => {
-    if (annotatedSegments.length === 0) return;
-
-    let nextIndex = focusedAnnotationIndex;
-    if (direction === 'next') {
-      nextIndex = (focusedAnnotationIndex + 1) % annotatedSegments.length;
-    } else {
-      nextIndex = focusedAnnotationIndex === -1
-        ? annotatedSegments.length - 1
-        : (focusedAnnotationIndex - 1 + annotatedSegments.length) % annotatedSegments.length;
-    }
-
-    setFocusedAnnotationIndex(nextIndex);
-
-    // Find and focus the annotation element
-    const segment = annotatedSegments[nextIndex];
-    if (segment && segment.annotation) {
-      const element = containerRef.current?.querySelector(
-        `[data-annotation-id="${segment.annotation.id}"]`
-      ) as HTMLElement;
-      if (element) {
-        element.focus();
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }, [focusedAnnotationIndex, annotatedSegments]);
-
-  // Register keyboard shortcuts for annotation navigation
-  useKeyboardShortcuts([
-    {
-      key: 'Tab',
-      handler: (e) => {
-        if (!containerRef.current?.contains(document.activeElement)) return;
-        e.preventDefault();
-        navigateToAnnotation(e.shiftKey ? 'prev' : 'next');
-      },
-      description: 'Navigate through annotations'
-    }
-  ]);
   
   // Handle text selection with sparkle
   useEffect(() => {
     if (!onTextSelect) return;
-    
+
     const container = containerRef.current;
     if (!container) return;
-    
+
     const handleMouseUp = () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
         setSelectionState(null);
         return;
       }
-      
+
       const range = selection.getRangeAt(0);
       const rects = Array.from(range.getClientRects());
       const text = selection.toString();
-      
-      // For source view, position calculation is SIMPLE!
-      // Just count characters from the start
-      const preSelectionRange = document.createRange();
-      preSelectionRange.selectNodeContents(container);
-      preSelectionRange.setEnd(range.startContainer, range.startOffset);
-      
-      const start = preSelectionRange.toString().length;
+
+      // Get the CodeMirror EditorView instance stored on the CodeMirror container
+      const cmContainer = container.querySelector('.codemirror-renderer');
+      const view = (cmContainer as any)?.__cmView;
+      if (!view || !view.posAtDOM) {
+        // Fallback: try to find text in source (won't work for duplicates)
+        const start = content.indexOf(text);
+        if (start === -1) {
+          return;
+        }
+        const end = start + text.length;
+        if (rects.length > 0) {
+          setSelectionState({ text, start, end, rects });
+        }
+        return;
+      }
+
+      // CodeMirror's posAtDOM gives us the position in the document from a DOM node/offset
+      const start = view.posAtDOM(range.startContainer, range.startOffset);
       const end = start + text.length;
-      
+
       if (start >= 0 && rects.length > 0) {
         setSelectionState({ text, start, end, rects });
       }
@@ -216,79 +190,28 @@ export function AnnotateView({
     }
   }, [selectionState, onTextSelect]);
   
+  // Convert segments to CodeMirror format
+  const cmSegments: CMTextSegment[] = segments.map(seg => ({
+    text: seg.text,
+    annotation: seg.annotation as any, // Types are compatible
+    start: seg.start,
+    end: seg.end
+  }));
+
   return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className="font-mono text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto"
-        onContextMenu={handleContextMenu}
-      >
-        <pre className="whitespace-pre-wrap break-words">
-          {segments.map((segment, i) => {
-            if (!segment.annotation) {
-              return <span key={`${segment.start}-${segment.end}`}>{segment.text}</span>;
-            }
-            
-            const isReference = segment.annotation.type === 'reference';
-            const hasTarget = segment.annotation.referencedDocumentId;
-            const isStubReference = isReference && !hasTarget;
-            
-            const hoverText = segment.annotation.type === 'highlight'
-              ? 'Right-click to delete or convert to reference'
-              : isStubReference
-                ? 'Click to create referenced document • Right-click for options'
-                : hasTarget
-                ? 'Click to navigate • Right-click for options'
-                : 'Right-click for options';
-
-            const isNew = newAnnotationIds.has(segment.annotation.id);
-            const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
-            const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
-
-            const annotationIndex = annotatedSegments.findIndex(
-              s => s.annotation?.id === segment.annotation?.id
-            );
-            const isFocused = annotationIndex === focusedAnnotationIndex;
-
-            return (
-              <span
-                key={segment.annotation.id}
-                className={`${className} ${isFocused ? 'ring-2 ring-cyan-500 ring-offset-2' : ''}`}
-                data-annotation-id={segment.annotation.id}
-                title={hoverText}
-                tabIndex={isFocused ? 0 : -1}
-                role="button"
-                aria-label={`${segment.annotation.type === 'reference' ? 'Reference' : 'Highlight'}: ${segment.text}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFocusedAnnotationIndex(annotationIndex);
-                  if (onAnnotationClick) {
-                    onAnnotationClick(segment.annotation!);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    if (onAnnotationClick) {
-                      onAnnotationClick(segment.annotation!);
-                    }
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (onAnnotationRightClick) {
-                    onAnnotationRightClick(segment.annotation!, e.clientX, e.clientY);
-                  }
-                }}
-                onFocus={() => setFocusedAnnotationIndex(annotationIndex)}
-              >
-                {segment.text}
-              </span>
-            );
-          })}
-        </pre>
-      </div>
+    <div className="relative" ref={containerRef} onContextMenu={handleContextMenu}>
+      <CodeMirrorRenderer
+        content={content}
+        segments={cmSegments}
+        onAnnotationClick={onAnnotationClick as any}
+        onAnnotationRightClick={onAnnotationRightClick as any}
+        {...(onAnnotationHover && { onAnnotationHover })}
+        editable={false}
+        newAnnotationIds={newAnnotationIds}
+        {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+        {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
+        sourceView={true}
+      />
       
       {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
       {selectionState && onTextSelect && (

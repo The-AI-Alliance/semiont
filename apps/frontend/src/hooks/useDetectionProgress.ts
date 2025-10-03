@@ -1,19 +1,18 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { apiClient } from '@/lib/api-client';
 
 export interface DetectionProgress {
-  status: 'started' | 'scanning' | 'creating' | 'complete' | 'error';
+  status: 'started' | 'scanning' | 'complete' | 'error';
   documentId: string;
   currentEntityType?: string;
   totalEntityTypes: number;
   processedEntityTypes: number;
-  foundCount: number;
-  createdCount: number;
-  percentage: number;
   message?: string;
+  foundCount?: number;
+  completedEntityTypes?: Array<{ entityType: string; foundCount: number }>;
 }
 
 interface UseDetectionProgressOptions {
@@ -29,9 +28,11 @@ export function useDetectionProgress({
   onError,
   onProgress
 }: UseDetectionProgressOptions) {
+  const { data: session } = useSession();
   const [isDetecting, setIsDetecting] = useState(false);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const completedEntityTypesRef = useRef<Array<{ entityType: string; foundCount: number }>>([]);
 
   const startDetection = useCallback(async (entityTypes: string[]) => {
     // Close any existing connection
@@ -39,15 +40,15 @@ export function useDetectionProgress({
       abortControllerRef.current.abort();
     }
 
-    // Get auth token from API client
-    const authHeader = apiClient.getAuthToken();
-    if (!authHeader) {
+    // Get auth token from session
+    if (!session?.backendToken) {
       onError?.('Authentication required');
       return;
     }
 
     setIsDetecting(true);
     setProgress(null);
+    completedEntityTypesRef.current = [];
 
     // Create new abort controller for this request
     const abortController = new AbortController();
@@ -58,27 +59,47 @@ export function useDetectionProgress({
     const url = `${apiUrl}/api/documents/${documentId}/detect-selections-stream`;
 
     console.log('[Detection] Starting with entity types:', entityTypes);
+    console.log('[Detection] URL:', url);
+    console.log('[Detection] Has backendToken:', !!session.backendToken);
+    console.log('[Detection] Calling fetchEventSource...');
 
     try {
       await fetchEventSource(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader
+          'Authorization': `Bearer ${session.backendToken}`
         },
         body: JSON.stringify({ entityTypes }),
         signal: abortController.signal,
 
         onmessage(ev) {
           const data = JSON.parse(ev.data) as DetectionProgress;
-          setProgress(data);
-          onProgress?.(data);
+
+          // Track completed entity types
+          if (data.foundCount !== undefined && data.currentEntityType) {
+            console.log('[Detection] Adding to log:', data.currentEntityType, data.foundCount);
+            completedEntityTypesRef.current.push({
+              entityType: data.currentEntityType,
+              foundCount: data.foundCount
+            });
+          }
+
+          // Add completed entity types to progress data
+          const progressWithHistory = {
+            ...data,
+            completedEntityTypes: [...completedEntityTypesRef.current]
+          };
+
+          console.log('[Detection] Progress with history:', progressWithHistory);
+          setProgress(progressWithHistory);
+          onProgress?.(progressWithHistory);
 
           // Handle specific event types
           if (ev.event === 'detection-complete') {
             setIsDetecting(false);
             setProgress(null); // Clear progress to hide overlay
-            onComplete?.(data);
+            onComplete?.(progressWithHistory);
             abortController.abort(); // Close connection
             abortControllerRef.current = null;
           } else if (ev.event === 'detection-error') {
@@ -107,12 +128,17 @@ export function useDetectionProgress({
       });
     } catch (error) {
       if (!abortController.signal.aborted) {
-        console.error('Failed to start detection:', error);
+        console.error('[Detection] Failed to start detection:', error);
+        console.error('[Detection] Error details:', {
+          name: (error as Error)?.name,
+          message: (error as Error)?.message,
+          stack: (error as Error)?.stack
+        });
         setIsDetecting(false);
         onError?.('Failed to start detection');
       }
     }
-  }, [documentId, onComplete, onError, onProgress]);
+  }, [documentId, onComplete, onError, onProgress, session]);
 
   const cancelDetection = useCallback(() => {
     if (abortControllerRef.current) {
@@ -121,6 +147,7 @@ export function useDetectionProgress({
     }
     setIsDetecting(false);
     setProgress(null);
+    completedEntityTypesRef.current = [];
   }, []);
 
   // Cleanup on unmount

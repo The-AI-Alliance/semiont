@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, createContext, useContext } from 'react';
+import React, { useEffect, useState, createContext, useContext, useCallback } from 'react';
 
 interface LiveRegionContextType {
   announce: (message: string, priority?: 'polite' | 'assertive') => void;
@@ -25,7 +25,7 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
   const [politeMessage, setPoliteMessage] = useState('');
   const [assertiveMessage, setAssertiveMessage] = useState('');
 
-  const announce = (message: string, priority: 'polite' | 'assertive' = 'polite') => {
+  const announce = useCallback((message: string, priority: 'polite' | 'assertive' = 'polite') => {
     if (priority === 'assertive') {
       setAssertiveMessage(message);
       // Clear after announcement
@@ -35,7 +35,7 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
       // Clear after announcement
       setTimeout(() => setPoliteMessage(''), 1000);
     }
-  };
+  }, []);
 
   return (
     <LiveRegionContext.Provider value={{ announce }}>
@@ -66,38 +66,52 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
 export function useSearchAnnouncements() {
   const { announce } = useLiveRegion();
 
-  return {
-    announceSearchResults: (count: number, query: string) => {
-      if (count === 0) {
-        announce(`No results found for ${query}`, 'polite');
-      } else {
-        announce(`${count} result${count === 1 ? '' : 's'} found for ${query}`, 'polite');
-      }
-    },
-    announceSearching: () => {
-      announce('Searching...', 'polite');
+  const announceSearchResults = useCallback((count: number, query: string) => {
+    if (count === 0) {
+      announce(`No results found for ${query}`, 'polite');
+    } else {
+      announce(`${count} result${count === 1 ? '' : 's'} found for ${query}`, 'polite');
     }
+  }, [announce]);
+
+  const announceSearching = useCallback(() => {
+    announce('Searching...', 'polite');
+  }, [announce]);
+
+  return {
+    announceSearchResults,
+    announceSearching
   };
 }
 
 export function useDocumentAnnouncements() {
   const { announce } = useLiveRegion();
 
+  const announceDocumentSaved = useCallback(() => {
+    announce('Document saved successfully', 'polite');
+  }, [announce]);
+
+  const announceDocumentDeleted = useCallback(() => {
+    announce('Document deleted', 'polite');
+  }, [announce]);
+
+  const announceAnnotationCreated = useCallback((type: 'highlight' | 'reference') => {
+    announce(`${type === 'highlight' ? 'Highlight' : 'Reference'} created`, 'polite');
+  }, [announce]);
+
+  const announceAnnotationDeleted = useCallback(() => {
+    announce('Annotation deleted', 'polite');
+  }, [announce]);
+
+  const announceError = useCallback((message: string) => {
+    announce(`Error: ${message}`, 'assertive');
+  }, [announce]);
+
   return {
-    announceDocumentSaved: () => {
-      announce('Document saved successfully', 'polite');
-    },
-    announceDocumentDeleted: () => {
-      announce('Document deleted', 'polite');
-    },
-    announceAnnotationCreated: (type: 'highlight' | 'reference') => {
-      announce(`${type === 'highlight' ? 'Highlight' : 'Reference'} created`, 'polite');
-    },
-    announceAnnotationDeleted: () => {
-      announce('Annotation deleted', 'polite');
-    },
-    announceError: (message: string) => {
-      announce(`Error: ${message}`, 'assertive');
-    }
+    announceDocumentSaved,
+    announceDocumentDeleted,
+    announceAnnotationCreated,
+    announceAnnotationDeleted,
+    announceError
   };
 }

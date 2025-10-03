@@ -5,27 +5,41 @@ import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
-import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
+import { useDocumentAnnotations, type Annotation } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
 interface Props {
   document: SemiontDocument;
+  highlights: Annotation[];
+  references: Annotation[];
+  onRefetchAnnotations?: () => void;
   onWikiLinkClick?: (pageName: string) => void;
   curationMode?: boolean;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onAnnotationHover?: (annotationId: string | null) => void;
+  hoveredAnnotationId?: string | null;
+  scrollToAnnotationId?: string | null;
 }
 
-export function DocumentViewer({ document, onWikiLinkClick, curationMode = false, onGenerateDocument }: Props) {
+export function DocumentViewer({
+  document,
+  highlights,
+  references,
+  onRefetchAnnotations,
+  onWikiLinkClick,
+  curationMode = false,
+  onGenerateDocument,
+  onAnnotationHover,
+  hoveredAnnotationId,
+  scrollToAnnotationId
+}: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Use prop directly instead of internal state
   const activeView = curationMode ? 'annotate' : 'browse';
   const {
-    highlights,
-    references,
-    loadAnnotations,
     addHighlight,
     addReference,
     deleteAnnotation,
@@ -47,14 +61,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     resolvedDocumentName?: string;
   } | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  
-  // Load annotations when document changes
-  useEffect(() => {
-    if (document.id) {
-      loadAnnotations(document.id);
-    }
-  }, [document.id, loadAnnotations]);
-  
+
   // Handle text selection from SourceView - memoized
   const handleTextSelection = useCallback((text: string, position: { start: number; end: number }) => {
     setSelectedText(text);
@@ -74,9 +81,11 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
+    console.log('[DocumentViewer] Annotation clicked:', annotation);
+
     // If it's a reference with a target document, navigate to it
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
-      router.push(`/know/document/${annotation.referencedDocumentId}`);
+      router.push(`/know/document/${encodeURIComponent(annotation.referencedDocumentId)}`);
       return;
     }
 
@@ -89,6 +98,10 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
         referenceType: annotation.referenceType,
         entityType: annotation.entityType,
         resolvedDocumentName: annotation.referencedDocumentName
+      });
+      console.log('[DocumentViewer] editingAnnotation set to:', {
+        id: annotation.id,
+        type: annotation.type
       });
       setSelectedText(annotation.selectionData?.text || '');
       if (annotation.selectionData) {
@@ -139,14 +152,17 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       if (editingAnnotation) {
         if (editingAnnotation.type === 'reference') {
           // Convert reference to highlight
-          await convertReferenceToHighlight(editingAnnotation.id);
+          await convertReferenceToHighlight(references, editingAnnotation.id);
         }
         // If already a highlight, do nothing
       } else {
         // Create new highlight
         await addHighlight(document.id, selectedText, selectionPosition);
       }
-      
+
+      // Refetch annotations to update UI
+      onRefetchAnnotations?.();
+
       // Close popup
       setShowSelectionPopup(false);
       setSelectedText('');
@@ -155,7 +171,7 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight]);
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
@@ -165,17 +181,23 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
       if (editingAnnotation) {
         if (editingAnnotation.type === 'highlight') {
           // Convert highlight to reference
-          await convertHighlightToReference(editingAnnotation.id, targetDocId, entityType, referenceType);
+          await convertHighlightToReference(highlights, editingAnnotation.id, targetDocId, entityType, referenceType);
         } else {
           // Update existing reference
-          await deleteAnnotation(editingAnnotation.id);
+          await deleteAnnotation(editingAnnotation.id, document.id);
           await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
         }
       } else {
         // Create new reference
-        await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
+        console.log('[DocumentViewer] Created reference:', newId);
       }
-      
+
+      // Refetch annotations to update UI
+      console.log('[DocumentViewer] Calling onRefetchAnnotations');
+      onRefetchAnnotations?.();
+      console.log('[DocumentViewer] onRefetchAnnotations called');
+
       // Close popup
       setShowSelectionPopup(false);
       setSelectedText('');
@@ -184,18 +206,23 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference]);
+  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
   
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
+    console.log('[DocumentViewer] handleDeleteAnnotation called with id:', id);
     try {
-      await deleteAnnotation(id);
+      await deleteAnnotation(id, document.id);
+
+      // Refetch annotations to update UI
+      onRefetchAnnotations?.();
+
       setShowSelectionPopup(false);
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to delete annotation:', err);
     }
-  }, [deleteAnnotation]);
+  }, [deleteAnnotation, onRefetchAnnotations]);
   
   // Close popup - memoized
   const handleClosePopup = useCallback(() => {
@@ -344,6 +371,9 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
             highlights={highlights}
             references={references}
             onAnnotationClick={handleAnnotationClick}
+            {...(onAnnotationHover && { onAnnotationHover })}
+            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
           />
         ) : (
           <AnnotateView
@@ -353,6 +383,9 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
             onTextSelect={handleTextSelection}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationRightClick={handleAnnotationRightClick}
+            {...(onAnnotationHover && { onAnnotationHover })}
+            {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
+            {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
           />
         )
       ) : (
@@ -393,10 +426,10 @@ export function DocumentViewer({ document, onWikiLinkClick, curationMode = false
           if (editingAnnotation) {
             // Handle updates to existing annotation
             if (updates.type === 'highlight') {
-              await convertReferenceToHighlight(editingAnnotation.id);
+              await convertReferenceToHighlight(references, editingAnnotation.id);
             } else if (updates.resolvedDocumentId === null) {
               // Unlink document
-              await deleteAnnotation(editingAnnotation.id);
+              await deleteAnnotation(editingAnnotation.id, document.id);
               await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityType, editingAnnotation.referenceType);
             }
             setShowSelectionPopup(false);

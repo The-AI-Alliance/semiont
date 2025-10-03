@@ -211,8 +211,11 @@ function MyComponent() {
 ### Handling Permission Errors
 
 ```typescript
+// Using React Query mutation
+const deleteMutation = api.documents.delete.useMutation();
+
 try {
-  await apiClient.delete('/api/document/123');
+  await deleteMutation.mutateAsync(documentId);
 } catch (error) {
   if (error instanceof APIError && error.status === 403) {
     // Automatically handled by global error handler

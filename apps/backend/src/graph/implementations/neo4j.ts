@@ -43,9 +43,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
   async connect(): Promise<void> {
     try {
-      const uri = this.config.uri || process.env.NEO4J_URI || 'bolt://localhost:7687';
-      const username = this.config.username || process.env.NEO4J_USERNAME || 'neo4j';
-      const password = this.config.password || process.env.NEO4J_PASSWORD || 'password';
+      const uri = this.config.uri;
+      const username = this.config.username;
+      const password = this.config.password;
+      const database = this.config.database;
+
+      if (!uri) {
+        throw new Error('Neo4j URI not configured! Pass uri in config.');
+      }
+      if (!username) {
+        throw new Error('Neo4j username not configured! Pass username in config.');
+      }
+      if (!password) {
+        throw new Error('Neo4j password not configured! Pass password in config.');
+      }
+      if (!database) {
+        throw new Error('Neo4j database not configured! Pass database in config.');
+      }
 
       console.log(`Connecting to Neo4j at ${uri}...`);
 
@@ -59,9 +73,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       // Test connection
-      const session = this.driver.session({
-        database: this.config.database || process.env.NEO4J_DATABASE || 'neo4j'
-      });
+      const session = this.driver.session({ database });
 
       await session.run('RETURN 1 as test');
       await session.close();
@@ -93,8 +105,11 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!this.driver) {
       throw new Error('Neo4j driver not initialized');
     }
+    if (!this.config.database) {
+      throw new Error('Neo4j database not configured! Pass database in config.');
+    }
     return this.driver.session({
-      database: this.config.database || process.env.NEO4J_DATABASE || 'neo4j'
+      database: this.config.database
     });
   }
 
@@ -142,10 +157,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createDocument(input: CreateDocumentInput): Promise<Document> {
+  async createDocument(input: CreateDocumentInput & { id: string }): Promise<Document> {
     const session = this.getSession();
     try {
-      const id = this.generateId();
+      const id = input.id;
       const now = new Date().toISOString();
 
       const document: Document = {
@@ -335,7 +350,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         id,
         documentId: input.documentId,
         selectionData: input.selectionData,
-        provisional: input.provisional || false,
         createdAt: new Date(now),
         updatedAt: new Date(now),
       };
@@ -376,7 +390,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              selectionType: $selectionType,
              selectionCategory: $selectionCategory,
              selectionData: $selectionData,
-             provisional: $provisional,
              referenceTags: $referenceTags,
              entityTypes: $entityTypes,
              metadata: $metadata,
@@ -399,7 +412,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              selectionType: $selectionType,
              selectionCategory: $selectionCategory,
              selectionData: $selectionData,
-             provisional: $provisional,
              referenceTags: $referenceTags,
              entityTypes: $entityTypes,
              metadata: $metadata,
@@ -418,7 +430,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              selectionType: $selectionType,
              selectionCategory: $selectionCategory,
              selectionData: $selectionData,
-             provisional: $provisional,
              entityTypes: $entityTypes,
              metadata: $metadata,
              createdAt: datetime($createdAt),
@@ -438,7 +449,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         selectionType: selectionType,
         selectionCategory,
         selectionData: JSON.stringify(selection.selectionData),
-        provisional: selection.provisional,
         referenceTags: selection.referenceTags || [],
         entityTypes: selection.entityTypes || [],
         metadata: selection.metadata ? JSON.stringify(selection.metadata) : null,
@@ -450,6 +460,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       };
 
       const result = await session.run(cypher, params);
+
+      if (result.records.length === 0) {
+        throw new Error(`Failed to create selection: Document ${selection.documentId} not found in graph database`);
+      }
 
       return this.parseSelectionNode(result.records[0]!.get('s'));
     } finally {
@@ -537,10 +551,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         params.resolvedDocumentId = filter.resolvedDocumentId;
       }
 
-      if (filter.provisional !== undefined) {
-        conditions.push('s.provisional = $provisional');
-        params.provisional = filter.provisional;
-      }
 
       if (filter.resolved !== undefined) {
         if (filter.resolved) {
@@ -616,14 +626,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const params: any = {
         selectionId: input.selectionId,
         documentId: input.documentId,
-        provisional: input.provisional || false,
         resolvedAt: now,
         updatedAt: now,
       };
 
       const setClauses = [
         's.resolvedDocumentId = $documentId',
-        's.provisional = $provisional',
         's.resolvedAt = datetime($resolvedAt)',
         's.updatedAt = datetime($updatedAt)'
       ];
@@ -1078,7 +1086,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.documentId) throw new Error(`Selection ${props.id} missing required field: documentId`);
     if (!props.selectionType) throw new Error(`Selection ${props.id} missing required field: selectionType`);
     if (!props.selectionData) throw new Error(`Selection ${props.id} missing required field: selectionData`);
-    if (props.provisional === undefined || props.provisional === null) throw new Error(`Selection ${props.id} missing required field: provisional`);
     if (!props.createdAt) throw new Error(`Selection ${props.id} missing required field: createdAt`);
     if (!props.updatedAt) throw new Error(`Selection ${props.id} missing required field: updatedAt`);
 
@@ -1086,7 +1093,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       id: props.id,
       documentId: props.documentId,
       selectionData: JSON.parse(props.selectionData),
-      provisional: props.provisional,
       createdAt: new Date(props.createdAt.toString()),
       updatedAt: new Date(props.updatedAt.toString()),
     };

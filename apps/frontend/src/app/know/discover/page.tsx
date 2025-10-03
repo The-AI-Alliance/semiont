@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiService } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
@@ -93,98 +93,52 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function DiscoverPage() {
   const router = useRouter();
   const { addDocument } = useOpenDocuments();
-  
-  // Consolidated state for documents
-  const [documents, setDocuments] = useState({
-    recent: [] as Document[],
-    search: [] as Document[],
-    isSearching: false,
-    isLoading: true,
-  });
-  
+
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
-  const [entityTypes, setEntityTypes] = useState<string[]>([]);
 
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        // Load recent documents - auth token is already set globally
-        // Only fetch non-archived documents for the discover page
-        const docsResponse = await apiService.documents.list({
-          limit: 10,
-          archived: false
-        });
-        
-        setDocuments(prev => ({
-          ...prev,
-          recent: docsResponse.documents,
-          isLoading: false,
-        }));
-        
-        // Load entity types using the same method as entity-tags page
-        const entityTypesResponse = await apiService.entityTypes.list();
-        setEntityTypes(entityTypesResponse.entityTypes || []);
-      } catch (error) {
-        console.error('Failed to load initial data:', error);
-        setDocuments(prev => ({ ...prev, isLoading: false }));
-      }
-    };
+  // Load recent documents using React Query
+  const { data: recentDocsData, isLoading: isLoadingRecent } = api.documents.list.useQuery({
+    limit: 10,
+    archived: false
+  });
 
-    loadInitialData();
-  }, []);
+  // Load entity types using React Query
+  const { data: entityTypesData } = api.entityTypes.list.useQuery();
 
-  // Perform search when debounced query changes
-  useEffect(() => {
-    if (!debouncedSearchQuery.trim()) {
-      setDocuments(prev => ({ ...prev, search: [] }));
-      return;
-    }
+  // Search documents using React Query (only when there's a search query)
+  const { data: searchData, isFetching: isSearching } = api.documents.search.useQuery(
+    debouncedSearchQuery,
+    20,
+    { enabled: debouncedSearchQuery.trim() !== '' }
+  );
 
-    const performSearch = async () => {
-      setDocuments(prev => ({ ...prev, isSearching: true }));
-      try {
-        const response = await apiService.documents.search(debouncedSearchQuery, 20);
-        setDocuments(prev => ({
-          ...prev,
-          search: response.documents,
-          isSearching: false,
-        }));
-      } catch (error) {
-        console.error('Search failed:', error);
-        setDocuments(prev => ({
-          ...prev,
-          search: [],
-          isSearching: false,
-        }));
-      }
-    };
-
-    performSearch();
-  }, [debouncedSearchQuery]);
+  // Extract data from React Query responses
+  const recentDocuments = recentDocsData?.documents || [];
+  const searchDocuments = searchData?.documents || [];
+  const entityTypes = entityTypesData?.entityTypes || [];
 
   const hasSearchQuery = searchQuery.trim() !== '';
-  const hasSearchResults = documents.search.length > 0;
+  const hasSearchResults = searchDocuments.length > 0;
 
   // Memoized filtered documents
   const filteredDocuments = useMemo(() => {
     // If we have search results, show them; otherwise show recent
     // This ensures we show recent docs even when search returns nothing
     const baseDocuments = hasSearchResults
-      ? documents.search
-      : documents.recent;
+      ? searchDocuments
+      : recentDocuments;
 
     if (!selectedEntityType) return baseDocuments;
 
-    return baseDocuments.filter(doc =>
+    return baseDocuments.filter((doc: Document) =>
       doc.entityTypes && doc.entityTypes.includes(selectedEntityType)
     );
-  }, [documents.recent, documents.search, selectedEntityType, hasSearchResults]);
+  }, [recentDocuments, searchDocuments, selectedEntityType, hasSearchResults]);
 
   // Roving tabindex for entity type filters
   const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(
@@ -204,9 +158,8 @@ export default function DiscoverPage() {
   }, []);
 
   const openDocument = useCallback((doc: Document) => {
-    addDocument(doc.id, doc.name);
-    router.push(`/know/document/${doc.id}`);
-  }, [addDocument, router]);
+    router.push(`/know/document/${encodeURIComponent(doc.id)}`);
+  }, [router]);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +167,7 @@ export default function DiscoverPage() {
   }, []);
 
   // Loading state
-  if (documents.isLoading) {
+  if (isLoadingRecent) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-gray-600 dark:text-gray-300">Loading knowledge base...</p>
@@ -222,7 +175,7 @@ export default function DiscoverPage() {
     );
   }
 
-  const showNoResultsWarning = hasSearchQuery && !hasSearchResults && !documents.isSearching;
+  const showNoResultsWarning = hasSearchQuery && !hasSearchResults && !isSearching;
 
   return (
     <div className="px-4 py-8 space-y-6">
@@ -245,14 +198,14 @@ export default function DiscoverPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search documents by name or content..."
               className="flex-1 px-4 py-2 bg-gray-50/50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50 focus:border-cyan-500/50 dark:focus:border-cyan-400/50 dark:text-white placeholder:text-gray-400 transition-colors"
-              disabled={documents.isSearching}
+              disabled={isSearching}
             />
             <button
               type="submit"
-              disabled={documents.isSearching}
+              disabled={isSearching}
               className="px-6 py-2 bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 border border-black/20 dark:border-white/20 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
             >
-              {documents.isSearching ? 'Searching...' : 'Search'}
+              {isSearching ? 'Searching...' : 'Search'}
             </button>
           </div>
         </form>
@@ -282,7 +235,7 @@ export default function DiscoverPage() {
               >
                 All
               </button>
-              {entityTypes.map((type) => (
+              {entityTypes.map((type: string) => (
                 <button
                   key={type}
                   onClick={() => handleEntityTypeFilter(type)}
@@ -306,9 +259,9 @@ export default function DiscoverPage() {
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             {showNoResultsWarning
               ? 'Recent Documents'
-              : hasSearchResults 
-                ? `Search Results (${documents.search.length})`
-                : selectedEntityType 
+              : hasSearchResults
+                ? `Search Results (${searchDocuments.length})`
+                : selectedEntityType
                   ? `Documents tagged with "${selectedEntityType}"`
                   : 'Recent Documents'
             }
@@ -330,7 +283,7 @@ export default function DiscoverPage() {
               role="group"
               aria-label="Document grid"
             >
-              {filteredDocuments.map((doc, index) => (
+              {filteredDocuments.map((doc: Document, index: number) => (
                 <DocumentCard
                   key={doc.id}
                   doc={doc}

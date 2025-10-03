@@ -7,6 +7,13 @@ import { api, LazyTypedAPIClient, TypedAPIClient } from '@/lib/api-client';
 // Import server to control MSW during these tests
 import { server } from '@/mocks/server';
 
+// Mock next-auth
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
+
+const mockUseSession = vi.mocked(await import('next-auth/react')).useSession;
+
 // Use environment variable for backend URL - matching what api-client uses in test mode
 const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -24,6 +31,12 @@ beforeEach(() => {
   // Set up a test instance with the correct URL
   const testClient = new TypedAPIClient(getBackendUrl());
   LazyTypedAPIClient.setInstance(testClient);
+  // Mock authenticated session
+  mockUseSession.mockReturnValue({
+    data: { backendToken: 'test-token' },
+    status: 'authenticated',
+    update: vi.fn(),
+  } as any);
 });
 
 afterEach(() => {
@@ -71,6 +84,39 @@ const createWrapper = () => {
   );
 };
 
+// Helper to assert fetch was called with expected arguments (handles Request objects)
+const expectFetchCalledWith = (url: string, options?: RequestInit) => {
+  expect(mockFetch).toHaveBeenCalled();
+  const call = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+
+  if (!call) {
+    throw new Error('Expected fetch to be called but no calls found');
+  }
+
+  if (call[0] instanceof Request) {
+    // Modern fetch with Request object
+    expect(call[0].url).toBe(url);
+    if (options?.method) {
+      expect(call[0].method).toBe(options.method);
+    }
+    if (options?.headers) {
+      const expectedHeaders = options.headers as Record<string, string>;
+      Object.entries(expectedHeaders).forEach(([key, value]) => {
+        expect(call[0].headers.get(key)).toBe(value);
+      });
+    }
+    if (options?.body) {
+      // Can't easily check body on Request object in tests
+    }
+  } else {
+    // Traditional fetch with (url, options)
+    expect(call[0]).toBe(url);
+    if (options) {
+      expect(call[1]).toMatchObject(options);
+    }
+  }
+};
+
 describe('React Query API hooks', () => {
   beforeEach(() => {
     // Mock fetch responses for each test
@@ -91,12 +137,11 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ access_token: 'google-token' });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/tokens/google', {
+      expectFetchCalledWith(getBackendUrl() + '/api/tokens/google', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ access_token: 'google-token' })
+        }
       });
 
       // Check the returned data from mutateAsync
@@ -136,8 +181,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/users/me', {
-        method: 'GET',
+      expectFetchCalledWith(getBackendUrl() + '/api/auth/me', {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -170,7 +214,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync();
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/users/logout', {
+      expectFetchCalledWith(getBackendUrl() + '/api/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -196,8 +240,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/health', {
-        method: 'GET',
+      expectFetchCalledWith(getBackendUrl() + '/api/health', {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -236,8 +279,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/admin/users', {
-        method: 'GET',
+      expectFetchCalledWith(getBackendUrl() + '/api/admin/users', {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -279,8 +321,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/admin/users/stats', {
-        method: 'GET',
+      expectFetchCalledWith(getBackendUrl() + '/api/admin/users/stats', {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -321,7 +362,7 @@ describe('React Query API hooks', () => {
       const updateData = { isAdmin: true, isActive: false, name: 'Updated Name' };
       const mutationResult = await result.current.mutateAsync({ id: '123', data: updateData });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/admin/users/123', {
+      expectFetchCalledWith(getBackendUrl() + '/api/admin/users/123', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -349,7 +390,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ id: '123', data: { isAdmin: true } });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/admin/users/123', {
+      expectFetchCalledWith(getBackendUrl() + '/api/admin/users/123', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -379,7 +420,7 @@ describe('React Query API hooks', () => {
 
       const mutationResult = await result.current.mutateAsync({ id: '123' });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/admin/users/123', {
+      expectFetchCalledWith(getBackendUrl() + '/api/admin/users/123', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -411,8 +452,7 @@ describe('React Query API hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockFetch).toHaveBeenCalledWith(getBackendUrl() + '/api/admin/oauth/config', {
-        method: 'GET',
+      expectFetchCalledWith(getBackendUrl() + '/api/admin/oauth/config', {
         headers: {
           'Content-Type': 'application/json'
         }

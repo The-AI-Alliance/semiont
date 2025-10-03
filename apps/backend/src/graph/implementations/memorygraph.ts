@@ -174,7 +174,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
       id,
       documentId: input.documentId,
       selectionData: input.selectionData,
-      provisional: input.provisional || false,
       createdAt: now,
       updatedAt: now,
     };
@@ -254,9 +253,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
       sels = sels.filter(sel => sel.resolvedDocumentId === filter.resolvedDocumentId);
     }
     
-    if (filter.provisional !== undefined) {
-      sels = sels.filter(sel => sel.provisional === filter.provisional);
-    }
     
     
     if (filter.resolved !== undefined) {
@@ -299,7 +295,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const updated: Selection = {
       ...sel,
       resolvedDocumentId: input.documentId,
-      provisional: input.provisional || false,
       resolvedAt: new Date(),
       updatedAt: new Date(),
     };

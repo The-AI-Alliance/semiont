@@ -29,7 +29,7 @@ export function ResolvedReferencePopup({
 
   const handleViewDocument = () => {
     if (annotation.resolvedDocumentId) {
-      router.push(`/know/document/${annotation.resolvedDocumentId}`);
+      router.push(`/know/document/${encodeURIComponent(annotation.resolvedDocumentId)}`);
       onClose();
     }
   };

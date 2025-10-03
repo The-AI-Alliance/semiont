@@ -1,9 +1,9 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { ListDocumentsResponseSchema } from '../schemas';
+import { DocumentQueryService } from '../../../services/document-queries';
 
 export const listDocumentsRoute = createRoute({
   method: 'get',
@@ -40,28 +40,23 @@ export const listDocumentsRoute = createRoute({
 export function registerListDocuments(router: DocumentsRouterType) {
   router.openapi(listDocumentsRoute, async (c) => {
     const { offset, limit, entityType, archived, search } = c.req.valid('query');
-    const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const allDocs = await graphDb.listDocuments({});
-    let filteredDocs = allDocs.documents;
+    // Read from Layer 3 projection storage
+    let filteredDocs = await DocumentQueryService.listDocuments({
+      search,
+      archived,
+    });
 
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredDocs = filteredDocs.filter(doc =>
-        doc.name.toLowerCase().includes(searchLower)
-      );
-    }
-
+    // Additional filter by entity type (Layer 3 already handles search and archived)
     if (entityType) {
       filteredDocs = filteredDocs.filter(doc => doc.entityTypes?.includes(entityType));
     }
-    if (archived !== undefined) {
-      filteredDocs = filteredDocs.filter(doc => doc.archived === archived);
-    }
 
+    // Paginate
     const paginatedDocs = filteredDocs.slice(offset, offset + limit);
 
+    // Optionally add content snippet for search results
     let documentsWithContent = paginatedDocs;
     if (search) {
       documentsWithContent = await Promise.all(
@@ -78,7 +73,7 @@ export function registerListDocuments(router: DocumentsRouterType) {
     }
 
     return c.json({
-      documents: documentsWithContent.map(formatDocument),
+      documents: documentsWithContent.map(doc => formatDocument(doc)),
       total: filteredDocs.length,
       offset,
       limit,

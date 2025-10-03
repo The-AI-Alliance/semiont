@@ -20,9 +20,12 @@ vi.mock('@/lib/api-client', () => ({
   }
 }))
 
-// Mock the useSecureAPI hook
-vi.mock('@/hooks/useSecureAPI', () => ({
-  useSecureAPI: () => ({ hasValidToken: true })
+// Mock NextAuth useSession
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({
+    data: { backendToken: 'mock-token' },
+    status: 'authenticated'
+  })
 }))
 
 // Test wrapper with React Query client
