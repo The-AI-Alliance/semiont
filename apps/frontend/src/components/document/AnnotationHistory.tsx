@@ -105,8 +105,8 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
                   eventRefs.current.delete(annotationId);
                 }
               }}
-              onEventClick={onEventClick}
-              onEventHover={onEventHover}
+              {...(onEventClick && { onEventClick })}
+              {...(onEventHover && { onEventHover })}
             />
           );
         })}

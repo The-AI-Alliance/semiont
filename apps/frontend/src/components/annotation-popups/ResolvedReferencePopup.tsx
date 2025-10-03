@@ -57,7 +57,7 @@ export function ResolvedReferencePopup({
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
-      <PopupHeader title="Linked Reference" onClose={onClose} />
+      <PopupHeader title="Resolved Reference" onClose={onClose} />
 
       <SelectedTextDisplay text={selection.text} />
 
@@ -71,10 +71,10 @@ export function ResolvedReferencePopup({
         </div>
       )}
 
-      {/* Linked Document Info */}
+      {/* Resolved Document Info */}
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
-          Linked to:
+          Resolved to:
         </p>
         <p className="text-sm text-blue-700 dark:text-blue-300">
           {annotation.resolvedDocumentName || 'Document'}

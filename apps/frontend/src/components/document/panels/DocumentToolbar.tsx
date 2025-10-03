@@ -46,11 +46,11 @@ export function DocumentToolbar({
         <span className="text-xl">📒</span>
       </button>
 
-      {/* Statistics Icon */}
+      {/* Document Info Icon */}
       <button
         onClick={() => onPanelToggle('stats')}
         className={buttonClass('stats')}
-        title="Statistics"
+        title="Document Info"
       >
         <span className="text-xl">ℹ️</span>
       </button>

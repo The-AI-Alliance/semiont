@@ -6,6 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { markdownPreview } from '@/lib/codemirror-markdown-preview';
 import { annotationStyles } from '@/lib/annotation-styles';
+import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
 import '@/styles/animations.css';
 
 // Export types for use by other components
@@ -47,6 +48,14 @@ interface Props {
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
+  enableWidgets?: boolean; // If true, show inline widgets (wiki links, reference previews, entity badges)
+  onWikiLinkClick?: (pageName: string) => void;
+  onEntityTypeClick?: (entityType: string) => void;
+  onReferenceNavigate?: (documentId: string) => void;
+  onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+  getTargetDocumentName?: (documentId: string) => string | undefined;
+  onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
+  onConvertAnnotation?: (annotation: AnnotationSelection) => void;
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -56,6 +65,23 @@ interface AnnotationUpdate {
 }
 
 const updateAnnotationsEffect = StateEffect.define<AnnotationUpdate>();
+
+// Effect to update widget decorations
+interface WidgetUpdate {
+  content: string;
+  segments: TextSegment[];
+  callbacks: {
+    onWikiLinkClick?: (pageName: string) => void;
+    onEntityTypeClick?: (entityType: string) => void;
+    onReferenceNavigate?: (documentId: string) => void;
+    onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+    getTargetDocumentName?: (documentId: string) => string | undefined;
+    onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
+    onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+  };
+}
+
+const updateWidgetsEffect = StateEffect.define<WidgetUpdate>();
 
 // Build decorations from segments
 function buildAnnotationDecorations(
@@ -80,7 +106,7 @@ function buildAnnotationDecorations(
         'data-annotation-id': segment.annotation.id,
         'data-annotation-type': segment.annotation.type || '',
         title: segment.annotation.type === 'highlight'
-          ? 'Right-click to delete or convert to reference'
+          ? 'Click to delete or convert to reference'
           : segment.annotation.referencedDocumentId
             ? 'Click to navigate • Right-click for options'
             : 'Right-click for options'
@@ -112,6 +138,82 @@ const annotationDecorationsField = StateField.define<DecorationSet>({
   provide: field => EditorView.decorations.from(field)
 });
 
+// Build widget decorations
+function buildWidgetDecorations(
+  content: string,
+  segments: TextSegment[],
+  callbacks: {
+    onWikiLinkClick?: (pageName: string) => void;
+    onEntityTypeClick?: (entityType: string) => void;
+    onReferenceNavigate?: (documentId: string) => void;
+    onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+    getTargetDocumentName?: (documentId: string) => string | undefined;
+    onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
+    onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+  }
+): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+
+  // Wiki link widgets removed (WikiLinkWidget was deleted)
+
+  // Process all annotations (references and highlights) in sorted order
+  // This ensures decorations are added in the correct order for CodeMirror
+  const allAnnotatedSegments = segments
+    .filter(s => s.annotation)
+    .sort((a, b) => a.end - b.end); // Sort by end position
+
+  for (const segment of allAnnotatedSegments) {
+    if (!segment.annotation) continue;
+
+    const annotation = segment.annotation;
+
+    // For references: add preview widget
+    if (annotation.type === 'reference') {
+      // Add reference resolution widget (🔗 or ❓)
+      const targetName = annotation.referencedDocumentId
+        ? callbacks.getTargetDocumentName?.(annotation.referencedDocumentId)
+        : undefined;
+      const widget = new ReferenceResolutionWidget(
+        annotation,
+        targetName,
+        callbacks.onReferenceNavigate,
+        callbacks.onUnresolvedReferenceClick
+      );
+      builder.add(
+        segment.end,
+        segment.end,
+        Decoration.widget({ widget, side: 1 })
+      );
+    }
+
+  }
+
+  return builder.finish();
+}
+
+// State field for widget decorations
+const widgetDecorationsField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    decorations = decorations.map(tr.changes);
+
+    for (const effect of tr.effects) {
+      if (effect.is(updateWidgetsEffect)) {
+        decorations = buildWidgetDecorations(
+          effect.value.content,
+          effect.value.segments,
+          effect.value.callbacks
+        );
+      }
+    }
+
+    return decorations;
+  },
+  provide: field => EditorView.decorations.from(field)
+});
+
 export function CodeMirrorRenderer({
   content,
   segments,
@@ -123,15 +225,45 @@ export function CodeMirrorRenderer({
   newAnnotationIds,
   hoveredAnnotationId,
   scrollToAnnotationId,
-  sourceView = false
+  sourceView = false,
+  enableWidgets = false,
+  onWikiLinkClick,
+  onEntityTypeClick,
+  onReferenceNavigate,
+  onUnresolvedReferenceClick,
+  getTargetDocumentName,
+  onDeleteAnnotation,
+  onConvertAnnotation
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const contentRef = useRef(content);
   const segmentsRef = useRef(segments);
+  const callbacksRef = useRef<{
+    onWikiLinkClick?: (pageName: string) => void;
+    onEntityTypeClick?: (entityType: string) => void;
+    onReferenceNavigate?: (documentId: string) => void;
+    onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+    getTargetDocumentName?: (documentId: string) => string | undefined;
+    onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
+    onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+  }>({});
 
   // Update segments ref when they change
   segmentsRef.current = segments;
+
+  // Update callbacks ref when they change
+  useEffect(() => {
+    callbacksRef.current = {
+      ...(onWikiLinkClick && { onWikiLinkClick }),
+      ...(onEntityTypeClick && { onEntityTypeClick }),
+      ...(onReferenceNavigate && { onReferenceNavigate }),
+      ...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick }),
+      ...(getTargetDocumentName && { getTargetDocumentName }),
+      ...(onDeleteAnnotation && { onDeleteAnnotation }),
+      ...(onConvertAnnotation && { onConvertAnnotation })
+    };
+  }, [onWikiLinkClick, onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onConvertAnnotation]);
 
   // Initialize CodeMirror view once
   useEffect(() => {
@@ -146,6 +278,7 @@ export function CodeMirrorRenderer({
         sourceView ? lineNumbers() : [],
         EditorView.editable.of(editable),
         annotationDecorationsField,
+        enableWidgets ? widgetDecorationsField : [],
         // Handle clicks on annotations
         EditorView.domEventHandlers({
           click: (event, view) => {
@@ -275,6 +408,19 @@ export function CodeMirrorRenderer({
       effects: updateAnnotationsEffect.of({ segments, ...(newAnnotationIds && { newAnnotationIds }) })
     });
   }, [segments, newAnnotationIds]);
+
+  // Update widgets when content or segments change
+  useEffect(() => {
+    if (!viewRef.current || !enableWidgets) return;
+
+    viewRef.current.dispatch({
+      effects: updateWidgetsEffect.of({
+        content,
+        segments,
+        callbacks: callbacksRef.current
+      })
+    });
+  }, [content, segments, enableWidgets]);
 
   // Handle hovered annotation - add pulse effect and scroll if not visible
   useEffect(() => {

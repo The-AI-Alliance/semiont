@@ -618,7 +618,7 @@ function DocumentView({
           <DocumentToolbar
             activePanel={activeToolbarPanel}
             annotateMode={annotateMode}
-            isArchived={document.archived}
+            isArchived={document.archived ?? false}
             onPanelToggle={handleToolbarPanelToggle}
           />
         </div>
