@@ -9,14 +9,14 @@ export const annotationStyles = {
     className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-yellow-200 hover:bg-yellow-300 text-gray-900 dark:bg-yellow-900/50 dark:hover:bg-yellow-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-yellow-500/60 dark:outline-offset-1"
   },
 
-  // Reference annotation style (resolved references) - dark blue with dashed ring
+  // Reference annotation style (resolved references) - blue text like old-fashioned HTML links
   reference: {
-    className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 text-gray-900 dark:from-blue-900/50 dark:to-cyan-900/50 dark:hover:from-blue-900/60 dark:hover:to-cyan-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-cyan-500/60 dark:outline-offset-1"
+    className: "cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
   },
 
-  // Stub reference annotation style (unresolved references) - red underline
+  // Stub reference annotation style (unresolved references) - red text
   stubReference: {
-    className: "cursor-pointer transition-all duration-200 border-b-2 border-red-500 hover:border-red-600 dark:border-red-400 dark:hover:border-red-300"
+    className: "cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
   },
 
   // Legacy aliases for backward compatibility

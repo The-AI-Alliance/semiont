@@ -28,8 +28,8 @@ describe('Markdown Annotations', () => {
       // Should contain annotation span
       expect(html).toContain('data-annotation-id="ann-1"');
       expect(html).toContain('Zeus');
-      // Should contain resolved reference styling (blue)
-      expect(html).toContain('border-b-2 border-blue-500');
+      // Should contain resolved reference styling (blue text)
+      expect(html).toContain('text-blue-600');
     });
 
     it('should render stub references with red styling', async () => {
@@ -52,8 +52,8 @@ describe('Markdown Annotations', () => {
       // Should contain annotation span
       expect(html).toContain('data-annotation-id="ann-2"');
       expect(html).toContain('Athena');
-      // Should contain stub reference styling (red)
-      expect(html).toContain('border-b-2 border-red-500');
+      // Should contain stub reference styling (red text)
+      expect(html).toContain('text-red-600');
     });
   });
 
@@ -114,8 +114,8 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
         expect(html).toContain(`data-annotation-id="${ann.id}"`);
       });
 
-      // Should contain both stub reference (red) and highlight styles
-      expect(html).toContain('border-b-2 border-red-500'); // stub reference style (no referencedDocumentId)
+      // Should contain both stub reference (red text) and highlight styles
+      expect(html).toContain('text-red-600'); // stub reference style (no referencedDocumentId)
       expect(html).toContain('bg-yellow-200'); // highlight style
     });
 
@@ -209,10 +209,10 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       expect(html).toContain('data-annotation-type="highlight"');
       expect(html).toContain('bg-yellow-200');
 
-      // ann-10 is a stub reference (fourth Zeus) - should have red border (no referencedDocumentId)
+      // ann-10 is a stub reference (fourth Zeus) - should have red text (no referencedDocumentId)
       expect(html).toContain('data-annotation-id="ann-10"');
       expect(html).toContain('data-annotation-type="reference"');
-      expect(html).toContain('border-b-2 border-red-500');
+      expect(html).toContain('text-red-600');
     });
   });
 
