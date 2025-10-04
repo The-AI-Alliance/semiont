@@ -95,7 +95,8 @@ function analyzeChildSpans(element: Element, annotations: Annotation[]): ChildSp
   return spans;
 }
 
-function getNodeOffsetRange(node: ElementContent): [number, number] | null {
+function getNodeOffsetRange(node: ElementContent | undefined): [number, number] | null {
+  if (!node) return null;
   if ('position' in node && node.position?.start.offset !== undefined && node.position?.end.offset !== undefined) {
     return [node.position.start.offset, node.position.end.offset];
   }
