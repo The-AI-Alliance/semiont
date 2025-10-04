@@ -5,6 +5,8 @@ import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import { sanitizeImageURL } from '@/lib/validation';
 import { useAuth } from '@/hooks/useAuth';
+import { useSessionExpiry } from '@/hooks/useSessionExpiry';
+import { useFormattedTime } from '@/hooks/useFormattedTime';
 
 // Fallback avatar when image fails to load or is invalid
 const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QjcyODAiLz4KPHBhdGggZD0iTTE2IDE2QzE4LjIwOTEgMTYgMjAgMTQuMjA5MSAyMCAxMkMyMCA5Ljc5MDg2IDE4LjIwOTEgOCAxNiA4QzEzLjc5MDkgOCAxMiA5Ljc5MDg2IDEyIDEyQzEyIDE0LjIwOTEgMTMuNzkwOSAxNiAxNiAxNloiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0iTTI0IDI1QzI0IDIxLjY4NjMgMjAuNDE4MyAxOSAxNiAxOUMxMS41ODE3IDE5IDggMjEuNjg2MyA4IDI1IiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==';
@@ -12,6 +14,8 @@ const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdod
 export function UserPanel() {
   const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
   const [imageError, setImageError] = useState(false);
+  const { timeRemaining } = useSessionExpiry();
+  const sessionTimeFormatted = useFormattedTime(timeRemaining);
 
   // Sanitize and validate the profile image URL
   const profileImageUrl = (() => {
@@ -61,6 +65,18 @@ export function UserPanel() {
                 @{userDomain}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Session Info */}
+        <div>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+            Session
+          </label>
+          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Expires in: {sessionTimeFormatted}
+            </div>
           </div>
         </div>
 
