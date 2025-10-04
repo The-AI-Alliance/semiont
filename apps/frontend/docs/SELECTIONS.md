@@ -238,20 +238,14 @@ Key points:
 - Click and context menu handlers are attached via CodeMirror's event system
 - The editor is configured as read-only for viewing documents
 
-#### Custom Markdown Preview Extension
-
-We've created a custom CodeMirror extension (`codemirror-markdown-preview.ts`) that can:
-- Hide markdown syntax characters using decorations
-- Apply CSS styling to make headers larger, text bold/italic, etc.
-- Replace certain elements with widgets (e.g., bullets for lists)
-- Maintain perfect position mapping for annotations
-
 #### Current Display Mode
 
-The system currently shows markdown syntax with highlighting. While not ideal for reading, this approach:
+The system shows markdown syntax with highlighting in AnnotateView (curation mode). This approach:
 - Guarantees accurate annotation positioning
-- Avoids the complex position mapping issues of HTML rendering
+- Avoids complex position mapping issues
 - Provides a stable foundation for the annotation system
+
+For reading, users can switch to BrowseView which uses ReactMarkdown for a clean, prose-style display.
 
 #### Position Mapping Example
 
