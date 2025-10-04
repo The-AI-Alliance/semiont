@@ -114,15 +114,15 @@ function wrapChildRange(element: Element, span: ChildSpan) {
   if (annotation.type === 'highlight') {
     className = 'bg-yellow-200 dark:bg-yellow-800';
   } else if (annotation.type === 'reference') {
-    // Stub reference (no target document) - red text
+    // Stub reference (no target document) - red text with !important-like specificity
     if (!annotation.referencedDocumentId) {
-      className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300';
+      className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
     } else {
-      // Resolved reference - blue text
-      className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300';
+      // Resolved reference - blue text with !important-like specificity
+      className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
     }
   } else {
-    className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300';
+    className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
   }
 
   const wrapper: Element = {
@@ -210,15 +210,15 @@ function applyWithinTextNodeAnnotations(
       if (ann.type === 'highlight') {
         className = 'bg-yellow-200 dark:bg-yellow-800';
       } else if (ann.type === 'reference') {
-        // Stub reference (no target document) - red text
+        // Stub reference (no target document) - red text with !important-like specificity
         if (!ann.referencedDocumentId) {
-          className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300';
+          className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
         } else {
-          // Resolved reference - blue text
-          className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300';
+          // Resolved reference - blue text with !important-like specificity
+          className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
         }
       } else {
-        className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300';
+        className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
       }
 
       segments.push({
