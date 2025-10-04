@@ -314,13 +314,13 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
     it('should handle mixed markdown complexity', async () => {
       const markdown = `**Zeus**, _the king_, ruled [Olympus](https://example.com).`;
 
-      // Annotate just "Zeus" (inside bold)
-      // Annotate "the king" (inside italic)
-      // Annotate "Olympus" (inside link)
+      // Annotate just "Zeus" (inside bold) - starts at position 2 (after **)
+      // Annotate "the king" (inside italic) - starts at position 11 (after _)
+      // Annotate "Olympus" (inside link) - starts at position 29 (after [)
       const annotations = [
         { id: 'ann-1', text: 'Zeus', offset: 2, length: 4, type: 'reference' as const },
-        { id: 'ann-2', text: 'the king', offset: 10, length: 8, type: 'highlight' as const },
-        { id: 'ann-3', text: 'Olympus', offset: 28, length: 7, type: 'reference' as const },
+        { id: 'ann-2', text: 'the king', offset: 11, length: 8, type: 'highlight' as const },
+        { id: 'ann-3', text: 'Olympus', offset: 29, length: 7, type: 'reference' as const },
       ];
 
       const result = await unified()
@@ -334,22 +334,14 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
 
       const html = String(result);
 
-      console.log('\n=== MIXED MARKDOWN TEST ===');
-      console.log('Source:', markdown);
-      console.log('HTML:', html);
+      // All annotations should render correctly
+      expect(html).toContain('data-annotation-id="ann-1"'); // Zeus in bold
+      expect(html).toContain('data-annotation-id="ann-2"'); // the king in italic
+      expect(html).toContain('data-annotation-id="ann-3"'); // Olympus in link
 
-      // Let's see which ones work and which don't
-      annotations.forEach(ann => {
-        const hasAnnotation = html.includes(`data-annotation-id="${ann.id}"`);
-        console.log(`Annotation ${ann.id} (${ann.text}):`, hasAnnotation ? '✓ RENDERED' : '✗ MISSING');
-      });
-
-      // Check if any annotations rendered
-      const renderedCount = annotations.filter(ann =>
-        html.includes(`data-annotation-id="${ann.id}"`)
-      ).length;
-
-      console.log(`\nRendered ${renderedCount}/${annotations.length} annotations`);
+      // Verify annotation types
+      expect(html).toContain('data-annotation-type="reference"');
+      expect(html).toContain('data-annotation-type="highlight"');
     });
   });
 });

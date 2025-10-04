@@ -9,6 +9,12 @@ interface Annotation {
   type: 'highlight' | 'reference';
 }
 
+interface ChildSpan {
+  annotation: Annotation;
+  startChildIndex: number;
+  endChildIndex: number; // exclusive
+}
+
 export function rehypeRenderAnnotations() {
   return (tree: Root) => {
     visit(tree, 'element', (element: Element) => {
@@ -21,150 +27,230 @@ export function rehypeRenderAnnotations() {
 
       const annotations: Annotation[] = JSON.parse(annotationsJson);
 
-      visit(element, 'text', (textNode: Text, index: number | undefined, parent: Element | Root | undefined) => {
-        if (index === undefined || !parent || parent.type !== 'element') {
-          return SKIP;
-        }
+      // PHASE 1: Handle annotations that span across multiple immediate children
+      wrapCrossElementAnnotations(element, annotations);
 
-        // Try to get position from text node first, fall back to parent element
-        const position = textNode.position || (parent as Element).position;
-        if (!position) {
-          return SKIP;
-        }
-
-        const textStart = position.start.offset;
-        const textEnd = position.end.offset;
-
-        if (textStart === undefined || textEnd === undefined) {
-          return SKIP;
-        }
-
-        const textContent = textNode.value;
-
-        // Find overlapping annotations using range intersection
-        const applicable = annotations.filter(ann => {
-          const annStart = ann.offset;
-          const annEnd = ann.offset + ann.length;
-          return annStart < textEnd && annEnd > textStart;
-        });
-
-        if (applicable.length === 0) {
-          return SKIP;
-        }
-
-        // Build position mapping from source to rendered
-        const sourceTextInNode = originalSource.substring(textStart, textEnd);
-
-        // Build a map: source offset → rendered offset
-        // This handles cases where markdown syntax is stripped
-        const sourceToRendered = new Map<number, number>();
-        let renderedPos = 0;
-        let sourcePos = 0;
-
-        // Walk through both strings, matching characters
-        while (sourcePos < sourceTextInNode.length && renderedPos < textContent.length) {
-          const sourceChar = sourceTextInNode[sourcePos];
-          const renderedChar = textContent[renderedPos];
-
-          if (sourceChar === renderedChar) {
-            // Character matches - record the mapping
-            sourceToRendered.set(textStart + sourcePos, renderedPos);
-            renderedPos++;
-            sourcePos++;
-          } else {
-            // Characters don't match - source has markdown syntax that was stripped
-            // Don't map this source position (it's syntax), just skip it
-            sourcePos++;
-          }
-        }
-
-        // Map any remaining source positions (syntax at the end)
-        while (sourcePos < sourceTextInNode.length) {
-          sourceToRendered.set(textStart + sourcePos, renderedPos);
-          sourcePos++;
-        }
-
-        // Now map annotations using the position map
-        const segments: ElementContent[] = [];
-        let lastPos = 0;
-
-        // Sort annotations by position
-        const sortedAnnotations = applicable.sort((a, b) => a.offset - b.offset);
-
-        for (const ann of sortedAnnotations) {
-          // Find where this annotation starts and ends in rendered text
-          let relStart = sourceToRendered.get(ann.offset);
-          let relEnd = sourceToRendered.get(ann.offset + ann.length - 1);
-
-          // If we couldn't find exact mappings, skip this annotation
-          if (relStart === undefined || relEnd === undefined) {
-            continue;
-          }
-
-          // relEnd should point to the last character, so we need to add 1 for substring
-          relEnd = relEnd + 1;
-
-          // Clamp to text bounds
-          relStart = Math.max(0, Math.min(relStart, textContent.length));
-          relEnd = Math.max(0, Math.min(relEnd, textContent.length));
-
-          // Skip if range is invalid
-          if (relStart >= relEnd) continue;
-
-          // Skip overlapping annotations
-          if (relStart < lastPos) continue;
-
-          // Add text before annotation
-          if (relStart > lastPos) {
-            segments.push({
-              type: 'text',
-              value: textContent.substring(lastPos, relStart)
-            });
-          }
-
-          // Add annotation span
-          const className = ann.type === 'highlight'
-            ? 'bg-yellow-200 dark:bg-yellow-800'
-            : 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
-
-          segments.push({
-            type: 'element',
-            tagName: 'span',
-            properties: {
-              className,
-              'data-annotation-id': ann.id,
-              'data-annotation-type': ann.type
-            },
-            children: [{
-              type: 'text',
-              value: textContent.substring(relStart, relEnd)
-            }]
-          });
-
-          lastPos = relEnd;
-        }
-
-        // Add remaining text after last annotation
-        if (lastPos < textContent.length) {
-          segments.push({
-            type: 'text',
-            value: textContent.substring(lastPos)
-          });
-        }
-
-        // Replace text node with wrapper containing segments
-        // (Always replace if we have segments, even if just 1 - it might be an annotation!)
-        if (segments.length > 0) {
-          (parent as Element).children[index] = {
-            type: 'element',
-            tagName: 'span',
-            properties: {},
-            children: segments
-          };
-        }
-
-        return SKIP;
-      });
+      // PHASE 2: Handle annotations within individual text nodes
+      applyWithinTextNodeAnnotations(element, annotations, originalSource);
     });
   };
+}
+
+/**
+ * Phase 1: Wrap annotations that span multiple child elements.
+ * Example: <strong>Zeus</strong> and <strong>Hera</strong>
+ * If annotation spans both, wrap them: <span class="annotation"><strong>Zeus</strong> and <strong>Hera</strong></span>
+ */
+function wrapCrossElementAnnotations(element: Element, annotations: Annotation[]) {
+  const spans = analyzeChildSpans(element, annotations);
+
+  if (spans.length === 0) return;
+
+  // Sort by span length (longest first) to handle nested annotations
+  const sortedSpans = spans.sort((a, b) => {
+    const aLength = a.endChildIndex - a.startChildIndex;
+    const bLength = b.endChildIndex - b.startChildIndex;
+    return bLength - aLength;
+  });
+
+  // Apply wrapping (need to apply in reverse order after sorting to avoid index shifts)
+  for (const span of sortedSpans) {
+    wrapChildRange(element, span);
+  }
+}
+
+function analyzeChildSpans(element: Element, annotations: Annotation[]): ChildSpan[] {
+  const spans: ChildSpan[] = [];
+
+  for (const ann of annotations) {
+    const annStart = ann.offset;
+    const annEnd = ann.offset + ann.length;
+
+    let startChildIndex = -1;
+    let endChildIndex = -1;
+
+    for (let i = 0; i < element.children.length; i++) {
+      const child = element.children[i];
+      const childRange = getNodeOffsetRange(child);
+
+      if (!childRange) continue;
+
+      const [childStart, childEnd] = childRange;
+
+      // Annotation overlaps this child
+      if (annStart < childEnd && annEnd > childStart) {
+        if (startChildIndex === -1) {
+          startChildIndex = i;
+        }
+        endChildIndex = i + 1;
+      }
+    }
+
+    // Only wrap if annotation spans multiple children
+    if (startChildIndex !== -1 && endChildIndex - startChildIndex > 1) {
+      spans.push({ annotation: ann, startChildIndex, endChildIndex });
+    }
+  }
+
+  return spans;
+}
+
+function getNodeOffsetRange(node: ElementContent): [number, number] | null {
+  if ('position' in node && node.position?.start.offset !== undefined && node.position?.end.offset !== undefined) {
+    return [node.position.start.offset, node.position.end.offset];
+  }
+  return null;
+}
+
+function wrapChildRange(element: Element, span: ChildSpan) {
+  const { annotation, startChildIndex, endChildIndex } = span;
+
+  const childrenToWrap = element.children.slice(startChildIndex, endChildIndex);
+
+  const className = annotation.type === 'highlight'
+    ? 'bg-yellow-200 dark:bg-yellow-800'
+    : 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+
+  const wrapper: Element = {
+    type: 'element',
+    tagName: 'span',
+    properties: {
+      className,
+      'data-annotation-id': annotation.id,
+      'data-annotation-type': annotation.type,
+      'data-annotation-cross-element': 'true'
+    },
+    children: childrenToWrap
+  };
+
+  element.children.splice(startChildIndex, endChildIndex - startChildIndex, wrapper);
+}
+
+/**
+ * Phase 2: Apply annotations within individual text nodes.
+ * This handles the normal case where an annotation is entirely within a text node.
+ */
+function applyWithinTextNodeAnnotations(
+  element: Element,
+  annotations: Annotation[],
+  originalSource: string
+) {
+  visit(element, 'text', (textNode: Text, index: number | undefined, parent: Element | Root | undefined) => {
+    if (index === undefined || !parent || parent.type !== 'element') {
+      return SKIP;
+    }
+
+    // Skip text nodes that are already inside cross-element annotation wrappers
+    if ((parent as Element).properties?.['data-annotation-cross-element']) {
+      return SKIP;
+    }
+
+    const position = textNode.position || (parent as Element).position;
+    if (!position) return SKIP;
+
+    const textStart = position.start.offset;
+    const textEnd = position.end.offset;
+
+    if (textStart === undefined || textEnd === undefined) return SKIP;
+
+    const textContent = textNode.value;
+
+    // Find overlapping annotations
+    const applicable = annotations.filter(ann => {
+      const annStart = ann.offset;
+      const annEnd = ann.offset + ann.length;
+      // Handle annotations that overlap with this text node
+      // Use range intersection, not full containment
+      return annStart < textEnd && annEnd > textStart;
+    });
+
+    if (applicable.length === 0) return SKIP;
+
+    // Build position mapping
+    const sourceTextInNode = originalSource.substring(textStart, textEnd);
+    const sourceToRendered = buildPositionMap(sourceTextInNode, textContent, textStart);
+
+    // Build segments
+    const segments: ElementContent[] = [];
+    let lastPos = 0;
+
+    for (const ann of applicable.sort((a, b) => a.offset - b.offset)) {
+      let relStart = sourceToRendered.get(ann.offset);
+      let relEnd = sourceToRendered.get(ann.offset + ann.length - 1);
+
+      if (relStart === undefined || relEnd === undefined) continue;
+
+      relEnd = relEnd + 1;
+      relStart = Math.max(0, Math.min(relStart, textContent.length));
+      relEnd = Math.max(0, Math.min(relEnd, textContent.length));
+
+      if (relStart >= relEnd || relStart < lastPos) continue;
+
+      // Text before annotation
+      if (relStart > lastPos) {
+        segments.push({ type: 'text', value: textContent.substring(lastPos, relStart) });
+      }
+
+      // Annotation span
+      const className = ann.type === 'highlight'
+        ? 'bg-yellow-200 dark:bg-yellow-800'
+        : 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+
+      segments.push({
+        type: 'element',
+        tagName: 'span',
+        properties: {
+          className,
+          'data-annotation-id': ann.id,
+          'data-annotation-type': ann.type
+        },
+        children: [{ type: 'text', value: textContent.substring(relStart, relEnd) }]
+      });
+
+      lastPos = relEnd;
+    }
+
+    // Remaining text
+    if (lastPos < textContent.length) {
+      segments.push({ type: 'text', value: textContent.substring(lastPos) });
+    }
+
+    if (segments.length > 0) {
+      (parent as Element).children[index] = {
+        type: 'element',
+        tagName: 'span',
+        properties: {},
+        children: segments
+      };
+    }
+
+    return SKIP;
+  });
+}
+
+function buildPositionMap(
+  sourceText: string,
+  renderedText: string,
+  baseOffset: number
+): Map<number, number> {
+  const map = new Map<number, number>();
+  let renderedPos = 0;
+  let sourcePos = 0;
+
+  while (sourcePos < sourceText.length && renderedPos < renderedText.length) {
+    if (sourceText[sourcePos] === renderedText[renderedPos]) {
+      map.set(baseOffset + sourcePos, renderedPos);
+      renderedPos++;
+      sourcePos++;
+    } else {
+      sourcePos++;
+    }
+  }
+
+  while (sourcePos < sourceText.length) {
+    map.set(baseOffset + sourcePos, renderedPos);
+    sourcePos++;
+  }
+
+  return map;
 }
