@@ -166,6 +166,12 @@ function DocumentView({
     }
     return false;
   });
+  const [showLineNumbers, setShowLineNumbers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('showLineNumbers') === 'true';
+    }
+    return false;
+  });
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
@@ -300,6 +306,15 @@ function DocumentView({
       localStorage.setItem('annotateMode', newMode.toString());
     }
   }, [annotateMode]);
+
+  // Handle line numbers toggle
+  const handleLineNumbersToggle = useCallback(() => {
+    const newMode = !showLineNumbers;
+    setShowLineNumbers(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showLineNumbers', newMode.toString());
+    }
+  }, [showLineNumbers]);
 
   // Handle toolbar panel toggle
   const handleToolbarPanelToggle = useCallback((panel: 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
@@ -495,6 +510,7 @@ function DocumentView({
                 onAnnotationHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
+                showLineNumbers={showLineNumbers}
               />
             </ErrorBoundary>
           </div>
@@ -565,6 +581,8 @@ function DocumentView({
                   onClone={handleClone}
                   annotateMode={annotateMode}
                   onAnnotateModeToggle={handleAnnotateModeToggle}
+                  showLineNumbers={showLineNumbers}
+                  onLineNumbersToggle={handleLineNumbersToggle}
                 />
               )}
             </div>
