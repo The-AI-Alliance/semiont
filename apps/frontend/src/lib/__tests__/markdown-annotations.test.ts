@@ -238,11 +238,6 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
 
       const html = String(result);
 
-      console.log('\n=== BOLD MARKDOWN TEST ===');
-      console.log('Source:', markdown);
-      console.log('Annotation offset:', annotations[0]!.offset, 'text:', markdown.substring(10, 14));
-      console.log('HTML:', html);
-
       // This will likely fail because the text node inside <strong> has different offsets
       // The source at 11-15 is "Zeus" but the rendered text has no ** markers
       expect(html).toContain('data-annotation-id="ann-1"');
@@ -267,11 +262,6 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
 
       const html = String(result);
 
-      console.log('\n=== ITALIC MARKDOWN TEST ===');
-      console.log('Source:', markdown);
-      console.log('Annotation offset:', annotations[0]!.offset, 'text:', markdown.substring(13, 19));
-      console.log('HTML:', html);
-
       expect(html).toContain('data-annotation-id="ann-1"');
     });
 
@@ -293,11 +283,6 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
         .process(markdown);
 
       const html = String(result);
-
-      console.log('\n=== LINK MARKDOWN TEST ===');
-      console.log('Source:', markdown);
-      console.log('Annotation offset:', annotations[0]!.offset, 'text:', markdown.substring(12, 16));
-      console.log('HTML:', html);
 
       expect(html).toContain('data-annotation-id="ann-1"');
     });
@@ -324,12 +309,6 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
         .process(markdown);
 
       const html = String(result);
-
-      console.log('\n=== SPANNING BOUNDARIES TEST ===');
-      console.log('Source:', markdown);
-      console.log('Annotation offset:', annotations[0]!.offset, 'length:', annotations[0]!.length);
-      console.log('Annotation text in source:', markdown.substring(14, 31));
-      console.log('HTML:', html);
 
       // This one is particularly challenging - the annotation spans across element boundaries
       expect(html).toContain('data-annotation-id="ann-1"');
