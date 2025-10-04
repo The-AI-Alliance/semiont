@@ -11,8 +11,10 @@ import {
 import { api } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/SettingsPanel';
-import { UserPanel } from '@/components/UserPanel';import { useTheme } from '@/hooks/useTheme';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
+import { useTheme } from '@/hooks/useTheme';
+import { useToolbar } from '@/hooks/useToolbar';
+import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 export default function EntityTagsPage() {
   const { data: session, status } = useSession();
@@ -21,14 +23,9 @@ export default function EntityTagsPage() {
   const queryClient = useQueryClient();
 
   // Toolbar and settings state
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | 'user' | null>(null);
-  const [showLineNumbers, setShowLineNumbers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('showLineNumbers') === 'true';
-    }
-    return false;
-  });
+  const { activePanel, togglePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Query entity types
   const { data: entityTypesData, isLoading } = api.entityTypes.list.useQuery();
@@ -36,19 +33,6 @@ export default function EntityTagsPage() {
 
   // Mutation for creating new entity type
   const createEntityTypeMutation = api.entityTypes.create.useMutation();
-
-  // Toolbar handlers
-  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
-    setActiveToolbarPanel(current => current === panel ? null : panel);
-  }, []);
-
-  const handleLineNumbersToggle = useCallback(() => {
-    const newMode = !showLineNumbers;
-    setShowLineNumbers(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('showLineNumbers', newMode.toString());
-    }
-  }, [showLineNumbers]);
 
   // Check authentication and moderator/admin status
   useEffect(() => {
@@ -170,31 +154,18 @@ export default function EntityTagsPage() {
 
       {/* Right Sidebar - Panels and Toolbar */}
       <div className="flex">
-        {/* Panels Container */}
-        {activeToolbarPanel && (
-          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
-            {/* User Panel */}
-            {activeToolbarPanel === 'user' && (
-              <UserPanel />
-            )}
+        <ToolbarPanels
+          activePanel={activePanel}
+          theme={theme}
+          onThemeChange={setTheme}
+          showLineNumbers={showLineNumbers}
+          onLineNumbersToggle={toggleLineNumbers}
+        />
 
-            {/* Settings Panel */}
-            {activeToolbarPanel === 'settings' && (
-              <SettingsPanel
-                showLineNumbers={showLineNumbers}
-                onLineNumbersToggle={handleLineNumbersToggle}
-                theme={theme}
-                onThemeChange={setTheme}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
-          activePanel={activeToolbarPanel}
-          onPanelToggle={handleToolbarPanelToggle}
+          activePanel={activePanel}
+          onPanelToggle={togglePanel}
         />
       </div>
     </div>

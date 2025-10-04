@@ -7,9 +7,10 @@ import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';
+import { useToolbar } from '@/hooks/useToolbar';
+import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/SettingsPanel';
-import { UserPanel } from '@/components/UserPanel';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 // Extract document card as a component
 const DocumentCard = React.memo(({
   doc,
@@ -102,20 +103,9 @@ export default function DiscoverPage() {
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
 
   // Toolbar and settings state
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | 'user' | null>(null);
-  const [annotateMode, setAnnotateMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('annotateMode') === 'true';
-    }
-    return false;
-  });
-  const [showLineNumbers, setShowLineNumbers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('showLineNumbers') === 'true';
-    }
-    return false;
-  });
+  const { activePanel, togglePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -186,26 +176,6 @@ export default function DiscoverPage() {
   }, []);
 
   // Toolbar handlers
-  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
-    setActiveToolbarPanel(current => current === panel ? null : panel);
-  }, []);
-
-  const handleAnnotateModeToggle = useCallback(() => {
-    const newMode = !annotateMode;
-    setAnnotateMode(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('annotateMode', newMode.toString());
-    }
-  }, [annotateMode]);
-
-  const handleLineNumbersToggle = useCallback(() => {
-    const newMode = !showLineNumbers;
-    setShowLineNumbers(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('showLineNumbers', newMode.toString());
-    }
-  }, [showLineNumbers]);
-
   // Loading state
   if (isLoadingRecent) {
     return (
@@ -356,30 +326,19 @@ export default function DiscoverPage() {
       {/* Right Sidebar - Panels and Toolbar */}
       <div className="flex">
         {/* Panels Container */}
-        {activeToolbarPanel && (
-          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
-            {/* User Panel */}
-            {activeToolbarPanel === 'user' && (
-              <UserPanel />
-            )}
-
-            {/* Settings Panel */}
-            {activeToolbarPanel === 'settings' && (
-              <SettingsPanel
-                showLineNumbers={showLineNumbers}
-                onLineNumbersToggle={handleLineNumbersToggle}
-                theme={theme}
-                onThemeChange={setTheme}
-              />
-            )}
-          </div>
-        )}
+        <ToolbarPanels
+          activePanel={activePanel}
+          theme={theme}
+          onThemeChange={setTheme}
+          showLineNumbers={showLineNumbers}
+          onLineNumbersToggle={toggleLineNumbers}
+        />
 
         {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
-          activePanel={activeToolbarPanel}
-          onPanelToggle={handleToolbarPanelToggle}
+          activePanel={activePanel}
+          onPanelToggle={togglePanel}
         />
       </div>
     </div>
