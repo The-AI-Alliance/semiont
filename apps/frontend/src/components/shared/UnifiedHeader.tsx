@@ -22,13 +22,13 @@ export function UnifiedHeader({
   const { isAuthenticated, isAdmin, isModerator } = useAuth();
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
 
-  // Floating variant - just the logo button, positioned absolutely
+  // Floating variant - just the logo button, positioned in the sidebar
   if (variant === 'floating' && showBranding) {
     return (
-      <div className="fixed top-4 left-4 z-50" ref={dropdownRef}>
+      <div className="fixed top-0 left-0 w-64 z-50 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-4" ref={dropdownRef}>
         <button
           onClick={toggle}
-          className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded bg-white dark:bg-gray-900 shadow-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
+          className="w-full hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
           aria-label="Navigation menu"
           aria-expanded={isOpen}
           aria-haspopup="true"
@@ -45,7 +45,7 @@ export function UnifiedHeader({
         {/* Dropdown Menu */}
         {isOpen && isAuthenticated && (
           <div
-            className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+            className="absolute left-4 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
             role="menu"
             aria-orientation="vertical"
           >

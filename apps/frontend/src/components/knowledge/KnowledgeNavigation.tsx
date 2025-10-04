@@ -1,13 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  PlusIcon,
-  ChevronLeftIcon,
-  Bars3Icon
-} from '@heroicons/react/24/outline';
+import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import {
   DndContext,
@@ -45,11 +41,15 @@ const fixedNavigation = [
   }
 ];
 
-export function KnowledgeNavigation() {
+interface KnowledgeNavigationProps {
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+}
+
+export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: KnowledgeNavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { openDocuments, removeDocument, reorderDocuments } = useOpenDocuments();
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Setup drag and drop sensors
   const sensors = useSensors(
@@ -62,21 +62,6 @@ export function KnowledgeNavigation() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  // Load collapsed state from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('knowledgeNavCollapsed');
-    if (saved === 'true') {
-      setIsCollapsed(true);
-    }
-  }, []);
-
-  // Save collapsed state to localStorage
-  const toggleCollapsed = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    localStorage.setItem('knowledgeNavCollapsed', newState.toString());
-  };
 
   // Function to close a document tab
   const closeDocument = (docId: string, e: React.MouseEvent) => {
@@ -103,11 +88,7 @@ export function KnowledgeNavigation() {
   };
 
   return (
-    <nav
-      className={`bg-white dark:bg-gray-900 shadow border-r border-gray-200 dark:border-gray-700 flex-shrink-0 transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-14' : 'w-64'
-      }`}
-    >
+    <>
       {/* Screen reader instructions for drag and drop */}
       <div id="drag-instructions" className="sr-only">
         Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop.
@@ -115,28 +96,34 @@ export function KnowledgeNavigation() {
       <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
         <div className="space-y-1">
           <div>
-            {/* Header with collapse button */}
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} mb-3`}>
-              {!isCollapsed && (
+            {/* Header with collapse button - both states have same height */}
+            {!isCollapsed ? (
+              <div className="flex items-center justify-between mb-3 h-9">
                 <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                   Knowledge
                 </div>
-              )}
-              <button
-                onClick={toggleCollapsed}
-                className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                title={isCollapsed ? "Expand navigation" : "Collapse navigation"}
-                aria-expanded={!isCollapsed}
-                aria-controls="knowledge-nav-content"
-              >
-                {isCollapsed ? (
-                  <Bars3Icon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                ) : (
-                  <ChevronLeftIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                )}
-              </button>
-            </div>
-            
+                <button
+                  onClick={onToggleCollapse}
+                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
+                  title="Collapse sidebar"
+                  aria-label="Collapse sidebar"
+                >
+                  <ChevronLeftIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-center mb-3 h-9">
+                <button
+                  onClick={onToggleCollapse}
+                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
+                  title="Expand sidebar"
+                  aria-label="Expand sidebar"
+                >
+                  <Bars3Icon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+            )}
+
             {/* Navigation content */}
             <div id="knowledge-nav-content">
             {/* Fixed navigation items */}
@@ -207,6 +194,6 @@ export function KnowledgeNavigation() {
           </div>
         </div>
       </div>
-    </nav>
+    </>
   );
 }

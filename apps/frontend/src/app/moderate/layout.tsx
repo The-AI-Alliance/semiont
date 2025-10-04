@@ -1,5 +1,5 @@
 import React from 'react';
-import { UnifiedHeader } from '@/components/shared/UnifiedHeader';
+import { LeftSidebar } from '@/components/shared/LeftSidebar';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
 import { ModerationAuthWrapper } from '@/components/moderation/ModerationAuthWrapper';
 import { Footer } from '@/components/Footer';
@@ -16,9 +16,10 @@ export default function ModerateLayout({
   return (
     <ModerationAuthWrapper>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <UnifiedHeader brandingLink="/" variant="floating" />
         <div className="flex flex-1">
-          <ModerationNavigation />
+          <LeftSidebar brandingLink="/">
+            <ModerationNavigation />
+          </LeftSidebar>
           <main className="flex-1 p-6 flex flex-col">
             <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
               {children}
