@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-type ToolbarPanel = 'history' | 'info' | 'detect' | 'settings' | 'collaboration';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration';
 
 interface Props {
   activePanel: ToolbarPanel | null;
@@ -26,6 +26,17 @@ export function DocumentToolbar({
 
   return (
     <div className="w-12 flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+      {/* Document Icon */}
+      <button
+        onClick={() => onPanelToggle('document')}
+        className={buttonClass('document')}
+        aria-label="Document"
+        aria-pressed={activePanel === 'document'}
+        title="Document"
+      >
+        <span className="text-xl" aria-hidden="true">📄</span>
+      </button>
+
       {/* Detect Icon - only show in Annotate Mode */}
       {annotateMode && !isArchived && (
         <button

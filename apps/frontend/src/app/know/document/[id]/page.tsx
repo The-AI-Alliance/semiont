@@ -26,6 +26,7 @@ import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
 import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
+import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
 
 // Loading state component
@@ -176,10 +177,10 @@ function DocumentView({
   const { theme, setTheme } = useTheme();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
+      if (saved === 'document' || saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
         return saved === 'stats' ? 'info' : saved;
       }
     }
@@ -319,7 +320,7 @@ function DocumentView({
   }, [showLineNumbers]);
 
   // Handle toolbar panel toggle
-  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
+  const handleToolbarPanelToggle = useCallback((panel: 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
     setActiveToolbarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
@@ -533,6 +534,16 @@ function DocumentView({
                 </div>
               )}
 
+              {/* Document Panel */}
+              {activeToolbarPanel === 'document' && (
+                <DocumentPanel
+                  isArchived={document.archived ?? false}
+                  onArchive={handleArchive}
+                  onUnarchive={handleUnarchive}
+                  onClone={handleClone}
+                />
+              )}
+
               {/* Detect Panel */}
               {activeToolbarPanel === 'detect' && !document.archived && (
                 <DetectPanel
@@ -577,10 +588,6 @@ function DocumentView({
               {/* Settings Panel */}
               {activeToolbarPanel === 'settings' && (
                 <SettingsPanel
-                  isArchived={document.archived ?? false}
-                  onArchive={handleArchive}
-                  onUnarchive={handleUnarchive}
-                  onClone={handleClone}
                   annotateMode={annotateMode}
                   onAnnotateModeToggle={handleAnnotateModeToggle}
                   showLineNumbers={showLineNumbers}
