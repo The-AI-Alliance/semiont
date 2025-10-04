@@ -34,6 +34,24 @@ Object.defineProperty(window, 'confirm', {
   value: vi.fn()
 });
 
+// Mock the useTheme hook
+vi.mock('@/hooks/useTheme', () => ({
+  useTheme: () => ({
+    theme: 'system',
+    setTheme: vi.fn()
+  })
+}));
+
+// Mock the Toolbar component
+vi.mock('@/components/Toolbar', () => ({
+  Toolbar: () => null
+}));
+
+// Mock the SettingsPanel component
+vi.mock('@/components/SettingsPanel', () => ({
+  SettingsPanel: () => null
+}));
+
 // Mock data
 const mockUsers = [
   {
