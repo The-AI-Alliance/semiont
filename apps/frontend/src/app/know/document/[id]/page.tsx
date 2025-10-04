@@ -605,6 +605,7 @@ function DocumentView({
             annotateMode={annotateMode}
             isArchived={document.archived ?? false}
             onPanelToggle={handleToolbarPanelToggle}
+            onAnnotateModeToggle={handleAnnotateModeToggle}
           />
         </div>
       </div>
