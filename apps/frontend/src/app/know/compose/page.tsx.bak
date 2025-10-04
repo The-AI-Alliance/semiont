@@ -460,6 +460,8 @@ function ComposeDocumentContent() {
             {/* Settings Panel */}
             {activeToolbarPanel === 'settings' && (
               <SettingsPanel
+                annotateMode={annotateMode}
+                onAnnotateModeToggle={handleAnnotateModeToggle}
                 showLineNumbers={showLineNumbers}
                 onLineNumbersToggle={handleLineNumbersToggle}
                 theme={theme}
@@ -470,8 +472,7 @@ function ComposeDocumentContent() {
         )}
 
         {/* Toolbar - Always visible on the right */}
-        <Toolbar
-          context="simple"
+        <SimpleToolbar
           activePanel={activeToolbarPanel}
           onPanelToggle={handleToolbarPanelToggle}
         />

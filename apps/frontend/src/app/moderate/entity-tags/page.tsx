@@ -2,7 +2,7 @@
 
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   TagIcon,
   PlusIcon,
@@ -10,6 +10,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { Toolbar } from '@/components/Toolbar';
+import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function EntityTagsPage() {
   const { data: session, status } = useSession();
@@ -17,12 +20,35 @@ export default function EntityTagsPage() {
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
 
+  // Toolbar and settings state
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
+  const [showLineNumbers, setShowLineNumbers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('showLineNumbers') === 'true';
+    }
+    return false;
+  });
+  const { theme, setTheme } = useTheme();
+
   // Query entity types
   const { data: entityTypesData, isLoading } = api.entityTypes.list.useQuery();
   const entityTypes = entityTypesData?.entityTypes || [];
 
   // Mutation for creating new entity type
   const createEntityTypeMutation = api.entityTypes.create.useMutation();
+
+  // Toolbar handlers
+  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
+    setActiveToolbarPanel(current => current === panel ? null : panel);
+  }, []);
+
+  const handleLineNumbersToggle = useCallback(() => {
+    const newMode = !showLineNumbers;
+    setShowLineNumbers(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showLineNumbers', newMode.toString());
+    }
+  }, [showLineNumbers]);
 
   // Check authentication and moderator/admin status
   useEffect(() => {
@@ -65,78 +91,106 @@ export default function EntityTagsPage() {
   }
 
   return (
-    <div className="px-4 py-8">
-      {/* Page Title */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Entity Tags</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Manage tags used to classify and categorize documents. These tags help users organize 
-          and find content more effectively. Tags are append-only and cannot be deleted once created.
-        </p>
+    <div className="flex flex-1 overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-8">
+        {/* Page Title */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Entity Tags</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
+            Manage tags used to classify and categorize documents. These tags help users organize
+            and find content more effectively. Tags are append-only and cannot be deleted once created.
+          </p>
+        </div>
+
+        {/* Entity Tags Management */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-start mb-6">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 mr-3">
+              <TagIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Document Classification Tags</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Tags that can be applied to documents for categorization
+              </p>
+            </div>
+          </div>
+
+          {/* Existing tags */}
+          <div className="mb-6">
+            <div className="flex flex-wrap gap-2">
+              {entityTypes.map((tag: string) => (
+                <span
+                  key={tag}
+                  className="px-3 py-1 rounded-md text-sm border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Add new tag */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+              placeholder="Enter new entity tag..."
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              disabled={createEntityTypeMutation.isPending}
+            />
+            <button
+              onClick={handleAddTag}
+              disabled={createEntityTypeMutation.isPending || !newTag.trim()}
+              className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {createEntityTypeMutation.isPending ? (
+                'Adding...'
+              ) : (
+                <>
+                  <PlusIcon className="w-5 h-5 inline-block mr-1" />
+                  Add Tag
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="mt-3 flex items-center text-red-600 dark:text-red-400 text-sm">
+              <ExclamationCircleIcon className="w-4 h-4 mr-1" />
+              {error}
+            </div>
+          )}
+        </div>
       </div>
-        
-      {/* Entity Tags Management */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-start mb-6">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 mr-3">
-            <TagIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Document Classification Tags</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Tags that can be applied to documents for categorization
-            </p>
-          </div>
-        </div>
 
-        {/* Existing tags */}
-        <div className="mb-6">
-          <div className="flex flex-wrap gap-2">
-            {entityTypes.map((tag: string) => (
-              <span
-                key={tag}
-                className="px-3 py-1 rounded-md text-sm border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Add new tag */}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-            placeholder="Enter new entity tag..."
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-            disabled={createEntityTypeMutation.isPending}
-          />
-          <button
-            onClick={handleAddTag}
-            disabled={createEntityTypeMutation.isPending || !newTag.trim()}
-            className="px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {createEntityTypeMutation.isPending ? (
-              'Adding...'
-            ) : (
-              <>
-                <PlusIcon className="w-5 h-5 inline-block mr-1" />
-                Add Tag
-              </>
+      {/* Right Sidebar - Panels and Toolbar */}
+      <div className="flex">
+        {/* Panels Container */}
+        {activeToolbarPanel && (
+          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
+            {/* Settings Panel */}
+            {activeToolbarPanel === 'settings' && (
+              <SettingsPanel
+                showLineNumbers={showLineNumbers}
+                onLineNumbersToggle={handleLineNumbersToggle}
+                theme={theme}
+                onThemeChange={setTheme}
+              />
             )}
-          </button>
-        </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="mt-3 flex items-center text-red-600 dark:text-red-400 text-sm">
-            <ExclamationCircleIcon className="w-4 h-4 mr-1" />
-            {error}
           </div>
         )}
+
+        {/* Toolbar - Always visible on the right */}
+        <Toolbar
+          context="simple"
+          activePanel={activeToolbarPanel}
+          onPanelToggle={handleToolbarPanelToggle}
+        />
       </div>
     </div>
   );
