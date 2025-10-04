@@ -216,7 +216,14 @@ function applyWithinTextNodeAnnotations(
       segments.push({ type: 'text', value: textContent.substring(lastPos) });
     }
 
-    if (segments.length > 0) {
+    // Replace the text node with segments
+    if (segments.length === 0) {
+      return SKIP; // No changes needed
+    } else if (segments.length === 1 && segments[0]) {
+      // Single segment - replace directly without wrapper
+      (parent as Element).children[index] = segments[0];
+    } else {
+      // Multiple segments - need wrapper
       (parent as Element).children[index] = {
         type: 'element',
         tagName: 'span',

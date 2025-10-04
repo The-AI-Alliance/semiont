@@ -2,6 +2,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
@@ -112,6 +113,7 @@ export function BrowseView({
     <div ref={containerRef} className="prose prose-lg dark:prose-invert max-w-none p-4">
       <ReactMarkdown
         remarkPlugins={[
+          remarkGfm,
           [remarkAnnotations, { annotations: preparedAnnotations }]
         ]}
         rehypePlugins={[
