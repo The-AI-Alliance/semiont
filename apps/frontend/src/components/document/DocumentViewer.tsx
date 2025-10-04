@@ -480,7 +480,6 @@ export function DocumentViewer({
           references={references}
           onAnnotationClick={handleAnnotationClick}
           {...(onWikiLinkClick && { onWikiLinkClick })}
-          showLineNumbers={showLineNumbers}
         />
       )}
       
