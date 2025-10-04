@@ -12,13 +12,13 @@ import { api } from '@/lib/api-client';
 import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api-client';
 import { Toolbar } from '@/components/Toolbar';
 import { SettingsPanel } from '@/components/SettingsPanel';
-import { useTheme } from '@/hooks/useTheme';
+import { UserPanel } from '@/components/UserPanel';import { useTheme } from '@/hooks/useTheme';
 
 export default function AdminSecurity() {
   const { data: session } = useSession();
 
   // Toolbar and settings state
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | 'user' | null>(null);
   const [showLineNumbers, setShowLineNumbers] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('showLineNumbers') === 'true';
@@ -157,6 +157,11 @@ export default function AdminSecurity() {
         {/* Panels Container */}
         {activeToolbarPanel && (
           <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
+            {/* User Panel */}
+            {activeToolbarPanel === 'user' && (
+              <UserPanel />
+            )}
+
             {/* Settings Panel */}
             {activeToolbarPanel === 'settings' && (
               <SettingsPanel

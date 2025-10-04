@@ -25,6 +25,7 @@ import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { UserPanel } from '@/components/UserPanel';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { Toolbar } from '@/components/Toolbar';
@@ -177,10 +178,10 @@ function DocumentView({
   const { theme, setTheme } = useTheme();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'document' || saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
+      if (saved === 'document' || saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration' || saved === 'user') {
         return saved === 'stats' ? 'info' : saved;
       }
     }
@@ -320,7 +321,7 @@ function DocumentView({
   }, [showLineNumbers]);
 
   // Handle toolbar panel toggle
-  const handleToolbarPanelToggle = useCallback((panel: 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
+  const handleToolbarPanelToggle = useCallback((panel: 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user') => {
     setActiveToolbarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
@@ -583,6 +584,11 @@ function DocumentView({
                   eventCount={eventCount}
                   {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
                 />
+              )}
+
+              {/* User Panel */}
+              {activeToolbarPanel === 'user' && (
+                <UserPanel />
               )}
 
               {/* Settings Panel */}

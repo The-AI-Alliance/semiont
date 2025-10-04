@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -117,6 +117,17 @@ export function Toolbar<T extends string = string>({
           </button>
         </>
       )}
+
+      {/* User Icon - always visible, appears above settings */}
+      <button
+        onClick={() => onPanelToggle('user' as T)}
+        className={buttonClass('user')}
+        aria-label="User Account"
+        aria-pressed={activePanel === 'user'}
+        title="User Account"
+      >
+        <span className="text-xl" aria-hidden="true">👤</span>
+      </button>
 
       {/* Settings Icon - always visible without scrolling */}
       <button

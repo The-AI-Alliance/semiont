@@ -9,14 +9,14 @@ import {
 import { StatusDisplay } from '@/components/StatusDisplay';
 import { Toolbar } from '@/components/Toolbar';
 import { SettingsPanel } from '@/components/SettingsPanel';
-import { useTheme } from '@/hooks/useTheme';
+import { UserPanel } from '@/components/UserPanel';import { useTheme } from '@/hooks/useTheme';
 
 // Authentication is handled by middleware.ts
 // Only authenticated admins can reach this page
 
 export default function DevOpsPage() {
   // Toolbar and settings state
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | 'user' | null>(null);
   const [showLineNumbers, setShowLineNumbers] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('showLineNumbers') === 'true';
@@ -137,6 +137,11 @@ export default function DevOpsPage() {
         {/* Panels Container */}
         {activeToolbarPanel && (
           <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
+            {/* User Panel */}
+            {activeToolbarPanel === 'user' && (
+              <UserPanel />
+            )}
+
             {/* Settings Panel */}
             {activeToolbarPanel === 'settings' && (
               <SettingsPanel
