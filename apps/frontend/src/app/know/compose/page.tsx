@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api-client';
 import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';
+import { useTheme } from '@/hooks/useTheme';
+import { SimpleToolbar } from '@/components/document/panels/SimpleToolbar';
+import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
 
 function ComposeDocumentContent() {
   const router = useRouter();
@@ -35,6 +38,22 @@ function ComposeDocumentContent() {
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [isReferenceCompletion, setIsReferenceCompletion] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Toolbar and settings state
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
+  const [annotateMode, setAnnotateMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('annotateMode') === 'true';
+    }
+    return false;
+  });
+  const [showLineNumbers, setShowLineNumbers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('showLineNumbers') === 'true';
+    }
+    return false;
+  });
+  const { theme, setTheme } = useTheme();
 
   // Fetch available entity types
   const { data: entityTypesData } = api.entityTypes.list.useQuery();
@@ -152,6 +171,27 @@ function ComposeDocumentContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tokenFromUrl, cloneData, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, referenceTypeFromUrl, shouldGenerate, session?.backendToken]);
 
+  // Toolbar handlers
+  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
+    setActiveToolbarPanel(current => current === panel ? null : panel);
+  }, []);
+
+  const handleAnnotateModeToggle = useCallback(() => {
+    const newMode = !annotateMode;
+    setAnnotateMode(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotateMode', newMode.toString());
+    }
+  }, [annotateMode]);
+
+  const handleLineNumbersToggle = useCallback(() => {
+    const newMode = !showLineNumbers;
+    setShowLineNumbers(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showLineNumbers', newMode.toString());
+    }
+  }, [showLineNumbers]);
+
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDocName.trim()) return;
@@ -237,9 +277,11 @@ function ComposeDocumentContent() {
   }
 
   return (
-    <div className="px-4 py-8">
-      {/* Page Title */}
-      <div className="mb-8">
+    <div className="flex flex-1 overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-8">
+        {/* Page Title */}
+        <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           {isClone ? 'Edit Cloned Document' : isReferenceCompletion ? 'Complete Reference' : 'Compose New Document'}
         </h1>
@@ -405,6 +447,33 @@ function ComposeDocumentContent() {
             </button>
           </div>
         </form>
+      </div>
+      </div>
+
+      {/* Right Sidebar - Panels and Toolbar */}
+      <div className="flex">
+        {/* Panels Container */}
+        {activeToolbarPanel && (
+          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
+            {/* Settings Panel */}
+            {activeToolbarPanel === 'settings' && (
+              <SettingsPanel
+                annotateMode={annotateMode}
+                onAnnotateModeToggle={handleAnnotateModeToggle}
+                showLineNumbers={showLineNumbers}
+                onLineNumbersToggle={handleLineNumbersToggle}
+                theme={theme}
+                onThemeChange={setTheme}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Toolbar - Always visible on the right */}
+        <SimpleToolbar
+          activePanel={activeToolbarPanel}
+          onPanelToggle={handleToolbarPanelToggle}
+        />
       </div>
     </div>
   );
