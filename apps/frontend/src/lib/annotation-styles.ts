@@ -9,9 +9,14 @@ export const annotationStyles = {
     className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-yellow-200 hover:bg-yellow-300 text-gray-900 dark:bg-yellow-900/50 dark:hover:bg-yellow-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-yellow-500/60 dark:outline-offset-1"
   },
 
-  // Reference annotation style (used for all references) - dark blue with dashed ring
+  // Reference annotation style (resolved references) - dark blue with dashed ring
   reference: {
     className: "rounded px-0.5 cursor-pointer transition-all duration-200 bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 text-gray-900 dark:from-blue-900/50 dark:to-cyan-900/50 dark:hover:from-blue-900/60 dark:hover:to-cyan-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-cyan-500/60 dark:outline-offset-1"
+  },
+
+  // Stub reference annotation style (unresolved references) - red underline
+  stubReference: {
+    className: "cursor-pointer transition-all duration-200 border-b-2 border-red-500 hover:border-red-600 dark:border-red-400 dark:hover:border-red-300"
   },
 
   // Legacy aliases for backward compatibility
@@ -28,14 +33,24 @@ export const annotationStyles = {
     referenceType?: string;
     entityType?: string;
     entityTypes?: string[];
-    referencedDocumentId?: string;
+    referencedDocumentId?: string | null;
   }) => {
     if (annotation.type === 'highlight') {
       return annotationStyles.highlight.className;
     }
 
-    // Check if it's a reference type - all references now use the same blue/cyan style
-    if (annotation.type === 'reference' || annotation.referencedDocumentId) {
+    // Check if it's a reference type
+    if (annotation.type === 'reference') {
+      // Stub reference (no target document)
+      if (!annotation.referencedDocumentId) {
+        return annotationStyles.stubReference.className;
+      }
+      // Resolved reference (has target document)
+      return annotationStyles.reference.className;
+    }
+
+    // Legacy check for referencedDocumentId
+    if (annotation.referencedDocumentId) {
       return annotationStyles.reference.className;
     }
 

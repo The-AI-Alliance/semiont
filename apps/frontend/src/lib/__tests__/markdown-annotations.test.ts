@@ -8,10 +8,10 @@ import { rehypeRenderAnnotations } from '../rehype-render-annotations';
 
 describe('Markdown Annotations', () => {
   describe('Basic annotation rendering', () => {
-    it('should render annotations on plain text', async () => {
+    it('should render resolved references with blue styling', async () => {
       const markdown = `Zeus was the king of the gods.`;
       const annotations = [
-        { id: 'ann-1', text: 'Zeus', offset: 0, length: 4, type: 'reference' as const }
+        { id: 'ann-1', text: 'Zeus', offset: 0, length: 4, type: 'reference' as const, referencedDocumentId: 'doc-123' }
       ];
 
       const result = await unified()
@@ -28,8 +28,32 @@ describe('Markdown Annotations', () => {
       // Should contain annotation span
       expect(html).toContain('data-annotation-id="ann-1"');
       expect(html).toContain('Zeus');
-      // Should contain reference styling
+      // Should contain resolved reference styling (blue)
       expect(html).toContain('border-b-2 border-blue-500');
+    });
+
+    it('should render stub references with red styling', async () => {
+      const markdown = `Athena was the goddess of wisdom.`;
+      const annotations = [
+        { id: 'ann-2', text: 'Athena', offset: 0, length: 6, type: 'reference' as const }
+      ];
+
+      const result = await unified()
+        .use(remarkParse)
+        .use(remarkGfm)
+        .use(remarkAnnotations, { annotations })
+        .use(remarkRehype)
+        .use(rehypeRenderAnnotations)
+        .use(rehypeStringify)
+        .process(markdown);
+
+      const html = String(result);
+
+      // Should contain annotation span
+      expect(html).toContain('data-annotation-id="ann-2"');
+      expect(html).toContain('Athena');
+      // Should contain stub reference styling (red)
+      expect(html).toContain('border-b-2 border-red-500');
     });
   });
 
@@ -90,8 +114,8 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
         expect(html).toContain(`data-annotation-id="${ann.id}"`);
       });
 
-      // Should contain both reference and highlight styles
-      expect(html).toContain('border-b-2 border-blue-500'); // reference style
+      // Should contain both stub reference (red) and highlight styles
+      expect(html).toContain('border-b-2 border-red-500'); // stub reference style (no referencedDocumentId)
       expect(html).toContain('bg-yellow-200'); // highlight style
     });
 
@@ -185,10 +209,10 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       expect(html).toContain('data-annotation-type="highlight"');
       expect(html).toContain('bg-yellow-200');
 
-      // ann-10 is a reference (fourth Zeus) - should have blue border
+      // ann-10 is a stub reference (fourth Zeus) - should have red border (no referencedDocumentId)
       expect(html).toContain('data-annotation-id="ann-10"');
       expect(html).toContain('data-annotation-type="reference"');
-      expect(html).toContain('border-b-2 border-blue-500');
+      expect(html).toContain('border-b-2 border-red-500');
     });
   });
 

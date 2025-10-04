@@ -26,7 +26,8 @@ function prepareAnnotations(annotations: Annotation[]) {
       text: ann.selectionData!.text,
       offset: ann.selectionData!.offset,
       length: ann.selectionData!.length,
-      type: ann.type as 'highlight' | 'reference'
+      type: ann.type as 'highlight' | 'reference',
+      referencedDocumentId: ann.referencedDocumentId
     }));
 }
 

@@ -7,6 +7,7 @@ interface Annotation {
   offset: number;
   length: number;
   type: 'highlight' | 'reference';
+  referencedDocumentId?: string;
 }
 
 interface ChildSpan {
@@ -108,9 +109,21 @@ function wrapChildRange(element: Element, span: ChildSpan) {
 
   const childrenToWrap = element.children.slice(startChildIndex, endChildIndex);
 
-  const className = annotation.type === 'highlight'
-    ? 'bg-yellow-200 dark:bg-yellow-800'
-    : 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+  // Determine className based on annotation type and whether reference is resolved
+  let className: string;
+  if (annotation.type === 'highlight') {
+    className = 'bg-yellow-200 dark:bg-yellow-800';
+  } else if (annotation.type === 'reference') {
+    // Stub reference (no target document) - red underline
+    if (!annotation.referencedDocumentId) {
+      className = 'cursor-pointer transition-all duration-200 border-b-2 border-red-500 hover:border-red-600 dark:border-red-400 dark:hover:border-red-300';
+    } else {
+      // Resolved reference - blue underline
+      className = 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+    }
+  } else {
+    className = 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+  }
 
   const wrapper: Element = {
     type: 'element',
@@ -192,10 +205,21 @@ function applyWithinTextNodeAnnotations(
         segments.push({ type: 'text', value: textContent.substring(lastPos, relStart) });
       }
 
-      // Annotation span
-      const className = ann.type === 'highlight'
-        ? 'bg-yellow-200 dark:bg-yellow-800'
-        : 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+      // Annotation span - determine className based on type and whether reference is resolved
+      let className: string;
+      if (ann.type === 'highlight') {
+        className = 'bg-yellow-200 dark:bg-yellow-800';
+      } else if (ann.type === 'reference') {
+        // Stub reference (no target document) - red underline
+        if (!ann.referencedDocumentId) {
+          className = 'cursor-pointer transition-all duration-200 border-b-2 border-red-500 hover:border-red-600 dark:border-red-400 dark:hover:border-red-300';
+        } else {
+          // Resolved reference - blue underline
+          className = 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+        }
+      } else {
+        className = 'border-b-2 border-blue-500 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900';
+      }
 
       segments.push({
         type: 'element',
