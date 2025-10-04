@@ -16,7 +16,7 @@ import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsRespon
 import { useQueryClient } from '@tanstack/react-query';
 import { buttonStyles } from '@/lib/button-styles';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { useTheme } from '@/hooks/useTheme';
 
 function UserTableRow({ 

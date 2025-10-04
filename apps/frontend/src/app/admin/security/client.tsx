@@ -11,7 +11,7 @@ import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api-client';
 import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api-client';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function AdminSecurity() {

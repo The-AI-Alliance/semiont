@@ -9,7 +9,7 @@ import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
 function ComposeDocumentContent() {

@@ -8,7 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay } from '@/components/StatusDisplay';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { useTheme } from '@/hooks/useTheme';
 
 // Authentication is handled by middleware.ts

@@ -7,7 +7,7 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function RecentDocumentsPage() {

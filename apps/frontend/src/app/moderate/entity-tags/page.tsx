@@ -11,7 +11,7 @@ import {
 import { api } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function EntityTagsPage() {

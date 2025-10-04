@@ -8,7 +8,7 @@ import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 
 // Extract document card as a component
 const DocumentCard = React.memo(({

@@ -24,7 +24,7 @@ import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { Toolbar } from '@/components/Toolbar';
