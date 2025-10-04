@@ -19,6 +19,7 @@ import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
+import { useTheme } from '@/hooks/useTheme';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
@@ -172,6 +173,7 @@ function DocumentView({
     }
     return false;
   });
+  const { theme, setTheme } = useTheme();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
@@ -583,6 +585,8 @@ function DocumentView({
                   onAnnotateModeToggle={handleAnnotateModeToggle}
                   showLineNumbers={showLineNumbers}
                   onLineNumbersToggle={handleLineNumbersToggle}
+                  theme={theme}
+                  onThemeChange={setTheme}
                 />
               )}
             </div>

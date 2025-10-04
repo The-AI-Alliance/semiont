@@ -12,6 +12,8 @@ interface Props {
   onAnnotateModeToggle: () => void;
   showLineNumbers: boolean;
   onLineNumbersToggle: () => void;
+  theme: 'light' | 'dark' | 'system';
+  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
 }
 
 export function SettingsPanel({
@@ -22,7 +24,9 @@ export function SettingsPanel({
   annotateMode,
   onAnnotateModeToggle,
   showLineNumbers,
-  onLineNumbersToggle
+  onLineNumbersToggle,
+  theme,
+  onThemeChange
 }: Props) {
   return (
     <div className="space-y-6">
@@ -84,6 +88,48 @@ export function SettingsPanel({
             </label>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {showLineNumbers ? 'Line numbers visible' : 'Line numbers hidden'}
+            </p>
+          </div>
+
+          {/* Theme Selection */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+              Theme
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onThemeChange('light')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  theme === 'light'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                ☀️ Light
+              </button>
+              <button
+                onClick={() => onThemeChange('dark')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                🌙 Dark
+              </button>
+              <button
+                onClick={() => onThemeChange('system')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  theme === 'system'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                💻 System
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {theme === 'system' ? 'Using system preference' : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode active`}
             </p>
           </div>
         </div>
