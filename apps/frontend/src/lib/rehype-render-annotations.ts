@@ -17,12 +17,14 @@ interface ChildSpan {
 }
 
 export function rehypeRenderAnnotations() {
-  return (tree: Root) => {
+  return (tree: Root, file: any) => {
+    // Get source from VFile instead of storing in DOM
+    const originalSource = String(file);
+
     visit(tree, 'element', (element: Element) => {
       const annotationsJson = element.properties?.['data-annotations'];
-      const originalSource = element.properties?.['data-source'];
 
-      if (!annotationsJson || typeof annotationsJson !== 'string' || typeof originalSource !== 'string') {
+      if (!annotationsJson || typeof annotationsJson !== 'string') {
         return;
       }
 
@@ -34,11 +36,8 @@ export function rehypeRenderAnnotations() {
       // PHASE 2: Handle annotations within individual text nodes
       applyWithinTextNodeAnnotations(element, annotations, originalSource);
 
-      // CLEANUP: Remove debugging attributes from the DOM
+      // CLEANUP: Remove temporary annotation metadata from the DOM
       delete element.properties['data-annotations'];
-      delete element.properties['data-node-start'];
-      delete element.properties['data-node-end'];
-      delete element.properties['data-source'];
     });
   };
 }

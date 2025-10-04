@@ -40,11 +40,8 @@ export function remarkAnnotations(options: RemarkAnnotationsOptions) {
         if (!node.data) node.data = {};
         if (!node.data.hProperties) node.data.hProperties = {};
 
-        // Store as hProperties to survive remark → rehype transformation
+        // Store only annotations JSON - rehype plugin will have source via closure
         node.data.hProperties['data-annotations'] = JSON.stringify(overlapping);
-        node.data.hProperties['data-node-start'] = nodeStart;
-        node.data.hProperties['data-node-end'] = nodeEnd;
-        node.data.hProperties['data-source'] = source;
       }
     });
   };
