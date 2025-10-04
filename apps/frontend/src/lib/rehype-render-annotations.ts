@@ -22,12 +22,18 @@ export function rehypeRenderAnnotations() {
       const annotations: Annotation[] = JSON.parse(annotationsJson);
 
       visit(element, 'text', (textNode: Text, index: number | undefined, parent: Element | Root | undefined) => {
-        if (!textNode.position || index === undefined || !parent || parent.type !== 'element') {
+        if (index === undefined || !parent || parent.type !== 'element') {
           return SKIP;
         }
 
-        const textStart = textNode.position.start.offset;
-        const textEnd = textNode.position.end.offset;
+        // Try to get position from text node first, fall back to parent element
+        const position = textNode.position || (parent as Element).position;
+        if (!position) {
+          return SKIP;
+        }
+
+        const textStart = position.start.offset;
+        const textEnd = position.end.offset;
 
         if (textStart === undefined || textEnd === undefined) {
           return SKIP;
@@ -53,8 +59,10 @@ export function rehypeRenderAnnotations() {
         // This handles cases where markdown syntax is stripped
         const sourceToRendered = new Map<number, number>();
         let renderedPos = 0;
+        let sourcePos = 0;
 
-        for (let sourcePos = 0; sourcePos < sourceTextInNode.length; sourcePos++) {
+        // Walk through both strings, matching characters
+        while (sourcePos < sourceTextInNode.length && renderedPos < textContent.length) {
           const sourceChar = sourceTextInNode[sourcePos];
           const renderedChar = textContent[renderedPos];
 
@@ -62,11 +70,18 @@ export function rehypeRenderAnnotations() {
             // Character matches - record the mapping
             sourceToRendered.set(textStart + sourcePos, renderedPos);
             renderedPos++;
+            sourcePos++;
           } else {
-            // Character doesn't match - this is markdown syntax being stripped
-            // Map this source position to the current rendered position
-            sourceToRendered.set(textStart + sourcePos, renderedPos);
+            // Characters don't match - source has markdown syntax that was stripped
+            // Don't map this source position (it's syntax), just skip it
+            sourcePos++;
           }
+        }
+
+        // Map any remaining source positions (syntax at the end)
+        while (sourcePos < sourceTextInNode.length) {
+          sourceToRendered.set(textStart + sourcePos, renderedPos);
+          sourcePos++;
         }
 
         // Now map annotations using the position map
@@ -138,7 +153,8 @@ export function rehypeRenderAnnotations() {
         }
 
         // Replace text node with wrapper containing segments
-        if (segments.length > 1) {
+        // (Always replace if we have segments, even if just 1 - it might be an annotation!)
+        if (segments.length > 0) {
           (parent as Element).children[index] = {
             type: 'element',
             tagName: 'span',

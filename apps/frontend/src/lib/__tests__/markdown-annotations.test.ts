@@ -197,10 +197,10 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       // Annotation on "Zeus" which appears inside **Zeus**
       const markdown = `The god **Zeus** ruled from Olympus.`;
 
-      // "Zeus" appears at offset 11 in source (after "The god **")
-      // But in rendered HTML, it appears at offset 8 (after "The god ")
+      // "Zeus" appears at offset 10 in source (after "The god **")
+      // The text node in AST has position 10-14, even though parent <strong> is at 8-16
       const annotations = [
-        { id: 'ann-1', text: 'Zeus', offset: 11, length: 4, type: 'reference' as const }
+        { id: 'ann-1', text: 'Zeus', offset: 10, length: 4, type: 'reference' as const }
       ];
 
       const result = await unified()
@@ -278,12 +278,16 @@ But Zeus held the race of mortal men in scorn, and was fain to destroy them from
       expect(html).toContain('data-annotation-id="ann-1"');
     });
 
-    it('should handle annotations spanning markdown syntax boundaries', async () => {
+    it('should handle annotations spanning element boundaries', async () => {
       const markdown = `The mighty **Zeus** and **Hera** ruled together.`;
 
-      // Try to annotate "Zeus** and **Hera" - this crosses markdown boundaries!
+      // Annotate "Zeus and Hera" - spans across two separate <strong> elements
+      // This tests if we can handle annotations that span element boundaries
+      // "Zeus" text node is at offset 12-16, "Hera" text node is at offset 26-30
+      // We want to annotate from 'Z' (12) through 'a' (29), which is "Zeus and Hera" rendered
+      // But this crosses element boundaries in a complex way - may not be fully supported
       const annotations = [
-        { id: 'ann-1', text: 'Zeus** and **Hera', offset: 14, length: 17, type: 'highlight' as const }
+        { id: 'ann-1', text: 'Zeus and Hera', offset: 12, length: 18, type: 'highlight' as const }
       ];
 
       const result = await unified()
