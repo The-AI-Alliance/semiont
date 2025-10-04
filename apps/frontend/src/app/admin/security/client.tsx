@@ -11,33 +11,18 @@ import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api-client';
 import type { OAuthProvider, OAuthConfigResponse } from '@/lib/api-client';
 import { Toolbar } from '@/components/Toolbar';
-import { SettingsPanel } from '@/components/SettingsPanel';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@/hooks/useTheme';
+import { useToolbar } from '@/hooks/useToolbar';
+import { useLineNumbers } from '@/hooks/useLineNumbers';
 
 export default function AdminSecurity() {
   const { data: session } = useSession();
 
   // Toolbar and settings state
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
-  const [showLineNumbers, setShowLineNumbers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('showLineNumbers') === 'true';
-    }
-    return false;
-  });
+  const { activePanel, togglePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
-
-  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
-    setActiveToolbarPanel(current => current === panel ? null : panel);
-  }, []);
-
-  const handleLineNumbersToggle = useCallback(() => {
-    const newMode = !showLineNumbers;
-    setShowLineNumbers(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('showLineNumbers', newMode.toString());
-    }
-  }, [showLineNumbers]);
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Get OAuth configuration from API - only run when authenticated
   const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery(
@@ -154,26 +139,18 @@ export default function AdminSecurity() {
 
       {/* Right Sidebar - Panels and Toolbar */}
       <div className="flex">
-        {/* Panels Container */}
-        {activeToolbarPanel && (
-          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
-            {/* Settings Panel */}
-            {activeToolbarPanel === 'settings' && (
-              <SettingsPanel
-                showLineNumbers={showLineNumbers}
-                onLineNumbersToggle={handleLineNumbersToggle}
-                theme={theme}
-                onThemeChange={setTheme}
-              />
-            )}
-          </div>
-        )}
+        <ToolbarPanels
+          activePanel={activePanel}
+          theme={theme}
+          onThemeChange={setTheme}
+          showLineNumbers={showLineNumbers}
+          onLineNumbersToggle={toggleLineNumbers}
+        />
 
-        {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
-          activePanel={activeToolbarPanel}
-          onPanelToggle={handleToolbarPanelToggle}
+          activePanel={activePanel}
+          onPanelToggle={togglePanel}
         />
       </div>
     </div>

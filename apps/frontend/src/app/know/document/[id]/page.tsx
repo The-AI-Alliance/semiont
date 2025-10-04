@@ -20,11 +20,13 @@ import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
 import { useTheme } from '@/hooks/useTheme';
+import { useToolbar } from '@/hooks/useToolbar';
+import { useLineNumbers } from '@/hooks/useLineNumbers';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
-import { SettingsPanel } from '@/components/SettingsPanel';
+import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { Toolbar } from '@/components/Toolbar';
@@ -168,24 +170,11 @@ function DocumentView({
     }
     return false;
   });
-  const [showLineNumbers, setShowLineNumbers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('showLineNumbers') === 'true';
-    }
-    return false;
-  });
   const { theme, setTheme } = useTheme();
+  const { activePanel, togglePanel } = useToolbar({ persistToStorage: true });
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'document' || saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
-        return saved === 'stats' ? 'info' : saved;
-      }
-    }
-    return null;
-  });
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -309,30 +298,6 @@ function DocumentView({
       localStorage.setItem('annotateMode', newMode.toString());
     }
   }, [annotateMode]);
-
-  // Handle line numbers toggle
-  const handleLineNumbersToggle = useCallback(() => {
-    const newMode = !showLineNumbers;
-    setShowLineNumbers(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('showLineNumbers', newMode.toString());
-    }
-  }, [showLineNumbers]);
-
-  // Handle toolbar panel toggle
-  const handleToolbarPanelToggle = useCallback((panel: 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
-    setActiveToolbarPanel(current => {
-      const newPanel = current === panel ? null : panel;
-      if (typeof window !== 'undefined') {
-        if (newPanel) {
-          localStorage.setItem('activeToolbarPanel', newPanel);
-        } else {
-          localStorage.removeItem('activeToolbarPanel');
-        }
-      }
-      return newPanel;
-    });
-  }, []);
 
 
   // Use SSE-based detection progress
@@ -465,11 +430,11 @@ function DocumentView({
 
   // Document is guaranteed to exist here, render the view
   return (
-    <div className="h-screen flex flex-col">
+    <div className="flex flex-col flex-1">
       {/* Main Content - Fills remaining height */}
-      <div className="flex-1 flex gap-6 p-6 min-h-0">
+      <div className="flex flex-1 overflow-hidden">
         {/* Document Content - Left Side */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-6 py-6 min-w-0 flex flex-col">
           {/* Document Header - Only spans document content width */}
           <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
             <div className="px-6 py-2 flex items-center justify-between gap-4">
@@ -521,89 +486,84 @@ function DocumentView({
         </div>
 
         {/* Sidebar */}
-        <div className="flex-none flex gap-0">
+        <div className="flex">
           {/* Right Panel - Conditional based on active toolbar panel */}
-          {activeToolbarPanel && (
-            <div className="w-64 flex flex-col overflow-y-auto p-3 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
-              {/* Archived Status */}
-              {annotateMode && document.archived && (
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mb-3">
-                  <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
-                    📦 Archived
-                  </div>
+          <ToolbarPanels
+            activePanel={activePanel}
+            theme={theme}
+            onThemeChange={setTheme}
+            showLineNumbers={showLineNumbers}
+            onLineNumbersToggle={toggleLineNumbers}
+            width="w-64"
+          >
+            {/* Archived Status */}
+            {annotateMode && document.archived && (
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mb-3">
+                <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
+                  📦 Archived
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Document Panel */}
-              {activeToolbarPanel === 'document' && (
-                <DocumentPanel
-                  isArchived={document.archived ?? false}
-                  onArchive={handleArchive}
-                  onUnarchive={handleUnarchive}
-                  onClone={handleClone}
-                />
-              )}
+            {/* Document Panel */}
+            {activePanel === 'document' && (
+              <DocumentPanel
+                isArchived={document.archived ?? false}
+                onArchive={handleArchive}
+                onUnarchive={handleUnarchive}
+                onClone={handleClone}
+              />
+            )}
 
-              {/* Detect Panel */}
-              {activeToolbarPanel === 'detect' && !document.archived && (
-                <DetectPanel
-                  allEntityTypes={allEntityTypes}
-                  isDetecting={isDetecting}
-                  detectionProgress={detectionProgress}
-                  onDetect={handleDetectEntityReferences}
-                  onCancelDetection={cancelDetection}
-                />
-              )}
+            {/* Detect Panel */}
+            {activePanel === 'detect' && !document.archived && (
+              <DetectPanel
+                allEntityTypes={allEntityTypes}
+                isDetecting={isDetecting}
+                detectionProgress={detectionProgress}
+                onDetect={handleDetectEntityReferences}
+                onCancelDetection={cancelDetection}
+              />
+            )}
 
-              {/* History Panel */}
-              {activeToolbarPanel === 'history' && (
-                <AnnotationHistory
-                  documentId={documentId}
-                  hoveredAnnotationId={hoveredAnnotationId}
-                  onEventHover={handleEventHover}
-                  onEventClick={handleEventClick}
-                />
-              )}
+            {/* History Panel */}
+            {activePanel === 'history' && (
+              <AnnotationHistory
+                documentId={documentId}
+                hoveredAnnotationId={hoveredAnnotationId}
+                onEventHover={handleEventHover}
+                onEventClick={handleEventClick}
+              />
+            )}
 
-              {/* Document Info Panel */}
-              {activeToolbarPanel === 'info' && (
-                <DocumentInfoPanel
-                  highlights={highlights}
-                  references={references}
-                  referencedBy={referencedBy}
-                  referencedByLoading={referencedByLoading}
-                  documentEntityTypes={documentEntityTypes}
-                />
-              )}
+            {/* Document Info Panel */}
+            {activePanel === 'info' && (
+              <DocumentInfoPanel
+                highlights={highlights}
+                references={references}
+                referencedBy={referencedBy}
+                referencedByLoading={referencedByLoading}
+                documentEntityTypes={documentEntityTypes}
+              />
+            )}
 
-              {/* Collaboration Panel */}
-              {activeToolbarPanel === 'collaboration' && (
-                <CollaborationPanel
-                  isConnected={isConnected}
-                  eventCount={eventCount}
-                  {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
-                />
-              )}
-
-              {/* Settings Panel */}
-              {activeToolbarPanel === 'settings' && (
-                <SettingsPanel
-                  showLineNumbers={showLineNumbers}
-                  onLineNumbersToggle={handleLineNumbersToggle}
-                  theme={theme}
-                  onThemeChange={setTheme}
-                />
-              )}
-            </div>
-          )}
+            {/* Collaboration Panel */}
+            {activePanel === 'collaboration' && (
+              <CollaborationPanel
+                isConnected={isConnected}
+                eventCount={eventCount}
+                {...(lastEvent?.timestamp && { lastEventTimestamp: lastEvent.timestamp })}
+              />
+            )}
+          </ToolbarPanels>
 
           {/* Toolbar - Always visible on the right */}
           <Toolbar
             context="document"
-            activePanel={activeToolbarPanel}
+            activePanel={activePanel}
             annotateMode={annotateMode}
             isArchived={document.archived ?? false}
-            onPanelToggle={handleToolbarPanelToggle}
+            onPanelToggle={togglePanel}
             onAnnotateModeToggle={handleAnnotateModeToggle}
           />
         </div>

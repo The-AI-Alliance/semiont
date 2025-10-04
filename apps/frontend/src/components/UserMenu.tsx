@@ -106,22 +106,13 @@ export function UserMenu({ }: UserMenuProps) {
       
       {/* Dropdown Menu */}
       {isOpen && (
-        <div 
+        <div
           className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="user-menu-button"
         >
           <div className="p-3">
-            <div className="text-sm">
-              <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                {displayName}
-              </div>
-              <div className="text-gray-500 dark:text-gray-400 truncate">
-                {userDomain && `@${userDomain}`}
-              </div>
-            </div>
-            <hr className="my-2 border-gray-200 dark:border-gray-600" />
             <Link
               href="/know"
               onClick={close}
@@ -149,34 +140,17 @@ export function UserMenu({ }: UserMenuProps) {
               </>
             )}
             {isAdmin && (
-              <>
-                <Link
-                  href="/admin"
-                  onClick={close}
-                  className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-                  role="menuitem"
-                  tabIndex={0}
-                  aria-label="Access admin dashboard"
-                >
-                  Administer
-                </Link>
-                <hr className="my-2 border-gray-200 dark:border-gray-600" />
-              </>
+              <Link
+                href="/admin"
+                onClick={close}
+                className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
+                role="menuitem"
+                tabIndex={0}
+                aria-label="Access admin dashboard"
+              >
+                Administer
+              </Link>
             )}
-            <button
-              ref={signOutButtonRef}
-              onClick={async () => {
-                close();
-                await signOut({ callbackUrl: '/' });
-              }}
-              onKeyDown={handleKeyDown}
-              className="w-full text-left text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 py-1 transition-colors focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded block"
-              role="menuitem"
-              tabIndex={0}
-              aria-label="Sign out of your account"
-            >
-              Sign Out
-            </button>
           </div>
         </div>
       )}

@@ -486,26 +486,6 @@ describe('UserMenu Component', () => {
       expect(dropdown).toHaveAttribute('aria-labelledby', 'user-menu-button');
     });
 
-    it('should display user information in dropdown', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('@company.com')).toBeInTheDocument();
-    });
-
-    it('should handle missing user domain gracefully', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.userWithoutDomain);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      expect(screen.getByText('Bob Wilson')).toBeInTheDocument();
-      expect(screen.queryByText(/@/)).not.toBeInTheDocument();
-    });
-
     it('should show admin dashboard link for admin users', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedAdmin);
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
@@ -539,48 +519,9 @@ describe('UserMenu Component', () => {
 
       expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
     });
-
-    it('should show sign out button with proper attributes', () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const signOutButton = screen.getByText('Sign Out');
-      expect(signOutButton).toBeInTheDocument();
-      expect(signOutButton).toHaveAttribute('role', 'menuitem');
-      expect(signOutButton).toHaveAttribute('aria-label', 'Sign out of your account');
-      expect(signOutButton).toHaveAttribute('tabIndex', '0');
-    });
   });
 
   describe('Keyboard Navigation', () => {
-    it('should handle Enter key to activate sign out', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const profileButton = screen.getByRole('button', { name: /user menu/i });
-      await userEvent.type(profileButton, '{Enter}');
-
-      expect(mockSignOut).toHaveBeenCalledOnce();
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-    });
-
-    it('should handle Space key to activate sign out', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const profileButton = screen.getByRole('button', { name: /user menu/i });
-      fireEvent.keyDown(profileButton, { key: ' ' });
-
-      expect(mockSignOut).toHaveBeenCalledOnce();
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-    });
-
     it('should handle Escape key to close dropdown', async () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
@@ -617,35 +558,9 @@ describe('UserMenu Component', () => {
       expect(mockSignOut).not.toHaveBeenCalled();
       expect(mockDropdownStates.closed.close).not.toHaveBeenCalled();
     });
-
-    it('should handle sign out button keyboard events', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const signOutButton = screen.getByText('Sign Out');
-      fireEvent.keyDown(signOutButton, { key: 'Enter' });
-
-      expect(mockSignOut).toHaveBeenCalledOnce();
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-    });
   });
 
   describe('User Actions', () => {
-    it('should call signOut and close dropdown when sign out button is clicked', async () => {
-      mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const signOutButton = screen.getByText('Sign Out');
-      await userEvent.click(signOutButton);
-
-      expect(mockDropdownStates.open.close).toHaveBeenCalledOnce();
-      expect(mockSignOut).toHaveBeenCalledOnce();
-    });
-
     it('should have proper button styling and classes when authenticated', () => {
       mockUseAuth.mockReturnValue(mockAuthStates.authenticatedUser);
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
@@ -672,10 +587,6 @@ describe('UserMenu Component', () => {
       expect(dropdown).toHaveAttribute('role', 'menu');
       expect(dropdown).toHaveAttribute('aria-orientation', 'vertical');
       expect(dropdown).toHaveAttribute('aria-labelledby', 'user-menu-button');
-
-      const signOutButton = screen.getByText('Sign Out');
-      expect(signOutButton).toHaveAttribute('role', 'menuitem');
-      expect(signOutButton).toHaveAttribute('tabIndex', '0');
     });
 
     it('should have proper focus management classes', () => {
@@ -715,23 +626,6 @@ describe('UserMenu Component', () => {
         'dark:border-gray-700',
         'z-50'
       );
-    });
-
-    it('should handle text truncation for long names', () => {
-      mockUseAuth.mockReturnValue({
-        ...mockAuthStates.authenticatedUser,
-        displayName: 'Very Long User Name That Should Be Truncated',
-        userDomain: 'very-long-domain-name-that-should-also-be-truncated.com'
-      });
-      mockUseDropdown.mockReturnValue(mockDropdownStates.open);
-
-      render(<UserMenu />);
-
-      const nameElement = screen.getByText('Very Long User Name That Should Be Truncated');
-      const domainElement = screen.getByText('@very-long-domain-name-that-should-also-be-truncated.com');
-      
-      expect(nameElement).toHaveClass('truncate');
-      expect(domainElement).toHaveClass('truncate');
     });
 
     it('should maintain dropdown position and z-index', () => {

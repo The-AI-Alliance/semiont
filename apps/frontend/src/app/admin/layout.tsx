@@ -17,8 +17,8 @@ export default function AdminLayout({
       <UnifiedHeader brandingLink="/" variant="standalone" />
       <div className="flex flex-1">
         <AdminNavigation />
-        <main className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 p-6 flex flex-col">
+          <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
             {children}
           </div>
         </main>

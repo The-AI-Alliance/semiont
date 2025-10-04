@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration';
+type ToolbarPanel = 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | 'user';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {
@@ -34,7 +34,7 @@ export function Toolbar<T extends string = string>({
     }`;
 
   return (
-    <div className="w-12 flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+    <div className="w-12 h-full flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
       {/* Annotate Mode Toggle - always at top if handlers provided */}
       {onAnnotateModeToggle && (
         <>
@@ -118,7 +118,18 @@ export function Toolbar<T extends string = string>({
         </>
       )}
 
-      {/* Settings Icon - always at bottom */}
+      {/* User Icon - always visible, appears above settings */}
+      <button
+        onClick={() => onPanelToggle('user' as T)}
+        className={buttonClass('user')}
+        aria-label="User Account"
+        aria-pressed={activePanel === 'user'}
+        title="User Account"
+      >
+        <span className="text-xl" aria-hidden="true">👤</span>
+      </button>
+
+      {/* Settings Icon - always visible without scrolling */}
       <button
         onClick={() => onPanelToggle('settings' as T)}
         className={buttonClass('settings')}
