@@ -28,6 +28,24 @@ vi.mock('next-auth/react', () => ({
   })
 }))
 
+// Mock the useTheme hook
+vi.mock('@/hooks/useTheme', () => ({
+  useTheme: () => ({
+    theme: 'system',
+    setTheme: vi.fn()
+  })
+}))
+
+// Mock the Toolbar component
+vi.mock('@/components/Toolbar', () => ({
+  Toolbar: () => null
+}))
+
+// Mock the SettingsPanel component
+vi.mock('@/components/SettingsPanel', () => ({
+  SettingsPanel: () => null
+}))
+
 // Test wrapper with React Query client
 function TestWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({

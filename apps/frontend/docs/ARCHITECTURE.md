@@ -161,7 +161,7 @@ export const api = {
       useMutation: () => useAuthenticatedMutation(...)
     }
   },
-  selections: { ... },
+  annotations: { ... },  // Note: API still uses 'selections' endpoint, to be renamed later
   entityTypes: { ... },
   // ... other resources
 };
@@ -355,11 +355,11 @@ apps/frontend/src/
 │   └── providers.tsx      # Provider setup
 ├── components/            # Reusable UI components
 │   ├── document/          # Document-specific components
-│   │   ├── AnnotateView.tsx      # Curation mode with CodeMirrorRenderer
-│   │   ├── BrowseView.tsx        # Read-only mode with CodeMirrorRenderer
+│   │   ├── AnnotateView.tsx      # Curation mode (uses CodeMirrorRenderer)
+│   │   ├── BrowseView.tsx        # Browse mode (uses ReactMarkdown)
 │   │   ├── DocumentViewer.tsx    # Main document component
 │   │   └── AnnotationHistory.tsx # Event log panel
-│   ├── CodeMirrorRenderer.tsx    # Core rendering component
+│   ├── CodeMirrorRenderer.tsx    # Editor-based renderer (for AnnotateView)
 │   ├── modals/            # Modal dialogs
 │   ├── annotation-popups/ # Annotation interaction UI
 │   └── ...                # Other shared components
@@ -375,7 +375,6 @@ apps/frontend/src/
 │   ├── api-client.ts      # API client with React Query
 │   ├── query-helpers.ts   # React Query utilities
 │   ├── auth-events.ts     # Auth error event bus
-│   └── codemirror-markdown-preview.ts  # CodeMirror custom extension
 └── types/                 # TypeScript type definitions
 ```
 
@@ -415,7 +414,8 @@ if (!session?.backendToken) {
 // Each component fetches what it needs
 function DocumentView({ documentId }: { documentId: string }) {
   const { data: doc } = api.documents.get.useQuery(documentId);
-  const { data: highlights } = api.selections.getHighlights.useQuery(documentId);
+  const { data: highlights } = api.annotations.getHighlights.useQuery(documentId);
+  // Note: API client uses 'annotations', but backend endpoint is still '/api/selections'
   // ...
 }
 ```
@@ -487,8 +487,10 @@ The document and history panels synchronize via hover interactions:
 - [AUTHENTICATION.md](./AUTHENTICATION.md) - Authentication and authorization
 - [AUTHORIZATION.md](./AUTHORIZATION.md) - Permission model
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy
-- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - CodeMirror integration details
-- [SELECTIONS.md](./SELECTIONS.md) - Text selection and annotation system
+- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering with ReactMarkdown
+- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
+- [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
+- [SELECTIONS.md](./SELECTIONS.md) - Annotation data model and API (backend)
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard shortcuts
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 

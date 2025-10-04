@@ -8,8 +8,8 @@ import { buttonStyles } from '@/lib/button-styles';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
-import { SimpleToolbar } from '@/components/document/panels/SimpleToolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { Toolbar } from '@/components/Toolbar';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
 function ComposeDocumentContent() {
@@ -460,8 +460,6 @@ function ComposeDocumentContent() {
             {/* Settings Panel */}
             {activeToolbarPanel === 'settings' && (
               <SettingsPanel
-                annotateMode={annotateMode}
-                onAnnotateModeToggle={handleAnnotateModeToggle}
                 showLineNumbers={showLineNumbers}
                 onLineNumbersToggle={handleLineNumbersToggle}
                 theme={theme}
@@ -472,7 +470,8 @@ function ComposeDocumentContent() {
         )}
 
         {/* Toolbar - Always visible on the right */}
-        <SimpleToolbar
+        <Toolbar
+          context="simple"
           activePanel={activeToolbarPanel}
           onPanelToggle={handleToolbarPanelToggle}
         />

@@ -24,10 +24,10 @@ import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
 import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
-import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
+import { Toolbar } from '@/components/Toolbar';
 
 // Loading state component
 function DocumentLoadingState() {
@@ -588,8 +588,6 @@ function DocumentView({
               {/* Settings Panel */}
               {activeToolbarPanel === 'settings' && (
                 <SettingsPanel
-                  annotateMode={annotateMode}
-                  onAnnotateModeToggle={handleAnnotateModeToggle}
                   showLineNumbers={showLineNumbers}
                   onLineNumbersToggle={handleLineNumbersToggle}
                   theme={theme}
@@ -600,11 +598,13 @@ function DocumentView({
           )}
 
           {/* Toolbar - Always visible on the right */}
-          <DocumentToolbar
+          <Toolbar
+            context="document"
             activePanel={activeToolbarPanel}
             annotateMode={annotateMode}
             isArchived={document.archived ?? false}
             onPanelToggle={handleToolbarPanelToggle}
+            onAnnotateModeToggle={handleAnnotateModeToggle}
           />
         </div>
       </div>

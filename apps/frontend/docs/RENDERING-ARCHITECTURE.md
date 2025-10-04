@@ -4,7 +4,30 @@
 
 ## Overview
 
-The Semiont frontend uses a sophisticated rendering pipeline to display documents with annotations (highlights and references). This document explains the architecture and the role of each component.
+The Semiont frontend uses **two different rendering pipelines** to display documents with annotations (highlights and references), depending on the mode:
+
+- **AnnotateView** (curation mode): CodeMirror-based editor with decorations and widgets
+- **BrowseView** (browse mode): ReactMarkdown-based prose renderer
+
+This document explains the architecture and the role of each component.
+
+## Dual Rendering Architecture
+
+We maintain **two separate rendering systems** with different purposes:
+
+### AnnotateView (CodeMirror)
+- **Use case**: Curation mode - creating/editing annotations
+- **Renderer**: CodeMirror 6 editor
+- **Styling**: Monospace font, gradient backgrounds, editor-like appearance
+- **Features**: Inline widgets (🔗, ❓, ✨), hover effects, right-click menus
+- **See**: [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md)
+
+### BrowseView (ReactMarkdown)
+- **Use case**: Browse mode - read-only document viewing
+- **Renderer**: react-markdown with remark/rehype plugins
+- **Styling**: Variable-width font, text colors, document-like appearance
+- **Features**: Simple click-to-navigate, clean reading experience
+- **See**: [REACT-MARKDOWN.md](./REACT-MARKDOWN.md)
 
 ## Component Hierarchy
 
@@ -13,10 +36,10 @@ Document Page (/know/document/[id]/page.tsx)
 ├── Main Content Area
 │   ├── AnnotateView (curation mode)
 │   │   └── CodeMirrorRenderer
-│   │       └── CodeMirror with markdown mode + decorations
+│   │       └── CodeMirror 6 with markdown mode + decorations + widgets
 │   └── BrowseView (browse mode)
-│       └── CodeMirrorRenderer
-│           └── CodeMirror with markdown mode + decorations
+│       └── ReactMarkdown
+│           └── remark-gfm → remarkAnnotations → rehypeRenderAnnotations
 ├── Right Panel (conditionally visible)
 │   ├── Progress Display Area (top)
 │   │   ├── GenerationProgressWidget
@@ -60,16 +83,26 @@ Document Page (/know/document/[id]/page.tsx)
 
 **Role**: Production component for browse mode (read-only document viewing).
 
-**Responsibilities**:
-- Renders document content via CodeMirrorRenderer in read-only mode
-- Handles annotation clicks for navigation
-- Provides clean reading experience without editing UI
+**Renderer**: ReactMarkdown with remark/rehype plugins (NOT CodeMirror)
 
-### CodeMirrorRenderer (Primary Renderer)
+**Responsibilities**:
+- Renders markdown content with prose styling (variable-width font)
+- Displays annotations as colored text:
+  - Highlights: Yellow background
+  - Resolved references: Blue text
+  - Stub references: Red text
+- Handles annotation clicks for navigation
+- Provides clean, document-like reading experience
+
+**See**: [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for detailed implementation
+
+### CodeMirrorRenderer (AnnotateView Renderer)
 
 **Location**: `/src/components/CodeMirrorRenderer.tsx`
 
-**Role**: Core rendering component that displays markdown content with annotations using CodeMirror 6.
+**Role**: Core rendering component for **AnnotateView only** that displays markdown content with annotations using CodeMirror 6.
+
+**Note**: BrowseView does NOT use this component - it uses ReactMarkdown instead.
 
 **Why CodeMirror**:
 - **Perfect position mapping**: Source positions ARE display positions
@@ -101,7 +134,6 @@ Document Page (/know/document/[id]/page.tsx)
 **Display Modes**:
 - **Default**: Markdown syntax with highlighting (e.g., `# Title`, `**bold**`)
 - **Source View**: Raw source with line numbers (enabled via `sourceView` prop)
-- **Preview Mode**: Custom extension available for preview-like formatting (see `codemirror-markdown-preview.ts`)
 
 **Incremental Updates**:
 - View created once, decorations updated via transactions
@@ -109,21 +141,6 @@ Document Page (/know/document/[id]/page.tsx)
 - No flicker or scroll position loss
 - Lower memory usage
 
-### Custom Markdown Preview Extension
-
-**Location**: `/src/lib/codemirror-markdown-preview.ts`
-
-**Role**: Custom CodeMirror 6 extension to format markdown for reading while maintaining positions.
-
-**Features**:
-- Hides markdown syntax characters using decorations
-- Applies CSS styling (larger headers, bold/italic text)
-- Can replace elements with widgets (e.g., bullets for lists)
-- Maintains perfect position mapping
-
-**Implementation Approaches**:
-1. **Decoration-based**: Hide syntax, apply CSS classes
-2. **Widget-based**: Replace ranges with custom HTML elements
 3. **Hybrid**: Combine both for optimal results
 
 ## Progress Display System
@@ -290,7 +307,7 @@ This approach trades visual polish for accuracy and reliability.
 
 ### Future Improvements
 
-The custom markdown preview extension (`codemirror-markdown-preview.ts`) provides a path to better visual formatting while maintaining position accuracy by using CodeMirror's decoration system to hide syntax and style content.
+For users who need better visual formatting during curation, future work could explore custom CodeMirror extensions to hide markdown syntax while maintaining position accuracy. Currently, users can switch to BrowseView for clean prose-style reading.
 
 ## Data Flow
 
@@ -305,14 +322,23 @@ The custom markdown preview extension (`codemirror-markdown-preview.ts`) provide
    ```
 
 3. **Rendering Pipeline**:
+
+   **AnnotateView (Curation Mode)**:
    ```
-   Document content + Selections
-   → AnnotateView or BrowseView
+   Document content + Annotations
    → segmentTextWithAnnotations()
    → CodeMirrorRenderer
    → CodeMirror StateField with incremental decoration updates
    → Decorations applied at source positions
-   → Final rendered output (syntax-highlighted markdown)
+   → Final rendered output (syntax-highlighted markdown with widgets)
+   ```
+
+   **BrowseView (Browse Mode)**:
+   ```
+   Document content + Annotations
+   → ReactMarkdown
+   → remark-gfm → remarkAnnotations → rehypeRenderAnnotations
+   → Final rendered output (prose-style HTML with colored annotations)
    ```
 
 4. **User Interaction - Manual Annotation Creation**:
@@ -427,6 +453,10 @@ The rendering system is tested through:
 
 ## Related Documentation
 
-- [SELECTIONS.md](./SELECTIONS.md) - Selection system axioms and testing
+- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
+- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
+- [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
+- [SELECTIONS.md](./SELECTIONS.md) - Annotation data model and API
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall frontend architecture
 - [ADDING-LANGUAGE.md](./ADDING-LANGUAGE.md) - How to add new content types
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization strategies

@@ -7,8 +7,8 @@ import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
 import { useTheme } from '@/hooks/useTheme';
-import { SimpleToolbar } from '@/components/document/panels/SimpleToolbar';
-import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { Toolbar } from '@/components/Toolbar';
+import { SettingsPanel } from '@/components/SettingsPanel';
 
 // Extract document card as a component
 const DocumentCard = React.memo(({
@@ -361,8 +361,6 @@ export default function DiscoverPage() {
             {/* Settings Panel */}
             {activeToolbarPanel === 'settings' && (
               <SettingsPanel
-                annotateMode={annotateMode}
-                onAnnotateModeToggle={handleAnnotateModeToggle}
                 showLineNumbers={showLineNumbers}
                 onLineNumbersToggle={handleLineNumbersToggle}
                 theme={theme}
@@ -373,7 +371,8 @@ export default function DiscoverPage() {
         )}
 
         {/* Toolbar - Always visible on the right */}
-        <SimpleToolbar
+        <Toolbar
+          context="simple"
           activePanel={activeToolbarPanel}
           onPanelToggle={handleToolbarPanelToggle}
         />

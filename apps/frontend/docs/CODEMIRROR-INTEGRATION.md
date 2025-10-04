@@ -1,8 +1,10 @@
-# CodeMirror Integration
+# CodeMirror Integration (AnnotateView Only)
 
 ## Overview
 
-The Semiont frontend uses CodeMirror 6 as its primary text renderer for markdown documents. This document explains why we chose CodeMirror, how it's integrated, and future improvements.
+The Semiont frontend uses CodeMirror 6 for **AnnotateView** (curation mode) to render markdown documents with annotations. This document explains why we chose CodeMirror for annotation editing, how it's integrated, and future improvements.
+
+**Important**: This document describes CodeMirror integration for **AnnotateView only**. BrowseView uses a completely different rendering approach (ReactMarkdown) documented in [REACT-MARKDOWN.md](./REACT-MARKDOWN.md).
 
 ## Why CodeMirror?
 
@@ -250,20 +252,11 @@ useEffect(() => {
 ```typescript
 const extensions = [
   markdown(),
-  sourceView ? [] : markdownPreview(),
-  sourceView ? lineNumbers() : [],
+  lineNumbers(),
   EditorView.editable.of(editable),
   // ... other extensions
 ];
 ```
-
-## Custom Markdown Preview Extension
-
-### Location
-`/src/lib/codemirror-markdown-preview.ts`
-
-### Purpose
-Transform markdown display for better readability while maintaining position accuracy.
 
 ### Features
 
@@ -322,10 +315,7 @@ const end = start + text.length;
 
 **Location**: `/src/components/document/BrowseView.tsx`
 
-Uses CodeMirrorRenderer for read-only viewing with:
-- Annotation click handlers for navigation
-- Clean reading experience
-- Same rendering fidelity as AnnotateView
+**Note**: BrowseView does **NOT** use CodeMirrorRenderer. It uses ReactMarkdown instead for a clean, prose-style reading experience. See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for details.
 
 ## Comparison with Previous Approaches
 
@@ -342,20 +332,16 @@ Uses CodeMirrorRenderer for read-only viewing with:
 - Better performance without extra layer
 - Cleaner separation of concerns
 
-### ReactMarkdown Approach (Removed)
+### ReactMarkdown Approach (Now Used in BrowseView)
 
-**What it did**:
-- Converted markdown to HTML
-- Walked DOM to apply annotations
-- Required complex position mapping
+**What it does**:
+- Converts markdown to HTML for clean reading
+- Applies annotations via custom rehype plugin
+- Used in BrowseView for prose-style display
 
-**Problems**:
-- Position mapping was unreliable
-- Required 100ms delays
-- DOM manipulation was fragile
-- Overlapping annotations were difficult
+**Note**: See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for details on BrowseView's ReactMarkdown implementation.
 
-### CodeMirror Approach (Current)
+### CodeMirror Approach (Current - AnnotateView)
 
 **What it does**:
 - Shows source markdown with highlighting
@@ -374,19 +360,19 @@ Uses CodeMirrorRenderer for read-only viewing with:
 ## Future Improvements
 
 ### Short Term
-1. Activate the custom preview extension for better formatting
-2. Add toggle between source and preview modes
-3. Improve CSS styling for markdown elements
+1. Improve CSS styling for markdown syntax highlighting
+2. Performance optimization for very large documents
+3. Better keyboard shortcuts for annotation workflows
 
 ### Medium Term
-1. Implement proper widget replacements for complex elements
-2. Add support for tables and other GFM features
-3. Create position mapping for true WYSIWYG editing
+1. Improve widget interactions (better tooltips, previews)
+2. Add support for more annotation types
+3. Enhanced bi-directional focusing between Document and History
 
 ### Long Term
-1. Full WYSIWYG markdown editing
-2. Collaborative editing support
-3. Real-time position synchronization
+1. Collaborative editing support with real-time annotations
+2. Advanced annotation features (threading, replies)
+3. Real-time position synchronization across users
 
 ## Configuration
 
@@ -396,22 +382,15 @@ const state = EditorState.create({
   doc: content,
   extensions: [
     markdown(),           // Parse markdown syntax
-    markdownPreview(),    // Custom preview extension (optional)
-    oneDark,             // Dark theme (conditional)
-    EditorView.editable.of(false),  // Read-only mode
-    EditorView.decorations.of(decorations),  // Annotations
+    lineNumbers(),        // Line numbers (conditional)
+    EditorView.editable.of(editable),  // Editable mode
+    EditorView.lineWrapping,  // Line wrapping
+    annotationDecorationsField,  // Annotation decorations
+    enableWidgets ? widgetDecorationsField : [],  // Widgets
     // Event handlers...
   ]
 });
 ```
-
-### CSS Styling
-Styles are defined in `/src/app/globals.css`:
-- `.md-header-*` - Header formatting
-- `.md-bold`, `.md-italic` - Text emphasis
-- `.md-code` - Code styling
-- `.md-link` - Link appearance
-- `.md-list-*` - List formatting
 
 ## Testing
 

@@ -4,7 +4,6 @@ import React, { useEffect, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { markdownPreview } from '@/lib/codemirror-markdown-preview';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
 import '@/styles/animations.css';
@@ -285,7 +284,6 @@ export function CodeMirrorRenderer({
       doc: content,
       extensions: [
         markdown(),
-        sourceView ? [] : markdownPreview(),
         lineNumbersCompartment.current.of(showLineNumbers ? lineNumbers() : []),
         EditorView.editable.of(editable),
         EditorView.lineWrapping,

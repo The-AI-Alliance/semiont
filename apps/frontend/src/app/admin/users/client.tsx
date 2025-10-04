@@ -10,11 +10,14 @@ import {
   PencilIcon,
   TrashIcon
 } from '@heroicons/react/24/outline';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { api, type AdminUser, type AdminUsersResponse, type AdminUserStatsResponse } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { buttonStyles } from '@/lib/button-styles';
+import { Toolbar } from '@/components/Toolbar';
+import { SettingsPanel } from '@/components/SettingsPanel';
+import { useTheme } from '@/hooks/useTheme';
 
 function UserTableRow({ 
   user, 
@@ -110,6 +113,28 @@ export default function AdminUsers() {
   const { data: session } = useSession();
   const isAuthenticated = !!session?.backendToken;
 
+  // Toolbar and settings state
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
+  const [showLineNumbers, setShowLineNumbers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('showLineNumbers') === 'true';
+    }
+    return false;
+  });
+  const { theme, setTheme } = useTheme();
+
+  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
+    setActiveToolbarPanel(current => current === panel ? null : panel);
+  }, []);
+
+  const handleLineNumbersToggle = useCallback(() => {
+    const newMode = !showLineNumbers;
+    setShowLineNumbers(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showLineNumbers', newMode.toString());
+    }
+  }, [showLineNumbers]);
+
   // Debug logging
   React.useEffect(() => {
     console.log('Admin Users Component - Auth Status:', { isAuthenticated });
@@ -177,8 +202,11 @@ export default function AdminUsers() {
   });
 
   return (
-      <div className="space-y-6">
-      {/* Page Header */}
+    <div className="flex flex-1 overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-8">
+        <div className="space-y-6">
+          {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
@@ -381,7 +409,34 @@ export default function AdminUsers() {
             </p>
           </div>
         )}
+        </div>
       </div>
       </div>
+
+      {/* Right Sidebar - Panels and Toolbar */}
+      <div className="flex">
+        {/* Panels Container */}
+        {activeToolbarPanel && (
+          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
+            {/* Settings Panel */}
+            {activeToolbarPanel === 'settings' && (
+              <SettingsPanel
+                showLineNumbers={showLineNumbers}
+                onLineNumbersToggle={handleLineNumbersToggle}
+                theme={theme}
+                onThemeChange={setTheme}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Toolbar - Always visible on the right */}
+        <Toolbar
+          context="simple"
+          activePanel={activeToolbarPanel}
+          onPanelToggle={handleToolbarPanelToggle}
+        />
+      </div>
+    </div>
   );
 }
