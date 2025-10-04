@@ -14,7 +14,7 @@ export default function KnowledgeLayout({
     <OpenDocumentsProvider>
       <DocumentAnnotationsProvider>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-          <UnifiedHeader brandingLink="/" variant="standalone" />
+          <UnifiedHeader brandingLink="/" variant="floating" />
           <div className="flex flex-1">
             <KnowledgeNavigation />
             <main className="flex-1 px-6 pb-6 flex flex-col">
