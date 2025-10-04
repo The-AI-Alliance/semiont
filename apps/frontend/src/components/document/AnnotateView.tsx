@@ -27,6 +27,7 @@ interface Props {
   generatingReferenceId?: string | null;
   onDeleteAnnotation?: (annotation: any) => void;
   onConvertAnnotation?: (annotation: any) => void;
+  showLineNumbers?: boolean;
 }
 
 interface TextSegment {
@@ -112,7 +113,8 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   onDeleteAnnotation,
-  onConvertAnnotation
+  onConvertAnnotation,
+  showLineNumbers = false
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -238,6 +240,7 @@ export function AnnotateView({
         {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
         {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
         sourceView={true}
+        showLineNumbers={showLineNumbers}
         enableWidgets={enableWidgets}
         {...(onWikiLinkClick && { onWikiLinkClick })}
         {...(onEntityTypeClick && { onEntityTypeClick })}

@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useSessionExpiry } from '@/hooks/useSessionExpiry';
+import { useFormattedTime } from '@/hooks/useFormattedTime';
 
 interface Props {
   isConnected: boolean;
@@ -13,6 +15,9 @@ export function CollaborationPanel({
   eventCount,
   lastEventTimestamp
 }: Props) {
+  const { timeRemaining } = useSessionExpiry();
+  const sessionTimeFormatted = useFormattedTime(timeRemaining);
+
   // Format last sync time
   const lastSyncText = useMemo(() => {
     if (!lastEventTimestamp) return 'No activity yet';
@@ -67,6 +72,18 @@ export function CollaborationPanel({
           </div>
         </div>
       </div>
+
+      {/* Session Section */}
+      {sessionTimeFormatted && (
+        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Session
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {sessionTimeFormatted} remaining
+          </p>
+        </div>
+      )}
 
       {/* Sharing Section - Placeholder for future */}
       <div className="pt-3 border-t border-gray-200 dark:border-gray-700">

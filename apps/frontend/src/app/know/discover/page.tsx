@@ -6,6 +6,9 @@ import { api } from '@/lib/api-client';
 import type { Document } from '@/lib/api-client';
 import { useOpenDocuments } from '@/contexts/OpenDocumentsContext';
 import { useRovingTabIndex } from '@/hooks/useRovingTabIndex';
+import { useTheme } from '@/hooks/useTheme';
+import { SimpleToolbar } from '@/components/document/panels/SimpleToolbar';
+import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
 
 // Extract document card as a component
 const DocumentCard = React.memo(({
@@ -98,6 +101,22 @@ export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
 
+  // Toolbar and settings state
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'settings' | null>(null);
+  const [annotateMode, setAnnotateMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('annotateMode') === 'true';
+    }
+    return false;
+  });
+  const [showLineNumbers, setShowLineNumbers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('showLineNumbers') === 'true';
+    }
+    return false;
+  });
+  const { theme, setTheme } = useTheme();
+
   // Debounced search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -166,6 +185,27 @@ export default function DiscoverPage() {
     // Search is handled by debounced effect
   }, []);
 
+  // Toolbar handlers
+  const handleToolbarPanelToggle = useCallback((panel: 'settings') => {
+    setActiveToolbarPanel(current => current === panel ? null : panel);
+  }, []);
+
+  const handleAnnotateModeToggle = useCallback(() => {
+    const newMode = !annotateMode;
+    setAnnotateMode(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotateMode', newMode.toString());
+    }
+  }, [annotateMode]);
+
+  const handleLineNumbersToggle = useCallback(() => {
+    const newMode = !showLineNumbers;
+    setShowLineNumbers(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showLineNumbers', newMode.toString());
+    }
+  }, [showLineNumbers]);
+
   // Loading state
   if (isLoadingRecent) {
     return (
@@ -178,9 +218,11 @@ export default function DiscoverPage() {
   const showNoResultsWarning = hasSearchQuery && !hasSearchResults && !isSearching;
 
   return (
-    <div className="px-4 py-8 space-y-6">
-      {/* Page Header */}
-      <div className="mb-8">
+    <div className="flex flex-1 overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-8 space-y-6">
+        {/* Page Header */}
+        <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Discover Knowledge</h1>
         <p className="text-gray-600 dark:text-gray-400">
           Explore your knowledge graph and discover connections
@@ -308,6 +350,33 @@ export default function DiscoverPage() {
             </div>
           )}
         </div>
+      </div>
+      </div>
+
+      {/* Right Sidebar - Panels and Toolbar */}
+      <div className="flex">
+        {/* Panels Container */}
+        {activeToolbarPanel && (
+          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4">
+            {/* Settings Panel */}
+            {activeToolbarPanel === 'settings' && (
+              <SettingsPanel
+                annotateMode={annotateMode}
+                onAnnotateModeToggle={handleAnnotateModeToggle}
+                showLineNumbers={showLineNumbers}
+                onLineNumbersToggle={handleLineNumbersToggle}
+                theme={theme}
+                onThemeChange={setTheme}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Toolbar - Always visible on the right */}
+        <SimpleToolbar
+          activePanel={activeToolbarPanel}
+          onPanelToggle={handleToolbarPanelToggle}
+        />
       </div>
     </div>
   );

@@ -43,11 +43,13 @@ interface Props {
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
+  onChange?: (content: string) => void;
   editable?: boolean;
   newAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
+  showLineNumbers?: boolean; // If true, show line numbers
   enableWidgets?: boolean; // If true, show inline widgets (wiki links, reference previews, entity badges)
   onWikiLinkClick?: (pageName: string) => void;
   onEntityTypeClick?: (entityType: string) => void;
@@ -226,11 +228,13 @@ export function CodeMirrorRenderer({
   onAnnotationRightClick,
   onAnnotationHover,
   onTextSelect,
+  onChange,
   editable = false,
   newAnnotationIds,
   hoveredAnnotationId,
   scrollToAnnotationId,
   sourceView = false,
+  showLineNumbers = false,
   enableWidgets = false,
   onWikiLinkClick,
   onEntityTypeClick,
@@ -245,6 +249,7 @@ export function CodeMirrorRenderer({
   const viewRef = useRef<EditorView | null>(null);
   const contentRef = useRef(content);
   const segmentsRef = useRef(segments);
+  const lineNumbersCompartment = useRef(new Compartment());
   const callbacksRef = useRef<{
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
@@ -281,11 +286,17 @@ export function CodeMirrorRenderer({
       extensions: [
         markdown(),
         sourceView ? [] : markdownPreview(),
-        sourceView ? lineNumbers() : [],
+        lineNumbersCompartment.current.of(showLineNumbers ? lineNumbers() : []),
         EditorView.editable.of(editable),
         EditorView.lineWrapping,
         annotationDecorationsField,
         enableWidgets ? widgetDecorationsField : [],
+        // Call onChange when content changes
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && onChange) {
+            onChange(update.state.doc.toString());
+          }
+        }),
         // Handle clicks on annotations
         EditorView.domEventHandlers({
           click: (event, view) => {
@@ -367,8 +378,8 @@ export function CodeMirrorRenderer({
           },
           '.cm-lineNumbers .cm-gutterElement': {
             minWidth: '2rem',
-            color: 'inherit',
-            opacity: '0.4'
+            color: 'rgb(156, 163, 175)', // gray-400 for better contrast in dark mode
+            opacity: '0.7'
           }
         })
       ]
@@ -406,6 +417,15 @@ export function CodeMirrorRenderer({
 
     contentRef.current = content;
   }, [content]);
+
+  // Update line numbers when showLineNumbers changes
+  useEffect(() => {
+    if (!viewRef.current) return;
+
+    viewRef.current.dispatch({
+      effects: lineNumbersCompartment.current.reconfigure(showLineNumbers ? lineNumbers() : [])
+    });
+  }, [showLineNumbers]);
 
   // Update annotations when segments change
   useEffect(() => {

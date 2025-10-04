@@ -21,6 +21,7 @@ interface Props {
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
+  showLineNumbers?: boolean;
 }
 
 export function DocumentViewer({
@@ -34,7 +35,8 @@ export function DocumentViewer({
   generatingReferenceId,
   onAnnotationHover,
   hoveredAnnotationId,
-  scrollToAnnotationId
+  scrollToAnnotationId,
+  showLineNumbers = false
 }: Props) {
   const router = useRouter();
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -441,6 +443,7 @@ export function DocumentViewer({
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
+            showLineNumbers={showLineNumbers}
           />
         ) : (
           <AnnotateView
@@ -467,6 +470,7 @@ export function DocumentViewer({
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             onDeleteAnnotation={handleDeleteAnnotationWidget}
             onConvertAnnotation={handleConvertAnnotationWidget}
+            showLineNumbers={showLineNumbers}
           />
         )
       ) : (

@@ -19,12 +19,14 @@ import { useDetectionProgress } from '@/hooks/useDetectionProgress';
 import { DetectionProgressWidget } from '@/components/DetectionProgressWidget';
 import { useGenerationProgress } from '@/hooks/useGenerationProgress';
 import { AnnotationHistory } from '@/components/document/AnnotationHistory';
+import { useTheme } from '@/hooks/useTheme';
 import { useDocumentEvents } from '@/hooks/useDocumentEvents';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { DetectPanel } from '@/components/document/panels/DetectPanel';
 import { DocumentInfoPanel } from '@/components/document/panels/DocumentInfoPanel';
 import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
 import { CollaborationPanel } from '@/components/document/panels/CollaborationPanel';
+import { DocumentPanel } from '@/components/document/panels/DocumentPanel';
 import { DocumentToolbar } from '@/components/document/panels/DocumentToolbar';
 
 // Loading state component
@@ -166,12 +168,19 @@ function DocumentView({
     }
     return false;
   });
+  const [showLineNumbers, setShowLineNumbers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('showLineNumbers') === 'true';
+    }
+    return false;
+  });
+  const { theme, setTheme } = useTheme();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
+  const [activeToolbarPanel, setActiveToolbarPanel] = useState<'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration' | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      if (saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
+      if (saved === 'document' || saved === 'history' || saved === 'info' || saved === 'stats' || saved === 'detect' || saved === 'settings' || saved === 'collaboration') {
         return saved === 'stats' ? 'info' : saved;
       }
     }
@@ -301,8 +310,17 @@ function DocumentView({
     }
   }, [annotateMode]);
 
+  // Handle line numbers toggle
+  const handleLineNumbersToggle = useCallback(() => {
+    const newMode = !showLineNumbers;
+    setShowLineNumbers(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showLineNumbers', newMode.toString());
+    }
+  }, [showLineNumbers]);
+
   // Handle toolbar panel toggle
-  const handleToolbarPanelToggle = useCallback((panel: 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
+  const handleToolbarPanelToggle = useCallback((panel: 'document' | 'history' | 'info' | 'detect' | 'settings' | 'collaboration') => {
     setActiveToolbarPanel(current => {
       const newPanel = current === panel ? null : panel;
       if (typeof window !== 'undefined') {
@@ -495,6 +513,7 @@ function DocumentView({
                 onAnnotationHover={setHoveredAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
+                showLineNumbers={showLineNumbers}
               />
             </ErrorBoundary>
           </div>
@@ -513,6 +532,16 @@ function DocumentView({
                     📦 Archived
                   </div>
                 </div>
+              )}
+
+              {/* Document Panel */}
+              {activeToolbarPanel === 'document' && (
+                <DocumentPanel
+                  isArchived={document.archived ?? false}
+                  onArchive={handleArchive}
+                  onUnarchive={handleUnarchive}
+                  onClone={handleClone}
+                />
               )}
 
               {/* Detect Panel */}
@@ -559,12 +588,12 @@ function DocumentView({
               {/* Settings Panel */}
               {activeToolbarPanel === 'settings' && (
                 <SettingsPanel
-                  isArchived={document.archived ?? false}
-                  onArchive={handleArchive}
-                  onUnarchive={handleUnarchive}
-                  onClone={handleClone}
                   annotateMode={annotateMode}
                   onAnnotateModeToggle={handleAnnotateModeToggle}
+                  showLineNumbers={showLineNumbers}
+                  onLineNumbersToggle={handleLineNumbersToggle}
+                  theme={theme}
+                  onThemeChange={setTheme}
                 />
               )}
             </div>
