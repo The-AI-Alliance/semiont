@@ -33,6 +33,12 @@ export function rehypeRenderAnnotations() {
 
       // PHASE 2: Handle annotations within individual text nodes
       applyWithinTextNodeAnnotations(element, annotations, originalSource);
+
+      // CLEANUP: Remove debugging attributes from the DOM
+      delete element.properties['data-annotations'];
+      delete element.properties['data-node-start'];
+      delete element.properties['data-node-end'];
+      delete element.properties['data-source'];
     });
   };
 }
@@ -131,8 +137,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
     properties: {
       className,
       'data-annotation-id': annotation.id,
-      'data-annotation-type': annotation.type,
-      'data-annotation-cross-element': 'true'
+      'data-annotation-type': annotation.type
     },
     children: childrenToWrap
   };
@@ -154,8 +159,8 @@ function applyWithinTextNodeAnnotations(
       return SKIP;
     }
 
-    // Skip text nodes that are already inside cross-element annotation wrappers
-    if ((parent as Element).properties?.['data-annotation-cross-element']) {
+    // Skip text nodes that are already inside annotation wrappers
+    if ((parent as Element).properties?.['data-annotation-id']) {
       return SKIP;
     }
 
