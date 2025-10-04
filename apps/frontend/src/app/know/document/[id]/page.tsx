@@ -465,11 +465,11 @@ function DocumentView({
 
   // Document is guaranteed to exist here, render the view
   return (
-    <div className="h-screen flex flex-col">
+    <div className="flex flex-col flex-1">
       {/* Main Content - Fills remaining height */}
-      <div className="flex-1 flex gap-6 p-6 min-h-0">
+      <div className="flex flex-1 overflow-hidden">
         {/* Document Content - Left Side */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-6 py-6 min-w-0 flex flex-col">
           {/* Document Header - Only spans document content width */}
           <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
             <div className="px-6 py-2 flex items-center justify-between gap-4">
@@ -521,7 +521,7 @@ function DocumentView({
         </div>
 
         {/* Sidebar */}
-        <div className="flex-none flex gap-0">
+        <div className="flex">
           {/* Right Panel - Conditional based on active toolbar panel */}
           {activeToolbarPanel && (
             <div className="w-64 flex flex-col overflow-y-auto p-3 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">

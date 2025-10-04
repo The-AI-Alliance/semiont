@@ -34,7 +34,7 @@ export function Toolbar<T extends string = string>({
     }`;
 
   return (
-    <div className="w-12 flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+    <div className="w-12 h-full flex flex-col items-center gap-2 py-3 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
       {/* Annotate Mode Toggle - always at top if handlers provided */}
       {onAnnotateModeToggle && (
         <>
@@ -118,7 +118,7 @@ export function Toolbar<T extends string = string>({
         </>
       )}
 
-      {/* Settings Icon - always at bottom */}
+      {/* Settings Icon - always visible without scrolling */}
       <button
         onClick={() => onPanelToggle('settings' as T)}
         className={buttonClass('settings')}
