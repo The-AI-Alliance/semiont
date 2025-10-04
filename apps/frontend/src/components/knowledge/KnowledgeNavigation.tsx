@@ -96,33 +96,33 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
       <div className={`${isCollapsed ? 'p-2' : 'p-4'}`}>
         <div className="space-y-1">
           <div>
-            {/* Header with collapse button - both states have same height */}
-            {!isCollapsed ? (
-              <div className="flex items-center justify-between mb-3 h-9">
-                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                  Knowledge
-                </div>
+            {/* Header with collapse button - fixed height for alignment */}
+            <div className="h-12 flex items-center mb-3">
+              {!isCollapsed ? (
+                <>
+                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex-1">
+                    Knowledge
+                  </div>
+                  <button
+                    onClick={onToggleCollapse}
+                    className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                    title="Collapse sidebar"
+                    aria-label="Collapse sidebar"
+                  >
+                    <ChevronLeftIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                  </button>
+                </>
+              ) : (
                 <button
                   onClick={onToggleCollapse}
-                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
-                  title="Collapse sidebar"
-                  aria-label="Collapse sidebar"
-                >
-                  <ChevronLeftIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex justify-center mb-3 h-9">
-                <button
-                  onClick={onToggleCollapse}
-                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
+                  className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 mx-auto"
                   title="Expand sidebar"
                   aria-label="Expand sidebar"
                 >
                   <Bars3Icon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                 </button>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Navigation content */}
             <div id="knowledge-nav-content">

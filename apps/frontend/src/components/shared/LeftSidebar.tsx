@@ -44,8 +44,8 @@ export function LeftSidebar({
 
   return (
     <aside className={`${isCollapsed ? 'w-14' : 'w-64'} bg-white dark:bg-gray-900 shadow border-r border-gray-200 dark:border-gray-700 flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out`}>
-      {/* Logo Header */}
-      <div className={`${isCollapsed ? 'p-2 pb-4' : 'p-4'} border-b border-gray-200 dark:border-gray-700 flex items-center justify-center`} ref={dropdownRef}>
+      {/* Logo Header - fixed height for alignment */}
+      <div className={`${isCollapsed ? 'p-2' : 'p-4'} h-24 border-b border-gray-200 dark:border-gray-700 flex items-center justify-center`} ref={dropdownRef}>
         <button
           onClick={toggle}
           className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
