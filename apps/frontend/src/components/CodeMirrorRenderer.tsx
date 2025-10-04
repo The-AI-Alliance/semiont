@@ -43,6 +43,7 @@ interface Props {
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (text: string, position: { start: number; end: number }) => void;
+  onChange?: (content: string) => void;
   editable?: boolean;
   newAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
@@ -227,6 +228,7 @@ export function CodeMirrorRenderer({
   onAnnotationRightClick,
   onAnnotationHover,
   onTextSelect,
+  onChange,
   editable = false,
   newAnnotationIds,
   hoveredAnnotationId,
@@ -289,6 +291,12 @@ export function CodeMirrorRenderer({
         EditorView.lineWrapping,
         annotationDecorationsField,
         enableWidgets ? widgetDecorationsField : [],
+        // Call onChange when content changes
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && onChange) {
+            onChange(update.state.doc.toString());
+          }
+        }),
         // Handle clicks on annotations
         EditorView.domEventHandlers({
           click: (event, view) => {

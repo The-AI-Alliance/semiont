@@ -10,6 +10,7 @@ import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
 import { SimpleToolbar } from '@/components/document/panels/SimpleToolbar';
 import { SettingsPanel } from '@/components/document/panels/SettingsPanel';
+import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 
 function ComposeDocumentContent() {
   const router = useRouter();
@@ -395,20 +396,21 @@ function ComposeDocumentContent() {
             </div>
           )}
 
-          {/* Content textarea */}
+          {/* Content editor */}
           <div>
-            <label htmlFor="docContent" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {isClone ? 'Document Content' : 'Content'}
             </label>
-            <textarea
-              id="docContent"
-              value={newDocContent}
-              onChange={(e) => setNewDocContent(e.target.value)}
-              placeholder="Start writing your document content (Markdown supported)..."
-              rows={12}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-sm"
-              disabled={isCreating}
-            />
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+              <CodeMirrorRenderer
+                content={newDocContent}
+                segments={[]}
+                editable={!isCreating}
+                sourceView={true}
+                showLineNumbers={showLineNumbers}
+                onChange={(newContent) => setNewDocContent(newContent)}
+              />
+            </div>
           </div>
 
           {isClone && (
