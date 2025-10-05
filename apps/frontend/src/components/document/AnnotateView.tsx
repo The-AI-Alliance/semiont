@@ -228,7 +228,7 @@ export function AnnotateView({
   }));
 
   return (
-    <div className="relative" ref={containerRef} onContextMenu={handleContextMenu}>
+    <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
       <CodeMirrorRenderer
         content={content}
         segments={cmSegments}

@@ -430,11 +430,11 @@ function DocumentView({
 
   // Document is guaranteed to exist here, render the view
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col h-full">
       {/* Main Content - Fills remaining height */}
       <div className="flex flex-1 overflow-hidden">
         {/* Document Content - Left Side */}
-        <div className="flex-1 px-6 py-6 min-w-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Document Header - Only spans document content width */}
           <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
             <div className="px-6 py-2 flex items-center justify-between gap-4">
