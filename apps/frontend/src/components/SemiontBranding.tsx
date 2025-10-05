@@ -41,8 +41,8 @@ export function SemiontBranding({
   const brandingContent = (
     <div className={`flex flex-col items-center justify-center text-center ${className}`}>
       {/* Main heading */}
-      <h1 
-        className={`${sizeClasses[size]} font-bold tracking-tight ${compactTagline && showTagline ? 'mb-1' : 'mb-6 sm:mb-8'} uppercase font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000 ease-out' : ''}`}
+      <h1
+        className={`${sizeClasses[size]} font-bold tracking-tight ${showTagline ? (compactTagline ? 'mb-1' : 'mb-6 sm:mb-8') : ''} uppercase font-orbitron ${animated ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000 ease-out' : ''}`}
       >
         <span
           className="bg-clip-text text-transparent bg-gradient-to-r from-gray-800 via-cyan-600 to-gray-800 dark:from-white dark:via-cyan-400 dark:to-white"
