@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 
@@ -71,7 +71,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     const storage = getStorageService();
 
     // Get the reference
-    const reference = await graphDb.getSelection(referenceId);
+    const reference = await graphDb.getAnnotation(referenceId);
     if (!reference || reference.documentId !== documentId) {
       throw new HTTPException(404, { message: 'Reference not found' });
     }
@@ -83,8 +83,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     // Get target document if reference is resolved
-    const targetDoc = reference.resolvedDocumentId ?
-      await graphDb.getDocument(reference.resolvedDocumentId) : null;
+    const targetDoc = reference.referencedDocumentId ?
+      await graphDb.getDocument(reference.referencedDocumentId) : null;
 
     // Build source context if requested
     let sourceContext;
@@ -120,7 +120,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     const suggestedResolution = undefined;
 
     return c.json({
-      reference: formatSelection(reference),
+      reference: formatAnnotation(reference),
       sourceDocument: formatDocument(sourceDoc),
       targetDocument: targetDoc ? formatDocument(targetDoc) : null,
       ...(sourceContext ? { sourceContext } : {}),

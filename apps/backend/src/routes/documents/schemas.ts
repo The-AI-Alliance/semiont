@@ -24,7 +24,7 @@ export const SelectionSchema = z.object({
   selectionType: z.enum(['highlight', 'reference']),
   selectionData: z.record(z.string(), z.any()),
   entityTypes: z.array(z.string()).optional(),
-  resolvedDocumentId: z.string().optional(),
+  referencedDocumentId: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
   createdBy: z.string(),
   createdAt: z.string(),

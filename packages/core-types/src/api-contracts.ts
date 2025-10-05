@@ -29,7 +29,7 @@ export const CreateSelectionRequestSchema = z.object({
   selectionData: z.record(z.string(), z.any()).optional(),
   entityTypes: z.array(z.string()).optional(),
   referenceTags: z.array(z.string()).optional(),
-  resolvedDocumentId: z.string().nullable().optional(),
+  referencedDocumentId: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
@@ -44,7 +44,7 @@ export const CreateSelectionResponseSchema = z.object({
     documentId: z.string(),
     selectionType: z.string(),
     selectionData: z.any(),
-    resolvedDocumentId: z.string().nullable().optional(),
+    referencedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
     referenceTags: z.array(z.string()).optional(),
     metadata: z.record(z.string(), z.any()).optional(),

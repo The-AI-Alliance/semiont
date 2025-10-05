@@ -75,7 +75,7 @@ export function registerGetDocument(router: DocumentsRouterType) {
           offset: r.position.offset,
           length: r.position.length,
         },
-        resolvedDocumentId: r.targetDocumentId,
+        referencedDocumentId: r.targetDocumentId,
         entityTypes: r.entityTypes || [],
         referenceTags: r.referenceType ? [r.referenceType] : [],
         createdBy: '',

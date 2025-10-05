@@ -5,7 +5,7 @@ import { getStorageService } from '../../../storage/filesystem';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
@@ -60,7 +60,7 @@ export function registerCreateDocumentFromSelection(router: DocumentsRouterType)
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const selection = await graphDb.getSelection(selectionId);
+    const selection = await graphDb.getAnnotation(selectionId);
     if (!selection) {
       throw new HTTPException(404, { message: 'Selection not found' });
     }
@@ -101,17 +101,14 @@ export function registerCreateDocumentFromSelection(router: DocumentsRouterType)
     await storage.saveDocument(documentId, Buffer.from(body.content));
 
     // Update the selection to resolve to the new document
-    await graphDb.resolveSelection({
-      selectionId: selectionId,
-      documentId: savedDoc.id,
-    });
+    await graphDb.resolveReference(selectionId, savedDoc.id);
 
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 
     return c.json({
       document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatSelection),
+      selections: [...highlights, ...references].map(formatAnnotation),
     }, 201);
   });
 }

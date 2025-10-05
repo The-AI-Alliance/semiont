@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatSelection } from '../helpers';
+import { formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { emitDocumentCloned, emitHighlightAdded, emitReferenceCreated } from '../../../events/emit';
 import { generateAnnotationId } from '../../../utils/id-generator';
@@ -152,7 +152,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
           offset: reference.position.offset,
           length: reference.position.length,
         },
-        resolvedDocumentId: reference.targetDocumentId,
+        referencedDocumentId: reference.targetDocumentId,
         entityTypes: reference.entityTypes || [],
         referenceTags: reference.referenceType ? [reference.referenceType] : [],
         createdBy: user.id,
@@ -175,7 +175,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       },
-      selections: clonedSelections.map(formatSelection),
+      selections: clonedSelections.map(formatAnnotation),
     }, 201);
   });
 }

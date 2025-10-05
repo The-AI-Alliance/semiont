@@ -8,7 +8,7 @@ export const getDocumentReferencesRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/references',
   summary: 'Get Document References',
-  description: 'Get only references (selections with resolvedDocumentId) in a document',
+  description: 'Get only references (selections with referencedDocumentId) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -48,7 +48,7 @@ export function registerDocumentReferences(router: DocumentsRouterType) {
       },
       type: 'reference' as const,
       referencedDocumentId: ref.targetDocumentId,
-      entityTypes: ref.entityTypes,
+      entityTypes: ref.entityTypes || [],  // Required field (default to empty array)
       referenceType: ref.referenceType,
     }));
 

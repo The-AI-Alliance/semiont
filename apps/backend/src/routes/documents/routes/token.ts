@@ -5,7 +5,7 @@ import { getStorageService } from '../../../storage/filesystem';
 import { calculateChecksum } from '@semiont/utils';
 import { CREATION_METHODS } from '@semiont/core-types';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Simple in-memory token store (replace with Redis/DB in production)
@@ -225,7 +225,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     return c.json({
       document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatSelection),
+      selections: [...highlights, ...references].map(formatAnnotation),
     }, 201);
   });
 

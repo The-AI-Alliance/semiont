@@ -1,5 +1,5 @@
 // Helper functions for selection routes
-import type { Document, Selection } from '@semiont/core-types';
+import type { Document, Annotation } from '@semiont/core-types';
 
 export function formatDocument(doc: Document): any {
   return {
@@ -21,19 +21,16 @@ export function formatDocumentWithContent(doc: Document, content: string): any {
   };
 }
 
-export function formatSelection(sel: Selection): any {
+export function formatAnnotation(annotation: Annotation): any {
   return {
-    id: sel.id,
-    documentId: sel.documentId,
-    selectionData: sel.selectionData,
-    resolvedDocumentId: sel.resolvedDocumentId,
-    resolvedAt: sel.resolvedAt instanceof Date ? sel.resolvedAt.toISOString() : sel.resolvedAt,
-    resolvedBy: sel.resolvedBy,
-    referenceTags: sel.referenceTags,
-    entityTypes: sel.entityTypes,
-    metadata: sel.metadata,
-    createdBy: sel.createdBy,
-    createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
-    updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
+    id: annotation.id,
+    documentId: annotation.documentId,
+    text: annotation.text,
+    selectionData: annotation.selectionData,
+    type: annotation.type,
+    referencedDocumentId: annotation.referencedDocumentId,
+    resolvedDocumentName: annotation.resolvedDocumentName,
+    entityTypes: annotation.entityTypes,
+    referenceType: annotation.referenceType,
   };
 }

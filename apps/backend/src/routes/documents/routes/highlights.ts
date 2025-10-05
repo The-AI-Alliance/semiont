@@ -8,7 +8,7 @@ export const getDocumentHighlightsRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/highlights',
   summary: 'Get Document Highlights',
-  description: 'Get only highlights (selections without resolvedDocumentId) in a document',
+  description: 'Get only highlights (selections without referencedDocumentId) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -47,6 +47,7 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
         text: hl.text
       },
       type: 'highlight' as const,
+      entityTypes: [],  // Required field (empty for highlights)
     }));
 
     return c.json({

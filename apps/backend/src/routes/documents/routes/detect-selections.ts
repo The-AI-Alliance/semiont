@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { detectSelectionsInDocument } from '../helpers';
-import type { CreateSelectionInput } from '@semiont/core-types';
+import type { CreateSelectionRequest } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
@@ -16,7 +16,7 @@ const DetectSelectionsResponse = z.object({
     id: z.string(),
     documentId: z.string(),
     selectionData: z.any(),
-    resolvedDocumentId: z.string().nullable().optional(),
+    referencedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -81,12 +81,12 @@ export function registerDetectSelections(router: DocumentsRouterType) {
         documentId: id,
         selectionType: 'reference',  // Graph implementations need this for stub references
         selectionData: detected.selection.selectionData,
-        resolvedDocumentId: null,  // null = stub reference
+        referencedDocumentId: null,  // null = stub reference
         entityTypes: detected.selection.entityTypes,
         metadata: detected.selection.metadata,
         createdBy: user.id,
       };
-      const saved = await graphDb.createSelection(selectionInput);
+      const saved = await graphDb.createAnnotation(selectionInput);
       savedSelections.push(saved);
     }
 
@@ -96,7 +96,7 @@ export function registerDetectSelections(router: DocumentsRouterType) {
         id: s.id,
         documentId: s.documentId,
         selectionData: s.selectionData,
-        resolvedDocumentId: s.resolvedDocumentId,
+        referencedDocumentId: s.referencedDocumentId,
         entityTypes: s.entityTypes,
         createdAt: s.createdAt?.toISOString() || new Date().toISOString(),
         updatedAt: s.updatedAt?.toISOString() || new Date().toISOString(),

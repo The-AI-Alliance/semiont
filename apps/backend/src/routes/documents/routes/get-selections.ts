@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { formatSelection } from '../../selections/helpers';
+import { formatAnnotation } from '../../selections/helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 
@@ -61,7 +61,7 @@ export function registerGetDocumentSelections(router: DocumentsRouterType) {
       const references = await graphDb.getReferences(id);
 
       return c.json({
-        selections: [...highlights, ...references].map(formatSelection)
+        selections: [...highlights, ...references].map(formatAnnotation)
       });
     }
   });

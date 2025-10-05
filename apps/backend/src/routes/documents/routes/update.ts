@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '../schemas';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
@@ -102,7 +102,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       id: r.id,
       documentId: id,
       selectionData: { offset: r.position.offset, length: r.position.length, text: r.text },
-      resolvedDocumentId: r.targetDocumentId,
+      referencedDocumentId: r.targetDocumentId,
       entityTypes: r.entityTypes || [],
       referenceTags: r.referenceType ? [r.referenceType] : [],
       createdAt: new Date(),
@@ -122,10 +122,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         }),
         content: content.toString('utf-8')
       },
-      selections: [...highlightSelections, ...referenceSelections].map(formatSelection),
-      highlights: highlightSelections.map(formatSelection),
-      references: referenceSelections.map(formatSelection),
-      entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatSelection),
+      selections: [...highlightSelections, ...referenceSelections].map(formatAnnotation),
+      highlights: highlightSelections.map(formatAnnotation),
+      references: referenceSelections.map(formatAnnotation),
+      entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatAnnotation),
     });
   });
 }
