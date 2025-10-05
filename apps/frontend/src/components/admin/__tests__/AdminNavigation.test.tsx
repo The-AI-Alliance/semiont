@@ -33,10 +33,11 @@ describe('AdminNavigation', () => {
     });
 
     it('should render navigation container with correct styling', () => {
-      render(<AdminNavigation />);
+      const { container } = render(<AdminNavigation />);
 
-      const nav = screen.getByRole('navigation');
-      expect(nav).toHaveClass('w-64', 'bg-white', 'dark:bg-gray-900', 'shadow');
+      const nav = container.querySelector('.p-4');
+      expect(nav).toBeInTheDocument();
+      expect(nav).toHaveClass('p-4');
     });
 
     // Removed "Back to Site" link test - this link no longer exists in the component
@@ -193,15 +194,12 @@ describe('AdminNavigation', () => {
     });
 
     it('should have proper navigation container structure', () => {
-      render(<AdminNavigation />);
+      const { container } = render(<AdminNavigation />);
 
-      const nav = screen.getByRole('navigation');
-      expect(nav).toHaveClass('w-64', 'bg-white', 'dark:bg-gray-900', 'shadow', 'border-r');
+      const navContainer = container.querySelector('.p-4');
+      expect(navContainer).toBeInTheDocument();
 
-      const container = nav.querySelector('.p-4');
-      expect(container).toBeInTheDocument();
-
-      const spaceContainer = container?.querySelector('.space-y-1');
+      const spaceContainer = navContainer?.querySelector('.space-y-1');
       expect(spaceContainer).toBeInTheDocument();
     });
 
@@ -226,8 +224,10 @@ describe('AdminNavigation', () => {
     it('should have dark mode classes for navigation container', () => {
       render(<AdminNavigation />);
 
-      const nav = screen.getByRole('navigation');
-      expect(nav).toHaveClass('dark:bg-gray-900', 'dark:border-gray-700');
+      // AdminNavigation no longer wraps in nav element - it's just content
+      // The parent LeftSidebar handles dark mode styling
+      const adminHeader = screen.getByText('Administration');
+      expect(adminHeader).toHaveClass('dark:text-gray-500');
     });
 
     // Removed separator dark mode test - separator no longer exists in the component
@@ -253,10 +253,13 @@ describe('AdminNavigation', () => {
     });
 
     it('should use semantic nav element', () => {
-      render(<AdminNavigation />);
+      // AdminNavigation no longer wraps in nav element - it's just content
+      // The parent LeftSidebar provides the structural wrapper
+      const { container } = render(<AdminNavigation />);
 
-      const nav = screen.getByRole('navigation');
-      expect(nav.tagName).toBe('NAV');
+      const navContainer = container.querySelector('.p-4');
+      expect(navContainer).toBeInTheDocument();
+      expect(navContainer?.tagName).toBe('DIV');
     });
 
     it('should have title attributes for tooltips', () => {

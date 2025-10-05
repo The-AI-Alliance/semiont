@@ -1,6 +1,6 @@
 import React from 'react';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
-import { UnifiedHeader } from '@/components/shared/UnifiedHeader';
+import { LeftSidebar } from '@/components/shared/LeftSidebar';
 import { Footer } from '@/components/Footer';
 
 // Note: Authentication is handled by middleware.ts for all admin routes
@@ -14,9 +14,10 @@ export default function AdminLayout({
   // Middleware has already verified admin access
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-      <UnifiedHeader brandingLink="/" variant="standalone" />
       <div className="flex flex-1">
-        <AdminNavigation />
+        <LeftSidebar brandingLink="/">
+          <AdminNavigation />
+        </LeftSidebar>
         <main className="flex-1 p-6 flex flex-col">
           <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
             {children}
