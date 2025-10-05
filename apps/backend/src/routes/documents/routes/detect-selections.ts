@@ -78,7 +78,12 @@ export function registerDetectSelections(router: DocumentsRouterType) {
       const selectionInput = {
         documentId: id,
         text: detected.selection.selectionData.text,
-        selectionData: detected.selection.selectionData,
+        selectionData: {
+          type: 'text_span',
+          offset: detected.selection.selectionData.offset,
+          length: detected.selection.selectionData.length,
+          text: detected.selection.selectionData.text,
+        },
         type: 'reference' as const,
         referencedDocumentId: null,  // null = stub reference
         entityTypes: detected.selection.entityTypes || [],

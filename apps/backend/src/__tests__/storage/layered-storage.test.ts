@@ -103,7 +103,7 @@ describe('Layered Storage', () => {
         metadata: {},
         entityTypes: ['article', 'research'],
         highlights: [
-          { id: 'hl1', text: 'important', position: { offset: 0, length: 9 } },
+          { id: 'hl1', text: 'important', position: { offset: 0, length: 9 }, createdBy: 'did:web:test.com:users:test', createdAt: '2025-01-01T00:00:00Z' },
         ],
         references: [],
         archived: false,

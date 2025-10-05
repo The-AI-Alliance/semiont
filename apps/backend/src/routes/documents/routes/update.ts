@@ -85,30 +85,39 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const highlights = await AnnotationQueryService.getHighlights(id);
     const references = await AnnotationQueryService.getReferences(id);
 
-    // Transform Layer 3 projection format to Selection format for response
+    // Transform Layer 3 projection format to Annotation format for response
     const highlightSelections = highlights.map(h => ({
       id: h.id,
       documentId: id,
-      selectionData: { offset: h.position.offset, length: h.position.length, text: h.text },
+      text: h.text,
+      selectionData: {
+        type: 'text_span',
+        offset: h.position.offset,
+        length: h.position.length,
+        text: h.text
+      },
+      type: 'highlight' as const,
       createdAt: new Date(),
-      updatedAt: new Date(),
       createdBy: user.id,
       entityTypes: [],
-      metadata: {},
-      referenceTags: [],
     }));
 
     const referenceSelections = references.map(r => ({
       id: r.id,
       documentId: id,
-      selectionData: { offset: r.position.offset, length: r.position.length, text: r.text },
+      text: r.text,
+      selectionData: {
+        type: 'text_span',
+        offset: r.position.offset,
+        length: r.position.length,
+        text: r.text
+      },
+      type: 'reference' as const,
       referencedDocumentId: r.targetDocumentId,
       entityTypes: r.entityTypes || [],
-      referenceTags: r.referenceType ? [r.referenceType] : [],
+      referenceType: r.referenceType,
       createdAt: new Date(),
-      updatedAt: new Date(),
       createdBy: user.id,
-      metadata: {},
     }));
 
     // Return optimistic response

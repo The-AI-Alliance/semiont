@@ -199,6 +199,8 @@ export interface DocumentProjection {
     id: string;
     text: string;
     position: { offset: number; length: number };
+    createdBy: string;
+    createdAt: string;
   }>;
   references: Array<{
     id: string;
@@ -207,6 +209,8 @@ export interface DocumentProjection {
     targetDocumentId?: string;
     entityTypes?: string[];
     referenceType?: string;
+    createdBy: string;
+    createdAt: string;
   }>;
   archived: boolean;
   createdAt: string;

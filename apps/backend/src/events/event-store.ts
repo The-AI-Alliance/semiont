@@ -367,6 +367,8 @@ export class EventStore {
           id: event.payload.highlightId,
           text: event.payload.text,
           position: event.payload.position,
+          createdBy: event.userId,
+          createdAt: event.timestamp,
         });
         break;
 
@@ -384,6 +386,8 @@ export class EventStore {
           targetDocumentId: event.payload.targetDocumentId,
           entityTypes: event.payload.entityTypes,
           referenceType: event.payload.referenceType,
+          createdBy: event.userId,
+          createdAt: event.timestamp,
         });
         break;
 

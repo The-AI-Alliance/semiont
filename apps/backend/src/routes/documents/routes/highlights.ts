@@ -47,7 +47,9 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
         text: hl.text
       },
       type: 'highlight' as const,
-      entityTypes: [],  // Required field (empty for highlights)
+      createdBy: hl.createdBy,
+      createdAt: new Date(hl.createdAt),
+      entityTypes: [],
     }));
 
     return c.json({

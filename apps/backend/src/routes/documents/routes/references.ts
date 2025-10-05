@@ -47,8 +47,10 @@ export function registerDocumentReferences(router: DocumentsRouterType) {
         text: ref.text
       },
       type: 'reference' as const,
+      createdBy: ref.createdBy,
+      createdAt: new Date(ref.createdAt),
       referencedDocumentId: ref.targetDocumentId,
-      entityTypes: ref.entityTypes || [],  // Required field (default to empty array)
+      entityTypes: ref.entityTypes || [],
       referenceType: ref.referenceType,
     }));
 
