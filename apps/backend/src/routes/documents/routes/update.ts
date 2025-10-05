@@ -92,8 +92,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       text: h.text,
       selectionData: {
         type: 'text_span',
-        offset: h.position.offset,
-        length: h.position.length,
+        offset: h.selectionData.offset,
+        length: h.selectionData.length,
         text: h.text
       },
       type: 'highlight' as const,
@@ -108,12 +108,12 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       text: r.text,
       selectionData: {
         type: 'text_span',
-        offset: r.position.offset,
-        length: r.position.length,
+        offset: r.selectionData.offset,
+        length: r.selectionData.length,
         text: r.text
       },
       type: 'reference' as const,
-      referencedDocumentId: r.targetDocumentId,
+      referencedDocumentId: r.referencedDocumentId,
       entityTypes: r.entityTypes || [],
       referenceType: r.referenceType,
       createdAt: new Date(),
@@ -131,7 +131,7 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         }),
         content: content.toString('utf-8')
       },
-      selections: [...highlightSelections, ...referenceSelections].map(formatAnnotation),
+      annotations: [...highlightSelections, ...referenceSelections].map(formatAnnotation),
       highlights: highlightSelections.map(formatAnnotation),
       references: referenceSelections.map(formatAnnotation),
       entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatAnnotation),

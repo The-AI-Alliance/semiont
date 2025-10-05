@@ -8,7 +8,7 @@
 
 import { getProjectionStorage } from '../storage/projection-storage';
 import { getGraphDatabase } from '../graph/factory';
-import type { DocumentProjection } from '@semiont/core-types';
+import type { DocumentProjection, Annotation } from '@semiont/core-types';
 
 export class AnnotationQueryService {
   /**
@@ -89,48 +89,20 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Get a single selection (highlight or reference) by ID
-   * Scans Layer 3 projections to find the selection
-   * O(n) complexity - needs selection ID → document ID index for O(1)
+   * Get a single annotation (highlight or reference) by ID
+   * Scans Layer 3 projections to find the annotation
+   * O(n) complexity - needs annotation ID → document ID index for O(1)
    */
-  static async getSelection(selectionId: string): Promise<{
-    id: string;
-    documentId: string;
-    text: string;
-    position: { offset: number; length: number };
-    type: 'highlight' | 'reference';
-    targetDocumentId?: string;
-    entityTypes?: string[];
-    referenceType?: string;
-  } | null> {
+  static async getSelection(selectionId: string): Promise<Annotation | null> {
     const projectionStorage = getProjectionStorage();
     const allProjections = await projectionStorage.getAllProjections();
 
     for (const projection of allProjections) {
       // Check highlights
-      const highlight = projection.highlights.find((h: any) => h.id === selectionId);
-      if (highlight) {
-        return {
-          id: highlight.id,
-          documentId: projection.id,
-          text: highlight.text,
-          position: highlight.position,
-          type: 'highlight',
-        };
-      }
-
-      // Check references
-      const reference = projection.references.find((r: any) => r.id === selectionId);
-      if (reference) {
-        return {
-          id: reference.id,
-          documentId: projection.id,
-          text: reference.text,
-          position: reference.position,
-          type: 'reference',
-          targetDocumentId: reference.targetDocumentId,
-          entityTypes: reference.entityTypes,
-        };
+      const annotation = projection.highlights.find((h) => h.id === selectionId) ||
+                        projection.references.find((r) => r.id === selectionId);
+      if (annotation) {
+        return annotation;
       }
     }
 

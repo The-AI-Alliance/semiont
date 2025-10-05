@@ -33,24 +33,8 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
 
     // Layer 3 only - projection storage is source of truth
-    const projectionHighlights = await AnnotationQueryService.getHighlights(id);
-
-    // Transform projection format to component format
-    const highlights = projectionHighlights.map(hl => ({
-      id: hl.id,
-      documentId: id,
-      text: hl.text,
-      selectionData: {
-        type: 'text_span',
-        offset: hl.position.offset,
-        length: hl.position.length,
-        text: hl.text
-      },
-      type: 'highlight' as const,
-      createdBy: hl.createdBy,
-      createdAt: new Date(hl.createdAt),
-      entityTypes: [],
-    }));
+    // Projections now store full Annotation objects - no transformation needed
+    const highlights = await AnnotationQueryService.getHighlights(id);
 
     return c.json({
       highlights

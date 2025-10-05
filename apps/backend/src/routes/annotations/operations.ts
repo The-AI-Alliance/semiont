@@ -153,8 +153,8 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
       documentId: selection.documentId,
       selectionData: {
         text: selection.text,
-        offset: selection.position.offset,
-        length: selection.position.length,
+        offset: selection.selectionData.offset,
+        length: selection.selectionData.length,
       },
       referencedDocumentId: documentId,
       entityTypes: selection.entityTypes,
@@ -282,8 +282,8 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       documentId: selection.documentId,
       selectionData: {
         text: selection.text,
-        offset: selection.position.offset,
-        length: selection.position.length,
+        offset: selection.selectionData.offset,
+        length: selection.selectionData.length,
       },
       referencedDocumentId: documentId,
       entityTypes: selection.entityTypes,
@@ -346,8 +346,8 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const contentStr = content.toString('utf-8');
 
   // Extract context based on selection position
-  const selStart = selection.position.offset;
-  const selEnd = selection.position.offset + selection.position.length;
+  const selStart = selection.selectionData.offset;
+  const selEnd = selection.selectionData.offset + selection.selectionData.length;
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 
@@ -361,10 +361,10 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
       documentId: selection.documentId,
       selectionData: {
         text: selection.text,
-        offset: selection.position.offset,
-        length: selection.position.length,
+        offset: selection.selectionData.offset,
+        length: selection.selectionData.length,
       },
-      referencedDocumentId: selection.targetDocumentId,
+      referencedDocumentId: selection.referencedDocumentId,
       entityTypes: selection.entityTypes,
       createdBy: 'user',
       createdAt: new Date().toISOString(),
@@ -436,8 +436,8 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
 
   // Extract selection text with context
   const contextSize = 500; // Fixed context for summary
-  const selStart = selection.position.offset;
-  const selEnd = selection.position.offset + selection.position.length;
+  const selStart = selection.selectionData.offset;
+  const selEnd = selection.selectionData.offset + selection.selectionData.length;
   const start = Math.max(0, selStart - contextSize);
   const end = Math.min(contentStr.length, selEnd + contextSize);
 

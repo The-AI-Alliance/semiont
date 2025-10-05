@@ -94,7 +94,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       },
-      selections: [],
+      annotations: [],
     }, 201);
   });
 }

@@ -11,6 +11,8 @@
  * - Optional signatures for cross-org verification
  */
 
+import type { Annotation } from './api-contracts';
+
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
@@ -195,23 +197,8 @@ export interface DocumentProjection {
   contentType: string;
   metadata: Record<string, any>;
   entityTypes: string[];
-  highlights: Array<{
-    id: string;
-    text: string;
-    position: { offset: number; length: number };
-    createdBy: string;
-    createdAt: string;
-  }>;
-  references: Array<{
-    id: string;
-    text: string;
-    position: { offset: number; length: number };
-    targetDocumentId?: string;
-    entityTypes?: string[];
-    referenceType?: string;
-    createdBy: string;
-    createdAt: string;
-  }>;
+  highlights: Annotation[];  // Full Annotation objects (single source of truth)
+  references: Annotation[];  // Full Annotation objects (single source of truth)
   archived: boolean;
   createdAt: string;
   updatedAt: string;

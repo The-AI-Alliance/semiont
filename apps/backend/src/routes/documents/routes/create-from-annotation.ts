@@ -18,7 +18,7 @@ const CreateFromSelectionRequest = z.object({
 
 const CreateFromSelectionResponse = z.object({
   document: z.any(),
-  selections: z.array(z.any()),
+  annotations: z.array(z.any()),
 });
 
 export const createDocumentFromSelectionRoute = createRoute({
@@ -108,7 +108,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
 
     return c.json({
       document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatAnnotation),
+      annotations: [...highlights, ...references].map(formatAnnotation),
     }, 201);
   });
 }

@@ -18,16 +18,22 @@ export const DocumentSchema = z.object({
   content: z.string().optional(),
 });
 
-export const SelectionSchema = z.object({
+export const AnnotationSchema = z.object({
   id: z.string(),
   documentId: z.string(),
-  selectionType: z.enum(['highlight', 'reference']),
-  selectionData: z.record(z.string(), z.any()),
-  entityTypes: z.array(z.string()).optional(),
+  type: z.enum(['highlight', 'reference']),
+  text: z.string(),
+  selectionData: z.object({
+    type: z.string(),
+    offset: z.number(),
+    length: z.number(),
+    text: z.string(),
+  }),
+  entityTypes: z.array(z.string()),
   referencedDocumentId: z.string().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
+  referenceType: z.string().optional(),
   createdBy: z.string(),
-  createdAt: z.string(),
+  createdAt: z.any(), // Can be Date or string
 });
 
 // Request schemas
@@ -53,15 +59,15 @@ export const UpdateDocumentRequestSchema = z.object({
 // Response schemas
 export const CreateDocumentResponseSchema = z.object({
   document: DocumentSchema,
-  selections: z.array(SelectionSchema),
+  annotations: z.array(AnnotationSchema),
 });
 
 export const GetDocumentResponseSchema = z.object({
   document: DocumentSchema.extend({ content: z.string() }),
-  selections: z.array(SelectionSchema),
-  highlights: z.array(SelectionSchema),
-  references: z.array(SelectionSchema),
-  entityReferences: z.array(SelectionSchema),
+  annotations: z.array(AnnotationSchema),
+  highlights: z.array(AnnotationSchema),
+  references: z.array(AnnotationSchema),
+  entityReferences: z.array(AnnotationSchema),
 });
 
 export const ListDocumentsResponseSchema = z.object({

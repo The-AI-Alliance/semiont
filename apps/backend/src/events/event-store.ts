@@ -365,10 +365,18 @@ export class EventStore {
       case 'highlight.added':
         projection.highlights.push({
           id: event.payload.highlightId,
+          documentId: event.documentId,
           text: event.payload.text,
-          position: event.payload.position,
+          selectionData: {
+            type: 'text_span',
+            offset: event.payload.position.offset,
+            length: event.payload.position.length,
+            text: event.payload.text,
+          },
+          type: 'highlight',
           createdBy: event.userId,
-          createdAt: event.timestamp,
+          createdAt: new Date(event.timestamp),
+          entityTypes: [],
         });
         break;
 
@@ -381,20 +389,27 @@ export class EventStore {
       case 'reference.created':
         projection.references.push({
           id: event.payload.referenceId,
+          documentId: event.documentId,
           text: event.payload.text,
-          position: event.payload.position,
-          targetDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes,
-          referenceType: event.payload.referenceType,
+          selectionData: {
+            type: 'text_span',
+            offset: event.payload.position.offset,
+            length: event.payload.position.length,
+            text: event.payload.text,
+          },
+          type: 'reference',
           createdBy: event.userId,
-          createdAt: event.timestamp,
+          createdAt: new Date(event.timestamp),
+          referencedDocumentId: event.payload.targetDocumentId,
+          entityTypes: event.payload.entityTypes || [],
+          referenceType: event.payload.referenceType,
         });
         break;
 
       case 'reference.resolved':
         const ref = projection.references.find(r => r.id === event.payload.referenceId);
         if (ref) {
-          ref.targetDocumentId = event.payload.targetDocumentId;
+          ref.referencedDocumentId = event.payload.targetDocumentId;
           if (event.payload.referenceType) {
             ref.referenceType = event.payload.referenceType;
           }

@@ -13,7 +13,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 // Local schema to avoid TypeScript hanging
 const CloneDocumentResponse = z.object({
   document: z.any(),
-  selections: z.array(z.any()),
+  annotations: z.array(z.any()),
 });
 
 export const cloneDocumentRoute = createRoute({
@@ -113,7 +113,10 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         userId: user.id,
         highlightId,
         text: highlight.text,
-        position: highlight.position,
+        position: {
+          offset: highlight.selectionData.offset,
+          length: highlight.selectionData.length,
+        },
       });
       clonedSelections.push({
         id: highlightId,
@@ -121,8 +124,8 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         selectionType: 'highlight',
         selectionData: {
           text: highlight.text,
-          offset: highlight.position.offset,
-          length: highlight.position.length,
+          offset: highlight.selectionData.offset,
+          length: highlight.selectionData.length,
         },
         entityTypes: [],
         createdBy: user.id,
@@ -138,10 +141,13 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         userId: user.id,
         referenceId,
         text: reference.text,
-        position: reference.position,
+        position: {
+          offset: reference.selectionData.offset,
+          length: reference.selectionData.length,
+        },
         entityTypes: reference.entityTypes || [],
         referenceType: reference.referenceType,
-        targetDocumentId: reference.targetDocumentId,
+        targetDocumentId: reference.referencedDocumentId || undefined,
       });
       clonedSelections.push({
         id: referenceId,
@@ -149,10 +155,10 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         selectionType: 'reference',
         selectionData: {
           text: reference.text,
-          offset: reference.position.offset,
-          length: reference.position.length,
+          offset: reference.selectionData.offset,
+          length: reference.selectionData.length,
         },
-        referencedDocumentId: reference.targetDocumentId,
+        referencedDocumentId: reference.referencedDocumentId,
         entityTypes: reference.entityTypes || [],
         referenceTags: reference.referenceType ? [reference.referenceType] : [],
         createdBy: user.id,
@@ -175,7 +181,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       },
-      selections: clonedSelections.map(formatAnnotation),
+      annotations: clonedSelections.map(formatAnnotation),
     }, 201);
   });
 }

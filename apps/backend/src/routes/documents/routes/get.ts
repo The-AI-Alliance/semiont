@@ -51,40 +51,15 @@ export function registerGetDocument(router: DocumentsRouterType) {
       throw new HTTPException(404, { message: 'Document content not found in filesystem' });
     }
 
-    // Build selections from projection highlights and references
-    const selections = [
-      ...projection.highlights.map(h => ({
-        id: h.id,
-        documentId: id,
-        selectionType: 'highlight' as const,
-        selectionData: {
-          text: h.text,
-          offset: h.position.offset,
-          length: h.position.length,
-        },
-        entityTypes: [],
-        createdBy: '',
-        createdAt: projection.createdAt,
-      })),
-      ...projection.references.map(r => ({
-        id: r.id,
-        documentId: id,
-        selectionType: 'reference' as const,
-        selectionData: {
-          text: r.text,
-          offset: r.position.offset,
-          length: r.position.length,
-        },
-        referencedDocumentId: r.targetDocumentId,
-        entityTypes: r.entityTypes || [],
-        referenceTags: r.referenceType ? [r.referenceType] : [],
-        createdBy: '',
-        createdAt: projection.createdAt,
-      })),
-    ];
+    // Projections now store full Annotation objects - convert null to undefined for schema compatibility
+    const normalizeAnnotation = (ann: any) => ({
+      ...ann,
+      referencedDocumentId: ann.referencedDocumentId || undefined,
+    });
 
-    const highlights = selections.filter(s => s.selectionType === 'highlight');
-    const references = selections.filter(s => s.selectionType === 'reference');
+    const annotations = [...projection.highlights.map(normalizeAnnotation), ...projection.references.map(normalizeAnnotation)];
+    const highlights = projection.highlights.map(normalizeAnnotation);
+    const references = projection.references.map(normalizeAnnotation);
     const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
 
     return c.json({
@@ -101,7 +76,7 @@ export function registerGetDocument(router: DocumentsRouterType) {
         createdBy: '',
         createdAt: projection.createdAt,
       },
-      selections,
+      annotations,
       highlights,
       references,
       entityReferences,
