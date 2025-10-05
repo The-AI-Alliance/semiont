@@ -174,7 +174,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         contentChecksum: input.contentChecksum,
       };
 
-      if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+      if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
       if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
 
       const result = await session.run(
@@ -189,7 +189,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           createdBy: $createdBy,
           creationMethod: $creationMethod,
           contentChecksum: $contentChecksum,
-          sourceSelectionId: $sourceSelectionId,
+          sourceAnnotationId: $sourceAnnotationId,
           sourceDocumentId: $sourceDocumentId
         }) RETURN d`,
         {
@@ -203,7 +203,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           createdBy: document.createdBy,
           creationMethod: document.creationMethod,
           contentChecksum: document.contentChecksum,
-          sourceSelectionId: document.sourceSelectionId ?? null,
+          sourceAnnotationId: document.sourceAnnotationId ?? null,
           sourceDocumentId: document.sourceDocumentId ?? null,
         }
       );
@@ -964,7 +964,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       createdBy: props.createdBy,
       creationMethod: props.creationMethod,
       contentChecksum: props.contentChecksum,
-      sourceSelectionId: props.sourceSelectionId,
+      sourceAnnotationId: props.sourceAnnotationId,
       sourceDocumentId: props.sourceDocumentId,
     };
   }

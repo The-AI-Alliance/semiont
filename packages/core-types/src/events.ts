@@ -204,7 +204,7 @@ export interface DocumentProjection {
   updatedAt: string;
   version: number;  // Number of events applied
   creationMethod: string;  // 'API', 'CLONE', 'FROM_SELECTION', etc.
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;  // userId (DID format)
 }

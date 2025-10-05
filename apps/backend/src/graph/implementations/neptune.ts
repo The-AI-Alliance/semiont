@@ -85,8 +85,8 @@ function vertexToDocument(vertex: any): Document {
     contentChecksum: getValue('contentChecksum', true),
   };
 
-  const sourceSelectionId = getValue('sourceSelectionId');
-  if (sourceSelectionId) doc.sourceSelectionId = sourceSelectionId;
+  const sourceAnnotationId = getValue('sourceAnnotationId');
+  if (sourceAnnotationId) doc.sourceAnnotationId = sourceAnnotationId;
 
   const sourceDocumentId = getValue('sourceDocumentId');
   if (sourceDocumentId) doc.sourceDocumentId = sourceDocumentId;
@@ -308,7 +308,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
     };
-    if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+    if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
     if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
     
     // Create vertex in Neptune
@@ -325,8 +325,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('entityTypes', JSON.stringify(document.entityTypes))
         .property('metadata', JSON.stringify(document.metadata));
 
-      if (document.sourceSelectionId) {
-        vertex.property('sourceSelectionId', document.sourceSelectionId);
+      if (document.sourceAnnotationId) {
+        vertex.property('sourceAnnotationId', document.sourceAnnotationId);
       }
       if (document.sourceDocumentId) {
         vertex.property('sourceDocumentId', document.sourceDocumentId);

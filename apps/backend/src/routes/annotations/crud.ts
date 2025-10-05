@@ -14,7 +14,7 @@ export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
 // CREATE
 const createSelectionRoute = createRoute({
   method: 'post',
-  path: '/api/selections',
+  path: '/api/annotations',
   summary: 'Create Selection',
   description: 'Create a new selection/reference in a document',
   tags: ['Selections'],
@@ -105,7 +105,7 @@ const GetSelectionResponse = z.object({
 // GET
 const getSelectionRoute = createRoute({
   method: 'get',
-  path: '/api/selections/{id}',
+  path: '/api/annotations/{id}',
   summary: 'Get Selection',
   description: 'Get a selection by ID',
   tags: ['Selections'],
@@ -157,7 +157,7 @@ const ListSelectionsResponse = z.object({
 // LIST
 const listSelectionsRoute = createRoute({
   method: 'get',
-  path: '/api/selections',
+  path: '/api/annotations',
   summary: 'List Selections',
   description: 'List all selections with filters',
   tags: ['Selections'],
@@ -218,7 +218,7 @@ const ResolveSelectionResponse = z.object({
 // RESOLVE
 const resolveSelectionRoute = createRoute({
   method: 'put',
-  path: '/api/selections/{id}/resolve',
+  path: '/api/annotations/{id}/resolve',
   summary: 'Resolve Selection',
   description: 'Resolve a reference selection to a target document',
   tags: ['Selections'],
@@ -281,7 +281,7 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
 // DELETE
 const deleteSelectionRoute = createRoute({
   method: 'delete',
-  path: '/api/selections/{id}',
+  path: '/api/annotations/{id}',
   summary: 'Delete Selection',
   description: 'Delete a selection (requires documentId in body for O(1) Layer 3 lookup)',
   tags: ['Selections'],

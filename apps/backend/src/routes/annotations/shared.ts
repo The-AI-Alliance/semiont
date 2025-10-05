@@ -9,6 +9,6 @@ export type AnnotationsRouterType = OpenAPIHono<{ Variables: { user: User } }>;
 // Create a router with auth middleware pre-applied
 export function createAnnotationRouter(): AnnotationsRouterType {
   const router = new OpenAPIHono<{ Variables: { user: User } }>();
-  router.use('/api/selections/*', authMiddleware);
+  router.use('/api/annotations/*', authMiddleware);
   return router;
 }

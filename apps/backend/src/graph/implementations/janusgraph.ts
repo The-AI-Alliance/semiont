@@ -102,7 +102,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
       creationMethod,
       contentChecksum,
-      sourceSelectionId: this.getPropertyValue(props, 'sourceSelectionId'),
+      sourceAnnotationId: this.getPropertyValue(props, 'sourceAnnotationId'),
       sourceDocumentId: this.getPropertyValue(props, 'sourceDocumentId'),
     };
   }
@@ -149,7 +149,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       createdBy: input.createdBy,
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
-      sourceSelectionId: input.sourceSelectionId,
+      sourceAnnotationId: input.sourceAnnotationId,
       sourceDocumentId: input.sourceDocumentId,
     };
 
@@ -167,8 +167,8 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('creationMethod', input.creationMethod)
       .property('contentChecksum', input.contentChecksum);
 
-    if (input.sourceSelectionId) {
-      vertex.property('sourceSelectionId', input.sourceSelectionId);
+    if (input.sourceAnnotationId) {
+      vertex.property('sourceAnnotationId', input.sourceAnnotationId);
     }
     if (input.sourceDocumentId) {
       vertex.property('sourceDocumentId', input.sourceDocumentId);

@@ -11,7 +11,7 @@ export const DocumentSchema = z.object({
   archived: z.boolean(),
   entityTypes: z.array(z.string()),
   creationMethod: z.string(),
-  sourceSelectionId: z.string().optional(),
+  sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
   createdBy: z.string(),
   createdAt: z.string(),
@@ -44,7 +44,7 @@ export const CreateDocumentRequestSchema = z.object({
   entityTypes: z.array(z.string()).optional().default([]),
   metadata: z.record(z.string(), z.any()).optional().default({}),
   creationMethod: z.string().optional(),
-  sourceSelectionId: z.string().optional(),
+  sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
 });
 

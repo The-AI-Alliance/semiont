@@ -10,7 +10,7 @@ export function formatDocument(doc: (Document | {
   archived: boolean;
   entityTypes: string[];
   creationMethod: string;
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;
   createdAt: Date | string;
@@ -24,7 +24,7 @@ export function formatDocument(doc: (Document | {
     entityTypes: doc.entityTypes || [],
 
     creationMethod: doc.creationMethod,
-    sourceSelectionId: doc.sourceSelectionId,
+    sourceAnnotationId: doc.sourceAnnotationId,
     sourceDocumentId: doc.sourceDocumentId,
 
     createdBy: doc.createdBy,

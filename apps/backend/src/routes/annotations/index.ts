@@ -11,8 +11,8 @@ export const annotationsRouter = new OpenAPIHono<{ Variables: { user: User } }>(
 
 // Mount all sub-routers
 // IMPORTANT: operationsRouter must come BEFORE crudRouter so that specific routes
-// like /api/selections/{id}/generate-document-stream are registered before the
-// catch-all /api/selections/{id} route
+// like /api/annotations/{id}/generate-document-stream are registered before the
+// catch-all /api/annotations/{id} route
 annotationsRouter.route('/', operationsRouter); // operationsRouter already includes generate-document-stream
 annotationsRouter.route('/', crudRouter);
 

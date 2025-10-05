@@ -20,7 +20,7 @@ export interface DocumentMetadata {
   createdAt: string;
   updatedAt: string;
   creationMethod: string;
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;
 }
@@ -56,7 +56,7 @@ export class DocumentQueryService {
         createdAt: projection.createdAt,
         updatedAt: projection.updatedAt,
         creationMethod: projection.creationMethod,
-        sourceSelectionId: projection.sourceSelectionId,
+        sourceAnnotationId: projection.sourceAnnotationId,
         sourceDocumentId: projection.sourceDocumentId,
         createdBy: projection.createdBy,
       };
@@ -125,7 +125,7 @@ export class DocumentQueryService {
               createdAt: projection.createdAt,
               updatedAt: projection.updatedAt,
               creationMethod: projection.creationMethod,
-              sourceSelectionId: projection.sourceSelectionId,
+              sourceAnnotationId: projection.sourceAnnotationId,
               sourceDocumentId: projection.sourceDocumentId,
               createdBy: projection.createdBy,
             });

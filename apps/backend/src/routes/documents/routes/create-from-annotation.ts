@@ -74,7 +74,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       metadata: { ...body.metadata, createdFromSelection: selectionId },
       entityTypes: selection.entityTypes || [],
       creationMethod: CREATION_METHODS.REFERENCE,
-      sourceSelectionId: selectionId,
+      sourceAnnotationId: selectionId,
       sourceDocumentId: selection.documentId,
       contentChecksum: checksum,
       createdBy: user.id,
@@ -93,7 +93,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       metadata: document.metadata,
       createdBy: document.createdBy!,
       creationMethod: document.creationMethod,
-      sourceSelectionId: document.sourceSelectionId,
+      sourceAnnotationId: document.sourceAnnotationId,
       sourceDocumentId: document.sourceDocumentId,
     };
 

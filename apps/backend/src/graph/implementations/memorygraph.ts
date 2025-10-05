@@ -63,7 +63,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     };
 
     // Provenance tracking fields
-    if (input.sourceSelectionId) document.sourceSelectionId = input.sourceSelectionId;
+    if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
     if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
     
     // Simply add to in-memory map

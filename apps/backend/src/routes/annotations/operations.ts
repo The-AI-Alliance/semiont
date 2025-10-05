@@ -62,7 +62,7 @@ const ContextualSummaryResponse = z.object({
 // CREATE DOCUMENT FROM SELECTION
 const createDocumentFromSelectionRoute = createRoute({
   method: 'post',
-  path: '/api/selections/{id}/create-document',
+  path: '/api/annotations/{id}/create-document',
   summary: 'Create Document from Selection',
   description: 'Create a new document from a selection and resolve the selection to it',
   tags: ['Selections'],
@@ -168,7 +168,7 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
 // GENERATE DOCUMENT FROM SELECTION
 const generateDocumentFromSelectionRoute = createRoute({
   method: 'post',
-  path: '/api/selections/{id}/generate-document',
+  path: '/api/annotations/{id}/generate-document',
   summary: 'Generate Document from Selection',
   description: 'Use AI to generate document content from a selection',
   tags: ['Selections'],
@@ -298,7 +298,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
 // GET SELECTION CONTEXT
 const getSelectionContextRoute = createRoute({
   method: 'get',
-  path: '/api/selections/{id}/context',
+  path: '/api/annotations/{id}/context',
   summary: 'Get Selection Context',
   description: 'Get the context around a selection',
   tags: ['Selections'],
@@ -392,7 +392,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
 // GET CONTEXTUAL SUMMARY
 const getContextualSummaryRoute = createRoute({
   method: 'get',
-  path: '/api/selections/{id}/summary',
+  path: '/api/annotations/{id}/summary',
   summary: 'Get Contextual Summary',
   description: 'Get an AI-generated summary of the selection in context',
   tags: ['Selections'],

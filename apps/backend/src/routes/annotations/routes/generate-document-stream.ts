@@ -24,7 +24,7 @@ interface GenerationProgress {
  */
 export const generateDocumentStreamRoute = createRoute({
   method: 'post',
-  path: '/api/selections/{id}/generate-document-stream',
+  path: '/api/annotations/{id}/generate-document-stream',
   summary: 'Generate Document from Reference (SSE)',
   description: 'Stream real-time document generation progress via Server-Sent Events',
   tags: ['Selections', 'Documents', 'Real-time', 'AI'],
