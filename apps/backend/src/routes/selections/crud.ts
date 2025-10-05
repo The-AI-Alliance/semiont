@@ -80,7 +80,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
 
   // Return optimistic response (consumer will update GraphDB async)
   return c.json({
-    selection: {
+    annotation: {
       id: selectionId,
       documentId: body.documentId,
       text: body.text,

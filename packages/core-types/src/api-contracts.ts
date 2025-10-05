@@ -11,12 +11,11 @@
 import { z } from 'zod';
 
 /**
- * Create Selection Request
+ * Create Annotation Request
  *
- * Backend API format for creating a selection (highlight or reference)
- * Maps to Annotation type
+ * Backend API format for creating an annotation (highlight or reference)
  */
-export const CreateSelectionRequestSchema = z.object({
+export const CreateAnnotationRequestSchema = z.object({
   documentId: z.string(),
   text: z.string(),
   selectionData: z.object({
@@ -32,13 +31,13 @@ export const CreateSelectionRequestSchema = z.object({
   referencedDocumentId: z.string().nullable().optional(),
 });
 
-export type CreateSelectionRequest = z.infer<typeof CreateSelectionRequestSchema>;
+export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSchema>;
 
 /**
- * Create Selection Response
+ * Create Annotation Response
  */
-export const CreateSelectionResponseSchema = z.object({
-  selection: z.object({
+export const CreateAnnotationResponseSchema = z.object({
+  annotation: z.object({
     id: z.string(),
     documentId: z.string(),
     text: z.string(),
@@ -57,7 +56,13 @@ export const CreateSelectionResponseSchema = z.object({
   }),
 });
 
-export type CreateSelectionResponse = z.infer<typeof CreateSelectionResponseSchema>;
+export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSchema>;
+
+// Legacy aliases for backward compatibility
+export const CreateSelectionRequestSchema = CreateAnnotationRequestSchema;
+export type CreateSelectionRequest = CreateAnnotationRequest;
+export const CreateSelectionResponseSchema = CreateAnnotationResponseSchema;
+export type CreateSelectionResponse = CreateAnnotationResponse;
 
 /**
  * Annotation format returned by highlights/references endpoints

@@ -484,6 +484,7 @@ export function DocumentViewer({
             selectionData: editingAnnotation.selectionData,
             type: editingAnnotation.type,
             createdBy: editingAnnotation.createdBy,
+            createdAt: editingAnnotation.createdAt,
             entityTypes: editingAnnotation.entityTypes || [],
             ...(editingAnnotation.referenceType && { referenceType: editingAnnotation.referenceType }),
             ...(editingAnnotation.referencedDocumentId && { referencedDocumentId: editingAnnotation.referencedDocumentId }),
