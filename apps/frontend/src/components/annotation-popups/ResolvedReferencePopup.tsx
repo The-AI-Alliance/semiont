@@ -50,23 +50,23 @@ export function ResolvedReferencePopup({
 
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
-      resolvedDocumentId: null,
+      referencedDocumentId: null,
     });
   };
 
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
       type: 'highlight',
-      entityType: null,
+      entityTypes: null,
       referenceType: null,
-      resolvedDocumentId: null,
+      referencedDocumentId: null,
     });
   };
 
   const handleDelete = () => {
     onDeleteAnnotation();
     onClose();
-  };
+    };
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
@@ -74,8 +74,8 @@ export function ResolvedReferencePopup({
 
       <SelectedTextDisplay text={selection.text} />
 
-      {annotation.entityType && (
-        <EntityTypeBadges entityTypes={annotation.entityType} />
+      {annotation.entityTypes && annotation.entityTypes.length > 0 && (
+        <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
       )}
 
       {annotation.referenceType && (

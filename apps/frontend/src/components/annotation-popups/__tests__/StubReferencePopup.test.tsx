@@ -49,8 +49,16 @@ describe('StubReferencePopup', () => {
     } as TextSelection,
     annotation: {
       id: 'test-annotation',
+      documentId: 'test-doc',
+      text: 'Selected text',
+      selectionData: {
+        type: 'text_span',
+        offset: 0,
+        length: 13,
+        text: 'Selected text'
+      },
       type: 'reference',
-      entityType: 'Person',
+      entityTypes: ['Person'],
       referenceType: 'Mention'
     } as ReferenceAnnotation,
     onUpdateAnnotation: mockOnUpdateAnnotation,

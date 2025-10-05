@@ -5,10 +5,6 @@ import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { Annotation } from '@semiont/core-types';
 
-// Use core-types Annotation as single source of truth
-// (re-export for convenience)
-export type { Annotation } from '@semiont/core-types';
-
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations

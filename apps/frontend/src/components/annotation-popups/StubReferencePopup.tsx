@@ -49,7 +49,7 @@ export function StubReferencePopup({
 
   const handleSelectDocument = (documentId: string) => {
     onUpdateAnnotation({
-      resolvedDocumentId: documentId,
+      referencedDocumentId: documentId,
     });
     setShowSearchModal(false);
   };
@@ -64,9 +64,9 @@ export function StubReferencePopup({
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
       type: 'highlight',
-      entityType: null,
+      entityTypes: null,
       referenceType: null,
-      resolvedDocumentId: null,
+      referencedDocumentId: null,
     });
   };
 
@@ -82,8 +82,8 @@ export function StubReferencePopup({
 
         <SelectedTextDisplay text={selection.text} />
 
-        {annotation.entityType && (
-          <EntityTypeBadges entityTypes={annotation.entityType} />
+        {annotation.entityTypes && annotation.entityTypes.length > 0 && (
+          <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
         )}
 
         {annotation.referenceType && (

@@ -39,7 +39,7 @@ export function AnnotationPopup({
     if (!annotation) return 'initial';
     if (annotation.type === 'highlight') return 'highlight';
     if (annotation.type === 'reference') {
-      return annotation.resolvedDocumentId ? 'resolved_reference' : 'stub_reference';
+      return annotation.referencedDocumentId ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';
   };

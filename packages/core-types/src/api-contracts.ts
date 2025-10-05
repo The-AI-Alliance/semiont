@@ -79,6 +79,7 @@ const AnnotationSchema = z.object({
   }),
   type: z.enum(['highlight', 'reference']),            // REQUIRED
   referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
+  resolvedDocumentName: z.string().optional(),         // OPTIONAL (name of referenced document)
   entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
   referenceType: z.string().optional(),                // OPTIONAL
 });
@@ -103,6 +104,7 @@ export interface AnnotationUpdate {
   entityTypes?: string[] | null;
   referenceType?: string | null;
   referencedDocumentId?: string | null;
+  resolvedDocumentName?: string | null;
 }
 
 /**

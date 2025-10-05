@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
+import type { Annotation } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment as CMTextSegment } from '@/components/CodeMirrorRenderer';
