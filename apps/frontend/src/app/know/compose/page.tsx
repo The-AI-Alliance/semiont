@@ -250,10 +250,10 @@ function ComposeDocumentContent() {
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-8">
+      <div className="flex-1 overflow-y-auto px-4 py-8 bg-white dark:bg-gray-900">
         {/* Page Title */}
         <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-2xl font-bold text-black dark:text-white">
           {isClone ? 'Edit Cloned Document' : isReferenceCompletion ? 'Complete Reference' : 'Compose New Document'}
         </h1>
         {(isClone || isReferenceCompletion) && (
