@@ -6,17 +6,17 @@ import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 
 // Local schema
-const GetSelectionsResponse = z.object({
-  selections: z.array(z.any()),
+const GetAnnotationsResponse = z.object({
+  annotations: z.array(z.any()),
 });
 
-// GET /api/documents/{id}/selections
-export const getDocumentSelectionsRoute = createRoute({
+// GET /api/documents/{id}/annotations
+export const getDocumentAnnotationsRoute = createRoute({
   method: 'get',
-  path: '/api/documents/{id}/selections',
-  summary: 'Get Document Selections',
-  description: 'Get all selections (both highlights and references) in a document',
-  tags: ['Documents', 'Selections'],
+  path: '/api/documents/{id}/annotations',
+  summary: 'Get Document Annotations',
+  description: 'Get all annotations (both highlights and references) in a document',
+  tags: ['Documents', 'Annotations'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -27,29 +27,29 @@ export const getDocumentSelectionsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetSelectionsResponse,
+          schema: GetAnnotationsResponse,
         },
       },
-      description: 'Document selections',
+      description: 'Document annotations',
     },
   },
 });
 
-export function registerGetDocumentSelections(router: DocumentsRouterType) {
-  router.openapi(getDocumentSelectionsRoute, async (c) => {
+export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
+  router.openapi(getDocumentAnnotationsRoute, async (c) => {
     const { id } = c.req.valid('param');
 
     try {
       // Try Layer 3 first (fast path - O(1) file read)
-      const selections = await AnnotationQueryService.getAllSelections(id);
+      const annotations = await AnnotationQueryService.getAllSelections(id);
 
       // Layer 3 projections have simplified format - return directly
       return c.json({
-        selections
+        annotations
       });
     } catch (error) {
       // Fallback to GraphDB if projection missing
-      console.warn(`[Selections] Layer 3 miss for ${id}, falling back to GraphDB`);
+      console.warn(`[Annotations] Layer 3 miss for ${id}, falling back to GraphDB`);
 
       const graphDb = await getGraphDatabase();
       const document = await graphDb.getDocument(id);
@@ -61,7 +61,7 @@ export function registerGetDocumentSelections(router: DocumentsRouterType) {
       const references = await graphDb.getReferences(id);
 
       return c.json({
-        selections: [...highlights, ...references].map(formatAnnotation)
+        annotations: [...highlights, ...references].map(formatAnnotation)
       });
     }
   });

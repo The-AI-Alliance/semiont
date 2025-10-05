@@ -6,12 +6,12 @@ import { detectSelectionsInDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
-const DetectSelectionsRequest = z.object({
+const DetectAnnotationsRequest = z.object({
   entityTypes: z.array(z.string()).optional(),
 });
 
-const DetectSelectionsResponse = z.object({
-  selections: z.array(z.object({
+const DetectAnnotationsResponse = z.object({
+  annotations: z.array(z.object({
     id: z.string(),
     documentId: z.string(),
     selectionData: z.any(),
@@ -22,10 +22,10 @@ const DetectSelectionsResponse = z.object({
   detected: z.number().int().min(0),
 });
 
-export const detectSelectionsRoute = createRoute({
+export const detectAnnotationsRoute = createRoute({
   method: 'post',
-  path: '/api/documents/{id}/detect-selections',
-  summary: 'Detect Selections',
+  path: '/api/documents/{id}/detect-annotations',
+  summary: 'Detect Annotations',
   description: 'Use AI to detect entity references in document',
   tags: ['Documents', 'AI'],
   security: [{ bearerAuth: [] }],
@@ -36,7 +36,7 @@ export const detectSelectionsRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: DetectSelectionsRequest,
+          schema: DetectAnnotationsRequest,
         },
       },
     },
@@ -45,16 +45,16 @@ export const detectSelectionsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DetectSelectionsResponse,
+          schema: DetectAnnotationsResponse,
         },
       },
-      description: 'Detected selections',
+      description: 'Detected annotations',
     },
   },
 });
 
-export function registerDetectSelections(router: DocumentsRouterType) {
-  router.openapi(detectSelectionsRoute, async (c) => {
+export function registerDetectAnnotations(router: DocumentsRouterType) {
+  router.openapi(detectAnnotationsRoute, async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const user = c.get('user');
@@ -93,9 +93,9 @@ export function registerDetectSelections(router: DocumentsRouterType) {
       savedSelections.push(saved);
     }
 
-    console.log('Returning', savedSelections.length, 'saved selections');
+    console.log('Returning', savedSelections.length, 'saved annotations');
     return c.json({
-      selections: savedSelections.map(s => ({
+      annotations: savedSelections.map(s => ({
         id: s.id,
         documentId: s.documentId,
         selectionData: s.selectionData,

@@ -58,12 +58,6 @@ export const CreateAnnotationResponseSchema = z.object({
 
 export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSchema>;
 
-// Legacy aliases for backward compatibility
-export const CreateSelectionRequestSchema = CreateAnnotationRequestSchema;
-export type CreateSelectionRequest = CreateAnnotationRequest;
-export const CreateSelectionResponseSchema = CreateAnnotationResponseSchema;
-export type CreateSelectionResponse = CreateAnnotationResponse;
-
 /**
  * Annotation format returned by highlights/references endpoints
  *

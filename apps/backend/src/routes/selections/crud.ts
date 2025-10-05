@@ -4,7 +4,7 @@ import { createSelectionRouter, type SelectionsRouterType } from './shared';
 import { formatDocument, formatAnnotation } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
-import { CreateSelectionRequestSchema, CreateSelectionResponseSchema } from '@semiont/core-types';
+import { CreateAnnotationRequestSchema, CreateAnnotationResponseSchema } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 
@@ -23,7 +23,7 @@ const createSelectionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateSelectionRequestSchema,
+          schema: CreateAnnotationRequestSchema,
         },
       },
     },
@@ -32,7 +32,7 @@ const createSelectionRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateSelectionResponseSchema,
+          schema: CreateAnnotationResponseSchema,
         },
       },
       description: 'Selection created successfully',

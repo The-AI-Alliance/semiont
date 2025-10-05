@@ -11,7 +11,7 @@ import {
   DocumentFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateSelectionRequest,
+  CreateAnnotationRequest,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -161,7 +161,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return results;
   }
   
-  async createAnnotation(input: CreateSelectionRequest): Promise<Annotation> {
+  async createAnnotation(input: CreateAnnotationRequest): Promise<Annotation> {
     const id = this.generateId();
 
     const annotation: Annotation = {
@@ -420,7 +420,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     };
   }
   
-  async createAnnotations(inputs: CreateSelectionRequest[]): Promise<Annotation[]> {
+  async createAnnotations(inputs: CreateAnnotationRequest[]): Promise<Annotation[]> {
     // In production: Use batch operations for better performance
     // const tx = graph.tx()
     // tx.rollback()

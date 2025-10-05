@@ -12,7 +12,7 @@ import {
   DocumentFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateSelectionRequest,
+  CreateAnnotationRequest,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -335,7 +335,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createAnnotation(input: CreateSelectionRequest): Promise<Annotation> {
+  async createAnnotation(input: CreateAnnotationRequest): Promise<Annotation> {
     const session = this.getSession();
     try {
       const id = this.generateId();
@@ -803,7 +803,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createAnnotations(inputs: CreateSelectionRequest[]): Promise<Annotation[]> {
+  async createAnnotations(inputs: CreateAnnotationRequest[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
     for (const input of inputs) {
       results.push(await this.createAnnotation(input));

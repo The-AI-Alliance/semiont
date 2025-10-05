@@ -21,12 +21,12 @@ interface DetectionProgress {
 /**
  * SSE endpoint for real-time detection progress updates
  */
-export const detectSelectionsStreamRoute = createRoute({
+export const detectAnnotationsStreamRoute = createRoute({
   method: 'post',
-  path: '/api/documents/{id}/detect-selections-stream',
-  summary: 'Detect Selections with Progress (SSE)',
+  path: '/api/documents/{id}/detect-annotations-stream',
+  summary: 'Detect Annotations with Progress (SSE)',
   description: 'Stream real-time entity detection progress via Server-Sent Events',
-  tags: ['Documents', 'Selections', 'Real-time'],
+  tags: ['Documents', 'Annotations', 'Real-time'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -64,8 +64,8 @@ export const detectSelectionsStreamRoute = createRoute({
   },
 });
 
-export function registerDetectSelectionsStream(router: DocumentsRouterType) {
-  router.openapi(detectSelectionsStreamRoute, async (c) => {
+export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
+  router.openapi(detectAnnotationsStreamRoute, async (c) => {
     const { id } = c.req.valid('param');
     const { entityTypes } = c.req.valid('json');
 

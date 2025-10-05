@@ -77,14 +77,14 @@ export {
 
 // API Contract schemas and types
 export {
-  CreateSelectionRequestSchema,
-  CreateSelectionResponseSchema,
+  CreateAnnotationRequestSchema,
+  CreateAnnotationResponseSchema,
   GetHighlightsResponseSchema,
   GetReferencesResponseSchema,
 } from './api-contracts';
 export type {
-  CreateSelectionRequest,
-  CreateSelectionResponse,
+  CreateAnnotationRequest,
+  CreateAnnotationResponse,
   Annotation,
   HighlightAnnotation,
   ReferenceAnnotation,

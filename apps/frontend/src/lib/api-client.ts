@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import type { StoredEvent, CreateSelectionRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
+import type { StoredEvent, CreateAnnotationRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
 import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
 
 /**
@@ -45,7 +45,7 @@ export const QUERY_KEYS = {
  * Frontend convenience format for creating selections
  *
  * This is a simpler, more ergonomic format for React components to use.
- * It gets transformed to CreateSelectionRequest (from @semiont/core-types) by the API client.
+ * It gets transformed to CreateAnnotationRequest (from @semiont/core-types) by the API client.
  *
  * Transformation:
  * - { text, position: { start, end } } → { selectionType: { type: 'text_span', offset, length, text } }
@@ -607,9 +607,9 @@ export const apiService: APIService = {
       apiClient.get('/api/documents/:id/referenced-by', { params: { id } }),
     
     detectSelections: (id: string, entityTypes: string[]): Promise<{ message: string; detectionsStarted: number }> =>
-      apiClient.post('/api/documents/:id/detect-selections', { 
-        params: { id }, 
-        body: { entityTypes } 
+      apiClient.post('/api/documents/:id/detect-annotations', {
+        params: { id },
+        body: { entityTypes }
       }),
     
     getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
@@ -660,7 +660,7 @@ export const apiService: APIService = {
   selections: {
     create: (data: CreateSelectionInput): Promise<SelectionResponse> => {
       // Transform frontend convenience format to backend API format
-      interface CreateSelectionRequestBody {
+      interface CreateAnnotationRequestBody {
         documentId: string;
         selectionType: {
           type: 'text_span';
@@ -673,7 +673,7 @@ export const apiService: APIService = {
         resolvedDocumentId?: string | null;
       }
 
-      const body: CreateSelectionRequestBody = {
+      const body: CreateAnnotationRequestBody = {
         documentId: data.documentId,
         selectionType: {
           type: 'text_span',
@@ -1226,8 +1226,8 @@ export const api: ReactQueryAPI = {
         return useAuthenticatedMutation<SelectionResponse, CreateSelectionInput>(
           async (input: CreateSelectionInput, fetchAPI) => {
             // Transform frontend convenience format to backend API contract format
-            // CreateSelectionInput → CreateSelectionRequest (from @semiont/core-types)
-            const body: CreateSelectionRequest = {
+            // CreateSelectionInput → CreateAnnotationRequest (from @semiont/core-types)
+            const body: CreateAnnotationRequest = {
               documentId: input.documentId,
               text: input.text,
               selectionData: {
