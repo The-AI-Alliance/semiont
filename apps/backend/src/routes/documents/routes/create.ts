@@ -1,6 +1,6 @@
 import { createRoute } from '@hono/zod-openapi';
 import { getStorageService } from '../../../storage/filesystem';
-import { CREATION_METHODS } from '@semiont/core-types';
+import { CREATION_METHODS, type CreationMethod } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import type { DocumentsRouterType } from '../shared';
 import { CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '../schemas';
@@ -57,10 +57,16 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       // Don't fail the request - consumer can catch up later
     }
 
+    // Validate and use creationMethod from request body, or default to API
+    const validCreationMethods = Object.values(CREATION_METHODS) as string[];
+    const creationMethod: CreationMethod = body.creationMethod && validCreationMethods.includes(body.creationMethod)
+      ? body.creationMethod as CreationMethod
+      : CREATION_METHODS.API;
+
     // Emit document.created event (consumer will update GraphDB)
     const eventMetadata = {
       ...(body.metadata || {}),
-      creationMethod: CREATION_METHODS.API,
+      creationMethod,
     };
     console.log('[CreateDocument] Event metadata:', eventMetadata);
 
@@ -83,7 +89,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         contentType: body.contentType || 'text/plain',
         metadata: body.metadata || {},
         entityTypes: body.entityTypes || [],
-        creationMethod: CREATION_METHODS.API,
+        creationMethod,
         contentChecksum: checksum,
         createdBy: user.id,
         createdAt: new Date().toISOString(),

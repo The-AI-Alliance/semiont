@@ -192,7 +192,8 @@ function ComposeDocumentContent() {
           name: newDocName,
           content: newDocContent,
           contentType: 'text/markdown',
-          entityTypes: selectedEntityTypes
+          entityTypes: selectedEntityTypes,
+          creationMethod: 'ui'
         });
 
         if (!response.document?.id) {
