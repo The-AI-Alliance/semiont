@@ -58,25 +58,61 @@ export type CreateSelectionResponse = z.infer<typeof CreateSelectionResponseSche
 /**
  * Annotation format returned by highlights/references endpoints
  *
- * This is the standardized format that frontend components expect
+ * This is the SINGLE SOURCE OF TRUTH for annotation types.
+ *
+ * Field Requirements:
+ * - text: REQUIRED (not optional)
+ * - type: REQUIRED (not optional)
+ * - referencedDocumentId: OPTIONAL and nullable
+ * - entityTypes: REQUIRED (always present, defaults to empty array)
+ * - referenceType: OPTIONAL
  */
 const AnnotationSchema = z.object({
   id: z.string(),
   documentId: z.string(),
-  text: z.string(),
+  text: z.string(),                                    // REQUIRED
   selectionData: z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),
     text: z.string(),
   }),
-  type: z.enum(['highlight', 'reference']),
-  referencedDocumentId: z.string().optional(),
-  entityTypes: z.array(z.string()).optional(),
-  referenceType: z.string().optional(),
+  type: z.enum(['highlight', 'reference']),            // REQUIRED
+  referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
+  entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
+  referenceType: z.string().optional(),                // OPTIONAL
 });
 
 export type Annotation = z.infer<typeof AnnotationSchema>;
+
+/**
+ * Highlight-specific annotation type
+ */
+export type HighlightAnnotation = Annotation & { type: 'highlight' };
+
+/**
+ * Reference-specific annotation type
+ */
+export type ReferenceAnnotation = Annotation & { type: 'reference' };
+
+/**
+ * Annotation update payload (all fields optional except what's being changed)
+ */
+export interface AnnotationUpdate {
+  type?: 'highlight' | 'reference';
+  entityTypes?: string[] | null;
+  referenceType?: string | null;
+  referencedDocumentId?: string | null;
+}
+
+/**
+ * Text selection (position in document)
+ */
+export interface TextSelection {
+  text: string;
+  start: number;
+  end: number;
+}
 
 /**
  * Get Highlights Response

@@ -193,21 +193,8 @@ interface Document {
   createdBy?: string;
 }
 
-interface Selection {
-  id: string;
-  documentId: string;
-  text: string;
-  position: {
-    start: number;
-    end: number;
-  };
-  type: 'highlight' | 'reference';
-  referencedDocumentId?: string;
-  entityType?: string;
-  referenceType?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// Use core-types Annotation as single source of truth
+import type { Annotation } from '@semiont/core-types';
 
 interface DocumentsResponse {
   success: boolean;
@@ -222,13 +209,13 @@ interface DocumentResponse {
 
 interface SelectionsResponse {
   success: boolean;
-  selections: Selection[];
+  selections: Annotation[];
   total: number;
 }
 
 interface SelectionResponse {
   success: boolean;
-  selection: Selection;
+  selection: Annotation;
 }
 
 interface SchemaDescriptionResponse {
@@ -1334,7 +1321,6 @@ export type {
   OAuthProvider, 
   OAuthConfigResponse,
   Document,
-  Selection,
   DocumentsResponse,
   DocumentResponse,
   SelectionsResponse,

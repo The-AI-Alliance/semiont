@@ -5,7 +5,7 @@ import { CreateAnnotationPopup } from './annotation-popups/CreateAnnotationPopup
 import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
-import type { Annotation, AnnotationUpdate, TextSelection, HighlightAnnotation, ReferenceAnnotation } from '@/types/annotation';
+import type { Annotation, AnnotationUpdate, TextSelection, HighlightAnnotation, ReferenceAnnotation } from '@semiont/core-types';
 
 interface AnnotationPopupProps {
   isOpen: boolean;

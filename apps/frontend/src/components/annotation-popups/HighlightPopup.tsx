@@ -3,7 +3,7 @@
 import React from 'react';
 import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@/types/annotation';
+import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
 
 interface HighlightPopupProps {
   isOpen: boolean;

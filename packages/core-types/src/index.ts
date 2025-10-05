@@ -102,6 +102,10 @@ export type {
   CreateSelectionRequest,
   CreateSelectionResponse,
   Annotation,
+  HighlightAnnotation,
+  ReferenceAnnotation,
+  AnnotationUpdate,
+  TextSelection,
   GetHighlightsResponse,
   GetReferencesResponse,
 } from './api-contracts';

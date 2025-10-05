@@ -3,26 +3,11 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Selection } from '@semiont/core-types';
+import type { Annotation } from '@semiont/core-types';
 
-export interface Annotation {
-  id: string;
-  documentId: string;
-  selectionData?: {
-    type: string;
-    offset: number;
-    length: number;
-    text: string;
-  };
-  text?: string;
-  referencedDocumentId?: string;
-  entityType?: string;
-  entityTypes?: string[];
-  referenceType?: string;
-  type?: 'highlight' | 'reference';
-  createdAt?: string;
-  updatedAt?: string;
-}
+// Use core-types Annotation as single source of truth
+// (re-export for convenience)
+export type { Annotation } from '@semiont/core-types';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components

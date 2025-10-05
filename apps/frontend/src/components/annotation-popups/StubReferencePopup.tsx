@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/types/annotation';
+import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
 
 interface StubReferencePopupProps {
   isOpen: boolean;
