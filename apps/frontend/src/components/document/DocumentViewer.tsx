@@ -501,8 +501,7 @@ export function DocumentViewer({
             ...(editingAnnotation.entityType && { entityType: editingAnnotation.entityType }),
             ...(editingAnnotation.referenceType && { referenceType: editingAnnotation.referenceType }),
             ...(editingAnnotation.referencedDocumentId && { resolvedDocumentId: editingAnnotation.referencedDocumentId }),
-            ...(editingAnnotation.resolvedDocumentName && { resolvedDocumentName: editingAnnotation.resolvedDocumentName }),
-            provisional: !editingAnnotation.referencedDocumentId
+            ...(editingAnnotation.resolvedDocumentName && { resolvedDocumentName: editingAnnotation.resolvedDocumentName })
           }
         })}
         onCreateHighlight={handleCreateHighlight}

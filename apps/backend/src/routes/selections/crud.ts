@@ -233,7 +233,7 @@ const resolveSelectionRoute = createRoute({
   method: 'put',
   path: '/api/selections/{id}/resolve',
   summary: 'Resolve Selection',
-  description: 'Resolve a provisional selection to a target document',
+  description: 'Resolve a reference selection to a target document',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {

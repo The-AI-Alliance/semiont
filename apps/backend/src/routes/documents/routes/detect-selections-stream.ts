@@ -130,7 +130,7 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
             [entityType]
           );
 
-          // Create provisional references via events (event store updates Layer 3, graph consumer updates Layer 4)
+          // Create stub references via events (event store updates Layer 3, graph consumer updates Layer 4)
           // References will appear in Annotation History as they're created (via debounced refetch)
           for (const detected of detectedSelections) {
             const referenceId = generateAnnotationId();

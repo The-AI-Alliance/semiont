@@ -12,7 +12,7 @@ interface StubReferencePopupProps {
   onClose: () => void;
   position: { x: number; y: number };
   selection: TextSelection;
-  annotation: ReferenceAnnotation & { provisional?: boolean };
+  annotation: ReferenceAnnotation;
   onUpdateAnnotation: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation: () => void;
   onGenerateDocument?: (title: string, prompt?: string) => void;
@@ -50,7 +50,6 @@ export function StubReferencePopup({
   const handleSelectDocument = (documentId: string) => {
     onUpdateAnnotation({
       resolvedDocumentId: documentId,
-      provisional: false,
     });
     setShowSearchModal(false);
   };

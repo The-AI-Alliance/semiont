@@ -204,7 +204,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //     .property('id', id)
     //     .property('selectionType', selectionType)
     //     .property('saved', saved)
-    //     .property('provisional', provisional)
+    //      
     //     .property('confidence', confidence)
     //   graph.tx().commit()
     // `, { documentId, resolvedDocumentId, ... });

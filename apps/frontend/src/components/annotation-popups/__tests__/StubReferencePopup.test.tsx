@@ -51,8 +51,7 @@ describe('StubReferencePopup', () => {
       id: 'test-annotation',
       type: 'reference',
       entityType: 'Person',
-      referenceType: 'Mention',
-      provisional: true
+      referenceType: 'Mention'
     } as ReferenceAnnotation,
     onUpdateAnnotation: mockOnUpdateAnnotation,
     onDeleteAnnotation: mockOnDeleteAnnotation,

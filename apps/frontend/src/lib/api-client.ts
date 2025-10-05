@@ -54,7 +54,7 @@ export interface CreateSelectionInput {
   documentId: string;
   text: string;
   position: { start: number; end: number };
-  type?: 'provisional' | 'highlight' | 'reference';
+  type?: 'highlight' | 'reference';
   entityTypes?: string[];
   referenceTags?: string[];
   resolvedDocumentId?: string | null;
@@ -201,7 +201,7 @@ interface Selection {
     start: number;
     end: number;
   };
-  type: 'provisional' | 'highlight' | 'reference';
+  type: 'highlight' | 'reference';
   referencedDocumentId?: string;
   entityType?: string;
   referenceType?: string;
@@ -505,7 +505,7 @@ interface APIService {
       documentId: string;
       text: string;
       position: { start: number; end: number };
-      type?: 'provisional' | 'highlight' | 'reference';
+      type?: 'highlight' | 'reference';
       entityTypes?: string[];
       referenceTags?: string[];
       resolvedDocumentId?: string | null;

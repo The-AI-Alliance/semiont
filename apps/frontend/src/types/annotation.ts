@@ -16,7 +16,6 @@ export interface ReferenceAnnotation extends BaseAnnotation {
   referenceType?: string;
   resolvedDocumentId?: string;
   resolvedDocumentName?: string;
-  provisional?: boolean;
 }
 
 // Union type for all annotations
@@ -29,7 +28,6 @@ export interface AnnotationUpdate {
   referenceType?: string | null;
   resolvedDocumentId?: string | null;
   resolvedDocumentName?: string | null;
-  provisional?: boolean;
 }
 
 // Selection type

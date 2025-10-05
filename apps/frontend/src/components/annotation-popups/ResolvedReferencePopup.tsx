@@ -51,7 +51,6 @@ export function ResolvedReferencePopup({
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
       resolvedDocumentId: null,
-      provisional: true,
     });
   };
 

@@ -74,7 +74,7 @@ export function registerDetectSelections(router: DocumentsRouterType) {
     // Detect selections using AI
     const detectedSelections = await detectSelectionsInDocument(docWithContent, body.entityTypes || []);
 
-    // Save the provisional selections
+    // Save the stub references
     const savedSelections = [];
     for (const detected of detectedSelections) {
       const selectionInput: CreateSelectionInput & { selectionType: string } = {
