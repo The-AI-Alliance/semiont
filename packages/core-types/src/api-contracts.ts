@@ -11,9 +11,10 @@
 import { z } from 'zod';
 
 /**
- * Create Annotation Request
+ * Create Annotation API Request
  *
- * Backend API format for creating an annotation (highlight or reference)
+ * Frontend-to-backend API format for creating an annotation.
+ * createdBy is derived from authenticated user on backend.
  */
 export const CreateAnnotationRequestSchema = z.object({
   documentId: z.string(),
@@ -22,16 +23,26 @@ export const CreateAnnotationRequestSchema = z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),
-    text: z.string(),
   }),
   type: z.enum(['highlight', 'reference']),
-  createdBy: z.string(),
   entityTypes: z.array(z.string()).optional(),
   referenceType: z.string().optional(),
   referencedDocumentId: z.string().nullable().optional(),
 });
 
 export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSchema>;
+
+/**
+ * Create Annotation Internal Input
+ *
+ * Backend internal format used by graph implementations when consuming events.
+ * Includes createdBy from the event's userId.
+ */
+export const CreateAnnotationInternalSchema = CreateAnnotationRequestSchema.extend({
+  createdBy: z.string(),
+});
+
+export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSchema>;
 
 /**
  * Create Annotation Response
@@ -76,12 +87,11 @@ export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSc
 const AnnotationSchema = z.object({
   id: z.string(),
   documentId: z.string(),
-  text: z.string(),                                    // REQUIRED
+  text: z.string(),                                    // REQUIRED - full selected text
   selectionData: z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),
-    text: z.string(),
   }),
   type: z.enum(['highlight', 'reference']),            // REQUIRED
   createdBy: z.string(),                               // REQUIRED

@@ -55,7 +55,6 @@ describe('StubReferencePopup', () => {
         type: 'text_span',
         offset: 0,
         length: 13,
-        text: 'Selected text'
       },
       type: 'reference',
       entityTypes: ['Person'],

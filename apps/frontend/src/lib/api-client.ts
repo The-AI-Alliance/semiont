@@ -1234,10 +1234,8 @@ export const api: ReactQueryAPI = {
                 type: 'text_span',
                 offset: input.position.start,
                 length: input.position.end - input.position.start,
-                text: input.text
               },
               type: input.resolvedDocumentId !== undefined ? 'reference' : 'highlight',
-              createdBy: 'user', // TODO: get from auth context
               ...(input.entityTypes && { entityTypes: input.entityTypes }),
               ...(input.referenceTags?.[0] && { referenceType: input.referenceTags[0] }),
               ...(input.resolvedDocumentId !== undefined && { referencedDocumentId: input.resolvedDocumentId })

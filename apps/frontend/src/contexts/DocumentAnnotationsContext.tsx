@@ -153,7 +153,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Create new reference
       await addReference(
         highlight.documentId,
-        highlight.selectionData.text,
+        highlight.text,
         {
           start: highlight.selectionData.offset,
           end: highlight.selectionData.offset + highlight.selectionData.length
@@ -183,7 +183,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Create new highlight
       await addHighlight(
         reference.documentId,
-        reference.selectionData.text,
+        reference.text,
         {
           start: reference.selectionData.offset,
           end: reference.selectionData.offset + reference.selectionData.length

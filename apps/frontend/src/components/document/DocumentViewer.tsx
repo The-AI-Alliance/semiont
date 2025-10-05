@@ -142,7 +142,7 @@ export function DocumentViewer({
         ...reference,  // Include all fields from reference (documentId, text, selectionData, etc.)
         resolvedDocumentName: 'Document'
       });
-      setSelectedText(reference.selectionData?.text || '');
+      setSelectedText(reference.text || '');
       if (reference.selectionData) {
         setSelectionPosition({
           start: reference.selectionData.offset,

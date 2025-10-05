@@ -12,7 +12,7 @@ import {
   
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateAnnotationRequest,
+  CreateAnnotationInternal,
   
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
@@ -464,7 +464,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async createAnnotation(input: CreateAnnotationRequest): Promise<Annotation> {
+  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
     const annotation: Annotation = {
@@ -979,7 +979,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async createAnnotations(inputs: CreateAnnotationRequest[]): Promise<Annotation[]> {
+  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
 
     try {

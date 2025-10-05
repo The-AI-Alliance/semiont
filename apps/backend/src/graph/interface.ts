@@ -9,7 +9,7 @@ import {
   DocumentFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateAnnotationRequest,
+  CreateAnnotationInternal,
 } from '@semiont/core-types';
 
 export interface GraphDatabase {
@@ -28,7 +28,7 @@ export interface GraphDatabase {
   searchDocuments(query: string, limit?: number): Promise<Document[]>;
   
   // Annotation operations
-  createAnnotation(input: CreateAnnotationRequest): Promise<Annotation>;
+  createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;
   getAnnotation(id: string): Promise<Annotation | null>;
   updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation>;
   deleteAnnotation(id: string): Promise<void>;
@@ -63,7 +63,7 @@ export interface GraphDatabase {
   }>;
   
   // Bulk operations
-  createAnnotations(inputs: CreateAnnotationRequest[]): Promise<Annotation[]>;
+  createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
   resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]>;
 
   // Auto-detection

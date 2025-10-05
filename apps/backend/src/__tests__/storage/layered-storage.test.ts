@@ -111,7 +111,6 @@ describe('Layered Storage', () => {
               type: 'text_span',
               offset: 0,
               length: 9,
-              text: 'important'
             },
             type: 'highlight',
             createdBy: 'did:web:test.com:users:test',
