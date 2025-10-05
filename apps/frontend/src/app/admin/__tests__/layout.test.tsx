@@ -6,8 +6,12 @@ import { env } from '@/lib/env';
 
 // Mock the admin components
 // Note: AdminAuthWrapper was removed - auth is now handled by middleware
-vi.mock('@/components/shared/UnifiedHeader', () => ({
-  UnifiedHeader: () => <header data-testid="admin-header">Unified Header</header>,
+vi.mock('@/components/shared/LeftSidebar', () => ({
+  LeftSidebar: ({ children }: { children: React.ReactNode }) => (
+    <aside data-testid="admin-sidebar">
+      {typeof children === 'function' ? children(false, () => {}) : children}
+    </aside>
+  ),
 }));
 
 vi.mock('@/components/admin/AdminNavigation', () => ({
@@ -36,7 +40,7 @@ describe('AdminLayout', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       // Check that all components are present
-      expect(screen.getByTestId('admin-header')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('admin-navigation')).toBeInTheDocument();
       expect(screen.getByTestId('admin-children')).toBeInTheDocument();
       expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
@@ -93,16 +97,18 @@ describe('AdminLayout', () => {
   });
 
   describe('Component composition', () => {
-    it('should render UnifiedHeader at the top level', () => {
+    it('should render LeftSidebar with navigation', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
-      const header = screen.getByTestId('admin-header');
+      const sidebar = screen.getByTestId('admin-sidebar');
       const navigation = screen.getByTestId('admin-navigation');
       const main = screen.getByRole('main');
 
-      // Header should come before the flex container with nav and main
-      expect(header.compareDocumentPosition(navigation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(header.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // Sidebar should contain navigation
+      expect(sidebar).toContainElement(navigation);
+
+      // Sidebar and main should be siblings
+      expect(sidebar.nextElementSibling).toBe(main);
     });
 
     it('should render AdminNavigation in sidebar position', () => {
