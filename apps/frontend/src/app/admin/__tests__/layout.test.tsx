@@ -75,8 +75,9 @@ describe('AdminLayout', () => {
     it('should have proper flex layout for sidebar and main content', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
-      // Find the flex container that holds navigation and main
-      const flexContainer = screen.getByTestId('admin-navigation').parentElement;
+      // Find the flex container that holds sidebar and main
+      const sidebar = screen.getByTestId('admin-sidebar');
+      const flexContainer = sidebar.parentElement;
       expect(flexContainer).toHaveClass('flex', 'flex-1');
 
       // Check main element styling
@@ -115,11 +116,15 @@ describe('AdminLayout', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       const navigation = screen.getByTestId('admin-navigation');
+      const sidebar = screen.getByTestId('admin-sidebar');
       const main = screen.getByRole('main');
 
-      // Navigation and main should be siblings in the flex container
-      expect(navigation.parentElement).toBe(main.parentElement);
-      expect(navigation.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // Navigation should be inside sidebar
+      expect(sidebar).toContainElement(navigation);
+
+      // Sidebar and main should be siblings in the flex container
+      expect(sidebar.parentElement).toBe(main.parentElement);
+      expect(sidebar.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('should render main content area with correct semantic element', () => {
@@ -190,7 +195,7 @@ describe('AdminLayout', () => {
       const { container } = render(<AdminLayout>{null}</AdminLayout>);
 
       // Layout should still render properly with no children
-      expect(screen.getByTestId('admin-header')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('admin-navigation')).toBeInTheDocument();
       expect(screen.getByRole('main')).toBeInTheDocument();
       expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
@@ -202,7 +207,7 @@ describe('AdminLayout', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
       // Check semantic elements are present
-      expect(screen.getByTestId('admin-header')).toBeInTheDocument(); // header element
+      expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument(); // sidebar element
       expect(screen.getByTestId('admin-navigation')).toBeInTheDocument(); // nav element
       expect(screen.getByRole('main')).toBeInTheDocument(); // main element
     });
@@ -243,14 +248,14 @@ describe('AdminLayout', () => {
 
       // All components should be present and in correct hierarchy
       // Note: AdminAuthWrapper was removed as auth is now handled by middleware
-      const header = screen.getByTestId('admin-header');
+      const sidebar = screen.getByTestId('admin-sidebar');
       const navigation = screen.getByTestId('admin-navigation');
       const main = screen.getByRole('main');
       const children = screen.getByTestId('admin-children');
       const footer = screen.getByTestId('admin-footer');
 
       // Verify all elements are present in the document
-      expect(header).toBeInTheDocument();
+      expect(sidebar).toBeInTheDocument();
       expect(navigation).toBeInTheDocument();
       expect(main).toBeInTheDocument();
       expect(footer).toBeInTheDocument();
@@ -258,9 +263,8 @@ describe('AdminLayout', () => {
       // Verify children are in main
       expect(main).toContainElement(children);
 
-      // Verify proper ordering
-      expect(header.compareDocumentPosition(navigation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(navigation.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // Verify proper ordering - sidebar comes before main, main comes before footer
+      expect(sidebar.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -277,7 +281,7 @@ describe('AdminLayout', () => {
       expect(rootContainer).toBeInTheDocument();
 
       // Check all major sections are present
-      expect(screen.getByTestId('admin-header')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('admin-navigation')).toBeInTheDocument();
       expect(screen.getByRole('main')).toBeInTheDocument();
       expect(screen.getByTestId('admin-footer')).toBeInTheDocument();
