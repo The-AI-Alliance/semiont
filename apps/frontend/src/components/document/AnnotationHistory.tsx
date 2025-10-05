@@ -43,14 +43,17 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
     }
   }, [events.length]); // Only trigger when number of events changes
 
-  // Add visual pulse to hovered annotation's event (without scrolling the History panel)
+  // Add visual pulse and scroll to hovered annotation's event
   useEffect(() => {
     if (!hoveredAnnotationId) return;
 
     const eventElement = eventRefs.current.get(hoveredAnnotationId);
 
-    if (eventElement) {
-      // Add a visual pulse to the history event (but don't scroll the History panel)
+    if (eventElement && containerRef.current) {
+      // Scroll the event into view
+      eventElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      // Add a visual pulse to the history event
       eventElement.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
       setTimeout(() => {
         eventElement.classList.remove('bg-blue-100', 'dark:bg-blue-900/30');
@@ -78,11 +81,11 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col h-full">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
         History
       </h3>
-      <div ref={containerRef} className="space-y-1.5">
+      <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
         {events.map((stored) => {
           const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId) : false;
 
