@@ -82,7 +82,7 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
         History
       </h3>
-      <div ref={containerRef} className="space-y-1.5 max-h-[600px] overflow-y-auto">
+      <div ref={containerRef} className="space-y-1.5">
         {events.map((stored) => {
           const isRelated = hoveredAnnotationId ? isEventRelatedToAnnotation(stored, hoveredAnnotationId) : false;
 
