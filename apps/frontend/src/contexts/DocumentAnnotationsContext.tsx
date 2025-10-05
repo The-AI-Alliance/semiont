@@ -77,29 +77,32 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceType?: string
   ): Promise<string | undefined> => {
     try {
-      // Build the create selection request with all metadata
+      // Build CreateAnnotationRequest directly
       const createData: any = {
         documentId,
         text,
-        position
+        selectionData: {
+          type: 'text_span',
+          offset: position.start,
+          length: position.end - position.start,
+        },
+        type: (targetDocId !== undefined || referenceType || entityType) ? 'reference' : 'highlight',
       };
 
       // For references (both stub and resolved)
-      if (targetDocId !== undefined || referenceType || entityType) {
-        // Include resolvedDocumentId key (null for stubs, string for resolved)
-        createData.resolvedDocumentId = targetDocId || null;
-
-        if (entityType) {
-          // Entity types is an array of strings
-          createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
-        }
-        if (referenceType) {
-          // Reference tags is an array, but we have a single reference type
-          createData.referenceTags = [referenceType];
-        }
+      if (targetDocId !== undefined) {
+        createData.referencedDocumentId = targetDocId || null;
       }
 
-      // Create the selection with metadata
+      if (entityType) {
+        createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+      }
+
+      if (referenceType) {
+        createData.referenceType = referenceType;
+      }
+
+      // Create the annotation
       const result = await createSelectionMutation.mutateAsync(createData);
 
       // Track this as a new annotation for sparkle animation

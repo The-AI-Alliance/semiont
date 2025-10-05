@@ -56,7 +56,6 @@ export const CreateAnnotationResponseSchema = z.object({
       type: z.string(),
       offset: z.number(),
       length: z.number(),
-      text: z.string(),
     }),
     type: z.enum(['highlight', 'reference']),
     referencedDocumentId: z.string().nullable().optional(),

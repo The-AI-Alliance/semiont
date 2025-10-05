@@ -41,24 +41,6 @@ export const QUERY_KEYS = {
 
 // Local type definitions to replace api-contracts imports
 
-/**
- * Frontend convenience format for creating selections
- *
- * This is a simpler, more ergonomic format for React components to use.
- * It gets transformed to CreateAnnotationRequest (from @semiont/core-types) by the API client.
- *
- * Transformation:
- * - { text, position: { start, end } } → { selectionType: { type: 'text_span', offset, length, text } }
- */
-export interface CreateSelectionInput {
-  documentId: string;
-  text: string;
-  position: { start: number; end: number };
-  type?: 'highlight' | 'reference';
-  entityTypes?: string[];
-  referenceTags?: string[];
-  resolvedDocumentId?: string | null;
-}
 interface StatusResponse {
   status: string;
   version: string;
@@ -488,15 +470,6 @@ interface APIService {
   };
 
   selections: {
-    create: (data: {
-      documentId: string;
-      text: string;
-      position: { start: number; end: number };
-      type?: 'highlight' | 'reference';
-      entityTypes?: string[];
-      referenceTags?: string[];
-      resolvedDocumentId?: string | null;
-    }) => Promise<SelectionResponse>;
     get: (id: string) => Promise<SelectionResponse>;
     update: (id: string, data: Partial<Selection>) => Promise<SelectionResponse>;
     delete: (id: string) => Promise<{ success: boolean }>;
@@ -658,42 +631,6 @@ export const apiService: APIService = {
 
   // Selection endpoints
   selections: {
-    create: (data: CreateSelectionInput): Promise<SelectionResponse> => {
-      // Transform frontend convenience format to backend API format
-      interface CreateAnnotationRequestBody {
-        documentId: string;
-        selectionType: {
-          type: 'text_span';
-          offset: number;
-          length: number;
-          text: string;
-        };
-        entityTypes?: string[];
-        referenceTags?: string[];
-        resolvedDocumentId?: string | null;
-      }
-
-      const body: CreateAnnotationRequestBody = {
-        documentId: data.documentId,
-        selectionType: {
-          type: 'text_span',
-          offset: data.position.start,
-          length: data.position.end - data.position.start,
-          text: data.text
-        },
-        ...(data.entityTypes && { entityTypes: data.entityTypes }),
-        ...(data.referenceTags && { referenceTags: data.referenceTags })
-      };
-
-      // Only include resolvedDocumentId if it's explicitly provided
-      // This preserves the distinction between undefined (not sent) and null (sent as null)
-      if ('resolvedDocumentId' in data) {
-        body.resolvedDocumentId = data.resolvedDocumentId;
-      }
-
-      return apiClient.post('/api/selections', { body });
-    },
-    
     get: (id: string): Promise<SelectionResponse> =>
       apiClient.get('/api/selections/:id', { params: { id } }),
     
@@ -1223,27 +1160,11 @@ export const api: ReactQueryAPI = {
     },
     create: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, CreateSelectionInput>(
-          async (input: CreateSelectionInput, fetchAPI) => {
-            // Transform frontend convenience format to backend API contract format
-            // CreateSelectionInput → CreateAnnotationRequest (from @semiont/core-types)
-            const body: CreateAnnotationRequest = {
-              documentId: input.documentId,
-              text: input.text,
-              selectionData: {
-                type: 'text_span',
-                offset: input.position.start,
-                length: input.position.end - input.position.start,
-              },
-              type: input.resolvedDocumentId !== undefined ? 'reference' : 'highlight',
-              ...(input.entityTypes && { entityTypes: input.entityTypes }),
-              ...(input.referenceTags?.[0] && { referenceType: input.referenceTags[0] }),
-              ...(input.resolvedDocumentId !== undefined && { referencedDocumentId: input.resolvedDocumentId })
-            };
-
+        return useAuthenticatedMutation<SelectionResponse, CreateAnnotationRequest>(
+          async (input: CreateAnnotationRequest, fetchAPI) => {
             return fetchAPI('/api/selections', {
               method: 'POST',
-              body: JSON.stringify(body),
+              body: JSON.stringify(input),
             });
           }
         );
