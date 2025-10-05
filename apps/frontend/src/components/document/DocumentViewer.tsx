@@ -417,7 +417,7 @@ export function DocumentViewer({
   ]);
   
   return (
-    <div ref={documentViewerRef}>
+    <div ref={documentViewerRef} className="h-full">
       {/* Content */}
       {activeView === 'annotate' ? (
         document.archived ? (

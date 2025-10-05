@@ -138,12 +138,12 @@ export function HistoryEvent({
         <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
           {creationDetails.userId && (
             <span className="mr-2">
-              User: <span className="font-mono">{creationDetails.userId.substring(0, 8)}</span>
+              User: <span className="font-mono">{creationDetails.userId}</span>
             </span>
           )}
           {creationDetails.method && (
             <span className="mr-2">
-              Method: <span className="capitalize">{creationDetails.method}</span>
+              Method: <span className="uppercase">{creationDetails.method}</span>
             </span>
           )}
           {creationDetails.sourceDocId && (

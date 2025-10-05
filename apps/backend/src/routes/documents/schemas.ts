@@ -37,6 +37,7 @@ export const CreateDocumentRequestSchema = z.object({
   contentType: z.string().optional().default('text/plain'),
   entityTypes: z.array(z.string()).optional().default([]),
   metadata: z.record(z.string(), z.any()).optional().default({}),
+  creationMethod: z.string().optional(),
   sourceSelectionId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
 });

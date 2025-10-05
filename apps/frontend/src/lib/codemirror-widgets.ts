@@ -100,8 +100,8 @@ export class ReferenceResolutionWidget extends WidgetType {
         margin: 0;
       `;
 
-      // Add dark mode support
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      // Add dark mode support - check for Tailwind dark class
+      if (document.documentElement.classList.contains('dark')) {
         const innerCircle = indicator.querySelector('span > span:last-child') as HTMLElement;
         if (innerCircle) {
           innerCircle.style.background = 'rgb(31, 41, 55)'; // gray-800

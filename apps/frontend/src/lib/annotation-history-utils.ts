@@ -141,6 +141,27 @@ export function getEventEntityTypes(event: StoredEvent): string[] | null {
   return null;
 }
 
+// Format user ID for display
+function formatUserId(userId: string): string {
+  // If it's a DID format (did:web:org.com:users:alice), format as alice@org.com
+  if (userId.startsWith('did:web:')) {
+    const parts = userId.split(':');
+    // Format: did:web:org.com:users:alice
+    // parts: ['did', 'web', 'org.com', 'users', 'alice']
+    if (parts.length >= 5) {
+      const domain = parts[2]; // org.com
+      const username = parts[parts.length - 1]; // alice
+      return `${username}@${domain}`;
+    }
+    // Fallback if format is unexpected
+    const username = parts[parts.length - 1];
+    return username || userId.substring(0, 8);
+  }
+
+  // Otherwise show first 8 characters of UUID
+  return userId.substring(0, 8);
+}
+
 // Extract additional metadata for document creation events
 export function getDocumentCreationDetails(event: StoredEvent): { method?: string; sourceDocId?: string; userId?: string } | null {
   if (event.event.type !== 'document.created' && event.event.type !== 'document.cloned') {
@@ -153,7 +174,7 @@ export function getDocumentCreationDetails(event: StoredEvent): { method?: strin
   return {
     method: metadata.creationMethod,
     sourceDocId: event.event.type === 'document.cloned' ? payload.parentDocumentId : undefined,
-    userId: event.event.userId,
+    userId: formatUserId(event.event.userId),
   };
 }
 

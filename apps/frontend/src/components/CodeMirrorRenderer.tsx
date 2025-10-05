@@ -342,8 +342,22 @@ export function CodeMirrorRenderer({
             return false;
           }
         }),
-        // Style the editor
-        EditorView.theme({
+        // Style the editor - use CSS string to inject !important rules
+        EditorView.baseTheme({
+          '&.cm-editor': {
+            height: '100%',
+            outline: 'none'
+          },
+          '&.cm-editor.cm-focused': {
+            outline: 'none'
+          },
+          '.cm-scroller': {
+            overflow: 'auto !important',
+            height: '100% !important'
+          },
+          '.cm-content, .cm-gutters': {
+            minHeight: '0 !important'
+          },
           '.cm-content': {
             padding: sourceView ? '1rem' : '0',
             fontFamily: sourceView ? 'ui-monospace, monospace' : 'inherit',
@@ -355,17 +369,6 @@ export function CodeMirrorRenderer({
             padding: '0',
             wordBreak: sourceView ? 'break-word' : 'normal'
           },
-          '.cm-editor': {
-            outline: 'none',
-            backgroundColor: 'transparent'
-          },
-          '.cm-editor.cm-focused': {
-            outline: 'none'
-          },
-          '.cm-scroller': {
-            fontFamily: sourceView ? 'ui-monospace, monospace' : 'inherit',
-            overflowX: sourceView ? 'auto' : 'visible'
-          },
           '.cm-cursor': {
             display: editable ? 'block' : 'none'
           },
@@ -376,7 +379,7 @@ export function CodeMirrorRenderer({
           },
           '.cm-lineNumbers .cm-gutterElement': {
             minWidth: '2rem',
-            color: 'rgb(156, 163, 175)', // gray-400 for better contrast in dark mode
+            color: 'rgb(156, 163, 175)',
             opacity: '0.7'
           }
         })
@@ -506,8 +509,8 @@ export function CodeMirrorRenderer({
   }, [scrollToAnnotationId, segments]);
 
   const containerClasses = sourceView
-    ? "codemirror-renderer bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg overflow-x-auto"
-    : "codemirror-renderer";
+    ? "codemirror-renderer bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg overflow-x-auto h-full"
+    : "codemirror-renderer h-full";
 
   return <div ref={containerRef} className={containerClasses} data-markdown-container />;
 }

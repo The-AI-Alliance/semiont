@@ -430,20 +430,20 @@ function DocumentView({
 
   // Document is guaranteed to exist here, render the view
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col h-full">
       {/* Main Content - Fills remaining height */}
       <div className="flex flex-1 overflow-hidden">
         {/* Document Content - Left Side */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Document Header - Only spans document content width */}
-          <div className="flex-none bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
+          <div className="flex-none bg-white dark:bg-gray-800 shadow-sm rounded-t-lg">
             <div className="px-6 py-2 flex items-center justify-between gap-4">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {document.name}
               </h2>
             </div>
           </div>
-          <div className="flex-1 bg-white dark:bg-gray-800 rounded-b-lg shadow-sm px-6 py-4 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0">
             <ErrorBoundary
               fallback={(error, reset) => (
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">

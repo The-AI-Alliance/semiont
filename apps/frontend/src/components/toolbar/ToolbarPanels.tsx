@@ -64,24 +64,26 @@ export function ToolbarPanels({
   }
 
   return (
-    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto p-4`}>
+    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-hidden flex flex-col h-screen`}>
       {/* Custom context-specific panels */}
-      {children}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {children}
 
-      {/* User Panel - common to all contexts */}
-      {activePanel === 'user' && (
-        <UserPanel />
-      )}
+        {/* User Panel - common to all contexts */}
+        {activePanel === 'user' && (
+          <UserPanel />
+        )}
 
-      {/* Settings Panel - common to all contexts */}
-      {activePanel === 'settings' && (
-        <SettingsPanel
-          showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
-          theme={theme}
-          onThemeChange={onThemeChange}
-        />
-      )}
+        {/* Settings Panel - common to all contexts */}
+        {activePanel === 'settings' && (
+          <SettingsPanel
+            showLineNumbers={showLineNumbers}
+            onLineNumbersToggle={onLineNumbersToggle}
+            theme={theme}
+            onThemeChange={onThemeChange}
+          />
+        )}
+      </div>
     </div>
   );
 }
