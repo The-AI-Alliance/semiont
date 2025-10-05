@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { createSelectionRouter, type SelectionsRouterType } from './shared';
+import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
@@ -11,7 +11,7 @@ import { DocumentQueryService } from '../../services/document-queries';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
 
 // Create router with auth middleware
-export const operationsRouter: SelectionsRouterType = createSelectionRouter();
+export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
 
 // Local schemas
 const CreateDocumentFromSelectionRequest = z.object({

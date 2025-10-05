@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import type { SelectionsRouterType } from '../shared';
+import type { AnnotationsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 import { getGraphDatabase } from '../../../graph/factory';
 import { StoredEventApiSchema } from '@semiont/core-types';
@@ -40,7 +40,7 @@ export const getAnnotationHistoryRoute = createRoute({
   },
 });
 
-export function registerGetAnnotationHistory(router: SelectionsRouterType) {
+export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   router.openapi(getAnnotationHistoryRoute, async (c) => {
     const { documentId, annotationId } = c.req.valid('param');
 

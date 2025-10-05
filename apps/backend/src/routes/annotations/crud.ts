@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { createSelectionRouter, type SelectionsRouterType } from './shared';
+import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { formatDocument, formatAnnotation } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
@@ -9,7 +9,7 @@ import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 
 // Create router with auth middleware
-export const crudRouter: SelectionsRouterType = createSelectionRouter();
+export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
 
 // CREATE
 const createSelectionRoute = createRoute({

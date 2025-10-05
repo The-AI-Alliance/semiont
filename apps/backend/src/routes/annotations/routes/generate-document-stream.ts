@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentFromTopic } from '../../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
-import type { SelectionsRouterType } from '../shared';
+import type { AnnotationsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { emitDocumentCreated, emitReferenceResolved } from '../../../events/emit';
@@ -67,7 +67,7 @@ export const generateDocumentStreamRoute = createRoute({
   },
 });
 
-export function registerGenerateDocumentStream(router: SelectionsRouterType) {
+export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
   router.openapi(generateDocumentStreamRoute, async (c) => {
     const { id: referenceId } = c.req.valid('param');
     const body = c.req.valid('json');

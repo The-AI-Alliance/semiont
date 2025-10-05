@@ -52,7 +52,7 @@ export const createDocumentFromSelectionRoute = createRoute({
   },
 });
 
-export function registerCreateDocumentFromSelection(router: DocumentsRouterType) {
+export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType) {
   router.openapi(createDocumentFromSelectionRoute, async (c) => {
     const { selectionId } = c.req.valid('param');
     const body = c.req.valid('json');
