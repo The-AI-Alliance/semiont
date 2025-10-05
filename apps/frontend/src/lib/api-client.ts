@@ -1229,19 +1229,19 @@ export const api: ReactQueryAPI = {
             // CreateSelectionInput → CreateSelectionRequest (from @semiont/core-types)
             const body: CreateSelectionRequest = {
               documentId: input.documentId,
-              selectionType: {
+              text: input.text,
+              selectionData: {
                 type: 'text_span',
                 offset: input.position.start,
                 length: input.position.end - input.position.start,
                 text: input.text
               },
+              type: input.resolvedDocumentId !== undefined ? 'reference' : 'highlight',
+              createdBy: 'user', // TODO: get from auth context
               ...(input.entityTypes && { entityTypes: input.entityTypes }),
-              ...(input.referenceTags && { referenceTags: input.referenceTags })
+              ...(input.referenceTags?.[0] && { referenceType: input.referenceTags[0] }),
+              ...(input.resolvedDocumentId !== undefined && { referencedDocumentId: input.resolvedDocumentId })
             };
-
-            if ('resolvedDocumentId' in input) {
-              body.resolvedDocumentId = input.resolvedDocumentId;
-            }
 
             return fetchAPI('/api/selections', {
               method: 'POST',

@@ -152,8 +152,8 @@ export class AnnotationQueryService {
     // For now, fall back to graph for cross-document listing
     // TODO: Implement by scanning all projections
     const graphDb = await getGraphDatabase();
-    const result = await graphDb.listSelections(filters || {});
-    return result.selections || [];
+    const result = await graphDb.listAnnotations(filters || {});
+    return result.annotations || [];
   }
 
   // ========================================

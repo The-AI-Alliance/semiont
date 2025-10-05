@@ -39,7 +39,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   listDocuments: vi.fn().mockResolvedValue({ documents: [], total: 0 }),
   searchDocuments: vi.fn().mockResolvedValue([]),
 
-  createSelection: vi.fn().mockResolvedValue({
+  createAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
     selectionData: { text: 'test', offset: 0, length: 4 },
@@ -47,8 +47,8 @@ const createMockGraphDB = (): GraphDatabase => ({
     createdAt: new Date(),
     updatedAt: new Date(),
   }),
-  getSelection: vi.fn().mockResolvedValue(null),
-  updateSelection: vi.fn().mockResolvedValue({
+  getAnnotation: vi.fn().mockResolvedValue(null),
+  updateAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
     selectionData: { text: 'test', offset: 0, length: 4 },
@@ -57,11 +57,11 @@ const createMockGraphDB = (): GraphDatabase => ({
     createdAt: new Date(),
     updatedAt: new Date(),
   }),
-  deleteSelection: vi.fn().mockResolvedValue(undefined),
-  listSelections: vi.fn().mockResolvedValue({ selections: [], total: 0 }),
+  deleteAnnotation: vi.fn().mockResolvedValue(undefined),
+  listAnnotations: vi.fn().mockResolvedValue({ annotations: [], total: 0 }),
 
   getHighlights: vi.fn().mockResolvedValue([]),
-  resolveSelection: vi.fn().mockResolvedValue({
+  resolveReference: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
     selectionData: { text: 'test', offset: 0, length: 4 },
@@ -73,7 +73,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   getReferences: vi.fn().mockResolvedValue([]),
   getEntityReferences: vi.fn().mockResolvedValue([]),
 
-  getDocumentSelections: vi.fn().mockResolvedValue([]),
+  getDocumentAnnotations: vi.fn().mockResolvedValue([]),
   getDocumentReferencedBy: vi.fn().mockResolvedValue([]),
 
   getDocumentConnections: vi.fn().mockResolvedValue([]),
@@ -90,8 +90,8 @@ const createMockGraphDB = (): GraphDatabase => ({
     contentTypes: {},
   }),
 
-  createSelections: vi.fn().mockResolvedValue([]),
-  resolveSelections: vi.fn().mockResolvedValue([]),
+  createAnnotations: vi.fn().mockResolvedValue([]),
+  resolveReferences: vi.fn().mockResolvedValue([]),
 
   detectSelections: vi.fn().mockResolvedValue([]),
 
@@ -341,7 +341,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createSelection).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         id: 'hl-123',
         documentId: 'doc-123',
         selectionData: {
@@ -379,7 +379,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.deleteSelection).toHaveBeenCalledWith('hl-123');
+      expect(mockGraphDB.deleteAnnotation).toHaveBeenCalledWith('hl-123');
     });
   });
 
@@ -413,7 +413,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createSelection).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         id: 'ref-123',
         documentId: 'doc-123',
         selectionData: {
@@ -454,7 +454,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.createSelection).toHaveBeenCalledWith({
+      expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         id: 'ref-456',
         documentId: 'doc-123',
         selectionData: {
@@ -497,7 +497,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.updateSelection).toHaveBeenCalledWith('ref-456', {
+      expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
         resolvedDocumentId: 'doc-789',
       });
     });
@@ -528,7 +528,7 @@ describe('GraphDBConsumer', () => {
 
       await consumer['applyEventToGraph'](storedEvent);
 
-      expect(mockGraphDB.deleteSelection).toHaveBeenCalledWith('ref-123');
+      expect(mockGraphDB.deleteAnnotation).toHaveBeenCalledWith('ref-123');
     });
   });
 

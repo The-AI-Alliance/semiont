@@ -5,16 +5,14 @@ import neo4j, { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
 import {
   Document,
-  Selection,
+  Annotation,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  SelectionFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateSelectionInput,
-  ResolveSelectionInput,
+  CreateSelectionRequest,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -119,7 +117,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Create constraints for unique IDs
       const constraints = [
         'CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE',
-        'CREATE CONSTRAINT sel_id IF NOT EXISTS FOR (s:Selection) REQUIRE s.id IS UNIQUE',
+        'CREATE CONSTRAINT sel_id IF NOT EXISTS FOR (s:Annotation) REQUIRE s.id IS UNIQUE',
         'CREATE CONSTRAINT tag_id IF NOT EXISTS FOR (t:TagCollection) REQUIRE t.type IS UNIQUE'
       ];
 
@@ -138,8 +136,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const indexes = [
         'CREATE INDEX doc_name IF NOT EXISTS FOR (d:Document) ON (d.name)',
         'CREATE INDEX doc_entity_types IF NOT EXISTS FOR (d:Document) ON (d.entityTypes)',
-        'CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Selection) ON (s.documentId)',
-        'CREATE INDEX sel_resolved_id IF NOT EXISTS FOR (s:Selection) ON (s.resolvedDocumentId)'
+        'CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Annotation) ON (s.documentId)',
+        'CREATE INDEX sel_resolved_id IF NOT EXISTS FOR (s:Annotation) ON (s.resolvedDocumentId)'
       ];
 
       for (const index of indexes) {
@@ -262,8 +260,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Delete document and all its selections
       await session.run(
         `MATCH (d:Document {id: $id})
-         OPTIONAL MATCH (s:Selection)-[:BELONGS_TO|:REFERENCES]->(d)
-         DETACH DELETE d, s`,
+         OPTIONAL MATCH (a:Annotation)-[:BELONGS_TO|:REFERENCES]->(d)
+         DETACH DELETE d, a`,
         { id }
       );
     } finally {
@@ -337,159 +335,108 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createSelection(input: CreateSelectionInput): Promise<Selection> {
+  async createAnnotation(input: CreateSelectionRequest): Promise<Annotation> {
     const session = this.getSession();
     try {
       const id = this.generateId();
-      const now = new Date().toISOString();
 
-      // Calculate selectionType for graph storage
-      const selectionType = input.resolvedDocumentId !== undefined ? 'reference' : 'highlight';
-
-      const selection: Selection = {
+      const annotation: Annotation = {
         id,
         documentId: input.documentId,
+        text: input.text,
         selectionData: input.selectionData,
-        createdAt: new Date(now),
-        updatedAt: new Date(now),
+        type: input.type,
+        createdBy: input.createdBy,
+      createdAt: new Date(),
+        entityTypes: input.entityTypes || [],
+        referencedDocumentId: input.referencedDocumentId,
+        referenceType: input.referenceType,
       };
 
-      // Add optional fields
-      if (input.createdBy) selection.createdBy = input.createdBy;
-
-      // Set selectionCategory based on resolvedDocumentId presence and value
-      let selectionCategory: string;
-      if ('resolvedDocumentId' in input) {
-        selection.resolvedDocumentId = input.resolvedDocumentId;
-        if (input.resolvedDocumentId) {
-          selection.resolvedAt = new Date(now);
-          selectionCategory = 'resolved_reference';
-        } else {
-          selectionCategory = 'stub_reference';
-        }
-        if (input.resolvedBy) selection.resolvedBy = input.resolvedBy;
-      } else {
-        selectionCategory = 'highlight';
-      }
-
-      if (input.referenceTags) selection.referenceTags = input.referenceTags;
-      if (input.entityTypes) selection.entityTypes = input.entityTypes;
-      if (input.metadata) selection.metadata = input.metadata;
-
-      // Create the selection node and relationships
-      // Three cases: resolved reference (has target doc), stub reference (null), highlight (no field)
+      // Create the annotation node and relationships
       let cypher: string;
-      if (selectionCategory === 'resolved_reference') {
-        // Resolved reference - has a target document
+      if (input.referencedDocumentId) {
+        // Reference with target document
         cypher = `MATCH (from:Document {id: $fromId})
            MATCH (to:Document {id: $toId})
-           CREATE (s:Selection {
+           CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             resolvedDocumentId: $resolvedDocumentId,
-             selectionType: $selectionType,
-             selectionCategory: $selectionCategory,
+             text: $text,
              selectionData: $selectionData,
-             referenceTags: $referenceTags,
-             entityTypes: $entityTypes,
-             metadata: $metadata,
-             createdAt: datetime($createdAt),
-             updatedAt: datetime($updatedAt),
-             resolvedAt: datetime($resolvedAt),
+             type: $type,
              createdBy: $createdBy,
-             resolvedBy: $resolvedBy
-           })
-           CREATE (s)-[:BELONGS_TO]->(from)
-           CREATE (s)-[:REFERENCES]->(to)
-           RETURN s`;
-      } else if (selectionCategory === 'stub_reference') {
-        // Stub reference - has resolvedDocumentId but it's null
-        cypher = `MATCH (d:Document {id: $documentId})
-           CREATE (s:Selection {
-             id: $id,
-             documentId: $documentId,
-             resolvedDocumentId: $resolvedDocumentId,
-             selectionType: $selectionType,
-             selectionCategory: $selectionCategory,
-             selectionData: $selectionData,
-             referenceTags: $referenceTags,
-             entityTypes: $entityTypes,
-             metadata: $metadata,
              createdAt: datetime($createdAt),
-             updatedAt: datetime($updatedAt),
-             createdBy: $createdBy
+             entityTypes: $entityTypes,
+             referencedDocumentId: $referencedDocumentId,
+             referenceType: $referenceType
            })
-           CREATE (s)-[:BELONGS_TO]->(d)
-           RETURN s`;
+           CREATE (a)-[:BELONGS_TO]->(from)
+           CREATE (a)-[:REFERENCES]->(to)
+           RETURN a`;
       } else {
-        // Highlight - no resolvedDocumentId field at all
+        // Highlight or unresolved reference
         cypher = `MATCH (d:Document {id: $documentId})
-           CREATE (s:Selection {
+           CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             selectionType: $selectionType,
-             selectionCategory: $selectionCategory,
+             text: $text,
              selectionData: $selectionData,
-             entityTypes: $entityTypes,
-             metadata: $metadata,
+             type: $type,
+             createdBy: $createdBy,
              createdAt: datetime($createdAt),
-             updatedAt: datetime($updatedAt),
-             createdBy: $createdBy
+             entityTypes: $entityTypes
            })
-           CREATE (s)-[:BELONGS_TO]->(d)
-           RETURN s`;
+           CREATE (a)-[:BELONGS_TO]->(d)
+           RETURN a`;
       }
 
       const params: any = {
         id,
-        documentId: selection.documentId,
-        fromId: selection.documentId,
-        toId: selection.resolvedDocumentId ?? null,
-        resolvedDocumentId: selection.resolvedDocumentId ?? null,
-        selectionType: selectionType,
-        selectionCategory,
-        selectionData: JSON.stringify(selection.selectionData),
-        referenceTags: selection.referenceTags || [],
-        entityTypes: selection.entityTypes || [],
-        metadata: selection.metadata ? JSON.stringify(selection.metadata) : null,
-        createdAt: now,
-        updatedAt: now,
-        resolvedAt: selection.resolvedAt?.toISOString() ?? null,
-        createdBy: selection.createdBy ?? null,
-        resolvedBy: selection.resolvedBy ?? null,
+        documentId: annotation.documentId,
+        fromId: annotation.documentId,
+        toId: annotation.referencedDocumentId || null,
+        text: annotation.text,
+        selectionData: JSON.stringify(annotation.selectionData),
+        type: annotation.type,
+        createdBy: annotation.createdBy,
+        createdAt: annotation.createdAt.toISOString(),
+        entityTypes: annotation.entityTypes,
+        referencedDocumentId: annotation.referencedDocumentId || null,
+        referenceType: annotation.referenceType || null,
       };
 
       const result = await session.run(cypher, params);
 
       if (result.records.length === 0) {
-        throw new Error(`Failed to create selection: Document ${selection.documentId} not found in graph database`);
+        throw new Error(`Failed to create annotation: Document ${annotation.documentId} not found in graph database`);
       }
 
-      return this.parseSelectionNode(result.records[0]!.get('s'));
+      return this.parseAnnotationNode(result.records[0]!.get('a'));
     } finally {
       await session.close();
     }
   }
 
-  async getSelection(id: string): Promise<Selection | null> {
+  async getAnnotation(id: string): Promise<Annotation | null> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        'MATCH (s:Selection {id: $id}) RETURN s',
+        'MATCH (a:Annotation {id: $id}) RETURN a',
         { id }
       );
 
       if (result.records.length === 0) return null;
-      return this.parseSelectionNode(result.records[0]!.get('s'));
+      return this.parseAnnotationNode(result.records[0]!.get('a'));
     } finally {
       await session.close();
     }
   }
 
-  async updateSelection(id: string, updates: Partial<Selection>): Promise<Selection> {
+  async updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation> {
     const session = this.getSession();
     try {
-      const setClauses: string[] = ['s.updatedAt = datetime()'];
+      const setClauses: string[] = ['a.updatedAt = datetime()'];
       const params: any = { id };
 
       // Build SET clauses dynamically
@@ -507,9 +454,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       });
 
       const result = await session.run(
-        `MATCH (s:Selection {id: $id})
+        `MATCH (a:Annotation {id: $id})
          SET ${setClauses.join(', ')}
-         RETURN s`,
+         RETURN a`,
         params
       );
 
@@ -517,17 +464,17 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         throw new Error('Selection not found');
       }
 
-      return this.parseSelectionNode(result.records[0]!.get('s'));
+      return this.parseAnnotationNode(result.records[0]!.get('a'));
     } finally {
       await session.close();
     }
   }
 
-  async deleteSelection(id: string): Promise<void> {
+  async deleteAnnotation(id: string): Promise<void> {
     const session = this.getSession();
     try {
       await session.run(
-        'MATCH (s:Selection {id: $id}) DETACH DELETE s',
+        'MATCH (a:Annotation {id: $id}) DETACH DELETE s',
         { id }
       );
     } finally {
@@ -535,167 +482,110 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }> {
+  async listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }> {
     const session = this.getSession();
     try {
       const conditions: string[] = [];
       const params: any = {};
 
       if (filter.documentId) {
-        conditions.push('s.documentId = $documentId');
+        conditions.push('a.documentId = $documentId');
         params.documentId = filter.documentId;
       }
 
-      if (filter.resolvedDocumentId) {
-        conditions.push('s.resolvedDocumentId = $resolvedDocumentId');
-        params.resolvedDocumentId = filter.resolvedDocumentId;
-      }
-
-
-      if (filter.resolved !== undefined) {
-        if (filter.resolved) {
-          conditions.push('s.resolvedDocumentId IS NOT NULL');
-        } else {
-          conditions.push('s.resolvedDocumentId IS NULL');
-        }
-      }
-
-      if (filter.hasEntityTypes !== undefined) {
-        if (filter.hasEntityTypes) {
-          conditions.push('size(s.entityTypes) > 0');
-        } else {
-          conditions.push('size(s.entityTypes) = 0');
-        }
-      }
-
-      if (filter.referenceTags && filter.referenceTags.length > 0) {
-        conditions.push('ANY(tag IN $referenceTags WHERE tag IN s.referenceTags)');
-        params.referenceTags = filter.referenceTags;
+      if (filter.type) {
+        conditions.push('a.type = $type');
+        params.type = filter.type;
       }
 
       const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-      // Get total count
-      const countResult = await session.run(
-        `MATCH (s:Selection) ${whereClause} RETURN count(s) as total`,
-        params
-      );
-      const total = countResult.records[0]!.get('total').toNumber();
-
-      // Get paginated results - ensure integers for Neo4j
-      params.skip = neo4j.int(filter.offset || 0);
-      params.limit = neo4j.int(filter.limit || 20);
-
+      // Get all results (no pagination in new simplified interface)
       const result = await session.run(
-        `MATCH (s:Selection) ${whereClause}
-         RETURN s
-         ORDER BY s.updatedAt DESC
-         SKIP $skip LIMIT $limit`,
+        `MATCH (a:Annotation) ${whereClause} RETURN a`,
         params
       );
 
-      const selections = result.records.map(record => this.parseSelectionNode(record.get('s')));
+      const annotations = result.records.map(record => this.parseAnnotationNode(record.get('a')));
 
-      return { selections, total };
+      return { annotations, total: annotations.length };
     } finally {
       await session.close();
     }
   }
 
-  async getHighlights(documentId: string): Promise<Selection[]> {
+  async getHighlights(documentId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (s:Selection {documentId: $documentId})
-         WHERE s.selectionCategory = 'highlight'
-         RETURN s
-         ORDER BY s.createdAt DESC`,
+        `MATCH (a:Annotation {documentId: $documentId})
+         WHERE a.selectionCategory = 'highlight'
+         RETURN a
+         ORDER BY a.createdAt DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
     } finally {
       await session.close();
     }
   }
 
-  async resolveSelection(input: ResolveSelectionInput): Promise<Selection> {
+  async resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation> {
     const session = this.getSession();
     try {
-      const now = new Date().toISOString();
-      const params: any = {
-        selectionId: input.selectionId,
-        documentId: input.documentId,
-        resolvedAt: now,
-        updatedAt: now,
-      };
+      // Get the target document's name
+      const docResult = await session.run(
+        'MATCH (d:Document {id: $id}) RETURN d.name as name',
+        { id: referencedDocumentId }
+      );
+      const documentName = docResult.records[0]?.get('name');
 
-      const setClauses = [
-        's.resolvedDocumentId = $documentId',
-        's.resolvedAt = datetime($resolvedAt)',
-        's.updatedAt = datetime($updatedAt)'
-      ];
-
-      if (input.referenceTags) {
-        setClauses.push('s.referenceTags = $referenceTags');
-        params.referenceTags = input.referenceTags;
-      }
-      if (input.entityTypes) {
-        setClauses.push('s.entityTypes = $entityTypes');
-        params.entityTypes = input.entityTypes;
-      }
-      if (input.resolvedBy) {
-        setClauses.push('s.resolvedBy = $resolvedBy');
-        params.resolvedBy = input.resolvedBy;
-      }
-      if (input.metadata) {
-        setClauses.push('s.metadata = $metadata');
-        params.metadata = JSON.stringify(input.metadata);
-      }
-
-      // Update selection and create REFERENCES relationship
+      // Update annotation and create REFERENCES relationship
       const result = await session.run(
-        `MATCH (s:Selection {id: $selectionId})
-         MATCH (to:Document {id: $documentId})
-         SET ${setClauses.join(', ')}
-         MERGE (s)-[:REFERENCES]->(to)
-         RETURN s`,
-        params
+        `MATCH (a:Annotation {id: $annotationId})
+         MATCH (to:Document {id: $referencedDocumentId})
+         SET a.referencedDocumentId = $referencedDocumentId,
+             a.resolvedDocumentName = $documentName,
+             a.resolvedAt = datetime()
+         MERGE (a)-[:REFERENCES]->(to)
+         RETURN a`,
+        { annotationId, referencedDocumentId, documentName }
       );
 
       if (result.records.length === 0) {
-        throw new Error('Selection not found');
+        throw new Error('Annotation not found');
       }
 
-      return this.parseSelectionNode(result.records[0]!.get('s'));
+      return this.parseAnnotationNode(result.records[0]!.get('a'));
     } finally {
       await session.close();
     }
   }
 
-  async getReferences(documentId: string): Promise<Selection[]> {
+  async getReferences(documentId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (s:Selection {documentId: $documentId})
-         WHERE s.selectionCategory IN ['stub_reference', 'resolved_reference']
-         RETURN s
-         ORDER BY s.createdAt DESC`,
+        `MATCH (a:Annotation {documentId: $documentId})
+         WHERE a.selectionCategory IN ['stub_reference', 'resolved_reference']
+         RETURN a
+         ORDER BY a.createdAt DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
     } finally {
       await session.close();
     }
   }
 
-  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]> {
+  async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
     const session = this.getSession();
     try {
-      let cypher = `MATCH (s:Selection {documentId: $documentId})
-                    WHERE s.resolvedDocumentId IS NOT NULL
-                    AND size(s.entityTypes) > 0`;
+      let cypher = `MATCH (a:Annotation {documentId: $documentId})
+                    WHERE a.resolvedDocumentId IS NOT NULL
+                    AND size(a.entityTypes) > 0`;
 
       const params: any = { documentId };
 
@@ -704,43 +594,43 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         params.entityTypes = entityTypes;
       }
 
-      cypher += ' RETURN s ORDER BY s.createdAt DESC';
+      cypher += ' RETURN a ORDER BY a.createdAt DESC';
 
       const result = await session.run(cypher, params);
 
-      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
     } finally {
       await session.close();
     }
   }
 
-  async getDocumentSelections(documentId: string): Promise<Selection[]> {
+  async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (s:Selection {documentId: $documentId})
-         RETURN s
-         ORDER BY s.createdAt DESC`,
+        `MATCH (a:Annotation {documentId: $documentId})
+         RETURN a
+         ORDER BY a.createdAt DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
     } finally {
       await session.close();
     }
   }
 
-  async getDocumentReferencedBy(documentId: string): Promise<Selection[]> {
+  async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH (s:Selection {resolvedDocumentId: $documentId})
-         RETURN s
-         ORDER BY s.createdAt DESC`,
+        `MATCH (a:Annotation {resolvedDocumentId: $documentId})
+         RETURN a
+         ORDER BY a.createdAt DESC`,
         { documentId }
       );
 
-      return result.records.map(record => this.parseSelectionNode(record.get('s')));
+      return result.records.map(record => this.parseAnnotationNode(record.get('a')));
     } finally {
       await session.close();
     }
@@ -751,8 +641,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (d:Document {id: $documentId})
-         OPTIONAL MATCH (d)<-[:BELONGS_TO]-(s1:Selection)-[:REFERENCES]->(other:Document)
-         OPTIONAL MATCH (other)<-[:BELONGS_TO]-(s2:Selection)-[:REFERENCES]->(d)
+         OPTIONAL MATCH (d)<-[:BELONGS_TO]-(a1:Annotation)-[:REFERENCES]->(other:Document)
+         OPTIONAL MATCH (other)<-[:BELONGS_TO]-(a2:Annotation)-[:REFERENCES]->(d)
          WITH other, COLLECT(DISTINCT s1) as outgoing, COLLECT(DISTINCT s2) as incoming
          WHERE other IS NOT NULL
          RETURN other, outgoing, incoming`,
@@ -763,12 +653,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       for (const record of result.records) {
         const targetDocument = this.parseDocumentNode(record.get('other'));
-        const outgoing = record.get('outgoing').map((s: any) => this.parseSelectionNode(s));
-        const incoming = record.get('incoming').map((s: any) => this.parseSelectionNode(s));
+        const outgoing = record.get('outgoing').map((s: any) => this.parseAnnotationNode(s));
+        const incoming = record.get('incoming').map((s: any) => this.parseAnnotationNode(s));
 
         connections.push({
           targetDocument,
-          selections: outgoing,
+          annotations: outgoing,
           bidirectional: incoming.length > 0
         });
       }
@@ -798,21 +688,22 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
         // Get selection details for the relationships
         const selectionIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
-        const selections: Selection[] = [];
+        const annotations: Annotation[] = [];
 
         if (selectionIds.length > 0) {
           const selResult = await session.run(
-            'MATCH (s:Selection) WHERE s.id IN $ids RETURN s',
+            'MATCH (a:Annotation) WHERE a.id IN $ids RETURN a',
             { ids: selectionIds }
           );
+          const annotations: Annotation[] = [];
           selResult.records.forEach(rec => {
-            selections.push(this.parseSelectionNode(rec.get('s')));
+            annotations.push(this.parseAnnotationNode(rec.get('a')));
           });
         }
 
         paths.push({
           documents: docs,
-          selections: selections
+          annotations: annotations
         });
       }
 
@@ -843,7 +734,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
   async getStats(): Promise<{
     documentCount: number;
-    selectionCount: number;
+    annotationCount: number;
     highlightCount: number;
     referenceCount: number;
     entityReferenceCount: number;
@@ -857,21 +748,21 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const documentCount = docCountResult.records[0]!.get('count').toNumber();
 
       // Get selection counts
-      const selCountResult = await session.run('MATCH (s:Selection) RETURN count(s) as count');
-      const selectionCount = selCountResult.records[0]!.get('count').toNumber();
+      const selCountResult = await session.run('MATCH (a:Annotation) RETURN count(a) as count');
+      const annotationCount = selCountResult.records[0]!.get('count').toNumber();
 
       const highlightCountResult = await session.run(
-        'MATCH (s:Selection) WHERE s.resolvedDocumentId IS NULL RETURN count(s) as count'
+        'MATCH (a:Annotation) WHERE a.resolvedDocumentId IS NULL RETURN count(a) as count'
       );
       const highlightCount = highlightCountResult.records[0]!.get('count').toNumber();
 
       const referenceCountResult = await session.run(
-        'MATCH (s:Selection) WHERE s.resolvedDocumentId IS NOT NULL RETURN count(s) as count'
+        'MATCH (a:Annotation) WHERE a.resolvedDocumentId IS NOT NULL RETURN count(a) as count'
       );
       const referenceCount = referenceCountResult.records[0]!.get('count').toNumber();
 
       const entityRefCountResult = await session.run(
-        'MATCH (s:Selection) WHERE s.resolvedDocumentId IS NOT NULL AND size(s.entityTypes) > 0 RETURN count(s) as count'
+        'MATCH (a:Annotation) WHERE a.resolvedDocumentId IS NOT NULL AND size(a.entityTypes) > 0 RETURN count(a) as count'
       );
       const entityReferenceCount = entityRefCountResult.records[0]!.get('count').toNumber();
 
@@ -900,7 +791,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       return {
         documentCount,
-        selectionCount,
+        annotationCount,
         highlightCount,
         referenceCount,
         entityReferenceCount,
@@ -912,23 +803,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]> {
-    const results: Selection[] = [];
+  async createAnnotations(inputs: CreateSelectionRequest[]): Promise<Annotation[]> {
+    const results: Annotation[] = [];
     for (const input of inputs) {
-      results.push(await this.createSelection(input));
+      results.push(await this.createAnnotation(input));
     }
     return results;
   }
 
-  async resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]> {
-    const results: Selection[] = [];
+  async resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]> {
+    const results: Annotation[] = [];
     for (const input of inputs) {
-      results.push(await this.resolveSelection(input));
+      results.push(await this.resolveReference(input.annotationId, input.referencedDocumentId));
     }
     return results;
   }
 
-  async detectSelections(_documentId: string): Promise<Selection[]> {
+  async detectAnnotations(_documentId: string): Promise<Annotation[]> {
     // This would use AI/ML to detect selections in a document
     // For now, return empty array as a placeholder
     return [];
@@ -1078,33 +969,34 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     };
   }
 
-  private parseSelectionNode(node: any): Selection {
+  private parseAnnotationNode(node: any): Annotation {
     const props = node.properties;
 
     // Validate required fields
-    if (!props.id) throw new Error('Selection missing required field: id');
-    if (!props.documentId) throw new Error(`Selection ${props.id} missing required field: documentId`);
-    if (!props.selectionType) throw new Error(`Selection ${props.id} missing required field: selectionType`);
-    if (!props.selectionData) throw new Error(`Selection ${props.id} missing required field: selectionData`);
-    if (!props.createdAt) throw new Error(`Selection ${props.id} missing required field: createdAt`);
-    if (!props.updatedAt) throw new Error(`Selection ${props.id} missing required field: updatedAt`);
+    if (!props.id) throw new Error('Annotation missing required field: id');
+    if (!props.documentId) throw new Error(`Annotation ${props.id} missing required field: documentId`);
+    if (!props.text) throw new Error(`Annotation ${props.id} missing required field: text`);
+    if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
+    if (!props.selectionData) throw new Error(`Annotation ${props.id} missing required field: selectionData`);
+    if (!props.createdBy) throw new Error(`Annotation ${props.id} missing required field: createdBy`);
 
-    const selection: Selection = {
+    const annotation: Annotation = {
       id: props.id,
       documentId: props.documentId,
+      text: props.text,
       selectionData: JSON.parse(props.selectionData),
-      createdAt: new Date(props.createdAt.toString()),
-      updatedAt: new Date(props.updatedAt.toString()),
+      type: props.type as 'highlight' | 'reference',
+      createdBy: props.createdBy,
+      createdAt: new Date(props.createdAt),
+      entityTypes: props.entityTypes || [],
     };
 
-    if (props.resolvedDocumentId) selection.resolvedDocumentId = props.resolvedDocumentId;
-    if (props.resolvedAt) selection.resolvedAt = new Date(props.resolvedAt.toString());
-    if (props.referenceTags?.length > 0) selection.referenceTags = props.referenceTags;
-    if (props.entityTypes?.length > 0) selection.entityTypes = props.entityTypes;
-    if (props.metadata) selection.metadata = JSON.parse(props.metadata);
-    if (props.createdBy) selection.createdBy = props.createdBy;
-    if (props.resolvedBy) selection.resolvedBy = props.resolvedBy;
+    if (props.referencedDocumentId) annotation.referencedDocumentId = props.referencedDocumentId;
+    if (props.resolvedDocumentName) annotation.resolvedDocumentName = props.resolvedDocumentName;
+    if (props.referenceType) annotation.referenceType = props.referenceType;
+    if (props.resolvedAt) annotation.resolvedAt = new Date(props.resolvedAt.toString());
+    if (props.resolvedBy) annotation.resolvedBy = props.resolvedBy;
 
-    return selection;
+    return annotation;
   }
 }

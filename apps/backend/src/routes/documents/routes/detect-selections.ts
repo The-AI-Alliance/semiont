@@ -3,7 +3,6 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { detectSelectionsInDocument } from '../helpers';
-import type { CreateSelectionRequest } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
@@ -19,7 +18,6 @@ const DetectSelectionsResponse = z.object({
     referencedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
     createdAt: z.string(),
-    updatedAt: z.string(),
   })),
   detected: z.number().int().min(0),
 });
@@ -77,13 +75,13 @@ export function registerDetectSelections(router: DocumentsRouterType) {
     // Save the stub references
     const savedSelections = [];
     for (const detected of detectedSelections) {
-      const selectionInput: CreateSelectionInput & { selectionType: string } = {
+      const selectionInput = {
         documentId: id,
-        selectionType: 'reference',  // Graph implementations need this for stub references
+        text: detected.selection.selectionData.text,
         selectionData: detected.selection.selectionData,
+        type: 'reference' as const,
         referencedDocumentId: null,  // null = stub reference
-        entityTypes: detected.selection.entityTypes,
-        metadata: detected.selection.metadata,
+        entityTypes: detected.selection.entityTypes || [],
         createdBy: user.id,
       };
       const saved = await graphDb.createAnnotation(selectionInput);
@@ -99,7 +97,6 @@ export function registerDetectSelections(router: DocumentsRouterType) {
         referencedDocumentId: s.referencedDocumentId,
         entityTypes: s.entityTypes,
         createdAt: s.createdAt?.toISOString() || new Date().toISOString(),
-        updatedAt: s.updatedAt?.toISOString() || new Date().toISOString(),
       })),
       detected: savedSelections.length,
     });

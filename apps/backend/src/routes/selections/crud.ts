@@ -43,21 +43,8 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
 
-  // Process selection data from frontend format
-  let selectionData: any = {};
-
-  if (typeof body.selectionType === 'object' && 'type' in body.selectionType) {
-    // Frontend format with object - keep the same structure
-    const st = body.selectionType;
-    selectionData = {
-      type: st.type,
-      offset: st.offset,
-      length: st.length,
-      text: st.text
-    };
-  } else {
-    selectionData = body.selectionData || {};
-  }
+  // Use selectionData from the request body (already in correct format)
+  const selectionData = body.selectionData;
 
   // Generate ID - backend-internal, not graph-dependent
   const selectionId = generateAnnotationId();
@@ -75,7 +62,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
         length: selectionData.length,
       },
       entityTypes: body.entityTypes,
-      referenceType: body.referenceTags?.[0],
+      referenceType: body.referenceType,
       targetDocumentId: body.referencedDocumentId ?? undefined,
     });
   } else {
@@ -96,12 +83,12 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     selection: {
       id: selectionId,
       documentId: body.documentId,
-      selectionType: isReference ? 'reference' : 'highlight',
+      text: body.text,
       selectionData,
+      type: body.type,
       referencedDocumentId: body.referencedDocumentId,
       entityTypes: body.entityTypes || [],
-      referenceTags: body.referenceTags || [],
-      metadata: body.metadata || {},
+      referenceType: body.referenceType,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
     },
@@ -211,7 +198,7 @@ crudRouter.openapi(listSelectionsRoute, async (c) => {
   });
 
   return c.json({
-    selections: result.selections.map(formatAnnotation),
+    selections: result.annotations.map(formatAnnotation),
     total: result.total,
     offset: query.offset,
     limit: query.limit,
@@ -276,7 +263,7 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
     userId: user.id,
     referenceId: id,
     targetDocumentId: body.documentId,
-    referenceType: selection.referenceTags?.[0],
+    referenceType: selection.referenceType,
   });
 
   const targetDocument = await graphDb.getDocument(body.documentId);

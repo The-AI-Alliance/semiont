@@ -46,12 +46,12 @@ export function registerGetAnnotationHistory(router: SelectionsRouterType) {
 
     // Verify annotation exists
     const graphDb = await getGraphDatabase();
-    const selection = await graphDb.getSelection(annotationId);
-    if (!selection) {
+    const annotation = await graphDb.getAnnotation(annotationId);
+    if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (selection.documentId !== documentId) {
+    if (annotation.documentId !== documentId) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
     }
 

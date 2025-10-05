@@ -14,23 +14,22 @@ import { z } from 'zod';
  * Create Selection Request
  *
  * Backend API format for creating a selection (highlight or reference)
+ * Maps to Annotation type
  */
 export const CreateSelectionRequestSchema = z.object({
   documentId: z.string(),
-  selectionType: z.union([
-    z.enum(['highlight', 'reference']),
-    z.object({
-      type: z.string(),
-      offset: z.number(),
-      length: z.number(),
-      text: z.string()
-    })
-  ]),
-  selectionData: z.record(z.string(), z.any()).optional(),
+  text: z.string(),
+  selectionData: z.object({
+    type: z.string(),
+    offset: z.number(),
+    length: z.number(),
+    text: z.string(),
+  }),
+  type: z.enum(['highlight', 'reference']),
+  createdBy: z.string(),
   entityTypes: z.array(z.string()).optional(),
-  referenceTags: z.array(z.string()).optional(),
+  referenceType: z.string().optional(),
   referencedDocumentId: z.string().nullable().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export type CreateSelectionRequest = z.infer<typeof CreateSelectionRequestSchema>;
@@ -63,9 +62,12 @@ export type CreateSelectionResponse = z.infer<typeof CreateSelectionResponseSche
  * Field Requirements:
  * - text: REQUIRED (not optional)
  * - type: REQUIRED (not optional)
+ * - createdBy: REQUIRED (user who created)
  * - referencedDocumentId: OPTIONAL and nullable
  * - entityTypes: REQUIRED (always present, defaults to empty array)
  * - referenceType: OPTIONAL
+ * - resolvedBy: OPTIONAL (user who resolved reference)
+ * - resolvedAt: OPTIONAL (when reference was resolved)
  */
 const AnnotationSchema = z.object({
   id: z.string(),
@@ -78,10 +80,14 @@ const AnnotationSchema = z.object({
     text: z.string(),
   }),
   type: z.enum(['highlight', 'reference']),            // REQUIRED
+  createdBy: z.string(),                               // REQUIRED
+  createdAt: z.date(),                                 // REQUIRED
   referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
   resolvedDocumentName: z.string().optional(),         // OPTIONAL (name of referenced document)
   entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
   referenceType: z.string().optional(),                // OPTIONAL
+  resolvedBy: z.string().optional(),                   // OPTIONAL (who resolved the reference)
+  resolvedAt: z.date().optional(),                     // OPTIONAL (when resolved)
 });
 
 export type Annotation = z.infer<typeof AnnotationSchema>;
