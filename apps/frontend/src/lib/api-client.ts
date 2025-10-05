@@ -170,7 +170,7 @@ interface Document {
   // Provenance tracking
   creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';
   contentChecksum?: string;
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy?: string;
 }
@@ -189,13 +189,13 @@ interface DocumentResponse {
   document: Document;
 }
 
-interface SelectionsResponse {
+interface AnnotationsResponse {
   success: boolean;
   selections: Annotation[];
   total: number;
 }
 
-interface SelectionResponse {
+interface AnnotationResponse {
   success: boolean;
   selection: Annotation;
 }
@@ -443,13 +443,13 @@ interface APIService {
       contentType?: string;
       entityTypes?: string[];
       creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
-      sourceSelectionId?: string;
+      sourceAnnotationId?: string;
       sourceDocumentId?: string;
     }) => Promise<DocumentResponse>;
     get: (id: string) => Promise<DocumentResponse>;
     update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }) => Promise<DocumentResponse>;
     clone: (id: string) => Promise<{ token: string; expiresAt: string; sourceDocument: any }>;
-    getReferencedBy: (id: string) => Promise<{ referencedBy: SelectionResponse[] }>;
+    getReferencedBy: (id: string) => Promise<{ referencedBy: AnnotationResponse[] }>;
     detectSelections: (id: string, entityTypes: string[]) => Promise<{ message: string; detectionsStarted: number }>;
     getByToken: (token: string) => Promise<{ sourceDocument: any; expiresAt: string }>;
     createFromToken: (data: { token: string; name: string; content: string; archiveOriginal?: boolean }) => Promise<DocumentResponse>;
@@ -470,25 +470,25 @@ interface APIService {
   };
 
   selections: {
-    get: (id: string) => Promise<SelectionResponse>;
-    update: (id: string, data: Partial<Selection>) => Promise<SelectionResponse>;
+    get: (id: string) => Promise<AnnotationResponse>;
+    update: (id: string, data: Partial<Selection>) => Promise<AnnotationResponse>;
     delete: (id: string) => Promise<{ success: boolean }>;
     list: (params?: {
       documentId?: string;
       type?: string;
       limit?: number;
       offset?: number;
-    }) => Promise<SelectionsResponse>;
+    }) => Promise<AnnotationsResponse>;
     saveAsHighlight: (data: {
       documentId: string;
       text: string;
       position: { start: number; end: number };
-    }) => Promise<SelectionResponse>;
+    }) => Promise<AnnotationResponse>;
     resolveToDocument: (data: {
       selectionId: string;
       targetDocumentId: string;
       referenceType?: string;
-    }) => Promise<SelectionResponse>;
+    }) => Promise<AnnotationResponse>;
     createDocument: (data: {
       selectionId: string;
       name: string;
@@ -562,7 +562,7 @@ export const apiService: APIService = {
       entityTypes?: string[];  // Entity types can be set at creation time
       // Only context fields - backend calculates checksum, sets createdBy/createdAt
       creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
-      sourceSelectionId?: string;  // For reference-created documents
+      sourceAnnotationId?: string;  // For reference-created documents
       sourceDocumentId?: string;  // For reference-created documents
     }): Promise<DocumentResponse> =>
       apiClient.post('/api/documents', { body: data }),
@@ -576,7 +576,7 @@ export const apiService: APIService = {
     clone: (id: string): Promise<{ token: string; expiresAt: string; sourceDocument: any }> =>
       apiClient.post('/api/documents/:id/clone', { params: { id }, body: {} }),
     
-    getReferencedBy: (id: string): Promise<{ referencedBy: SelectionResponse[] }> =>
+    getReferencedBy: (id: string): Promise<{ referencedBy: AnnotationResponse[] }> =>
       apiClient.get('/api/documents/:id/referenced-by', { params: { id } }),
     
     detectSelections: (id: string, entityTypes: string[]): Promise<{ message: string; detectionsStarted: number }> =>
@@ -631,34 +631,34 @@ export const apiService: APIService = {
 
   // Selection endpoints
   selections: {
-    get: (id: string): Promise<SelectionResponse> =>
-      apiClient.get('/api/selections/:id', { params: { id } }),
+    get: (id: string): Promise<AnnotationResponse> =>
+      apiClient.get('/api/annotations/:id', { params: { id } }),
     
-    update: (id: string, data: Partial<Selection>): Promise<SelectionResponse> =>
-      apiClient.patch('/api/selections/:id', { params: { id }, body: data }),
+    update: (id: string, data: Partial<Selection>): Promise<AnnotationResponse> =>
+      apiClient.patch('/api/annotations/:id', { params: { id }, body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>
-      apiClient.delete('/api/selections/:id', { params: { id } }),
+      apiClient.delete('/api/annotations/:id', { params: { id } }),
     
     list: (params?: { 
       documentId?: string; 
       type?: string; 
       limit?: number; 
       offset?: number; 
-    }): Promise<SelectionsResponse> => {
+    }): Promise<AnnotationsResponse> => {
       if (params) {
-        return apiClient.get('/api/selections', { params });
+        return apiClient.get('/api/annotations', { params });
       }
-      return apiClient.get('/api/selections');
+      return apiClient.get('/api/annotations');
     },
     
     saveAsHighlight: async (data: {
       documentId: string;
       text: string;
       position: { start: number; end: number };
-    }): Promise<SelectionResponse> => {
+    }): Promise<AnnotationResponse> => {
       // Create selection (automatically saved as highlight when no resolvedDocumentId)
-      const highlight = await apiClient.post('/api/selections', { 
+      const highlight = await apiClient.post('/api/annotations', { 
         body: { 
           documentId: data.documentId,
           selectionType: {
@@ -677,8 +677,8 @@ export const apiService: APIService = {
       selectionId: string;
       targetDocumentId: string;
       referenceType?: string;
-    }): Promise<SelectionResponse> =>
-      apiClient.put('/api/selections/:id/resolve', {
+    }): Promise<AnnotationResponse> =>
+      apiClient.put('/api/annotations/:id/resolve', {
         params: { id: data.selectionId },
         body: {
           documentId: data.targetDocumentId,
@@ -692,7 +692,7 @@ export const apiService: APIService = {
       content: string;
       referenceType?: string;
     }): Promise<DocumentResponse> =>
-      apiClient.post('/api/selections/create-document', { body: data }),
+      apiClient.post('/api/annotations/create-document', { body: data }),
     
     generateDocument: (
       selectionId: string,
@@ -701,7 +701,7 @@ export const apiService: APIService = {
         prompt?: string;
       }
     ): Promise<any> =>
-      apiClient.post('/api/selections/:id/generate-document', {
+      apiClient.post('/api/annotations/:id/generate-document', {
         params: { id: selectionId },
         body: data || {}
       }),
@@ -1160,9 +1160,9 @@ export const api: ReactQueryAPI = {
     },
     create: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, CreateAnnotationRequest>(
+        return useAuthenticatedMutation<AnnotationResponse, CreateAnnotationRequest>(
           async (input: CreateAnnotationRequest, fetchAPI) => {
-            return fetchAPI('/api/selections', {
+            return fetchAPI('/api/annotations', {
               method: 'POST',
               body: JSON.stringify(input),
             });
@@ -1172,9 +1172,9 @@ export const api: ReactQueryAPI = {
     },
     saveAsHighlight: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, { documentId: string; text: string; position: { start: number; end: number } }>(
+        return useAuthenticatedMutation<AnnotationResponse, { documentId: string; text: string; position: { start: number; end: number } }>(
           (input, fetchAPI) =>
-            fetchAPI('/api/selections', {
+            fetchAPI('/api/annotations', {
               method: 'POST',
               body: JSON.stringify({
                 documentId: input.documentId,
@@ -1193,7 +1193,7 @@ export const api: ReactQueryAPI = {
       useMutation: () => {
         return useAuthenticatedMutation<void, { id: string; documentId: string }>(
           (input, fetchAPI) =>
-            fetchAPI(`/api/selections/${input.id}`, {
+            fetchAPI(`/api/annotations/${input.id}`, {
               method: 'DELETE',
               body: JSON.stringify({ documentId: input.documentId }),
             })
@@ -1204,7 +1204,7 @@ export const api: ReactQueryAPI = {
       useMutation: () => {
         return useAuthenticatedMutation<any, { selectionId: string; entityTypes?: string[]; prompt?: string }>(
           (input, fetchAPI) =>
-            fetchAPI('/api/selections/generate-document', {
+            fetchAPI('/api/annotations/generate-document', {
               method: 'POST',
               body: JSON.stringify({
                 selectionId: input.selectionId,
@@ -1217,9 +1217,9 @@ export const api: ReactQueryAPI = {
     },
     resolveToDocument: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
+        return useAuthenticatedMutation<AnnotationResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
           (input, fetchAPI) =>
-            fetchAPI(`/api/selections/${input.selectionId}/resolve`, {
+            fetchAPI(`/api/annotations/${input.selectionId}/resolve`, {
               method: 'PUT',
               body: JSON.stringify({
                 documentId: input.targetDocumentId,
@@ -1242,8 +1242,8 @@ export type {
   Document,
   DocumentsResponse,
   DocumentResponse,
-  SelectionsResponse,
-  SelectionResponse,
+  AnnotationsResponse,
+  AnnotationResponse,
   SchemaDescriptionResponse,
   LLMContextResponse,
   DiscoverContextResponse
