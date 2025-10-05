@@ -7,7 +7,7 @@ import { env } from '@/lib/env';
 // Mock the admin components
 // Note: AdminAuthWrapper was removed - auth is now handled by middleware
 vi.mock('@/components/shared/LeftSidebar', () => ({
-  LeftSidebar: ({ children }: { children: React.ReactNode }) => (
+  LeftSidebar: ({ children }: { children: React.ReactNode | ((isCollapsed: boolean, toggleCollapsed: () => void) => React.ReactNode) }) => (
     <aside data-testid="admin-sidebar">
       {typeof children === 'function' ? children(false, () => {}) : children}
     </aside>
