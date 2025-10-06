@@ -9,11 +9,11 @@ import {
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  
+
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-  
+
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 

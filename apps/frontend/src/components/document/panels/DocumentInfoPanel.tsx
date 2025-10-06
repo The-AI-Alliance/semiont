@@ -2,26 +2,11 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-
-interface Reference {
-  id: string;
-  entityTypes?: string[];
-  entityType?: string;
-  referencedDocumentId?: string | null;
-}
-
-interface ReferencedBy {
-  id: string;
-  documentId: string;
-  documentName?: string;
-  selector?: {
-    exact?: string;
-  };
-}
+import type { Annotation, ReferencedBy } from '@semiont/core-types';
 
 interface Props {
-  highlights: any[];
-  references: Reference[];
+  highlights: Annotation[];
+  references: Annotation[];
   referencedBy: ReferencedBy[];
   referencedByLoading: boolean;
   documentEntityTypes: string[];
@@ -49,7 +34,7 @@ export function DocumentInfoPanel({
   const entityTypesList = useMemo(() => {
     const entityTypeCounts = new Map<string, number>();
     references.forEach((ref) => {
-      const entityTypes = ref.entityTypes || (ref.entityType ? [ref.entityType] : []);
+      const entityTypes = ref.entityTypes || [];
       entityTypes.forEach((type: string) => {
         entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
       });

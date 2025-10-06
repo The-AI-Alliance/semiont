@@ -3,37 +3,19 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { calculateChecksum } from '@semiont/utils';
-import { CREATION_METHODS } from '@semiont/core-types';
+import {
+  CREATION_METHODS,
+  GetDocumentByTokenResponseSchema,
+  CreateDocumentFromTokenRequestSchema,
+  CreateDocumentFromTokenResponseSchema,
+  CloneDocumentWithTokenResponseSchema,
+} from '@semiont/core-types';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Simple in-memory token store (replace with Redis/DB in production)
 const cloneTokens = new Map<string, { documentId: string; expiresAt: Date }>();
-
-// Local schemas
-const GetDocumentByTokenResponse = z.object({
-  sourceDocument: z.any(),
-  expiresAt: z.string(),
-});
-
-const CreateDocumentFromTokenRequest = z.object({
-  token: z.string(),
-  name: z.string(),
-  content: z.string(),
-  archiveOriginal: z.boolean().optional(),
-});
-
-const CreateDocumentFromTokenResponse = z.object({
-  document: z.any(),
-  selections: z.array(z.any()),
-});
-
-const CloneDocumentWithTokenResponse = z.object({
-  token: z.string(),
-  expiresAt: z.string(),
-  document: z.any(),
-});
 
 // GET /api/documents/token/{token}
 export const getDocumentByTokenRoute = createRoute({
@@ -52,7 +34,7 @@ export const getDocumentByTokenRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetDocumentByTokenResponse,
+          schema: GetDocumentByTokenResponseSchema,
         },
       },
       description: 'Document retrieved successfully',
@@ -72,7 +54,7 @@ export const createDocumentFromTokenRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateDocumentFromTokenRequest,
+          schema: CreateDocumentFromTokenRequestSchema,
         },
       },
     },
@@ -81,7 +63,7 @@ export const createDocumentFromTokenRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateDocumentFromTokenResponse,
+          schema: CreateDocumentFromTokenResponseSchema,
         },
       },
       description: 'Document created successfully',
@@ -106,7 +88,7 @@ export const cloneDocumentWithTokenRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: CloneDocumentWithTokenResponse,
+          schema: CloneDocumentWithTokenResponseSchema,
         },
       },
       description: 'Clone token generated successfully',
@@ -225,7 +207,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     return c.json({
       document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatAnnotation),
+      annotations: [...highlights, ...references].map(formatAnnotation),
     }, 201);
   });
 

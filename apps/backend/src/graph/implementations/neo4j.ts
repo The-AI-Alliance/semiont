@@ -362,7 +362,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             exact: $text,
+             exact: $exact,
              selector: $selector,
              type: $type,
              createdBy: $createdBy,
@@ -380,7 +380,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             exact: $text,
+             exact: $exact,
              selector: $selector,
              type: $type,
              createdBy: $createdBy,

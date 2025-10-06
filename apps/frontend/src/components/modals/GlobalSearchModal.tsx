@@ -38,8 +38,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   // Use React Query for search
   const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
     debouncedQuery,
-    5,
-    { enabled: debouncedQuery.trim() !== '' }
+    5
   );
 
   // Reset state when modal opens/closes

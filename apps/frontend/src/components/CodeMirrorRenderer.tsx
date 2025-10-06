@@ -292,7 +292,9 @@ export function CodeMirrorRenderer({
         // Call onChange when content changes
         EditorView.updateListener.of((update) => {
           if (update.docChanged && onChange) {
-            onChange(update.state.doc.toString());
+            const newContent = update.state.doc.toString();
+            contentRef.current = newContent; // Update ref to prevent cursor jumping
+            onChange(newContent);
           }
         }),
         // Handle clicks on annotations
@@ -370,7 +372,8 @@ export function CodeMirrorRenderer({
             wordBreak: sourceView ? 'break-word' : 'normal'
           },
           '.cm-cursor': {
-            display: editable ? 'block' : 'none'
+            display: editable ? 'block' : 'none',
+            borderLeftColor: 'currentColor'
           },
           '.cm-gutters': {
             backgroundColor: 'transparent',
@@ -404,16 +407,27 @@ export function CodeMirrorRenderer({
     };
   }, []); // Only create once
 
-  // Update content when it changes
+  // Update content when it changes externally (not from user typing)
   useEffect(() => {
-    if (!viewRef.current || content === contentRef.current) return;
+    if (!viewRef.current) return;
+
+    const currentContent = viewRef.current.state.doc.toString();
+
+    // Only update if content is different AND didn't come from user input
+    // (user input already updates the view, so we only need this for external updates)
+    if (content === currentContent || content === contentRef.current) return;
+
+    // Save cursor position
+    const selection = viewRef.current.state.selection.main;
 
     viewRef.current.dispatch({
       changes: {
         from: 0,
         to: viewRef.current.state.doc.length,
         insert: content
-      }
+      },
+      // Restore cursor position if possible
+      selection: selection.from <= content.length ? selection : undefined
     });
 
     contentRef.current = content;

@@ -48,21 +48,18 @@ function ComposeDocumentContent() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Fetch available entity types
-  const { data: entityTypesData } = api.entityTypes.list.useQuery();
+  const { data: entityTypesData } = api.entityTypes.all.useQuery();
   const availableEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutation hooks
-  const generateDocMutation = api.selections.generateDocument.useMutation();
   const createDocMutation = api.documents.create.useMutation();
-  const createFromTokenMutation = api.documents.createFromToken.useMutation();
-  const resolveToDocMutation = api.selections.resolveToDocument.useMutation();
+  const generateDocMutation = api.annotations.generate.useMutation();
+  const resolveToDocMutation = api.annotations.resolve.useMutation();
 
-  // Query for clone mode - only run when we have a token
-  const { data: cloneData } = api.documents.getByToken.useQuery(
-    tokenFromUrl || '',
-    { enabled: mode === 'clone' && !!tokenFromUrl }
-  );
-  
+  // Fetch cloned document data if in clone mode
+  const { data: cloneData } = api.documents.getByToken.useQuery(tokenFromUrl || '');
+  const createFromTokenMutation = api.documents.createFromToken.useMutation();
+
   // Generate AI content using the backend inference service
   const generateContent = async (documentName: string, entityTypes: string[], referenceType?: string) => {
     setIsGenerating(true);
@@ -83,7 +80,7 @@ function ComposeDocumentContent() {
       }
 
       const response = await generateDocMutation.mutateAsync({
-        referenceId,
+        id: referenceId,
         data: requestData
       });
 
@@ -145,7 +142,7 @@ function ComposeDocumentContent() {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
           setNewDocName(cloneData.sourceDocument.name);
-          setNewDocContent(cloneData.sourceDocument.content);
+          setNewDocContent(cloneData.sourceDocument.content || '');
         } else {
           showError('Invalid or expired clone token');
           router.push('/know/discover');
@@ -193,6 +190,7 @@ function ComposeDocumentContent() {
           content: newDocContent,
           contentType: 'text/markdown',
           entityTypes: selectedEntityTypes,
+          metadata: {},
           creationMethod: 'ui'
         });
 
@@ -205,18 +203,10 @@ function ComposeDocumentContent() {
         // If this is a reference completion, update the reference to point to the new document
         if (isReferenceCompletion && referenceId && documentId) {
           try {
-            const resolveData: {
-              selectionId: string;
-              targetDocumentId: string;
-              referenceType?: string;
-            } = {
-              selectionId: referenceId,
-              targetDocumentId: documentId
-            };
-            if (referenceTypeFromUrl) {
-              resolveData.referenceType = referenceTypeFromUrl;
-            }
-            await resolveToDocMutation.mutateAsync(resolveData);
+            await resolveToDocMutation.mutateAsync({
+              id: referenceId,
+              documentId: documentId
+            });
             showSuccess('Reference successfully linked to the new document');
           } catch (error) {
             console.error('Failed to update reference:', error);

@@ -20,7 +20,7 @@ export function ProposeEntitiesModal({
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
   // Get available entity types
-  const { data: entityTypesData } = api.entityTypes.list.useQuery();
+  const { data: entityTypesData } = api.entityTypes.all.useQuery();
   const allEntityTypes = entityTypesData?.entityTypes || [];
 
   // Load saved preferences when modal opens

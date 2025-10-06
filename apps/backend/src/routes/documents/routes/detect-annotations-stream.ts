@@ -1,12 +1,11 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import { getStorageService } from '../../../storage/filesystem';
-import { detectSelectionsInDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { DocumentQueryService } from '../../../services/document-queries';
-import { emitReferenceCreated } from '../../../events/emit';
-import { generateAnnotationId } from '../../../utils/id-generator';
+import { getJobQueue } from '../../../jobs/job-queue';
+import type { DetectionJob } from '../../../jobs/types';
+import { nanoid } from 'nanoid';
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
@@ -78,14 +77,29 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
     }
 
     // Validate document exists using Layer 3
-    const storage = getStorageService();
-
     const document = await DocumentQueryService.getDocumentMetadata(id);
     if (!document) {
       throw new HTTPException(404, { message: 'Document not found in Layer 3 projections - document may need to be recreated' });
     }
 
-    // Stream SSE events
+    // Create a detection job (this decouples event emission from HTTP client)
+    const jobQueue = getJobQueue();
+    const job: DetectionJob = {
+      id: `job-${nanoid()}`,
+      type: 'detection',
+      status: 'pending',
+      userId: user.id,
+      documentId: id,
+      entityTypes,
+      createdAt: new Date().toISOString(),
+      retryCount: 0,
+      maxRetries: 3
+    };
+
+    await jobQueue.createJob(job);
+    console.log(`[DetectSelections] Created job ${job.id} for document ${id}`);
+
+    // Stream the job's progress to the client
     return streamSSE(c, async (stream) => {
       try {
         // Send initial started event
@@ -101,97 +115,111 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
           id: String(Date.now())
         });
 
-        // Get document content
-        const content = await storage.getDocument(id);
-        const docWithContent = { ...document, content: content.toString('utf-8') };
+        let lastStatus = job.status;
+        let lastProgress = JSON.stringify(job.progress);
 
-        // Process each entity type
-        for (let i = 0; i < entityTypes.length; i++) {
-          const entityType = entityTypes[i];
-          if (!entityType) continue; // Skip if undefined
+        // Poll job status and stream updates to client
+        // The job worker processes independently - if client disconnects, job continues
+        while (true) {
+          const currentJob = await jobQueue.getJob(job.id);
 
-          // Send scanning progress for this entity type
-          await stream.writeSSE({
-            data: JSON.stringify({
-              status: 'scanning',
-              documentId: id,
-              currentEntityType: entityType,
-              totalEntityTypes: entityTypes.length,
-              processedEntityTypes: i,
-              message: `Scanning for ${entityType}...`
-            } as DetectionProgress),
-            event: 'detection-progress',
-            id: String(Date.now())
-          });
-
-          // Detect selections for this entity type
-          const detectedSelections = await detectSelectionsInDocument(
-            docWithContent,
-            [entityType]
-          );
-
-          // Create stub references via events (event store updates Layer 3, graph consumer updates Layer 4)
-          // References will appear in Annotation History as they're created (via debounced refetch)
-          for (const detected of detectedSelections) {
-            const referenceId = generateAnnotationId();
-
-            await emitReferenceCreated({
-              documentId: id,
-              userId: user.id,
-              referenceId,
-              exact: detected.selection.selector.exact,
-              position: {
-                offset: detected.selection.selector.offset,
-                length: detected.selection.selector.length,
-              },
-              entityTypes: detected.selection.entityTypes,
-              referenceType: undefined, // Unresolved reference
-              targetDocumentId: undefined, // Will be resolved later
-            });
+          if (!currentJob) {
+            throw new Error('Job was deleted');
           }
 
-          // Update progress after completing this entity type
-          await stream.writeSSE({
-            data: JSON.stringify({
-              status: 'scanning',
-              documentId: id,
-              currentEntityType: entityType,
-              totalEntityTypes: entityTypes.length,
-              processedEntityTypes: i + 1,
-              foundCount: detectedSelections.length,
-              message: `Completed ${entityType}`
-            } as DetectionProgress),
-            event: 'detection-progress',
-            id: String(Date.now())
-          });
-        }
+          const currentProgress = JSON.stringify(currentJob.progress);
 
-        // Send completion event
-        await stream.writeSSE({
-          data: JSON.stringify({
-            status: 'complete',
-            documentId: id,
-            totalEntityTypes: entityTypes.length,
-            processedEntityTypes: entityTypes.length,
-            message: 'Detection complete!'
-          } as DetectionProgress),
-          event: 'detection-complete',
-          id: String(Date.now())
-        });
+          // Send progress updates when job state changes
+          if (currentJob.status !== lastStatus || currentProgress !== lastProgress) {
+            if (currentJob.status === 'running' && currentJob.type === 'detection') {
+              const detectionJob = currentJob as DetectionJob;
+              const progress = detectionJob.progress;
+
+              if (progress) {
+                // Send scanning progress
+                try {
+                  await stream.writeSSE({
+                    data: JSON.stringify({
+                      status: 'scanning',
+                      documentId: id,
+                      currentEntityType: progress.currentEntityType,
+                      totalEntityTypes: progress.totalEntityTypes,
+                      processedEntityTypes: progress.processedEntityTypes,
+                      foundCount: progress.entitiesFound,
+                      message: progress.currentEntityType
+                        ? `Scanning for ${progress.currentEntityType}...`
+                        : 'Processing...'
+                    } as DetectionProgress),
+                    event: 'detection-progress',
+                    id: String(Date.now())
+                  });
+                } catch (sseError) {
+                  console.warn(`[DetectSelections] Client disconnected, but job ${job.id} will continue processing`);
+                  break; // Client disconnected, stop streaming (job continues)
+                }
+              }
+            }
+
+            lastStatus = currentJob.status;
+            lastProgress = currentProgress;
+          }
+
+          // Check if job completed
+          if (currentJob.status === 'complete') {
+            const result = (currentJob as DetectionJob).result;
+            await stream.writeSSE({
+              data: JSON.stringify({
+                status: 'complete',
+                documentId: id,
+                totalEntityTypes: entityTypes.length,
+                processedEntityTypes: entityTypes.length,
+                message: result
+                  ? `Detection complete! Found ${result.totalFound} entities, emitted ${result.totalEmitted} events`
+                  : 'Detection complete!'
+              } as DetectionProgress),
+              event: 'detection-complete',
+              id: String(Date.now())
+            });
+            break;
+          }
+
+          if (currentJob.status === 'failed') {
+            await stream.writeSSE({
+              data: JSON.stringify({
+                status: 'error',
+                documentId: id,
+                totalEntityTypes: entityTypes.length,
+                processedEntityTypes: 0,
+                message: currentJob.error || 'Detection failed'
+              } as DetectionProgress),
+              event: 'detection-error',
+              id: String(Date.now())
+            });
+            break;
+          }
+
+          // Poll every 500ms
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
 
       } catch (error) {
         // Send error event
-        await stream.writeSSE({
-          data: JSON.stringify({
-            status: 'error',
-            documentId: id,
-            totalEntityTypes: entityTypes.length,
-            processedEntityTypes: 0,
-            message: error instanceof Error ? error.message : 'Detection failed'
-          } as DetectionProgress),
-          event: 'detection-error',
-          id: String(Date.now())
-        });
+        try {
+          await stream.writeSSE({
+            data: JSON.stringify({
+              status: 'error',
+              documentId: id,
+              totalEntityTypes: entityTypes.length,
+              processedEntityTypes: 0,
+              message: error instanceof Error ? error.message : 'Detection failed'
+            } as DetectionProgress),
+            event: 'detection-error',
+            id: String(Date.now())
+          });
+        } catch (sseError) {
+          // Client already disconnected
+          console.warn(`[DetectSelections] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
+        }
       }
     });
   });

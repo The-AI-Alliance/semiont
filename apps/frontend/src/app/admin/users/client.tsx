@@ -126,12 +126,8 @@ export default function AdminUsers() {
 
   const queryClient = useQueryClient();
   // Only run queries when authenticated
-  const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.list.useQuery(
-    { enabled: isAuthenticated }
-  );
-  const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery(
-    { enabled: isAuthenticated }
-  );
+  const { data: usersResponse, isLoading: usersLoading, error: usersError } = api.admin.users.all.useQuery();
+  const { data: statsResponse, isLoading: statsLoading, error: statsError } = api.admin.users.stats.useQuery();
   
   // Debug logging for API responses
   React.useEffect(() => {
@@ -144,7 +140,7 @@ export default function AdminUsers() {
   const deleteUserMutation = api.admin.users.delete.useMutation();
 
   const users = (usersResponse as AdminUsersResponse | undefined)?.users ?? [];
-  const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats ?? { total: 0, active: 0, admins: 0, recent: 0 };
+  const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats;
 
   const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
@@ -162,9 +158,9 @@ export default function AdminUsers() {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       return;
     }
-    
+
     try {
-      await deleteUserMutation.mutateAsync({ id });
+      await deleteUserMutation.mutateAsync(id);
       // Refresh the data
       queryClient.invalidateQueries({ queryKey: ['admin.users.list'] });
       queryClient.invalidateQueries({ queryKey: ['admin.users.stats'] });
@@ -227,11 +223,11 @@ export default function AdminUsers() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats.total}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.totalUsers ?? 0}</p>
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -241,7 +237,7 @@ export default function AdminUsers() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Users</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats.active}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.activeUsers ?? 0}</p>
             </div>
           </div>
         </div>
@@ -253,7 +249,7 @@ export default function AdminUsers() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Administrators</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats.admins}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.adminUsers ?? 0}</p>
             </div>
           </div>
         </div>
@@ -265,7 +261,7 @@ export default function AdminUsers() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Recent Users</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats.recent}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{userStats?.recentSignups?.length ?? 0}</p>
             </div>
           </div>
         </div>

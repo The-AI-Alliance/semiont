@@ -46,7 +46,7 @@ const handlers = [
     })
   }),
 
-  http.get('*/api/users/me', ({ request }) => {
+  http.get('*/api/auth/me', ({ request }) => {
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return HttpResponse.json(
@@ -211,7 +211,7 @@ const errorHandlers = [
     )
   }),
 
-  http.get('*/api/users/me', () => {
+  http.get('*/api/auth/me', () => {
     return HttpResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

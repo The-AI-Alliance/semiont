@@ -4,7 +4,12 @@ import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { formatDocument, formatAnnotation } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
-import { CreateAnnotationRequestSchema, CreateAnnotationResponseSchema } from '@semiont/core-types';
+import {
+  CreateAnnotationRequestSchema,
+  CreateAnnotationResponseSchema,
+  ResolveSelectionRequestSchema,
+  ResolveSelectionResponseSchema,
+} from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 
@@ -97,7 +102,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
 
 // Local schema for GET
 const GetSelectionResponse = z.object({
-  selection: z.any(),
+  annotation: z.any(),
   document: z.any().nullable(),
   resolvedDocument: z.any().nullable(),
 });
@@ -140,7 +145,7 @@ crudRouter.openapi(getSelectionRoute, async (c) => {
     await graphDb.getDocument(selection.referencedDocumentId) : null;
 
   return c.json({
-    selection: formatAnnotation(selection),
+    annotation: formatAnnotation(selection),
     document: document ? formatDocument(document) : null,
     resolvedDocument: resolvedDocument ? formatDocument(resolvedDocument) : null,
   });
@@ -148,7 +153,7 @@ crudRouter.openapi(getSelectionRoute, async (c) => {
 
 // Local schema for LIST
 const ListSelectionsResponse = z.object({
-  selections: z.array(z.any()),
+  annotations: z.array(z.any()),
   total: z.number(),
   offset: z.number(),
   limit: z.number(),
@@ -198,21 +203,11 @@ crudRouter.openapi(listSelectionsRoute, async (c) => {
   });
 
   return c.json({
-    selections: result.annotations.map(formatAnnotation),
+    annotations: result.annotations.map(formatAnnotation),
     total: result.total,
     offset: query.offset,
     limit: query.limit,
   });
-});
-
-// Local schemas for RESOLVE
-const ResolveSelectionRequest = z.object({
-  documentId: z.string(),
-});
-
-const ResolveSelectionResponse = z.object({
-  selection: z.any(),
-  targetDocument: z.any().nullable(),
 });
 
 // RESOLVE
@@ -230,7 +225,7 @@ const resolveSelectionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: ResolveSelectionRequest,
+          schema: ResolveSelectionRequestSchema,
         },
       },
     },
@@ -239,7 +234,7 @@ const resolveSelectionRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ResolveSelectionResponse,
+          schema: ResolveSelectionResponseSchema,
         },
       },
       description: 'Selection resolved successfully',
@@ -270,7 +265,7 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
 
   // Return optimistic response
   return c.json({
-    selection: formatAnnotation({
+    annotation: formatAnnotation({
       ...selection,
       referencedDocumentId: body.documentId,
     }),

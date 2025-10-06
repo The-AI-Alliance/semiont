@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
-import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '../schemas';
+import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '@semiont/core-types';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';

@@ -11,7 +11,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
 interface Props {
-  document: SemiontDocument;
+  document: SemiontDocument & { content: string };
   highlights: Annotation[];
   references: Annotation[];
   onRefetchAnnotations?: () => void;
@@ -97,7 +97,7 @@ export function DocumentViewer({
         id: annotation.id,
         type: annotation.type
       });
-      setSelectedText(annotation.selector?.exact || '');
+      setSelectedText(annotation.exact);
       if (annotation.selector) {
         setSelectionPosition({
           start: annotation.selector.offset,

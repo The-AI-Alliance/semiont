@@ -1,1250 +1,633 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import type { StoredEvent, CreateAnnotationRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
-import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
-
 /**
- * Centralized query keys for React Query
- * Following TanStack Query best practices for type-safe cache invalidation
- * @see https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
+ * Frontend API Client
+ *
+ * Pure TanStack Query hooks that use types from @semiont/core-types.
+ * NO hand-written type definitions - all types imported from core-types.
  */
-export const QUERY_KEYS = {
-  auth: {
-    me: () => ['/api/auth/me'],
-  },
-  health: () => ['/api/health'],
-  admin: {
-    users: {
-      all: () => ['/api/admin/users'],
-      stats: () => ['/api/admin/users/stats'],
-    },
-    oauth: {
-      config: () => ['/api/admin/oauth/config'],
-    },
-  },
-  entityTypes: {
-    all: () => ['/api/entity-types'],
-  },
-  referenceTypes: {
-    all: () => ['/api/reference-types'],
-  },
-  documents: {
-    all: (limit?: number, archived?: boolean) => ['/api/documents', limit, archived],
-    detail: (id: string) => ['/api/documents', id],
-    byToken: (token: string) => ['/api/documents/by-token', token],
-    search: (query: string, limit: number) => ['/api/documents/search', query, limit],
-    referencedBy: (id: string) => ['/api/documents', id, 'referenced-by'],
-    events: (id: string) => ['/api/documents', id, 'events'],
-    highlights: (documentId: string) => ['/api/documents/:id/highlights', documentId],
-    references: (documentId: string) => ['/api/documents/:id/references', documentId],
-  },
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
+import type {
+  // Annotation types
+  Annotation,
+  CreateAnnotationRequest,
+  CreateAnnotationResponse,
+  GetHighlightsResponse,
+  GetReferencesResponse,
+  DeleteAnnotationResponse,
+  GenerateDocumentFromSelectionRequest,
+  GenerateDocumentFromSelectionResponse,
+  ResolveSelectionRequest,
+  ResolveSelectionResponse,
+
+  // Document types
+  Document,
+  CreateDocumentRequest,
+  CreateDocumentResponse,
+  UpdateDocumentRequest,
+  GetDocumentResponse,
+  ListDocumentsResponse,
+  ReferencedBy,
+  GetDocumentByTokenResponse,
+  CreateDocumentFromTokenRequest,
+  CreateDocumentFromTokenResponse,
+  CloneDocumentWithTokenResponse,
+
+  // Admin types
+  AdminUser,
+  AdminUsersResponse,
+  AdminUserStatsResponse,
+  UpdateUserRequest,
+  OAuthProvider,
+  OAuthConfigResponse,
+
+  // Auth types
+  AcceptTermsResponse,
+
+  // Tag types
+  AddEntityTypeResponse,
+  AddReferenceTypeResponse,
+} from '@semiont/core-types';
+
+// Re-export types for convenience
+export type {
+  Document,
+  Annotation,
+  AdminUser,
+  AdminUsersResponse,
+  AdminUserStatsResponse,
+  UpdateUserRequest,
+  OAuthProvider,
+  OAuthConfigResponse,
 };
-
-// Local type definitions to replace api-contracts imports
-
-interface StatusResponse {
-  status: string;
-  version: string;
-  features: {
-    semanticContent: string;
-    collaboration: string;
-    rbac: string;
-  };
-  message: string;
-  authenticatedAs?: string;
-}
-
-interface AuthResponse {
-  success: boolean;
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-    image: string | null;
-    domain: string;
-    isAdmin: boolean;
-  };
-  token: string;
-  isNewUser: boolean;
-}
-
-interface UserResponse {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  domain: string;
-  provider: string;
-  isAdmin: boolean;
-  isActive: boolean;
-  termsAcceptedAt: string | null;
-  lastLogin: string | null;
-  createdAt: string;
-}
-
-interface LogoutResponse {
-  success: boolean;
-  message: string;
-}
-
-interface HealthResponse {
-  status: string;
-  message: string;
-  version: string;
-  timestamp: string;
-  database: 'connected' | 'disconnected' | 'unknown';
-  environment: string;
-}
-
-interface ErrorResponse {
-  error: string;
-  code?: string;
-  details?: any;
-}
-
-// Admin API types
-interface AdminUser {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  domain: string;
-  provider: string;
-  isAdmin: boolean;
-  isActive: boolean;
-  lastLogin: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface AdminUsersResponse {
-  success: boolean;
-  users: AdminUser[];
-}
-
-interface AdminUserStatsResponse {
-  success: boolean;
-  stats: {
-    total: number;
-    active: number;
-    admins: number;
-    recent: number;
-  };
-}
-
-interface AdminUserUpdateResponse {
-  success: boolean;
-  user: AdminUser;
-}
-
-interface AdminUserDeleteResponse {
-  success: boolean;
-  message: string;
-}
-
-interface OAuthProvider {
-  name: string;
-  clientId?: string;
-  isConfigured: boolean;
-  scopes?: string[];
-}
-
-interface OAuthConfigResponse {
-  success: boolean;
-  providers: OAuthProvider[];
-  allowedDomains: string[];
-}
-
-// Document and Selection types
-interface Document {
-  id: string;
-  name: string;
-  content: string;
-  contentType: string;
-  entityTypes?: string[];
-  archived?: boolean;
-  createdAt: string;
-  updatedAt: string;
-  highlights?: Selection[];
-  references?: Selection[];
-  
-  // Provenance tracking
-  creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';
-  contentChecksum?: string;
-  sourceAnnotationId?: string;
-  sourceDocumentId?: string;
-  createdBy?: string;
-}
-
-// Use core-types Annotation as single source of truth
-import type { Annotation } from '@semiont/core-types';
-
-interface DocumentsResponse {
-  success: boolean;
-  documents: Document[];
-  total: number;
-}
-
-interface DocumentResponse {
-  success: boolean;
-  document: Document;
-}
-
-interface AnnotationsResponse {
-  success: boolean;
-  selections: Annotation[];
-  total: number;
-}
-
-interface AnnotationResponse {
-  success: boolean;
-  selection: Annotation;
-}
-
-interface SchemaDescriptionResponse {
-  description: string;
-  statistics: {
-    documentCount: number;
-    selectionCount: number;
-    highlightCount: number;
-    referenceCount: number;
-    entityTypes: Record<string, number>;
-  };
-  entityTypeDescriptions: Array<{
-    type: string;
-    count: number;
-    description: string;
-  }>;
-}
-
-interface LLMContextResponse {
-  success: boolean;
-  context: any;
-}
-
-interface DiscoverContextResponse {
-  success: boolean;
-  context: any;
-}
 
 // API Error class
-export class APIError extends Error {
-  constructor(
-    public status: number,
-    public data: any,
-    message?: string
-  ) {
-    super(message || `API Error: ${status}`);
-    this.name = 'APIError';
+export { APIError } from './api-error';
+
+// Query keys for React Query cache management
+export { QUERY_KEYS } from './query-keys';
+import { QUERY_KEYS } from './query-keys';
+import { APIError } from './api-error';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+/**
+ * Fetch helper with authentication
+ */
+async function fetchAPI<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  token?: string
+): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((options.headers || {}) as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new APIError(response.status, errorData, errorData.message);
+  }
+
+  return response.json();
 }
 
-// Request options for API calls
-interface RequestOptions {
-  params?: Record<string, any>;
-  body?: Record<string, any>;
-  headers?: Record<string, string>;
-}
-
-// Validate required environment variables - now called lazily
-const validateApiUrl = () => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!apiUrl || apiUrl === 'undefined') {
-    // During build time or testing, return a placeholder URL
-    if (typeof window === 'undefined' || process.env.NODE_ENV === 'test') {
-      if (process.env.NODE_ENV !== 'test') {
-        console.warn('NEXT_PUBLIC_API_URL not set during build, using placeholder');
-      }
-      return 'http://localhost:4000';
-    }
-    throw new Error('NEXT_PUBLIC_API_URL environment variable is not set. This should be configured during Docker build.');
-  }
-  return apiUrl;
-};
-
-// Type-safe API client class
-export class TypedAPIClient {
-  private baseUrl: string;
-  private defaultHeaders: Record<string, string>;
-
-  constructor(baseUrl?: string) {
-    // Allow injection of baseUrl for testing, otherwise validate lazily
-    this.baseUrl = baseUrl || validateApiUrl();
-    this.defaultHeaders = {
-      'Content-Type': 'application/json',
-    };
-  }
-
-  // Generic API call method
-  private async call(
-    route: string,
-    method: string,
-    options: RequestOptions = {}
-  ): Promise<any> {
-    const { params, body, headers = {} } = options;
-    
-    // Build URL with parameters
-    let url = `${this.baseUrl}${route}`;
-    const queryParams: Record<string, any> = {};
-    
-    if (params) {
-      // Process parameters - separate path params from query params
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          // Check if this is a path parameter (format :paramName in route)
-          const pathParamPattern = new RegExp(`:${key}\\??(?=/|$)`);
-          if (pathParamPattern.test(url)) {
-            // Replace path parameter
-            url = url.replace(`:${key}?`, String(value)).replace(`:${key}`, String(value));
-          } else {
-            // Collect as query parameter
-            queryParams[key] = value;
-          }
-        }
-      });
-      // Remove optional parameters that weren't provided
-      url = url.replace(/\/:[^/?]+\?/g, '');
-    }
-    
-    // Add query parameters to URL
-    if (Object.keys(queryParams).length > 0) {
-      const searchParams = new URLSearchParams();
-      Object.entries(queryParams).forEach(([key, value]) => {
-        // Handle boolean and number values properly
-        if (typeof value === 'boolean' || typeof value === 'number') {
-          searchParams.append(key, String(value));
-        } else if (value !== null && value !== undefined) {
-          searchParams.append(key, String(value));
-        }
-      });
-      url += '?' + searchParams.toString();
-    }
-
-    // Prepare request options
-    const requestOptions: RequestInit = {
-      method,
-      headers: {
-        ...this.defaultHeaders,
-        ...headers,
-      },
-    };
-
-    // Add body for non-GET requests
-    if (body && method !== 'GET') {
-      requestOptions.body = JSON.stringify(body);
-    }
-
-    // Make the request
-    const response = await fetch(url, requestOptions);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { error: errorText };
-      }
-      throw new APIError(response.status, errorData);
-    }
-
-    // Handle 204 No Content responses
-    if (response.status === 204) {
-      return { success: true };
-    }
-
-    // Handle empty responses
-    const contentLength = response.headers.get('content-length');
-    if (contentLength === '0') {
-      return { success: true };
-    }
-
-    return response.json();
-  }
-
-  // Typed API methods
-  async get(route: string, options: RequestOptions = {}): Promise<any> {
-    return this.call(route, 'GET', options);
-  }
-
-  async post(route: string, options: RequestOptions = {}): Promise<any> {
-    return this.call(route, 'POST', options);
-  }
-
-  async patch(route: string, options: RequestOptions = {}): Promise<any> {
-    return this.call(route, 'PATCH', options);
-  }
-
-  async put(route: string, options: RequestOptions = {}): Promise<any> {
-    return this.call(route, 'PUT', options);
-  }
-
-  async delete(route: string, options: RequestOptions = {}): Promise<any> {
-    return this.call(route, 'DELETE', options);
-  }
-
-  // Set authorization header directly (with Bearer prefix already included)
-  setAuthHeader(header: string) {
-    this.defaultHeaders['Authorization'] = header;
-  }
-}
-
-// Lazy-loaded API client manager - exported for testing
-export class LazyTypedAPIClient {
-  private static instance: TypedAPIClient | null = null;
-  
-  static getInstance(): TypedAPIClient {
-    if (!this.instance) {
-      this.instance = new TypedAPIClient();
-    }
-    return this.instance;
-  }
-  
-  // For testing - allow injection of custom client
-  static setInstance(client: TypedAPIClient): void {
-    this.instance = client;
-  }
-  
-  // For testing - reset to force re-initialization
-  static reset(): void {
-    this.instance = null;
-  }
-}
-
-// Export a proxy that lazily initializes the client only when accessed
-export const apiClient = new Proxy({} as TypedAPIClient, {
-  get(target, prop: string | symbol) {
-    const instance = LazyTypedAPIClient.getInstance();
-    const value = instance[prop as keyof TypedAPIClient];
-    // Bind methods to preserve `this` context
-    if (typeof value === 'function') {
-      return value.bind(instance);
-    }
-    return value;
-  },
-});
-
-// API Service Interface - defines the shape of direct API calls
-interface APIService {
-  status: () => Promise<StatusResponse>;
-
-  auth: {
-    google: (access_token: string) => Promise<AuthResponse>;
-    me: () => Promise<UserResponse>;
-    logout: () => Promise<LogoutResponse>;
-    acceptTerms: () => Promise<{ success: boolean; message: string }>;
-  };
-
-  health: () => Promise<HealthResponse>;
-
-  documents: {
-    create: (data: {
-      name: string;
-      content: string;
-      contentType?: string;
-      entityTypes?: string[];
-      creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
-      sourceAnnotationId?: string;
-      sourceDocumentId?: string;
-    }) => Promise<DocumentResponse>;
-    get: (id: string) => Promise<DocumentResponse>;
-    update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }) => Promise<DocumentResponse>;
-    clone: (id: string) => Promise<{ token: string; expiresAt: string; sourceDocument: any }>;
-    getReferencedBy: (id: string) => Promise<{ referencedBy: AnnotationResponse[] }>;
-    detectSelections: (id: string, entityTypes: string[]) => Promise<{ message: string; detectionsStarted: number }>;
-    getByToken: (token: string) => Promise<{ sourceDocument: any; expiresAt: string }>;
-    createFromToken: (data: { token: string; name: string; content: string; archiveOriginal?: boolean }) => Promise<DocumentResponse>;
-    delete: (id: string) => Promise<{ success: boolean }>;
-    list: (params?: {
-      limit?: number;
-      offset?: number;
-      contentType?: string;
-      archived?: boolean;
-      entityType?: string;
-      search?: string;
-    }) => Promise<DocumentsResponse>;
-    search: (query: string, limit?: number) => Promise<DocumentsResponse>;
-    schemaDescription: () => Promise<SchemaDescriptionResponse>;
-    llmContext: (id: string, selectionId?: string) => Promise<LLMContextResponse>;
-    discoverContext: (exact: string) => Promise<DiscoverContextResponse>;
-    getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }) => Promise<{ events: StoredEvent[]; total: number; documentId: string }>;
-  };
-
-  selections: {
-    get: (id: string) => Promise<AnnotationResponse>;
-    update: (id: string, data: Partial<Selection>) => Promise<AnnotationResponse>;
-    delete: (id: string) => Promise<{ success: boolean }>;
-    list: (params?: {
-      documentId?: string;
-      type?: string;
-      limit?: number;
-      offset?: number;
-    }) => Promise<AnnotationsResponse>;
-    saveAsHighlight: (data: {
-      documentId: string;
-      exact: string;
-      position: { start: number; end: number };
-    }) => Promise<AnnotationResponse>;
-    resolveToDocument: (data: {
-      selectionId: string;
-      targetDocumentId: string;
-      referenceType?: string;
-    }) => Promise<AnnotationResponse>;
-    createDocument: (data: {
-      selectionId: string;
-      name: string;
-      content: string;
-      referenceType?: string;
-    }) => Promise<DocumentResponse>;
-    generateDocument: (
-      selectionId: string,
-      data?: {
-        entityTypes?: string[];
-        prompt?: string;
-      }
-    ) => Promise<any>;
-    getHighlights: (documentId: string) => Promise<GetHighlightsResponse>;
-    getReferences: (documentId: string) => Promise<GetReferencesResponse>;
-  };
-
-  entityTypes: {
-    list: () => Promise<{ entityTypes: string[] }>;
-    create: (tag: string) => Promise<{ success: boolean; entityTypes: string[] }>;
-  };
-
-  referenceTypes: {
-    list: () => Promise<{ referenceTypes: string[] }>;
-    create: (tag: string) => Promise<{ success: boolean; referenceTypes: string[] }>;
-  };
-
-  admin: {
-    users: {
-      list: () => Promise<AdminUsersResponse>;
-      stats: () => Promise<AdminUserStatsResponse>;
-      update: (id: string, data: { isAdmin?: boolean; isActive?: boolean; name?: string }) => Promise<AdminUserUpdateResponse>;
-      delete: (id: string) => Promise<AdminUserDeleteResponse>;
-    };
-    oauth: {
-      config: () => Promise<OAuthConfigResponse>;
-    };
-  };
-}
-
-// Type-safe convenience methods
-export const apiService: APIService = {
-  status: (): Promise<StatusResponse> => 
-    apiClient.get('/api/status'),
-
-  // Auth endpoints
-  auth: {
-    google: (access_token: string): Promise<AuthResponse> =>
-      apiClient.post('/api/tokens/google', { body: { access_token } }),
-
-    me: (): Promise<UserResponse> =>
-      apiClient.get('/api/users/me'),
-
-    logout: (): Promise<LogoutResponse> =>
-      apiClient.post('/api/users/logout'),
-
-    acceptTerms: (): Promise<{ success: boolean; message: string }> =>
-      apiClient.post('/api/users/accept-terms'),
-  },
-
-  // Health endpoints
-  health: (): Promise<HealthResponse> =>
-    apiClient.get('/api/health'),
-
-  // Document endpoints
-  documents: {
-    create: (data: {
-      name: string;
-      content: string;
-      contentType?: string;
-      entityTypes?: string[];  // Entity types can be set at creation time
-      // Only context fields - backend calculates checksum, sets createdBy/createdAt
-      creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
-      sourceAnnotationId?: string;  // For reference-created documents
-      sourceDocumentId?: string;  // For reference-created documents
-    }): Promise<DocumentResponse> =>
-      apiClient.post('/api/documents', { body: data }),
-    
-    get: (id: string): Promise<DocumentResponse> =>
-      apiClient.get('/api/documents/:id', { params: { id } }),
-    
-    update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }): Promise<DocumentResponse> =>
-      apiClient.patch('/api/documents/:id', { params: { id }, body: data }),
-    
-    clone: (id: string): Promise<{ token: string; expiresAt: string; sourceDocument: any }> =>
-      apiClient.post('/api/documents/:id/clone', { params: { id }, body: {} }),
-    
-    getReferencedBy: (id: string): Promise<{ referencedBy: AnnotationResponse[] }> =>
-      apiClient.get('/api/documents/:id/referenced-by', { params: { id } }),
-    
-    detectSelections: (id: string, entityTypes: string[]): Promise<{ message: string; detectionsStarted: number }> =>
-      apiClient.post('/api/documents/:id/detect-annotations', {
-        params: { id },
-        body: { entityTypes }
-      }),
-    
-    getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
-      apiClient.get('/api/documents/token/:token', { params: { token } }),
-    
-    createFromToken: (data: { token: string; name: string; content: string; archiveOriginal?: boolean }): Promise<DocumentResponse> =>
-      apiClient.post('/api/documents/create-from-token', { body: data }),
-    
-    delete: (id: string): Promise<{ success: boolean }> =>
-      apiClient.delete('/api/documents/:id', { params: { id } }),
-    
-    list: (params?: {
-      limit?: number;
-      offset?: number;
-      contentType?: string;
-      archived?: boolean;
-      entityType?: string;
-      search?: string;
-    }): Promise<DocumentsResponse> => {
-      if (params) {
-        return apiClient.get('/api/documents', { params });
-      }
-      return apiClient.get('/api/documents');
-    },
-    
-    search: (query: string, limit?: number): Promise<DocumentsResponse> => {
-      console.log('[API] Searching documents with query:', query, 'limit:', limit);
-      return apiClient.get('/api/documents', { params: { search: query, limit } });
-    },
-    
-    schemaDescription: (): Promise<SchemaDescriptionResponse> =>
-      apiClient.get('/api/documents/schema-description'),
-    
-    llmContext: (id: string, selectionId?: string): Promise<LLMContextResponse> =>
-      apiClient.post('/api/documents/:id/llm-context', { 
-        params: { id }, 
-        body: { selectionId } 
-      }),
-    
-    discoverContext: (exact: string): Promise<DiscoverContextResponse> =>
-      apiClient.post('/api/documents/discover-context', { body: { exact } }),
-
-    getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }): Promise<{ events: StoredEvent[]; total: number; documentId: string }> =>
-      apiClient.get('/api/documents/:id/events', { params: { id, ...params } }),
-  },
-
-  // Selection endpoints
-  selections: {
-    get: (id: string): Promise<AnnotationResponse> =>
-      apiClient.get('/api/annotations/:id', { params: { id } }),
-    
-    update: (id: string, data: Partial<Selection>): Promise<AnnotationResponse> =>
-      apiClient.patch('/api/annotations/:id', { params: { id }, body: data }),
-    
-    delete: (id: string): Promise<{ success: boolean }> =>
-      apiClient.delete('/api/annotations/:id', { params: { id } }),
-    
-    list: (params?: { 
-      documentId?: string; 
-      type?: string; 
-      limit?: number; 
-      offset?: number; 
-    }): Promise<AnnotationsResponse> => {
-      if (params) {
-        return apiClient.get('/api/annotations', { params });
-      }
-      return apiClient.get('/api/annotations');
-    },
-    
-    saveAsHighlight: async (data: {
-      documentId: string;
-      exact: string;
-      position: { start: number; end: number };
-    }): Promise<AnnotationResponse> => {
-      // Create selection (automatically saved as highlight when no resolvedDocumentId)
-      const highlight = await apiClient.post('/api/annotations', { 
-        body: { 
-          documentId: data.documentId,
-          selectionType: {
-            type: 'text_span',
-            offset: data.position.start,
-            length: data.position.end - data.position.start,
-            exact: data.exact
-          }
-        } 
-      });
-      
-      return highlight;
-    },
-    
-    resolveToDocument: (data: {
-      selectionId: string;
-      targetDocumentId: string;
-      referenceType?: string;
-    }): Promise<AnnotationResponse> =>
-      apiClient.put('/api/annotations/:id/resolve', {
-        params: { id: data.selectionId },
-        body: {
-          documentId: data.targetDocumentId,
-          referenceType: data.referenceType
-        }
-      }),
-    
-    createDocument: (data: {
-      selectionId: string;
-      name: string;
-      content: string;
-      referenceType?: string;
-    }): Promise<DocumentResponse> =>
-      apiClient.post('/api/annotations/create-document', { body: data }),
-    
-    generateDocument: (
-      selectionId: string,
-      data?: {
-        entityTypes?: string[];
-        prompt?: string;
-      }
-    ): Promise<any> =>
-      apiClient.post('/api/annotations/:id/generate-document', {
-        params: { id: selectionId },
-        body: data || {}
-      }),
-    
-    getHighlights: (documentId: string): Promise<GetHighlightsResponse> =>
-      apiClient.get('/api/documents/:documentId/highlights', { params: { documentId } }),
-
-    getReferences: (documentId: string): Promise<GetReferencesResponse> =>
-      apiClient.get('/api/documents/:documentId/references', { params: { documentId } }),
-  },
-
-  // Entity types endpoint
-  entityTypes: {
-    list: (): Promise<{ entityTypes: string[] }> =>
-      apiClient.get('/api/entity-types'),
-
-    create: (tag: string): Promise<{ success: boolean; entityTypes: string[] }> =>
-      apiClient.post('/api/entity-types', { body: { tag } }),
-  },
-
-  // Reference types endpoint
-  referenceTypes: {
-    list: (): Promise<{ referenceTypes: string[] }> =>
-      apiClient.get('/api/reference-types'),
-
-    create: (tag: string): Promise<{ success: boolean; referenceTypes: string[] }> =>
-      apiClient.post('/api/reference-types', { body: { tag } }),
-  },
-
-  // Admin endpoints
-  admin: {
-    users: {
-      list: (): Promise<AdminUsersResponse> =>
-        apiClient.get('/api/admin/users'),
-      
-      stats: (): Promise<AdminUserStatsResponse> =>
-        apiClient.get('/api/admin/users/stats'),
-      
-      update: (id: string, data: { isAdmin?: boolean; isActive?: boolean; name?: string }): Promise<AdminUserUpdateResponse> =>
-        apiClient.patch('/api/admin/users/:id', { 
-          params: { id }, 
-          body: data 
-        }),
-      
-      delete: (id: string): Promise<AdminUserDeleteResponse> =>
-        apiClient.delete('/api/admin/users/:id', { params: { id } }),
-    },
-    
-    oauth: {
-      config: (): Promise<OAuthConfigResponse> =>
-        apiClient.get('/api/admin/oauth/config'),
-    },
+/**
+ * Health Check API
+ */
+const health = {
+  useQuery: () => {
+    return useQuery({
+      queryKey: QUERY_KEYS.health(),
+      queryFn: () => fetchAPI<{ status: string }>('/api/health'),
+    });
   },
 };
 
-// React Query Hooks Interface - defines available React Query hooks
-interface ReactQueryAPI {
-  auth: {
-    google: {
-      useMutation: () => any;
-    };
-    me: {
-      useQuery: () => any;
-    };
-    logout: {
-      useMutation: () => any;
-    };
-    acceptTerms: {
-      useMutation: () => any;
-    };
-  };
-
-  health: {
-    useQuery: () => any;
-  };
-
-  admin: {
-    users: {
-      list: {
-        useQuery: (options?: { enabled?: boolean }) => any;
-      };
-      stats: {
-        useQuery: (options?: { enabled?: boolean }) => any;
-      };
-      update: {
-        useMutation: () => any;
-      };
-      delete: {
-        useMutation: () => any;
-      };
-    };
-    oauth: {
-      config: {
-        useQuery: (options?: { enabled?: boolean }) => any;
-      };
-    };
-  };
-
-  entityTypes: {
-    list: {
-      useQuery: (options?: { enabled?: boolean }) => any;
-    };
-    create: {
-      useMutation: () => any;
-    };
-  };
-
-  referenceTypes: {
-    list: {
-      useQuery: (options?: { enabled?: boolean }) => any;
-    };
-    create: {
-      useMutation: () => any;
-    };
-  };
-
-  documents: {
-    list: {
-      useQuery: (options?: { enabled?: boolean; limit?: number; archived?: boolean }) => any;
-    };
-    get: {
-      useQuery: (id: string, options?: { enabled?: boolean }) => any;
-    };
-    getByToken: {
-      useQuery: (token: string, options?: { enabled?: boolean }) => any;
-    };
-    search: {
-      useQuery: (query: string, limit?: number, options?: { enabled?: boolean }) => any;
-    };
-    getReferencedBy: {
-      useQuery: (id: string, options?: { enabled?: boolean }) => any;
-    };
-    getEvents: {
-      useQuery: (id: string, options?: { enabled?: boolean }) => any;
-    };
-    create: {
-      useMutation: () => any;
-    };
-    createFromToken: {
-      useMutation: () => any;
-    };
-    update: {
-      useMutation: () => any;
-    };
-    clone: {
-      useMutation: () => any;
-    };
-  };
-
-  selections: {
-    getHighlights: {
-      useQuery: (documentId: string, options?: { enabled?: boolean }) => any;
-    };
-    getReferences: {
-      useQuery: (documentId: string, options?: { enabled?: boolean }) => any;
-    };
-    create: {
-      useMutation: () => any;
-    };
-    saveAsHighlight: {
-      useMutation: () => any;
-    };
-    delete: {
-      useMutation: () => any;
-    };
-    generateDocument: {
-      useMutation: () => any;
-    };
-    resolveToDocument: {
-      useMutation: () => any;
-    };
-  };
-}
-
-// React Query hooks with type safety
-// Use `api` for React Query hooks (useQuery/useMutation)
-// Use `apiService` for direct API calls
-export const api: ReactQueryAPI = {
-  auth: {
-    google: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { access_token: string }, fetchAPI) =>
-            fetchAPI('/api/tokens/google', {
-              method: 'POST',
-              body: JSON.stringify({ access_token: input.access_token }),
-            })
-        );
-      }
-    },
-    me: {
-      useQuery: () => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.auth.me(),
-          '/api/auth/me'
-        );
-      }
-    },
-    logout: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (_input: void, fetchAPI) =>
-            fetchAPI('/api/auth/logout', {
-              method: 'POST',
-            })
-        );
-      }
-    },
-    acceptTerms: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (_input: void, fetchAPI) =>
-            fetchAPI('/api/users/accept-terms', {
-              method: 'POST',
-            })
-        );
-      }
-    }
-  },
-
-  health: {
+/**
+ * Auth API
+ */
+const auth = {
+  me: {
     useQuery: () => {
-      return useAuthenticatedQuery(
-        QUERY_KEYS.health(),
-        '/api/health'
-      );
-    }
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.auth.me(),
+        queryFn: () => fetchAPI<any>('/api/auth/me', {}, session?.backendToken),
+        enabled: !!session?.backendToken,
+      });
+    },
   },
+  acceptTerms: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      return useMutation({
+        mutationFn: () =>
+          fetchAPI<AcceptTermsResponse>('/api/users/accept-terms', {
+            method: 'POST',
+          }, session?.backendToken),
+      });
+    },
+  },
+  logout: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      return useMutation({
+        mutationFn: () => fetchAPI<void>('/api/auth/logout', { method: 'POST' }, session?.backendToken),
+      });
+    },
+  },
+  google: {
+    useMutation: () => {
+      return useMutation({
+        mutationFn: (data: { access_token: string }) =>
+          fetchAPI<{ success: boolean; user: any; token: string; isNewUser: boolean }>('/api/tokens/google', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }),
+      });
+    },
+  },
+};
 
-  admin: {
-    users: {
-      list: {
-        useQuery: (options?: { enabled?: boolean }) => {
-          return useAuthenticatedQuery(
-            QUERY_KEYS.admin.users.all(),
-            '/api/admin/users',
-            options
-          );
-        }
+/**
+ * Admin API
+ */
+const admin = {
+  users: {
+    all: {
+      useQuery: () => {
+        const { data: session } = useSession();
+        return useQuery({
+          queryKey: QUERY_KEYS.admin.users.all(),
+          queryFn: () => fetchAPI<AdminUsersResponse>('/api/admin/users', {}, session?.backendToken),
+          enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+        });
       },
-      stats: {
-        useQuery: (options?: { enabled?: boolean }) => {
-          return useAuthenticatedQuery(
-            QUERY_KEYS.admin.users.stats(),
-            '/api/admin/users/stats',
-            options
-          );
-        }
+    },
+    stats: {
+      useQuery: () => {
+        const { data: session } = useSession();
+        return useQuery({
+          queryKey: QUERY_KEYS.admin.users.stats(),
+          queryFn: () => fetchAPI<AdminUserStatsResponse>('/api/admin/users/stats', {}, session?.backendToken),
+          enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+        });
       },
-      update: {
-        useMutation: () => {
-          return useAuthenticatedMutation(
-            (input: { id: string; data: { isAdmin?: boolean; isActive?: boolean; name?: string } }, fetchAPI) =>
-              fetchAPI(`/api/admin/users/${input.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(input.data),
-              })
-          );
-        }
-      },
-      delete: {
-        useMutation: () => {
-          return useAuthenticatedMutation(
-            (input: { id: string }, fetchAPI) =>
-              fetchAPI(`/api/admin/users/${input.id}`, {
-                method: 'DELETE',
-              })
-          );
-        }
-      }
-    },
-
-    oauth: {
-      config: {
-        useQuery: (options?: { enabled?: boolean }) => {
-          return useAuthenticatedQuery(
-            QUERY_KEYS.admin.oauth.config(),
-            '/api/admin/oauth/config',
-            options
-          );
-        }
-      }
-    }
-  },
-
-  entityTypes: {
-    list: {
-      useQuery: (options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.entityTypes.all(),
-          '/api/entity-types',
-          options
-        );
-      }
-    },
-    create: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { tag: string }, fetchAPI) =>
-            fetchAPI('/api/entity-types', {
-              method: 'POST',
-              body: JSON.stringify({ tag: input.tag }),
-            })
-        );
-      }
-    }
-  },
-
-  referenceTypes: {
-    list: {
-      useQuery: (options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.referenceTypes.all(),
-          '/api/reference-types',
-          options
-        );
-      }
-    },
-    create: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { tag: string }, fetchAPI) =>
-            fetchAPI('/api/reference-types', {
-              method: 'POST',
-              body: JSON.stringify({ tag: input.tag }),
-            })
-        );
-      }
-    }
-  },
-
-  documents: {
-    list: {
-      useQuery: (options?: { enabled?: boolean; limit?: number; archived?: boolean }) => {
-        const params = new URLSearchParams();
-        if (options?.limit) params.set('limit', options.limit.toString());
-        if (options?.archived !== undefined) params.set('archived', options.archived.toString());
-        const queryString = params.toString();
-        const url = queryString ? `/api/documents?${queryString}` : '/api/documents';
-
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.all(options?.limit, options?.archived),
-          url,
-          options?.enabled !== undefined ? { enabled: options.enabled } : undefined
-        );
-      }
-    },
-    get: {
-      useQuery: (id: string, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.detail(id),
-          `/api/documents/${id}`,
-          options
-        );
-      }
-    },
-    getByToken: {
-      useQuery: (token: string, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.byToken(token),
-          `/api/documents/by-token/${token}`,
-          options
-        );
-      }
-    },
-    search: {
-      useQuery: (query: string, limit = 10, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.search(query, limit),
-          `/api/documents/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-          options
-        );
-      }
-    },
-    getReferencedBy: {
-      useQuery: (id: string, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.referencedBy(id),
-          `/api/documents/${id}/referenced-by`,
-          options
-        );
-      }
-    },
-    getEvents: {
-      useQuery: (id: string, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.events(id),
-          `/api/documents/${id}/events`,
-          options
-        );
-      }
-    },
-    create: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { name: string; content: string; entityTypes?: string[] }, fetchAPI) =>
-            fetchAPI('/api/documents', {
-              method: 'POST',
-              body: JSON.stringify(input),
-            })
-        );
-      }
-    },
-    createFromToken: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { token: string; name: string; content: string; entityTypes?: string[] }, fetchAPI) =>
-            fetchAPI('/api/documents/from-token', {
-              method: 'POST',
-              body: JSON.stringify(input),
-            })
-        );
-      }
     },
     update: {
       useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { id: string; data: { name?: string; content?: string; archived?: boolean } }, fetchAPI) =>
-            fetchAPI(`/api/documents/${input.id}`, {
+        const { data: session } = useSession();
+        const queryClient = useQueryClient();
+        return useMutation({
+          mutationFn: ({ id, data }: { id: string; data: UpdateUserRequest }) =>
+            fetchAPI<{ success: boolean; user: AdminUser }>(`/api/admin/users/${id}`, {
               method: 'PATCH',
-              body: JSON.stringify(input.data),
-            })
-        );
-      }
-    },
-    clone: {
-      useMutation: () => {
-        return useAuthenticatedMutation(
-          (input: { id: string }, fetchAPI) =>
-            fetchAPI(`/api/documents/${input.id}/clone`, {
-              method: 'POST',
-            })
-        );
-      }
-    }
-  },
-
-  selections: {
-    getHighlights: {
-      useQuery: (documentId: string, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.highlights(documentId),
-          `/api/documents/${documentId}/highlights`,
-          { ...options, retry: false }
-        );
-      }
-    },
-    getReferences: {
-      useQuery: (documentId: string, options?: { enabled?: boolean }) => {
-        return useAuthenticatedQuery(
-          QUERY_KEYS.documents.references(documentId),
-          `/api/documents/${documentId}/references`,
-          { ...options, retry: false }
-        );
-      }
-    },
-    create: {
-      useMutation: () => {
-        return useAuthenticatedMutation<AnnotationResponse, CreateAnnotationRequest>(
-          async (input: CreateAnnotationRequest, fetchAPI) => {
-            return fetchAPI('/api/annotations', {
-              method: 'POST',
-              body: JSON.stringify(input),
-            });
-          }
-        );
-      }
-    },
-    saveAsHighlight: {
-      useMutation: () => {
-        return useAuthenticatedMutation<AnnotationResponse, { documentId: string; exact: string; position: { start: number; end: number } }>(
-          (input, fetchAPI) =>
-            fetchAPI('/api/annotations', {
-              method: 'POST',
-              body: JSON.stringify({
-                documentId: input.documentId,
-                selectionType: {
-                  type: 'text_span',
-                  offset: input.position.start,
-                  length: input.position.end - input.position.start,
-                  exact: input.exact
-                }
-              }),
-            })
-        );
-      }
+              body: JSON.stringify(data),
+            }, session?.backendToken),
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.all() });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.stats() });
+          },
+        });
+      },
     },
     delete: {
       useMutation: () => {
-        return useAuthenticatedMutation<void, { id: string; documentId: string }>(
-          (input, fetchAPI) =>
-            fetchAPI(`/api/annotations/${input.id}`, {
+        const { data: session } = useSession();
+        const queryClient = useQueryClient();
+        return useMutation({
+          mutationFn: (id: string) =>
+            fetchAPI<{ success: boolean; message: string }>(`/api/admin/users/${id}`, {
               method: 'DELETE',
-              body: JSON.stringify({ documentId: input.documentId }),
-            })
-        );
-      }
+            }, session?.backendToken),
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.all() });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.stats() });
+          },
+        });
+      },
     },
-    generateDocument: {
-      useMutation: () => {
-        return useAuthenticatedMutation<any, { selectionId: string; entityTypes?: string[]; prompt?: string }>(
-          (input, fetchAPI) =>
-            fetchAPI('/api/annotations/generate-document', {
-              method: 'POST',
-              body: JSON.stringify({
-                selectionId: input.selectionId,
-                entityTypes: input.entityTypes,
-                prompt: input.prompt
-              }),
-            })
-        );
-      }
+  },
+  oauth: {
+    config: {
+      useQuery: () => {
+        const { data: session } = useSession();
+        return useQuery({
+          queryKey: QUERY_KEYS.admin.oauth.config(),
+          queryFn: () => fetchAPI<OAuthConfigResponse>('/api/admin/oauth/config', {}, session?.backendToken),
+          enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+        });
+      },
     },
-    resolveToDocument: {
-      useMutation: () => {
-        return useAuthenticatedMutation<AnnotationResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
-          (input, fetchAPI) =>
-            fetchAPI(`/api/annotations/${input.selectionId}/resolve`, {
-              method: 'PUT',
-              body: JSON.stringify({
-                documentId: input.targetDocumentId,
-                referenceType: input.referenceType
-              }),
-            })
-        );
-      }
-    }
-  }
+  },
 };
 
-// Export types for use in components
-export type { 
-  AdminUser, 
-  AdminUsersResponse, 
-  AdminUserStatsResponse, 
-  OAuthProvider, 
-  OAuthConfigResponse,
-  Document,
-  DocumentsResponse,
-  DocumentResponse,
-  AnnotationsResponse,
-  AnnotationResponse,
-  SchemaDescriptionResponse,
-  LLMContextResponse,
-  DiscoverContextResponse
+/**
+ * Entity Types API
+ */
+const entityTypes = {
+  all: {
+    useQuery: () => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.entityTypes.all(),
+        queryFn: () => fetchAPI<{ entityTypes: string[] }>('/api/entity-types', {}, session?.backendToken),
+        enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+      });
+    },
+  },
+  create: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: (tag: string) =>
+          fetchAPI<AddEntityTypeResponse>('/api/entity-types', {
+            method: 'POST',
+            body: JSON.stringify({ tag }),
+          }, session?.backendToken),
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
+        },
+      });
+    },
+  },
+};
+
+/**
+ * Reference Types API
+ */
+const referenceTypes = {
+  all: {
+    useQuery: () => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.referenceTypes.all(),
+        queryFn: () => fetchAPI<{ referenceTypes: string[] }>('/api/reference-types', {}, session?.backendToken),
+        enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+      });
+    },
+  },
+  create: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: (tag: string) =>
+          fetchAPI<AddReferenceTypeResponse>('/api/reference-types', {
+            method: 'POST',
+            body: JSON.stringify({ tag }),
+          }, session?.backendToken),
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.referenceTypes.all() });
+        },
+      });
+    },
+  },
+};
+
+/**
+ * Documents API
+ */
+const documents = {
+  list: {
+    useQuery: (limit?: number, archived?: boolean) => {
+      const { data: session } = useSession();
+      const params = new URLSearchParams();
+      if (limit !== undefined) params.append('limit', limit.toString());
+      if (archived !== undefined) params.append('archived', archived.toString());
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.all(limit, archived),
+        queryFn: () => fetchAPI<ListDocumentsResponse>(`/api/documents${queryString}`, {}, session?.backendToken),
+        enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+      });
+    },
+  },
+
+  get: {
+    useQuery: (id: string) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.detail(id),
+        queryFn: () => fetchAPI<GetDocumentResponse>(`/api/documents/${id}`, {}, session?.backendToken),
+        enabled: !!session?.backendToken && !!id,
+      });
+    },
+  },
+
+  create: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: (data: CreateDocumentRequest) =>
+          fetchAPI<CreateDocumentResponse>('/api/documents', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }, session?.backendToken),
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
+        },
+      });
+    },
+  },
+
+  update: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: UpdateDocumentRequest }) =>
+          fetchAPI<Document>(`/api/documents/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+          }, session?.backendToken),
+        onSuccess: (_, variables) => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.id) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
+        },
+      });
+    },
+  },
+
+  search: {
+    useQuery: (query: string, limit: number = 10) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.search(query, limit),
+        queryFn: () => fetchAPI<{ documents: Document[] }>(
+          `/api/documents/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+          {},
+          session?.backendToken
+        ),
+        enabled: !!session?.backendToken && query.length > 0,
+      });
+    },
+  },
+
+  referencedBy: {
+    useQuery: (id: string) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.referencedBy(id),
+        queryFn: () => fetchAPI<{ referencedBy: ReferencedBy[] }>(
+          `/api/documents/${id}/referenced-by`,
+          {},
+          session?.backendToken
+        ),
+        enabled: !!session?.backendToken && !!id,
+      });
+    },
+  },
+
+  generateCloneToken: {
+    useMutation: () => {
+      const { data: session } = useSession();
+
+      return useMutation({
+        mutationFn: (id: string) =>
+          fetchAPI<CloneDocumentWithTokenResponse>(`/api/documents/${id}/clone-with-token`, {
+            method: 'POST',
+          }, session?.backendToken),
+      });
+    },
+  },
+
+  getByToken: {
+    useQuery: (token: string) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.byToken(token),
+        queryFn: () => fetchAPI<GetDocumentByTokenResponse>(
+          `/api/documents/token/${token}`,
+          {},
+          session?.backendToken
+        ),
+        enabled: !!session?.backendToken && !!token,
+      });
+    },
+  },
+
+  createFromToken: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: (data: CreateDocumentFromTokenRequest) =>
+          fetchAPI<CreateDocumentFromTokenResponse>(`/api/documents/create-from-token`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }, session?.backendToken),
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
+        },
+      });
+    },
+  },
+
+  events: {
+    useQuery: (id: string) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.events(id),
+        queryFn: () => fetchAPI<{ events: any[] }>(
+          `/api/documents/${id}/events`,
+          {},
+          session?.backendToken
+        ),
+        enabled: !!session?.backendToken && !!id,
+      });
+    },
+  },
+
+  highlights: {
+    useQuery: (documentId: string) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.highlights(documentId),
+        queryFn: () => fetchAPI<GetHighlightsResponse>(
+          `/api/documents/${documentId}/highlights`,
+          {},
+          session?.backendToken
+        ),
+        enabled: !!session?.backendToken && !!documentId,
+      });
+    },
+  },
+
+  references: {
+    useQuery: (documentId: string) => {
+      const { data: session } = useSession();
+      return useQuery({
+        queryKey: QUERY_KEYS.documents.references(documentId),
+        queryFn: () => fetchAPI<GetReferencesResponse>(
+          `/api/documents/${documentId}/references`,
+          {},
+          session?.backendToken
+        ),
+        enabled: !!session?.backendToken && !!documentId,
+      });
+    },
+  },
+};
+
+/**
+ * Annotations API
+ */
+const annotations = {
+  create: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: (data: CreateAnnotationRequest) =>
+          fetchAPI<CreateAnnotationResponse>('/api/annotations', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }, session?.backendToken),
+        onSuccess: (response) => {
+          const documentId = response.annotation.documentId;
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(documentId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
+        },
+      });
+    },
+  },
+
+  saveAsHighlight: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: ({ documentId, exact, position }: {
+          documentId: string;
+          exact: string;
+          position: { start: number; end: number };
+        }) => {
+          const data: CreateAnnotationRequest = {
+            documentId,
+            exact,
+            selector: {
+              type: 'text_span',
+              offset: position.start,
+              length: position.end - position.start,
+            },
+            type: 'highlight',
+          };
+
+          return fetchAPI<CreateAnnotationResponse>('/api/annotations', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }, session?.backendToken);
+        },
+        onSuccess: (response) => {
+          const documentId = response.annotation.documentId;
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(documentId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
+        },
+      });
+    },
+  },
+
+  delete: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: ({ id, documentId }: { id: string; documentId?: string }) =>
+          fetchAPI<DeleteAnnotationResponse>(`/api/annotations/${id}`, {
+            method: 'DELETE',
+          }, session?.backendToken),
+        onSuccess: (_, variables) => {
+          if (variables.documentId) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.documentId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(variables.documentId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(variables.documentId) });
+          }
+        },
+      });
+    },
+  },
+
+  generate: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromSelectionRequest }) =>
+          fetchAPI<GenerateDocumentFromSelectionResponse>(`/api/annotations/${id}/generate-document`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }, session?.backendToken),
+        onSuccess: (response) => {
+          if (response.document?.id) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.document.id) });
+          }
+          if (response.annotation?.documentId) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.documentId) });
+          }
+        },
+      });
+    },
+  },
+
+  resolve: {
+    useMutation: () => {
+      const { data: session } = useSession();
+      const queryClient = useQueryClient();
+
+      return useMutation({
+        mutationFn: ({ id, documentId }: { id: string; documentId: string }) =>
+          fetchAPI<ResolveSelectionResponse>(`/api/annotations/${id}/resolve`, {
+            method: 'PUT',
+            body: JSON.stringify({ documentId }),
+          }, session?.backendToken),
+        onSuccess: (response) => {
+          if (response.annotation?.documentId) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.annotation.documentId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.documentId) });
+          }
+          if (response.targetDocument?.id) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(response.targetDocument.id) });
+          }
+        },
+      });
+    },
+  },
+};
+
+/**
+ * Main API object
+ */
+export const api = {
+  health,
+  auth,
+  admin,
+  entityTypes,
+  referenceTypes,
+  documents,
+  annotations,
 };

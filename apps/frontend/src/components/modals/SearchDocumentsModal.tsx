@@ -26,8 +26,7 @@ export function SearchDocumentsModal({ isOpen, onClose, onSelect, searchTerm = '
   // Use React Query for search
   const { data: searchData, isFetching: loading } = api.documents.search.useQuery(
     debouncedSearch,
-    10,
-    { enabled: isOpen && debouncedSearch.trim() !== '' }
+    10
   );
 
   // Extract results from search data

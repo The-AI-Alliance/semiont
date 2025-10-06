@@ -39,7 +39,7 @@ export const getDocumentLLMContextRoute = createRoute({
           schema: z.object({
             mainDocument: z.any(),
             relatedDocuments: z.array(z.any()),
-            selections: z.array(z.any()),
+            annotations: z.array(z.any()),
             graph: z.object({
               nodes: z.array(z.object({
                 id: z.string(),
@@ -137,7 +137,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
         ...(mainContent ? { content: mainContent } : {}),
       },
       relatedDocuments: relatedWithContent.map(formatDocument),
-      selections: [...highlights, ...references].map(formatAnnotation),
+      annotations: [...highlights, ...references].map(formatAnnotation),
       graph: { nodes, edges },
       ...(summary ? { summary } : {}),
       ...(suggestedReferences ? { suggestedReferences } : {}),

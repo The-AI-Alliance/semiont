@@ -1,10 +1,11 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { 
-  GoogleAuthRequestSchema, 
-  AuthResponseSchema, 
+import {
+  GoogleAuthRequestSchema,
+  AuthResponseSchema,
   UserResponseSchema,
-  ErrorResponseSchema 
+  ErrorResponseSchema
 } from '../openapi';
+import { AcceptTermsResponseSchema } from '@semiont/core-types';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';
 import { authMiddleware } from '../middleware/auth';
@@ -34,12 +35,6 @@ const MCPGenerateResponseSchema = z.object({
     example: 'eyJhbGciOiJIUzI1NiIs...',
     description: 'JWT refresh token (30 day expiration)',
   }),
-});
-
-// Accept terms response schema
-const AcceptTermsResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
 });
 
 // Logout response schema
