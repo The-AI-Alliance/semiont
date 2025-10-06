@@ -114,7 +114,7 @@ describe('Layered Storage', () => {
             },
             type: 'highlight',
             createdBy: 'did:web:test.com:users:test',
-            createdAt: new Date('2025-01-01T00:00:00Z'),
+            createdAt: '2025-01-01T00:00:00.000Z',
             entityTypes: []
           },
         ],

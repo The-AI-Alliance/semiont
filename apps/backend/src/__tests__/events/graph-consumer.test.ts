@@ -42,20 +42,24 @@ const createMockGraphDB = (): GraphDatabase => ({
   createAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
-    selectionData: { text: 'test', offset: 0, length: 4 },
+    text: 'test',
+    selectionData: { type: 'text_span', offset: 0, length: 4 },
+    type: 'highlight',
     createdBy: 'user1',
     createdAt: new Date(),
-    updatedAt: new Date(),
+    entityTypes: [],
   }),
   getAnnotation: vi.fn().mockResolvedValue(null),
   updateAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
-    selectionData: { text: 'test', offset: 0, length: 4 },
-    resolvedDocumentId: 'doc-456',
+    text: 'test',
+    selectionData: { type: 'text_span', offset: 0, length: 4 },
+    type: 'reference',
+    referencedDocumentId: 'doc-456',
     createdBy: 'user1',
     createdAt: new Date(),
-    updatedAt: new Date(),
+    entityTypes: [],
   }),
   deleteAnnotation: vi.fn().mockResolvedValue(undefined),
   listAnnotations: vi.fn().mockResolvedValue({ annotations: [], total: 0 }),
@@ -64,11 +68,13 @@ const createMockGraphDB = (): GraphDatabase => ({
   resolveReference: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
-    selectionData: { text: 'test', offset: 0, length: 4 },
-    resolvedDocumentId: 'doc-456',
+    text: 'test',
+    selectionData: { type: 'text_span', offset: 0, length: 4 },
+    type: 'reference',
+    referencedDocumentId: 'doc-456',
     createdBy: 'user1',
     createdAt: new Date(),
-    updatedAt: new Date(),
+    entityTypes: [],
   }),
   getReferences: vi.fn().mockResolvedValue([]),
   getEntityReferences: vi.fn().mockResolvedValue([]),
@@ -342,14 +348,16 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
-        id: 'hl-123',
         documentId: 'doc-123',
+        text: 'important text',
         selectionData: {
-          text: 'important text',
+          type: 'text_span',
           offset: 10,
           length: 14,
         },
+        type: 'highlight',
         createdBy: 'user1',
+        entityTypes: [],
       });
     });
   });
@@ -414,17 +422,18 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
-        id: 'ref-123',
         documentId: 'doc-123',
+        text: 'reference text',
         selectionData: {
-          text: 'reference text',
+          type: 'text_span',
           offset: 20,
           length: 14,
         },
-        resolvedDocumentId: 'doc-456',
-        entityTypes: ['Person', 'Organization'],
-        referenceTags: ['mentions'],
+        type: 'reference',
         createdBy: 'user1',
+        referencedDocumentId: 'doc-456',
+        entityTypes: ['Person', 'Organization'],
+        referenceType: 'mentions',
       });
     });
 
@@ -455,17 +464,18 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
-        id: 'ref-456',
         documentId: 'doc-123',
+        text: 'stub reference',
         selectionData: {
-          text: 'stub reference',
+          type: 'text_span',
           offset: 30,
           length: 14,
         },
-        resolvedDocumentId: undefined,
-        entityTypes: undefined,
-        referenceTags: undefined,
+        type: 'reference',
         createdBy: 'user1',
+        referencedDocumentId: undefined,
+        entityTypes: [],
+        referenceType: undefined,
       });
     });
   });
@@ -498,7 +508,7 @@ describe('GraphDBConsumer', () => {
       await consumer['applyEventToGraph'](storedEvent);
 
       expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
-        resolvedDocumentId: 'doc-789',
+        referencedDocumentId: 'doc-789',
       });
     });
   });
