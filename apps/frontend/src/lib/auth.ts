@@ -211,6 +211,10 @@ export const authOptions: NextAuthOptions = {
         if (validation.success) {
           session.backendToken = validation.data;
           session.backendUser = token.backendUser;
+          // Also populate standard session.user fields with isAdmin
+          if (session.user && token.backendUser) {
+            session.user.isAdmin = token.backendUser.isAdmin;
+          }
           if (token.isNewUser !== undefined) {
             session.isNewUser = token.isNewUser;
           }

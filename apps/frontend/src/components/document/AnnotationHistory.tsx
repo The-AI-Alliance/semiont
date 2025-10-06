@@ -16,11 +16,11 @@ interface Props {
 export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHover, onEventClick }: Props) {
   // Load events using React Query
   // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = api.documents.getEvents.useQuery(documentId);
+  const { data: eventsData, isLoading: loading, isError: error } = api.documents.events.useQuery(documentId);
 
   // Load annotations to look up text for removed/resolved events
-  const { data: referencesData } = api.selections.getReferences.useQuery(documentId);
-  const { data: highlightsData } = api.selections.getHighlights.useQuery(documentId);
+  const { data: referencesData } = api.documents.references.useQuery(documentId);
+  const { data: highlightsData } = api.documents.highlights.useQuery(documentId);
   const references = referencesData?.references || [];
   const highlights = highlightsData?.highlights || [];
 

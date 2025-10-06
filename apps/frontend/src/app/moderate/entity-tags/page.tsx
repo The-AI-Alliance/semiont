@@ -28,7 +28,7 @@ export default function EntityTagsPage() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Query entity types
-  const { data: entityTypesData, isLoading } = api.entityTypes.list.useQuery();
+  const { data: entityTypesData, isLoading } = api.entityTypes.all.useQuery();
   const entityTypes = entityTypesData?.entityTypes || [];
 
   // Mutation for creating new entity type
@@ -51,12 +51,12 @@ export default function EntityTagsPage() {
     setError('');
 
     try {
-      await createEntityTypeMutation.mutateAsync({ tag: newTag.trim() });
+      await createEntityTypeMutation.mutateAsync(newTag.trim());
       // Invalidate the entity types query to refetch
       queryClient.invalidateQueries({ queryKey: ['/api/entity-types'] });
       setNewTag('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to add tag');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add tag');
     }
   };
 

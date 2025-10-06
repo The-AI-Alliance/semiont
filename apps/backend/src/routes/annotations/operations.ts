@@ -4,7 +4,11 @@ import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
-import { CREATION_METHODS } from '@semiont/core-types';
+import {
+  CREATION_METHODS,
+  GenerateDocumentFromSelectionRequestSchema,
+  GenerateDocumentFromSelectionResponseSchema,
+} from '@semiont/core-types';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
@@ -24,23 +28,11 @@ const CreateDocumentFromSelectionRequest = z.object({
 
 const CreateDocumentFromSelectionResponse = z.object({
   document: z.any(),
-  selection: z.any(),
-});
-
-const GenerateDocumentFromSelectionRequest = z.object({
-  name: z.string().min(1).max(255).optional(),
-  entityTypes: z.array(z.string()).optional(),
-  prompt: z.string().optional(),
-});
-
-const GenerateDocumentFromSelectionResponse = z.object({
-  document: z.any(),
-  selection: z.any(),
-  generated: z.boolean(),
+  annotation: z.any(),
 });
 
 const SelectionContextResponse = z.object({
-  selection: z.any(),
+  annotation: z.any(),
   context: z.object({
     before: z.string().optional(),
     selected: z.string(),
@@ -148,19 +140,20 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
       createdAt: new Date().toISOString(),
       archived: false,
     },
-    selection: {
+    annotation: {
       id,
       documentId: selection.documentId,
+      exact: selection.exact,
       selector: {
-        exact: selection.exact,
+        type: selection.selector.type,
         offset: selection.selector.offset,
         length: selection.selector.length,
       },
+      type: 'reference' as const,
       referencedDocumentId: documentId,
       entityTypes: selection.entityTypes,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     },
   }, 201);
 });
@@ -180,7 +173,7 @@ const generateDocumentFromSelectionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: GenerateDocumentFromSelectionRequest,
+          schema: GenerateDocumentFromSelectionRequestSchema,
         },
       },
     },
@@ -189,7 +182,7 @@ const generateDocumentFromSelectionRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: GenerateDocumentFromSelectionResponse,
+          schema: GenerateDocumentFromSelectionResponseSchema,
         },
       },
       description: 'Document generated and selection resolved',
@@ -277,19 +270,20 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       createdAt: new Date().toISOString(),
       archived: false,
     },
-    selection: {
+    annotation: {
       id,
       documentId: selection.documentId,
+      exact: selection.exact,
       selector: {
-        exact: selection.exact,
+        type: selection.selector.type,
         offset: selection.selector.offset,
         length: selection.selector.length,
       },
+      type: 'reference' as const,
       referencedDocumentId: documentId,
       entityTypes: selection.entityTypes,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     },
     generated: true,
   }, 201);
@@ -356,7 +350,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const after = contentStr.substring(selEnd, end);
 
   return c.json({
-    selection: {
+    annotation: {
       id: selection.id,
       documentId: selection.documentId,
       selector: {

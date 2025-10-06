@@ -147,7 +147,7 @@ describe('AdminUsers Page', () => {
     };
 
     // Setup default mock implementations
-    (api.admin.users.list.useQuery as Mock).mockReturnValue({
+    (api.admin.users.all.useQuery as Mock).mockReturnValue({
       data: mockUsersResponse,
       isLoading: false,
       error: null
@@ -230,7 +230,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show loading state for users table', () => {
-      (api.admin.users.list.useQuery as Mock).mockReturnValue({
+      (api.admin.users.all.useQuery as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null
@@ -416,7 +416,7 @@ describe('AdminUsers Page', () => {
     });
 
     it('should show empty state when no users exist', () => {
-      (api.admin.users.list.useQuery as Mock).mockReturnValue({
+      (api.admin.users.all.useQuery as Mock).mockReturnValue({
         data: { success: true, users: [] },
         isLoading: false,
         error: null

@@ -28,9 +28,9 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   // Set up mutation hooks
-  const saveHighlightMutation = api.selections.saveAsHighlight.useMutation();
-  const createSelectionMutation = api.selections.create.useMutation();
-  const deleteSelectionMutation = api.selections.delete.useMutation();
+  const saveHighlightMutation = api.annotations.saveAsHighlight.useMutation();
+  const createAnnotationMutation = api.annotations.create.useMutation();
+  const deleteAnnotationMutation = api.annotations.delete.useMutation();
 
   const addHighlight = useCallback(async (
     documentId: string,
@@ -46,8 +46,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
       // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
-      if (result.selection?.id) {
-        newId = result.selection.id;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
         setNewAnnotationIds(prev => new Set(prev).add(newId!));
 
         // Clear the ID after animation completes (6 seconds for 3 iterations)
@@ -103,12 +103,12 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       }
 
       // Create the annotation
-      const result = await createSelectionMutation.mutateAsync(createData);
+      const result = await createAnnotationMutation.mutateAsync(createData);
 
       // Track this as a new annotation for sparkle animation
       let newId: string | undefined;
-      if (result.selection?.id) {
-        newId = result.selection.id;
+      if (result.annotation?.id) {
+        newId = result.annotation.id;
         setNewAnnotationIds(prev => new Set(prev).add(newId!));
 
         // Clear the ID after animation completes (6 seconds for 3 iterations)
@@ -127,17 +127,16 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       console.error('Failed to create reference:', err);
       throw err;
     }
-  }, [createSelectionMutation]);
+  }, [createAnnotationMutation]);
 
   const deleteAnnotation = useCallback(async (annotationId: string, documentId: string) => {
     try {
-      await deleteSelectionMutation.mutateAsync({ id: annotationId, documentId });
-      // Component will invalidate queries to refetch data
+      await deleteAnnotationMutation.mutateAsync({ id: annotationId, documentId });
     } catch (err) {
       console.error('Failed to delete annotation:', err);
       throw err;
     }
-  }, [deleteSelectionMutation]);
+  }, [deleteAnnotationMutation]);
 
   const convertHighlightToReference = useCallback(async (
     highlights: Annotation[],
@@ -146,58 +145,53 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     entityType?: string,
     referenceType?: string
   ) => {
-    const highlight = highlights.find(h => h.id === highlightId);
-    if (!highlight || !highlight.selector) return;
-
     try {
-      // Delete the highlight
-      await deleteSelectionMutation.mutateAsync({ id: highlightId });
+      // Find the highlight
+      const highlight = highlights.find(h => h.id === highlightId);
+      if (!highlight) {
+        throw new Error('Highlight not found');
+      }
 
-      // Create new reference
+      // Delete old highlight
+      await deleteAnnotationMutation.mutateAsync({ id: highlightId });
+
+      // Create new reference with same position
       await addReference(
         highlight.documentId,
         highlight.exact,
-        {
-          start: highlight.selector.offset,
-          end: highlight.selector.offset + highlight.selector.length
-        },
+        { start: highlight.selector.offset, end: highlight.selector.offset + highlight.selector.length },
         targetDocId,
         entityType,
         referenceType
       );
-      // Component will invalidate queries to refetch data
     } catch (err) {
       console.error('Failed to convert highlight to reference:', err);
       throw err;
     }
-  }, [addReference, deleteSelectionMutation]);
+  }, [addReference, deleteAnnotationMutation]);
 
-  const convertReferenceToHighlight = useCallback(async (
-    references: Annotation[],
-    referenceId: string
-  ) => {
-    const reference = references.find(r => r.id === referenceId);
-    if (!reference || !reference.selector) return;
-
+  const convertReferenceToHighlight = useCallback(async (references: Annotation[], referenceId: string) => {
     try {
-      // Delete the reference
-      await deleteSelectionMutation.mutateAsync({ id: referenceId });
+      // Find the reference
+      const reference = references.find(r => r.id === referenceId);
+      if (!reference) {
+        throw new Error('Reference not found');
+      }
 
-      // Create new highlight
+      // Delete old reference
+      await deleteAnnotationMutation.mutateAsync({ id: referenceId });
+
+      // Create new highlight with same position
       await addHighlight(
         reference.documentId,
         reference.exact,
-        {
-          start: reference.selector.offset,
-          end: reference.selector.offset + reference.selector.length
-        }
+        { start: reference.selector.offset, end: reference.selector.offset + reference.selector.length }
       );
-      // Component will invalidate queries to refetch data
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);
       throw err;
     }
-  }, [addHighlight, deleteSelectionMutation]);
+  }, [addHighlight, deleteAnnotationMutation]);
 
   const clearNewAnnotationId = useCallback((id: string) => {
     setNewAnnotationIds(prev => {
@@ -208,10 +202,9 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   }, []);
 
   const triggerSparkleAnimation = useCallback((annotationId: string) => {
-    // Add the ID to trigger sparkle animation
     setNewAnnotationIds(prev => new Set(prev).add(annotationId));
 
-    // Remove it after animation completes (6 seconds for 3 iterations)
+    // Clear after animation
     setTimeout(() => {
       setNewAnnotationIds(prev => {
         const next = new Set(prev);
@@ -222,16 +215,18 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   }, []);
 
   return (
-    <DocumentAnnotationsContext.Provider value={{
-      newAnnotationIds,
-      addHighlight,
-      addReference,
-      deleteAnnotation,
-      convertHighlightToReference,
-      convertReferenceToHighlight,
-      clearNewAnnotationId,
-      triggerSparkleAnimation
-    }}>
+    <DocumentAnnotationsContext.Provider
+      value={{
+        newAnnotationIds,
+        addHighlight,
+        addReference,
+        deleteAnnotation,
+        convertHighlightToReference,
+        convertReferenceToHighlight,
+        clearNewAnnotationId,
+        triggerSparkleAnimation,
+      }}
+    >
       {children}
     </DocumentAnnotationsContext.Provider>
   );
@@ -239,8 +234,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
 export function useDocumentAnnotations() {
   const context = useContext(DocumentAnnotationsContext);
-  if (context === undefined) {
-    throw new Error('useDocumentAnnotations must be used within a DocumentAnnotationsProvider');
+  if (!context) {
+    throw new Error('useDocumentAnnotations must be used within DocumentAnnotationsProvider');
   }
   return context;
 }

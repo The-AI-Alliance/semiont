@@ -25,9 +25,7 @@ export default function AdminSecurity() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Get OAuth configuration from API - only run when authenticated
-  const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery(
-    { enabled: !!session?.backendToken }
-  );
+  const { data: oauthConfig, isLoading: oauthLoading } = api.admin.oauth.config.useQuery();
 
   const allowedDomains = (oauthConfig as OAuthConfigResponse | undefined)?.allowedDomains ?? [];
   const providers = (oauthConfig as OAuthConfigResponse | undefined)?.providers ?? [];

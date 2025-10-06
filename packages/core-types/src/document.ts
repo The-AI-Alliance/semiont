@@ -1,30 +1,10 @@
 /**
- * Document types - Core domain model for documents in the system
+ * Document types - Input/filter types for document operations
+ *
+ * NOTE: The Document type itself is in api-contracts.ts (single source of truth)
  */
 
 import { CreationMethod } from './creation-methods';
-
-/**
- * Core document entity representing any document in the system
- */
-export interface Document {
-  id: string;
-  name: string;
-  entityTypes: string[];
-  contentType: string;
-  metadata: Record<string, any>;
-  archived: boolean;  // Whether the document is archived (read-only)
-
-  // Audit fields (backend-controlled)
-  createdBy: string;  // Set from auth context by backend
-  createdAt: string;  // ISO 8601 string - Set by backend on creation
-
-  // Provenance tracking (backend-controlled with optional client context)
-  creationMethod: CreationMethod;  // How document was created
-  contentChecksum: string;  // SHA-256 hash calculated by backend for integrity
-  sourceAnnotationId?: string;  // If created from reference, the selection that triggered it
-  sourceDocumentId?: string;  // If created from reference/clone, the source document
-}
 
 /**
  * Input for creating a new document

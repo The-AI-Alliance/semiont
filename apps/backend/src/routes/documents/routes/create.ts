@@ -1,9 +1,8 @@
 import { createRoute } from '@hono/zod-openapi';
 import { getStorageService } from '../../../storage/filesystem';
-import { CREATION_METHODS, type CreationMethod } from '@semiont/core-types';
+import { CREATION_METHODS, type CreationMethod, CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import type { DocumentsRouterType } from '../shared';
-import { CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '../schemas';
 import { emitDocumentCreated } from '../../../events/emit';
 
 export const createDocumentRoute = createRoute({

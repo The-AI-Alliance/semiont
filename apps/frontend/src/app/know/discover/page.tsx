@@ -53,7 +53,7 @@ const DocumentCard = React.memo(({
     
     {/* Document Metadata */}
     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
-      <span>Updated {new Date(doc.updatedAt).toLocaleDateString()}</span>
+      <span>Created {new Date(doc.createdAt).toLocaleDateString()}</span>
       {doc.entityTypes && doc.entityTypes.length > 0 && (
         <div className="flex gap-1">
           {doc.entityTypes.slice(0, 2).map((type) => (
@@ -111,19 +111,18 @@ export default function DiscoverPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Load recent documents using React Query
-  const { data: recentDocsData, isLoading: isLoadingRecent } = api.documents.list.useQuery({
-    limit: 10,
-    archived: false
-  });
+  const { data: recentDocsData, isLoading: isLoadingRecent } = api.documents.list.useQuery(
+    10,
+    false
+  );
 
   // Load entity types using React Query
-  const { data: entityTypesData } = api.entityTypes.list.useQuery();
+  const { data: entityTypesData } = api.entityTypes.all.useQuery();
 
   // Search documents using React Query (only when there's a search query)
   const { data: searchData, isFetching: isSearching } = api.documents.search.useQuery(
     debouncedSearchQuery,
-    20,
-    { enabled: debouncedSearchQuery.trim() !== '' }
+    20
   );
 
   // Extract data from React Query responses

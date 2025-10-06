@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { ReferencedBySchema } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 
 export const getReferencedByRoute = createRoute({
@@ -20,12 +20,11 @@ export const getReferencedByRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            documents: z.array(z.any()),
-            references: z.array(z.any()),
+            referencedBy: z.array(ReferencedBySchema),
           }),
         },
       },
-      description: 'Referencing documents',
+      description: 'Documents that reference this document',
     },
   },
 });
@@ -41,11 +40,25 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
     // Get unique documents from the selections
     const docIds = [...new Set(references.map(ref => ref.documentId))];
     const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
-    const referencingDocs = documents.filter(doc => doc !== null);
+
+    // Build document map for lookup
+    const docMap = new Map(documents.filter(doc => doc !== null).map(doc => [doc.id, doc]));
+
+    // Transform into ReferencedBy structure
+    const referencedBy = references.map(ref => {
+      const doc = docMap.get(ref.documentId);
+      return {
+        id: ref.id,
+        documentId: ref.documentId,
+        documentName: doc?.name || 'Untitled Document',
+        selector: {
+          exact: ref.exact,
+        },
+      };
+    });
 
     return c.json({
-      documents: referencingDocs.map(formatDocument),
-      references: references.map(formatAnnotation),
+      referencedBy,
     });
   });
 }

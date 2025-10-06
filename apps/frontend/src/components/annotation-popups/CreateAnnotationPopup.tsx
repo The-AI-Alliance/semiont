@@ -30,8 +30,8 @@ export function CreateAnnotationPopup({
   const [selectedReferenceType, setSelectedReferenceType] = useState<string>('');
 
   // Fetch entity types and reference types from backend
-  const { data: entityTypesData } = api.entityTypes.list.useQuery();
-  const { data: referenceTypesData } = api.referenceTypes.list.useQuery();
+  const { data: entityTypesData } = api.entityTypes.all.useQuery();
+  const { data: referenceTypesData } = api.referenceTypes.all.useQuery();
 
   const entityTypes = entityTypesData?.entityTypes || [];
   const referenceTypes = referenceTypesData?.referenceTypes || [];

@@ -28,7 +28,7 @@ export default function ReferenceTagsPage() {
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Query reference types
-  const { data: referenceTypesData, isLoading } = api.referenceTypes.list.useQuery();
+  const { data: referenceTypesData, isLoading } = api.referenceTypes.all.useQuery();
   const referenceTypes = referenceTypesData?.referenceTypes || [];
 
   // Mutation for creating new reference type
@@ -51,12 +51,12 @@ export default function ReferenceTagsPage() {
     setError('');
 
     try {
-      await createReferenceTypeMutation.mutateAsync({ tag: newTag.trim() });
+      await createReferenceTypeMutation.mutateAsync(newTag.trim());
       // Invalidate the reference types query to refetch
       queryClient.invalidateQueries({ queryKey: ['/api/reference-types'] });
       setNewTag('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to add tag');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add tag');
     }
   };
 

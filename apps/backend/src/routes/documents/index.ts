@@ -9,7 +9,6 @@ import { registerListDocuments } from './routes/list';
 import { registerUpdateDocument } from './routes/update';
 import { registerSearchDocuments } from './routes/search';
 import { registerGetDocumentContent } from './routes/get-content';
-import { registerCloneDocument } from './routes/clone';
 import { registerCreateDocumentFromAnnotation } from './routes/create-from-annotation';
 import { registerDetectAnnotations } from './routes/detect-annotations';
 import { registerDetectAnnotationsStream } from './routes/detect-annotations-stream';
@@ -34,7 +33,6 @@ registerSearchDocuments(documentsRouter);  // Must be before registerGetDocument
 registerGetDocument(documentsRouter);
 registerUpdateDocument(documentsRouter);
 registerGetDocumentContent(documentsRouter);
-registerCloneDocument(documentsRouter);
 registerCreateDocumentFromAnnotation(documentsRouter);
 registerDetectAnnotations(documentsRouter);
 registerDetectAnnotationsStream(documentsRouter);

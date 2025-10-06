@@ -99,19 +99,24 @@ export default function KnowledgeDocumentPage() {
     return <DocumentErrorState error={new Error('Document not found')} onRetry={() => refetchDocument()} />;
   }
 
-  // From here on, TypeScript knows document exists
-  const document = docData.document;
+  // Early return: Document has no content
+  if (!docData.document.content) {
+    return <DocumentErrorState error={new Error('Document content not available')} onRetry={() => refetchDocument()} />;
+  }
+
+  // From here on, TypeScript knows document exists with content
+  const document = docData.document as SemiontDocument & { content: string };
 
   return <DocumentView document={document} documentId={documentId} refetchDocument={refetchDocument} />;
 }
 
-// Main document view - document is guaranteed to exist here
+// Main document view - document is guaranteed to exist with content
 function DocumentView({
   document,
   documentId,
   refetchDocument
 }: {
-  document: SemiontDocument;
+  document: SemiontDocument & { content: string };
   documentId: string;
   refetchDocument: () => Promise<unknown>;
 }) {
@@ -123,8 +128,8 @@ function DocumentView({
   const queryClient = useQueryClient();
 
   // Now that document exists, we can safely fetch dependent data
-  const { data: highlightsData, refetch: refetchHighlights } = api.selections.getHighlights.useQuery(documentId);
-  const { data: referencesData, refetch: refetchReferences } = api.selections.getReferences.useQuery(documentId);
+  const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
+  const { data: referencesData, refetch: refetchReferences } = api.documents.references.useQuery(documentId);
   const highlights = highlightsData?.highlights || [];
   const references = referencesData?.references || [];
 
@@ -149,20 +154,20 @@ function DocumentView({
     });
   }, [references]);
 
-  const { data: referencedByData, isLoading: referencedByLoading } = api.documents.getReferencedBy.useQuery(documentId);
+  const { data: referencedByData, isLoading: referencedByLoading } = api.documents.referencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
 
   // Derived state
   const documentEntityTypes = document.entityTypes || [];
 
   // Get entity types for detection
-  const { data: entityTypesData } = api.entityTypes.list.useQuery();
+  const { data: entityTypesData } = api.entityTypes.all.useQuery();
   const allEntityTypes = entityTypesData?.entityTypes || [];
 
   // Set up mutations
   const updateDocMutation = api.documents.update.useMutation();
   const createDocMutation = api.documents.create.useMutation();
-  const cloneDocMutation = api.documents.clone.useMutation();
+  const generateCloneTokenMutation = api.documents.generateCloneToken.useMutation();
 
   const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -217,7 +222,9 @@ function DocumentView({
           const newDoc = await createDocMutation.mutateAsync({
             name: pageName,
             content: `# ${pageName}\n\nThis page was created from a wiki link.`,
-            contentType: 'text/markdown'
+            contentType: 'text/markdown',
+            entityTypes: [],
+            metadata: {}
           });
           router.push(`/know/document/${encodeURIComponent(newDoc.document.id)}`);
         }
@@ -278,17 +285,18 @@ function DocumentView({
 
   const handleClone = useCallback(async () => {
     try {
-      const response = await cloneDocMutation.mutateAsync(documentId);
+      const response = await generateCloneTokenMutation.mutateAsync(documentId);
       if (response.token) {
-        router.push(`/know/compose?mode=clone&token=${encodeURIComponent(response.token)}`);
+        // Navigate to compose page with clone token
+        router.push(`/know/compose?mode=clone&token=${response.token}`);
       } else {
-        showError('Failed to prepare document for cloning');
+        showError('Failed to generate clone token');
       }
     } catch (err) {
-      console.error('Failed to clone document:', err);
+      console.error('Failed to generate clone token:', err);
       showError('Failed to clone document');
     }
-  }, [documentId, cloneDocMutation, router, showError]);
+  }, [documentId, generateCloneTokenMutation, router, showError]);
 
   // Handle annotate mode toggle - memoized
   const handleAnnotateModeToggle = useCallback(() => {
@@ -331,16 +339,20 @@ function DocumentView({
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
     progress: generationProgress,
-    startGeneration
+    startGeneration,
+    clearProgress
   } = useGenerationProgress({
     onComplete: (progress) => {
-      // Refresh annotations to update the reference with the new resolvedDocumentId
-      refetchReferences();
+      // Note: The reference.resolved event will trigger onReferenceResolved which refetches
 
       // Trigger sparkle animation on the now-resolved reference
       if (progress.referenceId) {
         triggerSparkleAnimation(progress.referenceId);
       }
+
+      // Clear progress after a brief delay to allow the refetch to complete
+      // This removes the pulsing sparkle and lets the link icon show
+      setTimeout(() => clearProgress(), 100);
     },
     onError: (error) => {
       console.error('[Generation] Error:', error);
@@ -382,8 +394,11 @@ function DocumentView({
 
     onReferenceResolved: useCallback((event) => {
       console.log('[RealTime] Reference resolved:', event.payload);
+      // Immediately refetch references to update UI (don't debounce for this critical update)
+      refetchReferences();
+      // Also invalidate for other consumers
       debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
+    }, [refetchReferences, debouncedInvalidateAnnotations]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);

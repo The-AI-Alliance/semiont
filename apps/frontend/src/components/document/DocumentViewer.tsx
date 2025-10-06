@@ -11,7 +11,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
 interface Props {
-  document: SemiontDocument;
+  document: SemiontDocument & { content: string };
   highlights: Annotation[];
   references: Annotation[];
   onRefetchAnnotations?: () => void;
