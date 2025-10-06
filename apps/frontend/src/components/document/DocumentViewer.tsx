@@ -97,7 +97,7 @@ export function DocumentViewer({
         id: annotation.id,
         type: annotation.type
       });
-      setSelectedText(annotation.selector?.exact || '');
+      setSelectedText(annotation.exact);
       if (annotation.selector) {
         setSelectionPosition({
           start: annotation.selector.offset,

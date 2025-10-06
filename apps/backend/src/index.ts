@@ -273,6 +273,42 @@ if (CONFIG.NODE_ENV !== 'test') {
       console.error('⚠️ Failed to start GraphDB consumer:', error);
       // Continue running even if consumer fails to start
     }
+
+    // Initialize Job Queue
+    try {
+      console.log('💼 Initializing job queue...');
+      const { initializeJobQueue } = await import('./jobs/job-queue');
+      const dataDir = process.env.DATA_DIR || './data/uploads';
+      await initializeJobQueue({ dataDir });
+      console.log('✅ Job queue initialized');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize job queue:', error);
+    }
+
+    // Start Job Workers
+    try {
+      console.log('👷 Starting job workers...');
+      const { DetectionWorker } = await import('./jobs/workers/detection-worker');
+      const { GenerationWorker } = await import('./jobs/workers/generation-worker');
+
+      const detectionWorker = new DetectionWorker();
+      const generationWorker = new GenerationWorker();
+
+      // Start workers in background (non-blocking)
+      detectionWorker.start().catch((error) => {
+        console.error('⚠️ Detection worker stopped with error:', error);
+      });
+
+      generationWorker.start().catch((error) => {
+        console.error('⚠️ Generation worker stopped with error:', error);
+      });
+
+      console.log('✅ Detection worker started');
+      console.log('✅ Generation worker started');
+
+    } catch (error) {
+      console.error('⚠️ Failed to start job workers:', error);
+    }
   });
 }
 

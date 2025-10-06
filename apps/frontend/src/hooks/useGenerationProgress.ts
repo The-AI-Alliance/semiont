@@ -55,7 +55,7 @@ export function useGenerationProgress({
 
     // Build SSE URL
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const url = `${apiUrl}/api/selections/${referenceId}/generate-document-stream`;
+    const url = `${apiUrl}/api/annotations/${referenceId}/generate-document-stream`;
 
     console.log('[Generation] Starting document generation for reference:', referenceId);
     console.log('[Generation] Document ID:', documentId);

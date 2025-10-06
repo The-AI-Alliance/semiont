@@ -114,7 +114,7 @@ export function getEventDisplayContent(
   }
 
   // For highlight and reference events, show the text (quoted)
-  if ('text' in payload && typeof payload.exact === 'string') {
+  if ('exact' in payload && typeof payload.exact === 'string') {
     const maxLength = 50;
     const text = payload.exact.trim();
     const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
