@@ -101,7 +101,7 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
         selectionData: s.selectionData,
         referencedDocumentId: s.referencedDocumentId,
         entityTypes: s.entityTypes,
-        createdAt: s.createdAt?.toISOString() || new Date().toISOString(),
+        createdAt: s.createdAt, // ISO string from createAnnotation
       })),
       detected: savedSelections.length,
     });

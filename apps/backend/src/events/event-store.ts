@@ -374,7 +374,7 @@ export class EventStore {
           },
           type: 'highlight',
           createdBy: event.userId,
-          createdAt: new Date(event.timestamp),
+          createdAt: new Date(event.timestamp).toISOString(),
           entityTypes: [],
         });
         break;
@@ -397,7 +397,7 @@ export class EventStore {
           },
           type: 'reference',
           createdBy: event.userId,
-          createdAt: new Date(event.timestamp),
+          createdAt: new Date(event.timestamp).toISOString(),
           referencedDocumentId: event.payload.targetDocumentId,
           entityTypes: event.payload.entityTypes || [],
           referenceType: event.payload.referenceType,

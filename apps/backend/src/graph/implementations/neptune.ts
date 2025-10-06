@@ -130,7 +130,7 @@ function vertexToAnnotation(vertex: any): Annotation {
     selectionData: JSON.parse(selectionDataRaw),
     type,
     createdBy,
-    createdAt: new Date(createdAtRaw),
+    createdAt: createdAtRaw, // ISO string from DB
     entityTypes: [],
   };
 
@@ -145,7 +145,7 @@ function vertexToAnnotation(vertex: any): Annotation {
   if (referenceType) annotation.referenceType = referenceType;
 
   const resolvedAt = getValue('resolvedAt');
-  if (resolvedAt) annotation.resolvedAt = new Date(resolvedAt);
+  if (resolvedAt) annotation.resolvedAt = resolvedAt; // ISO string from DB
 
   const resolvedBy = getValue('resolvedBy');
   if (resolvedBy) annotation.resolvedBy = resolvedBy;
@@ -474,7 +474,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       selectionData: input.selectionData,
       type: input.type,
       createdBy: input.createdBy,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
       entityTypes: input.entityTypes || [],
       referencedDocumentId: input.referencedDocumentId,
       referenceType: input.referenceType,
@@ -489,7 +489,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('selectionData', JSON.stringify(annotation.selectionData))
         .property('type', annotation.type)
         .property('createdBy', annotation.createdBy)
-        .property('createdAt', annotation.createdAt.toISOString())
+        .property('createdAt', annotation.createdAt)
         .property('entityTypes', JSON.stringify(annotation.entityTypes));
 
       // Add optional properties
@@ -572,7 +572,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         traversal = traversal.property('resolvedBy', updates.resolvedBy);
       }
       if (updates.resolvedAt !== undefined) {
-        traversal = traversal.property('resolvedAt', updates.resolvedAt.toISOString());
+        traversal = traversal.property('resolvedAt', updates.resolvedAt);
       }
 
       const result = await traversal.elementMap().next();

@@ -171,7 +171,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       selectionData: input.selectionData,
       type: input.type,
       createdBy: input.createdBy,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
       entityTypes: input.entityTypes || [],
       referencedDocumentId: input.referencedDocumentId,
       referenceType: input.referenceType,

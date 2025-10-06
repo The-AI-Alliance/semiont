@@ -97,9 +97,9 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         text: h.text
       },
       type: 'highlight' as const,
-      createdAt: new Date(),
-      createdBy: user.id,
-      entityTypes: [],
+      createdAt: h.createdAt, // ISO string from projection
+      createdBy: h.createdBy,
+      entityTypes: h.entityTypes || [],
     }));
 
     const referenceSelections = references.map(r => ({
@@ -116,8 +116,8 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       referencedDocumentId: r.referencedDocumentId,
       entityTypes: r.entityTypes || [],
       referenceType: r.referenceType,
-      createdAt: new Date(),
-      createdBy: user.id,
+      createdAt: r.createdAt, // ISO string from projection
+      createdBy: r.createdBy,
     }));
 
     // Return optimistic response

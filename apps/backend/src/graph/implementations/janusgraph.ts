@@ -124,12 +124,12 @@ export class JanusGraphDatabase implements GraphDatabase {
       selectionData: JSON.parse(this.getPropertyValue(props, 'selectionData') || '{}'),
       type: this.getPropertyValue(props, 'type') as 'highlight' | 'reference',
       createdBy: this.getPropertyValue(props, 'createdBy'),
-      createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
+      createdAt: this.getPropertyValue(props, 'createdAt'), // ISO string from DB
       referencedDocumentId: this.getPropertyValue(props, 'referencedDocumentId') || undefined,
       resolvedDocumentName: this.getPropertyValue(props, 'resolvedDocumentName') || undefined,
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
       referenceType: this.getPropertyValue(props, 'referenceType') || undefined,
-      resolvedAt: this.getPropertyValue(props, 'resolvedAt') ? new Date(this.getPropertyValue(props, 'resolvedAt')) : undefined,
+      resolvedAt: this.getPropertyValue(props, 'resolvedAt') || undefined, // ISO string from DB
       resolvedBy: this.getPropertyValue(props, 'resolvedBy') || undefined,
     };
   }
@@ -269,7 +269,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       selectionData: input.selectionData,
       type: input.type,
       createdBy: input.createdBy,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
       entityTypes: input.entityTypes || [],
       referencedDocumentId: input.referencedDocumentId,
       referenceType: input.referenceType,
@@ -284,7 +284,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('selectionData', JSON.stringify(input.selectionData))
       .property('type', input.type)
       .property('createdBy', input.createdBy)
-      .property('createdAt', annotation.createdAt.toISOString())
+      .property('createdAt', annotation.createdAt)
       .property('entityTypes', JSON.stringify(input.entityTypes || []));
 
     if (input.referenceType) {
@@ -351,7 +351,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       await traversalQuery.property('resolvedDocumentName', updates.resolvedDocumentName).next();
     }
     if (updates.resolvedAt !== undefined) {
-      await traversalQuery.property('resolvedAt', updates.resolvedAt.toISOString()).next();
+      await traversalQuery.property('resolvedAt', updates.resolvedAt).next();
     }
     if (updates.resolvedBy !== undefined) {
       await traversalQuery.property('resolvedBy', updates.resolvedBy).next();
@@ -421,7 +421,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.updateAnnotation(annotationId, {
       referencedDocumentId,
       resolvedDocumentName: targetDoc?.name,
-      resolvedAt: new Date(),
+      resolvedAt: new Date().toISOString(),
     });
 
     // Create edge from annotation to target document

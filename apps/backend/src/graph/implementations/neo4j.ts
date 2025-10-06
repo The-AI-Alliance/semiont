@@ -347,7 +347,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         selectionData: input.selectionData,
         type: input.type,
         createdBy: input.createdBy,
-      createdAt: new Date(),
+        createdAt: new Date().toISOString(),
         entityTypes: input.entityTypes || [],
         referencedDocumentId: input.referencedDocumentId,
         referenceType: input.referenceType,
@@ -400,7 +400,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         selectionData: JSON.stringify(annotation.selectionData),
         type: annotation.type,
         createdBy: annotation.createdBy,
-        createdAt: annotation.createdAt.toISOString(),
+        createdAt: annotation.createdAt,
         entityTypes: annotation.entityTypes,
         referencedDocumentId: annotation.referencedDocumentId || null,
         referenceType: annotation.referenceType || null,
@@ -987,14 +987,14 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       selectionData: JSON.parse(props.selectionData),
       type: props.type as 'highlight' | 'reference',
       createdBy: props.createdBy,
-      createdAt: new Date(props.createdAt),
+      createdAt: props.createdAt, // ISO string from DB
       entityTypes: props.entityTypes || [],
     };
 
     if (props.referencedDocumentId) annotation.referencedDocumentId = props.referencedDocumentId;
     if (props.resolvedDocumentName) annotation.resolvedDocumentName = props.resolvedDocumentName;
     if (props.referenceType) annotation.referenceType = props.referenceType;
-    if (props.resolvedAt) annotation.resolvedAt = new Date(props.resolvedAt.toString());
+    if (props.resolvedAt) annotation.resolvedAt = props.resolvedAt.toString(); // ISO string from DB
     if (props.resolvedBy) annotation.resolvedBy = props.resolvedBy;
 
     return annotation;
