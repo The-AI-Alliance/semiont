@@ -11,7 +11,7 @@ vi.mock('@/lib/api-client', () => ({
   api: {
     admin: {
       users: {
-        list: {
+        all: {
           useQuery: vi.fn()
         },
         stats: {
@@ -96,10 +96,10 @@ const mockUsers = [
 ];
 
 const mockStats = {
-  total: 3,
-  active: 2,
-  admins: 1,
-  recent: 1
+  totalUsers: 3,
+  activeUsers: 2,
+  adminUsers: 1,
+  recentSignups: [{ id: '1', name: 'Admin User', email: 'admin@company.com', createdAt: '2023-12-01T10:00:00Z' }]
 };
 
 const mockUsersResponse = {
@@ -508,9 +508,7 @@ describe('AdminUsers Page', () => {
       );
 
       await waitFor(() => {
-        expect(mockDeleteMutation.mutateAsync).toHaveBeenCalledWith({
-          id: '2'
-        });
+        expect(mockDeleteMutation.mutateAsync).toHaveBeenCalledWith('2');
       });
     });
 
