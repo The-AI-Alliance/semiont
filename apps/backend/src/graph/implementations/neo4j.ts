@@ -168,7 +168,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         contentType: input.contentType,
         metadata: input.metadata,
         archived: false,
-        createdAt: new Date(now),
+        createdAt: now,
         createdBy: input.createdBy,
         creationMethod: input.creationMethod,
         contentChecksum: input.contentChecksum,
@@ -960,7 +960,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       contentType: props.contentType,
       metadata: JSON.parse(props.metadata),
       archived: props.archived,
-      createdAt: new Date(props.createdAt.toString()),
+      createdAt: props.createdAt.toString(), // ISO string from DB
       createdBy: props.createdBy,
       creationMethod: props.creationMethod,
       contentChecksum: props.contentChecksum,

@@ -47,8 +47,8 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async createDocument(input: CreateDocumentInput): Promise<Document> {
     const id = this.generateId();
-    const now = new Date();
-    
+    const now = new Date().toISOString();
+
     const document: Document = {
       id,
       name: input.name,

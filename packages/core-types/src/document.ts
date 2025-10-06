@@ -17,7 +17,7 @@ export interface Document {
 
   // Audit fields (backend-controlled)
   createdBy: string;  // Set from auth context by backend
-  createdAt: Date;    // Set by backend on creation
+  createdAt: string;  // ISO 8601 string - Set by backend on creation
 
   // Provenance tracking (backend-controlled with optional client context)
   creationMethod: CreationMethod;  // How document was created

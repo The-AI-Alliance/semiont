@@ -79,7 +79,7 @@ function vertexToDocument(vertex: any): Document {
     contentType,
     metadata: JSON.parse(metadataRaw),
     archived: archived === 'true' || archived === true,
-    createdAt: new Date(createdAtRaw),
+    createdAt: createdAtRaw, // ISO string from DB
     createdBy: getValue('createdBy', true),
     creationMethod: getValue('creationMethod', true),
     contentChecksum: getValue('contentChecksum', true),
@@ -294,8 +294,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async createDocument(input: CreateDocumentInput): Promise<Document> {
     const id = this.generateId();
-    const now = new Date();
-    
+    const now = new Date().toISOString();
+
     const document: Document = {
       id,
       name: input.name,
@@ -310,7 +310,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     };
     if (input.sourceAnnotationId) document.sourceAnnotationId = input.sourceAnnotationId;
     if (input.sourceDocumentId) document.sourceDocumentId = input.sourceDocumentId;
-    
+
     // Create vertex in Neptune
     try {
       const vertex = this.g.addV('Document')
@@ -318,7 +318,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('name', document.name)
         .property('contentType', document.contentType)
         .property('archived', document.archived)
-        .property('createdAt', document.createdAt.toISOString())
+        .property('createdAt', document.createdAt)
         .property('createdBy', document.createdBy)
         .property('creationMethod', document.creationMethod)
         .property('contentChecksum', document.contentChecksum)

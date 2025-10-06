@@ -10,7 +10,7 @@ export function formatDocument(doc: Document): any {
     archived: doc.archived || false,
     entityTypes: doc.entityTypes || [],
     createdBy: doc.createdBy,
-    createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
+    createdAt: doc.createdAt, // Already ISO string
   };
 }
 

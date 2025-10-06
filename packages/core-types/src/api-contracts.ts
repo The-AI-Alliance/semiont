@@ -94,13 +94,13 @@ const AnnotationSchema = z.object({
   }),
   type: z.enum(['highlight', 'reference']),            // REQUIRED
   createdBy: z.string(),                               // REQUIRED
-  createdAt: z.date(),                                 // REQUIRED
+  createdAt: z.string(),                               // REQUIRED - ISO 8601 string (JSON serialized)
   referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
   resolvedDocumentName: z.string().optional(),         // OPTIONAL (name of referenced document)
   entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
   referenceType: z.string().optional(),                // OPTIONAL
   resolvedBy: z.string().optional(),                   // OPTIONAL (who resolved the reference)
-  resolvedAt: z.date().optional(),                     // OPTIONAL (when resolved)
+  resolvedAt: z.string().optional(),                   // OPTIONAL (when resolved) - ISO 8601 string
 });
 
 export type Annotation = z.infer<typeof AnnotationSchema>;

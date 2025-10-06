@@ -99,7 +99,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       metadata: JSON.parse(this.getPropertyValue(props, 'metadata') || '{}'),
       archived: this.getPropertyValue(props, 'archived') === 'true',
       createdBy,
-      createdAt: new Date(this.getPropertyValue(props, 'createdAt')),
+      createdAt: this.getPropertyValue(props, 'createdAt'), // ISO string from DB
       creationMethod,
       contentChecksum,
       sourceAnnotationId: this.getPropertyValue(props, 'sourceAnnotationId'),
@@ -136,7 +136,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   
   async createDocument(input: CreateDocumentInput): Promise<Document> {
     const id = this.generateId();
-    const now = new Date();
+    const now = new Date().toISOString();
 
     const document: Document = {
       id,
@@ -162,7 +162,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('contentType', input.contentType)
       .property('metadata', JSON.stringify(input.metadata))
       .property('archived', false)
-      .property('createdAt', now.toISOString())
+      .property('createdAt', now)
       .property('createdBy', input.createdBy)
       .property('creationMethod', input.creationMethod)
       .property('contentChecksum', input.contentChecksum);

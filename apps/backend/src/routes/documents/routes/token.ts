@@ -188,7 +188,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       contentChecksum: checksum,
 
       createdBy: user.id,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
 
     const documentId = `doc-sha256:${checksum}`;
