@@ -12,7 +12,7 @@ import '@/styles/animations.css';
 export interface AnnotationSelection {
   id: string;
   documentId: string;
-  selectionData?: {
+  selector?: {
     type: string;
     offset: number;
     length: number;

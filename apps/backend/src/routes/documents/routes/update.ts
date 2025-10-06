@@ -90,10 +90,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       id: h.id,
       documentId: id,
       text: h.text,
-      selectionData: {
+      selector: {
         type: 'text_span',
-        offset: h.selectionData.offset,
-        length: h.selectionData.length,
+        offset: h.selector.offset,
+        length: h.selector.length,
         text: h.text
       },
       type: 'highlight' as const,
@@ -106,10 +106,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       id: r.id,
       documentId: id,
       text: r.text,
-      selectionData: {
+      selector: {
         type: 'text_span',
-        offset: r.selectionData.offset,
-        length: r.selectionData.length,
+        offset: r.selector.offset,
+        length: r.selector.length,
         text: r.text
       },
       type: 'reference' as const,

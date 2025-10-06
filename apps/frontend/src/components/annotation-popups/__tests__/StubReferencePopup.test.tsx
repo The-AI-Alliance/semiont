@@ -51,7 +51,7 @@ describe('StubReferencePopup', () => {
       id: 'test-annotation',
       documentId: 'test-doc',
       text: 'Selected text',
-      selectionData: {
+      selector: {
         type: 'text_span',
         offset: 0,
         length: 13,

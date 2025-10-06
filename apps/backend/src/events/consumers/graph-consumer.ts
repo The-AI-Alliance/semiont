@@ -134,7 +134,7 @@ export class GraphDBConsumer {
         await graphDb.createAnnotation({
           documentId: event.documentId,
           text: event.payload.text,
-          selectionData: {
+          selector: {
             type: 'text_span',
             offset: event.payload.position.offset,
             length: event.payload.position.length,
@@ -153,7 +153,7 @@ export class GraphDBConsumer {
         await graphDb.createAnnotation({
           documentId: event.documentId,
           text: event.payload.text,
-          selectionData: {
+          selector: {
             type: 'text_span',
             offset: event.payload.position.offset,
             length: event.payload.position.length,

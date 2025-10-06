@@ -139,10 +139,10 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
               documentId: id,
               userId: user.id,
               referenceId,
-              text: detected.selection.selectionData.text,
+              text: detected.selection.selector.text,
               position: {
-                offset: detected.selection.selectionData.offset,
-                length: detected.selection.selectionData.length,
+                offset: detected.selection.selector.offset,
+                length: detected.selection.selector.length,
               },
               entityTypes: detected.selection.entityTypes,
               referenceType: undefined, // Unresolved reference

@@ -119,7 +119,7 @@ function vertexToAnnotation(vertex: any): Annotation {
   const documentId = getValue('documentId', true);
   const text = getValue('text', true);
   const type = getValue('type', true) as 'highlight' | 'reference';
-  const selectionDataRaw = getValue('selectionData', true);
+  const selectorRaw = getValue('selector', true);
   const createdBy = getValue('createdBy', true);
   const createdAtRaw = getValue('createdAt', true);
 
@@ -127,7 +127,7 @@ function vertexToAnnotation(vertex: any): Annotation {
     id,
     documentId,
     text,
-    selectionData: JSON.parse(selectionDataRaw),
+    selector: JSON.parse(selectorRaw),
     type,
     createdBy,
     createdAt: createdAtRaw, // ISO string from DB
@@ -471,7 +471,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       id,
       documentId: input.documentId,
       text: input.text,
-      selectionData: input.selectionData,
+      selector: input.selector,
       type: input.type,
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
@@ -486,7 +486,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property('id', annotation.id)
         .property('documentId', annotation.documentId)
         .property('text', annotation.text)
-        .property('selectionData', JSON.stringify(annotation.selectionData))
+        .property('selector', JSON.stringify(annotation.selector))
         .property('type', annotation.type)
         .property('createdBy', annotation.createdBy)
         .property('createdAt', annotation.createdAt)

@@ -46,8 +46,8 @@ function segmentTextWithAnnotations(text: string, annotations: Annotation[]): Te
   const normalizedAnnotations = annotations
     .map(ann => ({
       annotation: ann,
-      start: ann.selectionData?.offset ?? 0,
-      end: (ann.selectionData?.offset ?? 0) + (ann.selectionData?.length ?? 0)
+      start: ann.selector?.offset ?? 0,
+      end: (ann.selector?.offset ?? 0) + (ann.selector?.length ?? 0)
     }))
     .filter(a => a.start >= 0 && a.end <= text.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);

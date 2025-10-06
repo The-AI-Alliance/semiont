@@ -367,7 +367,7 @@ export class EventStore {
           id: event.payload.highlightId,
           documentId: event.documentId,
           text: event.payload.text,
-          selectionData: {
+          selector: {
             type: 'text_span',
             offset: event.payload.position.offset,
             length: event.payload.position.length,
@@ -390,7 +390,7 @@ export class EventStore {
           id: event.payload.referenceId,
           documentId: event.documentId,
           text: event.payload.text,
-          selectionData: {
+          selector: {
             type: 'text_span',
             offset: event.payload.position.offset,
             length: event.payload.position.length,

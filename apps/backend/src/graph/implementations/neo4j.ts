@@ -344,7 +344,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         id,
         documentId: input.documentId,
         text: input.text,
-        selectionData: input.selectionData,
+        selector: input.selector,
         type: input.type,
         createdBy: input.createdBy,
         createdAt: new Date().toISOString(),
@@ -363,7 +363,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              id: $id,
              documentId: $documentId,
              text: $text,
-             selectionData: $selectionData,
+             selector: $selector,
              type: $type,
              createdBy: $createdBy,
              createdAt: datetime($createdAt),
@@ -381,7 +381,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              id: $id,
              documentId: $documentId,
              text: $text,
-             selectionData: $selectionData,
+             selector: $selector,
              type: $type,
              createdBy: $createdBy,
              createdAt: datetime($createdAt),
@@ -397,7 +397,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         fromId: annotation.documentId,
         toId: annotation.referencedDocumentId || null,
         text: annotation.text,
-        selectionData: JSON.stringify(annotation.selectionData),
+        selector: JSON.stringify(annotation.selector),
         type: annotation.type,
         createdBy: annotation.createdBy,
         createdAt: annotation.createdAt,
@@ -443,7 +443,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       Object.entries(updates).forEach(([key, value]) => {
         if (key !== 'id' && key !== 'updatedAt') {
           setClauses.push(`s.${key} = $${key}`);
-          if (key === 'selectionData' || key === 'metadata') {
+          if (key === 'selector' || key === 'metadata') {
             params[key] = JSON.stringify(value);
           } else if (key === 'createdAt' || key === 'resolvedAt') {
             params[key] = value ? new Date(value as any).toISOString() : null;
@@ -977,14 +977,14 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.documentId) throw new Error(`Annotation ${props.id} missing required field: documentId`);
     if (!props.text) throw new Error(`Annotation ${props.id} missing required field: text`);
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
-    if (!props.selectionData) throw new Error(`Annotation ${props.id} missing required field: selectionData`);
+    if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
     if (!props.createdBy) throw new Error(`Annotation ${props.id} missing required field: createdBy`);
 
     const annotation: Annotation = {
       id: props.id,
       documentId: props.documentId,
       text: props.text,
-      selectionData: JSON.parse(props.selectionData),
+      selector: JSON.parse(props.selector),
       type: props.type as 'highlight' | 'reference',
       createdBy: props.createdBy,
       createdAt: props.createdAt, // ISO string from DB

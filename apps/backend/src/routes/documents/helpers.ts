@@ -44,7 +44,7 @@ export function formatAnnotation(annotation: Annotation): any {
     id: annotation.id,
     documentId: annotation.documentId,
     text: annotation.text,
-    selectionData: annotation.selectionData,
+    selector: annotation.selector,
     type: annotation.type,
     referencedDocumentId: annotation.referencedDocumentId,
     resolvedDocumentName: annotation.resolvedDocumentName,
@@ -56,7 +56,7 @@ export function formatAnnotation(annotation: Annotation): any {
 // Types for the detection result
 export interface DetectedSelection {
   selection: {
-    selectionData: {
+    selector: {
       offset: number;
       length: number;
       text: string;
@@ -86,7 +86,7 @@ export async function detectSelectionsInDocument(
     for (const entity of extractedEntities) {
       const selection: DetectedSelection = {
         selection: {
-          selectionData: {
+          selector: {
             offset: entity.startOffset,
             length: entity.endOffset - entity.startOffset,
             text: entity.text,

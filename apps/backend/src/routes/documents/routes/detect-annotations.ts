@@ -14,7 +14,7 @@ const DetectAnnotationsResponse = z.object({
   annotations: z.array(z.object({
     id: z.string(),
     documentId: z.string(),
-    selectionData: z.any(),
+    selector: z.any(),
     referencedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
     createdAt: z.string(),
@@ -77,12 +77,12 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     for (const detected of detectedSelections) {
       const selectionInput = {
         documentId: id,
-        text: detected.selection.selectionData.text,
-        selectionData: {
+        text: detected.selection.selector.text,
+        selector: {
           type: 'text_span',
-          offset: detected.selection.selectionData.offset,
-          length: detected.selection.selectionData.length,
-          text: detected.selection.selectionData.text,
+          offset: detected.selection.selector.offset,
+          length: detected.selection.selector.length,
+          text: detected.selection.selector.text,
         },
         type: 'reference' as const,
         referencedDocumentId: null,  // null = stub reference
@@ -98,7 +98,7 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
       annotations: savedSelections.map(s => ({
         id: s.id,
         documentId: s.documentId,
-        selectionData: s.selectionData,
+        selector: s.selector,
         referencedDocumentId: s.referencedDocumentId,
         entityTypes: s.entityTypes,
         createdAt: s.createdAt, // ISO string from createAnnotation

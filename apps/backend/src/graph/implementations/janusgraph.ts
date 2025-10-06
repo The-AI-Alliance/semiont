@@ -121,7 +121,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       id: this.getPropertyValue(props, 'id'),
       documentId: this.getPropertyValue(props, 'documentId'),
       text: this.getPropertyValue(props, 'text'),
-      selectionData: JSON.parse(this.getPropertyValue(props, 'selectionData') || '{}'),
+      selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
       type: this.getPropertyValue(props, 'type') as 'highlight' | 'reference',
       createdBy: this.getPropertyValue(props, 'createdBy'),
       createdAt: this.getPropertyValue(props, 'createdAt'), // ISO string from DB
@@ -266,7 +266,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       documentId: input.documentId,
       text: input.text,
-      selectionData: input.selectionData,
+      selector: input.selector,
       type: input.type,
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
@@ -281,7 +281,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('id', id)
       .property('documentId', input.documentId)
       .property('text', input.text)
-      .property('selectionData', JSON.stringify(input.selectionData))
+      .property('selector', JSON.stringify(input.selector))
       .property('type', input.type)
       .property('createdBy', input.createdBy)
       .property('createdAt', annotation.createdAt)
@@ -338,8 +338,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (updates.text !== undefined) {
       await traversalQuery.property('text', updates.text).next();
     }
-    if (updates.selectionData !== undefined) {
-      await traversalQuery.property('selectionData', JSON.stringify(updates.selectionData)).next();
+    if (updates.selector !== undefined) {
+      await traversalQuery.property('selector', JSON.stringify(updates.selector)).next();
     }
     if (updates.type !== undefined) {
       await traversalQuery.property('type', updates.type).next();

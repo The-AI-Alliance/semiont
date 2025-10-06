@@ -114,18 +114,18 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         highlightId,
         text: highlight.text,
         position: {
-          offset: highlight.selectionData.offset,
-          length: highlight.selectionData.length,
+          offset: highlight.selector.offset,
+          length: highlight.selector.length,
         },
       });
       clonedSelections.push({
         id: highlightId,
         documentId: newDocId,
         selectionType: 'highlight',
-        selectionData: {
+        selector: {
           text: highlight.text,
-          offset: highlight.selectionData.offset,
-          length: highlight.selectionData.length,
+          offset: highlight.selector.offset,
+          length: highlight.selector.length,
         },
         entityTypes: [],
         createdBy: user.id,
@@ -142,8 +142,8 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         referenceId,
         text: reference.text,
         position: {
-          offset: reference.selectionData.offset,
-          length: reference.selectionData.length,
+          offset: reference.selector.offset,
+          length: reference.selector.length,
         },
         entityTypes: reference.entityTypes || [],
         referenceType: reference.referenceType,
@@ -153,10 +153,10 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         id: referenceId,
         documentId: newDocId,
         selectionType: 'reference',
-        selectionData: {
+        selector: {
           text: reference.text,
-          offset: reference.selectionData.offset,
-          length: reference.selectionData.length,
+          offset: reference.selector.offset,
+          length: reference.selector.length,
         },
         referencedDocumentId: reference.referencedDocumentId,
         entityTypes: reference.entityTypes || [],

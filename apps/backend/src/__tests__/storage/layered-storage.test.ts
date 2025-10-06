@@ -107,7 +107,7 @@ describe('Layered Storage', () => {
             id: 'hl1',
             documentId: docId,
             text: 'important',
-            selectionData: {
+            selector: {
               type: 'text_span',
               offset: 0,
               length: 9,

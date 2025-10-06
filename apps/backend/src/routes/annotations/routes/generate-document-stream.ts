@@ -95,8 +95,8 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       documentId: body.documentId,
       text: reference.text,
       position: {
-        offset: reference.selectionData.offset,
-        length: reference.selectionData.length,
+        offset: reference.selector.offset,
+        length: reference.selector.length,
       },
       type: 'reference' as const,
       targetDocumentId: reference.referencedDocumentId,

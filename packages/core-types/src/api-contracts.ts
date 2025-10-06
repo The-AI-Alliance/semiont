@@ -19,7 +19,7 @@ import { z } from 'zod';
 export const CreateAnnotationRequestSchema = z.object({
   documentId: z.string(),
   text: z.string(),
-  selectionData: z.object({
+  selector: z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),
@@ -52,7 +52,7 @@ export const CreateAnnotationResponseSchema = z.object({
     id: z.string(),
     documentId: z.string(),
     text: z.string(),
-    selectionData: z.object({
+    selector: z.object({
       type: z.string(),
       offset: z.number(),
       length: z.number(),
@@ -87,7 +87,7 @@ const AnnotationSchema = z.object({
   id: z.string(),
   documentId: z.string(),
   text: z.string(),                                    // REQUIRED - full selected text
-  selectionData: z.object({
+  selector: z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),

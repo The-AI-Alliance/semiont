@@ -92,9 +92,9 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
       const sourceContent = await storage.getDocument(documentId);
       const contentStr = sourceContent.toString('utf-8');
 
-      if (reference.selectionData && 'offset' in reference.selectionData) {
-        const offset = reference.selectionData.offset as number;
-        const length = reference.selectionData.length as number;
+      if (reference.selector && 'offset' in reference.selector) {
+        const offset = reference.selector.offset as number;
+        const length = reference.selector.length as number;
 
         const before = contentStr.slice(Math.max(0, offset - contextWindow), offset);
         const selection = contentStr.slice(offset, offset + length);

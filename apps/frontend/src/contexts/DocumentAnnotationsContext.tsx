@@ -81,7 +81,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       const createData: any = {
         documentId,
         text,
-        selectionData: {
+        selector: {
           type: 'text_span',
           offset: position.start,
           length: position.end - position.start,
@@ -147,7 +147,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceType?: string
   ) => {
     const highlight = highlights.find(h => h.id === highlightId);
-    if (!highlight || !highlight.selectionData) return;
+    if (!highlight || !highlight.selector) return;
 
     try {
       // Delete the highlight
@@ -158,8 +158,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         highlight.documentId,
         highlight.text,
         {
-          start: highlight.selectionData.offset,
-          end: highlight.selectionData.offset + highlight.selectionData.length
+          start: highlight.selector.offset,
+          end: highlight.selector.offset + highlight.selector.length
         },
         targetDocId,
         entityType,
@@ -177,7 +177,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceId: string
   ) => {
     const reference = references.find(r => r.id === referenceId);
-    if (!reference || !reference.selectionData) return;
+    if (!reference || !reference.selector) return;
 
     try {
       // Delete the reference
@@ -188,8 +188,8 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         reference.documentId,
         reference.text,
         {
-          start: reference.selectionData.offset,
-          end: reference.selectionData.offset + reference.selectionData.length
+          start: reference.selector.offset,
+          end: reference.selector.offset + reference.selector.length
         }
       );
       // Component will invalidate queries to refetch data

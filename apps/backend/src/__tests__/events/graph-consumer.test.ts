@@ -43,7 +43,7 @@ const createMockGraphDB = (): GraphDatabase => ({
     id: 'sel-123',
     documentId: 'doc-123',
     text: 'test',
-    selectionData: { type: 'text_span', offset: 0, length: 4 },
+    selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'highlight',
     createdBy: 'user1',
     createdAt: new Date().toISOString(),
@@ -54,7 +54,7 @@ const createMockGraphDB = (): GraphDatabase => ({
     id: 'sel-123',
     documentId: 'doc-123',
     text: 'test',
-    selectionData: { type: 'text_span', offset: 0, length: 4 },
+    selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'reference',
     referencedDocumentId: 'doc-456',
     createdBy: 'user1',
@@ -69,7 +69,7 @@ const createMockGraphDB = (): GraphDatabase => ({
     id: 'sel-123',
     documentId: 'doc-123',
     text: 'test',
-    selectionData: { type: 'text_span', offset: 0, length: 4 },
+    selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'reference',
     referencedDocumentId: 'doc-456',
     createdBy: 'user1',
@@ -350,7 +350,7 @@ describe('GraphDBConsumer', () => {
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         documentId: 'doc-123',
         text: 'important text',
-        selectionData: {
+        selector: {
           type: 'text_span',
           offset: 10,
           length: 14,
@@ -424,7 +424,7 @@ describe('GraphDBConsumer', () => {
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         documentId: 'doc-123',
         text: 'reference text',
-        selectionData: {
+        selector: {
           type: 'text_span',
           offset: 20,
           length: 14,
@@ -466,7 +466,7 @@ describe('GraphDBConsumer', () => {
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         documentId: 'doc-123',
         text: 'stub reference',
-        selectionData: {
+        selector: {
           type: 'text_span',
           offset: 30,
           length: 14,

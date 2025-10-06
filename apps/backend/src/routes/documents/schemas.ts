@@ -23,7 +23,7 @@ export const AnnotationSchema = z.object({
   documentId: z.string(),
   type: z.enum(['highlight', 'reference']),
   text: z.string(),
-  selectionData: z.object({
+  selector: z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),

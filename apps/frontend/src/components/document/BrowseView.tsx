@@ -20,12 +20,12 @@ interface Props {
 // Convert Annotation[] to the simpler format needed by plugins
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
-    .filter(ann => ann.selectionData)
+    .filter(ann => ann.selector)
     .map(ann => ({
       id: ann.id,
       text: ann.text,
-      offset: ann.selectionData!.offset,
-      length: ann.selectionData!.length,
+      offset: ann.selector!.offset,
+      length: ann.selector!.length,
       type: ann.type as 'highlight' | 'reference',
       referencedDocumentId: ann.referencedDocumentId
     }));

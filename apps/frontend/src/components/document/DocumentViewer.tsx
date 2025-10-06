@@ -90,18 +90,18 @@ export function DocumentViewer({
     // For other annotations in Annotate mode, show the popup
     if (curationMode) {
       setEditingAnnotation({
-        ...annotation,  // Include all required fields (documentId, text, selectionData, entityTypes, etc.)
+        ...annotation,  // Include all required fields (documentId, text, selector, entityTypes, etc.)
         resolvedDocumentName: annotation.referencedDocumentName
       });
       console.log('[DocumentViewer] editingAnnotation set to:', {
         id: annotation.id,
         type: annotation.type
       });
-      setSelectedText(annotation.selectionData?.text || '');
-      if (annotation.selectionData) {
+      setSelectedText(annotation.selector?.text || '');
+      if (annotation.selector) {
         setSelectionPosition({
-          start: annotation.selectionData.offset,
-          end: annotation.selectionData.offset + annotation.selectionData.length
+          start: annotation.selector.offset,
+          end: annotation.selector.offset + annotation.selector.length
         });
       }
 
@@ -123,11 +123,11 @@ export function DocumentViewer({
       ...annotation,  // Include all required fields
       resolvedDocumentName: annotation.referencedDocumentName
     });
-    setSelectedText(annotation.selectionData?.text || '');
-    if (annotation.selectionData) {
+    setSelectedText(annotation.selector?.text || '');
+    if (annotation.selector) {
       setSelectionPosition({
-        start: annotation.selectionData.offset,
-        end: annotation.selectionData.offset + annotation.selectionData.length
+        start: annotation.selector.offset,
+        end: annotation.selector.offset + annotation.selector.length
       });
     }
     setPopupPosition({ x, y: y + 10 });
@@ -139,14 +139,14 @@ export function DocumentViewer({
     const reference = references.find(r => r.referencedDocumentId === documentId);
     if (reference && reference.type) {
       setEditingAnnotation({
-        ...reference,  // Include all fields from reference (documentId, text, selectionData, etc.)
+        ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
         resolvedDocumentName: 'Document'
       });
       setSelectedText(reference.text || '');
-      if (reference.selectionData) {
+      if (reference.selector) {
         setSelectionPosition({
-          start: reference.selectionData.offset,
-          end: reference.selectionData.offset + reference.selectionData.length
+          start: reference.selector.offset,
+          end: reference.selector.offset + reference.selector.length
         });
       }
       setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
@@ -481,7 +481,7 @@ export function DocumentViewer({
             id: editingAnnotation.id,
             documentId: editingAnnotation.documentId,
             text: editingAnnotation.text,
-            selectionData: editingAnnotation.selectionData,
+            selector: editingAnnotation.selector,
             type: editingAnnotation.type,
             createdBy: editingAnnotation.createdBy,
             createdAt: editingAnnotation.createdAt,

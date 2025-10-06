@@ -43,8 +43,8 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
 
-  // Use selectionData from the request body (already in correct format)
-  const selectionData = body.selectionData;
+  // Use selector from the request body (already in correct format)
+  const selector = body.selector;
 
   // Generate ID - backend-internal, not graph-dependent
   const selectionId = generateAnnotationId();
@@ -58,8 +58,8 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       referenceId: selectionId,
       text: body.text,
       position: {
-        offset: selectionData.offset,
-        length: selectionData.length,
+        offset: selector.offset,
+        length: selector.length,
       },
       entityTypes: body.entityTypes,
       referenceType: body.referenceType,
@@ -72,8 +72,8 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       highlightId: selectionId,
       text: body.text,
       position: {
-        offset: selectionData.offset,
-        length: selectionData.length,
+        offset: selector.offset,
+        length: selector.length,
       },
     });
   }
@@ -84,7 +84,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       id: selectionId,
       documentId: body.documentId,
       text: body.text,
-      selectionData,
+      selector,
       type: body.type,
       referencedDocumentId: body.referencedDocumentId,
       entityTypes: body.entityTypes || [],

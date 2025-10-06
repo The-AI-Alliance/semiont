@@ -26,7 +26,7 @@ export function formatAnnotation(annotation: Annotation): any {
     id: annotation.id,
     documentId: annotation.documentId,
     text: annotation.text,
-    selectionData: annotation.selectionData,
+    selector: annotation.selector,
     type: annotation.type,
     referencedDocumentId: annotation.referencedDocumentId,
     resolvedDocumentName: annotation.resolvedDocumentName,
