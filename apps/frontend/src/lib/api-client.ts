@@ -123,7 +123,7 @@ const auth = {
       return useQuery({
         queryKey: QUERY_KEYS.auth.me(),
         queryFn: () => fetchAPI<any>('/api/auth/me', {}, session?.backendToken),
-        enabled: !!session?.backendToken && !!session?.user?.isAdmin,
+        enabled: !!session?.backendToken,
       });
     },
   },
