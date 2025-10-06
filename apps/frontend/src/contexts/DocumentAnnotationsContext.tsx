@@ -3,34 +3,15 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Selection } from '@semiont/core-types';
-
-export interface Annotation {
-  id: string;
-  documentId: string;
-  selectionData?: {
-    type: string;
-    offset: number;
-    length: number;
-    text: string;
-  };
-  text?: string;
-  referencedDocumentId?: string;
-  entityType?: string;
-  entityTypes?: string[];
-  referenceType?: string;
-  type?: 'highlight' | 'reference';
-  createdAt?: string;
-  updatedAt?: string;
-}
+import type { Annotation } from '@semiont/core-types';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Mutation actions (still in context for consistency)
-  addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addReference: (documentId: string, text: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addHighlight: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (documentId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
@@ -53,13 +34,13 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
   const addHighlight = useCallback(async (
     documentId: string,
-    text: string,
+    exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
     try {
       const result = await saveHighlightMutation.mutateAsync({
         documentId,
-        text,
+        exact,
         position
       });
 
@@ -89,36 +70,39 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
   const addReference = useCallback(async (
     documentId: string,
-    text: string,
+    exact: string,
     position: { start: number; end: number },
     targetDocId?: string,
     entityType?: string,
     referenceType?: string
   ): Promise<string | undefined> => {
     try {
-      // Build the create selection request with all metadata
+      // Build CreateAnnotationRequest directly
       const createData: any = {
         documentId,
-        text,
-        position
+        exact,
+        selector: {
+          type: 'text_span',
+          offset: position.start,
+          length: position.end - position.start,
+        },
+        type: (targetDocId !== undefined || referenceType || entityType) ? 'reference' : 'highlight',
       };
 
       // For references (both stub and resolved)
-      if (targetDocId !== undefined || referenceType || entityType) {
-        // Include resolvedDocumentId key (null for stubs, string for resolved)
-        createData.resolvedDocumentId = targetDocId || null;
-
-        if (entityType) {
-          // Entity types is an array of strings
-          createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
-        }
-        if (referenceType) {
-          // Reference tags is an array, but we have a single reference type
-          createData.referenceTags = [referenceType];
-        }
+      if (targetDocId !== undefined) {
+        createData.referencedDocumentId = targetDocId || null;
       }
 
-      // Create the selection with metadata
+      if (entityType) {
+        createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+      }
+
+      if (referenceType) {
+        createData.referenceType = referenceType;
+      }
+
+      // Create the annotation
       const result = await createSelectionMutation.mutateAsync(createData);
 
       // Track this as a new annotation for sparkle animation
@@ -163,7 +147,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceType?: string
   ) => {
     const highlight = highlights.find(h => h.id === highlightId);
-    if (!highlight || !highlight.selectionData) return;
+    if (!highlight || !highlight.selector) return;
 
     try {
       // Delete the highlight
@@ -172,10 +156,10 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Create new reference
       await addReference(
         highlight.documentId,
-        highlight.selectionData.text,
+        highlight.exact,
         {
-          start: highlight.selectionData.offset,
-          end: highlight.selectionData.offset + highlight.selectionData.length
+          start: highlight.selector.offset,
+          end: highlight.selector.offset + highlight.selector.length
         },
         targetDocId,
         entityType,
@@ -193,7 +177,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceId: string
   ) => {
     const reference = references.find(r => r.id === referenceId);
-    if (!reference || !reference.selectionData) return;
+    if (!reference || !reference.selector) return;
 
     try {
       // Delete the reference
@@ -202,10 +186,10 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Create new highlight
       await addHighlight(
         reference.documentId,
-        reference.selectionData.text,
+        reference.exact,
         {
-          start: reference.selectionData.offset,
-          end: reference.selectionData.offset + reference.selectionData.length
+          start: reference.selector.offset,
+          end: reference.selector.offset + reference.selector.length
         }
       );
       // Component will invalidate queries to refetch data

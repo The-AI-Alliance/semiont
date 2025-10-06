@@ -131,46 +131,49 @@ export class GraphDBConsumer {
         break;
 
       case 'highlight.added':
-        await graphDb.createSelection({
-          id: event.payload.highlightId,
+        await graphDb.createAnnotation({
           documentId: event.documentId,
-          selectionData: {
-            text: event.payload.text,
+          exact: event.payload.exact,
+          selector: {
+            type: 'text_span',
             offset: event.payload.position.offset,
             length: event.payload.position.length,
           },
+          type: 'highlight',
           createdBy: event.userId,
+          entityTypes: [],
         });
         break;
 
       case 'highlight.removed':
-        await graphDb.deleteSelection(event.payload.highlightId);
+        await graphDb.deleteAnnotation(event.payload.highlightId);
         break;
 
       case 'reference.created':
-        await graphDb.createSelection({
-          id: event.payload.referenceId,
+        await graphDb.createAnnotation({
           documentId: event.documentId,
-          selectionData: {
-            text: event.payload.text,
+          exact: event.payload.exact,
+          selector: {
+            type: 'text_span',
             offset: event.payload.position.offset,
             length: event.payload.position.length,
           },
-          resolvedDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes,
-          referenceTags: event.payload.referenceType ? [event.payload.referenceType] : undefined,
+          type: 'reference',
           createdBy: event.userId,
+          referencedDocumentId: event.payload.targetDocumentId,
+          entityTypes: event.payload.entityTypes || [],
+          referenceType: event.payload.referenceType,
         });
         break;
 
       case 'reference.resolved':
-        await graphDb.updateSelection(event.payload.referenceId, {
-          resolvedDocumentId: event.payload.targetDocumentId,
+        await graphDb.updateAnnotation(event.payload.referenceId, {
+          referencedDocumentId: event.payload.targetDocumentId,
         });
         break;
 
       case 'reference.deleted':
-        await graphDb.deleteSelection(event.payload.referenceId);
+        await graphDb.deleteAnnotation(event.payload.referenceId);
         break;
 
       case 'entitytag.added':

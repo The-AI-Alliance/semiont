@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatSelection } from '../helpers';
+import { formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { emitDocumentCloned, emitHighlightAdded, emitReferenceCreated } from '../../../events/emit';
 import { generateAnnotationId } from '../../../utils/id-generator';
@@ -13,7 +13,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 // Local schema to avoid TypeScript hanging
 const CloneDocumentResponse = z.object({
   document: z.any(),
-  selections: z.array(z.any()),
+  annotations: z.array(z.any()),
 });
 
 export const cloneDocumentRoute = createRoute({
@@ -112,17 +112,20 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         documentId: newDocId,
         userId: user.id,
         highlightId,
-        text: highlight.text,
-        position: highlight.position,
+        exact: highlight.exact,
+        position: {
+          offset: highlight.selector.offset,
+          length: highlight.selector.length,
+        },
       });
       clonedSelections.push({
         id: highlightId,
         documentId: newDocId,
         selectionType: 'highlight',
-        selectionData: {
-          text: highlight.text,
-          offset: highlight.position.offset,
-          length: highlight.position.length,
+        selector: {
+          exact: highlight.exact,
+          offset: highlight.selector.offset,
+          length: highlight.selector.length,
         },
         entityTypes: [],
         createdBy: user.id,
@@ -137,22 +140,25 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         documentId: newDocId,
         userId: user.id,
         referenceId,
-        text: reference.text,
-        position: reference.position,
+        exact: reference.exact,
+        position: {
+          offset: reference.selector.offset,
+          length: reference.selector.length,
+        },
         entityTypes: reference.entityTypes || [],
         referenceType: reference.referenceType,
-        targetDocumentId: reference.targetDocumentId,
+        targetDocumentId: reference.referencedDocumentId || undefined,
       });
       clonedSelections.push({
         id: referenceId,
         documentId: newDocId,
         selectionType: 'reference',
-        selectionData: {
-          text: reference.text,
-          offset: reference.position.offset,
-          length: reference.position.length,
+        selector: {
+          exact: reference.exact,
+          offset: reference.selector.offset,
+          length: reference.selector.length,
         },
-        resolvedDocumentId: reference.targetDocumentId,
+        referencedDocumentId: reference.referencedDocumentId,
         entityTypes: reference.entityTypes || [],
         referenceTags: reference.referenceType ? [reference.referenceType] : [],
         createdBy: user.id,
@@ -175,7 +181,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         createdBy: user.id,
         createdAt: new Date().toISOString(),
       },
-      selections: clonedSelections.map(formatSelection),
+      annotations: clonedSelections.map(formatAnnotation),
     }, 201);
   });
 }

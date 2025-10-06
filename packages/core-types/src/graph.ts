@@ -3,14 +3,14 @@
  */
 
 import { Document } from './document';
-import { Selection } from './selection';
+import { Annotation } from './api-contracts';
 
 /**
- * Represents a connection between documents through selections
+ * Represents a connection between documents through annotations
  */
 export interface GraphConnection {
   targetDocument: Document;
-  selections: Selection[];
+  annotations: Annotation[];
   relationshipType?: string;
   bidirectional: boolean;
 }
@@ -20,7 +20,7 @@ export interface GraphConnection {
  */
 export interface GraphPath {
   documents: Document[];
-  selections: Selection[];
+  annotations: Annotation[];
 }
 
 /**

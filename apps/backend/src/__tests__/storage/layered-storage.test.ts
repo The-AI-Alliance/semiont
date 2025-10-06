@@ -103,7 +103,20 @@ describe('Layered Storage', () => {
         metadata: {},
         entityTypes: ['article', 'research'],
         highlights: [
-          { id: 'hl1', text: 'important', position: { offset: 0, length: 9 } },
+          {
+            id: 'hl1',
+            documentId: docId,
+            exact: 'important',
+            selector: {
+              type: 'text_span',
+              offset: 0,
+              length: 9,
+            },
+            type: 'highlight',
+            createdBy: 'did:web:test.com:users:test',
+            createdAt: '2025-01-01T00:00:00.000Z',
+            entityTypes: []
+          },
         ],
         references: [],
         archived: false,
@@ -201,7 +214,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           highlightId: 'hl1',
-          text: 'Test highlight',
+          exact: 'Test highlight',
           position: { offset: 0, length: 14 },
         },
       });

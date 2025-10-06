@@ -11,72 +11,129 @@
 import { z } from 'zod';
 
 /**
- * Create Selection Request
+ * Create Annotation API Request
  *
- * Backend API format for creating a selection (highlight or reference)
+ * Frontend-to-backend API format for creating an annotation.
+ * createdBy is derived from authenticated user on backend.
  */
-export const CreateSelectionRequestSchema = z.object({
+export const CreateAnnotationRequestSchema = z.object({
   documentId: z.string(),
-  selectionType: z.union([
-    z.enum(['highlight', 'reference']),
-    z.object({
+  exact: z.string(),  // Exact text content (W3C Web Annotation standard)
+  selector: z.object({
+    type: z.string(),
+    offset: z.number(),
+    length: z.number(),
+  }),
+  type: z.enum(['highlight', 'reference']),
+  entityTypes: z.array(z.string()).optional(),
+  referenceType: z.string().optional(),
+  referencedDocumentId: z.string().nullable().optional(),
+});
+
+export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSchema>;
+
+/**
+ * Create Annotation Internal Input
+ *
+ * Backend internal format used by graph implementations when consuming events.
+ * Includes createdBy from the event's userId.
+ */
+export const CreateAnnotationInternalSchema = CreateAnnotationRequestSchema.extend({
+  createdBy: z.string(),
+});
+
+export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSchema>;
+
+/**
+ * Create Annotation Response
+ */
+export const CreateAnnotationResponseSchema = z.object({
+  annotation: z.object({
+    id: z.string(),
+    documentId: z.string(),
+    exact: z.string(),  // Exact text content (W3C Web Annotation standard)
+    selector: z.object({
       type: z.string(),
       offset: z.number(),
       length: z.number(),
-      text: z.string()
-    })
-  ]),
-  selectionData: z.record(z.string(), z.any()).optional(),
-  entityTypes: z.array(z.string()).optional(),
-  referenceTags: z.array(z.string()).optional(),
-  resolvedDocumentId: z.string().nullable().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-});
-
-export type CreateSelectionRequest = z.infer<typeof CreateSelectionRequestSchema>;
-
-/**
- * Create Selection Response
- */
-export const CreateSelectionResponseSchema = z.object({
-  selection: z.object({
-    id: z.string(),
-    documentId: z.string(),
-    selectionType: z.string(),
-    selectionData: z.any(),
-    resolvedDocumentId: z.string().nullable().optional(),
+    }),
+    type: z.enum(['highlight', 'reference']),
+    referencedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
-    referenceTags: z.array(z.string()).optional(),
-    metadata: z.record(z.string(), z.any()).optional(),
+    referenceType: z.string().optional(),
     createdBy: z.string(),
     createdAt: z.string(),
   }),
 });
 
-export type CreateSelectionResponse = z.infer<typeof CreateSelectionResponseSchema>;
+export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSchema>;
 
 /**
  * Annotation format returned by highlights/references endpoints
  *
- * This is the standardized format that frontend components expect
+ * This is the SINGLE SOURCE OF TRUTH for annotation types.
+ *
+ * Field Requirements:
+ * - exact: REQUIRED - exact text content (W3C Web Annotation standard)
+ * - type: REQUIRED (not optional)
+ * - createdBy: REQUIRED (user who created)
+ * - referencedDocumentId: OPTIONAL and nullable
+ * - entityTypes: REQUIRED (always present, defaults to empty array)
+ * - referenceType: OPTIONAL
+ * - resolvedBy: OPTIONAL (user who resolved reference)
+ * - resolvedAt: OPTIONAL (when reference was resolved)
  */
 const AnnotationSchema = z.object({
   id: z.string(),
   documentId: z.string(),
-  text: z.string(),
-  selectionData: z.object({
+  exact: z.string(),                                   // REQUIRED - exact text content (W3C Web Annotation standard)
+  selector: z.object({
     type: z.string(),
     offset: z.number(),
     length: z.number(),
-    text: z.string(),
   }),
-  type: z.enum(['highlight', 'reference']),
-  referencedDocumentId: z.string().optional(),
-  entityTypes: z.array(z.string()).optional(),
-  referenceType: z.string().optional(),
+  type: z.enum(['highlight', 'reference']),            // REQUIRED
+  createdBy: z.string(),                               // REQUIRED
+  createdAt: z.string(),                               // REQUIRED - ISO 8601 string (JSON serialized)
+  referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
+  resolvedDocumentName: z.string().optional(),         // OPTIONAL (name of referenced document)
+  entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
+  referenceType: z.string().optional(),                // OPTIONAL
+  resolvedBy: z.string().optional(),                   // OPTIONAL (who resolved the reference)
+  resolvedAt: z.string().optional(),                   // OPTIONAL (when resolved) - ISO 8601 string
 });
 
 export type Annotation = z.infer<typeof AnnotationSchema>;
+
+/**
+ * Highlight-specific annotation type
+ */
+export type HighlightAnnotation = Annotation & { type: 'highlight' };
+
+/**
+ * Reference-specific annotation type
+ */
+export type ReferenceAnnotation = Annotation & { type: 'reference' };
+
+/**
+ * Annotation update payload (all fields optional except what's being changed)
+ */
+export interface AnnotationUpdate {
+  type?: 'highlight' | 'reference';
+  entityTypes?: string[] | null;
+  referenceType?: string | null;
+  referencedDocumentId?: string | null;
+  resolvedDocumentName?: string | null;
+}
+
+/**
+ * Text selection (position in document)
+ */
+export interface TextSelection {
+  exact: string;  // W3C Web Annotation standard
+  start: number;
+  end: number;
+}
 
 /**
  * Get Highlights Response

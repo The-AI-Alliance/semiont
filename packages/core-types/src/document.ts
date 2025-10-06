@@ -17,12 +17,12 @@ export interface Document {
 
   // Audit fields (backend-controlled)
   createdBy: string;  // Set from auth context by backend
-  createdAt: Date;    // Set by backend on creation
+  createdAt: string;  // ISO 8601 string - Set by backend on creation
 
   // Provenance tracking (backend-controlled with optional client context)
   creationMethod: CreationMethod;  // How document was created
   contentChecksum: string;  // SHA-256 hash calculated by backend for integrity
-  sourceSelectionId?: string;  // If created from reference, the selection that triggered it
+  sourceAnnotationId?: string;  // If created from reference, the selection that triggered it
   sourceDocumentId?: string;  // If created from reference/clone, the source document
 }
 
@@ -40,7 +40,7 @@ export interface CreateDocumentInput {
 
   // Provenance tracking (only context fields, not derived fields)
   creationMethod: CreationMethod;  // How document was created
-  sourceSelectionId?: string;  // For reference-created documents
+  sourceAnnotationId?: string;  // For reference-created documents
   sourceDocumentId?: string;  // For reference-created documents
   // Note: createdAt is set by backend
 }

@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { createSelectionRouter, type SelectionsRouterType } from './shared';
+import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
@@ -11,7 +11,7 @@ import { DocumentQueryService } from '../../services/document-queries';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
 
 // Create router with auth middleware
-export const operationsRouter: SelectionsRouterType = createSelectionRouter();
+export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
 
 // Local schemas
 const CreateDocumentFromSelectionRequest = z.object({
@@ -62,7 +62,7 @@ const ContextualSummaryResponse = z.object({
 // CREATE DOCUMENT FROM SELECTION
 const createDocumentFromSelectionRoute = createRoute({
   method: 'post',
-  path: '/api/selections/{id}/create-document',
+  path: '/api/annotations/{id}/create-document',
   summary: 'Create Document from Selection',
   description: 'Create a new document from a selection and resolve the selection to it',
   tags: ['Selections'],
@@ -151,12 +151,12 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     selection: {
       id,
       documentId: selection.documentId,
-      selectionData: {
-        text: selection.text,
-        offset: selection.position.offset,
-        length: selection.position.length,
+      selector: {
+        exact: selection.exact,
+        offset: selection.selector.offset,
+        length: selection.selector.length,
       },
-      resolvedDocumentId: documentId,
+      referencedDocumentId: documentId,
       entityTypes: selection.entityTypes,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
@@ -168,7 +168,7 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
 // GENERATE DOCUMENT FROM SELECTION
 const generateDocumentFromSelectionRoute = createRoute({
   method: 'post',
-  path: '/api/selections/{id}/generate-document',
+  path: '/api/annotations/{id}/generate-document',
   summary: 'Generate Document from Selection',
   description: 'Use AI to generate document content from a selection',
   tags: ['Selections'],
@@ -216,7 +216,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   }
 
   // Use selection text
-  const selectedText = selection.text;
+  const selectedText = selection.exact;
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
@@ -280,12 +280,12 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     selection: {
       id,
       documentId: selection.documentId,
-      selectionData: {
-        text: selection.text,
-        offset: selection.position.offset,
-        length: selection.position.length,
+      selector: {
+        exact: selection.exact,
+        offset: selection.selector.offset,
+        length: selection.selector.length,
       },
-      resolvedDocumentId: documentId,
+      referencedDocumentId: documentId,
       entityTypes: selection.entityTypes,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
@@ -298,7 +298,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
 // GET SELECTION CONTEXT
 const getSelectionContextRoute = createRoute({
   method: 'get',
-  path: '/api/selections/{id}/context',
+  path: '/api/annotations/{id}/context',
   summary: 'Get Selection Context',
   description: 'Get the context around a selection',
   tags: ['Selections'],
@@ -346,8 +346,8 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const contentStr = content.toString('utf-8');
 
   // Extract context based on selection position
-  const selStart = selection.position.offset;
-  const selEnd = selection.position.offset + selection.position.length;
+  const selStart = selection.selector.offset;
+  const selEnd = selection.selector.offset + selection.selector.length;
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 
@@ -359,12 +359,12 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
     selection: {
       id: selection.id,
       documentId: selection.documentId,
-      selectionData: {
-        text: selection.text,
-        offset: selection.position.offset,
-        length: selection.position.length,
+      selector: {
+        exact: selection.exact,
+        offset: selection.selector.offset,
+        length: selection.selector.length,
       },
-      resolvedDocumentId: selection.targetDocumentId,
+      referencedDocumentId: selection.referencedDocumentId,
       entityTypes: selection.entityTypes,
       createdBy: 'user',
       createdAt: new Date().toISOString(),
@@ -392,7 +392,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
 // GET CONTEXTUAL SUMMARY
 const getContextualSummaryRoute = createRoute({
   method: 'get',
-  path: '/api/selections/{id}/summary',
+  path: '/api/annotations/{id}/summary',
   summary: 'Get Contextual Summary',
   description: 'Get an AI-generated summary of the selection in context',
   tags: ['Selections'],
@@ -436,8 +436,8 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
 
   // Extract selection text with context
   const contextSize = 500; // Fixed context for summary
-  const selStart = selection.position.offset;
-  const selEnd = selection.position.offset + selection.position.length;
+  const selStart = selection.selector.offset;
+  const selEnd = selection.selector.offset + selection.selector.length;
   const start = Math.max(0, selStart - contextSize);
   const end = Math.min(contentStr.length, selEnd + contextSize);
 
@@ -449,7 +449,7 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const summaryPrompt = `Summarize this text in context:
 
 Context before: "${before.substring(Math.max(0, before.length - 200))}"
-Selected text: "${selected}"
+Selected exact: "${selected}"
 Context after: "${after.substring(0, 200)}"
 
 Document: ${document.name}

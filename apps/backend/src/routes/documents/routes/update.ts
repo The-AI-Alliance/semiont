@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '../schemas';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
@@ -85,30 +85,39 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const highlights = await AnnotationQueryService.getHighlights(id);
     const references = await AnnotationQueryService.getReferences(id);
 
-    // Transform Layer 3 projection format to Selection format for response
+    // Transform Layer 3 projection format to Annotation format for response
     const highlightSelections = highlights.map(h => ({
       id: h.id,
       documentId: id,
-      selectionData: { offset: h.position.offset, length: h.position.length, text: h.text },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      createdBy: user.id,
-      entityTypes: [],
-      metadata: {},
-      referenceTags: [],
+      exact: h.exact,
+      selector: {
+        type: 'text_span',
+        offset: h.selector.offset,
+        length: h.selector.length,
+        exact: h.exact
+      },
+      type: 'highlight' as const,
+      createdAt: h.createdAt, // ISO string from projection
+      createdBy: h.createdBy,
+      entityTypes: h.entityTypes || [],
     }));
 
     const referenceSelections = references.map(r => ({
       id: r.id,
       documentId: id,
-      selectionData: { offset: r.position.offset, length: r.position.length, text: r.text },
-      resolvedDocumentId: r.targetDocumentId,
+      exact: r.exact,
+      selector: {
+        type: 'text_span',
+        offset: r.selector.offset,
+        length: r.selector.length,
+        exact: r.exact
+      },
+      type: 'reference' as const,
+      referencedDocumentId: r.referencedDocumentId,
       entityTypes: r.entityTypes || [],
-      referenceTags: r.referenceType ? [r.referenceType] : [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      createdBy: user.id,
-      metadata: {},
+      referenceType: r.referenceType,
+      createdAt: r.createdAt, // ISO string from projection
+      createdBy: r.createdBy,
     }));
 
     // Return optimistic response
@@ -122,10 +131,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         }),
         content: content.toString('utf-8')
       },
-      selections: [...highlightSelections, ...referenceSelections].map(formatSelection),
-      highlights: highlightSelections.map(formatSelection),
-      references: referenceSelections.map(formatSelection),
-      entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatSelection),
+      annotations: [...highlightSelections, ...referenceSelections].map(formatAnnotation),
+      highlights: highlightSelections.map(formatAnnotation),
+      references: referenceSelections.map(formatAnnotation),
+      entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatAnnotation),
     });
   });
 }

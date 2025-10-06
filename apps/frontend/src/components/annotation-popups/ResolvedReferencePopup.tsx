@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/types/annotation';
+import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
 
 interface ResolvedReferencePopupProps {
   isOpen: boolean;
@@ -42,41 +42,40 @@ export function ResolvedReferencePopup({
 
   const handleCopyLinkText = async () => {
     try {
-      await navigator.clipboard.writeText(selection.text);
+      await navigator.clipboard.writeText(selection.exact);
     } catch (err) {
-      console.error('Failed to copy text:', err);
+      console.error('Failed to copy exact:', err);
     }
   };
 
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
-      resolvedDocumentId: null,
-      provisional: true,
+      referencedDocumentId: null,
     });
   };
 
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
       type: 'highlight',
-      entityType: null,
+      entityTypes: null,
       referenceType: null,
-      resolvedDocumentId: null,
+      referencedDocumentId: null,
     });
   };
 
   const handleDelete = () => {
     onDeleteAnnotation();
     onClose();
-  };
+    };
 
   return (
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
       <PopupHeader title="Resolved Reference" onClose={onClose} />
 
-      <SelectedTextDisplay text={selection.text} />
+      <SelectedTextDisplay exact={selection.exact} />
 
-      {annotation.entityType && (
-        <EntityTypeBadges entityTypes={annotation.entityType} />
+      {annotation.entityTypes && annotation.entityTypes.length > 0 && (
+        <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
       )}
 
       {annotation.referenceType && (

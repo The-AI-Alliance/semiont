@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
 import { generateDocumentFromTopic } from '../../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
-import type { SelectionsRouterType } from '../shared';
+import type { AnnotationsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { emitDocumentCreated, emitReferenceResolved } from '../../../events/emit';
@@ -24,7 +24,7 @@ interface GenerationProgress {
  */
 export const generateDocumentStreamRoute = createRoute({
   method: 'post',
-  path: '/api/selections/{id}/generate-document-stream',
+  path: '/api/annotations/{id}/generate-document-stream',
   summary: 'Generate Document from Reference (SSE)',
   description: 'Stream real-time document generation progress via Server-Sent Events',
   tags: ['Selections', 'Documents', 'Real-time', 'AI'],
@@ -67,7 +67,7 @@ export const generateDocumentStreamRoute = createRoute({
   },
 });
 
-export function registerGenerateDocumentStream(router: SelectionsRouterType) {
+export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
   router.openapi(generateDocumentStreamRoute, async (c) => {
     const { id: referenceId } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -93,10 +93,13 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
     const selection = {
       id: reference.id,
       documentId: body.documentId,
-      text: reference.text,
-      position: reference.position,
+      exact: reference.exact,
+      position: {
+        offset: reference.selector.offset,
+        length: reference.selector.length,
+      },
       type: 'reference' as const,
-      targetDocumentId: reference.targetDocumentId,
+      targetDocumentId: reference.referencedDocumentId,
       entityTypes: reference.entityTypes,
     };
 
@@ -104,7 +107,7 @@ export function registerGenerateDocumentStream(router: SelectionsRouterType) {
     return streamSSE(c, async (stream) => {
       try {
         // Determine document name early
-        const documentName = body.title || selection.text || 'New Document';
+        const documentName = body.title || selection.exact || 'New Document';
 
         // Send initial started event
         console.log('[SSE] Sending generation-started event');

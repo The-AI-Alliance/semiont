@@ -61,13 +61,12 @@ export function LeftSidebar({
               </span>
             </div>
           ) : (
-            // Expanded: Show full branding
+            // Expanded: Show branding without tagline, no extra padding
             <SemiontBranding
               size="sm"
-              showTagline={true}
+              showTagline={false}
               animated={false}
-              compactTagline={true}
-              className="py-1"
+              className=""
             />
           )}
         </button>

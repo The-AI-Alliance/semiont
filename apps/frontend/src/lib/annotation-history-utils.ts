@@ -66,22 +66,22 @@ export function getEventDisplayContent(
   references: any[],
   highlights: any[],
   allEvents: StoredEvent[]
-): { text: string; isQuoted: boolean; isTag: boolean } | null {
+): { exact: string; isQuoted: boolean; isTag: boolean } | null {
   const payload = event.event.payload as any;
 
   // For document creation/clone events, show the document name (not quoted)
   if ((event.event.type === 'document.created' || event.event.type === 'document.cloned') && 'name' in payload && typeof payload.name === 'string') {
-    return { text: payload.name, isQuoted: false, isTag: false };
+    return { exact: payload.name, isQuoted: false, isTag: false };
   }
 
   // For reference.resolved events, look up the reference text
   if (event.event.type === 'reference.resolved' && 'referenceId' in payload) {
     const reference = references.find((r: any) => r.id === payload.referenceId);
-    if (reference?.text) {
+    if (reference?.exact) {
       const maxLength = 50;
-      const text = reference.text.trim();
+      const text = reference.exact.trim();
       const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-      return { text: displayText, isQuoted: true, isTag: false };
+      return { exact: displayText, isQuoted: true, isTag: false };
     }
   }
 
@@ -91,11 +91,11 @@ export function getEventDisplayContent(
       e.event.type === 'highlight.added' &&
       (e.event.payload as any).highlightId === payload.highlightId
     );
-    if (addedEvent && (addedEvent.event.payload as any).text) {
+    if (addedEvent && (addedEvent.event.payload as any).exact) {
       const maxLength = 50;
-      const text = ((addedEvent.event.payload as any).text as string).trim();
+      const text = ((addedEvent.event.payload as any).exact as string).trim();
       const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-      return { text: displayText, isQuoted: true, isTag: false };
+      return { exact: displayText, isQuoted: true, isTag: false };
     }
   }
 
@@ -105,25 +105,25 @@ export function getEventDisplayContent(
       e.event.type === 'reference.created' &&
       (e.event.payload as any).referenceId === payload.referenceId
     );
-    if (createdEvent && (createdEvent.event.payload as any).text) {
+    if (createdEvent && (createdEvent.event.payload as any).exact) {
       const maxLength = 50;
-      const text = ((createdEvent.event.payload as any).text as string).trim();
+      const text = ((createdEvent.event.payload as any).exact as string).trim();
       const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-      return { text: displayText, isQuoted: true, isTag: false };
+      return { exact: displayText, isQuoted: true, isTag: false };
     }
   }
 
   // For highlight and reference events, show the text (quoted)
-  if ('text' in payload && typeof payload.text === 'string') {
+  if ('text' in payload && typeof payload.exact === 'string') {
     const maxLength = 50;
-    const text = payload.text.trim();
+    const text = payload.exact.trim();
     const displayText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-    return { text: displayText, isQuoted: true, isTag: false };
+    return { exact: displayText, isQuoted: true, isTag: false };
   }
 
   // For entity tag events, show the tag (as tag style)
   if ('entityType' in payload && typeof payload.entityType === 'string') {
-    return { text: payload.entityType, isQuoted: false, isTag: true };
+    return { exact: payload.entityType, isQuoted: false, isTag: true };
   }
 
   return null;

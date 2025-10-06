@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import { PopupContainer, PopupHeader, SelectedTextDisplay, EntityTypeBadges } from './SharedPopupElements';
 import { SearchDocumentsModal } from '../modals/SearchDocumentsModal';
 import { buttonStyles } from '@/lib/button-styles';
-import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@/types/annotation';
+import type { ReferenceAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
 
 interface StubReferencePopupProps {
   isOpen: boolean;
   onClose: () => void;
   position: { x: number; y: number };
   selection: TextSelection;
-  annotation: ReferenceAnnotation & { provisional?: boolean };
+  annotation: ReferenceAnnotation;
   onUpdateAnnotation: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation: () => void;
   onGenerateDocument?: (title: string, prompt?: string) => void;
@@ -37,7 +37,7 @@ export function StubReferencePopup({
 
     setIsGenerating(true);
     try {
-      onGenerateDocument(selection.text);
+      onGenerateDocument(selection.exact);
     } finally {
       setIsGenerating(false);
     }
@@ -49,15 +49,14 @@ export function StubReferencePopup({
 
   const handleSelectDocument = (documentId: string) => {
     onUpdateAnnotation({
-      resolvedDocumentId: documentId,
-      provisional: false,
+      referencedDocumentId: documentId,
     });
     setShowSearchModal(false);
   };
 
   const handleComposeDocument = () => {
     if (selection) {
-      router.push(`/know/compose?title=${encodeURIComponent(selection.text)}`);
+      router.push(`/know/compose?title=${encodeURIComponent(selection.exact)}`);
       onClose();
     }
   };
@@ -65,9 +64,9 @@ export function StubReferencePopup({
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
       type: 'highlight',
-      entityType: null,
+      entityTypes: null,
       referenceType: null,
-      resolvedDocumentId: null,
+      referencedDocumentId: null,
     });
   };
 
@@ -81,10 +80,10 @@ export function StubReferencePopup({
       <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
         <PopupHeader title="Stub Reference" onClose={onClose} />
 
-        <SelectedTextDisplay text={selection.text} />
+        <SelectedTextDisplay exact={selection.exact} />
 
-        {annotation.entityType && (
-          <EntityTypeBadges entityTypes={annotation.entityType} />
+        {annotation.entityTypes && annotation.entityTypes.length > 0 && (
+          <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
         )}
 
         {annotation.referenceType && (
@@ -150,7 +149,7 @@ export function StubReferencePopup({
         isOpen={showSearchModal}
         onClose={() => setShowSearchModal(false)}
         onSelect={handleSelectDocument}
-        searchTerm={selection.text}
+        searchTerm={selection.exact}
       />
     </>
   );

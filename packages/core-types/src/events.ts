@@ -11,6 +11,8 @@
  * - Optional signatures for cross-org verification
  */
 
+import type { Annotation } from './api-contracts';
+
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
@@ -60,7 +62,7 @@ export interface HighlightAddedEvent extends BaseEvent {
   type: 'highlight.added';
   payload: {
     highlightId: string;
-    text: string;
+    exact: string;  // W3C Web Annotation standard
     position: {
       offset: number;
       length: number;
@@ -80,7 +82,7 @@ export interface ReferenceCreatedEvent extends BaseEvent {
   type: 'reference.created';
   payload: {
     referenceId: string;
-    text: string;
+    exact: string;  // W3C Web Annotation standard
     position: {
       offset: number;
       length: number;
@@ -195,25 +197,14 @@ export interface DocumentProjection {
   contentType: string;
   metadata: Record<string, any>;
   entityTypes: string[];
-  highlights: Array<{
-    id: string;
-    text: string;
-    position: { offset: number; length: number };
-  }>;
-  references: Array<{
-    id: string;
-    text: string;
-    position: { offset: number; length: number };
-    targetDocumentId?: string;
-    entityTypes?: string[];
-    referenceType?: string;
-  }>;
+  highlights: Annotation[];  // Full Annotation objects (single source of truth)
+  references: Annotation[];  // Full Annotation objects (single source of truth)
   archived: boolean;
   createdAt: string;
   updatedAt: string;
   version: number;  // Number of events applied
   creationMethod: string;  // 'API', 'CLONE', 'FROM_SELECTION', etc.
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;  // userId (DID format)
 }

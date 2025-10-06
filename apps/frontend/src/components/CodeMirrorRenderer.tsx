@@ -12,11 +12,11 @@ import '@/styles/animations.css';
 export interface AnnotationSelection {
   id: string;
   documentId: string;
-  selectionData?: {
+  selector?: {
     type: string;
     offset: number;
     length: number;
-    text: string;
+    exact: string;
   };
   text?: string;
   referencedDocumentId?: string;
@@ -29,7 +29,7 @@ export interface AnnotationSelection {
 }
 
 export interface TextSegment {
-  text: string;
+  exact: string;
   annotation?: AnnotationSelection;
   start: number;
   end: number;
@@ -41,7 +41,7 @@ interface Props {
   onAnnotationClick?: (annotation: AnnotationSelection) => void;
   onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
-  onTextSelect?: (text: string, position: { start: number; end: number }) => void;
+  onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onChange?: (content: string) => void;
   editable?: boolean;
   newAnnotationIds?: Set<string>;

@@ -5,7 +5,7 @@ import { getStorageService } from '../../../storage/filesystem';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
@@ -18,7 +18,7 @@ const CreateFromSelectionRequest = z.object({
 
 const CreateFromSelectionResponse = z.object({
   document: z.any(),
-  selections: z.array(z.any()),
+  annotations: z.array(z.any()),
 });
 
 export const createDocumentFromSelectionRoute = createRoute({
@@ -52,7 +52,7 @@ export const createDocumentFromSelectionRoute = createRoute({
   },
 });
 
-export function registerCreateDocumentFromSelection(router: DocumentsRouterType) {
+export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType) {
   router.openapi(createDocumentFromSelectionRoute, async (c) => {
     const { selectionId } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -60,7 +60,7 @@ export function registerCreateDocumentFromSelection(router: DocumentsRouterType)
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const selection = await graphDb.getSelection(selectionId);
+    const selection = await graphDb.getAnnotation(selectionId);
     if (!selection) {
       throw new HTTPException(404, { message: 'Selection not found' });
     }
@@ -74,11 +74,11 @@ export function registerCreateDocumentFromSelection(router: DocumentsRouterType)
       metadata: { ...body.metadata, createdFromSelection: selectionId },
       entityTypes: selection.entityTypes || [],
       creationMethod: CREATION_METHODS.REFERENCE,
-      sourceSelectionId: selectionId,
+      sourceAnnotationId: selectionId,
       sourceDocumentId: selection.documentId,
       contentChecksum: checksum,
       createdBy: user.id,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
 
     const documentId = `doc-sha256:${checksum}`;
@@ -93,7 +93,7 @@ export function registerCreateDocumentFromSelection(router: DocumentsRouterType)
       metadata: document.metadata,
       createdBy: document.createdBy!,
       creationMethod: document.creationMethod,
-      sourceSelectionId: document.sourceSelectionId,
+      sourceAnnotationId: document.sourceAnnotationId,
       sourceDocumentId: document.sourceDocumentId,
     };
 
@@ -101,17 +101,14 @@ export function registerCreateDocumentFromSelection(router: DocumentsRouterType)
     await storage.saveDocument(documentId, Buffer.from(body.content));
 
     // Update the selection to resolve to the new document
-    await graphDb.resolveSelection({
-      selectionId: selectionId,
-      documentId: savedDoc.id,
-    });
+    await graphDb.resolveReference(selectionId, savedDoc.id);
 
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 
     return c.json({
       document: formatDocument(savedDoc),
-      selections: [...highlights, ...references].map(formatSelection),
+      annotations: [...highlights, ...references].map(formatAnnotation),
     }, 201);
   });
 }

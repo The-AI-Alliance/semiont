@@ -17,22 +17,6 @@ export type {
 export { CREATION_METHODS } from './creation-methods';
 export type { CreationMethod } from './creation-methods';
 
-// Selection types
-export type {
-  Selection,
-  CreateSelectionInput,
-  ResolveSelectionInput,
-  SelectionFilter,
-} from './selection';
-export {
-  isHighlight,
-  isReference,
-  isStubReference,
-  isResolvedReference,
-  isEntityReference,
-  hasReferenceTags,
-} from './selection';
-
 // Reference tags
 export { REFERENCE_TAGS } from './reference-tags';
 export type { ReferenceTag } from './reference-tags';
@@ -93,15 +77,21 @@ export {
 
 // API Contract schemas and types
 export {
-  CreateSelectionRequestSchema,
-  CreateSelectionResponseSchema,
+  CreateAnnotationRequestSchema,
+  CreateAnnotationInternalSchema,
+  CreateAnnotationResponseSchema,
   GetHighlightsResponseSchema,
   GetReferencesResponseSchema,
 } from './api-contracts';
 export type {
-  CreateSelectionRequest,
-  CreateSelectionResponse,
+  CreateAnnotationRequest,
+  CreateAnnotationInternal,
+  CreateAnnotationResponse,
   Annotation,
+  HighlightAnnotation,
+  ReferenceAnnotation,
+  AnnotationUpdate,
+  TextSelection,
   GetHighlightsResponse,
   GetReferencesResponse,
 } from './api-contracts';

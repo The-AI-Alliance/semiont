@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { StubReferencePopup } from '../StubReferencePopup';
 import { useRouter } from 'next/navigation';
-import type { ReferenceAnnotation, TextSelection } from '@/types/annotation';
+import type { ReferenceAnnotation, TextSelection } from '@semiont/core-types';
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -43,16 +43,22 @@ describe('StubReferencePopup', () => {
     onClose: mockOnClose,
     position: { x: 100, y: 100 },
     selection: {
-      text: 'Selected text',
+      exact: 'Selected text',
       start: 0,
       end: 13
     } as TextSelection,
     annotation: {
       id: 'test-annotation',
+      documentId: 'test-doc',
+      exact: 'Selected text',
+      selector: {
+        type: 'text_span',
+        offset: 0,
+        length: 13,
+      },
       type: 'reference',
-      entityType: 'Person',
-      referenceType: 'Mention',
-      provisional: true
+      entityTypes: ['Person'],
+      referenceType: 'Mention'
     } as ReferenceAnnotation,
     onUpdateAnnotation: mockOnUpdateAnnotation,
     onDeleteAnnotation: mockOnDeleteAnnotation,

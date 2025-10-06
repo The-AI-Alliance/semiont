@@ -120,7 +120,7 @@ export async function emitHighlightAdded(params: {
   documentId: string;
   userId: string;
   highlightId: string;
-  text: string;
+  exact: string;
   position: { offset: number; length: number };
 }): Promise<StoredEvent> {
   const eventStore = await getEventStore();
@@ -132,7 +132,7 @@ export async function emitHighlightAdded(params: {
     version: 1,
     payload: {
       highlightId: params.highlightId,
-      text: params.text,
+      exact: params.exact,
       position: params.position,
     },
   });
@@ -166,7 +166,7 @@ export async function emitReferenceCreated(params: {
   documentId: string;
   userId: string;
   referenceId: string;
-  text: string;
+  exact: string;
   position: { offset: number; length: number };
   entityTypes?: string[];
   referenceType?: string;
@@ -181,7 +181,7 @@ export async function emitReferenceCreated(params: {
     version: 1,
     payload: {
       referenceId: params.referenceId,
-      text: params.text,
+      exact: params.exact,
       position: params.position,
       entityTypes: params.entityTypes,
       referenceType: params.referenceType,

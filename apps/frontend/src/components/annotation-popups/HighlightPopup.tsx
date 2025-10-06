@@ -3,7 +3,7 @@
 import React from 'react';
 import { PopupContainer, PopupHeader, SelectedTextDisplay } from './SharedPopupElements';
 import { buttonStyles } from '@/lib/button-styles';
-import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@/types/annotation';
+import type { HighlightAnnotation, AnnotationUpdate, TextSelection } from '@semiont/core-types';
 
 interface HighlightPopupProps {
   isOpen: boolean;
@@ -27,7 +27,6 @@ export function HighlightPopup({
   const handleConvertToReference = () => {
     onUpdateAnnotation({
       type: 'reference',
-      provisional: true,
     });
   };
 
@@ -40,7 +39,7 @@ export function HighlightPopup({
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
       <PopupHeader title="Highlight" onClose={onClose} />
 
-      <SelectedTextDisplay text={selection.text} />
+      <SelectedTextDisplay exact={selection.exact} />
 
       {/* Actions */}
       <div className="space-y-2">

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import type { StoredEvent, CreateSelectionRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
+import type { StoredEvent, CreateAnnotationRequest, GetHighlightsResponse, GetReferencesResponse } from '@semiont/core-types';
 import { useAuthenticatedQuery, useAuthenticatedMutation } from './query-helpers';
 
 /**
@@ -41,24 +41,6 @@ export const QUERY_KEYS = {
 
 // Local type definitions to replace api-contracts imports
 
-/**
- * Frontend convenience format for creating selections
- *
- * This is a simpler, more ergonomic format for React components to use.
- * It gets transformed to CreateSelectionRequest (from @semiont/core-types) by the API client.
- *
- * Transformation:
- * - { text, position: { start, end } } → { selectionType: { type: 'text_span', offset, length, text } }
- */
-export interface CreateSelectionInput {
-  documentId: string;
-  text: string;
-  position: { start: number; end: number };
-  type?: 'provisional' | 'highlight' | 'reference';
-  entityTypes?: string[];
-  referenceTags?: string[];
-  resolvedDocumentId?: string | null;
-}
 interface StatusResponse {
   status: string;
   version: string;
@@ -188,26 +170,13 @@ interface Document {
   // Provenance tracking
   creationMethod?: 'reference' | 'upload' | 'ui' | 'api' | 'clone';
   contentChecksum?: string;
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy?: string;
 }
 
-interface Selection {
-  id: string;
-  documentId: string;
-  text: string;
-  position: {
-    start: number;
-    end: number;
-  };
-  type: 'provisional' | 'highlight' | 'reference';
-  referencedDocumentId?: string;
-  entityType?: string;
-  referenceType?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// Use core-types Annotation as single source of truth
+import type { Annotation } from '@semiont/core-types';
 
 interface DocumentsResponse {
   success: boolean;
@@ -220,15 +189,15 @@ interface DocumentResponse {
   document: Document;
 }
 
-interface SelectionsResponse {
+interface AnnotationsResponse {
   success: boolean;
-  selections: Selection[];
+  selections: Annotation[];
   total: number;
 }
 
-interface SelectionResponse {
+interface AnnotationResponse {
   success: boolean;
-  selection: Selection;
+  selection: Annotation;
 }
 
 interface SchemaDescriptionResponse {
@@ -474,13 +443,13 @@ interface APIService {
       contentType?: string;
       entityTypes?: string[];
       creationMethod?: 'reference' | 'upload' | 'ui' | 'api';
-      sourceSelectionId?: string;
+      sourceAnnotationId?: string;
       sourceDocumentId?: string;
     }) => Promise<DocumentResponse>;
     get: (id: string) => Promise<DocumentResponse>;
     update: (id: string, data: { name?: string; entityTypes?: string[]; metadata?: any; archived?: boolean }) => Promise<DocumentResponse>;
     clone: (id: string) => Promise<{ token: string; expiresAt: string; sourceDocument: any }>;
-    getReferencedBy: (id: string) => Promise<{ referencedBy: SelectionResponse[] }>;
+    getReferencedBy: (id: string) => Promise<{ referencedBy: AnnotationResponse[] }>;
     detectSelections: (id: string, entityTypes: string[]) => Promise<{ message: string; detectionsStarted: number }>;
     getByToken: (token: string) => Promise<{ sourceDocument: any; expiresAt: string }>;
     createFromToken: (data: { token: string; name: string; content: string; archiveOriginal?: boolean }) => Promise<DocumentResponse>;
@@ -496,39 +465,30 @@ interface APIService {
     search: (query: string, limit?: number) => Promise<DocumentsResponse>;
     schemaDescription: () => Promise<SchemaDescriptionResponse>;
     llmContext: (id: string, selectionId?: string) => Promise<LLMContextResponse>;
-    discoverContext: (text: string) => Promise<DiscoverContextResponse>;
+    discoverContext: (exact: string) => Promise<DiscoverContextResponse>;
     getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }) => Promise<{ events: StoredEvent[]; total: number; documentId: string }>;
   };
 
   selections: {
-    create: (data: {
-      documentId: string;
-      text: string;
-      position: { start: number; end: number };
-      type?: 'provisional' | 'highlight' | 'reference';
-      entityTypes?: string[];
-      referenceTags?: string[];
-      resolvedDocumentId?: string | null;
-    }) => Promise<SelectionResponse>;
-    get: (id: string) => Promise<SelectionResponse>;
-    update: (id: string, data: Partial<Selection>) => Promise<SelectionResponse>;
+    get: (id: string) => Promise<AnnotationResponse>;
+    update: (id: string, data: Partial<Selection>) => Promise<AnnotationResponse>;
     delete: (id: string) => Promise<{ success: boolean }>;
     list: (params?: {
       documentId?: string;
       type?: string;
       limit?: number;
       offset?: number;
-    }) => Promise<SelectionsResponse>;
+    }) => Promise<AnnotationsResponse>;
     saveAsHighlight: (data: {
       documentId: string;
-      text: string;
+      exact: string;
       position: { start: number; end: number };
-    }) => Promise<SelectionResponse>;
+    }) => Promise<AnnotationResponse>;
     resolveToDocument: (data: {
       selectionId: string;
       targetDocumentId: string;
       referenceType?: string;
-    }) => Promise<SelectionResponse>;
+    }) => Promise<AnnotationResponse>;
     createDocument: (data: {
       selectionId: string;
       name: string;
@@ -602,7 +562,7 @@ export const apiService: APIService = {
       entityTypes?: string[];  // Entity types can be set at creation time
       // Only context fields - backend calculates checksum, sets createdBy/createdAt
       creationMethod?: 'reference' | 'upload' | 'ui' | 'api';  // Defaults to 'api' on backend
-      sourceSelectionId?: string;  // For reference-created documents
+      sourceAnnotationId?: string;  // For reference-created documents
       sourceDocumentId?: string;  // For reference-created documents
     }): Promise<DocumentResponse> =>
       apiClient.post('/api/documents', { body: data }),
@@ -616,13 +576,13 @@ export const apiService: APIService = {
     clone: (id: string): Promise<{ token: string; expiresAt: string; sourceDocument: any }> =>
       apiClient.post('/api/documents/:id/clone', { params: { id }, body: {} }),
     
-    getReferencedBy: (id: string): Promise<{ referencedBy: SelectionResponse[] }> =>
+    getReferencedBy: (id: string): Promise<{ referencedBy: AnnotationResponse[] }> =>
       apiClient.get('/api/documents/:id/referenced-by', { params: { id } }),
     
     detectSelections: (id: string, entityTypes: string[]): Promise<{ message: string; detectionsStarted: number }> =>
-      apiClient.post('/api/documents/:id/detect-selections', { 
-        params: { id }, 
-        body: { entityTypes } 
+      apiClient.post('/api/documents/:id/detect-annotations', {
+        params: { id },
+        body: { entityTypes }
       }),
     
     getByToken: (token: string): Promise<{ sourceDocument: any; expiresAt: string }> =>
@@ -662,8 +622,8 @@ export const apiService: APIService = {
         body: { selectionId } 
       }),
     
-    discoverContext: (text: string): Promise<DiscoverContextResponse> =>
-      apiClient.post('/api/documents/discover-context', { body: { text } }),
+    discoverContext: (exact: string): Promise<DiscoverContextResponse> =>
+      apiClient.post('/api/documents/discover-context', { body: { exact } }),
 
     getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }): Promise<{ events: StoredEvent[]; total: number; documentId: string }> =>
       apiClient.get('/api/documents/:id/events', { params: { id, ...params } }),
@@ -671,77 +631,41 @@ export const apiService: APIService = {
 
   // Selection endpoints
   selections: {
-    create: (data: CreateSelectionInput): Promise<SelectionResponse> => {
-      // Transform frontend convenience format to backend API format
-      interface CreateSelectionRequestBody {
-        documentId: string;
-        selectionType: {
-          type: 'text_span';
-          offset: number;
-          length: number;
-          text: string;
-        };
-        entityTypes?: string[];
-        referenceTags?: string[];
-        resolvedDocumentId?: string | null;
-      }
-
-      const body: CreateSelectionRequestBody = {
-        documentId: data.documentId,
-        selectionType: {
-          type: 'text_span',
-          offset: data.position.start,
-          length: data.position.end - data.position.start,
-          text: data.text
-        },
-        ...(data.entityTypes && { entityTypes: data.entityTypes }),
-        ...(data.referenceTags && { referenceTags: data.referenceTags })
-      };
-
-      // Only include resolvedDocumentId if it's explicitly provided
-      // This preserves the distinction between undefined (not sent) and null (sent as null)
-      if ('resolvedDocumentId' in data) {
-        body.resolvedDocumentId = data.resolvedDocumentId;
-      }
-
-      return apiClient.post('/api/selections', { body });
-    },
+    get: (id: string): Promise<AnnotationResponse> =>
+      apiClient.get('/api/annotations/:id', { params: { id } }),
     
-    get: (id: string): Promise<SelectionResponse> =>
-      apiClient.get('/api/selections/:id', { params: { id } }),
-    
-    update: (id: string, data: Partial<Selection>): Promise<SelectionResponse> =>
-      apiClient.patch('/api/selections/:id', { params: { id }, body: data }),
+    update: (id: string, data: Partial<Selection>): Promise<AnnotationResponse> =>
+      apiClient.patch('/api/annotations/:id', { params: { id }, body: data }),
     
     delete: (id: string): Promise<{ success: boolean }> =>
-      apiClient.delete('/api/selections/:id', { params: { id } }),
+      apiClient.delete('/api/annotations/:id', { params: { id } }),
     
     list: (params?: { 
       documentId?: string; 
       type?: string; 
       limit?: number; 
       offset?: number; 
-    }): Promise<SelectionsResponse> => {
+    }): Promise<AnnotationsResponse> => {
       if (params) {
-        return apiClient.get('/api/selections', { params });
+        return apiClient.get('/api/annotations', { params });
       }
-      return apiClient.get('/api/selections');
+      return apiClient.get('/api/annotations');
     },
     
     saveAsHighlight: async (data: {
       documentId: string;
-      text: string;
+      exact: string;
       position: { start: number; end: number };
-    }): Promise<SelectionResponse> => {
+    }): Promise<AnnotationResponse> => {
       // Create selection (automatically saved as highlight when no resolvedDocumentId)
-      const highlight = await apiClient.post('/api/selections', { 
+      const highlight = await apiClient.post('/api/annotations', { 
         body: { 
           documentId: data.documentId,
           selectionType: {
             type: 'text_span',
             offset: data.position.start,
             length: data.position.end - data.position.start,
-            text: data.text
+            exact: data.exact
           }
         } 
       });
@@ -753,8 +677,8 @@ export const apiService: APIService = {
       selectionId: string;
       targetDocumentId: string;
       referenceType?: string;
-    }): Promise<SelectionResponse> =>
-      apiClient.put('/api/selections/:id/resolve', {
+    }): Promise<AnnotationResponse> =>
+      apiClient.put('/api/annotations/:id/resolve', {
         params: { id: data.selectionId },
         body: {
           documentId: data.targetDocumentId,
@@ -768,7 +692,7 @@ export const apiService: APIService = {
       content: string;
       referenceType?: string;
     }): Promise<DocumentResponse> =>
-      apiClient.post('/api/selections/create-document', { body: data }),
+      apiClient.post('/api/annotations/create-document', { body: data }),
     
     generateDocument: (
       selectionId: string,
@@ -777,7 +701,7 @@ export const apiService: APIService = {
         prompt?: string;
       }
     ): Promise<any> =>
-      apiClient.post('/api/selections/:id/generate-document', {
+      apiClient.post('/api/annotations/:id/generate-document', {
         params: { id: selectionId },
         body: data || {}
       }),
@@ -1236,29 +1160,11 @@ export const api: ReactQueryAPI = {
     },
     create: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, CreateSelectionInput>(
-          async (input: CreateSelectionInput, fetchAPI) => {
-            // Transform frontend convenience format to backend API contract format
-            // CreateSelectionInput → CreateSelectionRequest (from @semiont/core-types)
-            const body: CreateSelectionRequest = {
-              documentId: input.documentId,
-              selectionType: {
-                type: 'text_span',
-                offset: input.position.start,
-                length: input.position.end - input.position.start,
-                text: input.text
-              },
-              ...(input.entityTypes && { entityTypes: input.entityTypes }),
-              ...(input.referenceTags && { referenceTags: input.referenceTags })
-            };
-
-            if ('resolvedDocumentId' in input) {
-              body.resolvedDocumentId = input.resolvedDocumentId;
-            }
-
-            return fetchAPI('/api/selections', {
+        return useAuthenticatedMutation<AnnotationResponse, CreateAnnotationRequest>(
+          async (input: CreateAnnotationRequest, fetchAPI) => {
+            return fetchAPI('/api/annotations', {
               method: 'POST',
-              body: JSON.stringify(body),
+              body: JSON.stringify(input),
             });
           }
         );
@@ -1266,9 +1172,9 @@ export const api: ReactQueryAPI = {
     },
     saveAsHighlight: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, { documentId: string; text: string; position: { start: number; end: number } }>(
+        return useAuthenticatedMutation<AnnotationResponse, { documentId: string; exact: string; position: { start: number; end: number } }>(
           (input, fetchAPI) =>
-            fetchAPI('/api/selections', {
+            fetchAPI('/api/annotations', {
               method: 'POST',
               body: JSON.stringify({
                 documentId: input.documentId,
@@ -1276,7 +1182,7 @@ export const api: ReactQueryAPI = {
                   type: 'text_span',
                   offset: input.position.start,
                   length: input.position.end - input.position.start,
-                  text: input.text
+                  exact: input.exact
                 }
               }),
             })
@@ -1287,7 +1193,7 @@ export const api: ReactQueryAPI = {
       useMutation: () => {
         return useAuthenticatedMutation<void, { id: string; documentId: string }>(
           (input, fetchAPI) =>
-            fetchAPI(`/api/selections/${input.id}`, {
+            fetchAPI(`/api/annotations/${input.id}`, {
               method: 'DELETE',
               body: JSON.stringify({ documentId: input.documentId }),
             })
@@ -1298,7 +1204,7 @@ export const api: ReactQueryAPI = {
       useMutation: () => {
         return useAuthenticatedMutation<any, { selectionId: string; entityTypes?: string[]; prompt?: string }>(
           (input, fetchAPI) =>
-            fetchAPI('/api/selections/generate-document', {
+            fetchAPI('/api/annotations/generate-document', {
               method: 'POST',
               body: JSON.stringify({
                 selectionId: input.selectionId,
@@ -1311,9 +1217,9 @@ export const api: ReactQueryAPI = {
     },
     resolveToDocument: {
       useMutation: () => {
-        return useAuthenticatedMutation<SelectionResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
+        return useAuthenticatedMutation<AnnotationResponse, { selectionId: string; targetDocumentId: string; referenceType?: string }>(
           (input, fetchAPI) =>
-            fetchAPI(`/api/selections/${input.selectionId}/resolve`, {
+            fetchAPI(`/api/annotations/${input.selectionId}/resolve`, {
               method: 'PUT',
               body: JSON.stringify({
                 documentId: input.targetDocumentId,
@@ -1334,11 +1240,10 @@ export type {
   OAuthProvider, 
   OAuthConfigResponse,
   Document,
-  Selection,
   DocumentsResponse,
   DocumentResponse,
-  SelectionsResponse,
-  SelectionResponse,
+  AnnotationsResponse,
+  AnnotationResponse,
   SchemaDescriptionResponse,
   LLMContextResponse,
   DiscoverContextResponse

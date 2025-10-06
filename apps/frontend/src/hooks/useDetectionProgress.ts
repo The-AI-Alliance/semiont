@@ -56,7 +56,7 @@ export function useDetectionProgress({
 
     // Build SSE URL
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const url = `${apiUrl}/api/documents/${documentId}/detect-selections-stream`;
+    const url = `${apiUrl}/api/documents/${documentId}/detect-annotations-stream`;
 
     console.log('[Detection] Starting with entity types:', entityTypes);
     console.log('[Detection] URL:', url);

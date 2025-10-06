@@ -1,5 +1,5 @@
 // Helper functions for document routes
-import type { Document, Selection } from '@semiont/core-types';
+import type { Document, Annotation } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
 
 export function formatDocument(doc: (Document | {
@@ -10,7 +10,7 @@ export function formatDocument(doc: (Document | {
   archived: boolean;
   entityTypes: string[];
   creationMethod: string;
-  sourceSelectionId?: string;
+  sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;
   createdAt: Date | string;
@@ -24,7 +24,7 @@ export function formatDocument(doc: (Document | {
     entityTypes: doc.entityTypes || [],
 
     creationMethod: doc.creationMethod,
-    sourceSelectionId: doc.sourceSelectionId,
+    sourceAnnotationId: doc.sourceAnnotationId,
     sourceDocumentId: doc.sourceDocumentId,
 
     createdBy: doc.createdBy,
@@ -39,30 +39,27 @@ export function formatDocument(doc: (Document | {
   return formatted;
 }
 
-export function formatSelection(sel: Selection): any {
+export function formatAnnotation(annotation: Annotation): any {
   return {
-    id: sel.id,
-    documentId: sel.documentId,
-    selectionData: sel.selectionData,
-    resolvedDocumentId: sel.resolvedDocumentId,
-    resolvedAt: sel.resolvedAt instanceof Date ? sel.resolvedAt.toISOString() : sel.resolvedAt,
-    resolvedBy: sel.resolvedBy,
-    referenceTags: sel.referenceTags,
-    entityTypes: sel.entityTypes,
-    metadata: sel.metadata,
-    createdBy: sel.createdBy,
-    createdAt: sel.createdAt instanceof Date ? sel.createdAt.toISOString() : sel.createdAt,
-    updatedAt: sel.updatedAt instanceof Date ? sel.updatedAt.toISOString() : sel.updatedAt,
+    id: annotation.id,
+    documentId: annotation.documentId,
+    exact: annotation.exact,
+    selector: annotation.selector,
+    type: annotation.type,
+    referencedDocumentId: annotation.referencedDocumentId,
+    resolvedDocumentName: annotation.resolvedDocumentName,
+    entityTypes: annotation.entityTypes,
+    referenceType: annotation.referenceType,
   };
 }
 
 // Types for the detection result
 export interface DetectedSelection {
   selection: {
-    selectionData: {
+    selector: {
       offset: number;
       length: number;
-      text: string;
+      exact: string;
     };
     entityTypes: string[];
     metadata: Record<string, any>;
@@ -89,10 +86,10 @@ export async function detectSelectionsInDocument(
     for (const entity of extractedEntities) {
       const selection: DetectedSelection = {
         selection: {
-          selectionData: {
+          selector: {
             offset: entity.startOffset,
             length: entity.endOffset - entity.startOffset,
-            text: entity.text,
+            exact: entity.exact,
           },
           entityTypes: [entity.entityType],
           metadata: {

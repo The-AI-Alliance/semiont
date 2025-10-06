@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
-import type { Annotation } from '@/contexts/DocumentAnnotationsContext';
+import type { Annotation } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 
@@ -20,12 +20,12 @@ interface Props {
 // Convert Annotation[] to the simpler format needed by plugins
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
-    .filter(ann => ann.selectionData)
+    .filter(ann => ann.selector)
     .map(ann => ({
       id: ann.id,
-      text: ann.selectionData!.text,
-      offset: ann.selectionData!.offset,
-      length: ann.selectionData!.length,
+      exact: ann.exact,
+      offset: ann.selector!.offset,
+      length: ann.selector!.length,
       type: ann.type as 'highlight' | 'reference',
       referencedDocumentId: ann.referencedDocumentId
     }));

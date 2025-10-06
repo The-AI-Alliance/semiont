@@ -8,7 +8,7 @@ export const getDocumentReferencesRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/references',
   summary: 'Get Document References',
-  description: 'Get only references (selections with resolvedDocumentId) in a document',
+  description: 'Get only references (selections with referencedDocumentId) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -33,24 +33,8 @@ export function registerDocumentReferences(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
 
     // Layer 3 only - projection storage is source of truth
-    const projectionRefs = await AnnotationQueryService.getReferences(id);
-
-    // Transform projection format to component format
-    const references = projectionRefs.map(ref => ({
-      id: ref.id,
-      documentId: id,
-      text: ref.text,
-      selectionData: {
-        type: 'text_span',
-        offset: ref.position.offset,
-        length: ref.position.length,
-        text: ref.text
-      },
-      type: 'reference' as const,
-      referencedDocumentId: ref.targetDocumentId,
-      entityTypes: ref.entityTypes,
-      referenceType: ref.referenceType,
-    }));
+    // Projections now store full Annotation objects - no transformation needed
+    const references = await AnnotationQueryService.getReferences(id);
 
     console.log(`[References] Returning ${references.length} references for ${id} from Layer 3`);
 

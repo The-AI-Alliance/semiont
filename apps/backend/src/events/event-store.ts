@@ -365,8 +365,17 @@ export class EventStore {
       case 'highlight.added':
         projection.highlights.push({
           id: event.payload.highlightId,
-          text: event.payload.text,
-          position: event.payload.position,
+          documentId: event.documentId,
+          exact: event.payload.exact,
+          selector: {
+            type: 'text_span',
+            offset: event.payload.position.offset,
+            length: event.payload.position.length,
+          },
+          type: 'highlight',
+          createdBy: event.userId,
+          createdAt: new Date(event.timestamp).toISOString(),
+          entityTypes: [],
         });
         break;
 
@@ -379,10 +388,18 @@ export class EventStore {
       case 'reference.created':
         projection.references.push({
           id: event.payload.referenceId,
-          text: event.payload.text,
-          position: event.payload.position,
-          targetDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes,
+          documentId: event.documentId,
+          exact: event.payload.exact,
+          selector: {
+            type: 'text_span',
+            offset: event.payload.position.offset,
+            length: event.payload.position.length,
+          },
+          type: 'reference',
+          createdBy: event.userId,
+          createdAt: new Date(event.timestamp).toISOString(),
+          referencedDocumentId: event.payload.targetDocumentId,
+          entityTypes: event.payload.entityTypes || [],
           referenceType: event.payload.referenceType,
         });
         break;
@@ -390,7 +407,7 @@ export class EventStore {
       case 'reference.resolved':
         const ref = projection.references.find(r => r.id === event.payload.referenceId);
         if (ref) {
-          ref.targetDocumentId = event.payload.targetDocumentId;
+          ref.referencedDocumentId = event.payload.targetDocumentId;
           if (event.payload.referenceType) {
             ref.referenceType = event.payload.referenceType;
           }

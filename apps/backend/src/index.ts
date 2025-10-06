@@ -35,7 +35,7 @@ import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
 import { documentsRouter } from './routes/documents/index';
-import { selectionsRouter } from './routes/selections/index';
+import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
 import { referenceTypesRouter } from './routes/reference-types';
 
@@ -104,7 +104,7 @@ app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
 app.route('/', documentsRouter);
-app.route('/', selectionsRouter);
+app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
 app.route('/', referenceTypesRouter);
 

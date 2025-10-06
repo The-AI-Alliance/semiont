@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import type { SelectionsRouterType } from '../shared';
+import type { AnnotationsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
 import { getGraphDatabase } from '../../../graph/factory';
 import { StoredEventApiSchema } from '@semiont/core-types';
@@ -40,18 +40,18 @@ export const getAnnotationHistoryRoute = createRoute({
   },
 });
 
-export function registerGetAnnotationHistory(router: SelectionsRouterType) {
+export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   router.openapi(getAnnotationHistoryRoute, async (c) => {
     const { documentId, annotationId } = c.req.valid('param');
 
     // Verify annotation exists
     const graphDb = await getGraphDatabase();
-    const selection = await graphDb.getSelection(annotationId);
-    if (!selection) {
+    const annotation = await graphDb.getAnnotation(annotationId);
+    if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (selection.documentId !== documentId) {
+    if (annotation.documentId !== documentId) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
     }
 

@@ -1,20 +1,20 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { createSelectionRouter, type SelectionsRouterType } from './shared';
-import { formatDocument, formatSelection } from './helpers';
+import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
+import { formatDocument, formatAnnotation } from './helpers';
 import { getGraphDatabase } from '../../graph/factory';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
-import { CreateSelectionRequestSchema, CreateSelectionResponseSchema } from '@semiont/core-types';
+import { CreateAnnotationRequestSchema, CreateAnnotationResponseSchema } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 
 // Create router with auth middleware
-export const crudRouter: SelectionsRouterType = createSelectionRouter();
+export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
 
 // CREATE
 const createSelectionRoute = createRoute({
   method: 'post',
-  path: '/api/selections',
+  path: '/api/annotations',
   summary: 'Create Selection',
   description: 'Create a new selection/reference in a document',
   tags: ['Selections'],
@@ -23,7 +23,7 @@ const createSelectionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: CreateSelectionRequestSchema,
+          schema: CreateAnnotationRequestSchema,
         },
       },
     },
@@ -32,7 +32,7 @@ const createSelectionRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateSelectionResponseSchema,
+          schema: CreateAnnotationResponseSchema,
         },
       },
       description: 'Selection created successfully',
@@ -43,25 +43,12 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
 
-  // Process selection data from frontend format
-  let selectionData: any = {};
-
-  if (typeof body.selectionType === 'object' && 'type' in body.selectionType) {
-    // Frontend format with object - keep the same structure
-    const st = body.selectionType;
-    selectionData = {
-      type: st.type,
-      offset: st.offset,
-      length: st.length,
-      text: st.text
-    };
-  } else {
-    selectionData = body.selectionData || {};
-  }
+  // Use selector from the request body (already in correct format)
+  const selector = body.selector;
 
   // Generate ID - backend-internal, not graph-dependent
   const selectionId = generateAnnotationId();
-  const isReference = body.resolvedDocumentId !== undefined;
+  const isReference = body.referencedDocumentId !== undefined;
 
   // Emit event first (single source of truth)
   if (isReference) {
@@ -69,39 +56,39 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       documentId: body.documentId,
       userId: user.id,
       referenceId: selectionId,
-      text: selectionData.text,
+      exact: body.exact,
       position: {
-        offset: selectionData.offset,
-        length: selectionData.length,
+        offset: selector.offset,
+        length: selector.length,
       },
       entityTypes: body.entityTypes,
-      referenceType: body.referenceTags?.[0],
-      targetDocumentId: body.resolvedDocumentId ?? undefined,
+      referenceType: body.referenceType,
+      targetDocumentId: body.referencedDocumentId ?? undefined,
     });
   } else {
     await emitHighlightAdded({
       documentId: body.documentId,
       userId: user.id,
       highlightId: selectionId,
-      text: selectionData.text,
+      exact: body.exact,
       position: {
-        offset: selectionData.offset,
-        length: selectionData.length,
+        offset: selector.offset,
+        length: selector.length,
       },
     });
   }
 
   // Return optimistic response (consumer will update GraphDB async)
   return c.json({
-    selection: {
+    annotation: {
       id: selectionId,
       documentId: body.documentId,
-      selectionType: isReference ? 'reference' : 'highlight',
-      selectionData,
-      resolvedDocumentId: body.resolvedDocumentId,
+      exact: body.exact,
+      selector,
+      type: body.type,
+      referencedDocumentId: body.referencedDocumentId,
       entityTypes: body.entityTypes || [],
-      referenceTags: body.referenceTags || [],
-      metadata: body.metadata || {},
+      referenceType: body.referenceType,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
     },
@@ -118,7 +105,7 @@ const GetSelectionResponse = z.object({
 // GET
 const getSelectionRoute = createRoute({
   method: 'get',
-  path: '/api/selections/{id}',
+  path: '/api/annotations/{id}',
   summary: 'Get Selection',
   description: 'Get a selection by ID',
   tags: ['Selections'],
@@ -143,17 +130,17 @@ crudRouter.openapi(getSelectionRoute, async (c) => {
   const { id } = c.req.valid('param');
   const graphDb = await getGraphDatabase();
 
-  const selection = await graphDb.getSelection(id);
+  const selection = await graphDb.getAnnotation(id);
   if (!selection) {
     throw new HTTPException(404, { message: 'Selection not found' });
   }
 
   const document = await graphDb.getDocument(selection.documentId);
-  const resolvedDocument = selection.resolvedDocumentId ?
-    await graphDb.getDocument(selection.resolvedDocumentId) : null;
+  const resolvedDocument = selection.referencedDocumentId ?
+    await graphDb.getDocument(selection.referencedDocumentId) : null;
 
   return c.json({
-    selection: formatSelection(selection),
+    selection: formatAnnotation(selection),
     document: document ? formatDocument(document) : null,
     resolvedDocument: resolvedDocument ? formatDocument(resolvedDocument) : null,
   });
@@ -170,7 +157,7 @@ const ListSelectionsResponse = z.object({
 // LIST
 const listSelectionsRoute = createRoute({
   method: 'get',
-  path: '/api/selections',
+  path: '/api/annotations',
   summary: 'List Selections',
   description: 'List all selections with filters',
   tags: ['Selections'],
@@ -178,7 +165,7 @@ const listSelectionsRoute = createRoute({
   request: {
     query: z.object({
       documentId: z.string().optional(),
-      resolvedDocumentId: z.string().optional(),
+      referencedDocumentId: z.string().optional(),
       entityType: z.string().optional(),
       offset: z.coerce.number().default(0),
       limit: z.coerce.number().default(50),
@@ -201,17 +188,17 @@ crudRouter.openapi(listSelectionsRoute, async (c) => {
 
   const filters: any = {};
   if (query.documentId) filters.documentId = query.documentId;
-  if (query.resolvedDocumentId) filters.resolvedDocumentId = query.resolvedDocumentId;
+  if (query.referencedDocumentId) filters.referencedDocumentId = query.referencedDocumentId;
   if (query.entityType) filters.entityType = query.entityType;
 
-  const result = await graphDb.listSelections({
+  const result = await graphDb.listAnnotations({
     ...filters,
     offset: query.offset,
     limit: query.limit,
   });
 
   return c.json({
-    selections: result.selections.map(formatSelection),
+    selections: result.annotations.map(formatAnnotation),
     total: result.total,
     offset: query.offset,
     limit: query.limit,
@@ -231,9 +218,9 @@ const ResolveSelectionResponse = z.object({
 // RESOLVE
 const resolveSelectionRoute = createRoute({
   method: 'put',
-  path: '/api/selections/{id}/resolve',
+  path: '/api/annotations/{id}/resolve',
   summary: 'Resolve Selection',
-  description: 'Resolve a provisional selection to a target document',
+  description: 'Resolve a reference selection to a target document',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -265,7 +252,7 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
   const user = c.get('user');
   const graphDb = await getGraphDatabase();
 
-  const selection = await graphDb.getSelection(id);
+  const selection = await graphDb.getAnnotation(id);
   if (!selection) {
     throw new HTTPException(404, { message: 'Selection not found' });
   }
@@ -276,16 +263,16 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
     userId: user.id,
     referenceId: id,
     targetDocumentId: body.documentId,
-    referenceType: selection.referenceTags?.[0],
+    referenceType: selection.referenceType,
   });
 
   const targetDocument = await graphDb.getDocument(body.documentId);
 
   // Return optimistic response
   return c.json({
-    selection: formatSelection({
+    selection: formatAnnotation({
       ...selection,
-      resolvedDocumentId: body.documentId,
+      referencedDocumentId: body.documentId,
     }),
     targetDocument: targetDocument ? formatDocument(targetDocument) : null,
   });
@@ -294,7 +281,7 @@ crudRouter.openapi(resolveSelectionRoute, async (c) => {
 // DELETE
 const deleteSelectionRoute = createRoute({
   method: 'delete',
-  path: '/api/selections/{id}',
+  path: '/api/annotations/{id}',
   summary: 'Delete Selection',
   description: 'Delete a selection (requires documentId in body for O(1) Layer 3 lookup)',
   tags: ['Selections'],

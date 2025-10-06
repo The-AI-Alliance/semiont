@@ -145,7 +145,7 @@ function DocumentView({
   useEffect(() => {
     console.log('[DocumentPage] References data updated:', {
       count: references.length,
-      references: references.map((r: { id: string; text: string }) => ({ id: r.id, text: r.text }))
+      references: references.map((r: { id: string; exact: string }) => ({ id: r.id, exact: r.exact }))
     });
   }, [references]);
 

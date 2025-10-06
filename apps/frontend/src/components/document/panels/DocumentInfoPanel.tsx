@@ -14,8 +14,8 @@ interface ReferencedBy {
   id: string;
   documentId: string;
   documentName?: string;
-  selectionData?: {
-    text?: string;
+  selector?: {
+    exact?: string;
   };
 }
 
@@ -152,7 +152,7 @@ export function DocumentInfoPanel({
                     {ref.documentName || 'Untitled Document'}
                   </Link>
                   <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                    "{ref.selectionData?.text || 'No text'}"
+                    "{ref.selector?.exact || 'No text'}"
                   </span>
                 </div>
               ))}

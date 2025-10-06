@@ -52,7 +52,7 @@ const createMockResponse = (data: any, ok = true, status = 200) => ({
   ok,
   status,
   json: vi.fn().mockResolvedValue(data),
-  text: vi.fn().mockResolvedValue(JSON.stringify(data)),
+  exact: vi.fn().mockResolvedValue(JSON.stringify(data)),
   clone: vi.fn().mockReturnThis(),
   headers: new Headers(),
   url: '',

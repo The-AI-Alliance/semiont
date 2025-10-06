@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
-import { formatDocument, formatSelection } from '../helpers';
+import { formatDocument, formatAnnotation } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 export const getReferencedByRoute = createRoute({
@@ -45,7 +45,7 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
 
     return c.json({
       documents: referencingDocs.map(formatDocument),
-      references: references.map(formatSelection),
+      references: references.map(formatAnnotation),
     });
   });
 }

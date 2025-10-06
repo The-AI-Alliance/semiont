@@ -70,7 +70,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { highlightId: 'hl1', text: 'Test', position: { offset: 0, length: 4 } },
+      payload: { highlightId: 'hl1', exact: 'Test', position: { offset: 0, length: 4 } },
     });
 
     expect(e1.metadata.prevEventHash).toBeUndefined();

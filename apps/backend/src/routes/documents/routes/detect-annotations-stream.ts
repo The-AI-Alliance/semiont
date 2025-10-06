@@ -21,12 +21,12 @@ interface DetectionProgress {
 /**
  * SSE endpoint for real-time detection progress updates
  */
-export const detectSelectionsStreamRoute = createRoute({
+export const detectAnnotationsStreamRoute = createRoute({
   method: 'post',
-  path: '/api/documents/{id}/detect-selections-stream',
-  summary: 'Detect Selections with Progress (SSE)',
+  path: '/api/documents/{id}/detect-annotations-stream',
+  summary: 'Detect Annotations with Progress (SSE)',
   description: 'Stream real-time entity detection progress via Server-Sent Events',
-  tags: ['Documents', 'Selections', 'Real-time'],
+  tags: ['Documents', 'Annotations', 'Real-time'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -64,8 +64,8 @@ export const detectSelectionsStreamRoute = createRoute({
   },
 });
 
-export function registerDetectSelectionsStream(router: DocumentsRouterType) {
-  router.openapi(detectSelectionsStreamRoute, async (c) => {
+export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
+  router.openapi(detectAnnotationsStreamRoute, async (c) => {
     const { id } = c.req.valid('param');
     const { entityTypes } = c.req.valid('json');
 
@@ -130,7 +130,7 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
             [entityType]
           );
 
-          // Create provisional references via events (event store updates Layer 3, graph consumer updates Layer 4)
+          // Create stub references via events (event store updates Layer 3, graph consumer updates Layer 4)
           // References will appear in Annotation History as they're created (via debounced refetch)
           for (const detected of detectedSelections) {
             const referenceId = generateAnnotationId();
@@ -139,10 +139,10 @@ export function registerDetectSelectionsStream(router: DocumentsRouterType) {
               documentId: id,
               userId: user.id,
               referenceId,
-              text: detected.selection.selectionData.text,
+              exact: detected.selection.selector.exact,
               position: {
-                offset: detected.selection.selectionData.offset,
-                length: detected.selection.selectionData.length,
+                offset: detected.selection.selector.offset,
+                length: detected.selection.selector.length,
               },
               entityTypes: detected.selection.entityTypes,
               referenceType: undefined, // Unresolved reference

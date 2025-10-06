@@ -76,7 +76,7 @@ export function HistoryEvent({
   const eventWrapperProps = annotationId ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationId),
-    'aria-label': `View annotation: ${displayContent?.text || formatEventType(event.event.type)}`,
+    'aria-label': `View annotation: ${displayContent?.exact || formatEventType(event.event.type)}`,
     className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
   } : {
     className: `text-xs ${borderClass} pl-2 py-0.5`
@@ -102,15 +102,15 @@ export function HistoryEvent({
         {displayContent ? (
           displayContent.isTag ? (
             <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-medium">
-              {displayContent.text}
+              {displayContent.exact}
             </span>
           ) : displayContent.isQuoted ? (
             <span className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1 italic">
-              &ldquo;{displayContent.text}&rdquo;
+              &ldquo;{displayContent.exact}&rdquo;
             </span>
           ) : (
             <span className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1">
-              {displayContent.text}
+              {displayContent.exact}
             </span>
           )
         ) : (

@@ -3,31 +3,29 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
 import { detectSelectionsInDocument } from '../helpers';
-import type { CreateSelectionInput } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
-const DetectSelectionsRequest = z.object({
+const DetectAnnotationsRequest = z.object({
   entityTypes: z.array(z.string()).optional(),
 });
 
-const DetectSelectionsResponse = z.object({
-  selections: z.array(z.object({
+const DetectAnnotationsResponse = z.object({
+  annotations: z.array(z.object({
     id: z.string(),
     documentId: z.string(),
-    selectionData: z.any(),
-    resolvedDocumentId: z.string().nullable().optional(),
+    selector: z.any(),
+    referencedDocumentId: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
     createdAt: z.string(),
-    updatedAt: z.string(),
   })),
   detected: z.number().int().min(0),
 });
 
-export const detectSelectionsRoute = createRoute({
+export const detectAnnotationsRoute = createRoute({
   method: 'post',
-  path: '/api/documents/{id}/detect-selections',
-  summary: 'Detect Selections',
+  path: '/api/documents/{id}/detect-annotations',
+  summary: 'Detect Annotations',
   description: 'Use AI to detect entity references in document',
   tags: ['Documents', 'AI'],
   security: [{ bearerAuth: [] }],
@@ -38,7 +36,7 @@ export const detectSelectionsRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: DetectSelectionsRequest,
+          schema: DetectAnnotationsRequest,
         },
       },
     },
@@ -47,16 +45,16 @@ export const detectSelectionsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DetectSelectionsResponse,
+          schema: DetectAnnotationsResponse,
         },
       },
-      description: 'Detected selections',
+      description: 'Detected annotations',
     },
   },
 });
 
-export function registerDetectSelections(router: DocumentsRouterType) {
-  router.openapi(detectSelectionsRoute, async (c) => {
+export function registerDetectAnnotations(router: DocumentsRouterType) {
+  router.openapi(detectAnnotationsRoute, async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const user = c.get('user');
@@ -74,32 +72,36 @@ export function registerDetectSelections(router: DocumentsRouterType) {
     // Detect selections using AI
     const detectedSelections = await detectSelectionsInDocument(docWithContent, body.entityTypes || []);
 
-    // Save the provisional selections
+    // Save the stub references
     const savedSelections = [];
     for (const detected of detectedSelections) {
-      const selectionInput: CreateSelectionInput & { selectionType: string } = {
+      const selectionInput = {
         documentId: id,
-        selectionType: 'reference',  // Graph implementations need this for stub references
-        selectionData: detected.selection.selectionData,
-        resolvedDocumentId: null,  // null = stub reference
-        entityTypes: detected.selection.entityTypes,
-        metadata: detected.selection.metadata,
+        exact: detected.selection.selector.exact,
+        selector: {
+          type: 'text_span',
+          offset: detected.selection.selector.offset,
+          length: detected.selection.selector.length,
+          exact: detected.selection.selector.exact,
+        },
+        type: 'reference' as const,
+        referencedDocumentId: null,  // null = stub reference
+        entityTypes: detected.selection.entityTypes || [],
         createdBy: user.id,
       };
-      const saved = await graphDb.createSelection(selectionInput);
+      const saved = await graphDb.createAnnotation(selectionInput);
       savedSelections.push(saved);
     }
 
-    console.log('Returning', savedSelections.length, 'saved selections');
+    console.log('Returning', savedSelections.length, 'saved annotations');
     return c.json({
-      selections: savedSelections.map(s => ({
+      annotations: savedSelections.map(s => ({
         id: s.id,
         documentId: s.documentId,
-        selectionData: s.selectionData,
-        resolvedDocumentId: s.resolvedDocumentId,
+        selector: s.selector,
+        referencedDocumentId: s.referencedDocumentId,
         entityTypes: s.entityTypes,
-        createdAt: s.createdAt?.toISOString() || new Date().toISOString(),
-        updatedAt: s.updatedAt?.toISOString() || new Date().toISOString(),
+        createdAt: s.createdAt, // ISO string from createAnnotation
       })),
       detected: savedSelections.length,
     });

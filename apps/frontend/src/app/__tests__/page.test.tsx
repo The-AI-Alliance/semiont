@@ -98,7 +98,7 @@ describe('Home Page', () => {
 
   it('should have proper content spacing and layout', () => {
     render(<Home />);
-    
+
     // Check for text center and spacing on content area
     const contentArea = screen.getByText(/open-source.*future-proof/i).closest('.text-center');
     expect(contentArea).toBeInTheDocument();

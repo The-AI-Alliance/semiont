@@ -100,7 +100,7 @@ describe('API Documentation Endpoint Unit Tests', () => {
     
     const res = await app.fetch(req);
     const html = await res.text();
-    
+
     expect(res.status).toBe(200);
     expect(html).toContain('<html>');
   });

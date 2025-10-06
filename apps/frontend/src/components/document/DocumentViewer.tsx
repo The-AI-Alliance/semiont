@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
-import { useDocumentAnnotations, type Annotation } from '@/contexts/DocumentAnnotationsContext';
+import type { Annotation } from '@semiont/core-types';
+import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
 
@@ -56,19 +57,12 @@ export function DocumentViewer({
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const [selectionPosition, setSelectionPosition] = useState<{ start: number; end: number } | null>(null);
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
-  const [editingAnnotation, setEditingAnnotation] = useState<{
-    id: string;
-    type: 'highlight' | 'reference';
-    referencedDocumentId?: string;
-    referenceType?: string;
-    entityType?: string;
-    resolvedDocumentName?: string;
-  } | null>(null);
+  const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Handle text selection from SourceView - memoized
-  const handleTextSelection = useCallback((text: string, position: { start: number; end: number }) => {
-    setSelectedText(text);
+  const handleTextSelection = useCallback((exact: string, position: { start: number; end: number }) => {
+    setSelectedText(exact);
     setSelectionPosition(position);
 
     // Get mouse position for popup
@@ -96,22 +90,18 @@ export function DocumentViewer({
     // For other annotations in Annotate mode, show the popup
     if (curationMode) {
       setEditingAnnotation({
-        id: annotation.id,
-        type: annotation.type,
-        referencedDocumentId: annotation.referencedDocumentId || annotation.resolvedDocumentId,
-        referenceType: annotation.referenceType,
-        entityType: annotation.entityType,
+        ...annotation,  // Include all required fields (documentId, text, selector, entityTypes, etc.)
         resolvedDocumentName: annotation.referencedDocumentName
       });
       console.log('[DocumentViewer] editingAnnotation set to:', {
         id: annotation.id,
         type: annotation.type
       });
-      setSelectedText(annotation.selectionData?.text || '');
-      if (annotation.selectionData) {
+      setSelectedText(annotation.selector?.exact || '');
+      if (annotation.selector) {
         setSelectionPosition({
-          start: annotation.selectionData.offset,
-          end: annotation.selectionData.offset + annotation.selectionData.length
+          start: annotation.selector.offset,
+          end: annotation.selector.offset + annotation.selector.length
         });
       }
 
@@ -130,18 +120,14 @@ export function DocumentViewer({
   // Handle annotation right-clicks - memoized
   const handleAnnotationRightClick = useCallback((annotation: any, x: number, y: number) => {
     setEditingAnnotation({
-      id: annotation.id,
-      type: annotation.type,
-      referencedDocumentId: annotation.referencedDocumentId || annotation.resolvedDocumentId,
-      referenceType: annotation.referenceType,
-      entityType: annotation.entityType,
+      ...annotation,  // Include all required fields
       resolvedDocumentName: annotation.referencedDocumentName
     });
-    setSelectedText(annotation.selectionData?.text || '');
-    if (annotation.selectionData) {
+    setSelectedText(annotation.selector?.exact || '');
+    if (annotation.selector) {
       setSelectionPosition({
-        start: annotation.selectionData.offset,
-        end: annotation.selectionData.offset + annotation.selectionData.length
+        start: annotation.selector.offset,
+        end: annotation.selector.offset + annotation.selector.length
       });
     }
     setPopupPosition({ x, y: y + 10 });
@@ -153,18 +139,14 @@ export function DocumentViewer({
     const reference = references.find(r => r.referencedDocumentId === documentId);
     if (reference && reference.type) {
       setEditingAnnotation({
-        id: reference.id,
-        type: reference.type,
-        ...(reference.referencedDocumentId && { referencedDocumentId: reference.referencedDocumentId }),
-        ...(reference.referenceType && { referenceType: reference.referenceType }),
-        ...(reference.entityType && { entityType: reference.entityType }),
+        ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
         resolvedDocumentName: 'Document'
       });
-      setSelectedText(reference.selectionData?.text || '');
-      if (reference.selectionData) {
+      setSelectedText(reference.exact || '');
+      if (reference.selector) {
         setSelectionPosition({
-          start: reference.selectionData.offset,
-          end: reference.selectionData.offset + reference.selectionData.length
+          start: reference.selector.offset,
+          end: reference.selector.offset + reference.selector.length
         });
       }
       setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
@@ -265,7 +247,7 @@ export function DocumentViewer({
       if (annotation.type === 'highlight') {
         // Convert highlight to reference (open dialog to get target)
         setEditingAnnotation({
-          id: annotation.id,
+          ...annotation,
           type: 'highlight'
         });
         setShowSelectionPopup(true);
@@ -490,19 +472,23 @@ export function DocumentViewer({
         onClose={handleClosePopup}
         position={popupPosition}
         selection={selectedText && selectionPosition ? {
-          text: selectedText,
+          exact: selectedText,
           start: selectionPosition.start,
           end: selectionPosition.end
         } : null}
         {...(editingAnnotation && {
           annotation: {
             id: editingAnnotation.id,
+            documentId: editingAnnotation.documentId,
+            exact: editingAnnotation.exact,
+            selector: editingAnnotation.selector,
             type: editingAnnotation.type,
-            ...(editingAnnotation.entityType && { entityType: editingAnnotation.entityType }),
+            createdBy: editingAnnotation.createdBy,
+            createdAt: editingAnnotation.createdAt,
+            entityTypes: editingAnnotation.entityTypes || [],
             ...(editingAnnotation.referenceType && { referenceType: editingAnnotation.referenceType }),
-            ...(editingAnnotation.referencedDocumentId && { resolvedDocumentId: editingAnnotation.referencedDocumentId }),
-            ...(editingAnnotation.resolvedDocumentName && { resolvedDocumentName: editingAnnotation.resolvedDocumentName }),
-            provisional: !editingAnnotation.referencedDocumentId
+            ...(editingAnnotation.referencedDocumentId && { referencedDocumentId: editingAnnotation.referencedDocumentId }),
+            ...(editingAnnotation.resolvedDocumentName && { resolvedDocumentName: editingAnnotation.resolvedDocumentName })
           }
         })}
         onCreateHighlight={handleCreateHighlight}
@@ -512,10 +498,10 @@ export function DocumentViewer({
             // Handle updates to existing annotation
             if (updates.type === 'highlight') {
               await convertReferenceToHighlight(references, editingAnnotation.id);
-            } else if (updates.resolvedDocumentId === null) {
+            } else if (updates.referencedDocumentId === null) {
               // Unlink document
               await deleteAnnotation(editingAnnotation.id, document.id);
-              await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityType, editingAnnotation.referenceType);
+              await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityTypes?.[0], editingAnnotation.referenceType);
             }
             setShowSelectionPopup(false);
             setEditingAnnotation(null);

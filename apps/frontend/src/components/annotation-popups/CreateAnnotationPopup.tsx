@@ -10,7 +10,7 @@ interface CreateAnnotationPopupProps {
   onClose: () => void;
   position: { x: number; y: number };
   selection: {
-    text: string;
+    exact: string;
     start: number;
     end: number;
   };
@@ -59,7 +59,7 @@ export function CreateAnnotationPopup({
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
       <PopupHeader title="Create Annotation" onClose={onClose} />
 
-      <SelectedTextDisplay text={selection.text} />
+      <SelectedTextDisplay exact={selection.exact} />
 
       {/* Create Highlight Button */}
       <div className="mb-4">

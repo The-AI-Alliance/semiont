@@ -2,16 +2,14 @@
 
 import {
   Document,
-  Selection,
+  Annotation,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-  SelectionFilter,
   CreateDocumentInput,
   UpdateDocumentInput,
-  CreateSelectionInput,
-  ResolveSelectionInput,
+  CreateAnnotationInternal,
 } from '@semiont/core-types';
 
 export interface GraphDatabase {
@@ -29,24 +27,24 @@ export interface GraphDatabase {
   listDocuments(filter: DocumentFilter): Promise<{ documents: Document[]; total: number }>;
   searchDocuments(query: string, limit?: number): Promise<Document[]>;
   
-  // Selection operations
-  createSelection(input: CreateSelectionInput): Promise<Selection>;
-  getSelection(id: string): Promise<Selection | null>;
-  updateSelection(id: string, updates: Partial<Selection>): Promise<Selection>;
-  deleteSelection(id: string): Promise<void>;
-  listSelections(filter: SelectionFilter): Promise<{ selections: Selection[]; total: number }>;
-  
+  // Annotation operations
+  createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;
+  getAnnotation(id: string): Promise<Annotation | null>;
+  updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation>;
+  deleteAnnotation(id: string): Promise<void>;
+  listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }>;
+
   // Highlight operations
-  getHighlights(documentId: string): Promise<Selection[]>;
-  
-  // Reference operations (resolved selections)
-  resolveSelection(input: ResolveSelectionInput): Promise<Selection>;
-  getReferences(documentId: string): Promise<Selection[]>;
-  getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Selection[]>;
-  
+  getHighlights(documentId: string): Promise<Annotation[]>;
+
+  // Reference operations
+  resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation>;
+  getReferences(documentId: string): Promise<Annotation[]>;
+  getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]>;
+
   // Relationship queries
-  getDocumentSelections(documentId: string): Promise<Selection[]>;
-  getDocumentReferencedBy(documentId: string): Promise<Selection[]>;
+  getDocumentAnnotations(documentId: string): Promise<Annotation[]>;
+  getDocumentReferencedBy(documentId: string): Promise<Annotation[]>;
   
   // Graph traversal
   getDocumentConnections(documentId: string): Promise<GraphConnection[]>;
@@ -56,7 +54,7 @@ export interface GraphDatabase {
   getEntityTypeStats(): Promise<EntityTypeStats[]>;
   getStats(): Promise<{
     documentCount: number;
-    selectionCount: number;
+    annotationCount: number;
     highlightCount: number;
     referenceCount: number;
     entityReferenceCount: number;
@@ -65,11 +63,11 @@ export interface GraphDatabase {
   }>;
   
   // Bulk operations
-  createSelections(inputs: CreateSelectionInput[]): Promise<Selection[]>;
-  resolveSelections(inputs: ResolveSelectionInput[]): Promise<Selection[]>;
-  
+  createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
+  resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]>;
+
   // Auto-detection
-  detectSelections(documentId: string): Promise<Selection[]>;
+  detectAnnotations(documentId: string): Promise<Annotation[]>;
   
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
