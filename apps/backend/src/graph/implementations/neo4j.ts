@@ -343,7 +343,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const annotation: Annotation = {
         id,
         documentId: input.documentId,
-        text: input.text,
+        exact: input.exact,
         selector: input.selector,
         type: input.type,
         createdBy: input.createdBy,
@@ -362,7 +362,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             text: $text,
+             exact: $text,
              selector: $selector,
              type: $type,
              createdBy: $createdBy,
@@ -380,7 +380,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            CREATE (a:Annotation {
              id: $id,
              documentId: $documentId,
-             text: $text,
+             exact: $text,
              selector: $selector,
              type: $type,
              createdBy: $createdBy,
@@ -396,7 +396,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         documentId: annotation.documentId,
         fromId: annotation.documentId,
         toId: annotation.referencedDocumentId || null,
-        text: annotation.text,
+        exact: annotation.exact,
         selector: JSON.stringify(annotation.selector),
         type: annotation.type,
         createdBy: annotation.createdBy,
@@ -975,7 +975,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     // Validate required fields
     if (!props.id) throw new Error('Annotation missing required field: id');
     if (!props.documentId) throw new Error(`Annotation ${props.id} missing required field: documentId`);
-    if (!props.text) throw new Error(`Annotation ${props.id} missing required field: text`);
+    if (!props.exact) throw new Error(`Annotation ${props.id} missing required field: text`);
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
     if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
     if (!props.createdBy) throw new Error(`Annotation ${props.id} missing required field: createdBy`);
@@ -983,7 +983,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       id: props.id,
       documentId: props.documentId,
-      text: props.text,
+      exact: props.exact,
       selector: JSON.parse(props.selector),
       type: props.type as 'highlight' | 'reference',
       createdBy: props.createdBy,

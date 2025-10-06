@@ -167,7 +167,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       id,
       documentId: input.documentId,
-      text: input.text,
+      exact: input.exact,
       selector: input.selector,
       type: input.type,
       createdBy: input.createdBy,

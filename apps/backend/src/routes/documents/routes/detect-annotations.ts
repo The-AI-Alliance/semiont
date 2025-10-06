@@ -77,12 +77,12 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     for (const detected of detectedSelections) {
       const selectionInput = {
         documentId: id,
-        text: detected.selection.selector.text,
+        exact: detected.selection.selector.exact,
         selector: {
           type: 'text_span',
           offset: detected.selection.selector.offset,
           length: detected.selection.selector.length,
-          text: detected.selection.selector.text,
+          exact: detected.selection.selector.exact,
         },
         type: 'reference' as const,
         referencedDocumentId: null,  // null = stub reference

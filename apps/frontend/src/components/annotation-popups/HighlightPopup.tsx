@@ -39,7 +39,7 @@ export function HighlightPopup({
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
       <PopupHeader title="Highlight" onClose={onClose} />
 
-      <SelectedTextDisplay text={selection.text} />
+      <SelectedTextDisplay exact={selection.exact} />
 
       {/* Actions */}
       <div className="space-y-2">

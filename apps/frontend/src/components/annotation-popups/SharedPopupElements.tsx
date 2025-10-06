@@ -4,15 +4,15 @@ import React, { Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
 
 interface SelectedTextDisplayProps {
-  text: string;
+  exact: string;
 }
 
-export function SelectedTextDisplay({ text }: SelectedTextDisplayProps) {
+export function SelectedTextDisplay({ exact }: SelectedTextDisplayProps) {
   return (
     <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Selected text:</p>
       <p className="text-sm font-medium text-gray-900 dark:text-white">
-        "{text}"
+        "{exact}"
       </p>
     </div>
   );

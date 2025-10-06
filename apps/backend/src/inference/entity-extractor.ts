@@ -4,7 +4,7 @@ import { getInferenceClient, getInferenceModel } from './factory';
  * Entity reference extracted from text
  */
 export interface ExtractedEntity {
-  text: string;           // The actual text span
+  exact: string;           // The actual text span
   entityType: string;     // The detected entity type
   startOffset: number;    // Character offset where entity starts
   endOffset: number;      // Character offset where entity ends
@@ -18,11 +18,11 @@ export interface ExtractedEntity {
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
-  text: string,
+  exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[]
 ): Promise<ExtractedEntity[]> {
   console.log('extractEntities called with:', {
-    textLength: text.length,
+    textLength: exact.length,
     entityTypes: Array.isArray(entityTypes) ? entityTypes.map(et => typeof et === 'string' ? et : et.type) : []
   });
 
@@ -42,11 +42,11 @@ export async function extractEntities(
 
 Text to analyze:
 """
-${text}
+${exact}
 """
 
 Return ONLY a JSON array of entities found. Each entity should have:
-- text: the exact text span from the input
+- exact: the exact text span from the input
 - entityType: one of the provided entity types
 - startOffset: character position where the entity starts (0-indexed)
 - endOffset: character position where the entity ends
@@ -95,14 +95,14 @@ Example output:
       let endOffset = entity.endOffset;
 
       // Verify the offsets are correct by checking if the text matches
-      const extractedText = text.substring(startOffset, endOffset);
+      const extractedText = exact.substring(startOffset, endOffset);
 
       // If the extracted text doesn't match, find the correct position
-      if (extractedText !== entity.text) {
-        const index = text.indexOf(entity.text);
+      if (extractedText !== entity.exact) {
+        const index = exact.indexOf(entity.exact);
         if (index !== -1) {
           startOffset = index;
-          endOffset = index + entity.text.length;
+          endOffset = index + entity.exact.length;
         } else {
           // If we still can't find it, skip this entity
           return null;
@@ -110,7 +110,7 @@ Example output:
       }
 
       return {
-        text: entity.text,
+        exact: entity.exact,
         entityType: entity.entityType,
         startOffset: startOffset,
         endOffset: endOffset
@@ -121,9 +121,9 @@ Example output:
       entity.startOffset !== undefined &&
       entity.endOffset !== undefined &&
       entity.startOffset >= 0 &&
-      entity.endOffset <= text.length &&
+      entity.endOffset <= exact.length &&
       // Verify the text at the offsets matches
-      text.substring(entity.startOffset, entity.endOffset) === entity.text
+      exact.substring(entity.startOffset, entity.endOffset) === entity.exact
     );
   } catch (error) {
     console.error('Failed to parse entity extraction response:', error);

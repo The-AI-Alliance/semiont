@@ -11,7 +11,7 @@ interface Props {
   content: string;
   highlights: Annotation[];
   references: Annotation[];
-  onTextSelect?: (text: string, position: { start: number; end: number }) => void;
+  onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
@@ -31,66 +31,66 @@ interface Props {
 }
 
 interface TextSegment {
-  text: string;
+  exact: string;
   annotation?: Annotation;
   start: number;
   end: number;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
-function segmentTextWithAnnotations(text: string, annotations: Annotation[]): TextSegment[] {
-  if (!text) {
-    return [{ text: '', start: 0, end: 0 }];
+function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): TextSegment[] {
+  if (!exact) {
+    return [{ exact: '', start: 0, end: 0 }];
   }
-  
+
   const normalizedAnnotations = annotations
     .map(ann => ({
       annotation: ann,
       start: ann.selector?.offset ?? 0,
       end: (ann.selector?.offset ?? 0) + (ann.selector?.length ?? 0)
     }))
-    .filter(a => a.start >= 0 && a.end <= text.length && a.start < a.end)
+    .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);
-  
+
   if (normalizedAnnotations.length === 0) {
-    return [{ text, start: 0, end: text.length }];
+    return [{ exact, start: 0, end: exact.length }];
   }
-  
+
   const segments: TextSegment[] = [];
   let position = 0;
-  
+
   for (const { annotation, start, end } of normalizedAnnotations) {
     if (start < position) continue; // Skip overlapping annotations
-    
+
     // Add text before annotation
     if (start > position) {
       segments.push({
-        text: text.slice(position, start),
+        exact: exact.slice(position, start),
         start: position,
         end: start
       });
     }
-    
+
     // Add annotated segment
     segments.push({
-      text: text.slice(start, end),
+      exact: exact.slice(start, end),
       annotation,
       start,
       end
     });
-    
+
     position = end;
   }
-  
+
   // Add remaining text
-  if (position < text.length) {
+  if (position < exact.length) {
     segments.push({
-      text: text.slice(position),
+      exact: exact.slice(position),
       start: position,
-      end: text.length
+      end: exact.length
     });
   }
-  
+
   return segments;
 }
 
@@ -119,7 +119,7 @@ export function AnnotateView({
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectionState, setSelectionState] = useState<{
-    text: string;
+    exact: string;
     start: number;
     end: number;
     rects: DOMRect[];
@@ -158,7 +158,7 @@ export function AnnotateView({
         }
         const end = start + text.length;
         if (rects.length > 0) {
-          setSelectionState({ text, start, end, rects });
+          setSelectionState({ exact: text, start, end, rects });
         }
         return;
       }
@@ -168,7 +168,7 @@ export function AnnotateView({
       const end = start + text.length;
 
       if (start >= 0 && rects.length > 0) {
-        setSelectionState({ text, start, end, rects });
+        setSelectionState({ exact: text, start, end, rects });
 
         // Announce to screen readers
         const announcement = document.createElement('div');
@@ -199,7 +199,7 @@ export function AnnotateView({
   // Handle sparkle click
   const handleSparkleClick = useCallback(() => {
     if (selectionState && onTextSelect) {
-      onTextSelect(selectionState.text, {
+      onTextSelect(selectionState.exact, {
         start: selectionState.start,
         end: selectionState.end
       });
@@ -211,7 +211,7 @@ export function AnnotateView({
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (selectionState && onTextSelect) {
       e.preventDefault();
-      onTextSelect(selectionState.text, {
+      onTextSelect(selectionState.exact, {
         start: selectionState.start,
         end: selectionState.end
       });
@@ -221,7 +221,7 @@ export function AnnotateView({
   
   // Convert segments to CodeMirror format
   const cmSegments: CMTextSegment[] = segments.map(seg => ({
-    text: seg.text,
+    exact: seg.exact,
     annotation: seg.annotation as any, // Types are compatible
     start: seg.start,
     end: seg.end

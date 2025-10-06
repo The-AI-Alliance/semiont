@@ -18,7 +18,7 @@ import { z } from 'zod';
  */
 export const CreateAnnotationRequestSchema = z.object({
   documentId: z.string(),
-  text: z.string(),
+  exact: z.string(),  // Exact text content (W3C Web Annotation standard)
   selector: z.object({
     type: z.string(),
     offset: z.number(),
@@ -51,7 +51,7 @@ export const CreateAnnotationResponseSchema = z.object({
   annotation: z.object({
     id: z.string(),
     documentId: z.string(),
-    text: z.string(),
+    exact: z.string(),  // Exact text content (W3C Web Annotation standard)
     selector: z.object({
       type: z.string(),
       offset: z.number(),
@@ -74,7 +74,7 @@ export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSc
  * This is the SINGLE SOURCE OF TRUTH for annotation types.
  *
  * Field Requirements:
- * - text: REQUIRED (not optional)
+ * - exact: REQUIRED - exact text content (W3C Web Annotation standard)
  * - type: REQUIRED (not optional)
  * - createdBy: REQUIRED (user who created)
  * - referencedDocumentId: OPTIONAL and nullable
@@ -86,7 +86,7 @@ export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSc
 const AnnotationSchema = z.object({
   id: z.string(),
   documentId: z.string(),
-  text: z.string(),                                    // REQUIRED - full selected text
+  exact: z.string(),                                   // REQUIRED - exact text content (W3C Web Annotation standard)
   selector: z.object({
     type: z.string(),
     offset: z.number(),
@@ -130,7 +130,7 @@ export interface AnnotationUpdate {
  * Text selection (position in document)
  */
 export interface TextSelection {
-  text: string;
+  exact: string;  // W3C Web Annotation standard
   start: number;
   end: number;
 }

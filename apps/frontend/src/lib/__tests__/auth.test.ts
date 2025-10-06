@@ -176,7 +176,7 @@ describe('Auth Configuration', () => {
           user: { id: 'backend-user-123', email: 'user@example.com' },
           isNewUser: false,
         }),
-        text: vi.fn().mockResolvedValue('success'),
+        exact: vi.fn().mockResolvedValue('success'),
       });
 
       const result = await authOptions.callbacks!.signIn!({

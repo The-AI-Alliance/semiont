@@ -366,7 +366,7 @@ export class EventStore {
         projection.highlights.push({
           id: event.payload.highlightId,
           documentId: event.documentId,
-          text: event.payload.text,
+          exact: event.payload.exact,
           selector: {
             type: 'text_span',
             offset: event.payload.position.offset,
@@ -389,7 +389,7 @@ export class EventStore {
         projection.references.push({
           id: event.payload.referenceId,
           documentId: event.documentId,
-          text: event.payload.text,
+          exact: event.payload.exact,
           selector: {
             type: 'text_span',
             offset: event.payload.position.offset,

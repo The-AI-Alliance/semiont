@@ -465,7 +465,7 @@ interface APIService {
     search: (query: string, limit?: number) => Promise<DocumentsResponse>;
     schemaDescription: () => Promise<SchemaDescriptionResponse>;
     llmContext: (id: string, selectionId?: string) => Promise<LLMContextResponse>;
-    discoverContext: (text: string) => Promise<DiscoverContextResponse>;
+    discoverContext: (exact: string) => Promise<DiscoverContextResponse>;
     getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }) => Promise<{ events: StoredEvent[]; total: number; documentId: string }>;
   };
 
@@ -481,7 +481,7 @@ interface APIService {
     }) => Promise<AnnotationsResponse>;
     saveAsHighlight: (data: {
       documentId: string;
-      text: string;
+      exact: string;
       position: { start: number; end: number };
     }) => Promise<AnnotationResponse>;
     resolveToDocument: (data: {
@@ -622,8 +622,8 @@ export const apiService: APIService = {
         body: { selectionId } 
       }),
     
-    discoverContext: (text: string): Promise<DiscoverContextResponse> =>
-      apiClient.post('/api/documents/discover-context', { body: { text } }),
+    discoverContext: (exact: string): Promise<DiscoverContextResponse> =>
+      apiClient.post('/api/documents/discover-context', { body: { exact } }),
 
     getEvents: (id: string, params?: { type?: string; userId?: string; limit?: number }): Promise<{ events: StoredEvent[]; total: number; documentId: string }> =>
       apiClient.get('/api/documents/:id/events', { params: { id, ...params } }),
@@ -654,7 +654,7 @@ export const apiService: APIService = {
     
     saveAsHighlight: async (data: {
       documentId: string;
-      text: string;
+      exact: string;
       position: { start: number; end: number };
     }): Promise<AnnotationResponse> => {
       // Create selection (automatically saved as highlight when no resolvedDocumentId)
@@ -665,7 +665,7 @@ export const apiService: APIService = {
             type: 'text_span',
             offset: data.position.start,
             length: data.position.end - data.position.start,
-            text: data.text
+            exact: data.exact
           }
         } 
       });
@@ -1172,7 +1172,7 @@ export const api: ReactQueryAPI = {
     },
     saveAsHighlight: {
       useMutation: () => {
-        return useAuthenticatedMutation<AnnotationResponse, { documentId: string; text: string; position: { start: number; end: number } }>(
+        return useAuthenticatedMutation<AnnotationResponse, { documentId: string; exact: string; position: { start: number; end: number } }>(
           (input, fetchAPI) =>
             fetchAPI('/api/annotations', {
               method: 'POST',
@@ -1182,7 +1182,7 @@ export const api: ReactQueryAPI = {
                   type: 'text_span',
                   offset: input.position.start,
                   length: input.position.end - input.position.start,
-                  text: input.text
+                  exact: input.exact
                 }
               }),
             })

@@ -133,7 +133,7 @@ export class GraphDBConsumer {
       case 'highlight.added':
         await graphDb.createAnnotation({
           documentId: event.documentId,
-          text: event.payload.text,
+          exact: event.payload.exact,
           selector: {
             type: 'text_span',
             offset: event.payload.position.offset,
@@ -152,7 +152,7 @@ export class GraphDBConsumer {
       case 'reference.created':
         await graphDb.createAnnotation({
           documentId: event.documentId,
-          text: event.payload.text,
+          exact: event.payload.exact,
           selector: {
             type: 'text_span',
             offset: event.payload.position.offset,

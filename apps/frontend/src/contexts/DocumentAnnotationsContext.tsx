@@ -10,8 +10,8 @@ interface DocumentAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Mutation actions (still in context for consistency)
-  addHighlight: (documentId: string, text: string, position: { start: number; end: number }) => Promise<string | undefined>;
-  addReference: (documentId: string, text: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
+  addHighlight: (documentId: string, exact: string, position: { start: number; end: number }) => Promise<string | undefined>;
+  addReference: (documentId: string, exact: string, position: { start: number; end: number }, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<string | undefined>;
   deleteAnnotation: (annotationId: string, documentId: string) => Promise<void>;
   convertHighlightToReference: (highlights: Annotation[], highlightId: string, targetDocId?: string, entityType?: string, referenceType?: string) => Promise<void>;
   convertReferenceToHighlight: (references: Annotation[], referenceId: string) => Promise<void>;
@@ -34,13 +34,13 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
   const addHighlight = useCallback(async (
     documentId: string,
-    text: string,
+    exact: string,
     position: { start: number; end: number }
   ): Promise<string | undefined> => {
     try {
       const result = await saveHighlightMutation.mutateAsync({
         documentId,
-        text,
+        exact,
         position
       });
 
@@ -70,7 +70,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
 
   const addReference = useCallback(async (
     documentId: string,
-    text: string,
+    exact: string,
     position: { start: number; end: number },
     targetDocId?: string,
     entityType?: string,
@@ -80,7 +80,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Build CreateAnnotationRequest directly
       const createData: any = {
         documentId,
-        text,
+        exact,
         selector: {
           type: 'text_span',
           offset: position.start,
@@ -156,7 +156,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Create new reference
       await addReference(
         highlight.documentId,
-        highlight.text,
+        highlight.exact,
         {
           start: highlight.selector.offset,
           end: highlight.selector.offset + highlight.selector.length
@@ -186,7 +186,7 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Create new highlight
       await addHighlight(
         reference.documentId,
-        reference.text,
+        reference.exact,
         {
           start: reference.selector.offset,
           end: reference.selector.offset + reference.selector.length

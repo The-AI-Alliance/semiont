@@ -152,7 +152,7 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
       id,
       documentId: selection.documentId,
       selector: {
-        text: selection.text,
+        exact: selection.exact,
         offset: selection.selector.offset,
         length: selection.selector.length,
       },
@@ -216,7 +216,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   }
 
   // Use selection text
-  const selectedText = selection.text;
+  const selectedText = selection.exact;
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
@@ -281,7 +281,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       id,
       documentId: selection.documentId,
       selector: {
-        text: selection.text,
+        exact: selection.exact,
         offset: selection.selector.offset,
         length: selection.selector.length,
       },
@@ -360,7 +360,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
       id: selection.id,
       documentId: selection.documentId,
       selector: {
-        text: selection.text,
+        exact: selection.exact,
         offset: selection.selector.offset,
         length: selection.selector.length,
       },
@@ -449,7 +449,7 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const summaryPrompt = `Summarize this text in context:
 
 Context before: "${before.substring(Math.max(0, before.length - 200))}"
-Selected text: "${selected}"
+Selected exact: "${selected}"
 Context after: "${after.substring(0, 200)}"
 
 Document: ${document.name}

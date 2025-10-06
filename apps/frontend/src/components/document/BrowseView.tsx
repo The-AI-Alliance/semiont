@@ -23,7 +23,7 @@ function prepareAnnotations(annotations: Annotation[]) {
     .filter(ann => ann.selector)
     .map(ann => ({
       id: ann.id,
-      text: ann.text,
+      exact: ann.exact,
       offset: ann.selector!.offset,
       length: ann.selector!.length,
       type: ann.type as 'highlight' | 'reference',

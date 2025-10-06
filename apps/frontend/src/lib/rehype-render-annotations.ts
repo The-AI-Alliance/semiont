@@ -3,7 +3,7 @@ import type { Root, Element, Text, ElementContent } from 'hast';
 
 interface Annotation {
   id: string;
-  text: string;
+  exact: string;
   offset: number;
   length: number;
   type: 'highlight' | 'reference';

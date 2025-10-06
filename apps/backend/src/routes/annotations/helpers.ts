@@ -25,7 +25,7 @@ export function formatAnnotation(annotation: Annotation): any {
   return {
     id: annotation.id,
     documentId: annotation.documentId,
-    text: annotation.text,
+    exact: annotation.exact,
     selector: annotation.selector,
     type: annotation.type,
     referencedDocumentId: annotation.referencedDocumentId,

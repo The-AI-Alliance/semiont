@@ -112,7 +112,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         documentId: newDocId,
         userId: user.id,
         highlightId,
-        text: highlight.text,
+        exact: highlight.exact,
         position: {
           offset: highlight.selector.offset,
           length: highlight.selector.length,
@@ -123,7 +123,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         documentId: newDocId,
         selectionType: 'highlight',
         selector: {
-          text: highlight.text,
+          exact: highlight.exact,
           offset: highlight.selector.offset,
           length: highlight.selector.length,
         },
@@ -140,7 +140,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         documentId: newDocId,
         userId: user.id,
         referenceId,
-        text: reference.text,
+        exact: reference.exact,
         position: {
           offset: reference.selector.offset,
           length: reference.selector.length,
@@ -154,7 +154,7 @@ export function registerCloneDocument(router: DocumentsRouterType) {
         documentId: newDocId,
         selectionType: 'reference',
         selector: {
-          text: reference.text,
+          exact: reference.exact,
           offset: reference.selector.offset,
           length: reference.selector.length,
         },

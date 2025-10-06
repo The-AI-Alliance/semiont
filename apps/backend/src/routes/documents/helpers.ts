@@ -43,7 +43,7 @@ export function formatAnnotation(annotation: Annotation): any {
   return {
     id: annotation.id,
     documentId: annotation.documentId,
-    text: annotation.text,
+    exact: annotation.exact,
     selector: annotation.selector,
     type: annotation.type,
     referencedDocumentId: annotation.referencedDocumentId,
@@ -59,7 +59,7 @@ export interface DetectedSelection {
     selector: {
       offset: number;
       length: number;
-      text: string;
+      exact: string;
     };
     entityTypes: string[];
     metadata: Record<string, any>;
@@ -89,7 +89,7 @@ export async function detectSelectionsInDocument(
           selector: {
             offset: entity.startOffset,
             length: entity.endOffset - entity.startOffset,
-            text: entity.text,
+            exact: entity.exact,
           },
           entityTypes: [entity.entityType],
           metadata: {

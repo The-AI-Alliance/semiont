@@ -61,8 +61,8 @@ export function DocumentViewer({
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Handle text selection from SourceView - memoized
-  const handleTextSelection = useCallback((text: string, position: { start: number; end: number }) => {
-    setSelectedText(text);
+  const handleTextSelection = useCallback((exact: string, position: { start: number; end: number }) => {
+    setSelectedText(exact);
     setSelectionPosition(position);
 
     // Get mouse position for popup
@@ -97,7 +97,7 @@ export function DocumentViewer({
         id: annotation.id,
         type: annotation.type
       });
-      setSelectedText(annotation.selector?.text || '');
+      setSelectedText(annotation.selector?.exact || '');
       if (annotation.selector) {
         setSelectionPosition({
           start: annotation.selector.offset,
@@ -123,7 +123,7 @@ export function DocumentViewer({
       ...annotation,  // Include all required fields
       resolvedDocumentName: annotation.referencedDocumentName
     });
-    setSelectedText(annotation.selector?.text || '');
+    setSelectedText(annotation.selector?.exact || '');
     if (annotation.selector) {
       setSelectionPosition({
         start: annotation.selector.offset,
@@ -142,7 +142,7 @@ export function DocumentViewer({
         ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
         resolvedDocumentName: 'Document'
       });
-      setSelectedText(reference.text || '');
+      setSelectedText(reference.exact || '');
       if (reference.selector) {
         setSelectionPosition({
           start: reference.selector.offset,
@@ -472,7 +472,7 @@ export function DocumentViewer({
         onClose={handleClosePopup}
         position={popupPosition}
         selection={selectedText && selectionPosition ? {
-          text: selectedText,
+          exact: selectedText,
           start: selectionPosition.start,
           end: selectionPosition.end
         } : null}
@@ -480,7 +480,7 @@ export function DocumentViewer({
           annotation: {
             id: editingAnnotation.id,
             documentId: editingAnnotation.documentId,
-            text: editingAnnotation.text,
+            exact: editingAnnotation.exact,
             selector: editingAnnotation.selector,
             type: editingAnnotation.type,
             createdBy: editingAnnotation.createdBy,

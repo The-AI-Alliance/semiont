@@ -106,7 +106,7 @@ describe('Layered Storage', () => {
           {
             id: 'hl1',
             documentId: docId,
-            text: 'important',
+            exact: 'important',
             selector: {
               type: 'text_span',
               offset: 0,
@@ -214,7 +214,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           highlightId: 'hl1',
-          text: 'Test highlight',
+          exact: 'Test highlight',
           position: { offset: 0, length: 14 },
         },
       });

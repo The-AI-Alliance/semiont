@@ -4,7 +4,7 @@ import type { VFile } from 'vfile';
 
 interface Annotation {
   id: string;
-  text: string;
+  exact: string;
   offset: number;
   length: number;
   type: 'highlight' | 'reference';

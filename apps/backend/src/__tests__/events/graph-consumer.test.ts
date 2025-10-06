@@ -42,7 +42,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   createAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
-    text: 'test',
+    exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'highlight',
     createdBy: 'user1',
@@ -53,7 +53,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   updateAnnotation: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
-    text: 'test',
+    exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'reference',
     referencedDocumentId: 'doc-456',
@@ -68,7 +68,7 @@ const createMockGraphDB = (): GraphDatabase => ({
   resolveReference: vi.fn().mockResolvedValue({
     id: 'sel-123',
     documentId: 'doc-123',
-    text: 'test',
+    exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'reference',
     referencedDocumentId: 'doc-456',
@@ -331,7 +331,7 @@ describe('GraphDBConsumer', () => {
         version: 1,
         payload: {
           highlightId: 'hl-123',
-          text: 'important text',
+          exact: 'important text',
           position: { offset: 10, length: 14 },
         },
       };
@@ -349,7 +349,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         documentId: 'doc-123',
-        text: 'important text',
+        exact: 'important text',
         selector: {
           type: 'text_span',
           offset: 10,
@@ -402,7 +402,7 @@ describe('GraphDBConsumer', () => {
         version: 1,
         payload: {
           referenceId: 'ref-123',
-          text: 'reference text',
+          exact: 'reference text',
           position: { offset: 20, length: 14 },
           entityTypes: ['Person', 'Organization'],
           referenceType: 'mentions',
@@ -423,7 +423,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         documentId: 'doc-123',
-        text: 'reference text',
+        exact: 'reference text',
         selector: {
           type: 'text_span',
           offset: 20,
@@ -447,7 +447,7 @@ describe('GraphDBConsumer', () => {
         version: 1,
         payload: {
           referenceId: 'ref-456',
-          text: 'stub reference',
+          exact: 'stub reference',
           position: { offset: 30, length: 14 },
         },
       };
@@ -465,7 +465,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.createAnnotation).toHaveBeenCalledWith({
         documentId: 'doc-123',
-        text: 'stub reference',
+        exact: 'stub reference',
         selector: {
           type: 'text_span',
           offset: 30,

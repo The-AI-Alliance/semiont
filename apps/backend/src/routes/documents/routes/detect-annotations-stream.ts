@@ -139,7 +139,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
               documentId: id,
               userId: user.id,
               referenceId,
-              text: detected.selection.selector.text,
+              exact: detected.selection.selector.exact,
               position: {
                 offset: detected.selection.selector.offset,
                 length: detected.selection.selector.length,

@@ -37,7 +37,7 @@ export function StubReferencePopup({
 
     setIsGenerating(true);
     try {
-      onGenerateDocument(selection.text);
+      onGenerateDocument(selection.exact);
     } finally {
       setIsGenerating(false);
     }
@@ -56,7 +56,7 @@ export function StubReferencePopup({
 
   const handleComposeDocument = () => {
     if (selection) {
-      router.push(`/know/compose?title=${encodeURIComponent(selection.text)}`);
+      router.push(`/know/compose?title=${encodeURIComponent(selection.exact)}`);
       onClose();
     }
   };
@@ -80,7 +80,7 @@ export function StubReferencePopup({
       <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
         <PopupHeader title="Stub Reference" onClose={onClose} />
 
-        <SelectedTextDisplay text={selection.text} />
+        <SelectedTextDisplay exact={selection.exact} />
 
         {annotation.entityTypes && annotation.entityTypes.length > 0 && (
           <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
@@ -149,7 +149,7 @@ export function StubReferencePopup({
         isOpen={showSearchModal}
         onClose={() => setShowSearchModal(false)}
         onSelect={handleSelectDocument}
-        searchTerm={selection.text}
+        searchTerm={selection.exact}
       />
     </>
   );

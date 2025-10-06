@@ -42,9 +42,9 @@ export function ResolvedReferencePopup({
 
   const handleCopyLinkText = async () => {
     try {
-      await navigator.clipboard.writeText(selection.text);
+      await navigator.clipboard.writeText(selection.exact);
     } catch (err) {
-      console.error('Failed to copy text:', err);
+      console.error('Failed to copy exact:', err);
     }
   };
 
@@ -72,7 +72,7 @@ export function ResolvedReferencePopup({
     <PopupContainer position={position} onClose={onClose} isOpen={isOpen}>
       <PopupHeader title="Resolved Reference" onClose={onClose} />
 
-      <SelectedTextDisplay text={selection.text} />
+      <SelectedTextDisplay exact={selection.exact} />
 
       {annotation.entityTypes && annotation.entityTypes.length > 0 && (
         <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />

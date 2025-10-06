@@ -93,7 +93,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
     const selection = {
       id: reference.id,
       documentId: body.documentId,
-      text: reference.text,
+      exact: reference.exact,
       position: {
         offset: reference.selector.offset,
         length: reference.selector.length,
@@ -107,7 +107,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
     return streamSSE(c, async (stream) => {
       try {
         // Determine document name early
-        const documentName = body.title || selection.text || 'New Document';
+        const documentName = body.title || selection.exact || 'New Document';
 
         // Send initial started event
         console.log('[SSE] Sending generation-started event');

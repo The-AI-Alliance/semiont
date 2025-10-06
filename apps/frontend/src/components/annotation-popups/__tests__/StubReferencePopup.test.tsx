@@ -43,14 +43,14 @@ describe('StubReferencePopup', () => {
     onClose: mockOnClose,
     position: { x: 100, y: 100 },
     selection: {
-      text: 'Selected text',
+      exact: 'Selected text',
       start: 0,
       end: 13
     } as TextSelection,
     annotation: {
       id: 'test-annotation',
       documentId: 'test-doc',
-      text: 'Selected text',
+      exact: 'Selected text',
       selector: {
         type: 'text_span',
         offset: 0,

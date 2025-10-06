@@ -62,7 +62,7 @@ export interface HighlightAddedEvent extends BaseEvent {
   type: 'highlight.added';
   payload: {
     highlightId: string;
-    text: string;
+    exact: string;  // W3C Web Annotation standard
     position: {
       offset: number;
       length: number;
@@ -82,7 +82,7 @@ export interface ReferenceCreatedEvent extends BaseEvent {
   type: 'reference.created';
   payload: {
     referenceId: string;
-    text: string;
+    exact: string;  // W3C Web Annotation standard
     position: {
       offset: number;
       length: number;

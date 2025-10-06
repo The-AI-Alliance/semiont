@@ -56,7 +56,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       documentId: body.documentId,
       userId: user.id,
       referenceId: selectionId,
-      text: body.text,
+      exact: body.exact,
       position: {
         offset: selector.offset,
         length: selector.length,
@@ -70,7 +70,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
       documentId: body.documentId,
       userId: user.id,
       highlightId: selectionId,
-      text: body.text,
+      exact: body.exact,
       position: {
         offset: selector.offset,
         length: selector.length,
@@ -83,7 +83,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     annotation: {
       id: selectionId,
       documentId: body.documentId,
-      text: body.text,
+      exact: body.exact,
       selector,
       type: body.type,
       referencedDocumentId: body.referencedDocumentId,

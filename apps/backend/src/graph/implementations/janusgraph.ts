@@ -120,7 +120,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return {
       id: this.getPropertyValue(props, 'id'),
       documentId: this.getPropertyValue(props, 'documentId'),
-      text: this.getPropertyValue(props, 'text'),
+      exact: this.getPropertyValue(props, 'text'),
       selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
       type: this.getPropertyValue(props, 'type') as 'highlight' | 'reference',
       createdBy: this.getPropertyValue(props, 'createdBy'),
@@ -265,7 +265,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       id,
       documentId: input.documentId,
-      text: input.text,
+      exact: input.exact,
       selector: input.selector,
       type: input.type,
       createdBy: input.createdBy,
@@ -280,7 +280,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .addV('Annotation')
       .property('id', id)
       .property('documentId', input.documentId)
-      .property('text', input.text)
+      .property('text', input.exact)
       .property('selector', JSON.stringify(input.selector))
       .property('type', input.type)
       .property('createdBy', input.createdBy)
@@ -335,8 +335,8 @@ export class JanusGraphDatabase implements GraphDatabase {
       .has('Annotation', 'id', id);
 
     // Update properties
-    if (updates.text !== undefined) {
-      await traversalQuery.property('text', updates.text).next();
+    if (updates.exact !== undefined) {
+      await traversalQuery.property('text', updates.exact).next();
     }
     if (updates.selector !== undefined) {
       await traversalQuery.property('selector', JSON.stringify(updates.selector)).next();

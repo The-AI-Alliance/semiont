@@ -89,12 +89,12 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const highlightSelections = highlights.map(h => ({
       id: h.id,
       documentId: id,
-      text: h.text,
+      exact: h.exact,
       selector: {
         type: 'text_span',
         offset: h.selector.offset,
         length: h.selector.length,
-        text: h.text
+        exact: h.exact
       },
       type: 'highlight' as const,
       createdAt: h.createdAt, // ISO string from projection
@@ -105,12 +105,12 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const referenceSelections = references.map(r => ({
       id: r.id,
       documentId: id,
-      text: r.text,
+      exact: r.exact,
       selector: {
         type: 'text_span',
         offset: r.selector.offset,
         length: r.selector.length,
-        text: r.text
+        exact: r.exact
       },
       type: 'reference' as const,
       referencedDocumentId: r.referencedDocumentId,

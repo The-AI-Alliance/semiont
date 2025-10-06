@@ -126,7 +126,7 @@ function vertexToAnnotation(vertex: any): Annotation {
   const annotation: Annotation = {
     id,
     documentId,
-    text,
+    exact: text,
     selector: JSON.parse(selectorRaw),
     type,
     createdBy,
@@ -470,7 +470,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       id,
       documentId: input.documentId,
-      text: input.text,
+      exact: input.exact,
       selector: input.selector,
       type: input.type,
       createdBy: input.createdBy,
@@ -485,7 +485,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
         .property('documentId', annotation.documentId)
-        .property('text', annotation.text)
+        .property('text', annotation.exact)
         .property('selector', JSON.stringify(annotation.selector))
         .property('type', annotation.type)
         .property('createdBy', annotation.createdBy)
@@ -550,8 +550,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id);
 
       // Update properties
-      if (updates.text !== undefined) {
-        traversal = traversal.property('text', updates.text);
+      if (updates.exact !== undefined) {
+        traversal = traversal.property('text', updates.exact);
       }
       if (updates.type !== undefined) {
         traversal = traversal.property('type', updates.type);
