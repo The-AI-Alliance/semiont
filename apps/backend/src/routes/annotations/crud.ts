@@ -8,6 +8,7 @@ import {
   CreateAnnotationResponseSchema,
   ResolveSelectionRequestSchema,
   ResolveSelectionResponseSchema,
+  DeleteAnnotationRequestSchema,
 } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -299,9 +300,7 @@ const deleteAnnotationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: z.object({
-            documentId: z.string().describe('Document ID containing the annotation'),
-          }),
+          schema: DeleteAnnotationRequestSchema,
         },
       },
     },

@@ -152,8 +152,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Highlight not found');
       }
 
-      // Delete old highlight
-      await deleteAnnotationMutation.mutateAsync({ id: highlightId });
+      // Delete old highlight (documentId required for Layer 3 lookup)
+      await deleteAnnotationMutation.mutateAsync({
+        id: highlightId,
+        documentId: highlight.documentId
+      });
 
       // Create new reference with same position
       await addReference(
@@ -178,8 +181,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Reference not found');
       }
 
-      // Delete old reference
-      await deleteAnnotationMutation.mutateAsync({ id: referenceId });
+      // Delete old reference (documentId required for Layer 3 lookup)
+      await deleteAnnotationMutation.mutateAsync({
+        id: referenceId,
+        documentId: reference.documentId
+      });
 
       // Create new highlight with same position
       await addHighlight(
