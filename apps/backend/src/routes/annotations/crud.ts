@@ -1,8 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { formatDocument, formatAnnotation } from './helpers';
-import { getGraphDatabase } from '../../graph/factory';
+import { formatAnnotation } from './helpers';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import {
   CreateAnnotationRequestSchema,
@@ -12,17 +11,18 @@ import {
 } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
+import { DocumentQueryService } from '../../services/document-queries';
 
 // Create router with auth middleware
 export const crudRouter: AnnotationsRouterType = createAnnotationRouter();
 
 // CREATE
-const createSelectionRoute = createRoute({
+const createAnnotationRoute = createRoute({
   method: 'post',
   path: '/api/annotations',
-  summary: 'Create Selection',
-  description: 'Create a new selection/reference in a document',
-  tags: ['Selections'],
+  summary: 'Create Annotation',
+  description: 'Create a new annotation/reference in a document',
+  tags: ['Annotations'],
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -40,11 +40,11 @@ const createSelectionRoute = createRoute({
           schema: CreateAnnotationResponseSchema,
         },
       },
-      description: 'Selection created successfully',
+      description: 'Annotation created successfully',
     },
   },
 });
-crudRouter.openapi(createSelectionRoute, async (c) => {
+crudRouter.openapi(createAnnotationRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
 
@@ -52,7 +52,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   const selector = body.selector;
 
   // Generate ID - backend-internal, not graph-dependent
-  const selectionId = generateAnnotationId();
+  const annotationId = generateAnnotationId();
   const isReference = body.referencedDocumentId !== undefined;
 
   // Emit event first (single source of truth)
@@ -60,7 +60,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     await emitReferenceCreated({
       documentId: body.documentId,
       userId: user.id,
-      referenceId: selectionId,
+      referenceId: annotationId,
       exact: body.exact,
       position: {
         offset: selector.offset,
@@ -74,7 +74,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
     await emitHighlightAdded({
       documentId: body.documentId,
       userId: user.id,
-      highlightId: selectionId,
+      highlightId: annotationId,
       exact: body.exact,
       position: {
         offset: selector.offset,
@@ -86,7 +86,7 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
   // Return optimistic response (consumer will update GraphDB async)
   return c.json({
     annotation: {
-      id: selectionId,
+      id: annotationId,
       documentId: body.documentId,
       exact: body.exact,
       selector,
@@ -101,122 +101,19 @@ crudRouter.openapi(createSelectionRoute, async (c) => {
 });
 
 // Local schema for GET
-const GetSelectionResponse = z.object({
+const GetAnnotationResponse = z.object({
   annotation: z.any(),
   document: z.any().nullable(),
   resolvedDocument: z.any().nullable(),
 });
 
-// GET
-const getSelectionRoute = createRoute({
-  method: 'get',
-  path: '/api/annotations/{id}',
-  summary: 'Get Selection',
-  description: 'Get a selection by ID',
-  tags: ['Selections'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: z.object({
-      id: z.string(),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: GetSelectionResponse,
-        },
-      },
-      description: 'Selection retrieved successfully',
-    },
-  },
-});
-crudRouter.openapi(getSelectionRoute, async (c) => {
-  const { id } = c.req.valid('param');
-  const graphDb = await getGraphDatabase();
-
-  const selection = await graphDb.getAnnotation(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
-  }
-
-  const document = await graphDb.getDocument(selection.documentId);
-  const resolvedDocument = selection.referencedDocumentId ?
-    await graphDb.getDocument(selection.referencedDocumentId) : null;
-
-  return c.json({
-    annotation: formatAnnotation(selection),
-    document: document ? formatDocument(document) : null,
-    resolvedDocument: resolvedDocument ? formatDocument(resolvedDocument) : null,
-  });
-});
-
-// Local schema for LIST
-const ListSelectionsResponse = z.object({
-  annotations: z.array(z.any()),
-  total: z.number(),
-  offset: z.number(),
-  limit: z.number(),
-});
-
-// LIST
-const listSelectionsRoute = createRoute({
-  method: 'get',
-  path: '/api/annotations',
-  summary: 'List Selections',
-  description: 'List all selections with filters',
-  tags: ['Selections'],
-  security: [{ bearerAuth: [] }],
-  request: {
-    query: z.object({
-      documentId: z.string().optional(),
-      referencedDocumentId: z.string().optional(),
-      entityType: z.string().optional(),
-      offset: z.coerce.number().default(0),
-      limit: z.coerce.number().default(50),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: ListSelectionsResponse,
-        },
-      },
-      description: 'Selections listed successfully',
-    },
-  },
-});
-crudRouter.openapi(listSelectionsRoute, async (c) => {
-  const query = c.req.valid('query');
-  const graphDb = await getGraphDatabase();
-
-  const filters: any = {};
-  if (query.documentId) filters.documentId = query.documentId;
-  if (query.referencedDocumentId) filters.referencedDocumentId = query.referencedDocumentId;
-  if (query.entityType) filters.entityType = query.entityType;
-
-  const result = await graphDb.listAnnotations({
-    ...filters,
-    offset: query.offset,
-    limit: query.limit,
-  });
-
-  return c.json({
-    annotations: result.annotations.map(formatAnnotation),
-    total: result.total,
-    offset: query.offset,
-    limit: query.limit,
-  });
-});
-
-// RESOLVE
-const resolveSelectionRoute = createRoute({
+// RESOLVE - Must come BEFORE GET to avoid {id} matching "/resolve"
+const resolveAnnotationRoute = createRoute({
   method: 'put',
   path: '/api/annotations/{id}/resolve',
-  summary: 'Resolve Selection',
-  description: 'Resolve a reference selection to a target document',
-  tags: ['Selections'],
+  summary: 'Resolve Annotation',
+  description: 'Resolve a reference annotation to a target document',
+  tags: ['Annotations'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -237,49 +134,163 @@ const resolveSelectionRoute = createRoute({
           schema: ResolveSelectionResponseSchema,
         },
       },
-      description: 'Selection resolved successfully',
+      description: 'Annotation resolved successfully',
     },
   },
 });
-crudRouter.openapi(resolveSelectionRoute, async (c) => {
+crudRouter.openapi(resolveAnnotationRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user');
-  const graphDb = await getGraphDatabase();
 
-  const selection = await graphDb.getAnnotation(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
+  console.log(`[RESOLVE HANDLER] Called for annotation ${id}, body:`, body);
+
+  // Get selection from Layer 3 (event store projection)
+  const annotation = await AnnotationQueryService.getSelection(id);
+  console.log(`[RESOLVE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
+
+  if (!annotation) {
+    console.log(`[RESOLVE HANDLER] Throwing 404 - annotation ${id} not found in Layer 3`);
+    throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
-  // Emit reference.resolved event (consumer will update GraphDB)
+  // Emit reference.resolved event to Layer 2 (consumer will update Layer 3 projection)
   await emitReferenceResolved({
-    documentId: selection.documentId,
+    documentId: annotation.documentId,
     userId: user.id,
     referenceId: id,
     targetDocumentId: body.documentId,
-    referenceType: selection.referenceType,
+    referenceType: annotation.referenceType,
   });
 
-  const targetDocument = await graphDb.getDocument(body.documentId);
+  // Get target document from Layer 3
+  const targetDocument = await DocumentQueryService.getDocumentMetadata(body.documentId);
 
   // Return optimistic response
   return c.json({
     annotation: formatAnnotation({
-      ...selection,
+      ...annotation,
       referencedDocumentId: body.documentId,
     }),
-    targetDocument: targetDocument ? formatDocument(targetDocument) : null,
+    targetDocument,
+  });
+});
+
+// GET
+const getAnnotationRoute = createRoute({
+  method: 'get',
+  path: '/api/annotations/{id}',
+  summary: 'Get Annotation',
+  description: 'Get an annotation by ID (requires documentId query param for O(1) Layer 3 lookup)',
+  tags: ['Annotations'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string(),
+    }),
+    query: z.object({
+      documentId: z.string().describe('Document ID containing the annotation'),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: GetAnnotationResponse,
+        },
+      },
+      description: 'Annotation retrieved successfully',
+    },
+  },
+});
+crudRouter.openapi(getAnnotationRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const { documentId } = c.req.valid('query');
+
+  // O(1) lookup in Layer 3 using document ID
+  const projection = await AnnotationQueryService.getDocumentAnnotations(documentId);
+
+  // Find the annotation in this document's annotations
+  const annotation = projection.highlights.find((h) => h.id === id) ||
+                    projection.references.find((r) => r.id === id);
+
+  if (!annotation) {
+    throw new HTTPException(404, { message: 'Annotation not found in document' });
+  }
+
+  // Get document metadata from Layer 3
+  const document = await DocumentQueryService.getDocumentMetadata(documentId);
+  const resolvedDocument = annotation.referencedDocumentId ?
+    await DocumentQueryService.getDocumentMetadata(annotation.referencedDocumentId) : null;
+
+  return c.json({
+    annotation: formatAnnotation(annotation),
+    document,
+    resolvedDocument,
+  });
+});
+
+// Local schema for LIST
+const ListAnnotationsResponse = z.object({
+  annotations: z.array(z.any()),
+  total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
+});
+
+// LIST
+const listAnnotationsRoute = createRoute({
+  method: 'get',
+  path: '/api/annotations',
+  summary: 'List Annotations',
+  description: 'List all annotations for a document (requires documentId for O(1) Layer 3 lookup)',
+  tags: ['Annotations'],
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      documentId: z.string().describe('Document ID to list annotations for'),
+      offset: z.coerce.number().default(0),
+      limit: z.coerce.number().default(50),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: ListAnnotationsResponse,
+        },
+      },
+      description: 'Annotations listed successfully',
+    },
+  },
+});
+crudRouter.openapi(listAnnotationsRoute, async (c) => {
+  const query = c.req.valid('query');
+
+  // O(1) lookup in Layer 3 using document ID
+  const projection = await AnnotationQueryService.getDocumentAnnotations(query.documentId);
+
+  // Combine highlights and references
+  const allAnnotations = [...projection.highlights, ...projection.references];
+
+  // Apply pagination
+  const paginatedAnnotations = allAnnotations.slice(query.offset, query.offset + query.limit);
+
+  return c.json({
+    annotations: paginatedAnnotations.map(formatAnnotation),
+    total: allAnnotations.length,
+    offset: query.offset,
+    limit: query.limit,
   });
 });
 
 // DELETE
-const deleteSelectionRoute = createRoute({
+const deleteAnnotationRoute = createRoute({
   method: 'delete',
   path: '/api/annotations/{id}',
-  summary: 'Delete Selection',
-  description: 'Delete a selection (requires documentId in body for O(1) Layer 3 lookup)',
-  tags: ['Selections'],
+  summary: 'Delete Annotation',
+  description: 'Delete an annotation (requires documentId in body for O(1) Layer 3 lookup)',
+  tags: ['Annotations'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -289,7 +300,7 @@ const deleteSelectionRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            documentId: z.string().describe('Document ID containing the selection'),
+            documentId: z.string().describe('Document ID containing the annotation'),
           }),
         },
       },
@@ -297,14 +308,14 @@ const deleteSelectionRoute = createRoute({
   },
   responses: {
     204: {
-      description: 'Selection deleted successfully',
+      description: 'Annotation deleted successfully',
     },
     404: {
-      description: 'Selection not found',
+      description: 'Annotation not found',
     },
   },
 });
-crudRouter.openapi(deleteSelectionRoute, async (c) => {
+crudRouter.openapi(deleteAnnotationRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user');
@@ -312,13 +323,13 @@ crudRouter.openapi(deleteSelectionRoute, async (c) => {
   // O(1) lookup in Layer 3 using document ID
   const projection = await AnnotationQueryService.getDocumentAnnotations(body.documentId);
 
-  // Find the selection in this document's annotations
+  // Find the annotation in this document's annotations
   const highlight = projection.highlights.find((h: any) => h.id === id);
   const reference = projection.references.find((r: any) => r.id === id);
-  const selection = highlight || reference;
+  const annotation = highlight || reference;
 
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found in document' });
+  if (!annotation) {
+    throw new HTTPException(404, { message: 'Annotation not found in document' });
   }
 
   // Emit event first (consumer will delete from GraphDB and update Layer 3)

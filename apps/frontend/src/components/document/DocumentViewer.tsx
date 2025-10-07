@@ -9,6 +9,7 @@ import type { Annotation } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 
 interface Props {
   document: SemiontDocument & { content: string };
@@ -51,6 +52,9 @@ export function DocumentViewer({
     convertHighlightToReference,
     convertReferenceToHighlight
   } = useDocumentAnnotations();
+
+  // API mutations
+  const resolveReferenceMutation = api.annotations.resolve.useMutation();
 
   // Selection popup state
   const [selectedText, setSelectedText] = useState<string>('');
@@ -496,6 +500,12 @@ export function DocumentViewer({
               // Unlink document
               await deleteAnnotation(editingAnnotation.id, document.id);
               await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityTypes?.[0], editingAnnotation.referenceType);
+            } else if (updates.referencedDocumentId) {
+              // Resolve reference to a document (old-fashioned resolution via search)
+              await resolveReferenceMutation.mutateAsync({
+                id: editingAnnotation.id,
+                documentId: updates.referencedDocumentId
+              });
             }
             setShowSelectionPopup(false);
             setEditingAnnotation(null);

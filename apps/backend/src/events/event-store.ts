@@ -302,6 +302,7 @@ export class EventStore {
       id: documentId,
       name: '',
       contentType: 'text/markdown',
+      contentChecksum: documentId.replace('doc-sha256:', ''),
       metadata: {},
       entityTypes: [],
       highlights: [],
@@ -310,7 +311,7 @@ export class EventStore {
       createdAt: '',
       updatedAt: '',
       version: 0,
-      creationMethod: 'UNKNOWN',
+      creationMethod: 'api',
       createdBy: '',
     };
 
@@ -337,7 +338,7 @@ export class EventStore {
         projection.entityTypes = event.payload.entityTypes || [];
         projection.metadata = event.payload.metadata || {};
         projection.createdAt = event.timestamp;
-        projection.creationMethod = 'API';
+        projection.creationMethod = 'api';
         projection.createdBy = event.userId;
         // Note: content is NOT in events - must be loaded from filesystem separately
         break;
@@ -348,7 +349,7 @@ export class EventStore {
         projection.entityTypes = event.payload.entityTypes || [];
         projection.metadata = event.payload.metadata || {};
         projection.createdAt = event.timestamp;
-        projection.creationMethod = 'CLONE';
+        projection.creationMethod = 'clone';
         projection.sourceDocumentId = event.payload.parentDocumentId;
         projection.createdBy = event.userId;
         // Note: content is NOT in events - must be loaded from filesystem separately

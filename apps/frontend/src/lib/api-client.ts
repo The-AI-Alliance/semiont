@@ -609,6 +609,7 @@ const annotations = {
           if (response.annotation?.documentId) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.annotation.documentId) });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.documentId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(response.annotation.documentId) });
           }
           if (response.targetDocument?.id) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(response.targetDocument.id) });
