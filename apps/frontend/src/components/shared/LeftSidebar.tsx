@@ -51,7 +51,9 @@ export function LeftSidebar({
           className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
           aria-label="Navigation menu"
           aria-expanded={isOpen}
+          aria-controls="sidebar-nav-dropdown"
           aria-haspopup="true"
+          id="sidebar-nav-button"
         >
           {isCollapsed ? (
             // Collapsed: Just show "S" with gradient
@@ -74,9 +76,11 @@ export function LeftSidebar({
         {/* Dropdown Menu */}
         {isOpen && isAuthenticated && (
           <div
+            id="sidebar-nav-dropdown"
             className="absolute left-4 top-20 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
             role="menu"
             aria-orientation="vertical"
+            aria-labelledby="sidebar-nav-button"
           >
             <div className="p-3">
               <Link
