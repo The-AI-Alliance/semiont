@@ -310,14 +310,12 @@ function DocumentView({
     onProgress: (progress) => {
       // When an entity type completes, refetch to show new references immediately
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      console.log('[DocumentPage] Detection progress - refetching annotations', progress);
       refetchReferences();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Final refetch + invalidation when ALL entity types complete
-      console.log('[DocumentPage] Detection complete - final refetch');
       refetchHighlights();
       refetchReferences();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
@@ -368,18 +366,15 @@ function DocumentView({
 
     // Highlight events - use debounced invalidation to batch rapid updates
     onHighlightAdded: useCallback((event) => {
-      console.log('[RealTime] Highlight added:', event.payload);
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
     onHighlightRemoved: useCallback((event) => {
-      console.log('[RealTime] Highlight removed:', event.payload);
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
     // Reference events - use debounced invalidation to batch rapid updates
     onReferenceCreated: useCallback((event) => {
-      console.log('[RealTime] Reference created:', event.payload);
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
