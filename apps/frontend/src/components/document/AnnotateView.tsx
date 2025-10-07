@@ -128,7 +128,7 @@ export function AnnotateView({
   // Combine annotations
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
-  
+
   // Handle text selection with sparkle
   useEffect(() => {
     if (!onTextSelect) return;
