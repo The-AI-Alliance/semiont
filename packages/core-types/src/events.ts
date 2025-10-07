@@ -12,6 +12,7 @@
  */
 
 import type { Annotation } from './api-contracts';
+import type { CreationMethod } from './creation-methods';
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -195,6 +196,7 @@ export interface DocumentProjection {
   id: string;
   name: string;
   contentType: string;
+  contentChecksum: string;  // SHA-256 checksum of content (extracted from doc ID)
   metadata: Record<string, any>;
   entityTypes: string[];
   highlights: Annotation[];  // Full Annotation objects (single source of truth)
@@ -203,7 +205,7 @@ export interface DocumentProjection {
   createdAt: string;
   updatedAt: string;
   version: number;  // Number of events applied
-  creationMethod: string;  // 'API', 'CLONE', 'FROM_SELECTION', etc.
+  creationMethod: CreationMethod;
   sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;  // userId (DID format)

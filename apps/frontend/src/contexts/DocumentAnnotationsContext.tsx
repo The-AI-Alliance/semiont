@@ -86,13 +86,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
           offset: position.start,
           length: position.end - position.start,
         },
-        type: (targetDocId !== undefined || referenceType || entityType) ? 'reference' : 'highlight',
+        type: 'reference', // Always create a reference when this function is called
+        referencedDocumentId: targetDocId !== undefined ? (targetDocId || null) : null, // Backend uses this to detect references
       };
 
-      // For references (both stub and resolved)
-      if (targetDocId !== undefined) {
-        createData.referencedDocumentId = targetDocId || null;
-      }
+      // Remove referencedDocumentId from explicit check since it's always set above
 
       if (entityType) {
         createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
@@ -152,8 +150,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Highlight not found');
       }
 
-      // Delete old highlight
-      await deleteAnnotationMutation.mutateAsync({ id: highlightId });
+      // Delete old highlight (documentId required for Layer 3 lookup)
+      await deleteAnnotationMutation.mutateAsync({
+        id: highlightId,
+        documentId: highlight.documentId
+      });
 
       // Create new reference with same position
       await addReference(
@@ -178,8 +179,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
         throw new Error('Reference not found');
       }
 
-      // Delete old reference
-      await deleteAnnotationMutation.mutateAsync({ id: referenceId });
+      // Delete old reference (documentId required for Layer 3 lookup)
+      await deleteAnnotationMutation.mutateAsync({
+        id: referenceId,
+        documentId: reference.documentId
+      });
 
       // Create new highlight with same position
       await addHighlight(

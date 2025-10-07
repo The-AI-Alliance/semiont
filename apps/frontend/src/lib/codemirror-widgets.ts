@@ -27,6 +27,7 @@ export class ReferenceResolutionWidget extends WidgetType {
 
   override eq(other: ReferenceResolutionWidget) {
     return other.annotation.id === this.annotation.id &&
+           other.annotation.referencedDocumentId === this.annotation.referencedDocumentId &&
            other.targetDocumentName === this.targetDocumentName &&
            other.isGenerating === this.isGenerating;
   }

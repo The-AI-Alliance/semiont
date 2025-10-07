@@ -31,7 +31,9 @@ export function UnifiedHeader({
           className="w-full hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
           aria-label="Navigation menu"
           aria-expanded={isOpen}
+          aria-controls="nav-menu-dropdown-1"
           aria-haspopup="true"
+          id="nav-menu-button-1"
         >
           <SemiontBranding
             size="sm"
@@ -45,9 +47,11 @@ export function UnifiedHeader({
         {/* Dropdown Menu */}
         {isOpen && isAuthenticated && (
           <div
+            id="nav-menu-dropdown-1"
             className="absolute left-4 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
             role="menu"
             aria-orientation="vertical"
+            aria-labelledby="nav-menu-button-1"
           >
             <div className="p-3">
               <Link
@@ -115,7 +119,9 @@ export function UnifiedHeader({
             className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
             aria-label="Navigation menu"
             aria-expanded={isOpen}
+            aria-controls="nav-menu-dropdown-2"
             aria-haspopup="true"
+            id="nav-menu-button-2"
           >
             <SemiontBranding
               size="sm"
@@ -129,9 +135,11 @@ export function UnifiedHeader({
           {/* Dropdown Menu */}
           {isOpen && isAuthenticated && (
             <div
+              id="nav-menu-dropdown-2"
               className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
               role="menu"
               aria-orientation="vertical"
+              aria-labelledby="nav-menu-button-2"
             >
               <div className="p-3">
                 <Link

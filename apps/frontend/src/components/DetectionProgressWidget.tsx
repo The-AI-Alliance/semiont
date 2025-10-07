@@ -11,12 +11,6 @@ interface DetectionProgressWidgetProps {
 export function DetectionProgressWidget({ progress, onCancel }: DetectionProgressWidgetProps) {
   if (!progress) return null;
 
-  console.log('[DetectionProgressWidget] Rendering with:', {
-    completedEntityTypes: progress.completedEntityTypes,
-    currentEntityType: progress.currentEntityType,
-    status: progress.status
-  });
-
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-2 border-blue-500 dark:border-blue-600">
       {/* Header with pulsing sparkle */}

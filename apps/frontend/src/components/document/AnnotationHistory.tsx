@@ -39,7 +39,12 @@ export function AnnotationHistory({ documentId, hoveredAnnotationId, onEventHove
   // Scroll to bottom when History is first shown or when events change
   useEffect(() => {
     if (containerRef.current && events.length > 0) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      // Use requestAnimationFrame to ensure DOM has updated before scrolling
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      });
     }
   }, [events.length]); // Only trigger when number of events changes
 

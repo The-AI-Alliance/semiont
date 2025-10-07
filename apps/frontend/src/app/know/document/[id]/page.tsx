@@ -145,15 +145,6 @@ function DocumentView({
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
   );
-
-  // Debug logging
-  useEffect(() => {
-    console.log('[DocumentPage] References data updated:', {
-      count: references.length,
-      references: references.map((r: { id: string; exact: string }) => ({ id: r.id, exact: r.exact }))
-    });
-  }, [references]);
-
   const { data: referencedByData, isLoading: referencedByLoading } = api.documents.referencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
 
@@ -319,14 +310,12 @@ function DocumentView({
     onProgress: (progress) => {
       // When an entity type completes, refetch to show new references immediately
       // Use both refetch (for immediate document view update) AND invalidate (for Annotation History)
-      console.log('[DocumentPage] Detection progress - refetching annotations', progress);
       refetchReferences();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
     },
     onComplete: (progress) => {
       // Don't show toast - the widget already shows completion status
       // Final refetch + invalidation when ALL entity types complete
-      console.log('[DocumentPage] Detection complete - final refetch');
       refetchHighlights();
       refetchReferences();
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
@@ -377,28 +366,24 @@ function DocumentView({
 
     // Highlight events - use debounced invalidation to batch rapid updates
     onHighlightAdded: useCallback((event) => {
-      console.log('[RealTime] Highlight added:', event.payload);
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
     onHighlightRemoved: useCallback((event) => {
-      console.log('[RealTime] Highlight removed:', event.payload);
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
     // Reference events - use debounced invalidation to batch rapid updates
     onReferenceCreated: useCallback((event) => {
-      console.log('[RealTime] Reference created:', event.payload);
       debouncedInvalidateAnnotations();
     }, [debouncedInvalidateAnnotations]),
 
     onReferenceResolved: useCallback((event) => {
-      console.log('[RealTime] Reference resolved:', event.payload);
       // Immediately refetch references to update UI (don't debounce for this critical update)
       refetchReferences();
-      // Also invalidate for other consumers
-      debouncedInvalidateAnnotations();
-    }, [refetchReferences, debouncedInvalidateAnnotations]),
+      // Immediately invalidate events to update History Panel (don't debounce this either)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
+    }, [refetchReferences, queryClient, documentId]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);

@@ -83,7 +83,8 @@ describe('Layered Storage', () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: 1,
-        creationMethod: 'API',
+        contentChecksum: "test-checksum",
+        creationMethod: 'api',
         createdBy: 'did:web:test.com:users:test',
       };
 
@@ -123,7 +124,8 @@ describe('Layered Storage', () => {
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:00:00Z',
         version: 2,
-        creationMethod: 'API',
+        contentChecksum: "test-checksum",
+        creationMethod: 'api',
         createdBy: 'did:web:test.com:users:test',
       };
 
@@ -152,7 +154,8 @@ describe('Layered Storage', () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: 1,
-        creationMethod: 'API',
+        contentChecksum: "test-checksum",
+        creationMethod: 'api',
         createdBy: 'did:web:test.com:users:test',
       };
 

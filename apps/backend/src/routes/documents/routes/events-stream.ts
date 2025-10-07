@@ -45,16 +45,22 @@ export function registerGetEventStream(router: DocumentsRouterType) {
   router.openapi(getEventStreamRoute, async (c) => {
     const { id } = c.req.valid('param');
 
+    console.log(`[EventStream] Client connecting to document events stream for ${id}`);
+
     // Verify document exists in event store (Layer 2 - source of truth)
     const eventStore = await getEventStore();
     const events = await eventStore.getDocumentEvents(id);
     if (events.length === 0) {
+      console.log(`[EventStream] Document ${id} not found - no events exist`);
       throw new HTTPException(404, { message: 'Document not found - no events exist for this document' });
     }
+
+    console.log(`[EventStream] Document ${id} exists with ${events.length} events`);
 
     return streamSSE(c, async (stream) => {
 
       // Send initial connection message
+      console.log(`[EventStream] Sending connection message to client for ${id}`);
       await stream.writeSSE({
         data: JSON.stringify({
           type: 'connected',
@@ -98,28 +104,40 @@ export function registerGetEventStream(router: DocumentsRouterType) {
       };
 
       // Subscribe to events for this document
+      const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
+      console.log(`[EventStream:${streamId}] Subscribing to events for document ${id}`);
       subscription = eventStore.subscribe(id, async (storedEvent) => {
-        if (isStreamClosed) return;
+        if (isStreamClosed) {
+          console.log(`[EventStream:${streamId}] Stream already closed for ${id}, ignoring event ${storedEvent.event.type}`);
+          return;
+        }
+
+        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for document ${id}, attempting to write to SSE stream`);
 
         try {
+          const eventData = {
+            id: storedEvent.event.id,
+            type: storedEvent.event.type,
+            timestamp: storedEvent.event.timestamp,
+            userId: storedEvent.event.userId,
+            documentId: storedEvent.event.documentId,
+            payload: storedEvent.event.payload,
+            metadata: {
+              sequenceNumber: storedEvent.metadata.sequenceNumber,
+              prevEventHash: storedEvent.metadata.prevEventHash,
+              checksum: storedEvent.metadata.checksum,
+            },
+          };
+
+          console.log(`[EventStream:${streamId}] Event data prepared, calling writeSSE...`);
           await stream.writeSSE({
-            data: JSON.stringify({
-              id: storedEvent.event.id,
-              type: storedEvent.event.type,
-              timestamp: storedEvent.event.timestamp,
-              userId: storedEvent.event.userId,
-              documentId: storedEvent.event.documentId,
-              payload: storedEvent.event.payload,
-              metadata: {
-                sequenceNumber: storedEvent.metadata.sequenceNumber,
-                prevEventHash: storedEvent.metadata.prevEventHash,
-                checksum: storedEvent.metadata.checksum,
-              },
-            }),
+            data: JSON.stringify(eventData),
             event: storedEvent.event.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
+          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${id}`);
         } catch (error) {
+          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${id}:`, error);
           cleanup();
         }
       });
@@ -144,6 +162,7 @@ export function registerGetEventStream(router: DocumentsRouterType) {
 
       // Cleanup on disconnect
       c.req.raw.signal.addEventListener('abort', () => {
+        console.log(`[EventStream] Client disconnected from document events stream for ${id}`);
         cleanup();
       });
 

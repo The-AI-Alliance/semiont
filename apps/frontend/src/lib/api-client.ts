@@ -14,6 +14,7 @@ import type {
   CreateAnnotationResponse,
   GetHighlightsResponse,
   GetReferencesResponse,
+  DeleteAnnotationRequest,
   DeleteAnnotationResponse,
   GenerateDocumentFromSelectionRequest,
   GenerateDocumentFromSelectionResponse,
@@ -96,6 +97,11 @@ async function fetchAPI<T>(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new APIError(response.status, errorData, errorData.message);
+  }
+
+  // Handle 204 No Content responses
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return {} as T;
   }
 
   return response.json();
@@ -555,16 +561,17 @@ const annotations = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, documentId }: { id: string; documentId?: string }) =>
-          fetchAPI<DeleteAnnotationResponse>(`/api/annotations/${id}`, {
+        mutationFn: ({ id, documentId }: { id: string } & DeleteAnnotationRequest) => {
+          const body: DeleteAnnotationRequest = { documentId };
+          return fetchAPI<DeleteAnnotationResponse>(`/api/annotations/${id}`, {
             method: 'DELETE',
-          }, session?.backendToken),
+            body: JSON.stringify(body),
+          }, session?.backendToken);
+        },
         onSuccess: (_, variables) => {
-          if (variables.documentId) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.documentId) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(variables.documentId) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(variables.documentId) });
-          }
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.documentId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(variables.documentId) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(variables.documentId) });
         },
       });
     },
@@ -609,6 +616,7 @@ const annotations = {
           if (response.annotation?.documentId) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.annotation.documentId) });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.documentId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(response.annotation.documentId) });
           }
           if (response.targetDocument?.id) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(response.targetDocument.id) });

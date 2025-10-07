@@ -9,6 +9,7 @@ import type { Annotation } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 
 interface Props {
   document: SemiontDocument & { content: string };
@@ -52,6 +53,9 @@ export function DocumentViewer({
     convertReferenceToHighlight
   } = useDocumentAnnotations();
 
+  // API mutations
+  const resolveReferenceMutation = api.annotations.resolve.useMutation();
+
   // Selection popup state
   const [selectedText, setSelectedText] = useState<string>('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
@@ -79,8 +83,6 @@ export function DocumentViewer({
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
-    console.log('[DocumentViewer] Annotation clicked:', annotation);
-
     // If it's a resolved reference, navigate to it (in both curation and browse mode)
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${encodeURIComponent(annotation.referencedDocumentId)}`);
@@ -92,10 +94,6 @@ export function DocumentViewer({
       setEditingAnnotation({
         ...annotation,  // Include all required fields (documentId, text, selector, entityTypes, etc.)
         resolvedDocumentName: annotation.referencedDocumentName
-      });
-      console.log('[DocumentViewer] editingAnnotation set to:', {
-        id: annotation.id,
-        type: annotation.type
       });
       setSelectedText(annotation.exact);
       if (annotation.selector) {
@@ -496,12 +494,22 @@ export function DocumentViewer({
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
             // Handle updates to existing annotation
-            if (updates.type === 'highlight') {
+            if (updates.type === 'reference') {
+              // Convert highlight to reference
+              await convertHighlightToReference(highlights, editingAnnotation.id);
+            } else if (updates.type === 'highlight') {
+              // Convert reference to highlight
               await convertReferenceToHighlight(references, editingAnnotation.id);
             } else if (updates.referencedDocumentId === null) {
               // Unlink document
               await deleteAnnotation(editingAnnotation.id, document.id);
               await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.entityTypes?.[0], editingAnnotation.referenceType);
+            } else if (updates.referencedDocumentId) {
+              // Resolve reference to a document (old-fashioned resolution via search)
+              await resolveReferenceMutation.mutateAsync({
+                id: editingAnnotation.id,
+                documentId: updates.referencedDocumentId
+              });
             }
             setShowSelectionPopup(false);
             setEditingAnnotation(null);

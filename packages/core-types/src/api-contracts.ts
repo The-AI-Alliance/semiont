@@ -250,6 +250,15 @@ export const ListDocumentsResponseSchema = z.object({
 export type ListDocumentsResponse = z.infer<typeof ListDocumentsResponseSchema>;
 
 /**
+ * Delete Annotation Request
+ */
+export const DeleteAnnotationRequestSchema = z.object({
+  documentId: z.string().describe('Document ID containing the annotation (required for O(1) Layer 3 lookup)'),
+});
+
+export type DeleteAnnotationRequest = z.infer<typeof DeleteAnnotationRequestSchema>;
+
+/**
  * Delete Annotation Response
  */
 export const DeleteAnnotationResponseSchema = z.object({

@@ -8,18 +8,19 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getFilesystemConfig } from '../config/environment-loader';
-import type { DocumentProjection } from '@semiont/core-types';
+import type { DocumentProjection, CreationMethod } from '@semiont/core-types';
 
 export interface DocumentMetadata {
   id: string;
   name: string;
   contentType: string;
+  contentChecksum: string;
   metadata: Record<string, any>;
   entityTypes: string[];
   archived: boolean;
   createdAt: string;
   updatedAt: string;
-  creationMethod: string;
+  creationMethod: CreationMethod;
   sourceAnnotationId?: string;
   sourceDocumentId?: string;
   createdBy: string;
@@ -50,6 +51,7 @@ export class DocumentQueryService {
         id: projection.id,
         name: projection.name,
         contentType: projection.contentType,
+        contentChecksum: projection.contentChecksum,
         metadata: projection.metadata,
         entityTypes: projection.entityTypes,
         archived: projection.archived,
@@ -119,6 +121,7 @@ export class DocumentQueryService {
               id: projection.id,
               name: projection.name,
               contentType: projection.contentType,
+              contentChecksum: projection.contentChecksum,
               metadata: projection.metadata,
               entityTypes: projection.entityTypes,
               archived: projection.archived,
