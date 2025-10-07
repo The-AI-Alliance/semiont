@@ -626,13 +626,17 @@ export class EventStore {
     const callbacks = this.subscriptions.get(documentId)!;
     callbacks.add(callback);
 
+    console.log(`[EventStore] Subscription added for document ${documentId} (total: ${callbacks.size} subscribers)`);
+
     return {
       documentId,
       callback,
       unsubscribe: () => {
         callbacks.delete(callback);
+        console.log(`[EventStore] Subscription removed for document ${documentId} (remaining: ${callbacks.size} subscribers)`);
         if (callbacks.size === 0) {
           this.subscriptions.delete(documentId);
+          console.log(`[EventStore] No more subscribers for document ${documentId}, removed from subscriptions map`);
         }
       }
     };
@@ -644,20 +648,24 @@ export class EventStore {
   private async notifySubscribers(documentId: string, event: StoredEvent): Promise<void> {
     const callbacks = this.subscriptions.get(documentId);
     if (!callbacks || callbacks.size === 0) {
+      console.log(`[EventStore] Event ${event.event.type} for document ${documentId} - no subscribers to notify`);
       return;
     }
 
-    // Call all callbacks in parallel
-    await Promise.all(
-      Array.from(callbacks).map(async (callback) => {
-        try {
-          await callback(event);
-        } catch (error) {
-          console.error(`Error in event subscriber for document ${documentId}:`, error);
-          // Don't throw - keep notifying other subscribers
-        }
-      })
-    );
+    console.log(`[EventStore] Notifying ${callbacks.size} subscriber(s) of event ${event.event.type} for document ${documentId}`);
+
+    // Call all callbacks without waiting - fire and forget
+    // Each callback handles its own errors and cleanup
+    // This prevents slow/hanging callbacks from blocking event emission
+    Array.from(callbacks).forEach((callback, index) => {
+      Promise.resolve(callback(event))
+        .then(() => {
+          console.log(`[EventStore] Subscriber #${index + 1} successfully notified of ${event.event.type}`);
+        })
+        .catch((error: unknown) => {
+          console.error(`[EventStore] Error in subscriber #${index + 1} for document ${documentId}, event ${event.event.type}:`, error);
+        });
+    });
   }
 
   /**
