@@ -145,15 +145,6 @@ function DocumentView({
     },
     500 // Wait 500ms after last event before invalidating (batches rapid updates)
   );
-
-  // Debug logging
-  useEffect(() => {
-    console.log('[DocumentPage] References data updated:', {
-      count: references.length,
-      references: references.map((r: { id: string; exact: string }) => ({ id: r.id, exact: r.exact }))
-    });
-  }, [references]);
-
   const { data: referencedByData, isLoading: referencedByLoading } = api.documents.referencedBy.useQuery(documentId);
   const referencedBy = referencedByData?.referencedBy || [];
 
@@ -393,12 +384,11 @@ function DocumentView({
     }, [debouncedInvalidateAnnotations]),
 
     onReferenceResolved: useCallback((event) => {
-      console.log('[RealTime] Reference resolved:', event.payload);
       // Immediately refetch references to update UI (don't debounce for this critical update)
       refetchReferences();
-      // Also invalidate for other consumers
-      debouncedInvalidateAnnotations();
-    }, [refetchReferences, debouncedInvalidateAnnotations]),
+      // Immediately invalidate events to update History Panel (don't debounce this either)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
+    }, [refetchReferences, queryClient, documentId]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);

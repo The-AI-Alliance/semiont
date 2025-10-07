@@ -79,8 +79,6 @@ export function DocumentViewer({
   
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
-    console.log('[DocumentViewer] Annotation clicked:', annotation);
-
     // If it's a resolved reference, navigate to it (in both curation and browse mode)
     if (annotation.type === 'reference' && annotation.referencedDocumentId) {
       router.push(`/know/document/${encodeURIComponent(annotation.referencedDocumentId)}`);
@@ -92,10 +90,6 @@ export function DocumentViewer({
       setEditingAnnotation({
         ...annotation,  // Include all required fields (documentId, text, selector, entityTypes, etc.)
         resolvedDocumentName: annotation.referencedDocumentName
-      });
-      console.log('[DocumentViewer] editingAnnotation set to:', {
-        id: annotation.id,
-        type: annotation.type
       });
       setSelectedText(annotation.exact);
       if (annotation.selector) {

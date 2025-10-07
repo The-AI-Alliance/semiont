@@ -57,11 +57,6 @@ export function useGenerationProgress({
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const url = `${apiUrl}/api/annotations/${referenceId}/generate-document-stream`;
 
-    console.log('[Generation] Starting document generation for reference:', referenceId);
-    console.log('[Generation] Document ID:', documentId);
-    console.log('[Generation] Full URL:', url);
-    console.log('[Generation] Auth token present:', !!session.backendToken);
-
     try {
       await fetchEventSource(url, {
         method: 'POST',
