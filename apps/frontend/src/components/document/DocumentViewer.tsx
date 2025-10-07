@@ -494,7 +494,11 @@ export function DocumentViewer({
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation) {
             // Handle updates to existing annotation
-            if (updates.type === 'highlight') {
+            if (updates.type === 'reference') {
+              // Convert highlight to reference
+              await convertHighlightToReference(highlights, editingAnnotation.id);
+            } else if (updates.type === 'highlight') {
+              // Convert reference to highlight
               await convertReferenceToHighlight(references, editingAnnotation.id);
             } else if (updates.referencedDocumentId === null) {
               // Unlink document
