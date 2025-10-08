@@ -9,7 +9,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getFilesystemConfig } from '../config/environment-loader';
 import type { CreationMethod } from '@semiont/core-types';
-import type { StoredProjection } from '../storage/projection-storage';
+import type { DocumentState } from '../storage/projection-storage';
 
 export interface DocumentMetadata {
   id: string;
@@ -46,8 +46,8 @@ export class DocumentQueryService {
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
-      const stored: StoredProjection = JSON.parse(content);
-      const doc = stored.document;
+      const state: DocumentState = JSON.parse(content);
+      const doc = state.document;
 
       return {
         id: doc.id,
@@ -58,7 +58,7 @@ export class DocumentQueryService {
         entityTypes: doc.entityTypes,
         archived: doc.archived,
         createdAt: doc.createdAt,
-        updatedAt: stored.annotations.updatedAt,
+        updatedAt: state.annotations.updatedAt,
         creationMethod: doc.creationMethod,
         sourceAnnotationId: doc.sourceAnnotationId,
         sourceDocumentId: doc.sourceDocumentId,
@@ -105,8 +105,8 @@ export class DocumentQueryService {
 
             const filePath = path.join(cdPath, file);
             const content = await fs.readFile(filePath, 'utf-8');
-            const stored: StoredProjection = JSON.parse(content);
-            const doc = stored.document;
+            const state: DocumentState = JSON.parse(content);
+            const doc = state.document;
 
             // Apply filters
             if (filters?.archived !== undefined && doc.archived !== filters.archived) {
@@ -129,7 +129,7 @@ export class DocumentQueryService {
               entityTypes: doc.entityTypes,
               archived: doc.archived,
               createdAt: doc.createdAt,
-              updatedAt: stored.annotations.updatedAt,
+              updatedAt: state.annotations.updatedAt,
               creationMethod: doc.creationMethod,
               sourceAnnotationId: doc.sourceAnnotationId,
               sourceDocumentId: doc.sourceDocumentId,

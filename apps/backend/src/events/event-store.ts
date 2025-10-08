@@ -21,7 +21,7 @@ import type {
   Document,
   DocumentAnnotations,
 } from '@semiont/core-types';
-import type { ProjectionStorage, StoredProjection } from '../storage/projection-storage';
+import type { ProjectionStorage, DocumentState } from '../storage/projection-storage';
 import { jumpConsistentHash, sha256 } from '../storage/shard-utils';
 
 export interface EventStoreConfig {
@@ -247,7 +247,7 @@ export class EventStore {
    * Build document projection from events
    * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
    */
-  async projectDocument(documentId: string): Promise<StoredProjection | null> {
+  async projectDocument(documentId: string): Promise<DocumentState | null> {
     // Try to load existing projection from Layer 3
     const existing = await this.projectionStorage.getProjection(documentId);
     if (existing) {
@@ -298,7 +298,7 @@ export class EventStore {
   /**
    * Build projection from event list (full rebuild)
    */
-  private buildProjectionFromEvents(events: StoredEvent[], documentId: string): StoredProjection {
+  private buildProjectionFromEvents(events: StoredEvent[], documentId: string): DocumentState {
     // Start with empty document state
     const document: Document = {
       id: documentId,
@@ -776,8 +776,8 @@ export class EventStore {
   async validateProjection(documentId: string): Promise<{
     valid: boolean;
     errors: string[];
-    projection: StoredProjection | null;
-    rebuilt?: StoredProjection;
+    projection: DocumentState | null;
+    rebuilt?: DocumentState;
   }> {
     const projection = await this.projectionStorage.getProjection(documentId);
     if (!projection) {

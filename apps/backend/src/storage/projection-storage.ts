@@ -13,18 +13,18 @@ import { getShardPath } from './shard-utils';
 import { getFilesystemConfig } from '../config/environment-loader';
 import type { Document, DocumentAnnotations } from '@semiont/core-types';
 
-// Combined projection stored on filesystem (single file per document)
-export interface StoredProjection {
+// Complete state for a document in Layer 3 (metadata + annotations)
+export interface DocumentState {
   document: Document;
   annotations: DocumentAnnotations;
 }
 
 export interface ProjectionStorage {
-  saveProjection(documentId: string, projection: StoredProjection): Promise<void>;
-  getProjection(documentId: string): Promise<StoredProjection | null>;
+  saveProjection(documentId: string, projection: DocumentState): Promise<void>;
+  getProjection(documentId: string): Promise<DocumentState | null>;
   deleteProjection(documentId: string): Promise<void>;
   projectionExists(documentId: string): Promise<boolean>;
-  getAllProjections(): Promise<StoredProjection[]>;
+  getAllProjections(): Promise<DocumentState[]>;
 }
 
 export class FilesystemProjectionStorage implements ProjectionStorage {
@@ -45,7 +45,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     return path.join(this.basePath, 'annotations', ab, cd, `${documentId}.json`);
   }
 
-  async saveProjection(documentId: string, projection: StoredProjection): Promise<void> {
+  async saveProjection(documentId: string, projection: DocumentState): Promise<void> {
     const projPath = this.getProjectionPath(documentId);
     const projDir = path.dirname(projPath);
 
@@ -56,12 +56,12 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
   }
 
-  async getProjection(documentId: string): Promise<StoredProjection | null> {
+  async getProjection(documentId: string): Promise<DocumentState | null> {
     const projPath = this.getProjectionPath(documentId);
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
-      return JSON.parse(content) as StoredProjection;
+      return JSON.parse(content) as DocumentState;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         return null;
@@ -94,8 +94,8 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
     }
   }
 
-  async getAllProjections(): Promise<StoredProjection[]> {
-    const projections: StoredProjection[] = [];
+  async getAllProjections(): Promise<DocumentState[]> {
+    const projections: DocumentState[] = [];
     const annotationsPath = path.join(this.basePath, 'annotations');
 
     try {
@@ -111,7 +111,7 @@ export class FilesystemProjectionStorage implements ProjectionStorage {
           } else if (entry.isFile() && entry.name.endsWith('.json')) {
             try {
               const content = await fs.readFile(fullPath, 'utf-8');
-              const projection = JSON.parse(content) as StoredProjection;
+              const projection = JSON.parse(content) as DocumentState;
               projections.push(projection);
             } catch (error) {
               console.error(`[ProjectionStorage] Failed to read projection ${fullPath}:`, error);
