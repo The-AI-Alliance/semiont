@@ -99,24 +99,18 @@ export default function KnowledgeDocumentPage() {
     return <DocumentErrorState error={new Error('Document not found')} onRetry={() => refetchDocument()} />;
   }
 
-  // Early return: Document has no content
-  if (!docData.document.content) {
-    return <DocumentErrorState error={new Error('Document content not available')} onRetry={() => refetchDocument()} />;
-  }
-
-  // From here on, TypeScript knows document exists with content
-  const document = docData.document as SemiontDocument & { content: string };
+  const document = docData.document;
 
   return <DocumentView document={document} documentId={documentId} refetchDocument={refetchDocument} />;
 }
 
-// Main document view - document is guaranteed to exist with content
+// Main document view - document is guaranteed to exist
 function DocumentView({
   document,
   documentId,
   refetchDocument
 }: {
-  document: SemiontDocument & { content: string };
+  document: SemiontDocument;
   documentId: string;
   refetchDocument: () => Promise<unknown>;
 }) {
@@ -126,6 +120,30 @@ function DocumentView({
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
   const queryClient = useQueryClient();
+
+  // Fetch document content separately
+  const [content, setContent] = useState<string>('');
+  const [contentLoading, setContentLoading] = useState(true);
+
+  useEffect(() => {
+    const loadContent = async () => {
+      try {
+        const response = await fetchAPI(`/api/documents/${documentId}/content`);
+        if (response.ok) {
+          const text = await response.text();
+          setContent(text);
+        } else {
+          showError('Failed to load document content');
+        }
+      } catch (error) {
+        console.error('Failed to fetch content:', error);
+        showError('Failed to load document content');
+      } finally {
+        setContentLoading(false);
+      }
+    };
+    loadContent();
+  }, [documentId, fetchAPI, showError]);
 
   // Now that document exists, we can safely fetch dependent data
   const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
@@ -462,8 +480,13 @@ function DocumentView({
                 </div>
               )}
             >
-              <DocumentViewer
-                document={document}
+              {contentLoading ? (
+                <div className="p-8 flex items-center justify-center text-gray-600 dark:text-gray-300">
+                  Loading document content...
+                </div>
+              ) : (
+                <DocumentViewer
+                  document={{ ...document, content }}
                 highlights={highlights}
                 references={references}
                 onRefetchAnnotations={() => {
@@ -480,6 +503,7 @@ function DocumentView({
                 scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
               />
+              )}
             </ErrorBoundary>
           </div>
 
