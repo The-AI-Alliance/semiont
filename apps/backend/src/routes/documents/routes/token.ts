@@ -112,20 +112,15 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     }
 
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
-
     const sourceDoc = await graphDb.getDocument(tokenData.documentId);
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source document not found' });
     }
 
-    const content = await storage.getDocument(tokenData.documentId);
+    // NOTE: Content is NOT included - frontend should fetch via GET /documents/:id/content
 
     return c.json({
-      sourceDocument: {
-        ...formatDocument(sourceDoc),
-        content: content.toString('utf-8'),
-      },
+      sourceDocument: formatDocument(sourceDoc),
       expiresAt: tokenData.expiresAt.toISOString(),
     });
   });

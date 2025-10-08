@@ -9,7 +9,6 @@
 
 import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
-import { getStorageService } from '../../storage/filesystem';
 import { DocumentQueryService } from '../../services/document-queries';
 import { detectSelectionsInDocument } from '../../routes/documents/helpers';
 import { emitReferenceCreated } from '../../events/emit';
@@ -37,18 +36,11 @@ export class DetectionWorker extends JobWorker {
     console.log(`[DetectionWorker] Entity types: ${job.entityTypes.join(', ')}`);
 
     // Fetch document content
-    const storage = getStorageService();
     const document = await DocumentQueryService.getDocumentMetadata(job.documentId);
 
     if (!document) {
       throw new Error(`Document ${job.documentId} not found`);
     }
-
-    const content = await storage.getDocument(job.documentId);
-    const docWithContent = {
-      ...document,
-      content: content.toString('utf-8')
-    };
 
     let totalFound = 0;
     let totalEmitted = 0;
@@ -72,9 +64,10 @@ export class DetectionWorker extends JobWorker {
       };
       await this.updateJobProgress(job);
 
-      // Detect entities using AI
+      // Detect entities using AI (loads content from filesystem internally)
       const detectedSelections = await detectSelectionsInDocument(
-        docWithContent,
+        job.documentId,
+        document.contentType,
         [entityType]
       );
 

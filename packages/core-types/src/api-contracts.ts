@@ -159,7 +159,7 @@ export type GetReferencesResponse = z.infer<typeof GetReferencesResponseSchema>;
  *
  * Core document model used across the application.
  * - contentChecksum: Required, used by backend for content-addressing and graph storage
- * - content: Optional, only included in API responses when requested (not stored in graph)
+ * - content: REMOVED - All content access must go through filesystem service via storage.getDocument(id)
  */
 export const DocumentSchema = z.object({
   id: z.string(),
@@ -181,7 +181,6 @@ export const DocumentSchema = z.object({
   createdBy: z.string(),
   createdAt: z.string(),
   contentChecksum: z.string(),
-  content: z.string().optional(), // Optional - only in API responses, not in graph storage
 });
 
 export type Document = z.infer<typeof DocumentSchema>;
@@ -226,9 +225,10 @@ export type CreateDocumentResponse = z.infer<typeof CreateDocumentResponseSchema
 
 /**
  * Get Document Response
+ * Note: Content must be fetched separately via GET /documents/:id/content
  */
 export const GetDocumentResponseSchema = z.object({
-  document: DocumentSchema.extend({ content: z.string() }), // content is always included
+  document: DocumentSchema, // Metadata only - no content field
   annotations: z.array(AnnotationSchema),
   highlights: z.array(AnnotationSchema),
   references: z.array(AnnotationSchema),

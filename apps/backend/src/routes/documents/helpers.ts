@@ -1,42 +1,33 @@
 // Helper functions for document routes
-import type { Document, Annotation } from '@semiont/core-types';
+import type { Document, Annotation, DocumentProjection } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
+import { getStorageService } from '../../storage/filesystem';
 
-export function formatDocument(doc: (Document | {
-  id: string;
-  name: string;
-  contentType: string;
-  metadata: Record<string, any>;
-  archived: boolean;
-  entityTypes: string[];
-  creationMethod: string;
-  sourceAnnotationId?: string;
-  sourceDocumentId?: string;
-  createdBy: string;
-  createdAt: Date | string;
-}) & { content?: string }): any {
-  const formatted: any = {
-    id: doc.id,
-    name: doc.name,
-    contentType: doc.contentType,
-    metadata: doc.metadata,
-    archived: doc.archived || false,
-    entityTypes: doc.entityTypes || [],
-
-    creationMethod: doc.creationMethod,
-    sourceAnnotationId: doc.sourceAnnotationId,
-    sourceDocumentId: doc.sourceDocumentId,
-
-    createdBy: doc.createdBy,
-    createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
+export function formatDocument(source: Document | DocumentProjection): Document {
+  const doc: Document = {
+    id: source.id,
+    name: source.name,
+    contentType: source.contentType,
+    metadata: source.metadata,
+    archived: source.archived,
+    entityTypes: source.entityTypes,
+    creationMethod: source.creationMethod,
+    sourceAnnotationId: source.sourceAnnotationId,
+    sourceDocumentId: source.sourceDocumentId,
+    contentChecksum: source.contentChecksum,
+    createdBy: source.createdBy,
+    createdAt: source.createdAt,
   };
+  return doc;
+}
 
-  // Include content if it exists (for search results)
-  if ('content' in doc) {
-    formatted.content = doc.content;
-  }
-
-  return formatted;
+// For search results ONLY - includes content preview
+export function formatSearchResult(doc: Document, contentPreview: string): Document & { content: string } {
+  const base = formatDocument(doc);
+  return {
+    ...base,
+    content: contentPreview,
+  };
 }
 
 export function formatAnnotation(annotation: Annotation): any {
@@ -68,7 +59,8 @@ export interface DetectedSelection {
 
 // Implementation for detecting entity references in document using AI
 export async function detectSelectionsInDocument(
-  document: any,
+  documentId: string,
+  contentType: string,
   entityTypes: string[]
 ): Promise<DetectedSelection[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
@@ -76,8 +68,11 @@ export async function detectSelectionsInDocument(
   const detectedSelections: DetectedSelection[] = [];
 
   // Only process text content
-  if (document.contentType === 'text/plain' || document.contentType === 'text/markdown') {
-    const content = document.content;
+  if (contentType === 'text/plain' || contentType === 'text/markdown') {
+    // Load content from filesystem
+    const storage = getStorageService();
+    const contentBuffer = await storage.getDocument(documentId);
+    const content = contentBuffer.toString('utf-8');
 
     // Use AI to extract entities
     const extractedEntities = await extractEntities(content, entityTypes);
