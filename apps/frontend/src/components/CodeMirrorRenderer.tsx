@@ -365,15 +365,12 @@ export function CodeMirrorRenderer({
             fontFamily: sourceView ? 'ui-monospace, monospace' : 'inherit',
             fontSize: sourceView ? '0.875rem' : 'inherit',
             lineHeight: '1.6',
-            whiteSpace: sourceView ? 'pre-wrap' : 'pre'
+            whiteSpace: sourceView ? 'pre-wrap' : 'pre',
+            caretColor: 'var(--cm-cursor-color, #000000)'
           },
           '.cm-line': {
             padding: '0',
             wordBreak: sourceView ? 'break-word' : 'normal'
-          },
-          '.cm-cursor': {
-            display: editable ? 'block' : 'none',
-            borderLeftColor: 'currentColor'
           },
           '.cm-gutters': {
             backgroundColor: 'transparent',
