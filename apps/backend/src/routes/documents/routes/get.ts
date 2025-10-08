@@ -35,22 +35,25 @@ export function registerGetDocument(router: DocumentsRouterType) {
 
     // Read from Layer 2/3: Event store builds/loads projection
     const eventStore = await getEventStore();
-    const projection = await eventStore.projectDocument(id);
+    const stored = await eventStore.projectDocument(id);
 
-    if (!projection) {
+    if (!stored) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
     // NOTE: Content is NOT included in this response
     // Clients must call GET /documents/:id/content separately to get content
 
-    const annotations = [...projection.highlights.map(formatAnnotation), ...projection.references.map(formatAnnotation)];
-    const highlights = projection.highlights.map(formatAnnotation);
-    const references = projection.references.map(formatAnnotation);
+    const annotations = [
+      ...stored.annotations.highlights.map(formatAnnotation),
+      ...stored.annotations.references.map(formatAnnotation)
+    ];
+    const highlights = stored.annotations.highlights.map(formatAnnotation);
+    const references = stored.annotations.references.map(formatAnnotation);
     const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
 
     return c.json({
-      document: formatDocument(projection),
+      document: formatDocument(stored.document),
       annotations,
       highlights,
       references,

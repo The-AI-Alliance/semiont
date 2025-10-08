@@ -1,24 +1,10 @@
 // Helper functions for document routes
-import type { Document, Annotation, DocumentProjection } from '@semiont/core-types';
+import type { Document, Annotation } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
 import { getStorageService } from '../../storage/filesystem';
 
-export function formatDocument(source: Document | DocumentProjection): Document {
-  const doc: Document = {
-    id: source.id,
-    name: source.name,
-    contentType: source.contentType,
-    metadata: source.metadata,
-    archived: source.archived,
-    entityTypes: source.entityTypes,
-    creationMethod: source.creationMethod,
-    sourceAnnotationId: source.sourceAnnotationId,
-    sourceDocumentId: source.sourceDocumentId,
-    contentChecksum: source.contentChecksum,
-    createdBy: source.createdBy,
-    createdAt: source.createdAt,
-  };
-  return doc;
+export function formatDocument(source: Document): Document {
+  return source;
 }
 
 // For search results ONLY - includes content preview

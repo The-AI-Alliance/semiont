@@ -46,7 +46,7 @@ export type {
   EventSignature,
   StoredEvent,
   EventQuery,
-  DocumentProjection,
+  DocumentAnnotations,
 } from './events';
 export {
   isDocumentEvent,

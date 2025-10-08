@@ -8,40 +8,40 @@
 
 import { getProjectionStorage } from '../storage/projection-storage';
 import { getGraphDatabase } from '../graph/factory';
-import type { DocumentProjection, Annotation } from '@semiont/core-types';
+import type { Annotation, DocumentAnnotations } from '@semiont/core-types';
 
 export class AnnotationQueryService {
   /**
    * Get document annotations from Layer 3 (fast path)
    * Falls back to GraphDB if projection missing
    */
-  static async getDocumentAnnotations(documentId: string): Promise<DocumentProjection> {
+  static async getDocumentAnnotations(documentId: string): Promise<DocumentAnnotations> {
     const projectionStorage = getProjectionStorage();
-    const projection = await projectionStorage.getProjection(documentId);
+    const stored = await projectionStorage.getProjection(documentId);
 
-    if (!projection) {
+    if (!stored) {
       throw new Error(`Document ${documentId} not found in Layer 3 projections`);
     }
 
-    return projection;
+    return stored.annotations;
   }
 
   /**
    * Get highlights only (subset of projection)
    * @returns Array of highlight objects from projection
    */
-  static async getHighlights(documentId: string): Promise<DocumentProjection['highlights']> {
-    const projection = await this.getDocumentAnnotations(documentId);
-    return projection.highlights;
+  static async getHighlights(documentId: string): Promise<DocumentAnnotations['highlights']> {
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return annotations.highlights;
   }
 
   /**
    * Get references only (subset of projection)
    * @returns Array of reference objects from projection
    */
-  static async getReferences(documentId: string): Promise<DocumentProjection['references']> {
-    const projection = await this.getDocumentAnnotations(documentId);
-    return projection.references;
+  static async getReferences(documentId: string): Promise<DocumentAnnotations['references']> {
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return annotations.references;
   }
 
   /**
@@ -49,34 +49,26 @@ export class AnnotationQueryService {
    * @returns Array of all selection objects
    */
   static async getAllSelections(documentId: string): Promise<Array<
-    DocumentProjection['highlights'][0] | DocumentProjection['references'][0]
+    DocumentAnnotations['highlights'][0] | DocumentAnnotations['references'][0]
   >> {
-    const projection = await this.getDocumentAnnotations(documentId);
-    return [...projection.highlights, ...projection.references];
+    const annotations = await this.getDocumentAnnotations(documentId);
+    return [...annotations.highlights, ...annotations.references];
   }
 
   /**
-   * Get document metadata
-   * @returns Document metadata without content
+   * Get document stats (version info)
+   * @returns Version and timestamp info for the annotations
    */
-  static async getDocumentMetadata(documentId: string): Promise<{
-    id: string;
-    name: string;
-    entityTypes: string[];
-    archived: boolean;
+  static async getDocumentStats(documentId: string): Promise<{
+    documentId: string;
     version: number;
-    createdAt: string;
     updatedAt: string;
   }> {
-    const projection = await this.getDocumentAnnotations(documentId);
+    const annotations = await this.getDocumentAnnotations(documentId);
     return {
-      id: projection.id,
-      name: projection.name,
-      entityTypes: projection.entityTypes,
-      archived: projection.archived,
-      version: projection.version,
-      createdAt: projection.createdAt,
-      updatedAt: projection.updatedAt,
+      documentId: annotations.documentId,
+      version: annotations.version,
+      updatedAt: annotations.updatedAt,
     };
   }
 
@@ -97,10 +89,10 @@ export class AnnotationQueryService {
     const projectionStorage = getProjectionStorage();
     const allProjections = await projectionStorage.getAllProjections();
 
-    for (const projection of allProjections) {
+    for (const stored of allProjections) {
       // Check highlights
-      const annotation = projection.highlights.find((h) => h.id === selectionId) ||
-                        projection.references.find((r) => r.id === selectionId);
+      const annotation = stored.annotations.highlights.find((h) => h.id === selectionId) ||
+                        stored.annotations.references.find((r) => r.id === selectionId);
       if (annotation) {
         return annotation;
       }
