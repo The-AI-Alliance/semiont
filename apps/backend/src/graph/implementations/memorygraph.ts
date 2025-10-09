@@ -116,7 +116,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     
     // Delete annotations
     for (const [selId, sel] of this.annotations) {
-      if (sel.documentId === id || sel.referencedDocumentId === id) {
+      if (sel.target.source === id || sel.body.referencedDocumentId === id) {
         this.annotations.delete(selId);
       }
     }
@@ -165,24 +165,27 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
     const annotation: Annotation = {
       id,
-      documentId: input.documentId,
-      exact: input.exact,
-      selector: input.selector,
-      type: input.type,
+      target: {
+        source: input.target.source,
+        selector: input.target.selector,
+      },
+      body: {
+        type: input.body.type,
+        entityTypes: input.body.entityTypes || [],
+        referenceType: input.body.referenceType,
+        referencedDocumentId: input.body.referencedDocumentId,
+      },
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
-      entityTypes: input.entityTypes || [],
-      referencedDocumentId: input.referencedDocumentId,
-      referenceType: input.referenceType,
     };
 
     this.annotations.set(id, annotation);
     console.log('Memory: Created annotation:', {
       id,
-      type: annotation.type,
-      hasReferencedDocumentId: !!annotation.referencedDocumentId,
-      entityTypes: annotation.entityTypes,
-      referenceType: annotation.referenceType
+      type: annotation.body.type,
+      hasReferencedDocumentId: !!annotation.body.referencedDocumentId,
+      entityTypes: annotation.body.entityTypes,
+      referenceType: annotation.body.referenceType
     });
     return annotation;
   }
@@ -212,11 +215,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
     let results = Array.from(this.annotations.values());
 
     if (filter.documentId) {
-      results = results.filter(a => a.documentId === filter.documentId);
+      results = results.filter(a => a.target.source === filter.documentId);
     }
 
     if (filter.type) {
-      results = results.filter(a => a.type === filter.type);
+      results = results.filter(a => a.body.type === filter.type);
     }
 
     return { annotations: results, total: results.length };
@@ -225,7 +228,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async getHighlights(documentId: string): Promise<Annotation[]> {
     const highlights = Array.from(this.annotations.values())
-      .filter(sel => sel.documentId === documentId && !('referencedDocumentId' in sel));
+      .filter(sel => sel.target.source === documentId && !('referencedDocumentId' in sel));
     console.log(`Memory: getHighlights for ${documentId} found ${highlights.length} highlights`);
     return highlights;
   }
@@ -236,7 +239,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
     const updated: Annotation = {
       ...annotation,
-      referencedDocumentId,
+      body: {
+        ...annotation.body,
+        referencedDocumentId,
+      },
     };
 
     this.annotations.set(annotationId, updated);
@@ -245,14 +251,14 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async getReferences(documentId: string): Promise<Annotation[]> {
     const references = Array.from(this.annotations.values())
-      .filter(sel => sel.documentId === documentId && 'referencedDocumentId' in sel);
+      .filter(sel => sel.target.source === documentId && 'referencedDocumentId' in sel);
     console.log(`Memory: getReferences for ${documentId} found ${references.length} references`);
     references.forEach(ref => {
       console.log('  Reference:', { 
         id: ref.id, 
-        referencedDocumentId: ref.referencedDocumentId,
-        entityTypes: ref.entityTypes,
-        referenceType: ref.referenceType
+        referencedDocumentId: ref.body.referencedDocumentId,
+        entityTypes: ref.body.entityTypes,
+        referenceType: ref.body.referenceType
       });
     });
     return references;
@@ -260,11 +266,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
     let refs = Array.from(this.annotations.values())
-      .filter(sel => sel.documentId === documentId && sel.type === "reference" && sel.entityTypes.length > 0);
+      .filter(sel => sel.target.source === documentId && sel.body.type === "reference" && sel.body.entityTypes.length > 0);
     
     if (entityTypes && entityTypes.length > 0) {
       refs = refs.filter(sel => 
-        sel.entityTypes && sel.entityTypes.some(type => entityTypes.includes(type))
+        sel.body.entityTypes && sel.body.entityTypes.some(type => entityTypes.includes(type))
       );
     }
     
@@ -273,12 +279,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
   
   async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
     return Array.from(this.annotations.values())
-      .filter(sel => sel.documentId === documentId);
+      .filter(sel => sel.target.source === documentId);
   }
   
   async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
     return Array.from(this.annotations.values())
-      .filter(sel => sel.referencedDocumentId === documentId);
+      .filter(sel => sel.body.referencedDocumentId === documentId);
   }
   
   async getDocumentConnections(documentId: string): Promise<GraphConnection[]> {
@@ -294,11 +300,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const refs = await this.getReferences(documentId);
     
     for (const ref of refs) {
-      if (ref.referencedDocumentId) {
-        const targetDoc = await this.getDocument(ref.referencedDocumentId);
+      if (ref.body.referencedDocumentId) {
+        const targetDoc = await this.getDocument(ref.body.referencedDocumentId);
         if (targetDoc) {
-          const reverseRefs = await this.getReferences(ref.referencedDocumentId);
-          const bidirectional = reverseRefs.some(r => r.referencedDocumentId === documentId);
+          const reverseRefs = await this.getReferences(ref.body.referencedDocumentId);
+          const bidirectional = reverseRefs.some(r => r.body.referencedDocumentId === documentId);
           
           connections.push({
             targetDocument: targetDoc,
@@ -404,9 +410,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     }
     
     const annotations = Array.from(this.annotations.values());
-    const highlightCount = annotations.filter(a => a.type === 'highlight').length;
-    const referenceCount = annotations.filter(a => a.type === 'reference').length;
-    const entityReferenceCount = annotations.filter(a => a.type === 'reference' && a.entityTypes.length > 0).length;
+    const highlightCount = annotations.filter(a => a.body.type === 'highlight').length;
+    const referenceCount = annotations.filter(a => a.body.type === 'reference').length;
+    const entityReferenceCount = annotations.filter(a => a.body.type === 'reference' && a.body.entityTypes.length > 0).length;
     
     return {
       documentCount: this.documents.size,

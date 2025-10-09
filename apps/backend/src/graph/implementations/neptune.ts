@@ -123,24 +123,23 @@ function vertexToAnnotation(vertex: any): Annotation {
 
   const annotation: Annotation = {
     id,
-    documentId,
-    exact: text,
-    selector: JSON.parse(selectorRaw),
-    type,
+    target: {
+      source: documentId,
+      selector: JSON.parse(selectorRaw),
+    },
+    body: {
+      type,
+      entityTypes: [],
+      referenceType: getValue('referenceType'),
+      referencedDocumentId: getValue('referencedDocumentId'),
+    },
     createdBy,
     createdAt: createdAtRaw, // ISO string from DB
-    entityTypes: [],
   };
 
-  // Optional fields
-  const referencedDocumentId = getValue('referencedDocumentId');
-  if (referencedDocumentId) annotation.referencedDocumentId = referencedDocumentId;
-
+  // Optional top-level fields
   const resolvedDocumentName = getValue('resolvedDocumentName');
   if (resolvedDocumentName) annotation.resolvedDocumentName = resolvedDocumentName;
-
-  const referenceType = getValue('referenceType');
-  if (referenceType) annotation.referenceType = referenceType;
 
   const resolvedAt = getValue('resolvedAt');
   if (resolvedAt) annotation.resolvedAt = resolvedAt; // ISO string from DB
@@ -149,7 +148,7 @@ function vertexToAnnotation(vertex: any): Annotation {
   if (resolvedBy) annotation.resolvedBy = resolvedBy;
 
   const entityTypes = getValue('entityTypes');
-  if (entityTypes) annotation.entityTypes = JSON.parse(entityTypes);
+  if (entityTypes) annotation.body.entityTypes = JSON.parse(entityTypes);
 
   return annotation;
 }
@@ -465,35 +464,38 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
     const annotation: Annotation = {
       id,
-      documentId: input.documentId,
-      exact: input.exact,
-      selector: input.selector,
-      type: input.type,
+      target: {
+        source: input.target.source,
+        selector: input.target.selector,
+      },
+      body: {
+        type: input.body.type,
+        entityTypes: input.body.entityTypes || [],
+        referenceType: input.body.referenceType,
+        referencedDocumentId: input.body.referencedDocumentId,
+      },
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
-      entityTypes: input.entityTypes || [],
-      referencedDocumentId: input.referencedDocumentId,
-      referenceType: input.referenceType,
     };
 
     try {
       // Create Annotation vertex
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
-        .property('documentId', annotation.documentId)
-        .property('text', annotation.exact)
-        .property('selector', JSON.stringify(annotation.selector))
-        .property('type', annotation.type)
+        .property('documentId', annotation.target.source)
+        .property('text', annotation.target.selector.exact)
+        .property('selector', JSON.stringify(annotation.target.selector))
+        .property('type', annotation.body.type)
         .property('createdBy', annotation.createdBy)
         .property('createdAt', annotation.createdAt)
-        .property('entityTypes', JSON.stringify(annotation.entityTypes));
+        .property('entityTypes', JSON.stringify(annotation.body.entityTypes));
 
       // Add optional properties
-      if (annotation.referenceType) {
-        vertex.property('referenceType', annotation.referenceType);
+      if (annotation.body.referenceType) {
+        vertex.property('referenceType', annotation.body.referenceType);
       }
-      if (annotation.referencedDocumentId) {
-        vertex.property('referencedDocumentId', annotation.referencedDocumentId);
+      if (annotation.body.referencedDocumentId) {
+        vertex.property('referencedDocumentId', annotation.body.referencedDocumentId);
       }
 
       const newVertex = await vertex.next();
@@ -501,14 +503,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create edge from Annotation to Document (BELONGS_TO)
       await this.g.V(newVertex.value)
         .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Document').has('id', input.documentId))
+        .to(this.g.V().hasLabel('Document').has('id', input.target.source))
         .next();
 
       // If it's a reference, create edge to target document (REFERENCES)
-      if (input.referencedDocumentId) {
+      if (input.body.referencedDocumentId) {
         await this.g.V(newVertex.value)
           .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Document').has('id', input.referencedDocumentId))
+          .to(this.g.V().hasLabel('Document').has('id', input.body.referencedDocumentId))
           .next();
       }
 

@@ -340,20 +340,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const annotation: Annotation = {
         id,
-        documentId: input.documentId,
-        exact: input.exact,
-        selector: input.selector,
-        type: input.type,
+        target: {
+          source: input.target.source,
+          selector: input.target.selector,
+        },
+        body: {
+          type: input.body.type,
+          entityTypes: input.body.entityTypes || [],
+          referenceType: input.body.referenceType,
+          referencedDocumentId: input.body.referencedDocumentId,
+        },
         createdBy: input.createdBy,
         createdAt: new Date().toISOString(),
-        entityTypes: input.entityTypes || [],
-        referencedDocumentId: input.referencedDocumentId,
-        referenceType: input.referenceType,
       };
 
       // Create the annotation node and relationships
       let cypher: string;
-      if (input.referencedDocumentId) {
+      if (input.body.referencedDocumentId) {
         // Reference with target document
         cypher = `MATCH (from:Document {id: $fromId})
            MATCH (to:Document {id: $toId})
@@ -391,23 +394,23 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const params: any = {
         id,
-        documentId: annotation.documentId,
-        fromId: annotation.documentId,
-        toId: annotation.referencedDocumentId || null,
-        exact: annotation.exact,
-        selector: JSON.stringify(annotation.selector),
-        type: annotation.type,
+        documentId: annotation.target.source,
+        fromId: annotation.target.source,
+        toId: annotation.body.referencedDocumentId || null,
+        exact: annotation.target.selector.exact,
+        selector: JSON.stringify(annotation.target.selector),
+        type: annotation.body.type,
         createdBy: annotation.createdBy,
         createdAt: annotation.createdAt,
-        entityTypes: annotation.entityTypes,
-        referencedDocumentId: annotation.referencedDocumentId || null,
-        referenceType: annotation.referenceType || null,
+        entityTypes: annotation.body.entityTypes,
+        referencedDocumentId: annotation.body.referencedDocumentId || null,
+        referenceType: annotation.body.referenceType || null,
       };
 
       const result = await session.run(cypher, params);
 
       if (result.records.length === 0) {
-        throw new Error(`Failed to create annotation: Document ${annotation.documentId} not found in graph database`);
+        throw new Error(`Failed to create annotation: Document ${annotation.target.source} not found in graph database`);
       }
 
       return this.parseAnnotationNode(result.records[0]!.get('a'));
@@ -978,18 +981,21 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
     const annotation: Annotation = {
       id: props.id,
-      documentId: props.documentId,
-      exact: props.exact,
-      selector: JSON.parse(props.selector),
-      type: props.type as 'highlight' | 'reference',
+      target: {
+        source: props.documentId,
+        selector: JSON.parse(props.selector),
+      },
+      body: {
+        type: props.type as 'highlight' | 'reference',
+        entityTypes: props.entityTypes || [],
+        referenceType: props.referenceType,
+        referencedDocumentId: props.referencedDocumentId,
+      },
       createdBy: props.createdBy,
       createdAt: props.createdAt, // ISO string from DB
-      entityTypes: props.entityTypes || [],
     };
 
-    if (props.referencedDocumentId) annotation.referencedDocumentId = props.referencedDocumentId;
     if (props.resolvedDocumentName) annotation.resolvedDocumentName = props.resolvedDocumentName;
-    if (props.referenceType) annotation.referenceType = props.referenceType;
     if (props.resolvedAt) annotation.resolvedAt = props.resolvedAt.toString(); // ISO string from DB
     if (props.resolvedBy) annotation.resolvedBy = props.resolvedBy;
 
