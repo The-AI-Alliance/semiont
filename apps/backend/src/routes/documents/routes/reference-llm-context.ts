@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 
@@ -120,7 +120,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     const suggestedResolution = undefined;
 
     return c.json({
-      reference: formatAnnotation(reference),
+      reference,
       sourceDocument: formatDocument(sourceDoc),
       targetDocument: targetDoc ? formatDocument(targetDoc) : null,
       ...(sourceContext ? { sourceContext } : {}),

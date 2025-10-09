@@ -49,10 +49,12 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
       const doc = docMap.get(ref.target.source);
       return {
         id: ref.id,
-        documentId: ref.target.source,
         documentName: doc?.name || 'Untitled Document',
-        selector: {
-          exact: ref.target.selector.exact,
+        target: {
+          source: ref.target.source,
+          selector: {
+            exact: ref.target.selector.exact,
+          },
         },
       };
     });

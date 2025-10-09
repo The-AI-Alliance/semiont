@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '@semiont/core-types';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';

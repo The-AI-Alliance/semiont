@@ -1,5 +1,5 @@
 // Helper functions for document routes
-import type { Document, Annotation } from '@semiont/core-types';
+import type { Document } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
 import { getStorageService } from '../../storage/filesystem';
 
@@ -16,19 +16,6 @@ export function formatSearchResult(doc: Document, contentPreview: string): Docum
   };
 }
 
-export function formatAnnotation(annotation: Annotation): any {
-  return {
-    id: annotation.id,
-    documentId: annotation.target.source,
-    exact: annotation.target.selector.exact,
-    selector: annotation.target.selector,
-    type: annotation.body.type,
-    referencedDocumentId: annotation.body.referencedDocumentId,
-    resolvedDocumentName: annotation.resolvedDocumentName,
-    entityTypes: annotation.body.entityTypes,
-    referenceType: annotation.body.referenceType,
-  };
-}
 
 // Types for the detection result
 export interface DetectedSelection {

@@ -288,10 +288,12 @@ export type OAuthConfigResponse = z.infer<typeof OAuthConfigResponseSchema>;
  */
 export const ReferencedBySchema = z.object({
   id: z.string().describe('Reference annotation ID'),
-  documentId: z.string().describe('ID of document containing the reference'),
   documentName: z.string().describe('Name of document containing the reference'),
-  selector: z.object({
-    exact: z.string().describe('The selected text that references this document'),
+  target: z.object({
+    source: z.string().describe('ID of document containing the reference'),
+    selector: z.object({
+      exact: z.string().describe('The selected text that references this document'),
+    }),
   }),
 });
 

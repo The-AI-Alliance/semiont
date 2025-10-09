@@ -5,7 +5,7 @@ import { getStorageService } from '../../../storage/filesystem';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging

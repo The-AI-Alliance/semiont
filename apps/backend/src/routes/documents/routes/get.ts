@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
 import { GetDocumentResponseSchema } from '@semiont/core-types';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 
 export const getDocumentRoute = createRoute({
   method: 'get',

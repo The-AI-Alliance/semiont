@@ -577,9 +577,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     const anns = await this.g!.V().hasLabel('Annotation').toList();
     const annotations = anns.map((v: any) => this.vertexToAnnotation(v));
 
-    const highlights = annotations.filter(a => a.type === 'highlight');
-    const references = annotations.filter(a => a.type === 'reference');
-    const entityReferences = references.filter(a => a.entityTypes && a.entityTypes.length > 0);
+    const highlights = annotations.filter(a => a.body.type === 'highlight');
+    const references = annotations.filter(a => a.body.type === 'reference');
+    const entityReferences = references.filter(a => a.body.entityTypes && a.body.entityTypes.length > 0);
 
     return {
       documentCount: documents.length,

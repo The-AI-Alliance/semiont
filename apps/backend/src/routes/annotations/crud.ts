@@ -1,7 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { formatAnnotation } from './helpers';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import {
   CreateAnnotationRequestSchema,
@@ -169,13 +168,13 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
 
   // Return optimistic response
   return c.json({
-    annotation: formatAnnotation({
+    annotation: {
       ...annotation,
       body: {
         ...annotation.body,
         referencedDocumentId: body.documentId,
       },
-    }),
+    },
     targetDocument,
   });
 });
@@ -228,7 +227,7 @@ crudRouter.openapi(getAnnotationRoute, async (c) => {
     await DocumentQueryService.getDocumentMetadata(annotation.body.referencedDocumentId) : null;
 
   return c.json({
-    annotation: formatAnnotation(annotation),
+    annotation,
     document,
     resolvedDocument,
   });

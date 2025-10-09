@@ -1,7 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { formatAnnotation } from '../../annotations/helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 

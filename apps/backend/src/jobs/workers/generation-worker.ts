@@ -60,7 +60,7 @@ export class GenerationWorker extends JobWorker {
     }
 
     // Determine document name
-    const documentName = job.title || reference.exact || 'New Document';
+    const documentName = job.title || reference.target.selector.exact || 'New Document';
     console.log(`[GenerationWorker] Generating document: "${documentName}"`);
 
     // Update progress: generating
@@ -75,7 +75,7 @@ export class GenerationWorker extends JobWorker {
     const prompt = job.prompt || `Create a comprehensive document about "${documentName}"`;
     const generatedContent = await generateDocumentFromTopic(
       documentName,
-      job.entityTypes || reference.entityTypes || [],
+      job.entityTypes || reference.body.entityTypes || [],
       prompt
     );
 
@@ -112,7 +112,7 @@ export class GenerationWorker extends JobWorker {
       name: documentName,
       contentType: 'text/markdown',
       contentHash: checksum,
-      entityTypes: job.entityTypes || reference.entityTypes || [],
+      entityTypes: job.entityTypes || reference.body.entityTypes || [],
       metadata: {
         isDraft: true,
         generatedFrom: job.referenceId,

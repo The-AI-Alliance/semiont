@@ -115,7 +115,6 @@ function vertexToAnnotation(vertex: any): Annotation {
   // Get required fields
   const id = getValue('id', true);
   const documentId = getValue('documentId', true);
-  const text = getValue('text', true);
   const type = getValue('type', true) as 'highlight' | 'reference';
   const selectorRaw = getValue('selector', true);
   const createdBy = getValue('createdBy', true);
@@ -548,23 +547,23 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id);
 
       // Update properties
-      if (updates.exact !== undefined) {
-        traversal = traversal.property('text', updates.exact);
+      if (updates.target?.selector?.exact !== undefined) {
+        traversal = traversal.property('text', updates.target.selector.exact);
       }
-      if (updates.type !== undefined) {
-        traversal = traversal.property('type', updates.type);
+      if (updates.body?.type !== undefined) {
+        traversal = traversal.property('type', updates.body.type);
       }
-      if (updates.referencedDocumentId !== undefined) {
-        traversal = traversal.property('referencedDocumentId', updates.referencedDocumentId);
+      if (updates.body?.referencedDocumentId !== undefined) {
+        traversal = traversal.property('referencedDocumentId', updates.body.referencedDocumentId);
       }
       if (updates.resolvedDocumentName !== undefined) {
         traversal = traversal.property('resolvedDocumentName', updates.resolvedDocumentName);
       }
-      if (updates.referenceType !== undefined) {
-        traversal = traversal.property('referenceType', updates.referenceType);
+      if (updates.body?.referenceType !== undefined) {
+        traversal = traversal.property('referenceType', updates.body.referenceType);
       }
-      if (updates.entityTypes !== undefined) {
-        traversal = traversal.property('entityTypes', JSON.stringify(updates.entityTypes));
+      if (updates.body?.entityTypes !== undefined) {
+        traversal = traversal.property('entityTypes', JSON.stringify(updates.body.entityTypes));
       }
       if (updates.resolvedBy !== undefined) {
         traversal = traversal.property('resolvedBy', updates.resolvedBy);
@@ -779,7 +778,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Process outgoing references
       for (const annVertex of outgoingAnnotations) {
         const annotation = vertexToAnnotation(annVertex);
-        const targetDocId = annotation.referencedDocumentId!;
+        const targetDocId = annotation.body.referencedDocumentId!;
 
         // Get the target document
         const targetDocResult = await this.g.V()
@@ -806,7 +805,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Check for bidirectional connections
       for (const annVertex of incomingAnnotations) {
         const annotation = vertexToAnnotation(annVertex);
-        const sourceDocId = annotation.documentId;
+        const sourceDocId = annotation.target.source;
         const existing = connectionsMap.get(sourceDocId);
         if (existing) {
           existing.bidirectional = true;

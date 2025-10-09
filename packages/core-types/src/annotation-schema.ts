@@ -64,9 +64,11 @@ export type ReferenceAnnotation = Annotation & { body: { type: 'reference' } };
  * Annotation update payload (all fields optional except what's being changed)
  */
 export interface AnnotationUpdate {
-  type?: 'highlight' | 'reference';
-  entityTypes?: string[] | null;
-  referenceType?: string | null;
-  referencedDocumentId?: string | null;
+  body?: {
+    type?: 'highlight' | 'reference';
+    entityTypes?: string[] | null;
+    referenceType?: string | null;
+    referencedDocumentId?: string | null;
+  };
   resolvedDocumentName?: string | null;
 }

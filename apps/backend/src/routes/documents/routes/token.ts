@@ -11,7 +11,7 @@ import {
   CloneDocumentWithTokenResponseSchema,
 } from '@semiont/core-types';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Simple in-memory token store (replace with Redis/DB in production)
