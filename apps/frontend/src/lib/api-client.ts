@@ -16,10 +16,10 @@ import type {
   GetReferencesResponse,
   DeleteAnnotationRequest,
   DeleteAnnotationResponse,
-  GenerateDocumentFromSelectionRequest,
-  GenerateDocumentFromSelectionResponse,
-  ResolveSelectionRequest,
-  ResolveSelectionResponse,
+  GenerateDocumentFromAnnotationRequest,
+  GenerateDocumentFromAnnotationResponse,
+  ResolveAnnotationRequest,
+  ResolveAnnotationResponse,
 
   // Document types
   Document,
@@ -583,8 +583,8 @@ const annotations = {
       const queryClient = useQueryClient();
 
       return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromSelectionRequest }) =>
-          fetchAPI<GenerateDocumentFromSelectionResponse>(`/api/annotations/${id}/generate-document`, {
+        mutationFn: ({ id, data }: { id: string; data: GenerateDocumentFromAnnotationRequest }) =>
+          fetchAPI<GenerateDocumentFromAnnotationResponse>(`/api/annotations/${id}/generate-document`, {
             method: 'POST',
             body: JSON.stringify(data),
           }, session?.backendToken),
@@ -608,7 +608,7 @@ const annotations = {
 
       return useMutation({
         mutationFn: ({ id, documentId }: { id: string; documentId: string }) =>
-          fetchAPI<ResolveSelectionResponse>(`/api/annotations/${id}/resolve`, {
+          fetchAPI<ResolveAnnotationResponse>(`/api/annotations/${id}/resolve`, {
             method: 'PUT',
             body: JSON.stringify({ documentId }),
           }, session?.backendToken),

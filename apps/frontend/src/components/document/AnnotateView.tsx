@@ -118,7 +118,7 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useDocumentAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [selectionState, setSelectionState] = useState<{
+  const [annotationState, setSelectionState] = useState<{
     exact: string;
     start: number;
     end: number;
@@ -129,7 +129,7 @@ export function AnnotateView({
   const allAnnotations = [...highlights, ...references];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
-  // Handle text selection with sparkle
+  // Handle text annotation with sparkle
   useEffect(() => {
     if (!onTextSelect) return;
 
@@ -182,7 +182,7 @@ export function AnnotateView({
     };
     
     const handleMouseDown = (e: MouseEvent) => {
-      if (!(e.target as Element).closest('[data-selection-ui]')) {
+      if (!(e.target as Element).closest('[data-annotation-ui]')) {
         setSelectionState(null);
       }
     };
@@ -198,26 +198,26 @@ export function AnnotateView({
   
   // Handle sparkle click
   const handleSparkleClick = useCallback(() => {
-    if (selectionState && onTextSelect) {
-      onTextSelect(selectionState.exact, {
-        start: selectionState.start,
-        end: selectionState.end
+    if (annotationState && onTextSelect) {
+      onTextSelect(annotationState.exact, {
+        start: annotationState.start,
+        end: annotationState.end
       });
       setSelectionState(null);
     }
-  }, [selectionState, onTextSelect]);
+  }, [annotationState, onTextSelect]);
   
-  // Handle right-click on selection
+  // Handle right-click on annotation
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (selectionState && onTextSelect) {
+    if (annotationState && onTextSelect) {
       e.preventDefault();
-      onTextSelect(selectionState.exact, {
-        start: selectionState.start,
-        end: selectionState.end
+      onTextSelect(annotationState.exact, {
+        start: annotationState.start,
+        end: annotationState.end
       });
       setSelectionState(null);
     }
-  }, [selectionState, onTextSelect]);
+  }, [annotationState, onTextSelect]);
   
   // Convert segments to CodeMirror format
   const cmSegments: CMTextSegment[] = segments.map(seg => ({
@@ -253,10 +253,10 @@ export function AnnotateView({
       />
       
       {/* Sparkle UI - THE GOOD STUFF WE'RE KEEPING! */}
-      {selectionState && onTextSelect && (
+      {annotationState && onTextSelect && (
         <>
           {/* Dashed ring around selection */}
-          {selectionState.rects.map((rect, index) => (
+          {annotationState.rects.map((rect, index) => (
             <div
               key={index}
               className="absolute pointer-events-none z-40"
@@ -275,7 +275,7 @@ export function AnnotateView({
           
           {/* Sparkle at the end */}
           {(() => {
-            const lastRect = selectionState.rects[selectionState.rects.length - 1];
+            const lastRect = annotationState.rects[annotationState.rects.length - 1];
             const containerRect = containerRef.current?.getBoundingClientRect();
             if (!lastRect || !containerRect) return null;
             
@@ -290,7 +290,7 @@ export function AnnotateView({
                 }}
                 aria-label="Create annotation from selected text. Press H for highlight or R for reference."
                 title="Click to create highlight • Right-click for more options"
-                data-selection-ui
+                data-annotation-ui
               >
                 <span className="relative inline-flex items-center justify-center">
                   {/* Pulsing ring animation */}

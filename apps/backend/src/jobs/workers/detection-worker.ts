@@ -10,7 +10,7 @@
 import { JobWorker } from './job-worker';
 import type { Job, DetectionJob } from '../types';
 import { DocumentQueryService } from '../../services/document-queries';
-import { detectSelectionsInDocument } from '../../routes/documents/helpers';
+import { detectAnnotationsInDocument } from '../../routes/documents/helpers';
 import { emitReferenceCreated } from '../../events/emit';
 import { generateAnnotationId } from '../../utils/id-generator';
 
@@ -65,19 +65,19 @@ export class DetectionWorker extends JobWorker {
       await this.updateJobProgress(job);
 
       // Detect entities using AI (loads content from filesystem internally)
-      const detectedSelections = await detectSelectionsInDocument(
+      const detectedAnnotations = await detectAnnotationsInDocument(
         job.documentId,
         document.contentType,
         [entityType]
       );
 
-      totalFound += detectedSelections.length;
-      console.log(`[DetectionWorker] Found ${detectedSelections.length} ${entityType} entities`);
+      totalFound += detectedAnnotations.length;
+      console.log(`[DetectionWorker] Found ${detectedAnnotations.length} ${entityType} entities`);
 
       // Emit events for each detected entity
       // This happens INDEPENDENT of any HTTP client!
-      for (let idx = 0; idx < detectedSelections.length; idx++) {
-        const detected = detectedSelections[idx];
+      for (let idx = 0; idx < detectedAnnotations.length; idx++) {
+        const detected = detectedAnnotations[idx];
 
         if (!detected) {
           console.warn(`[DetectionWorker] Skipping undefined entity at index ${idx}`);
@@ -91,20 +91,20 @@ export class DetectionWorker extends JobWorker {
             documentId: job.documentId,
             userId: job.userId,
             referenceId,
-            exact: detected.selection.selector.exact,
+            exact: detected.annotation.selector.exact,
             position: {
-              offset: detected.selection.selector.offset,
-              length: detected.selection.selector.length,
+              offset: detected.annotation.selector.offset,
+              length: detected.annotation.selector.length,
             },
-            entityTypes: detected.selection.entityTypes,
+            entityTypes: detected.annotation.entityTypes,
             referenceType: undefined, // Unresolved reference
             targetDocumentId: undefined, // Will be resolved later
           });
 
           totalEmitted++;
 
-          if ((idx + 1) % 10 === 0 || idx === detectedSelections.length - 1) {
-            console.log(`[DetectionWorker] Emitted ${idx + 1}/${detectedSelections.length} events for ${entityType}`);
+          if ((idx + 1) % 10 === 0 || idx === detectedAnnotations.length - 1) {
+            console.log(`[DetectionWorker] Emitted ${idx + 1}/${detectedAnnotations.length} events for ${entityType}`);
           }
 
         } catch (error) {
@@ -114,7 +114,7 @@ export class DetectionWorker extends JobWorker {
         }
       }
 
-      console.log(`[DetectionWorker] ✅ Completed ${entityType}: ${detectedSelections.length} found, ${detectedSelections.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
+      console.log(`[DetectionWorker] ✅ Completed ${entityType}: ${detectedAnnotations.length} found, ${detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
     }
 
     // Set final result

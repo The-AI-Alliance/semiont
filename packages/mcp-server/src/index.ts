@@ -471,7 +471,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Selection Management
       case 'semiont_create_selection': {
-        const data = await callSemiontAPI('/api/selections', 'POST', {
+        const data = await callSemiontAPI('/api/annotations', 'POST', {
           documentId: args?.documentId,
           selectionType: args?.selectionType,
           selectionData: args?.selectionData,
@@ -487,7 +487,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       
       case 'semiont_save_selection': {
-        const data = await callSemiontAPI(`/api/selections/${args?.selectionId}/save`, 'PUT', {
+        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/save`, 'PUT', {
           metadata: args?.metadata,
         });
         return {
@@ -499,7 +499,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       
       case 'semiont_resolve_selection': {
-        const data = await callSemiontAPI(`/api/selections/${args?.selectionId}/resolve`, 'PUT', {
+        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/resolve`, 'PUT', {
           documentId: args?.documentId,
         });
         return {
@@ -512,7 +512,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Document Generation
       case 'semiont_create_document_from_selection': {
-        const data = await callSemiontAPI(`/api/selections/${args?.selectionId}/create-document`, 'POST', {
+        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/create-document`, 'POST', {
           name: args?.name,
           content: args?.content || '',
           entityTypes: args?.entityTypes,
@@ -528,7 +528,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       
       case 'semiont_generate_document_from_selection': {
-        const data = await callSemiontAPI(`/api/selections/${args?.selectionId}/generate-document`, 'POST', {
+        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/generate-document`, 'POST', {
           name: args?.name,
           entityTypes: args?.entityTypes,
           prompt: args?.prompt,
@@ -543,7 +543,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Context and Analysis
       case 'semiont_get_contextual_summary': {
-        const data = await callSemiontAPI(`/api/selections/${args?.selectionId}/contextual-summary`, 'POST', {
+        const data = await callSemiontAPI(`/api/annotations/${args?.selectionId}/contextual-summary`, 'POST', {
           includeRelated: args?.includeRelated,
           maxRelated: args?.maxRelated,
         });

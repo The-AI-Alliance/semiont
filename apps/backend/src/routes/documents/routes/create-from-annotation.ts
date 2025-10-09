@@ -21,16 +21,16 @@ const CreateFromSelectionResponse = z.object({
   annotations: z.array(z.any()),
 });
 
-export const createDocumentFromSelectionRoute = createRoute({
+export const createDocumentFromAnnotationRoute = createRoute({
   method: 'post',
-  path: '/api/documents/from-selection/{selectionId}',
-  summary: 'Create Document from Selection',
-  description: 'Create a new document from a selection/reference',
+  path: '/api/documents/from-annotation/{annotationId}',
+  summary: 'Create Document from Annotation',
+  description: 'Create a new document from an annotation/reference',
   tags: ['Documents'],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
-      selectionId: z.string(),
+      annotationId: z.string(),
     }),
     body: {
       content: {
@@ -47,22 +47,22 @@ export const createDocumentFromSelectionRoute = createRoute({
           schema: CreateFromSelectionResponse,
         },
       },
-      description: 'Document created from selection',
+      description: 'Document created from annotation',
     },
   },
 });
 
 export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType) {
-  router.openapi(createDocumentFromSelectionRoute, async (c) => {
-    const { selectionId } = c.req.valid('param');
+  router.openapi(createDocumentFromAnnotationRoute, async (c) => {
+    const { annotationId } = c.req.valid('param');
     const body = c.req.valid('json');
     const user = c.get('user');
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const selection = await graphDb.getAnnotation(selectionId);
-    if (!selection) {
-      throw new HTTPException(404, { message: 'Selection not found' });
+    const annotation = await graphDb.getAnnotation(annotationId);
+    if (!annotation) {
+      throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
     const checksum = calculateChecksum(body.content);
@@ -71,10 +71,10 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       name: body.name,
       archived: false,
       contentType: body.contentType || 'text/plain',
-      entityTypes: selection.entityTypes || [],
+      entityTypes: annotation.entityTypes || [],
       creationMethod: CREATION_METHODS.REFERENCE,
-      sourceAnnotationId: selectionId,
-      sourceDocumentId: selection.documentId,
+      sourceAnnotationId: annotationId,
+      sourceDocumentId: annotation.documentId,
       contentChecksum: checksum,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
@@ -98,8 +98,8 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
     const savedDoc = await graphDb.createDocument(createInput);
     await storage.saveDocument(documentId, Buffer.from(body.content));
 
-    // Update the selection to resolve to the new document
-    await graphDb.resolveReference(selectionId, savedDoc.id);
+    // Update the annotation to resolve to the new document
+    await graphDb.resolveReference(annotationId, savedDoc.id);
 
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);

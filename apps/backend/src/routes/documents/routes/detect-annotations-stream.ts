@@ -68,7 +68,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const { entityTypes } = c.req.valid('json');
 
-    console.log(`[DetectSelections] Starting detection for document ${id} with entity types:`, entityTypes);
+    console.log(`[DetectAnnotations] Starting detection for document ${id} with entity types:`, entityTypes);
 
     // User will be available from auth middleware since this is a POST request
     const user = c.get('user');
@@ -97,7 +97,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
     };
 
     await jobQueue.createJob(job);
-    console.log(`[DetectSelections] Created job ${job.id} for document ${id}`);
+    console.log(`[DetectAnnotations] Created job ${job.id} for document ${id}`);
 
     // Stream the job's progress to the client
     return streamSSE(c, async (stream) => {
@@ -154,7 +154,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
                     id: String(Date.now())
                   });
                 } catch (sseError) {
-                  console.warn(`[DetectSelections] Client disconnected, but job ${job.id} will continue processing`);
+                  console.warn(`[DetectAnnotations] Client disconnected, but job ${job.id} will continue processing`);
                   break; // Client disconnected, stop streaming (job continues)
                 }
               }
@@ -218,7 +218,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
           });
         } catch (sseError) {
           // Client already disconnected
-          console.warn(`[DetectSelections] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
+          console.warn(`[DetectAnnotations] Could not send error to client (disconnected), but job ${job.id} status is preserved`);
         }
       }
     });

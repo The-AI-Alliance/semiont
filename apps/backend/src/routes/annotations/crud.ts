@@ -6,8 +6,8 @@ import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitRef
 import {
   CreateAnnotationRequestSchema,
   CreateAnnotationResponseSchema,
-  ResolveSelectionRequestSchema,
-  ResolveSelectionResponseSchema,
+  ResolveAnnotationRequestSchema,
+  ResolveAnnotationResponseSchema,
   DeleteAnnotationRequestSchema,
 } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
@@ -123,7 +123,7 @@ const resolveAnnotationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: ResolveSelectionRequestSchema,
+          schema: ResolveAnnotationRequestSchema,
         },
       },
     },
@@ -132,7 +132,7 @@ const resolveAnnotationRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ResolveSelectionResponseSchema,
+          schema: ResolveAnnotationResponseSchema,
         },
       },
       description: 'Annotation resolved successfully',
@@ -146,8 +146,8 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
 
   console.log(`[RESOLVE HANDLER] Called for annotation ${id}, body:`, body);
 
-  // Get selection from Layer 3 (event store projection)
-  const annotation = await AnnotationQueryService.getSelection(id);
+  // Get annotation from Layer 3 (event store projection)
+  const annotation = await AnnotationQueryService.getAnnotation(id);
   console.log(`[RESOLVE HANDLER] Layer 3 lookup result for ${id}:`, annotation ? 'FOUND' : 'NOT FOUND');
 
   if (!annotation) {
@@ -333,22 +333,22 @@ crudRouter.openapi(deleteAnnotationRoute, async (c) => {
 
   // Emit event first (consumer will delete from GraphDB and update Layer 3)
   if (reference) {
-    console.log('[DeleteSelection] Emitting reference.deleted event for:', id);
+    console.log('[DeleteAnnotation] Emitting reference.deleted event for:', id);
     const storedEvent = await emitReferenceDeleted({
       documentId: body.documentId,
       userId: user.id,
       referenceId: id,
     });
-    console.log('[DeleteSelection] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
+    console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   } else {
     // It's a highlight
-    console.log('[DeleteSelection] Emitting highlight.removed event for:', id);
+    console.log('[DeleteAnnotation] Emitting highlight.removed event for:', id);
     const storedEvent = await emitHighlightRemoved({
       documentId: body.documentId,
       userId: user.id,
       highlightId: id,
     });
-    console.log('[DeleteSelection] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
+    console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
   }
 
   return c.body(null, 204);
