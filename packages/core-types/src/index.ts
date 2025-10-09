@@ -74,6 +74,17 @@ export {
   EventQuerySchema,
 } from './event-schemas';
 
+// Annotation schema (SINGLE SOURCE OF TRUTH)
+export {
+  AnnotationSchema,
+} from './annotation-schema';
+export type {
+  Annotation,
+  HighlightAnnotation,
+  ReferenceAnnotation,
+  AnnotationUpdate,
+} from './annotation-schema';
+
 // API Contract schemas and types
 export {
   CreateAnnotationRequestSchema,
@@ -112,10 +123,6 @@ export type {
   CreateAnnotationRequest,
   CreateAnnotationInternal,
   CreateAnnotationResponse,
-  Annotation,
-  HighlightAnnotation,
-  ReferenceAnnotation,
-  AnnotationUpdate,
   TextSelection,
   GetHighlightsResponse,
   GetReferencesResponse,

@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { CREATION_METHODS } from './creation-methods';
+import { AnnotationSchema } from './annotation-schema';
 
 /**
  * Create Annotation API Request
@@ -18,17 +19,21 @@ import { CREATION_METHODS } from './creation-methods';
  * createdBy is derived from authenticated user on backend.
  */
 export const CreateAnnotationRequestSchema = z.object({
-  documentId: z.string(),
-  exact: z.string(),  // Exact text content (W3C Web Annotation standard)
-  selector: z.object({
-    type: z.string(),
-    offset: z.number(),
-    length: z.number(),
+  target: z.object({
+    source: z.string(),
+    selector: z.object({
+      type: z.literal("TextPositionSelector"),
+      exact: z.string(),
+      offset: z.number(),
+      length: z.number(),
+    }),
   }),
-  type: z.enum(['highlight', 'reference']),
-  entityTypes: z.array(z.string()).optional(),
-  referenceType: z.string().optional(),
-  referencedDocumentId: z.string().nullable().optional(),
+  body: z.object({
+    type: z.enum(['highlight', 'reference']),
+    entityTypes: z.array(z.string()).optional(),
+    referenceType: z.string().optional(),
+    referencedDocumentId: z.string().nullable().optional(),
+  }),
 });
 
 export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSchema>;
@@ -49,83 +54,11 @@ export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSc
  * Create Annotation Response
  */
 export const CreateAnnotationResponseSchema = z.object({
-  annotation: z.object({
-    id: z.string(),
-    documentId: z.string(),
-    exact: z.string(),  // Exact text content (W3C Web Annotation standard)
-    selector: z.object({
-      type: z.string(),
-      offset: z.number(),
-      length: z.number(),
-    }),
-    type: z.enum(['highlight', 'reference']),
-    referencedDocumentId: z.string().nullable().optional(),
-    entityTypes: z.array(z.string()).optional(),
-    referenceType: z.string().optional(),
-    createdBy: z.string(),
-    createdAt: z.string(),
-  }),
+  annotation: AnnotationSchema,
 });
 
 export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSchema>;
 
-/**
- * Annotation format returned by highlights/references endpoints
- *
- * This is the SINGLE SOURCE OF TRUTH for annotation types.
- *
- * Field Requirements:
- * - exact: REQUIRED - exact text content (W3C Web Annotation standard)
- * - type: REQUIRED (not optional)
- * - createdBy: REQUIRED (user who created)
- * - referencedDocumentId: OPTIONAL and nullable
- * - entityTypes: REQUIRED (always present, defaults to empty array)
- * - referenceType: OPTIONAL
- * - resolvedBy: OPTIONAL (user who resolved reference)
- * - resolvedAt: OPTIONAL (when reference was resolved)
- */
-const AnnotationSchema = z.object({
-  id: z.string(),
-  documentId: z.string(),
-  exact: z.string(),                                   // REQUIRED - exact text content (W3C Web Annotation standard)
-  selector: z.object({
-    type: z.string(),
-    offset: z.number(),
-    length: z.number(),
-  }),
-  type: z.enum(['highlight', 'reference']),            // REQUIRED
-  createdBy: z.string(),                               // REQUIRED
-  createdAt: z.string(),                               // REQUIRED - ISO 8601 string (JSON serialized)
-  referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
-  resolvedDocumentName: z.string().optional(),         // OPTIONAL (name of referenced document)
-  entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
-  referenceType: z.string().optional(),                // OPTIONAL
-  resolvedBy: z.string().optional(),                   // OPTIONAL (who resolved the reference)
-  resolvedAt: z.string().optional(),                   // OPTIONAL (when resolved) - ISO 8601 string
-});
-
-export type Annotation = z.infer<typeof AnnotationSchema>;
-
-/**
- * Highlight-specific annotation type
- */
-export type HighlightAnnotation = Annotation & { type: 'highlight' };
-
-/**
- * Reference-specific annotation type
- */
-export type ReferenceAnnotation = Annotation & { type: 'reference' };
-
-/**
- * Annotation update payload (all fields optional except what's being changed)
- */
-export interface AnnotationUpdate {
-  type?: 'highlight' | 'reference';
-  entityTypes?: string[] | null;
-  referenceType?: string | null;
-  referencedDocumentId?: string | null;
-  resolvedDocumentName?: string | null;
-}
 
 /**
  * Text selection (position in document)

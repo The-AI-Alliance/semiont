@@ -2,7 +2,8 @@
  * Graph types - Models for graph connections and relationships
  */
 
-import { Document, Annotation } from './api-contracts';
+import { Document } from './api-contracts';
+import { Annotation } from './annotation-schema';
 
 /**
  * Represents a connection between documents through annotations
