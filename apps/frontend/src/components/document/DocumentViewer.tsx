@@ -6,6 +6,7 @@ import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import type { Annotation } from '@semiont/core-types';
+import { getExactText, getTextPositionSelector } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
@@ -95,11 +96,12 @@ export function DocumentViewer({
         ...annotation,  // Include all required fields (documentId, text, selector, entityTypes, etc.)
         resolvedDocumentName: annotation.referencedDocumentName
       });
-      setSelectedText(annotation.target.selector.exact);
-      if (annotation.target.selector) {
+      setSelectedText(getExactText(annotation.target.selector));
+      const posSelector = getTextPositionSelector(annotation.target.selector);
+      if (posSelector) {
         setSelectionPosition({
-          start: annotation.target.selector.offset,
-          end: annotation.target.selector.offset + annotation.target.selector.length
+          start: posSelector.offset,
+          end: posSelector.offset + posSelector.length
         });
       }
 
@@ -140,11 +142,12 @@ export function DocumentViewer({
         ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
         resolvedDocumentName: 'Document'
       });
-      setSelectedText(reference.target.selector.exact || '');
-      if (reference.target.selector) {
+      setSelectedText(getExactText(reference.target.selector) || '');
+      const posSelector = getTextPositionSelector(reference.target.selector);
+      if (posSelector) {
         setSelectionPosition({
-          start: reference.target.selector.offset,
-          end: reference.target.selector.offset + reference.target.selector.length
+          start: posSelector.offset,
+          end: posSelector.offset + posSelector.length
         });
       }
       setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });

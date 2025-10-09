@@ -8,6 +8,8 @@ import {
   ResolveSelectionRequestSchema,
   ResolveSelectionResponseSchema,
   DeleteAnnotationRequestSchema,
+  getExactText,
+  getTextPositionSelector,
 } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -52,16 +54,22 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   const annotationId = generateAnnotationId();
   const isReference = body.body.type === 'reference';
 
+  // Extract TextPositionSelector for event (events require offset/length)
+  const posSelector = getTextPositionSelector(body.target.selector);
+  if (!posSelector) {
+    throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
+  }
+
   // Emit event first (single source of truth)
   if (isReference) {
     await emitReferenceCreated({
       documentId: body.target.source,
       userId: user.id,
       referenceId: annotationId,
-      exact: body.target.selector.exact,
+      exact: getExactText(body.target.selector),
       position: {
-        offset: body.target.selector.offset,
-        length: body.target.selector.length,
+        offset: posSelector.offset,
+        length: posSelector.length,
       },
       entityTypes: body.body.entityTypes || [],
       referenceType: body.body.referenceType,
@@ -72,10 +80,10 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
       documentId: body.target.source,
       userId: user.id,
       highlightId: annotationId,
-      exact: body.target.selector.exact,
+      exact: getExactText(body.target.selector),
       position: {
-        offset: body.target.selector.offset,
-        length: body.target.selector.length,
+        offset: posSelector.offset,
+        length: posSelector.length,
       },
     });
   }

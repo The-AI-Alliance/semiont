@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
 import type { Annotation } from '@semiont/core-types';
+import { getExactText, getTextPositionSelector } from '@semiont/core-types';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
@@ -157,10 +158,14 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       });
 
       // Create new reference with same position
+      const posSelector = getTextPositionSelector(highlight.target.selector);
+      if (!posSelector) {
+        throw new Error('Cannot convert highlight to reference: TextPositionSelector required');
+      }
       await addReference(
         highlight.target.source,
-        highlight.target.selector.exact,
-        { start: highlight.target.selector.offset, end: highlight.target.selector.offset + highlight.target.selector.length },
+        getExactText(highlight.target.selector),
+        { start: posSelector.offset, end: posSelector.offset + posSelector.length },
         targetDocId,
         entityType,
         referenceType
@@ -186,10 +191,14 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       });
 
       // Create new highlight with same position
+      const posSelector = getTextPositionSelector(reference.target.selector);
+      if (!posSelector) {
+        throw new Error('Cannot convert reference to highlight: TextPositionSelector required');
+      }
       await addHighlight(
         reference.target.source,
-        reference.target.selector.exact,
-        { start: reference.target.selector.offset, end: reference.target.selector.offset + reference.target.selector.length }
+        getExactText(reference.target.selector),
+        { start: posSelector.offset, end: posSelector.offset + posSelector.length }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);

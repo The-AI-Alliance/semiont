@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { Annotation } from '@semiont/core-types';
+import { getExactText, getTextPositionSelector } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 
@@ -21,14 +22,17 @@ interface Props {
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
     .filter(ann => ann.target.selector)
-    .map(ann => ({
-      id: ann.id,
-      exact: ann.target.selector.exact,
-      offset: ann.target.selector!.offset,
-      length: ann.target.selector!.length,
-      type: ann.body.type as 'highlight' | 'reference',
-      referencedDocumentId: ann.body.referencedDocumentId
-    }));
+    .map(ann => {
+      const posSelector = getTextPositionSelector(ann.target.selector);
+      return {
+        id: ann.id,
+        exact: getExactText(ann.target.selector),
+        offset: posSelector?.offset ?? 0,
+        length: posSelector?.length ?? 0,
+        type: ann.body.type as 'highlight' | 'reference',
+        referencedDocumentId: ann.body.referencedDocumentId
+      };
+    });
 }
 
 export function BrowseView({

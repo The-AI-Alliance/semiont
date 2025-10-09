@@ -13,6 +13,7 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
+  getExactText,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -292,7 +293,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .addV('Annotation')
       .property('id', id)
       .property('documentId', input.target.source)
-      .property('text', input.target.selector.exact)
+      .property('text', getExactText(input.target.selector))
       .property('selector', JSON.stringify(input.target.selector))
       .property('type', input.body.type)
       .property('createdBy', input.createdBy)
@@ -347,11 +348,9 @@ export class JanusGraphDatabase implements GraphDatabase {
       .has('Annotation', 'id', id);
 
     // Update properties
-    if (updates.target?.selector?.exact !== undefined) {
-      await traversalQuery.property('text', updates.target?.selector?.exact).next();
-    }
     if (updates.target?.selector !== undefined) {
-      await traversalQuery.property('selector', JSON.stringify(updates.target?.selector)).next();
+      await traversalQuery.property('text', getExactText(updates.target.selector)).next();
+      await traversalQuery.property('selector', JSON.stringify(updates.target.selector)).next();
     }
     if (updates.body?.type !== undefined) {
       await traversalQuery.property('type', updates.body?.type).next();

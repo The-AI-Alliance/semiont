@@ -13,20 +13,44 @@ import { CREATION_METHODS } from './creation-methods';
 import { AnnotationSchema } from './annotation-schema';
 
 /**
+ * Selector Types (imported from annotation-schema for consistency)
+ */
+const TextPositionSelectorSchema = z.object({
+  type: z.literal("TextPositionSelector"),
+  exact: z.string(),
+  offset: z.number(),
+  length: z.number(),
+});
+
+const TextQuoteSelectorSchema = z.object({
+  type: z.literal("TextQuoteSelector"),
+  exact: z.string(),
+  prefix: z.string().optional(),
+  suffix: z.string().optional(),
+});
+
+const SelectorSchema = z.union([
+  TextPositionSelectorSchema,
+  TextQuoteSelectorSchema,
+]);
+
+/**
  * Create Annotation API Request
  *
  * Frontend-to-backend API format for creating an annotation.
  * createdBy is derived from authenticated user on backend.
+ *
+ * Phase 2: Multi-Selector Support
+ * - selector can be single selector or array of selectors
+ * - Multiple selectors identify the same text using different methods
  */
 export const CreateAnnotationRequestSchema = z.object({
   target: z.object({
     source: z.string(),
-    selector: z.object({
-      type: z.literal("TextPositionSelector"),
-      exact: z.string(),
-      offset: z.number(),
-      length: z.number(),
-    }),
+    selector: z.union([
+      SelectorSchema,
+      z.array(SelectorSchema),
+    ]),
   }),
   body: z.object({
     type: z.enum(['highlight', 'reference']),

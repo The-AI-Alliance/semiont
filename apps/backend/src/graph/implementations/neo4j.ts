@@ -13,6 +13,7 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
+  getExactText,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -397,7 +398,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         documentId: annotation.target.source,
         fromId: annotation.target.source,
         toId: annotation.body.referencedDocumentId || null,
-        exact: annotation.target.selector.exact,
+        exact: getExactText(annotation.target.selector),
         selector: JSON.stringify(annotation.target.selector),
         type: annotation.body.type,
         createdBy: annotation.createdBy,

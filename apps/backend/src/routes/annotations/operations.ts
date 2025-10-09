@@ -8,6 +8,8 @@ import {
   CREATION_METHODS,
   GenerateDocumentFromSelectionRequestSchema,
   GenerateDocumentFromSelectionResponseSchema,
+  getExactText,
+  getTextPositionSelector,
 } from '@semiont/core-types';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -208,7 +210,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   }
 
   // Use selection text
-  const selectedText = selection.target.selector.exact;
+  const selectedText = getExactText(selection.target.selector);
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
@@ -338,23 +340,27 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const contentStr = content.toString('utf-8');
 
   // Extract context based on selection position
-  const selStart = selection.target.selector.offset;
-  const selEnd = selection.target.selector.offset + selection.target.selector.length;
+  const posSelector = getTextPositionSelector(selection.target.selector);
+  if (!posSelector) {
+    throw new HTTPException(400, { message: 'TextPositionSelector required' });
+  }
+
+  const selStart = posSelector.offset;
+  const selEnd = posSelector.offset + posSelector.length;
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 
   const before = contentStr.substring(start, selStart);
   const selected = contentStr.substring(selStart, selEnd);
   const after = contentStr.substring(selEnd, end);
-
   return c.json({
     annotation: {
       id: selection.id,
       documentId: selection.target.source,
       selector: {
-        exact: selection.target.selector.exact,
-        offset: selection.target.selector.offset,
-        length: selection.target.selector.length,
+        exact: getExactText(selection.target.selector),
+        offset: posSelector?.offset ?? 0,
+        length: posSelector?.length ?? 0,
       },
       referencedDocumentId: selection.body.referencedDocumentId,
       entityTypes: selection.body.entityTypes,
@@ -426,9 +432,14 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const contentStr = content.toString('utf-8');
 
   // Extract selection text with context
+  const posSelector = getTextPositionSelector(selection.target.selector);
+  if (!posSelector) {
+    throw new HTTPException(400, { message: 'TextPositionSelector required' });
+  }
+
   const contextSize = 500; // Fixed context for summary
-  const selStart = selection.target.selector.offset;
-  const selEnd = selection.target.selector.offset + selection.target.selector.length;
+  const selStart = posSelector.offset;
+  const selEnd = posSelector.offset + posSelector.length;
   const start = Math.max(0, selStart - contextSize);
   const end = Math.min(contentStr.length, selEnd + contextSize);
 

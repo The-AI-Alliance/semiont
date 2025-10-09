@@ -6,6 +6,7 @@ import { AnnotationQueryService } from '../../../services/annotation-queries';
 import { getJobQueue } from '../../../jobs/job-queue';
 import type { GenerationJob } from '../../../jobs/types';
 import { nanoid } from 'nanoid';
+import { getExactText } from '@semiont/core-types';
 
 interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
@@ -107,7 +108,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
     console.log(`[GenerateDocument] Created job ${job.id} for reference ${referenceId}`);
 
     // Determine document name for progress messages
-    const documentName = body.title || reference.target.selector.exact || 'New Document';
+    const documentName = body.title || getExactText(reference.target.selector) || 'New Document';
 
     // Stream the job's progress to the client
     return streamSSE(c, async (stream) => {

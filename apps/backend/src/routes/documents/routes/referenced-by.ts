@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
-import { ReferencedBySchema } from '@semiont/core-types';
+import { ReferencedBySchema, getExactText } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 
 export const getReferencedByRoute = createRoute({
@@ -53,7 +53,7 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
         target: {
           source: ref.target.source,
           selector: {
-            exact: ref.target.selector.exact,
+            exact: getExactText(ref.target.selector),
           },
         },
       };

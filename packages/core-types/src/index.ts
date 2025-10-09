@@ -77,13 +77,28 @@ export {
 // Annotation schema (SINGLE SOURCE OF TRUTH)
 export {
   AnnotationSchema,
+  TextPositionSelectorSchema,
+  TextQuoteSelectorSchema,
+  SelectorSchema,
 } from './annotation-schema';
 export type {
   Annotation,
   HighlightAnnotation,
   ReferenceAnnotation,
   AnnotationUpdate,
+  TextPositionSelector,
+  TextQuoteSelector,
+  Selector,
 } from './annotation-schema';
+
+// Selector utilities
+export {
+  getExactText,
+  getAnnotationExactText,
+  getPrimarySelector,
+  getTextPositionSelector,
+  getTextQuoteSelector,
+} from './selector-utils';
 
 // API Contract schemas and types
 export {

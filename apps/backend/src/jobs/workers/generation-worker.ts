@@ -15,6 +15,7 @@ import { DocumentQueryService } from '../../services/document-queries';
 import { generateDocumentFromTopic } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
 import { emitDocumentCreated, emitReferenceResolved } from '../../events/emit';
+import { getExactText } from '@semiont/core-types';
 
 export class GenerationWorker extends JobWorker {
   protected getWorkerName(): string {
@@ -60,7 +61,7 @@ export class GenerationWorker extends JobWorker {
     }
 
     // Determine document name
-    const documentName = job.title || reference.target.selector.exact || 'New Document';
+    const documentName = job.title || getExactText(reference.target.selector) || 'New Document';
     console.log(`[GenerationWorker] Generating document: "${documentName}"`);
 
     // Update progress: generating

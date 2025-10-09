@@ -9,11 +9,10 @@ import {
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-
+  getExactText,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -482,7 +481,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
         .property('documentId', annotation.target.source)
-        .property('text', annotation.target.selector.exact)
+        .property('text', getExactText(annotation.target.selector))
         .property('selector', JSON.stringify(annotation.target.selector))
         .property('type', annotation.body.type)
         .property('createdBy', annotation.createdBy)
@@ -547,8 +546,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id);
 
       // Update properties
-      if (updates.target?.selector?.exact !== undefined) {
-        traversal = traversal.property('text', updates.target.selector.exact);
+      if (updates.target?.selector !== undefined) {
+        traversal = traversal.property('text', getExactText(updates.target.selector));
       }
       if (updates.body?.type !== undefined) {
         traversal = traversal.property('type', updates.body.type);

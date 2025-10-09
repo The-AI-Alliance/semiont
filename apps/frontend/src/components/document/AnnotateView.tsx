@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import type { Annotation } from '@semiont/core-types';
+import { getTextPositionSelector } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
 import type { TextSegment as CMTextSegment } from '@/components/CodeMirrorRenderer';
@@ -44,11 +45,14 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
   }
 
   const normalizedAnnotations = annotations
-    .map(ann => ({
-      annotation: ann,
-      start: ann.target.selector?.offset ?? 0,
-      end: (ann.target.selector?.offset ?? 0) + (ann.target.selector?.length ?? 0)
-    }))
+    .map(ann => {
+      const posSelector = getTextPositionSelector(ann.target.selector);
+      return {
+        annotation: ann,
+        start: posSelector?.offset ?? 0,
+        end: (posSelector?.offset ?? 0) + (posSelector?.length ?? 0)
+      };
+    })
     .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);
 
