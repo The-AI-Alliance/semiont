@@ -16,7 +16,6 @@ export interface DocumentMetadata {
   name: string;
   contentType: string;
   contentChecksum: string;
-  metadata: Record<string, any>;
   entityTypes: string[];
   archived: boolean;
   createdAt: string;
@@ -54,7 +53,6 @@ export class DocumentQueryService {
         name: doc.name,
         contentType: doc.contentType,
         contentChecksum: doc.contentChecksum,
-        metadata: doc.metadata,
         entityTypes: doc.entityTypes,
         archived: doc.archived,
         createdAt: doc.createdAt,
@@ -125,7 +123,6 @@ export class DocumentQueryService {
               name: doc.name,
               contentType: doc.contentType,
               contentChecksum: doc.contentChecksum,
-              metadata: doc.metadata,
               entityTypes: doc.entityTypes,
               archived: doc.archived,
               createdAt: doc.createdAt,

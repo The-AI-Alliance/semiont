@@ -165,7 +165,6 @@ export const DocumentSchema = z.object({
   id: z.string(),
   name: z.string(),
   contentType: z.string(),
-  metadata: z.record(z.string(), z.any()),
   archived: z.boolean(),
   entityTypes: z.array(z.string()),
   creationMethod: z.enum([
@@ -193,7 +192,6 @@ export const CreateDocumentRequestSchema = z.object({
   content: z.string(),
   contentType: z.string().optional().default('text/plain'),
   entityTypes: z.array(z.string()).optional().default([]),
-  metadata: z.record(z.string(), z.any()).optional().default({}),
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
@@ -207,7 +205,6 @@ export type CreateDocumentRequest = z.infer<typeof CreateDocumentRequestSchema>;
  */
 export const UpdateDocumentRequestSchema = z.object({
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
   archived: z.boolean().optional(), // Can archive (one-way operation)
 });
 

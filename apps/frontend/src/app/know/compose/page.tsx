@@ -219,7 +219,6 @@ function ComposeDocumentContent() {
           content: newDocContent,
           contentType: 'text/markdown',
           entityTypes: selectedEntityTypes,
-          metadata: {},
           creationMethod: 'ui'
         });
 

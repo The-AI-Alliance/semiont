@@ -232,8 +232,7 @@ function DocumentView({
             name: pageName,
             content: `# ${pageName}\n\nThis page was created from a wiki link.`,
             contentType: 'text/markdown',
-            entityTypes: [],
-            metadata: {}
+            entityTypes: []
           });
           router.push(`/know/document/${encodeURIComponent(newDoc.document.id)}`);
         }

@@ -305,7 +305,6 @@ export class EventStore {
       name: '',
       contentType: 'text/markdown',
       contentChecksum: documentId.replace('doc-sha256:', ''),
-      metadata: {},
       entityTypes: [],
       archived: false,
       createdAt: '',
@@ -344,7 +343,6 @@ export class EventStore {
         document.name = event.payload.name;
         document.contentType = event.payload.contentType;
         document.entityTypes = event.payload.entityTypes || [];
-        document.metadata = event.payload.metadata || {};
         document.createdAt = event.timestamp;
         document.creationMethod = 'api';
         document.createdBy = event.userId;
@@ -354,7 +352,6 @@ export class EventStore {
         document.name = event.payload.name;
         document.contentType = event.payload.contentType;
         document.entityTypes = event.payload.entityTypes || [];
-        document.metadata = event.payload.metadata || {};
         document.createdAt = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;

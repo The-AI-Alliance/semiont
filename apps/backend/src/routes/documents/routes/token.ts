@@ -156,7 +156,6 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       name: body.name,
       archived: false,
       contentType: sourceDoc.contentType,
-      metadata: sourceDoc.metadata || {},
       entityTypes: sourceDoc.entityTypes || [],
 
       // Clone context
@@ -177,7 +176,6 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       content: body.content,
       contentType: document.contentType,
       contentChecksum: document.contentChecksum!,
-      metadata: document.metadata,
       createdBy: document.createdBy!,
       creationMethod: document.creationMethod,
       sourceDocumentId: document.sourceDocumentId,

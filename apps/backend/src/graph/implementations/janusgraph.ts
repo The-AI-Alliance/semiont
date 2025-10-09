@@ -96,7 +96,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       name: this.getPropertyValue(props, 'name'),
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
       contentType: this.getPropertyValue(props, 'contentType'),
-      metadata: JSON.parse(this.getPropertyValue(props, 'metadata') || '{}'),
       archived: this.getPropertyValue(props, 'archived') === 'true',
       createdBy,
       createdAt: this.getPropertyValue(props, 'createdAt'), // ISO string from DB
@@ -143,7 +142,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       name: input.name,
       entityTypes: input.entityTypes,
       contentType: input.contentType,
-      metadata: input.metadata,
       archived: false,
       createdAt: now,
       createdBy: input.createdBy,
@@ -160,7 +158,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('name', input.name)
       .property('entityTypes', JSON.stringify(input.entityTypes))
       .property('contentType', input.contentType)
-      .property('metadata', JSON.stringify(input.metadata))
       .property('archived', false)
       .property('createdAt', now)
       .property('createdBy', input.createdBy)
