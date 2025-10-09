@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { api, QUERY_KEYS } from '@/lib/api-client';
 import { DocumentViewer } from '@/components/document/DocumentViewer';
@@ -67,6 +68,7 @@ function DocumentErrorState({
 export default function KnowledgeDocumentPage() {
   const params = useParams();
   const documentId = decodeURIComponent(params?.id as string);
+  const { data: session } = useSession();
 
   // Load document data - this is the ONLY hook before early returns
   const {
@@ -115,6 +117,7 @@ function DocumentView({
   refetchDocument: () => Promise<unknown>;
 }) {
   const router = useRouter();
+  const { data: session } = useSession();
   const { addDocument } = useOpenDocuments();
   const { triggerSparkleAnimation, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
@@ -128,7 +131,11 @@ function DocumentView({
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await fetchAPI(`/api/documents/${documentId}/content`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/content`, {
+          headers: {
+            'Authorization': `Bearer ${session?.backendToken}`,
+          },
+        });
         if (response.ok) {
           const text = await response.text();
           setContent(text);
@@ -143,7 +150,7 @@ function DocumentView({
       }
     };
     loadContent();
-  }, [documentId, fetchAPI, showError]);
+  }, [documentId, session?.backendToken, showError]);
 
   // Now that document exists, we can safely fetch dependent data
   const { data: highlightsData, refetch: refetchHighlights } = api.documents.highlights.useQuery(documentId);
