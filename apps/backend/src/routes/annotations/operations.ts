@@ -119,11 +119,7 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
 
   // Emit reference.resolved event to link the annotation to the new document
   await emitReferenceResolved({
-<<<<<<< HEAD
-    documentId: selection.target.source,
-=======
     documentId: annotation.documentId,
->>>>>>> main
     referenceId: id,
     userId: user.id,
     targetDocumentId: documentId,
@@ -146,20 +142,6 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
     },
     annotation: {
       id,
-<<<<<<< HEAD
-      motivation: 'linking' as const,
-      target: {
-        source: selection.target.source,
-        selector: selection.target.selector,
-      },
-      body: {
-        type: 'SpecificResource' as const,
-        entityTypes: selection.body.entityTypes,
-        source: documentId,
-      },
-      creator: user.id,
-      created: new Date().toISOString(),
-=======
       documentId: annotation.documentId,
       exact: annotation.exact,
       selector: {
@@ -172,7 +154,6 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
       entityTypes: annotation.entityTypes,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
->>>>>>> main
     },
   }, 201);
 });
@@ -222,31 +203,18 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   }
 
   // Get the original document metadata from Layer 3
-<<<<<<< HEAD
-  const originalDoc = await DocumentQueryService.getDocumentMetadata(selection.target.source);
-=======
   const originalDoc = await DocumentQueryService.getDocumentMetadata(annotation.documentId);
->>>>>>> main
   if (!originalDoc) {
     throw new HTTPException(404, { message: 'Original document not found' });
   }
 
-<<<<<<< HEAD
-  // Use selection text
-  const selectedText = getExactText(selection.target.selector);
-=======
   // Use annotation text
   const selectedText = annotation.exact;
->>>>>>> main
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
     selectedText,
-<<<<<<< HEAD
-    body.entityTypes || selection.body.entityTypes || [],
-=======
     body.entityTypes || annotation.entityTypes || [],
->>>>>>> main
     body.prompt
   );
 
@@ -269,11 +237,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     name: documentName,
     contentType: 'text/markdown',
     contentHash: checksum,
-<<<<<<< HEAD
-    entityTypes: body.entityTypes || selection.body.entityTypes || [],
-=======
     entityTypes: body.entityTypes || annotation.entityTypes || [],
->>>>>>> main
     metadata: {
       generatedFrom: id,
       prompt: body.prompt,
@@ -282,11 +246,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
 
   // Emit reference.resolved event to link the annotation to the new document
   await emitReferenceResolved({
-<<<<<<< HEAD
-    documentId: selection.target.source,
-=======
     documentId: annotation.documentId,
->>>>>>> main
     referenceId: id,
     userId: user.id,
     targetDocumentId: documentId,
@@ -299,11 +259,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
       name: documentName,
       contentType: 'text/markdown',
       content: generatedContent,
-<<<<<<< HEAD
-      entityTypes: body.entityTypes || selection.body.entityTypes || [],
-=======
       entityTypes: body.entityTypes || annotation.entityTypes || [],
->>>>>>> main
       metadata: {
         generatedFrom: id,
         prompt: body.prompt,
@@ -316,20 +272,6 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     },
     annotation: {
       id,
-<<<<<<< HEAD
-      motivation: 'linking' as const,
-      target: {
-        source: selection.target.source,
-        selector: selection.target.selector,
-      },
-      body: {
-        type: 'SpecificResource' as const,
-        entityTypes: selection.body.entityTypes,
-        source: documentId,
-      },
-      creator: user.id,
-      created: new Date().toISOString(),
-=======
       documentId: annotation.documentId,
       exact: annotation.exact,
       selector: {
@@ -342,7 +284,6 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
       entityTypes: annotation.entityTypes,
       createdBy: user.id,
       createdAt: new Date().toISOString(),
->>>>>>> main
     },
     generated: true,
   }, 201);
@@ -389,36 +330,18 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   }
 
   // Get document metadata from Layer 3
-<<<<<<< HEAD
-  const document = await DocumentQueryService.getDocumentMetadata(selection.target.source);
-=======
   const document = await DocumentQueryService.getDocumentMetadata(annotation.documentId);
->>>>>>> main
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
-<<<<<<< HEAD
-  const content = await storage.getDocument(selection.target.source);
-  const contentStr = content.toString('utf-8');
-
-  // Extract context based on selection position
-  const posSelector = getTextPositionSelector(selection.target.selector);
-  if (!posSelector) {
-    throw new HTTPException(400, { message: 'TextPositionSelector required' });
-  }
-
-  const selStart = posSelector.offset;
-  const selEnd = posSelector.offset + posSelector.length;
-=======
   const content = await storage.getDocument(annotation.documentId);
   const contentStr = content.toString('utf-8');
 
   // Extract context based on annotation position
   const selStart = annotation.selector.offset;
   const selEnd = annotation.selector.offset + annotation.selector.length;
->>>>>>> main
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 
@@ -427,19 +350,6 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const after = contentStr.substring(selEnd, end);
   return c.json({
     annotation: {
-<<<<<<< HEAD
-      id: selection.id,
-      documentId: selection.target.source,
-      selector: {
-        exact: getExactText(selection.target.selector),
-        offset: posSelector?.offset ?? 0,
-        length: posSelector?.length ?? 0,
-      },
-      source: selection.body.source,
-      entityTypes: selection.body.entityTypes,
-      creator: 'user',
-      created: new Date().toISOString(),
-=======
       id: annotation.id,
       documentId: annotation.documentId,
       selector: {
@@ -451,7 +361,6 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
       entityTypes: annotation.entityTypes,
       createdBy: 'user',
       createdAt: new Date().toISOString(),
->>>>>>> main
       updatedAt: new Date().toISOString(),
     },
     context: {
@@ -508,30 +417,12 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   }
 
   // Get document from Layer 3
-<<<<<<< HEAD
   const document = await DocumentQueryService.getDocumentMetadata(selection.target.source);
-=======
-  const document = await DocumentQueryService.getDocumentMetadata(annotation.documentId);
->>>>>>> main
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
-<<<<<<< HEAD
-  const content = await storage.getDocument(selection.target.source);
-  const contentStr = content.toString('utf-8');
-
-  // Extract selection text with context
-  const posSelector = getTextPositionSelector(selection.target.selector);
-  if (!posSelector) {
-    throw new HTTPException(400, { message: 'TextPositionSelector required' });
-  }
-
-  const contextSize = 500; // Fixed context for summary
-  const selStart = posSelector.offset;
-  const selEnd = posSelector.offset + posSelector.length;
-=======
   const content = await storage.getDocument(annotation.documentId);
   const contentStr = content.toString('utf-8');
 
@@ -539,7 +430,6 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const contextSize = 500; // Fixed context for summary
   const selStart = annotation.selector.offset;
   const selEnd = annotation.selector.offset + annotation.selector.length;
->>>>>>> main
   const start = Math.max(0, selStart - contextSize);
   const end = Math.min(contentStr.length, selEnd + contextSize);
 
@@ -555,11 +445,7 @@ Selected exact: "${selected}"
 Context after: "${after.substring(0, 200)}"
 
 Document: ${document.name}
-<<<<<<< HEAD
-Entity types: ${(selection.body.entityTypes || []).join(', ')}`;
-=======
 Entity types: ${(annotation.entityTypes || []).join(', ')}`;
->>>>>>> main
 
   const summary = await generateText(summaryPrompt, 500, 0.5);
 
@@ -568,11 +454,7 @@ Entity types: ${(annotation.entityTypes || []).join(', ')}`;
     relevantFields: {
       documentId: document.id,
       documentName: document.name,
-<<<<<<< HEAD
-      entityTypes: selection.body.entityTypes || [],
-=======
       entityTypes: annotation.entityTypes || [],
->>>>>>> main
     },
     context: {
       before: before.substring(Math.max(0, before.length - 200)), // Last 200 chars

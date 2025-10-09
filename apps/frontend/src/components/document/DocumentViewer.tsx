@@ -492,8 +492,8 @@ export function DocumentViewer({
             } else if (updates.body.source === null) {
               // Unlink document
               await deleteAnnotation(editingAnnotation.id, document.id);
-              await addReference(document.id, selectedText, annotationPosition!, undefined, editingAnnotation.entityTypes?.[0], editingAnnotation.referenceType);
-            } else if (updates.referencedDocumentId) {
+              await addReference(document.id, selectedText, annotationPosition!, undefined, editingAnnotation.body.entityTypes?.[0]);
+            } else if (updates.body?.source) {
               // Resolve reference to a document (old-fashioned resolution via search)
               await resolveReferenceMutation.mutateAsync({
                 id: editingAnnotation.id,
