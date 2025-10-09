@@ -119,7 +119,7 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
 
   // Emit reference.resolved event to link the selection to the new document
   await emitReferenceResolved({
-    documentId: selection.documentId,
+    documentId: selection.target.source,
     referenceId: id,
     userId: user.id,
     targetDocumentId: documentId,
@@ -142,16 +142,15 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     },
     annotation: {
       id,
-      documentId: selection.documentId,
-      exact: selection.exact,
-      selector: {
-        type: selection.selector.type,
-        offset: selection.selector.offset,
-        length: selection.selector.length,
+      target: {
+        source: selection.target.source,
+        selector: selection.target.selector,
       },
-      type: 'reference' as const,
-      referencedDocumentId: documentId,
-      entityTypes: selection.entityTypes,
+      body: {
+        type: 'reference' as const,
+        entityTypes: selection.body.entityTypes,
+        referencedDocumentId: documentId,
+      },
       createdBy: user.id,
       createdAt: new Date().toISOString(),
     },
@@ -203,18 +202,18 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
   }
 
   // Get the original document metadata from Layer 3
-  const originalDoc = await DocumentQueryService.getDocumentMetadata(selection.documentId);
+  const originalDoc = await DocumentQueryService.getDocumentMetadata(selection.target.source);
   if (!originalDoc) {
     throw new HTTPException(404, { message: 'Original document not found' });
   }
 
   // Use selection text
-  const selectedText = selection.exact;
+  const selectedText = selection.target.selector.exact;
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
     selectedText,
-    body.entityTypes || selection.entityTypes || [],
+    body.entityTypes || selection.body.entityTypes || [],
     body.prompt
   );
 
@@ -237,7 +236,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     name: documentName,
     contentType: 'text/markdown',
     contentHash: checksum,
-    entityTypes: body.entityTypes || selection.entityTypes || [],
+    entityTypes: body.entityTypes || selection.body.entityTypes || [],
     metadata: {
       generatedFrom: id,
       prompt: body.prompt,
@@ -246,7 +245,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
 
   // Emit reference.resolved event to link the selection to the new document
   await emitReferenceResolved({
-    documentId: selection.documentId,
+    documentId: selection.target.source,
     referenceId: id,
     userId: user.id,
     targetDocumentId: documentId,
@@ -259,7 +258,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       name: documentName,
       contentType: 'text/markdown',
       content: generatedContent,
-      entityTypes: body.entityTypes || selection.entityTypes || [],
+      entityTypes: body.entityTypes || selection.body.entityTypes || [],
       metadata: {
         generatedFrom: id,
         prompt: body.prompt,
@@ -272,16 +271,15 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     },
     annotation: {
       id,
-      documentId: selection.documentId,
-      exact: selection.exact,
-      selector: {
-        type: selection.selector.type,
-        offset: selection.selector.offset,
-        length: selection.selector.length,
+      target: {
+        source: selection.target.source,
+        selector: selection.target.selector,
       },
-      type: 'reference' as const,
-      referencedDocumentId: documentId,
-      entityTypes: selection.entityTypes,
+      body: {
+        type: 'reference' as const,
+        entityTypes: selection.body.entityTypes,
+        referencedDocumentId: documentId,
+      },
       createdBy: user.id,
       createdAt: new Date().toISOString(),
     },
@@ -330,18 +328,18 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   }
 
   // Get document metadata from Layer 3
-  const document = await DocumentQueryService.getDocumentMetadata(selection.documentId);
+  const document = await DocumentQueryService.getDocumentMetadata(selection.target.source);
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
-  const content = await storage.getDocument(selection.documentId);
+  const content = await storage.getDocument(selection.target.source);
   const contentStr = content.toString('utf-8');
 
   // Extract context based on selection position
-  const selStart = selection.selector.offset;
-  const selEnd = selection.selector.offset + selection.selector.length;
+  const selStart = selection.target.selector.offset;
+  const selEnd = selection.target.selector.offset + selection.target.selector.length;
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 
@@ -352,14 +350,14 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   return c.json({
     annotation: {
       id: selection.id,
-      documentId: selection.documentId,
+      documentId: selection.target.source,
       selector: {
-        exact: selection.exact,
-        offset: selection.selector.offset,
-        length: selection.selector.length,
+        exact: selection.target.selector.exact,
+        offset: selection.target.selector.offset,
+        length: selection.target.selector.length,
       },
-      referencedDocumentId: selection.referencedDocumentId,
-      entityTypes: selection.entityTypes,
+      referencedDocumentId: selection.body.referencedDocumentId,
+      entityTypes: selection.body.entityTypes,
       createdBy: 'user',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -418,19 +416,19 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   }
 
   // Get document from Layer 3
-  const document = await DocumentQueryService.getDocumentMetadata(selection.documentId);
+  const document = await DocumentQueryService.getDocumentMetadata(selection.target.source);
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
-  const content = await storage.getDocument(selection.documentId);
+  const content = await storage.getDocument(selection.target.source);
   const contentStr = content.toString('utf-8');
 
   // Extract selection text with context
   const contextSize = 500; // Fixed context for summary
-  const selStart = selection.selector.offset;
-  const selEnd = selection.selector.offset + selection.selector.length;
+  const selStart = selection.target.selector.offset;
+  const selEnd = selection.target.selector.offset + selection.target.selector.length;
   const start = Math.max(0, selStart - contextSize);
   const end = Math.min(contentStr.length, selEnd + contextSize);
 
@@ -446,7 +444,7 @@ Selected exact: "${selected}"
 Context after: "${after.substring(0, 200)}"
 
 Document: ${document.name}
-Entity types: ${(selection.entityTypes || []).join(', ')}`;
+Entity types: ${(selection.body.entityTypes || []).join(', ')}`;
 
   const summary = await generateText(summaryPrompt, 500, 0.5);
 
@@ -455,7 +453,7 @@ Entity types: ${(selection.entityTypes || []).join(', ')}`;
     relevantFields: {
       documentId: document.id,
       documentName: document.name,
-      entityTypes: selection.entityTypes || [],
+      entityTypes: selection.body.entityTypes || [],
     },
     context: {
       before: before.substring(Math.max(0, before.length - 200)), // Last 200 chars

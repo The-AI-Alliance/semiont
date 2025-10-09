@@ -49,37 +49,34 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
 
-  // Use selector from the request body (already in correct format)
-  const selector = body.selector;
-
   // Generate ID - backend-internal, not graph-dependent
   const annotationId = generateAnnotationId();
-  const isReference = body.referencedDocumentId !== undefined;
+  const isReference = body.body.type === 'reference';
 
   // Emit event first (single source of truth)
   if (isReference) {
     await emitReferenceCreated({
-      documentId: body.documentId,
+      documentId: body.target.source,
       userId: user.id,
       referenceId: annotationId,
-      exact: body.exact,
+      exact: body.target.selector.exact,
       position: {
-        offset: selector.offset,
-        length: selector.length,
+        offset: body.target.selector.offset,
+        length: body.target.selector.length,
       },
-      entityTypes: body.entityTypes,
-      referenceType: body.referenceType,
-      targetDocumentId: body.referencedDocumentId ?? undefined,
+      entityTypes: body.body.entityTypes || [],
+      referenceType: body.body.referenceType,
+      targetDocumentId: body.body.referencedDocumentId ?? undefined,
     });
   } else {
     await emitHighlightAdded({
-      documentId: body.documentId,
+      documentId: body.target.source,
       userId: user.id,
       highlightId: annotationId,
-      exact: body.exact,
+      exact: body.target.selector.exact,
       position: {
-        offset: selector.offset,
-        length: selector.length,
+        offset: body.target.selector.offset,
+        length: body.target.selector.length,
       },
     });
   }
@@ -88,13 +85,16 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   return c.json({
     annotation: {
       id: annotationId,
-      documentId: body.documentId,
-      exact: body.exact,
-      selector,
-      type: body.type,
-      referencedDocumentId: body.referencedDocumentId,
-      entityTypes: body.entityTypes || [],
-      referenceType: body.referenceType,
+      target: {
+        source: body.target.source,
+        selector: body.target.selector,
+      },
+      body: {
+        type: body.body.type,
+        entityTypes: body.body.entityTypes || [],
+        referenceType: body.body.referenceType,
+        referencedDocumentId: body.body.referencedDocumentId,
+      },
       createdBy: user.id,
       createdAt: new Date().toISOString(),
     },
@@ -157,11 +157,11 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
 
   // Emit reference.resolved event to Layer 2 (consumer will update Layer 3 projection)
   await emitReferenceResolved({
-    documentId: annotation.documentId,
+    documentId: annotation.target.source,
     userId: user.id,
     referenceId: id,
     targetDocumentId: body.documentId,
-    referenceType: annotation.referenceType,
+    referenceType: annotation.body.referenceType,
   });
 
   // Get target document from Layer 3
@@ -171,7 +171,10 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
   return c.json({
     annotation: formatAnnotation({
       ...annotation,
-      referencedDocumentId: body.documentId,
+      body: {
+        ...annotation.body,
+        referencedDocumentId: body.documentId,
+      },
     }),
     targetDocument,
   });
@@ -221,8 +224,8 @@ crudRouter.openapi(getAnnotationRoute, async (c) => {
 
   // Get document metadata from Layer 3
   const document = await DocumentQueryService.getDocumentMetadata(documentId);
-  const resolvedDocument = annotation.referencedDocumentId ?
-    await DocumentQueryService.getDocumentMetadata(annotation.referencedDocumentId) : null;
+  const resolvedDocument = annotation.body.referencedDocumentId ?
+    await DocumentQueryService.getDocumentMetadata(annotation.body.referencedDocumentId) : null;
 
   return c.json({
     annotation: formatAnnotation(annotation),

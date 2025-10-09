@@ -19,14 +19,14 @@ export function formatSearchResult(doc: Document, contentPreview: string): Docum
 export function formatAnnotation(annotation: Annotation): any {
   return {
     id: annotation.id,
-    documentId: annotation.documentId,
-    exact: annotation.exact,
-    selector: annotation.selector,
-    type: annotation.type,
-    referencedDocumentId: annotation.referencedDocumentId,
+    documentId: annotation.target.source,
+    exact: annotation.target.selector.exact,
+    selector: annotation.target.selector,
+    type: annotation.body.type,
+    referencedDocumentId: annotation.body.referencedDocumentId,
     resolvedDocumentName: annotation.resolvedDocumentName,
-    entityTypes: annotation.entityTypes,
-    referenceType: annotation.referenceType,
+    entityTypes: annotation.body.entityTypes,
+    referenceType: annotation.body.referenceType,
   };
 }
 

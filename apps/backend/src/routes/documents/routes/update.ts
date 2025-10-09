@@ -85,41 +85,6 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const highlights = await AnnotationQueryService.getHighlights(id);
     const references = await AnnotationQueryService.getReferences(id);
 
-    // Transform Layer 3 projection format to Annotation format for response
-    const highlightSelections = highlights.map(h => ({
-      id: h.id,
-      documentId: id,
-      exact: h.exact,
-      selector: {
-        type: 'text_span',
-        offset: h.selector.offset,
-        length: h.selector.length,
-        exact: h.exact
-      },
-      type: 'highlight' as const,
-      createdAt: h.createdAt, // ISO string from projection
-      createdBy: h.createdBy,
-      entityTypes: h.entityTypes || [],
-    }));
-
-    const referenceSelections = references.map(r => ({
-      id: r.id,
-      documentId: id,
-      exact: r.exact,
-      selector: {
-        type: 'text_span',
-        offset: r.selector.offset,
-        length: r.selector.length,
-        exact: r.exact
-      },
-      type: 'reference' as const,
-      referencedDocumentId: r.referencedDocumentId,
-      entityTypes: r.entityTypes || [],
-      referenceType: r.referenceType,
-      createdAt: r.createdAt, // ISO string from projection
-      createdBy: r.createdBy,
-    }));
-
     // Return optimistic response
     return c.json({
       document: {
@@ -130,10 +95,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         }),
         content: content.toString('utf-8')
       },
-      annotations: [...highlightSelections, ...referenceSelections].map(formatAnnotation),
-      highlights: highlightSelections.map(formatAnnotation),
-      references: referenceSelections.map(formatAnnotation),
-      entityReferences: referenceSelections.filter(s => s.entityTypes.length > 0).map(formatAnnotation),
+      annotations: [...highlights, ...references].map(formatAnnotation),
+      highlights: highlights.map(formatAnnotation),
+      references: references.map(formatAnnotation),
+      entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0).map(formatAnnotation),
     });
   });
 }

@@ -71,17 +71,20 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     const savedSelections = [];
     for (const detected of detectedSelections) {
       const selectionInput = {
-        documentId: id,
-        exact: detected.selection.selector.exact,
-        selector: {
-          type: 'text_span',
-          offset: detected.selection.selector.offset,
-          length: detected.selection.selector.length,
-          exact: detected.selection.selector.exact,
+        target: {
+          source: id,
+          selector: {
+            type: 'TextPositionSelector' as const,
+            exact: detected.selection.selector.exact,
+            offset: detected.selection.selector.offset,
+            length: detected.selection.selector.length,
+          },
         },
-        type: 'reference' as const,
-        referencedDocumentId: null,  // null = stub reference
-        entityTypes: detected.selection.entityTypes || [],
+        body: {
+          type: 'reference' as const,
+          entityTypes: detected.selection.entityTypes || [],
+          referencedDocumentId: null,  // null = stub reference
+        },
         createdBy: user.id,
       };
       const saved = await graphDb.createAnnotation(selectionInput);
@@ -92,10 +95,10 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     return c.json({
       annotations: savedSelections.map(s => ({
         id: s.id,
-        documentId: s.documentId,
-        selector: s.selector,
-        referencedDocumentId: s.referencedDocumentId,
-        entityTypes: s.entityTypes,
+        documentId: s.target.source,
+        selector: s.target.selector,
+        referencedDocumentId: s.body.referencedDocumentId,
+        entityTypes: s.body.entityTypes,
         createdAt: s.createdAt, // ISO string from createAnnotation
       })),
       detected: savedSelections.length,

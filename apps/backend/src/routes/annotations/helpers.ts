@@ -23,13 +23,12 @@ export function formatDocumentWithContent(doc: Document, content: string): any {
 export function formatAnnotation(annotation: Annotation): any {
   return {
     id: annotation.id,
-    documentId: annotation.documentId,
-    exact: annotation.exact,
-    selector: annotation.selector,
-    type: annotation.type,
-    referencedDocumentId: annotation.referencedDocumentId,
+    target: annotation.target,
+    body: annotation.body,
+    createdBy: annotation.createdBy,
+    createdAt: annotation.createdAt,
+    resolvedBy: annotation.resolvedBy,
+    resolvedAt: annotation.resolvedAt,
     resolvedDocumentName: annotation.resolvedDocumentName,
-    entityTypes: annotation.entityTypes,
-    referenceType: annotation.referenceType,
   };
 }

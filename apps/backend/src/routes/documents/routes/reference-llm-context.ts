@@ -72,7 +72,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);
-    if (!reference || reference.documentId !== documentId) {
+    if (!reference || reference.target.source !== documentId) {
       throw new HTTPException(404, { message: 'Reference not found' });
     }
 
@@ -83,8 +83,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     // Get target document if reference is resolved
-    const targetDoc = reference.referencedDocumentId ?
-      await graphDb.getDocument(reference.referencedDocumentId) : null;
+    const targetDoc = reference.body.referencedDocumentId ?
+      await graphDb.getDocument(reference.body.referencedDocumentId) : null;
 
     // Build source context if requested
     let sourceContext;
@@ -92,9 +92,9 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
       const sourceContent = await storage.getDocument(documentId);
       const contentStr = sourceContent.toString('utf-8');
 
-      if (reference.selector && 'offset' in reference.selector) {
-        const offset = reference.selector.offset as number;
-        const length = reference.selector.length as number;
+      if (reference.target.selector && 'offset' in reference.target.selector) {
+        const offset = reference.target.selector.offset as number;
+        const length = reference.target.selector.length as number;
 
         const before = contentStr.slice(Math.max(0, offset - contextWindow), offset);
         const selection = contentStr.slice(offset, offset + length);

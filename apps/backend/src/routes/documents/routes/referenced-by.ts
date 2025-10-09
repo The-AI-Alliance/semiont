@@ -38,7 +38,7 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
     const references = await graphDb.getDocumentReferencedBy(id);
 
     // Get unique documents from the selections
-    const docIds = [...new Set(references.map(ref => ref.documentId))];
+    const docIds = [...new Set(references.map(ref => ref.target.source))];
     const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
 
     // Build document map for lookup
@@ -46,13 +46,13 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
 
     // Transform into ReferencedBy structure
     const referencedBy = references.map(ref => {
-      const doc = docMap.get(ref.documentId);
+      const doc = docMap.get(ref.target.source);
       return {
         id: ref.id,
-        documentId: ref.documentId,
+        documentId: ref.target.source,
         documentName: doc?.name || 'Untitled Document',
         selector: {
-          exact: ref.exact,
+          exact: ref.target.selector.exact,
         },
       };
     });
