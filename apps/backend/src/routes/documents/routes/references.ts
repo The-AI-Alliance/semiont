@@ -8,7 +8,7 @@ export const getDocumentReferencesRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/references',
   summary: 'Get Document References',
-  description: 'Get only references (selections with source) in a document',
+  description: 'Get only references (annotations with body of type SpecifiedResource with a source) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {

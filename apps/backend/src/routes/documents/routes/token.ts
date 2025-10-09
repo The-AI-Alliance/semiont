@@ -194,7 +194,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     // Clean up token
     cloneTokens.delete(body.token);
 
-    // Get selections
+    // Get annotations
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 

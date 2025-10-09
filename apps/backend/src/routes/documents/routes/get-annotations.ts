@@ -40,7 +40,7 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
 
     try {
       // Try Layer 3 first (fast path - O(1) file read)
-      const annotations = await AnnotationQueryService.getAllSelections(id);
+      const annotations = await AnnotationQueryService.getAllAnnotations(id);
 
       // Layer 3 projections have simplified format - return directly
       return c.json({

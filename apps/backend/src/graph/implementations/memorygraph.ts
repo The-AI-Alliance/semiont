@@ -459,7 +459,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // This would use AI/ML to detect selections in a document
+    // This would use AI/ML to detect annotations in a document
     // For now, return empty array as a placeholder
     return [];
   }

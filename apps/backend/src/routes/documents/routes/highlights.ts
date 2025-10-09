@@ -8,7 +8,7 @@ export const getDocumentHighlightsRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/highlights',
   summary: 'Get Document Highlights',
-  description: 'Get only highlights (selections without source) in a document',
+  description: 'Get only highlights (annotations without body of type SpecifiedResource with a source) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {

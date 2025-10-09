@@ -1,4 +1,4 @@
-// Helper functions for selection routes
+// Helper functions for annotation routes
 import type { Document } from '@semiont/core-types';
 
 export function formatDocument(doc: Document): any {

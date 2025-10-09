@@ -18,8 +18,8 @@ export function formatSearchResult(doc: Document, contentPreview: string): Docum
 
 
 // Types for the detection result
-export interface DetectedSelection {
-  selection: {
+export interface DetectedAnnotation {
+  annotation: {
     selector: {
       offset: number;
       length: number;
@@ -31,14 +31,14 @@ export interface DetectedSelection {
 }
 
 // Implementation for detecting entity references in document using AI
-export async function detectSelectionsInDocument(
+export async function detectAnnotationsInDocument(
   documentId: string,
   contentType: string,
   entityTypes: string[]
-): Promise<DetectedSelection[]> {
+): Promise<DetectedAnnotation[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
 
-  const detectedSelections: DetectedSelection[] = [];
+  const detectedAnnotations: DetectedAnnotation[] = [];
 
   // Only process text content
   if (contentType === 'text/plain' || contentType === 'text/markdown') {
@@ -50,10 +50,10 @@ export async function detectSelectionsInDocument(
     // Use AI to extract entities
     const extractedEntities = await extractEntities(content, entityTypes);
 
-    // Convert extracted entities to selection format
+    // Convert extracted entities to annotation format
     for (const entity of extractedEntities) {
-      const selection: DetectedSelection = {
-        selection: {
+      const annotation: DetectedAnnotation = {
+        annotation: {
           selector: {
             offset: entity.startOffset,
             length: entity.endOffset - entity.startOffset,
@@ -66,9 +66,9 @@ export async function detectSelectionsInDocument(
           },
         },
       };
-      detectedSelections.push(selection);
+      detectedAnnotations.push(annotation);
     }
   }
 
-  return detectedSelections;
+  return detectedAnnotations;
 }

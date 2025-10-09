@@ -57,18 +57,18 @@ export function DocumentViewer({
   // API mutations
   const resolveReferenceMutation = api.annotations.resolve.useMutation();
 
-  // Selection popup state
+  // Annotation popup state
   const [selectedText, setSelectedText] = useState<string>('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
-  const [selectionPosition, setSelectionPosition] = useState<{ start: number; end: number } | null>(null);
-  const [showSelectionPopup, setShowSelectionPopup] = useState(false);
+  const [annotationPosition, setAnnotationPosition] = useState<{ start: number; end: number } | null>(null);
+  const [showAnnotationPopup, setShowAnnotationPopup] = useState(false);
   const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Handle text selection from SourceView - memoized
   const handleTextSelection = useCallback((exact: string, position: { start: number; end: number }) => {
     setSelectedText(exact);
-    setSelectionPosition(position);
+    setAnnotationPosition(position);
 
     // Get mouse position for popup
     const selection = window.getSelection();
@@ -78,7 +78,7 @@ export function DocumentViewer({
       setPopupPosition({ x: rect.left, y: rect.bottom + 10 });
     }
 
-    setShowSelectionPopup(true);
+    setShowAnnotationPopup(true);
     setEditingAnnotation(null);
   }, []);
   
@@ -96,12 +96,11 @@ export function DocumentViewer({
         ...annotation,  // Include all required fields (documentId, text, selector, entityTypes, etc.)
         resolvedDocumentName: annotation.referencedDocumentName
       });
-      setSelectedText(getExactText(annotation.target.selector));
-      const posSelector = getTextPositionSelector(annotation.target.selector);
-      if (posSelector) {
-        setSelectionPosition({
-          start: posSelector.offset,
-          end: posSelector.offset + posSelector.length
+      setSelectedText(annotation.exact);
+      if (annotation.selector) {
+        setAnnotationPosition({
+          start: annotation.selector.offset,
+          end: annotation.selector.offset + annotation.selector.length
         });
       }
 
@@ -113,7 +112,7 @@ export function DocumentViewer({
         setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
       }
 
-      setShowSelectionPopup(true);
+      setShowAnnotationPopup(true);
     }
   }, [router, curationMode]);
 
@@ -123,15 +122,15 @@ export function DocumentViewer({
       ...annotation,  // Include all required fields
       resolvedDocumentName: annotation.referencedDocumentName
     });
-    setSelectedText(annotation.target.selector?.target.selector.exact || '');
-    if (annotation.target.selector) {
-      setSelectionPosition({
+    setSelectedText(annotation.selector?.exact || '');
+    if (annotation.selector) {
+      setAnnotationPosition({
         start: annotation.selector.offset,
         end: annotation.selector.offset + annotation.selector.length
       });
     }
     setPopupPosition({ x, y: y + 10 });
-    setShowSelectionPopup(true);
+    setShowAnnotationPopup(true);
   }, []);
 
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
@@ -142,22 +141,21 @@ export function DocumentViewer({
         ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
         resolvedDocumentName: 'Document'
       });
-      setSelectedText(getExactText(reference.target.selector) || '');
-      const posSelector = getTextPositionSelector(reference.target.selector);
-      if (posSelector) {
-        setSelectionPosition({
-          start: posSelector.offset,
-          end: posSelector.offset + posSelector.length
+      setSelectedText(reference.exact || '');
+      if (reference.selector) {
+        setAnnotationPosition({
+          start: reference.selector.offset,
+          end: reference.selector.offset + reference.selector.length
         });
       }
       setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
-      setShowSelectionPopup(true);
+      setShowAnnotationPopup(true);
     }
   }, [references]);
   
   // Handle creating highlights - memoized
   const handleCreateHighlight = useCallback(async () => {
-    if (!selectionPosition || !selectedText) return;
+    if (!annotationPosition || !selectedText) return;
     
     try {
       if (editingAnnotation) {
@@ -168,25 +166,25 @@ export function DocumentViewer({
         // If already a highlight, do nothing
       } else {
         // Create new highlight
-        await addHighlight(document.id, selectedText, selectionPosition);
+        await addHighlight(document.id, selectedText, annotationPosition);
       }
 
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
 
       // Close popup
-      setShowSelectionPopup(false);
+      setShowAnnotationPopup(false);
       setSelectedText('');
-      setSelectionPosition(null);
+      setAnnotationPosition(null);
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to create highlight:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, document.id, addHighlight, convertReferenceToHighlight, references, onRefetchAnnotations]);
   
   // Handle creating references - memoized
   const handleCreateReference = useCallback(async (targetDocId?: string, entityType?: string, referenceType?: string) => {
-    if (!selectionPosition || !selectedText) return;
+    if (!annotationPosition || !selectedText) return;
     
     try {
       if (editingAnnotation) {
@@ -196,11 +194,11 @@ export function DocumentViewer({
         } else {
           // Update existing reference
           await deleteAnnotation(editingAnnotation.id, document.id);
-          await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
+          await addReference(document.id, selectedText, annotationPosition, targetDocId, entityType, referenceType);
         }
       } else {
         // Create new reference
-        const newId = await addReference(document.id, selectedText, selectionPosition, targetDocId, entityType, referenceType);
+        const newId = await addReference(document.id, selectedText, annotationPosition, targetDocId, entityType, referenceType);
         console.log('[DocumentViewer] Created reference:', newId);
       }
 
@@ -210,14 +208,14 @@ export function DocumentViewer({
       console.log('[DocumentViewer] onRefetchAnnotations called');
 
       // Close popup
-      setShowSelectionPopup(false);
+      setShowAnnotationPopup(false);
       setSelectedText('');
-      setSelectionPosition(null);
+      setAnnotationPosition(null);
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to create reference:', err);
     }
-  }, [selectionPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
+  }, [annotationPosition, selectedText, editingAnnotation, document.id, addReference, deleteAnnotation, convertHighlightToReference, highlights, onRefetchAnnotations]);
   
   // Handle deleting annotations - memoized
   const handleDeleteAnnotation = useCallback(async (id: string) => {
@@ -228,7 +226,7 @@ export function DocumentViewer({
       // Refetch annotations to update UI
       onRefetchAnnotations?.();
 
-      setShowSelectionPopup(false);
+      setShowAnnotationPopup(false);
       setEditingAnnotation(null);
     } catch (err) {
       console.error('Failed to delete annotation:', err);
@@ -251,8 +249,8 @@ export function DocumentViewer({
           ...annotation,
           type: 'highlight'
         });
-        setShowSelectionPopup(true);
-      } else if (annotation.body.type === 'reference') {
+        setShowAnnotationPopup(true);
+      } else if (annotation.type === 'reference') {
         // Convert reference to highlight
         await convertReferenceToHighlight(references, annotation.id);
         onRefetchAnnotations?.();
@@ -264,9 +262,9 @@ export function DocumentViewer({
 
   // Close popup - memoized
   const handleClosePopup = useCallback(() => {
-    setShowSelectionPopup(false);
+    setShowAnnotationPopup(false);
     setSelectedText('');
-    setSelectionPosition(null);
+    setAnnotationPosition(null);
     setEditingAnnotation(null);
   }, []);
 
@@ -283,11 +281,11 @@ export function DocumentViewer({
       // Calculate position using the same method as AnnotateView
       const container = documentViewerRef.current;
       if (container) {
-        const preSelectionRange = window.document.createRange();
-        preSelectionRange.selectNodeContents(container);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        const preAnnotationRange = window.document.createRange();
+        preAnnotationRange.selectNodeContents(container);
+        preAnnotationRange.setEnd(range.startContainer, range.startOffset);
 
-        const start = preSelectionRange.toString().length;
+        const start = preAnnotationRange.toString().length;
         const end = start + text.length;
 
         const position = { start, end };
@@ -295,7 +293,7 @@ export function DocumentViewer({
         // Directly create highlight
         addHighlight(document.id, text, position);
 
-        // Clear selection to remove sparkle animation
+        // Clear annotation to remove sparkle animation
         selection.removeAllRanges();
       }
     }
@@ -314,23 +312,23 @@ export function DocumentViewer({
       // Calculate position using the same method as AnnotateView
       const container = documentViewerRef.current;
       if (container) {
-        const preSelectionRange = window.document.createRange();
-        preSelectionRange.selectNodeContents(container);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        const preAnnotationRange = window.document.createRange();
+        preAnnotationRange.selectNodeContents(container);
+        preAnnotationRange.setEnd(range.startContainer, range.startOffset);
 
-        const start = preSelectionRange.toString().length;
+        const start = preAnnotationRange.toString().length;
         const end = start + text.length;
 
         const position = { start, end };
 
         // Set state to show the AnnotationPopup
         setSelectedText(text);
-        setSelectionPosition(position);
+        setAnnotationPosition(position);
         setPopupPosition({ x: rect.left, y: rect.bottom + 10 });
-        setShowSelectionPopup(true);
+        setShowAnnotationPopup(true);
         setEditingAnnotation(null);
 
-        // Clear selection to remove sparkle animation
+        // Clear annotation to remove sparkle animation
         selection.removeAllRanges();
       }
     }
@@ -363,7 +361,7 @@ export function DocumentViewer({
         }
         handleQuickHighlight();
       },
-      description: 'Create highlight from selection'
+      description: 'Create highlight from annotation'
     },
     {
       key: 'r',
@@ -379,7 +377,7 @@ export function DocumentViewer({
         }
         handleQuickReference();
       },
-      description: 'Create reference from selection'
+      description: 'Create reference from annotation'
     },
     {
       key: 'Delete',
@@ -469,13 +467,13 @@ export function DocumentViewer({
       
       {/* Unified Annotation Popup */}
       <AnnotationPopup
-        isOpen={showSelectionPopup}
+        isOpen={showAnnotationPopup}
         onClose={handleClosePopup}
         position={popupPosition}
-        selection={selectedText && selectionPosition ? {
+        selection={selectedText && annotationPosition ? {
           exact: selectedText,
-          start: selectionPosition.start,
-          end: selectionPosition.end
+          start: annotationPosition.start,
+          end: annotationPosition.end
         } : null}
         {...(editingAnnotation && {
           annotation: editingAnnotation
@@ -494,15 +492,15 @@ export function DocumentViewer({
             } else if (updates.body.source === null) {
               // Unlink document
               await deleteAnnotation(editingAnnotation.id, document.id);
-              await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.body.entityTypes?.[0]);
-            } else if (updates.body.source) {
+              await addReference(document.id, selectedText, annotationPosition!, undefined, editingAnnotation.entityTypes?.[0], editingAnnotation.referenceType);
+            } else if (updates.referencedDocumentId) {
               // Resolve reference to a document (old-fashioned resolution via search)
               await resolveReferenceMutation.mutateAsync({
                 id: editingAnnotation.id,
                 documentId: updates.body.source
               });
             }
-            setShowSelectionPopup(false);
+            setShowAnnotationPopup(false);
             setEditingAnnotation(null);
           }
         }}
@@ -513,7 +511,7 @@ export function DocumentViewer({
               title,
               ...(prompt && { prompt })
             });
-            setShowSelectionPopup(false);
+            setShowAnnotationPopup(false);
             setEditingAnnotation(null);
           }
         }}

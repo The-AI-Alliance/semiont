@@ -34,7 +34,7 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const graphDb = await getGraphDatabase();
 
-    // Get all selections that reference this document
+    // Get all annotations that reference this document
     const references = await graphDb.getDocumentReferencedBy(id);
 
     // Get unique documents from the selections

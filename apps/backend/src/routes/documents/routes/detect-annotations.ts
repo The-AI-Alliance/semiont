@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { detectSelectionsInDocument } from '../helpers';
+import { detectAnnotationsInDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Local schemas to avoid TypeScript hanging
@@ -64,12 +64,12 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    // Detect selections using AI (loads content from filesystem internally)
-    const detectedSelections = await detectSelectionsInDocument(id, document.contentType, body.entityTypes || []);
+    // Detect annotations using AI (loads content from filesystem internally)
+    const detectedAnnotations = await detectAnnotationsInDocument(id, document.contentType, body.entityTypes || []);
 
     // Save the stub references
     const savedSelections = [];
-    for (const detected of detectedSelections) {
+    for (const detected of detectedAnnotations) {
       const selectionInput = {
         target: {
           source: id,
@@ -85,7 +85,7 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
           entityTypes: detected.selection.entityTypes || [],
           source: null,  // null = stub reference
         },
-        creator: user.id,
+        creator: user.id
       };
       const saved = await graphDb.createAnnotation(selectionInput);
       savedSelections.push(saved);

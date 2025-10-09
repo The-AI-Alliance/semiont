@@ -533,7 +533,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getAnnotation(id: string): Promise<Annotation | null> {
     try {
       const result = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('id', id)
         .elementMap()
         .next();
@@ -544,7 +544,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       return vertexToAnnotation(result.value);
     } catch (error) {
-      console.error('Failed to get selection from Neptune:', error);
+      console.error('Failed to get annotation from Neptune:', error);
       throw error;
     }
   }
@@ -594,14 +594,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async deleteAnnotation(id: string): Promise<void> {
     try {
       await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('id', id)
         .drop()
         .iterate();
       
-      console.log(`Deleted selection from Neptune: ${id}`);
+      console.log(`Deleted annotation from Neptune: ${id}`);
     } catch (error) {
-      console.error('Failed to delete selection from Neptune:', error);
+      console.error('Failed to delete annotation from Neptune:', error);
       throw error;
     }
   }
@@ -625,7 +625,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return { annotations, total: annotations.length };
     } catch (error) {
-      console.error('Failed to list selections from Neptune:', error);
+      console.error('Failed to list annotations from Neptune:', error);
       throw error;
     }
   }
@@ -634,7 +634,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getHighlights(documentId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('documentId', documentId)
         .hasNot('resolvedDocumentId')
         .elementMap()
@@ -692,7 +692,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getReferences(documentId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('documentId', documentId)
         .has('resolvedDocumentId')
         .elementMap()
@@ -708,7 +708,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]> {
     try {
       let traversal = this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('documentId', documentId)
         .has('resolvedDocumentId')
         .has('entityTypes');
@@ -735,14 +735,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('documentId', documentId)
         .elementMap()
         .toList();
 
       return results.map(vertexToAnnotation);
     } catch (error) {
-      console.error('Failed to get document selections from Neptune:', error);
+      console.error('Failed to get document annotations from Neptune:', error);
       throw error;
     }
   }
@@ -750,7 +750,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async getDocumentReferencedBy(documentId: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('resolvedDocumentId', documentId)
         .elementMap()
         .toList();
@@ -921,24 +921,24 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .next();
       const documentCount = docCountResult.value || 0;
       
-      // Get selection count
+      // Get annotation count
       const selCountResult = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .count()
         .next();
       const annotationCount = selCountResult.value || 0;
 
-      // Get highlight count (selections without resolved document)
+      // Get highlight count (annotations without resolved document)
       const highlightCountResult = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .hasNot('resolvedDocumentId')
         .count()
         .next();
       const highlightCount = highlightCountResult.value || 0;
 
-      // Get reference count (selections with resolved document)
+      // Get reference count (annotations with resolved document)
       const referenceCountResult = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('resolvedDocumentId')
         .count()
         .next();
@@ -946,7 +946,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       // Get entity reference count
       const entityRefCountResult = await this.g.V()
-        .hasLabel('Selection')
+        .hasLabel('Annotation')
         .has('resolvedDocumentId')
         .has('entityTypes')
         .count()
@@ -1017,7 +1017,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
   
   async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // This would use AI/ML to detect selections in a document
+    // This would use AI/ML to detect annotations in a document
     // For now, return empty array as a placeholder
     return [];
   }

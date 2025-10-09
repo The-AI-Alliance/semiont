@@ -45,10 +45,10 @@ export class AnnotationQueryService {
   }
 
   /**
-   * Get all selections (highlights + references)
-   * @returns Array of all selection objects
+   * Get all annotations (highlights + references)
+   * @returns Array of all annotation objects
    */
-  static async getAllSelections(documentId: string): Promise<Array<
+  static async getAllAnnotations(documentId: string): Promise<Array<
     DocumentAnnotations['highlights'][0] | DocumentAnnotations['references'][0]
   >> {
     const annotations = await this.getDocumentAnnotations(documentId);
@@ -85,14 +85,14 @@ export class AnnotationQueryService {
    * Scans Layer 3 projections to find the annotation
    * O(n) complexity - needs annotation ID → document ID index for O(1)
    */
-  static async getSelection(selectionId: string): Promise<Annotation | null> {
+  static async getAnnotation(annotationId: string): Promise<Annotation | null> {
     const projectionStorage = getProjectionStorage();
     const allProjections = await projectionStorage.getAllProjections();
 
     for (const stored of allProjections) {
       // Check highlights
-      const annotation = stored.annotations.highlights.find((h) => h.id === selectionId) ||
-                        stored.annotations.references.find((r) => r.id === selectionId);
+      const annotation = stored.annotations.highlights.find((h) => h.id === annotationId) ||
+                        stored.annotations.references.find((r) => r.id === annotationId);
       if (annotation) {
         return annotation;
       }
@@ -102,10 +102,10 @@ export class AnnotationQueryService {
   }
 
   /**
-   * List selections with optional filtering
+   * List annotations with optional filtering
    * @param filters - Optional filters like documentId
    */
-  static async listSelections(filters?: { documentId?: string }): Promise<any> {
+  static async listAnnotations(filters?: { documentId?: string }): Promise<any> {
     if (filters?.documentId) {
       // If filtering by document ID, use Layer 3 directly
       const highlights = await this.getHighlights(filters.documentId);

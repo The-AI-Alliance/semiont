@@ -6,10 +6,8 @@ import { generateDocumentFromTopic, generateText } from '../../inference/factory
 import { calculateChecksum } from '@semiont/utils';
 import {
   CREATION_METHODS,
-  GenerateDocumentFromSelectionRequestSchema,
-  GenerateDocumentFromSelectionResponseSchema,
-  getExactText,
-  getTextPositionSelector,
+  GenerateDocumentFromAnnotationRequestSchema,
+  GenerateDocumentFromAnnotationResponseSchema
 } from '@semiont/core-types';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -33,7 +31,7 @@ const CreateDocumentFromSelectionResponse = z.object({
   annotation: z.any(),
 });
 
-const SelectionContextResponse = z.object({
+const AnnotationContextResponse = z.object({
   annotation: z.any(),
   context: z.object({
     before: z.string().optional(),
@@ -53,12 +51,12 @@ const ContextualSummaryResponse = z.object({
   }),
 });
 
-// CREATE DOCUMENT FROM SELECTION
-const createDocumentFromSelectionRoute = createRoute({
+// CREATE DOCUMENT FROM ANNOTATION
+const createDocumentFromAnnotationRoute = createRoute({
   method: 'post',
   path: '/api/annotations/{id}/create-document',
-  summary: 'Create Document from Selection',
-  description: 'Create a new document from a selection and resolve the selection to it',
+  summary: 'Create Document from Annotation',
+  description: 'Create a new document from an annotation and resolve the annotation to it',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -80,12 +78,12 @@ const createDocumentFromSelectionRoute = createRoute({
           schema: CreateDocumentFromSelectionResponse,
         },
       },
-      description: 'Document created and selection resolved',
+      description: 'Document created and annotation resolved',
     },
   },
 });
 
-operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
+operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user');
@@ -95,10 +93,10 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     throw new HTTPException(400, { message: 'Content is required when creating a document' });
   }
 
-  // Get selection from Layer 3
-  const selection = await AnnotationQueryService.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
+  // Get annotation from Layer 3
+  const annotation = await AnnotationQueryService.getAnnotation(id);
+  if (!annotation) {
+    throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
   // Create the new document
@@ -119,9 +117,13 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     metadata: body.metadata || {},
   });
 
-  // Emit reference.resolved event to link the selection to the new document
+  // Emit reference.resolved event to link the annotation to the new document
   await emitReferenceResolved({
+<<<<<<< HEAD
     documentId: selection.target.source,
+=======
+    documentId: annotation.documentId,
+>>>>>>> main
     referenceId: id,
     userId: user.id,
     targetDocumentId: documentId,
@@ -144,6 +146,7 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
     },
     annotation: {
       id,
+<<<<<<< HEAD
       motivation: 'linking' as const,
       target: {
         source: selection.target.source,
@@ -156,16 +159,30 @@ operationsRouter.openapi(createDocumentFromSelectionRoute, async (c) => {
       },
       creator: user.id,
       created: new Date().toISOString(),
+=======
+      documentId: annotation.documentId,
+      exact: annotation.exact,
+      selector: {
+        type: annotation.selector.type,
+        offset: annotation.selector.offset,
+        length: annotation.selector.length,
+      },
+      type: 'reference' as const,
+      referencedDocumentId: documentId,
+      entityTypes: annotation.entityTypes,
+      createdBy: user.id,
+      createdAt: new Date().toISOString(),
+>>>>>>> main
     },
   }, 201);
 });
 
-// GENERATE DOCUMENT FROM SELECTION
-const generateDocumentFromSelectionRoute = createRoute({
+// GENERATE DOCUMENT FROM ANNOTATION
+const generateDocumentFromAnnotationRoute = createRoute({
   method: 'post',
   path: '/api/annotations/{id}/generate-document',
-  summary: 'Generate Document from Selection',
-  description: 'Use AI to generate document content from a selection',
+  summary: 'Generate Document from Annotation',
+  description: 'Use AI to generate document content from an annotation',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -175,7 +192,7 @@ const generateDocumentFromSelectionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: GenerateDocumentFromSelectionRequestSchema,
+          schema: GenerateDocumentFromAnnotationRequestSchema,
         },
       },
     },
@@ -184,39 +201,52 @@ const generateDocumentFromSelectionRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: GenerateDocumentFromSelectionResponseSchema,
+          schema: GenerateDocumentFromAnnotationResponseSchema,
         },
       },
-      description: 'Document generated and selection resolved',
+      description: 'Document generated and annotation resolved',
     },
   },
 });
 
-operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
+operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user');
   const storage = getStorageService();
 
-  // Get selection from Layer 3
-  const selection = await AnnotationQueryService.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
+  // Get annotation from Layer 3
+  const annotation = await AnnotationQueryService.getAnnotation(id);
+  if (!annotation) {
+    throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
   // Get the original document metadata from Layer 3
+<<<<<<< HEAD
   const originalDoc = await DocumentQueryService.getDocumentMetadata(selection.target.source);
+=======
+  const originalDoc = await DocumentQueryService.getDocumentMetadata(annotation.documentId);
+>>>>>>> main
   if (!originalDoc) {
     throw new HTTPException(404, { message: 'Original document not found' });
   }
 
+<<<<<<< HEAD
   // Use selection text
   const selectedText = getExactText(selection.target.selector);
+=======
+  // Use annotation text
+  const selectedText = annotation.exact;
+>>>>>>> main
 
   // Generate content using the proper document generation function
   const { title, content: generatedContent } = await generateDocumentFromTopic(
     selectedText,
+<<<<<<< HEAD
     body.entityTypes || selection.body.entityTypes || [],
+=======
+    body.entityTypes || annotation.entityTypes || [],
+>>>>>>> main
     body.prompt
   );
 
@@ -239,16 +269,24 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     name: documentName,
     contentType: 'text/markdown',
     contentHash: checksum,
+<<<<<<< HEAD
     entityTypes: body.entityTypes || selection.body.entityTypes || [],
+=======
+    entityTypes: body.entityTypes || annotation.entityTypes || [],
+>>>>>>> main
     metadata: {
       generatedFrom: id,
       prompt: body.prompt,
     },
   });
 
-  // Emit reference.resolved event to link the selection to the new document
+  // Emit reference.resolved event to link the annotation to the new document
   await emitReferenceResolved({
+<<<<<<< HEAD
     documentId: selection.target.source,
+=======
+    documentId: annotation.documentId,
+>>>>>>> main
     referenceId: id,
     userId: user.id,
     targetDocumentId: documentId,
@@ -261,7 +299,11 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       name: documentName,
       contentType: 'text/markdown',
       content: generatedContent,
+<<<<<<< HEAD
       entityTypes: body.entityTypes || selection.body.entityTypes || [],
+=======
+      entityTypes: body.entityTypes || annotation.entityTypes || [],
+>>>>>>> main
       metadata: {
         generatedFrom: id,
         prompt: body.prompt,
@@ -274,6 +316,7 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
     },
     annotation: {
       id,
+<<<<<<< HEAD
       motivation: 'linking' as const,
       target: {
         source: selection.target.source,
@@ -286,17 +329,31 @@ operationsRouter.openapi(generateDocumentFromSelectionRoute, async (c) => {
       },
       creator: user.id,
       created: new Date().toISOString(),
+=======
+      documentId: annotation.documentId,
+      exact: annotation.exact,
+      selector: {
+        type: annotation.selector.type,
+        offset: annotation.selector.offset,
+        length: annotation.selector.length,
+      },
+      type: 'reference' as const,
+      referencedDocumentId: documentId,
+      entityTypes: annotation.entityTypes,
+      createdBy: user.id,
+      createdAt: new Date().toISOString(),
+>>>>>>> main
     },
     generated: true,
   }, 201);
 });
 
-// GET SELECTION CONTEXT
+// GET ANNOTATION CONTEXT
 const getSelectionContextRoute = createRoute({
   method: 'get',
   path: '/api/annotations/{id}/context',
-  summary: 'Get Selection Context',
-  description: 'Get the context around a selection',
+  summary: 'Get Annotation Context',
+  description: 'Get the context around an annotation',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -312,10 +369,10 @@ const getSelectionContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: SelectionContextResponse,
+          schema: AnnotationContextResponse,
         },
       },
-      description: 'Selection context',
+      description: 'Annotation context',
     },
   },
 });
@@ -325,19 +382,24 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const { contextBefore, contextAfter } = c.req.valid('query');
   const storage = getStorageService();
 
-  // Get selection from Layer 3
-  const selection = await AnnotationQueryService.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
+  // Get annotation from Layer 3
+  const annotation = await AnnotationQueryService.getAnnotation(id);
+  if (!annotation) {
+    throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
   // Get document metadata from Layer 3
+<<<<<<< HEAD
   const document = await DocumentQueryService.getDocumentMetadata(selection.target.source);
+=======
+  const document = await DocumentQueryService.getDocumentMetadata(annotation.documentId);
+>>>>>>> main
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
+<<<<<<< HEAD
   const content = await storage.getDocument(selection.target.source);
   const contentStr = content.toString('utf-8');
 
@@ -349,6 +411,14 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
 
   const selStart = posSelector.offset;
   const selEnd = posSelector.offset + posSelector.length;
+=======
+  const content = await storage.getDocument(annotation.documentId);
+  const contentStr = content.toString('utf-8');
+
+  // Extract context based on annotation position
+  const selStart = annotation.selector.offset;
+  const selEnd = annotation.selector.offset + annotation.selector.length;
+>>>>>>> main
   const start = Math.max(0, selStart - contextBefore);
   const end = Math.min(contentStr.length, selEnd + contextAfter);
 
@@ -357,6 +427,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const after = contentStr.substring(selEnd, end);
   return c.json({
     annotation: {
+<<<<<<< HEAD
       id: selection.id,
       documentId: selection.target.source,
       selector: {
@@ -368,6 +439,19 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
       entityTypes: selection.body.entityTypes,
       creator: 'user',
       created: new Date().toISOString(),
+=======
+      id: annotation.id,
+      documentId: annotation.documentId,
+      selector: {
+        exact: annotation.exact,
+        offset: annotation.selector.offset,
+        length: annotation.selector.length,
+      },
+      referencedDocumentId: annotation.referencedDocumentId,
+      entityTypes: annotation.entityTypes,
+      createdBy: 'user',
+      createdAt: new Date().toISOString(),
+>>>>>>> main
       updatedAt: new Date().toISOString(),
     },
     context: {
@@ -393,7 +477,7 @@ const getContextualSummaryRoute = createRoute({
   method: 'get',
   path: '/api/annotations/{id}/summary',
   summary: 'Get Contextual Summary',
-  description: 'Get an AI-generated summary of the selection in context',
+  description: 'Get an AI-generated summary of the annotation in context',
   tags: ['Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -417,19 +501,24 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const { id } = c.req.valid('param');
   const storage = getStorageService();
 
-  // Get selection from Layer 3
-  const selection = await AnnotationQueryService.getSelection(id);
-  if (!selection) {
-    throw new HTTPException(404, { message: 'Selection not found' });
+  // Get annotation from Layer 3
+  const annotation = await AnnotationQueryService.getAnnotation(id);
+  if (!annotation) {
+    throw new HTTPException(404, { message: 'Annotation not found' });
   }
 
   // Get document from Layer 3
+<<<<<<< HEAD
   const document = await DocumentQueryService.getDocumentMetadata(selection.target.source);
+=======
+  const document = await DocumentQueryService.getDocumentMetadata(annotation.documentId);
+>>>>>>> main
   if (!document) {
     throw new HTTPException(404, { message: 'Document not found' });
   }
 
   // Get content from Layer 1
+<<<<<<< HEAD
   const content = await storage.getDocument(selection.target.source);
   const contentStr = content.toString('utf-8');
 
@@ -442,6 +531,15 @@ operationsRouter.openapi(getContextualSummaryRoute, async (c) => {
   const contextSize = 500; // Fixed context for summary
   const selStart = posSelector.offset;
   const selEnd = posSelector.offset + posSelector.length;
+=======
+  const content = await storage.getDocument(annotation.documentId);
+  const contentStr = content.toString('utf-8');
+
+  // Extract annotation text with context
+  const contextSize = 500; // Fixed context for summary
+  const selStart = annotation.selector.offset;
+  const selEnd = annotation.selector.offset + annotation.selector.length;
+>>>>>>> main
   const start = Math.max(0, selStart - contextSize);
   const end = Math.min(contentStr.length, selEnd + contextSize);
 
@@ -457,7 +555,11 @@ Selected exact: "${selected}"
 Context after: "${after.substring(0, 200)}"
 
 Document: ${document.name}
+<<<<<<< HEAD
 Entity types: ${(selection.body.entityTypes || []).join(', ')}`;
+=======
+Entity types: ${(annotation.entityTypes || []).join(', ')}`;
+>>>>>>> main
 
   const summary = await generateText(summaryPrompt, 500, 0.5);
 
@@ -466,7 +568,11 @@ Entity types: ${(selection.body.entityTypes || []).join(', ')}`;
     relevantFields: {
       documentId: document.id,
       documentName: document.name,
+<<<<<<< HEAD
       entityTypes: selection.body.entityTypes || [],
+=======
+      entityTypes: annotation.entityTypes || [],
+>>>>>>> main
     },
     context: {
       before: before.substring(Math.max(0, before.length - 200)), // Last 200 chars

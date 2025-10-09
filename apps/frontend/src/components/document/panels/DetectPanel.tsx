@@ -49,7 +49,7 @@ export function DetectPanel({
         </h3>
       </div>
 
-      {/* Show selection UI only when not detecting and no completed log */}
+      {/* Show annotation UI only when not detecting and no completed log */}
       {!detectionProgress && !lastDetectionLog && (
         <>
           {/* Entity Types Selection */}

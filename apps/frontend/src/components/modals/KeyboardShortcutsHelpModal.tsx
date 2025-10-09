@@ -41,8 +41,8 @@ const shortcutGroups: ShortcutGroup[] = [
   {
     title: 'Document Annotations',
     shortcuts: [
-      { keys: ['H'], description: 'Create highlight from selection (direct)' },
-      { keys: ['R'], description: 'Open reference popup for selection' },
+      { keys: ['H'], description: 'Create highlight from annotation (direct)' },
+      { keys: ['R'], description: 'Open reference popup for annotation' },
       { keys: ['Delete'], description: 'Delete focused annotation' },
       { keys: ['Tab'], description: 'Navigate through annotations' },
       { keys: ['Shift Tab'], description: 'Navigate annotations backward' },

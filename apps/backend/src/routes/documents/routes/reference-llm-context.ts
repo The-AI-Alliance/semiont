@@ -42,7 +42,7 @@ export const getReferenceLLMContextRoute = createRoute({
             targetDocument: z.any().nullable(),
             sourceContext: z.object({
               before: z.string(),
-              selection: z.string(),
+              selected: z.string(),
               after: z.string(),
             }).optional(),
             targetContext: z.object({
@@ -97,10 +97,10 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
         const length = reference.target.selector.length as number;
 
         const before = contentStr.slice(Math.max(0, offset - contextWindow), offset);
-        const selection = contentStr.slice(offset, offset + length);
+        const selected = contentStr.slice(offset, offset + length);
         const after = contentStr.slice(offset + length, Math.min(contentStr.length, offset + length + contextWindow));
 
-        sourceContext = { before, selection, after };
+        sourceContext = { before, selected, after };
       }
     }
 
