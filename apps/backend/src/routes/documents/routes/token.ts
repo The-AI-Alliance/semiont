@@ -163,8 +163,8 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       sourceDocumentId: tokenData.documentId,
       contentChecksum: checksum,
 
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
+      creator: user.id,
+      created: new Date().toISOString(),
     };
 
     const documentId = `doc-sha256:${checksum}`;
@@ -176,7 +176,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       content: body.content,
       contentType: document.contentType,
       contentChecksum: document.contentChecksum!,
-      createdBy: document.createdBy!,
+      creator: document.creator!,
       creationMethod: document.creationMethod,
       sourceDocumentId: document.sourceDocumentId,
     };

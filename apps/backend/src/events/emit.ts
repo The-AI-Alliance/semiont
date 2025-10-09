@@ -169,7 +169,6 @@ export async function emitReferenceCreated(params: {
   exact: string;
   position: { offset: number; length: number };
   entityTypes?: string[];
-  referenceType?: string;
   targetDocumentId?: string;
 }): Promise<StoredEvent> {
   const eventStore = await getEventStore();
@@ -184,7 +183,6 @@ export async function emitReferenceCreated(params: {
       exact: params.exact,
       position: params.position,
       entityTypes: params.entityTypes,
-      referenceType: params.referenceType,
       targetDocumentId: params.targetDocumentId,
     },
   });
@@ -198,7 +196,6 @@ export async function emitReferenceResolved(params: {
   userId: string;
   referenceId: string;
   targetDocumentId: string;
-  referenceType?: string;
 }): Promise<StoredEvent> {
   const eventStore = await getEventStore();
 
@@ -210,7 +207,6 @@ export async function emitReferenceResolved(params: {
     payload: {
       referenceId: params.referenceId,
       targetDocumentId: params.targetDocumentId,
-      referenceType: params.referenceType,
     },
   });
 }

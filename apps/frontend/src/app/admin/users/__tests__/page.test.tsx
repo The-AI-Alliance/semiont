@@ -64,7 +64,7 @@ const mockUsers = [
     isAdmin: true,
     isActive: true,
     lastLogin: '2023-12-01T10:00:00Z',
-    createdAt: '2023-01-01T10:00:00Z',
+    created: '2023-01-01T10:00:00Z',
     updatedAt: '2023-12-01T10:00:00Z'
   },
   {
@@ -77,7 +77,7 @@ const mockUsers = [
     isAdmin: false,
     isActive: true,
     lastLogin: null,
-    createdAt: '2023-06-01T10:00:00Z',
+    created: '2023-06-01T10:00:00Z',
     updatedAt: '2023-06-01T10:00:00Z'
   },
   {
@@ -90,7 +90,7 @@ const mockUsers = [
     isAdmin: false,
     isActive: false,
     lastLogin: '2023-11-01T10:00:00Z',
-    createdAt: '2023-05-01T10:00:00Z',
+    created: '2023-05-01T10:00:00Z',
     updatedAt: '2023-11-01T10:00:00Z'
   }
 ];
@@ -99,7 +99,7 @@ const mockStats = {
   totalUsers: 3,
   activeUsers: 2,
   adminUsers: 1,
-  recentSignups: [{ id: '1', name: 'Admin User', email: 'admin@company.com', createdAt: '2023-12-01T10:00:00Z' }]
+  recentSignups: [{ id: '1', name: 'Admin User', email: 'admin@company.com', created: '2023-12-01T10:00:00Z' }]
 };
 
 const mockUsersResponse = {

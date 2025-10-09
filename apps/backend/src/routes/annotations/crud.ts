@@ -52,7 +52,7 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
 
   // Generate ID - backend-internal, not graph-dependent
   const annotationId = generateAnnotationId();
-  const isReference = body.body.type === 'reference';
+  const isReference = body.body.type === 'SpecificResource';
 
   // Extract TextPositionSelector for event (events require offset/length)
   const posSelector = getTextPositionSelector(body.target.selector);
@@ -72,8 +72,7 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
         length: posSelector.length,
       },
       entityTypes: body.body.entityTypes || [],
-      referenceType: body.body.referenceType,
-      targetDocumentId: body.body.referencedDocumentId ?? undefined,
+      targetDocumentId: body.body.source ?? undefined,
     });
   } else {
     await emitHighlightAdded({
@@ -92,18 +91,19 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   return c.json({
     annotation: {
       id: annotationId,
+      motivation: body.body.type === 'TextualBody' ? 'highlighting' : 'linking',
       target: {
         source: body.target.source,
         selector: body.target.selector,
       },
       body: {
         type: body.body.type,
+        value: body.body.value,
         entityTypes: body.body.entityTypes || [],
-        referenceType: body.body.referenceType,
-        referencedDocumentId: body.body.referencedDocumentId,
+        source: body.body.source,
       },
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
+      creator: user.id,
+      created: new Date().toISOString(),
     },
   }, 201);
 });
@@ -168,7 +168,6 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
     userId: user.id,
     referenceId: id,
     targetDocumentId: body.documentId,
-    referenceType: annotation.body.referenceType,
   });
 
   // Get target document from Layer 3
@@ -180,7 +179,7 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
       ...annotation,
       body: {
         ...annotation.body,
-        referencedDocumentId: body.documentId,
+        source: body.documentId,
       },
     },
     targetDocument,
@@ -231,8 +230,8 @@ crudRouter.openapi(getAnnotationRoute, async (c) => {
 
   // Get document metadata from Layer 3
   const document = await DocumentQueryService.getDocumentMetadata(documentId);
-  const resolvedDocument = annotation.body.referencedDocumentId ?
-    await DocumentQueryService.getDocumentMetadata(annotation.body.referencedDocumentId) : null;
+  const resolvedDocument = annotation.body.source ?
+    await DocumentQueryService.getDocumentMetadata(annotation.body.source) : null;
 
   return c.json({
     annotation,

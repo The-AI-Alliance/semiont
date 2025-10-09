@@ -88,7 +88,6 @@ export interface ReferenceCreatedEvent extends BaseEvent {
       length: number;
     };
     entityTypes?: string[];
-    referenceType?: string;
     targetDocumentId?: string;  // Content hash of target doc (if null, it's a stub reference)
   };
 }
@@ -98,7 +97,6 @@ export interface ReferenceResolvedEvent extends BaseEvent {
   payload: {
     referenceId: string;
     targetDocumentId: string;   // Content hash of target document
-    referenceType?: string;
   };
 }
 

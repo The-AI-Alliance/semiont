@@ -6,7 +6,7 @@ import { AnnotateView } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { AnnotationPopup } from '@/components/AnnotationPopup';
 import type { Annotation } from '@semiont/core-types';
-import { getExactText, getTextPositionSelector } from '@semiont/core-types';
+import { getExactText, getTextPositionSelector, isHighlight, isReference } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Document as SemiontDocument } from '@/lib/api-client';
@@ -85,8 +85,8 @@ export function DocumentViewer({
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: any, event?: React.MouseEvent) => {
     // If it's a resolved reference, navigate to it (in both curation and browse mode)
-    if (annotation.body.type === 'reference' && annotation.body.referencedDocumentId) {
-      router.push(`/know/document/${encodeURIComponent(annotation.body.referencedDocumentId)}`);
+    if (isReference(annotation) && annotation.body.source) {
+      router.push(`/know/document/${encodeURIComponent(annotation.body.source)}`);
       return;
     }
 
@@ -136,7 +136,7 @@ export function DocumentViewer({
 
   // Handle clicking 🔗 icon on resolved reference - show popup instead of navigating
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
-    const reference = references.find(r => r.body.referencedDocumentId === documentId);
+    const reference = references.find(r => r.body.source === documentId);
     if (reference && reference.body.type) {
       setEditingAnnotation({
         ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
@@ -161,7 +161,7 @@ export function DocumentViewer({
     
     try {
       if (editingAnnotation) {
-        if (editingAnnotation.body.type === 'reference') {
+        if (isReference(editingAnnotation)) {
           // Convert reference to highlight
           await convertReferenceToHighlight(references, editingAnnotation.id);
         }
@@ -190,7 +190,7 @@ export function DocumentViewer({
     
     try {
       if (editingAnnotation) {
-        if (editingAnnotation.body.type === 'highlight') {
+        if (isHighlight(editingAnnotation)) {
           // Convert highlight to reference
           await convertHighlightToReference(highlights, editingAnnotation.id, targetDocId, entityType, referenceType);
         } else {
@@ -485,21 +485,21 @@ export function DocumentViewer({
         onUpdateAnnotation={async (updates) => {
           if (editingAnnotation && updates.body) {
             // Handle updates to existing annotation
-            if (updates.body.type === 'reference') {
+            if (updates.body.type === 'SpecificResource') {
               // Convert highlight to reference
               await convertHighlightToReference(highlights, editingAnnotation.id);
-            } else if (updates.body.type === 'highlight') {
+            } else if (updates.body.type === 'TextualBody') {
               // Convert reference to highlight
               await convertReferenceToHighlight(references, editingAnnotation.id);
-            } else if (updates.body.referencedDocumentId === null) {
+            } else if (updates.body.source === null) {
               // Unlink document
               await deleteAnnotation(editingAnnotation.id, document.id);
-              await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.body.entityTypes?.[0], editingAnnotation.body.referenceType);
-            } else if (updates.body.referencedDocumentId) {
+              await addReference(document.id, selectedText, selectionPosition!, undefined, editingAnnotation.body.entityTypes?.[0]);
+            } else if (updates.body.source) {
               // Resolve reference to a document (old-fashioned resolution via search)
               await resolveReferenceMutation.mutateAsync({
                 id: editingAnnotation.id,
-                documentId: updates.body.referencedDocumentId
+                documentId: updates.body.source
               });
             }
             setShowSelectionPopup(false);

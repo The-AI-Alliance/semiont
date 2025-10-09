@@ -29,14 +29,14 @@ export const annotationStyles = {
     referenceType?: string;
     entityType?: string;
     entityTypes?: string[];
-    referencedDocumentId?: string;
+    source?: string;
   }) => {
     if (annotation.type === 'highlight') {
       return annotationStyles.highlight.className;
     }
 
     // Check if it's a reference type - all references now use the same blue/cyan style
-    if (annotation.type === 'reference' || annotation.referencedDocumentId) {
+    if (annotation.type === 'reference' || annotation.source) {
       return annotationStyles.reference.className;
     }
 

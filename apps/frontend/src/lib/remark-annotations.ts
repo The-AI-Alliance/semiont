@@ -8,7 +8,7 @@ interface Annotation {
   offset: number;
   length: number;
   type: 'highlight' | 'reference';
-  referencedDocumentId?: string;
+  source?: string;
 }
 
 interface RemarkAnnotationsOptions {

@@ -8,8 +8,8 @@ export function formatDocument(doc: Document): any {
     contentType: doc.contentType,
     archived: doc.archived || false,
     entityTypes: doc.entityTypes || [],
-    createdBy: doc.createdBy,
-    createdAt: doc.createdAt, // Already ISO string
+    creator: doc.creator,
+    created: doc.created, // Already ISO string
   };
 }
 

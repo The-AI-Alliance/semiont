@@ -69,7 +69,7 @@ describe('Admin API Unit Tests', () => {
 
       // Simulate the admin users fetch logic
       const users = await mockPrismaUser.findMany({
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created: 'desc' },
         select: {
           id: true,
           email: true,
@@ -80,14 +80,14 @@ describe('Admin API Unit Tests', () => {
           isAdmin: true,
           isActive: true,
           lastLogin: true,
-          createdAt: true,
+          created: true,
           updatedAt: true,
         }
       });
 
       expect(users).toEqual(mockUsers);
       expect(mockPrismaUser.findMany).toHaveBeenCalledWith({
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created: 'desc' },
         select: {
           id: true,
           email: true,
@@ -98,7 +98,7 @@ describe('Admin API Unit Tests', () => {
           isAdmin: true,
           isActive: true,
           lastLogin: true,
-          createdAt: true,
+          created: true,
           updatedAt: true,
         }
       });
@@ -121,7 +121,7 @@ describe('Admin API Unit Tests', () => {
         mockPrismaUser.count({ where: { isAdmin: true } }),
         mockPrismaUser.count({ 
           where: { 
-            createdAt: { 
+            created: { 
               gte: thirtyDaysAgo 
             } 
           } 
@@ -139,7 +139,7 @@ describe('Admin API Unit Tests', () => {
       expect(mockPrismaUser.count).toHaveBeenNthCalledWith(3, { where: { isAdmin: true } });
       expect(mockPrismaUser.count).toHaveBeenNthCalledWith(4, { 
         where: { 
-          createdAt: { 
+          created: { 
             gte: expect.any(Date)
           } 
         } 
@@ -267,7 +267,7 @@ describe('Admin API Unit Tests', () => {
       expect(user).toHaveProperty('providerId');
       expect(user).toHaveProperty('isAdmin');
       expect(user).toHaveProperty('isActive');
-      expect(user).toHaveProperty('createdAt');
+      expect(user).toHaveProperty('created');
       expect(user).toHaveProperty('updatedAt');
 
       // Validate field types

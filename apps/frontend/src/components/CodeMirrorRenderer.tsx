@@ -19,12 +19,12 @@ export interface AnnotationSelection {
     exact: string;
   };
   text?: string;
-  referencedDocumentId?: string;
+  source?: string;
   entityType?: string;
   entityTypes?: string[];
   referenceType?: string;
   type?: string;
-  createdAt?: string;
+  created?: string;
   updatedAt?: string;
 }
 
@@ -110,7 +110,7 @@ function buildAnnotationDecorations(
         'data-annotation-type': segment.annotation.type || '',
         title: segment.annotation.type === 'highlight'
           ? 'Click to delete or convert to reference'
-          : segment.annotation.referencedDocumentId
+          : segment.annotation.source
             ? 'Click to navigate • Right-click for options'
             : 'Right-click for options'
       }
@@ -173,8 +173,8 @@ function buildWidgetDecorations(
 
     // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
     if (annotation.type === 'reference') {
-      const targetName = annotation.referencedDocumentId
-        ? callbacks.getTargetDocumentName?.(annotation.referencedDocumentId)
+      const targetName = annotation.source
+        ? callbacks.getTargetDocumentName?.(annotation.source)
         : undefined;
       const isGenerating = generatingReferenceId === annotation.id;
       const widget = new ReferenceResolutionWidget(

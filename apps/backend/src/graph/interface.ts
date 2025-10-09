@@ -3,6 +3,7 @@
 import {
   Document,
   Annotation,
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -32,13 +33,13 @@ export interface GraphDatabase {
   getAnnotation(id: string): Promise<Annotation | null>;
   updateAnnotation(id: string, updates: Partial<Annotation>): Promise<Annotation>;
   deleteAnnotation(id: string): Promise<void>;
-  listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }>;
+  listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }>;
 
   // Highlight operations
   getHighlights(documentId: string): Promise<Annotation[]>;
 
   // Reference operations
-  resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation>;
+  resolveReference(annotationId: string, source: string): Promise<Annotation>;
   getReferences(documentId: string): Promise<Annotation[]>;
   getEntityReferences(documentId: string, entityTypes?: string[]): Promise<Annotation[]>;
 
@@ -64,7 +65,7 @@ export interface GraphDatabase {
   
   // Bulk operations
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
-  resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]>;
+  resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]>;
 
   // Auto-detection
   detectAnnotations(documentId: string): Promise<Annotation[]>;

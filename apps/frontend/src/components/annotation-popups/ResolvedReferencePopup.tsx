@@ -51,7 +51,7 @@ export function ResolvedReferencePopup({
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
       body: {
-        referencedDocumentId: null,
+        source: null,
       },
     });
   };
@@ -59,10 +59,9 @@ export function ResolvedReferencePopup({
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
       body: {
-        type: 'highlight',
+        type: 'TextualBody',
         entityTypes: null,
-        referenceType: null,
-        referencedDocumentId: null,
+        source: null,
       },
     });
   };
@@ -82,11 +81,6 @@ export function ResolvedReferencePopup({
         <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
       )}
 
-      {annotation.body.referenceType && (
-        <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-          Reference Type: <span className="font-medium">{annotation.body.referenceType}</span>
-        </div>
-      )}
 
       {/* Resolved Document Info */}
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">

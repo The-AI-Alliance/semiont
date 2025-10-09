@@ -149,8 +149,8 @@ export class JobQueue {
       }
     }
 
-    // Sort by createdAt descending (newest first)
-    jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Sort by created descending (newest first)
+    jobs.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
 
     // Apply pagination
     const offset = filters.offset || 0;

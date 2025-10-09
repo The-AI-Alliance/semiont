@@ -10,7 +10,7 @@ interface User {
   isAdmin: boolean
   isActive: boolean
   lastLogin: string | null
-  createdAt: string
+  created: string
   updatedAt: string
 }
 
@@ -24,7 +24,7 @@ const mockUser: User = {
   isAdmin: false,
   isActive: true,
   lastLogin: null,
-  createdAt: '2024-01-01',
+  created: '2024-01-01',
   updatedAt: '2024-01-01'
 }
 

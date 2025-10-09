@@ -78,10 +78,10 @@ describe('Layered Storage', () => {
           metadata: {},
           entityTypes: ['note'],
           archived: false,
-          createdAt: new Date().toISOString(),
+          created: new Date().toISOString(),
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          createdBy: 'did:web:test.com:users:test',
+          creator: 'did:web:test.com:users:test',
         },
         annotations: {
           documentId: docId,
@@ -109,16 +109,17 @@ describe('Layered Storage', () => {
           metadata: {},
           entityTypes: ['article', 'research'],
           archived: false,
-          createdAt: '2025-01-01T00:00:00Z',
+          created: '2025-01-01T00:00:00Z',
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          createdBy: 'did:web:test.com:users:test',
+          creator: 'did:web:test.com:users:test',
         },
         annotations: {
           documentId: docId,
           highlights: [
             {
               id: 'hl1',
+              motivation: 'highlighting' as const,
               target: {
                 source: docId,
                 selector: {
@@ -129,11 +130,11 @@ describe('Layered Storage', () => {
                 },
               },
               body: {
-                type: 'highlight' as const,
+                type: 'TextualBody' as const,
                 entityTypes: [],
               },
-              createdBy: 'did:web:test.com:users:test',
-              createdAt: '2025-01-01T00:00:00.000Z',
+              creator: 'did:web:test.com:users:test',
+              created: '2025-01-01T00:00:00.000Z',
             },
           ],
           references: [],
@@ -163,10 +164,10 @@ describe('Layered Storage', () => {
           metadata: {},
           entityTypes: [],
           archived: false,
-          createdAt: new Date().toISOString(),
+          created: new Date().toISOString(),
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          createdBy: 'did:web:test.com:users:test',
+          creator: 'did:web:test.com:users:test',
         },
         annotations: {
           documentId: docId,

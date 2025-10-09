@@ -20,8 +20,8 @@ const createMockGraphDB = (): GraphDatabase => ({
     contentType: 'text/plain',
     contentChecksum: 'hash123',
     metadata: {},
-    createdBy: 'user1',
-    createdAt: new Date(),
+    creator: 'user1',
+    created: new Date(),
   }),
   getDocument: vi.fn().mockResolvedValue({
     id: 'doc-123',
@@ -45,8 +45,8 @@ const createMockGraphDB = (): GraphDatabase => ({
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'highlight',
-    createdBy: 'user1',
-    createdAt: new Date().toISOString(),
+    creator: 'user1',
+    created: new Date().toISOString(),
     entityTypes: [],
   }),
   getAnnotation: vi.fn().mockResolvedValue(null),
@@ -56,9 +56,9 @@ const createMockGraphDB = (): GraphDatabase => ({
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'reference',
-    referencedDocumentId: 'doc-456',
-    createdBy: 'user1',
-    createdAt: new Date().toISOString(),
+    source: 'doc-456',
+    creator: 'user1',
+    created: new Date().toISOString(),
     entityTypes: [],
   }),
   deleteAnnotation: vi.fn().mockResolvedValue(undefined),
@@ -71,9 +71,9 @@ const createMockGraphDB = (): GraphDatabase => ({
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
     type: 'reference',
-    referencedDocumentId: 'doc-456',
-    createdBy: 'user1',
-    createdAt: new Date(),
+    source: 'doc-456',
+    creator: 'user1',
+    created: new Date(),
     entityTypes: [],
   }),
   getReferences: vi.fn().mockResolvedValue([]),
@@ -172,7 +172,7 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         contentType: 'text/plain',
         contentChecksum: 'hash123',
-        createdBy: 'user1',
+        creator: 'user1',
         creationMethod: 'api',
       });
     });
@@ -210,7 +210,7 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         contentType: 'text/plain',
         contentChecksum: 'hash123',
-        createdBy: 'user1',
+        creator: 'user1',
         creationMethod: 'api',
       });
     });
@@ -253,7 +253,7 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         contentType: 'text/plain',
         contentChecksum: 'hash456',
-        createdBy: 'user1',
+        creator: 'user1',
         creationMethod: 'clone',
       });
     });
@@ -358,7 +358,7 @@ describe('GraphDBConsumer', () => {
           type: 'highlight',
           entityTypes: [],
         },
-        createdBy: 'user1',
+        creator: 'user1',
       });
     });
   });
@@ -406,7 +406,6 @@ describe('GraphDBConsumer', () => {
           exact: 'reference text',
           position: { offset: 20, length: 14 },
           entityTypes: ['Person', 'Organization'],
-          referenceType: 'mentions',
           targetDocumentId: 'doc-456',
         },
       };
@@ -434,11 +433,11 @@ describe('GraphDBConsumer', () => {
         },
         body: {
           type: 'reference',
-          referencedDocumentId: 'doc-456',
+          source: 'doc-456',
           entityTypes: ['Person', 'Organization'],
           referenceType: 'mentions',
         },
-        createdBy: 'user1',
+        creator: 'user1',
       });
     });
 
@@ -480,11 +479,11 @@ describe('GraphDBConsumer', () => {
         },
         body: {
           type: 'reference',
-          referencedDocumentId: undefined,
+          source: undefined,
           entityTypes: [],
           referenceType: undefined,
         },
-        createdBy: 'user1',
+        creator: 'user1',
       });
     });
   });
@@ -501,7 +500,6 @@ describe('GraphDBConsumer', () => {
         payload: {
           referenceId: 'ref-456',
           targetDocumentId: 'doc-789',
-          referenceType: 'cites',
         },
       };
 
@@ -520,7 +518,7 @@ describe('GraphDBConsumer', () => {
         body: {
           type: 'reference',
           entityTypes: [],
-          referencedDocumentId: 'doc-789',
+          source: 'doc-789',
         },
       });
     });

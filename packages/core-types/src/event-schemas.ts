@@ -54,14 +54,12 @@ export const ReferenceCreatedPayloadSchema = z.object({
     length: z.number(),
   }),
   entityTypes: z.array(z.string()).optional(),
-  referenceType: z.string().optional(),
   targetDocumentId: z.string().optional(),
 });
 
 export const ReferenceResolvedPayloadSchema = z.object({
   referenceId: z.string(),
   targetDocumentId: z.string(),
-  referenceType: z.string().optional(),
 });
 
 export const ReferenceDeletedPayloadSchema = z.object({

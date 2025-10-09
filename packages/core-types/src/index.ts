@@ -86,9 +86,15 @@ export type {
   HighlightAnnotation,
   ReferenceAnnotation,
   AnnotationUpdate,
+  AnnotationCategory,
   TextPositionSelector,
   TextQuoteSelector,
   Selector,
+} from './annotation-schema';
+export {
+  getAnnotationCategory,
+  isHighlight,
+  isReference,
 } from './annotation-schema';
 
 // Selector utilities

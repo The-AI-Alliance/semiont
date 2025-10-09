@@ -307,9 +307,9 @@ export class EventStore {
       contentChecksum: documentId.replace('doc-sha256:', ''),
       entityTypes: [],
       archived: false,
-      createdAt: '',
+      created: '',
       creationMethod: 'api',
-      createdBy: '',
+      creator: '',
     };
 
     // Start with empty annotations
@@ -343,19 +343,19 @@ export class EventStore {
         document.name = event.payload.name;
         document.contentType = event.payload.contentType;
         document.entityTypes = event.payload.entityTypes || [];
-        document.createdAt = event.timestamp;
+        document.created = event.timestamp;
         document.creationMethod = 'api';
-        document.createdBy = event.userId;
+        document.creator = event.userId;
         break;
 
       case 'document.cloned':
         document.name = event.payload.name;
         document.contentType = event.payload.contentType;
         document.entityTypes = event.payload.entityTypes || [];
-        document.createdAt = event.timestamp;
+        document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
-        document.createdBy = event.userId;
+        document.creator = event.userId;
         break;
 
       case 'document.archived':
@@ -396,6 +396,7 @@ export class EventStore {
       case 'highlight.added':
         annotations.highlights.push({
           id: event.payload.highlightId,
+          motivation: 'highlighting',
           target: {
             source: event.documentId,
             selector: {
@@ -406,11 +407,11 @@ export class EventStore {
             },
           },
           body: {
-            type: 'highlight',
+            type: 'TextualBody',
             entityTypes: [],
           },
-          createdBy: event.userId,
-          createdAt: new Date(event.timestamp).toISOString(),
+          creator: event.userId,
+          created: new Date(event.timestamp).toISOString(),
         });
         break;
 
@@ -423,6 +424,7 @@ export class EventStore {
       case 'reference.created':
         annotations.references.push({
           id: event.payload.referenceId,
+          motivation: 'linking',
           target: {
             source: event.documentId,
             selector: {
@@ -433,23 +435,19 @@ export class EventStore {
             },
           },
           body: {
-            type: 'reference',
+            type: 'SpecificResource',
             entityTypes: event.payload.entityTypes || [],
-            referenceType: event.payload.referenceType,
-            referencedDocumentId: event.payload.targetDocumentId,
+            source: event.payload.targetDocumentId,
           },
-          createdBy: event.userId,
-          createdAt: new Date(event.timestamp).toISOString(),
+          creator: event.userId,
+          created: new Date(event.timestamp).toISOString(),
         });
         break;
 
       case 'reference.resolved':
         const ref = annotations.references.find(r => r.id === event.payload.referenceId);
         if (ref) {
-          ref.body.referencedDocumentId = event.payload.targetDocumentId;
-          if (event.payload.referenceType) {
-            ref.body.referenceType = event.payload.referenceType;
-          }
+          ref.body.source = event.payload.targetDocumentId;
         }
         break;
 

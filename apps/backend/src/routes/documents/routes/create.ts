@@ -82,8 +82,8 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         entityTypes: body.entityTypes || [],
         creationMethod,
         contentChecksum: checksum,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
+        creator: user.id,
+        created: new Date().toISOString(),
       },
       annotations: [],
     }, 201);

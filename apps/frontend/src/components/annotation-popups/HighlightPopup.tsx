@@ -27,7 +27,7 @@ export function HighlightPopup({
   const handleConvertToReference = () => {
     onUpdateAnnotation({
       body: {
-        type: 'reference',
+        type: 'SpecificResource',
       },
     });
   };

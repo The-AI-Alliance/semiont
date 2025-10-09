@@ -16,7 +16,7 @@ export interface BaseJob {
   type: JobType;
   status: JobStatus;
   userId: string;
-  createdAt: string;
+  created: string;
   startedAt?: string;
   completedAt?: string;
   error?: string;

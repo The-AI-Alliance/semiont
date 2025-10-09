@@ -541,7 +541,7 @@ const annotations = {
               },
             },
             body: {
-              type: 'highlight',
+              type: 'TextualBody',
             },
           };
 

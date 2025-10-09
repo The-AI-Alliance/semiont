@@ -94,7 +94,7 @@ export class GraphDBConsumer {
           content: content.toString('utf-8'),
           contentType: event.payload.contentType,
           contentChecksum: event.payload.contentHash,
-          createdBy: event.userId,
+          creator: event.userId,
           creationMethod: 'api',
         });
         break;
@@ -110,7 +110,7 @@ export class GraphDBConsumer {
           content: content.toString('utf-8'),
           contentType: event.payload.contentType,
           contentChecksum: event.payload.contentHash,
-          createdBy: event.userId,
+          creator: event.userId,
           creationMethod: 'clone',
         });
         break;
@@ -140,10 +140,10 @@ export class GraphDBConsumer {
             },
           },
           body: {
-            type: 'highlight',
+            type: 'TextualBody',
             entityTypes: [],
           },
-          createdBy: event.userId,
+          creator: event.userId,
         });
         break;
 
@@ -163,12 +163,11 @@ export class GraphDBConsumer {
             },
           },
           body: {
-            type: 'reference',
+            type: 'SpecificResource',
             entityTypes: event.payload.entityTypes || [],
-            referenceType: event.payload.referenceType,
-            referencedDocumentId: event.payload.targetDocumentId,
+            source: event.payload.targetDocumentId,
           },
-          createdBy: event.userId,
+          creator: event.userId,
         });
         break;
 
@@ -176,9 +175,9 @@ export class GraphDBConsumer {
         // TODO: Graph implementation should handle partial body updates properly
         await graphDb.updateAnnotation(event.payload.referenceId, {
           body: {
-            type: 'reference',
+            type: 'SpecificResource',
             entityTypes: [],  // Graph impl should merge, not replace
-            referencedDocumentId: event.payload.targetDocumentId,
+            source: event.payload.targetDocumentId,
           },
         } as Partial<Annotation>);
         break;

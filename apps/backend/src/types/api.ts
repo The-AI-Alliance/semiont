@@ -46,7 +46,7 @@ export interface UserResponse {
   isActive: boolean;
   termsAcceptedAt: string | null;
   lastLogin: string | null;
-  createdAt: string;
+  created: string;
 }
 
 export interface LogoutResponse {

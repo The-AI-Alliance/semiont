@@ -21,12 +21,12 @@ export function DocumentInfoPanel({
 }: Props) {
   // Count stub vs resolved references
   const stubCount = useMemo(
-    () => references.filter((r) => r.body.referencedDocumentId === null || r.body.referencedDocumentId === undefined).length,
+    () => references.filter((r) => r.body.source === null || r.body.source === undefined).length,
     [references]
   );
 
   const resolvedCount = useMemo(
-    () => references.filter((r) => r.body.referencedDocumentId !== null && r.body.referencedDocumentId !== undefined).length,
+    () => references.filter((r) => r.body.source !== null && r.body.source !== undefined).length,
     [references]
   );
 

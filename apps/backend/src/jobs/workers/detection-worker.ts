@@ -97,7 +97,6 @@ export class DetectionWorker extends JobWorker {
               length: detected.selection.selector.length,
             },
             entityTypes: detected.selection.entityTypes,
-            referenceType: undefined, // Unresolved reference
             targetDocumentId: undefined, // Will be resolved later
           });
 

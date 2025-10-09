@@ -50,7 +50,7 @@ export function StubReferencePopup({
   const handleSelectDocument = (documentId: string) => {
     onUpdateAnnotation({
       body: {
-        referencedDocumentId: documentId,
+        source: documentId,
       },
     });
     setShowSearchModal(false);
@@ -66,10 +66,9 @@ export function StubReferencePopup({
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
       body: {
-        type: 'highlight',
+        type: 'TextualBody',
         entityTypes: null,
-        referenceType: null,
-        referencedDocumentId: null,
+        source: null,
       },
     });
   };
@@ -88,12 +87,6 @@ export function StubReferencePopup({
 
         {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
           <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
-        )}
-
-        {annotation.body.referenceType && (
-          <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-            Reference Type: <span className="font-medium">{annotation.body.referenceType}</span>
-          </div>
         )}
 
         {/* Link Options */}

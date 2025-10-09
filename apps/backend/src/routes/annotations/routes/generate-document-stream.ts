@@ -99,7 +99,7 @@ export function registerGenerateDocumentStream(router: AnnotationsRouterType) {
       title: body.title,
       prompt: body.prompt,
       entityTypes: reference.body.entityTypes,
-      createdAt: new Date().toISOString(),
+      created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
     };

@@ -6,6 +6,7 @@ import { GraphDatabase } from '../interface';
 import {
   Document,
   Annotation,
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -168,8 +169,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         entityTypes: input.entityTypes,
         contentType: input.contentType,
         archived: false,
-        createdAt: now,
-        createdBy: input.createdBy,
+        created: now,
+        creator: input.creator,
         creationMethod: input.creationMethod,
         contentChecksum: input.contentChecksum,
       };
@@ -185,8 +186,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentType: $contentType,
           metadata: $metadata,
           archived: $archived,
-          createdAt: datetime($createdAt),
-          createdBy: $createdBy,
+          created: datetime($created),
+          creator: $creator,
           creationMethod: $creationMethod,
           contentChecksum: $contentChecksum,
           sourceAnnotationId: $sourceAnnotationId,
@@ -198,8 +199,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           entityTypes: document.entityTypes,
           contentType: document.contentType,
           archived: document.archived,
-          createdAt: now,
-          createdBy: document.createdBy,
+          created: now,
+          creator: document.creator,
           creationMethod: document.creationMethod,
           contentChecksum: document.contentChecksum,
           sourceAnnotationId: document.sourceAnnotationId ?? null,
@@ -339,25 +340,29 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const id = this.generateId();
 
+      // Derive motivation from body type
+      const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
+
       const annotation: Annotation = {
         id,
+        motivation,
         target: {
           source: input.target.source,
           selector: input.target.selector,
         },
         body: {
           type: input.body.type,
+          value: input.body.value,
           entityTypes: input.body.entityTypes || [],
-          referenceType: input.body.referenceType,
-          referencedDocumentId: input.body.referencedDocumentId,
+          source: input.body.source,
         },
-        createdBy: input.createdBy,
-        createdAt: new Date().toISOString(),
+        creator: input.creator,
+        created: new Date().toISOString(),
       };
 
       // Create the annotation node and relationships
       let cypher: string;
-      if (input.body.referencedDocumentId) {
+      if (input.body.source) {
         // Reference with target document
         cypher = `MATCH (from:Document {id: $fromId})
            MATCH (to:Document {id: $toId})
@@ -367,11 +372,12 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              exact: $exact,
              selector: $selector,
              type: $type,
-             createdBy: $createdBy,
-             createdAt: datetime($createdAt),
+             motivation: $motivation,
+             value: $value,
+             creator: $creator,
+             created: datetime($created),
              entityTypes: $entityTypes,
-             referencedDocumentId: $referencedDocumentId,
-             referenceType: $referenceType
+             source: $source
            })
            CREATE (a)-[:BELONGS_TO]->(from)
            CREATE (a)-[:REFERENCES]->(to)
@@ -385,8 +391,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              exact: $exact,
              selector: $selector,
              type: $type,
-             createdBy: $createdBy,
-             createdAt: datetime($createdAt),
+             motivation: $motivation,
+             value: $value,
+             creator: $creator,
+             created: datetime($created),
              entityTypes: $entityTypes
            })
            CREATE (a)-[:BELONGS_TO]->(d)
@@ -397,15 +405,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         id,
         documentId: annotation.target.source,
         fromId: annotation.target.source,
-        toId: annotation.body.referencedDocumentId || null,
+        toId: annotation.body.source || null,
         exact: getExactText(annotation.target.selector),
         selector: JSON.stringify(annotation.target.selector),
         type: annotation.body.type,
-        createdBy: annotation.createdBy,
-        createdAt: annotation.createdAt,
+        motivation: annotation.motivation,
+        value: annotation.body.value || null,
+        creator: annotation.creator,
+        created: annotation.created,
         entityTypes: annotation.body.entityTypes,
-        referencedDocumentId: annotation.body.referencedDocumentId || null,
-        referenceType: annotation.body.referenceType || null,
+        source: annotation.body.source || null,
       };
 
       const result = await session.run(cypher, params);
@@ -447,7 +456,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           setClauses.push(`s.${key} = $${key}`);
           if (key === 'selector' || key === 'metadata') {
             params[key] = JSON.stringify(value);
-          } else if (key === 'createdAt' || key === 'resolvedAt') {
+          } else if (key === 'created' || key === 'resolvedAt') {
             params[key] = value ? new Date(value as any).toISOString() : null;
           } else {
             params[key] = value;
@@ -484,7 +493,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     const session = this.getSession();
     try {
       const conditions: string[] = [];
@@ -496,8 +505,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       if (filter.type) {
+        const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
         conditions.push('a.type = $type');
-        params.type = filter.type;
+        params.type = w3cType;
       }
 
       const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -523,7 +533,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         `MATCH (a:Annotation {documentId: $documentId})
          WHERE a.selectionCategory = 'highlight'
          RETURN a
-         ORDER BY a.createdAt DESC`,
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
@@ -533,26 +543,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation> {
+  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
     const session = this.getSession();
     try {
       // Get the target document's name
       const docResult = await session.run(
         'MATCH (d:Document {id: $id}) RETURN d.name as name',
-        { id: referencedDocumentId }
+        { id: source }
       );
       const documentName = docResult.records[0]?.get('name');
 
       // Update annotation and create REFERENCES relationship
       const result = await session.run(
         `MATCH (a:Annotation {id: $annotationId})
-         MATCH (to:Document {id: $referencedDocumentId})
-         SET a.referencedDocumentId = $referencedDocumentId,
+         MATCH (to:Document {id: $source})
+         SET a.source = $source,
              a.resolvedDocumentName = $documentName,
              a.resolvedAt = datetime()
          MERGE (a)-[:REFERENCES]->(to)
          RETURN a`,
-        { annotationId, referencedDocumentId, documentName }
+        { annotationId, source, documentName }
       );
 
       if (result.records.length === 0) {
@@ -572,7 +582,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         `MATCH (a:Annotation {documentId: $documentId})
          WHERE a.selectionCategory IN ['stub_reference', 'resolved_reference']
          RETURN a
-         ORDER BY a.createdAt DESC`,
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
@@ -596,7 +606,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         params.entityTypes = entityTypes;
       }
 
-      cypher += ' RETURN a ORDER BY a.createdAt DESC';
+      cypher += ' RETURN a ORDER BY a.created DESC';
 
       const result = await session.run(cypher, params);
 
@@ -612,7 +622,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (a:Annotation {documentId: $documentId})
          RETURN a
-         ORDER BY a.createdAt DESC`,
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
@@ -628,7 +638,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (a:Annotation {resolvedDocumentId: $documentId})
          RETURN a
-         ORDER BY a.createdAt DESC`,
+         ORDER BY a.created DESC`,
         { documentId }
       );
 
@@ -813,10 +823,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]> {
+  async resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
     for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.referencedDocumentId));
+      results.push(await this.resolveReference(input.annotationId, input.source));
     }
     return results;
   }
@@ -949,8 +959,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.entityTypes) throw new Error(`Document ${props.id} missing required field: entityTypes`);
     if (!props.contentType) throw new Error(`Document ${props.id} missing required field: contentType`);
     if (props.archived === undefined || props.archived === null) throw new Error(`Document ${props.id} missing required field: archived`);
-    if (!props.createdAt) throw new Error(`Document ${props.id} missing required field: createdAt`);
-    if (!props.createdBy) throw new Error(`Document ${props.id} missing required field: createdBy`);
+    if (!props.created) throw new Error(`Document ${props.id} missing required field: created`);
+    if (!props.creator) throw new Error(`Document ${props.id} missing required field: creator`);
     if (!props.creationMethod) throw new Error(`Document ${props.id} missing required field: creationMethod`);
     if (!props.contentChecksum) throw new Error(`Document ${props.id} missing required field: contentChecksum`);
 
@@ -960,8 +970,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       entityTypes: props.entityTypes,
       contentType: props.contentType,
       archived: props.archived,
-      createdAt: props.createdAt.toString(), // ISO string from DB
-      createdBy: props.createdBy,
+      created: props.created.toString(), // ISO string from DB
+      creator: props.creator,
       creationMethod: props.creationMethod,
       contentChecksum: props.contentChecksum,
       sourceAnnotationId: props.sourceAnnotationId,
@@ -978,22 +988,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.exact) throw new Error(`Annotation ${props.id} missing required field: text`);
     if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
     if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
-    if (!props.createdBy) throw new Error(`Annotation ${props.id} missing required field: createdBy`);
+    if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
+
+    // Derive motivation from type if not present (backward compatibility)
+    const motivation = props.motivation || (props.type === 'TextualBody' ? 'highlighting' : 'linking');
 
     const annotation: Annotation = {
       id: props.id,
+      motivation,
       target: {
         source: props.documentId,
         selector: JSON.parse(props.selector),
       },
       body: {
-        type: props.type as 'highlight' | 'reference',
+        type: props.type as 'TextualBody' | 'SpecificResource',
+        value: props.value,
         entityTypes: props.entityTypes || [],
-        referenceType: props.referenceType,
-        referencedDocumentId: props.referencedDocumentId,
+        source: props.source,
       },
-      createdBy: props.createdBy,
-      createdAt: props.createdAt, // ISO string from DB
+      creator: props.creator,
+      created: props.created, // ISO string from DB
     };
 
     if (props.resolvedDocumentName) annotation.resolvedDocumentName = props.resolvedDocumentName;

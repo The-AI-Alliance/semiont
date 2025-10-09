@@ -119,7 +119,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     const edges = connections.map(conn => ({
       source: id,
       target: conn.targetDocument.id,
-      type: conn.relationshipType || 'reference',
+      type: conn.relationshipType || 'link',
       metadata: {},
     }));
 

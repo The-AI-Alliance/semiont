@@ -493,7 +493,7 @@ authRouter.openapi(getCurrentUserRoute, async (c) => {
     isActive: user.isActive,
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
-    createdAt: user.createdAt.toISOString(),
+    created: user.createdAt.toISOString(),
   }, 200);
 });
 

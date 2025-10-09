@@ -30,7 +30,7 @@ function prepareAnnotations(annotations: Annotation[]) {
         offset: posSelector?.offset ?? 0,
         length: posSelector?.length ?? 0,
         type: ann.body.type as 'highlight' | 'reference',
-        referencedDocumentId: ann.body.referencedDocumentId
+        source: ann.body.source
       };
     });
 }

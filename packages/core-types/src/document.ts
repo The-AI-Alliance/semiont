@@ -15,13 +15,13 @@ export interface CreateDocumentInput {
   content: string;
   contentType: string;
   contentChecksum: string;  // SHA-256 hash calculated by backend
-  createdBy: string;  // Set by backend from auth context (REQUIRED)
+  creator: string;  // Set by backend from auth context (REQUIRED)
 
   // Provenance tracking (only context fields, not derived fields)
   creationMethod: CreationMethod;  // How document was created
   sourceAnnotationId?: string;  // For reference-created documents
   sourceDocumentId?: string;  // For reference-created documents
-  // Note: createdAt is set by backend
+  // Note: created is set by backend
 }
 
 /**

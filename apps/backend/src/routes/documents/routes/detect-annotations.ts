@@ -14,9 +14,9 @@ const DetectAnnotationsResponse = z.object({
     id: z.string(),
     documentId: z.string(),
     selector: z.any(),
-    referencedDocumentId: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
-    createdAt: z.string(),
+    created: z.string(),
   })),
   detected: z.number().int().min(0),
 });
@@ -81,11 +81,11 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
           },
         },
         body: {
-          type: 'reference' as const,
+          type: 'SpecificResource' as const,
           entityTypes: detected.selection.entityTypes || [],
-          referencedDocumentId: null,  // null = stub reference
+          source: null,  // null = stub reference
         },
-        createdBy: user.id,
+        creator: user.id,
       };
       const saved = await graphDb.createAnnotation(selectionInput);
       savedSelections.push(saved);
@@ -97,9 +97,9 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
         id: s.id,
         documentId: s.target.source,
         selector: s.target.selector,
-        referencedDocumentId: s.body.referencedDocumentId,
+        source: s.body.source,
         entityTypes: s.body.entityTypes,
-        createdAt: s.createdAt, // ISO string from createAnnotation
+        created: s.created, // ISO string from createAnnotation
       })),
       detected: savedSelections.length,
     });

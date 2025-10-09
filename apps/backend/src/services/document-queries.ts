@@ -18,12 +18,12 @@ export interface DocumentMetadata {
   contentChecksum: string;
   entityTypes: string[];
   archived: boolean;
-  createdAt: string;
+  created: string;
   updatedAt: string;
   creationMethod: CreationMethod;
   sourceAnnotationId?: string;
   sourceDocumentId?: string;
-  createdBy: string;
+  creator: string;
 }
 
 export interface ListDocumentsFilters {
@@ -55,12 +55,12 @@ export class DocumentQueryService {
         contentChecksum: doc.contentChecksum,
         entityTypes: doc.entityTypes,
         archived: doc.archived,
-        createdAt: doc.createdAt,
+        created: doc.created,
         updatedAt: state.annotations.updatedAt,
         creationMethod: doc.creationMethod,
         sourceAnnotationId: doc.sourceAnnotationId,
         sourceDocumentId: doc.sourceDocumentId,
-        createdBy: doc.createdBy,
+        creator: doc.creator,
       };
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -125,12 +125,12 @@ export class DocumentQueryService {
               contentChecksum: doc.contentChecksum,
               entityTypes: doc.entityTypes,
               archived: doc.archived,
-              createdAt: doc.createdAt,
+              created: doc.created,
               updatedAt: state.annotations.updatedAt,
               creationMethod: doc.creationMethod,
               sourceAnnotationId: doc.sourceAnnotationId,
               sourceDocumentId: doc.sourceDocumentId,
-              createdBy: doc.createdBy,
+              creator: doc.creator,
             });
           }
         }
@@ -144,7 +144,7 @@ export class DocumentQueryService {
     }
 
     // Sort by creation date (newest first)
-    documents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    documents.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
 
     return documents;
   }

@@ -83,8 +83,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     // Get target document if reference is resolved
-    const targetDoc = reference.body.referencedDocumentId ?
-      await graphDb.getDocument(reference.body.referencedDocumentId) : null;
+    const targetDoc = reference.body.source ?
+      await graphDb.getDocument(reference.body.source) : null;
 
     // Build source context if requested
     let sourceContext;

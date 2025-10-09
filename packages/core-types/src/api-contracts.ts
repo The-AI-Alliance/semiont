@@ -38,7 +38,7 @@ const SelectorSchema = z.union([
  * Create Annotation API Request
  *
  * Frontend-to-backend API format for creating an annotation.
- * createdBy is derived from authenticated user on backend.
+ * creator is derived from authenticated user on backend.
  *
  * Phase 2: Multi-Selector Support
  * - selector can be single selector or array of selectors
@@ -53,10 +53,10 @@ export const CreateAnnotationRequestSchema = z.object({
     ]),
   }),
   body: z.object({
-    type: z.enum(['highlight', 'reference']),
+    type: z.enum(['TextualBody', 'SpecificResource']),
+    value: z.string().optional(),
+    source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).optional(),
-    referenceType: z.string().optional(),
-    referencedDocumentId: z.string().nullable().optional(),
   }),
 });
 
@@ -66,10 +66,10 @@ export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSche
  * Create Annotation Internal Input
  *
  * Backend internal format used by graph implementations when consuming events.
- * Includes createdBy from the event's userId.
+ * Includes creator from the event's userId.
  */
 export const CreateAnnotationInternalSchema = CreateAnnotationRequestSchema.extend({
-  createdBy: z.string(),
+  creator: z.string(),
 });
 
 export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSchema>;
@@ -134,8 +134,8 @@ export const DocumentSchema = z.object({
   ] as const),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
-  createdBy: z.string(),
-  createdAt: z.string(),
+  creator: z.string(),
+  created: z.string(),
   contentChecksum: z.string(),
 });
 
@@ -234,7 +234,7 @@ export const AdminUserSchema = z.object({
   isAdmin: z.boolean(),
   isActive: z.boolean(),
   lastLogin: z.string().nullable(),
-  createdAt: z.string(),
+  created: z.string(),
   updatedAt: z.string(),
 });
 
@@ -268,7 +268,7 @@ export const AdminUserStatsResponseSchema = z.object({
       id: z.string(),
       email: z.string(),
       name: z.string().nullable(),
-      createdAt: z.string(),
+      created: z.string(),
     })),
   }),
 });

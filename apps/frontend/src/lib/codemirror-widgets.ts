@@ -27,7 +27,7 @@ export class ReferenceResolutionWidget extends WidgetType {
 
   override eq(other: ReferenceResolutionWidget) {
     return other.annotation.id === this.annotation.id &&
-           other.annotation.referencedDocumentId === this.annotation.referencedDocumentId &&
+           other.annotation.source === this.annotation.source &&
            other.targetDocumentName === this.targetDocumentName &&
            other.isGenerating === this.isGenerating;
   }
@@ -48,7 +48,7 @@ export class ReferenceResolutionWidget extends WidgetType {
     indicator.type = 'button';
 
     // Different states: resolved, generating, or stub
-    const isResolved = !!this.annotation.referencedDocumentId;
+    const isResolved = !!this.annotation.source;
 
     if (isResolved) {
       indicator.innerHTML = '<span aria-hidden="true">🔗</span>';
@@ -159,11 +159,11 @@ export class ReferenceResolutionWidget extends WidgetType {
       });
 
       // Click handler: navigate for resolved, show popup for unresolved
-      if (isResolved && this.annotation.referencedDocumentId && this.onNavigate) {
+      if (isResolved && this.annotation.source && this.onNavigate) {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          this.onNavigate!(this.annotation.referencedDocumentId!);
+          this.onNavigate!(this.annotation.source!);
         });
       } else if (!isResolved && this.onUnresolvedClick) {
         indicator.addEventListener('click', (e) => {

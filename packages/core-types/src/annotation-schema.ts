@@ -34,44 +34,60 @@ export type TextQuoteSelector = z.infer<typeof TextQuoteSelectorSchema>;
 export type Selector = z.infer<typeof SelectorSchema>;
 
 /**
- * Annotation format returned by highlights/references endpoints
+ * Annotation Schema
  *
- * W3C Web Annotation Data Model alignment:
- * - target: what's being annotated (document + selector/selectors)
- * - body: what we're saying about it (type, entities, reference info)
+ * Represents an annotation on a document, following W3C Web Annotation Data Model principles.
  *
- * Phase 2: Multi-Selector Support
- * - target.selector: can be single selector or array of selectors
- * - Multiple selectors identify the same text using different methods
- * - First selector is preferred, others are fallbacks
+ * Structure:
+ * - id: Unique identifier for the annotation
+ * - motivation: Why the annotation exists ('highlighting' for highlights, 'linking' for references)
+ * - target: What is being annotated (document + text selector)
+ *   - source: Document ID
+ *   - selector: Single selector or array identifying the same text via different methods
+ * - body: What we're saying about the annotated text
+ *   - type: 'TextualBody' (textual content/comments) or 'SpecificResource' (links to another document)
+ *   - value: Optional comment or note about the annotation (for TextualBody)
+ *   - source: Target document ID (for SpecificResource)
+ *   - entityTypes: Classification tags (e.g., ["Person", "Scientist"])
+ * - creator: User who created the annotation
+ * - created: ISO 8601 timestamp
+ * - resolvedBy: User who resolved a reference (optional)
+ * - resolvedAt: When reference was resolved (optional)
+ * - resolvedDocumentName: Display name of resolved document (optional)
  *
- * Field Requirements:
- * - target.selector.exact: REQUIRED - exact text content (W3C Web Annotation standard)
- * - body.type: REQUIRED (not optional)
- * - createdBy: REQUIRED (user who created)
- * - body.referencedDocumentId: OPTIONAL and nullable
- * - body.entityTypes: REQUIRED (always present, defaults to empty array)
- * - body.referenceType: OPTIONAL
- * - resolvedBy: OPTIONAL (user who resolved reference)
- * - resolvedAt: OPTIONAL (when reference was resolved)
+ * W3C Alignment:
+ * - Separates target (what) from body (why/how) ✓
+ * - Supports multiple selector types (TextPositionSelector, TextQuoteSelector) ✓
+ * - Allows selector arrays for redundant identification ✓
+ * - Uses 'motivation' field to indicate purpose ✓
+ * - Uses 'creator' and 'created' field names ✓
+ * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
+ * - Uses W3C body types: 'TextualBody' | 'SpecificResource' ✓
+ * - Uses 'body.source' for linked resources (W3C SpecificResource pattern) ✓
+ *
+ * W3C Deviations (Intentional):
+ * - Single target only (no multi-target arrays) - our architecture is document-centric
+ * - Single body only (no multi-body arrays) - application-specific body structure
+ * - Application-specific 'entityTypes' field for classification tags
  */
 export const AnnotationSchema = z.object({
   id: z.string(),
+  motivation: z.enum(['highlighting', 'linking']),
   target: z.object({
-    source: z.string(),  // Document ID
+    source: z.string(),
     selector: z.union([
       SelectorSchema,
       z.array(SelectorSchema),
     ]),
   }),
   body: z.object({
-    type: z.enum(['highlight', 'reference']),
+    type: z.enum(['TextualBody', 'SpecificResource']),
+    value: z.string().optional(),
+    source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
-    referenceType: z.string().optional(),
-    referencedDocumentId: z.string().nullable().optional(),
   }),
-  createdBy: z.string(),
-  createdAt: z.string(),
+  creator: z.string(),
+  created: z.string(),
   resolvedBy: z.string().optional(),
   resolvedAt: z.string().optional(),
   resolvedDocumentName: z.string().optional(),
@@ -82,22 +98,48 @@ export type Annotation = z.infer<typeof AnnotationSchema>;
 /**
  * Highlight-specific annotation type
  */
-export type HighlightAnnotation = Annotation & { body: { type: 'highlight' } };
+export type HighlightAnnotation = Annotation & { body: { type: 'TextualBody' } };
 
 /**
  * Reference-specific annotation type
  */
-export type ReferenceAnnotation = Annotation & { body: { type: 'reference' } };
+export type ReferenceAnnotation = Annotation & { body: { type: 'SpecificResource' } };
 
 /**
  * Annotation update payload (all fields optional except what's being changed)
  */
 export interface AnnotationUpdate {
   body?: {
-    type?: 'highlight' | 'reference';
+    type?: 'TextualBody' | 'SpecificResource';
+    value?: string | null;
+    source?: string | null;
     entityTypes?: string[] | null;
-    referenceType?: string | null;
-    referencedDocumentId?: string | null;
   };
   resolvedDocumentName?: string | null;
+}
+
+/**
+ * UI-level annotation categories derived from W3C types
+ */
+export type AnnotationCategory = 'highlight' | 'reference';
+
+/**
+ * Maps W3C body type to UI category
+ */
+export function getAnnotationCategory(annotation: Annotation): AnnotationCategory {
+  return annotation.body.type === 'SpecificResource' ? 'reference' : 'highlight';
+}
+
+/**
+ * Checks if annotation is a highlight
+ */
+export function isHighlight(annotation: Annotation): annotation is HighlightAnnotation {
+  return annotation.body.type === 'TextualBody' && annotation.motivation === 'highlighting';
+}
+
+/**
+ * Checks if annotation is a reference
+ */
+export function isReference(annotation: Annotation): annotation is ReferenceAnnotation {
+  return annotation.body.type === 'SpecificResource' && annotation.motivation === 'linking';
 }

@@ -76,8 +76,8 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       sourceAnnotationId: selectionId,
       sourceDocumentId: selection.target.source,
       contentChecksum: checksum,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
+      creator: user.id,
+      created: new Date().toISOString(),
     };
 
     const documentId = `doc-sha256:${checksum}`;
@@ -89,7 +89,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       content: body.content,
       contentType: document.contentType,
       contentChecksum: document.contentChecksum!,
-      createdBy: document.createdBy!,
+      creator: document.creator!,
       creationMethod: document.creationMethod,
       sourceAnnotationId: document.sourceAnnotationId,
       sourceDocumentId: document.sourceDocumentId,
