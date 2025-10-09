@@ -200,7 +200,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     return c.json({
       document: formatDocument(savedDoc),
-      annotations: [...highlights, ...references].map(formatAnnotation),
+      annotations: [...highlights, ...references],
     }, 201);
   });
 

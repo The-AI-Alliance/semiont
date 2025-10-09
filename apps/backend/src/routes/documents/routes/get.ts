@@ -45,12 +45,12 @@ export function registerGetDocument(router: DocumentsRouterType) {
     // Clients must call GET /documents/:id/content separately to get content
 
     const annotations = [
-      ...stored.annotations.highlights.map(formatAnnotation),
-      ...stored.annotations.references.map(formatAnnotation)
+      ...stored.annotations.highlights,
+      ...stored.annotations.references
     ];
-    const highlights = stored.annotations.highlights.map(formatAnnotation);
-    const references = stored.annotations.references.map(formatAnnotation);
-    const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
+    const highlights = stored.annotations.highlights;
+    const references = stored.annotations.references;
+    const entityReferences = references.filter(ref => ref.body.entityTypes && ref.body.entityTypes.length > 0);
 
     return c.json({
       document: formatDocument(stored.document),

@@ -137,7 +137,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
         ...(mainContent ? { content: mainContent } : {}),
       },
       relatedDocuments: relatedWithContent.map(formatDocument),
-      annotations: [...highlights, ...references].map(formatAnnotation),
+      annotations: [...highlights, ...references],
       graph: { nodes, edges },
       ...(summary ? { summary } : {}),
       ...(suggestedReferences ? { suggestedReferences } : {}),

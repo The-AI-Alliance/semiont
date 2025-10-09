@@ -60,7 +60,7 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
       const references = await graphDb.getReferences(id);
 
       return c.json({
-        annotations: [...highlights, ...references].map(formatAnnotation)
+        annotations: [...highlights, ...references]
       });
     }
   });

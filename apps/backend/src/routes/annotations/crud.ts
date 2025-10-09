@@ -280,7 +280,7 @@ crudRouter.openapi(listAnnotationsRoute, async (c) => {
   const paginatedAnnotations = allAnnotations.slice(query.offset, query.offset + query.limit);
 
   return c.json({
-    annotations: paginatedAnnotations.map(formatAnnotation),
+    annotations: paginatedAnnotations,
     total: allAnnotations.length,
     offset: query.offset,
     limit: query.limit,

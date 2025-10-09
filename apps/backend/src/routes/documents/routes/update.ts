@@ -95,10 +95,10 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
         }),
         content: content.toString('utf-8')
       },
-      annotations: [...highlights, ...references].map(formatAnnotation),
-      highlights: highlights.map(formatAnnotation),
-      references: references.map(formatAnnotation),
-      entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0).map(formatAnnotation),
+      annotations: [...highlights, ...references],
+      highlights: highlights,
+      references: references,
+      entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0),
     });
   });
 }
