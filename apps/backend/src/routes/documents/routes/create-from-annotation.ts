@@ -7,6 +7,7 @@ import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
 
 // Local schemas to avoid TypeScript hanging
 const CreateFromSelectionRequest = z.object({
@@ -60,7 +61,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const annotation = await graphDb.getAnnotation(annotationId);
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -71,10 +72,10 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       name: body.name,
       archived: false,
       contentType: body.contentType || 'text/plain',
-      entityTypes: annotation.entityTypes || [],
+      entityTypes: annotation.body.entityTypes || [],
       creationMethod: CREATION_METHODS.REFERENCE,
       sourceAnnotationId: annotationId,
-      sourceDocumentId: annotation.documentId,
+      sourceDocumentId: annotation.target.source,
       contentChecksum: checksum,
       creator: user.id,
       created: new Date().toISOString(),

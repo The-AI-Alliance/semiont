@@ -75,14 +75,14 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
           source: id,
           selector: {
             type: 'TextPositionSelector' as const,
-            exact: detected.selection.selector.exact,
-            offset: detected.selection.selector.offset,
-            length: detected.selection.selector.length,
+            exact: detected.annotation.selector.exact,
+            offset: detected.annotation.selector.offset,
+            length: detected.annotation.selector.length,
           },
         },
         body: {
           type: 'SpecificResource' as const,
-          entityTypes: detected.selection.entityTypes || [],
+          entityTypes: detected.annotation.entityTypes || [],
           source: null,  // null = stub reference
         },
         creator: user.id

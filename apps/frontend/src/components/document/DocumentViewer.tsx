@@ -141,11 +141,12 @@ export function DocumentViewer({
         ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
         resolvedDocumentName: 'Document'
       });
-      setSelectedText(reference.exact || '');
-      if (reference.selector) {
+      setSelectedText(getExactText(reference.target.selector));
+      const posSelector = getTextPositionSelector(reference.target.selector);
+      if (posSelector) {
         setAnnotationPosition({
-          start: reference.selector.offset,
-          end: reference.selector.offset + reference.selector.length
+          start: posSelector.offset,
+          end: posSelector.offset + posSelector.length
         });
       }
       setPopupPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 250 });
