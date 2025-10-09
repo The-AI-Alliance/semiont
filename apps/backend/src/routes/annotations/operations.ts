@@ -8,8 +8,11 @@ import {
   CREATION_METHODS,
   GenerateDocumentFromAnnotationRequestSchema,
   GenerateDocumentFromAnnotationResponseSchema,
+  GenerateDocumentFromAnnotationResponse,
   getAnnotationExactText,
   getTextPositionSelector,
+  type Document,
+  type Annotation,
 } from '@semiont/core-types';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -128,7 +131,7 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
   });
 
   // Return optimistic response - update annotation to link to new document
-  const resolvedAnnotation = {
+  const resolvedAnnotation: Annotation = {
     ...annotation,
     motivation: 'linking' as const,
     body: {
@@ -141,20 +144,20 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
     resolvedDocumentName: body.name,
   };
 
+  const documentMetadata: Document = {
+    id: documentId,
+    name: body.name,
+    contentType: body.contentType,
+    entityTypes: body.entityTypes || [],
+    creationMethod: CREATION_METHODS.API,
+    contentChecksum: checksum,
+    creator: user.id,
+    created: new Date().toISOString(),
+    archived: false,
+  };
+
   return c.json({
-    document: {
-      id: documentId,
-      name: body.name,
-      contentType: body.contentType,
-      content: body.content,
-      entityTypes: body.entityTypes || [],
-      metadata: body.metadata || {},
-      creationMethod: CREATION_METHODS.API,
-      contentChecksum: checksum,
-      creator: user.id,
-      created: new Date().toISOString(),
-      archived: false,
-    },
+    document: documentMetadata,
     annotation: resolvedAnnotation,
   }, 201);
 });
@@ -254,7 +257,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   });
 
   // Return optimistic response - update annotation to link to generated document
-  const resolvedAnnotation = {
+  const resolvedAnnotation: Annotation = {
     ...annotation,
     motivation: 'linking' as const,
     body: {
@@ -267,26 +270,26 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     resolvedDocumentName: documentName,
   };
 
-  return c.json({
-    document: {
-      id: documentId,
-      name: documentName,
-      contentType: 'text/markdown',
-      content: generatedContent,
-      entityTypes: body.entityTypes || annotation.body.entityTypes || [],
-      metadata: {
-        generatedFrom: id,
-        prompt: body.prompt,
-      },
-      creationMethod: CREATION_METHODS.GENERATED,
-      contentChecksum: checksum,
-      creator: user.id,
-      created: new Date().toISOString(),
-      archived: false,
-    },
+  const documentMetadata: Document = {
+    id: documentId,
+    name: documentName,
+    contentType: 'text/markdown',
+    entityTypes: body.entityTypes || annotation.body.entityTypes || [],
+    sourceAnnotationId: id,
+    creationMethod: CREATION_METHODS.GENERATED,
+    contentChecksum: checksum,
+    creator: user.id,
+    created: new Date().toISOString(),
+    archived: false,
+  };
+
+  const response: GenerateDocumentFromAnnotationResponse = {
+    document: documentMetadata,
     annotation: resolvedAnnotation,
     generated: true,
-  }, 201);
+  };
+
+  return c.json(response, 201);
 });
 
 // GET ANNOTATION CONTEXT

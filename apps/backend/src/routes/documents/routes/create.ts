@@ -1,6 +1,6 @@
 import { createRoute } from '@hono/zod-openapi';
 import { getStorageService } from '../../../storage/filesystem';
-import { CREATION_METHODS, type CreationMethod, CreateDocumentRequestSchema, CreateDocumentResponseSchema } from '@semiont/core-types';
+import { CREATION_METHODS, type CreationMethod, CreateDocumentRequestSchema, CreateDocumentResponseSchema, type Document, type CreateDocumentResponse } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
 import type { DocumentsRouterType } from '../shared';
 import { emitDocumentCreated } from '../../../events/emit';
@@ -73,19 +73,23 @@ export function registerCreateDocument(router: DocumentsRouterType) {
     });
 
     // Return optimistic response
-    return c.json({
-      document: {
-        id: documentId,
-        name: body.name,
-        archived: false,
-        contentType: body.contentType || 'text/plain',
-        entityTypes: body.entityTypes || [],
-        creationMethod,
-        contentChecksum: checksum,
-        creator: user.id,
-        created: new Date().toISOString(),
-      },
+    const documentMetadata: Document = {
+      id: documentId,
+      name: body.name,
+      archived: false,
+      contentType: body.contentType || 'text/plain',
+      entityTypes: body.entityTypes || [],
+      creationMethod,
+      contentChecksum: checksum,
+      creator: user.id,
+      created: new Date().toISOString(),
+    };
+
+    const response: CreateDocumentResponse = {
+      document: documentMetadata,
       annotations: [],
-    }, 201);
+    };
+
+    return c.json(response, 201);
   });
 }
