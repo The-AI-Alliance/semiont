@@ -3,11 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-
-// Local schema
-const GetAnnotationsResponse = z.object({
-  annotations: z.array(z.any()),
-});
+import { GetAnnotationsResponseSchema, type GetAnnotationsResponse } from '@semiont/core-types';
 
 // GET /api/documents/{id}/annotations
 export const getDocumentAnnotationsRoute = createRoute({
@@ -26,7 +22,7 @@ export const getDocumentAnnotationsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetAnnotationsResponse,
+          schema: GetAnnotationsResponseSchema,
         },
       },
       description: 'Document annotations',
@@ -43,9 +39,11 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
       const annotations = await AnnotationQueryService.getAllAnnotations(id);
 
       // Layer 3 projections have simplified format - return directly
-      return c.json({
+      const response: GetAnnotationsResponse = {
         annotations
-      });
+      };
+
+      return c.json(response);
     } catch (error) {
       // Fallback to GraphDB if projection missing
       console.warn(`[Annotations] Layer 3 miss for ${id}, falling back to GraphDB`);
@@ -59,9 +57,11 @@ export function registerGetDocumentAnnotations(router: DocumentsRouterType) {
       const highlights = await graphDb.getHighlights(id);
       const references = await graphDb.getReferences(id);
 
-      return c.json({
+      const response: GetAnnotationsResponse = {
         annotations: [...highlights, ...references]
-      });
+      };
+
+      return c.json(response);
     }
   });
 }

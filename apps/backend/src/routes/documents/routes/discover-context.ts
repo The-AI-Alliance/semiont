@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
 import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
+import { DiscoverContextResponseSchema, type DiscoverContextResponse } from '@semiont/core-types';
 
 export const discoverContextRoute = createRoute({
   method: 'post',
@@ -28,15 +29,7 @@ export const discoverContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            documents: z.array(z.any()),
-            connections: z.array(z.object({
-              fromId: z.string(),
-              toId: z.string(),
-              type: z.string(),
-              metadata: z.any(),
-            })),
-          }),
+          schema: DiscoverContextResponseSchema,
         },
       },
       description: 'Context discovery results',
@@ -53,7 +46,7 @@ export function registerDiscoverContext(router: DocumentsRouterType) {
     const connections = await graphDb.getDocumentConnections(id);
     const connectedDocs = connections.map(conn => conn.targetDocument);
 
-    return c.json({
+    const response: DiscoverContextResponse = {
       documents: connectedDocs.map(formatDocument),
       connections: connections.map(conn => ({
         fromId: id,
@@ -61,6 +54,8 @@ export function registerDiscoverContext(router: DocumentsRouterType) {
         type: conn.relationshipType || 'link',
         metadata: {},
       })),
-    });
+    };
+
+    return c.json(response);
   });
 }

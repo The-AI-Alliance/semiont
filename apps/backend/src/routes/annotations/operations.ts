@@ -8,11 +8,17 @@ import {
   CREATION_METHODS,
   GenerateDocumentFromAnnotationRequestSchema,
   GenerateDocumentFromAnnotationResponseSchema,
-  GenerateDocumentFromAnnotationResponse,
+  CreateDocumentFromSelectionResponseSchema,
+  AnnotationContextResponseSchema,
+  ContextualSummaryResponseSchema,
   getAnnotationExactText,
   getTextPositionSelector,
   type Document,
   type Annotation,
+  type GenerateDocumentFromAnnotationResponse,
+  type CreateDocumentFromSelectionResponse,
+  type AnnotationContextResponse,
+  type ContextualSummaryResponse,
 } from '@semiont/core-types';
 import { registerGenerateDocumentStream } from './routes/generate-document-stream';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -29,31 +35,6 @@ const CreateDocumentFromSelectionRequest = z.object({
   content: z.string().optional(),
   contentType: z.string().default('text/plain'),
   metadata: z.record(z.string(), z.any()).optional(),
-});
-
-const CreateDocumentFromSelectionResponse = z.object({
-  document: z.any(),
-  annotation: z.any(),
-});
-
-const AnnotationContextResponse = z.object({
-  annotation: z.any(),
-  context: z.object({
-    before: z.string().optional(),
-    selected: z.string(),
-    after: z.string().optional(),
-  }),
-  document: z.any(),
-});
-
-const ContextualSummaryResponse = z.object({
-  summary: z.string(),
-  relevantFields: z.record(z.string(), z.any()),
-  context: z.object({
-    before: z.string().optional(),
-    selected: z.string(),
-    after: z.string().optional(),
-  }),
 });
 
 // CREATE DOCUMENT FROM ANNOTATION
@@ -80,7 +61,7 @@ const createDocumentFromAnnotationRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateDocumentFromSelectionResponse,
+          schema: CreateDocumentFromSelectionResponseSchema,
         },
       },
       description: 'Document created and annotation resolved',
@@ -156,10 +137,12 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
     archived: false,
   };
 
-  return c.json({
+  const response: CreateDocumentFromSelectionResponse = {
     document: documentMetadata,
     annotation: resolvedAnnotation,
-  }, 201);
+  };
+
+  return c.json(response, 201);
 });
 
 // GENERATE DOCUMENT FROM ANNOTATION
@@ -313,7 +296,7 @@ const getSelectionContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: AnnotationContextResponse,
+          schema: AnnotationContextResponseSchema,
         },
       },
       description: 'Annotation context',
@@ -355,7 +338,8 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
   const before = contentStr.substring(start, selStart);
   const selected = contentStr.substring(selStart, selEnd);
   const after = contentStr.substring(selEnd, end);
-  return c.json({
+
+  const response: AnnotationContextResponse = {
     annotation: {
       id: annotation.id,
       documentId: annotation.target.source,
@@ -364,7 +348,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
         offset: posSelector3.offset,
         length: posSelector3.length,
       },
-      referencedDocumentId: annotation.body.source,
+      referencedDocumentId: annotation.body.source ?? null,
       entityTypes: annotation.body.entityTypes,
       createdBy: 'user',
       createdAt: new Date().toISOString(),
@@ -384,8 +368,11 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
       creationMethod: document.creationMethod,
       creator: document.creator,
       created: document.created,
+      contentChecksum: document.contentChecksum,
     },
-  });
+  };
+
+  return c.json(response);
 });
 
 // GET CONTEXTUAL SUMMARY
@@ -405,7 +392,7 @@ const getContextualSummaryRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ContextualSummaryResponse,
+          schema: ContextualSummaryResponseSchema,
         },
       },
       description: 'Contextual summary',
@@ -460,7 +447,7 @@ Entity types: ${(annotation.body.entityTypes || []).join(', ')}`;
 
   const summary = await generateText(summaryPrompt, 500, 0.5);
 
-  return c.json({
+  const response: ContextualSummaryResponse = {
     summary,
     relevantFields: {
       documentId: document.id,
@@ -472,7 +459,9 @@ Entity types: ${(annotation.body.entityTypes || []).join(', ')}`;
       selected,
       after: after.substring(0, 200), // First 200 chars
     },
-  });
+  };
+
+  return c.json(response);
 });
 
 // Register SSE route for document generation progress

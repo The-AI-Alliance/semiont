@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { GetReferencesResponseSchema } from '@semiont/core-types';
+import { GetReferencesResponseSchema, type GetReferencesResponse } from '@semiont/core-types';
 
 // GET /api/documents/{id}/references
 export const getDocumentReferencesRoute = createRoute({
@@ -38,8 +38,10 @@ export function registerDocumentReferences(router: DocumentsRouterType) {
 
     console.log(`[References] Returning ${references.length} references for ${id} from Layer 3`);
 
-    return c.json({
+    const response: GetReferencesResponse = {
       references
-    });
+    };
+
+    return c.json(response);
   });
 }

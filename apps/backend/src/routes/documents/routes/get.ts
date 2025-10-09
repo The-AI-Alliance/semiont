@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
-import { GetDocumentResponseSchema } from '@semiont/core-types';
+import { GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/core-types';
 import { formatDocument } from '../helpers';
 
 export const getDocumentRoute = createRoute({
@@ -52,12 +52,14 @@ export function registerGetDocument(router: DocumentsRouterType) {
     const references = stored.annotations.references;
     const entityReferences = references.filter(ref => ref.body.entityTypes && ref.body.entityTypes.length > 0);
 
-    return c.json({
+    const response: GetDocumentResponse = {
       document: formatDocument(stored.document),
       annotations,
       highlights,
       references,
       entityReferences,
-    });
+    };
+
+    return c.json(response);
   });
 }

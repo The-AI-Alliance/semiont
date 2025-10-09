@@ -17,10 +17,12 @@ const CreateFromSelectionRequest = z.object({
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
-const CreateFromSelectionResponse = z.object({
+const CreateFromAnnotationResponse = z.object({
   document: z.any(),
   annotations: z.array(z.any()),
 });
+
+type CreateFromAnnotationResponse = z.infer<typeof CreateFromAnnotationResponse>;
 
 export const createDocumentFromAnnotationRoute = createRoute({
   method: 'post',
@@ -45,7 +47,7 @@ export const createDocumentFromAnnotationRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateFromSelectionResponse,
+          schema: CreateFromAnnotationResponse,
         },
       },
       description: 'Document created from annotation',
@@ -105,9 +107,11 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 
-    return c.json({
+    const response: CreateFromAnnotationResponse = {
       document: formatDocument(savedDoc),
       annotations: [...highlights, ...references],
-    }, 201);
+    };
+
+    return c.json(response, 201);
   });
 }

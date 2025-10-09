@@ -3,22 +3,11 @@ import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { detectAnnotationsInDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
+import { DetectAnnotationsResponseSchema, type DetectAnnotationsResponse } from '@semiont/core-types';
 
 // Local schemas to avoid TypeScript hanging
 const DetectAnnotationsRequest = z.object({
   entityTypes: z.array(z.string()).optional(),
-});
-
-const DetectAnnotationsResponse = z.object({
-  annotations: z.array(z.object({
-    id: z.string(),
-    documentId: z.string(),
-    selector: z.any(),
-    source: z.string().nullable().optional(),
-    entityTypes: z.array(z.string()).optional(),
-    created: z.string(),
-  })),
-  detected: z.number().int().min(0),
 });
 
 export const detectAnnotationsRoute = createRoute({
@@ -44,7 +33,7 @@ export const detectAnnotationsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: DetectAnnotationsResponse,
+          schema: DetectAnnotationsResponseSchema,
         },
       },
       description: 'Detected annotations',
@@ -92,16 +81,19 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     }
 
     console.log('Returning', savedSelections.length, 'saved annotations');
-    return c.json({
+
+    const response: DetectAnnotationsResponse = {
       annotations: savedSelections.map(s => ({
         id: s.id,
         documentId: s.target.source,
         selector: s.target.selector,
-        source: s.body.source,
+        source: s.body.source ?? null,
         entityTypes: s.body.entityTypes,
         created: s.created, // ISO string from createAnnotation
       })),
       detected: savedSelections.length,
-    });
+    };
+
+    return c.json(response);
   });
 }

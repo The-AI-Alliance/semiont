@@ -5,6 +5,7 @@ import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument } from '../helpers';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
+import { DocumentLLMContextResponseSchema, type DocumentLLMContextResponse } from '@semiont/core-types';
 
 export const getDocumentLLMContextRoute = createRoute({
   method: 'get',
@@ -36,27 +37,7 @@ export const getDocumentLLMContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            mainDocument: z.any(),
-            relatedDocuments: z.array(z.any()),
-            annotations: z.array(z.any()),
-            graph: z.object({
-              nodes: z.array(z.object({
-                id: z.string(),
-                type: z.string(),
-                label: z.string(),
-                metadata: z.any(),
-              })),
-              edges: z.array(z.object({
-                source: z.string(),
-                target: z.string(),
-                type: z.string(),
-                metadata: z.any(),
-              })),
-            }),
-            summary: z.string().optional(),
-            suggestedReferences: z.array(z.string()).optional(),
-          }),
+          schema: DocumentLLMContextResponseSchema,
         },
       },
       description: 'LLM context',
@@ -131,7 +112,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
     const suggestedReferences = mainContent ?
       await generateReferenceSuggestions(mainContent) : undefined;
 
-    return c.json({
+    const response: DocumentLLMContextResponse = {
       mainDocument: {
         ...formatDocument(mainDoc),
         ...(mainContent ? { content: mainContent } : {}),
@@ -141,6 +122,8 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
       graph: { nodes, edges },
       ...(summary ? { summary } : {}),
       ...(suggestedReferences ? { suggestedReferences } : {}),
-    });
+    };
+
+    return c.json(response);
   });
 }

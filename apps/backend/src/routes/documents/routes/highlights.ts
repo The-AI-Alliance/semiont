@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { GetHighlightsResponseSchema } from '@semiont/core-types';
+import { GetHighlightsResponseSchema, type GetHighlightsResponse } from '@semiont/core-types';
 
 // GET /api/documents/{id}/highlights
 export const getDocumentHighlightsRoute = createRoute({
@@ -36,8 +36,10 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
     // Projections now store full Annotation objects - no transformation needed
     const highlights = await AnnotationQueryService.getHighlights(id);
 
-    return c.json({
+    const response: GetHighlightsResponse = {
       highlights
-    });
+    };
+
+    return c.json(response);
   });
 }

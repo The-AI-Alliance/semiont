@@ -1,9 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
-import { UpdateDocumentRequestSchema, GetDocumentResponseSchema } from '@semiont/core-types';
+import { UpdateDocumentRequestSchema, GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/core-types';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
 import { DocumentQueryService } from '../../../services/document-queries';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
@@ -44,7 +43,6 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const user = c.get('user');
-    const storage = getStorageService();
 
     // Check document exists using Layer 3
     const doc = await DocumentQueryService.getDocumentMetadata(id);
@@ -80,25 +78,23 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
       }
     }
 
-    // Read content from Layer 1, annotations from Layer 3
-    const content = await storage.getDocument(id);
+    // Read annotations from Layer 3
     const highlights = await AnnotationQueryService.getHighlights(id);
     const references = await AnnotationQueryService.getReferences(id);
 
-    // Return optimistic response
-    return c.json({
-      document: {
-        ...formatDocument({
-          ...doc,
-          archived: body.archived !== undefined ? body.archived : doc.archived,
-          entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
-        }),
-        content: content.toString('utf-8')
-      },
+    // Return optimistic response (content NOT included - must be fetched separately)
+    const response: GetDocumentResponse = {
+      document: formatDocument({
+        ...doc,
+        archived: body.archived !== undefined ? body.archived : doc.archived,
+        entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
+      }),
       annotations: [...highlights, ...references],
       highlights: highlights,
       references: references,
       entityReferences: references.filter(annotation => annotation.body.entityTypes.length > 0),
-    });
+    };
+
+    return c.json(response);
   });
 }

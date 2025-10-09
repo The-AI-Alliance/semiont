@@ -9,8 +9,12 @@ import {
   CreateDocumentFromTokenRequestSchema,
   CreateDocumentFromTokenResponseSchema,
   CloneDocumentWithTokenResponseSchema,
+  type GetDocumentByTokenResponse,
+  type CreateDocumentFromTokenResponse,
+  type CloneDocumentWithTokenResponse,
+  type Document,
+  type CreateDocumentInput,
 } from '@semiont/core-types';
-import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
@@ -119,10 +123,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     // NOTE: Content is NOT included - frontend should fetch via GET /documents/:id/content
 
-    return c.json({
+    const response: GetDocumentByTokenResponse = {
       sourceDocument: formatDocument(sourceDoc),
       expiresAt: tokenData.expiresAt.toISOString(),
-    });
+    };
+
+    return c.json(response);
   });
 
   // Create document from token
@@ -198,10 +204,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 
-    return c.json({
+    const response: CreateDocumentFromTokenResponse = {
       document: formatDocument(savedDoc),
       annotations: [...highlights, ...references],
-    }, 201);
+    };
+
+    return c.json(response, 201);
   });
 
   // Generate clone token
@@ -231,10 +239,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       expiresAt,
     });
 
-    return c.json({
+    const response: CloneDocumentWithTokenResponse = {
       token,
       expiresAt: expiresAt.toISOString(),
       document: formatDocument(sourceDoc),
-    });
+    };
+
+    return c.json(response);
   });
 }

@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
-import { ListDocumentsResponseSchema } from '@semiont/core-types';
+import { ListDocumentsResponseSchema, type ListDocumentsResponse } from '@semiont/core-types';
 import { DocumentQueryService } from '../../../services/document-queries';
 
 export const searchDocumentsRoute = createRoute({
@@ -41,11 +41,13 @@ export function registerSearchDocuments(router: DocumentsRouterType) {
     // Limit results
     const limitedDocs = matchingDocs.slice(0, limit);
 
-    return c.json({
+    const response: ListDocumentsResponse = {
       documents: limitedDocs.map(doc => formatDocument(doc)),
       total: limitedDocs.length,
       offset: 0,
       limit,
-    });
+    };
+
+    return c.json(response);
   });
 }

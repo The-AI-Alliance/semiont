@@ -5,6 +5,7 @@ import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument } from '../helpers';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
+import { ReferenceLLMContextResponseSchema, type ReferenceLLMContextResponse } from '@semiont/core-types';
 
 export const getReferenceLLMContextRoute = createRoute({
   method: 'get',
@@ -36,26 +37,7 @@ export const getReferenceLLMContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            reference: z.any(),
-            sourceDocument: z.any(),
-            targetDocument: z.any().nullable(),
-            sourceContext: z.object({
-              before: z.string(),
-              selected: z.string(),
-              after: z.string(),
-            }).optional(),
-            targetContext: z.object({
-              content: z.string(),
-              summary: z.string().optional(),
-            }).optional(),
-            suggestedResolution: z.object({
-              documentId: z.string(),
-              documentName: z.string(),
-              confidence: z.number(),
-              reasoning: z.string(),
-            }).optional(),
-          }),
+          schema: ReferenceLLMContextResponseSchema,
         },
       },
       description: 'Reference LLM context',
@@ -119,13 +101,15 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // TODO: Generate suggested resolution using AI
     const suggestedResolution = undefined;
 
-    return c.json({
+    const response: ReferenceLLMContextResponse = {
       reference,
       sourceDocument: formatDocument(sourceDoc),
       targetDocument: targetDoc ? formatDocument(targetDoc) : null,
       ...(sourceContext ? { sourceContext } : {}),
       ...(targetContext ? { targetContext } : {}),
       ...(suggestedResolution ? { suggestedResolution } : {}),
-    });
+    };
+
+    return c.json(response);
   });
 }
