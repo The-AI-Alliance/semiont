@@ -34,13 +34,38 @@ export type TextQuoteSelector = z.infer<typeof TextQuoteSelectorSchema>;
 export type Selector = z.infer<typeof SelectorSchema>;
 
 /**
+ * W3C Web Annotation Motivation Vocabulary
+ * Full list from https://www.w3.org/TR/annotation-vocab/#motivation
+ *
+ * Note: We currently only use 'highlighting' and 'linking' in the application,
+ * but the schema supports the full W3C vocabulary for future extensibility.
+ */
+export const MotivationSchema = z.enum([
+  'assessing',      // Provide an assessment about the Target
+  'bookmarking',    // Create a bookmark to the Target
+  'classifying',    // Classify the Target as something
+  'commenting',     // Comment about the Target
+  'describing',     // Describe the Target
+  'editing',        // Request a change or edit to the Target
+  'highlighting',   // Highlight the Target resource or segment (currently used)
+  'identifying',    // Assign an identity to the Target
+  'linking',        // Link to a resource related to the Target (currently used)
+  'moderating',     // Assign some value or quality to the Target
+  'questioning',    // Ask a question about the Target
+  'replying',       // Reply to a previous statement
+  'tagging',        // Associate a tag with the Target
+]);
+
+export type Motivation = z.infer<typeof MotivationSchema>;
+
+/**
  * Annotation Schema
  *
  * Represents an annotation on a document, following W3C Web Annotation Data Model principles.
  *
  * Structure:
  * - id: Unique identifier for the annotation
- * - motivation: Why the annotation exists ('highlighting' for highlights, 'linking' for references)
+ * - motivation: Why the annotation exists (W3C vocabulary - we currently use 'highlighting'/'linking')
  * - target: What is being annotated (document + text selector)
  *   - source: Document ID
  *   - selector: Single selector or array identifying the same text via different methods
@@ -59,7 +84,7 @@ export type Selector = z.infer<typeof SelectorSchema>;
  * - Separates target (what) from body (why/how) ✓
  * - Supports multiple selector types (TextPositionSelector, TextQuoteSelector) ✓
  * - Allows selector arrays for redundant identification ✓
- * - Uses 'motivation' field to indicate purpose ✓
+ * - Uses full W3C 'motivation' vocabulary ✓
  * - Uses 'creator' and 'created' field names ✓
  * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
  * - Uses W3C body types: 'TextualBody' | 'SpecificResource' ✓
@@ -72,7 +97,7 @@ export type Selector = z.infer<typeof SelectorSchema>;
  */
 export const AnnotationSchema = z.object({
   id: z.string(),
-  motivation: z.enum(['highlighting', 'linking']),
+  motivation: MotivationSchema,
   target: z.object({
     source: z.string(),
     selector: z.union([
