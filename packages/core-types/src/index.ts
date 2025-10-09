@@ -77,6 +77,7 @@ export {
 // Annotation schema (SINGLE SOURCE OF TRUTH)
 export {
   AnnotationSchema,
+  MotivationSchema,
   TextPositionSelectorSchema,
   TextQuoteSelectorSchema,
   SelectorSchema,
@@ -87,6 +88,7 @@ export type {
   ReferenceAnnotation,
   AnnotationUpdate,
   AnnotationCategory,
+  Motivation,
   TextPositionSelector,
   TextQuoteSelector,
   Selector,

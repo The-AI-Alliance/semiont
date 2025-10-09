@@ -44,7 +44,7 @@ const createMockGraphDB = (): GraphDatabase => ({
     documentId: 'doc-123',
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
-    type: 'highlight',
+    type: 'TextualBody',
     creator: 'user1',
     created: new Date().toISOString(),
     entityTypes: [],
@@ -55,7 +55,7 @@ const createMockGraphDB = (): GraphDatabase => ({
     documentId: 'doc-123',
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
-    type: 'reference',
+    type: 'SpecificResource',
     source: 'doc-456',
     creator: 'user1',
     created: new Date().toISOString(),
@@ -70,7 +70,7 @@ const createMockGraphDB = (): GraphDatabase => ({
     documentId: 'doc-123',
     exact: 'test',
     selector: { type: 'text_span', offset: 0, length: 4 },
-    type: 'reference',
+    type: 'SpecificResource',
     source: 'doc-456',
     creator: 'user1',
     created: new Date(),
@@ -355,7 +355,7 @@ describe('GraphDBConsumer', () => {
           },
         },
         body: {
-          type: 'highlight',
+          type: 'TextualBody',
           entityTypes: [],
         },
         creator: 'user1',
@@ -432,10 +432,9 @@ describe('GraphDBConsumer', () => {
           },
         },
         body: {
-          type: 'reference',
+          type: 'SpecificResource',
           source: 'doc-456',
           entityTypes: ['Person', 'Organization'],
-          referenceType: 'mentions',
         },
         creator: 'user1',
       });
@@ -478,10 +477,9 @@ describe('GraphDBConsumer', () => {
           },
         },
         body: {
-          type: 'reference',
+          type: 'SpecificResource',
           source: undefined,
           entityTypes: [],
-          referenceType: undefined,
         },
         creator: 'user1',
       });
@@ -516,7 +514,7 @@ describe('GraphDBConsumer', () => {
 
       expect(mockGraphDB.updateAnnotation).toHaveBeenCalledWith('ref-456', {
         body: {
-          type: 'reference',
+          type: 'SpecificResource',
           entityTypes: [],
           source: 'doc-789',
         },

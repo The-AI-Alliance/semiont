@@ -267,7 +267,7 @@ describe('Admin API Unit Tests', () => {
       expect(user).toHaveProperty('providerId');
       expect(user).toHaveProperty('isAdmin');
       expect(user).toHaveProperty('isActive');
-      expect(user).toHaveProperty('created');
+      expect(user).toHaveProperty('createdAt');
       expect(user).toHaveProperty('updatedAt');
 
       // Validate field types
