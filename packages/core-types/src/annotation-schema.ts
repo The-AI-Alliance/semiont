@@ -189,8 +189,28 @@ export function isHighlight(annotation: Annotation): annotation is HighlightAnno
 }
 
 /**
- * Checks if annotation is a reference
+ * Checks if annotation is a reference (stub or resolved)
+ * Both stub and resolved references have:
+ * - body.type === 'SpecificResource'
+ * - motivation === 'linking'
+ * Use isStubReference() or isResolvedReference() to distinguish between them
  */
 export function isReference(annotation: Annotation): annotation is ReferenceAnnotation {
   return annotation.body.type === 'SpecificResource' && annotation.motivation === 'linking';
+}
+
+/**
+ * Checks if annotation is a stub reference (reference without a resolved target document)
+ * Stub references have body.source = null or undefined
+ */
+export function isStubReference(annotation: Annotation): boolean {
+  return isReference(annotation) && !annotation.body.source;
+}
+
+/**
+ * Checks if annotation is a resolved reference (reference with a target document)
+ * Resolved references have body.source pointing to a document ID
+ */
+export function isResolvedReference(annotation: Annotation): annotation is ReferenceAnnotation {
+  return isReference(annotation) && !!annotation.body.source;
 }

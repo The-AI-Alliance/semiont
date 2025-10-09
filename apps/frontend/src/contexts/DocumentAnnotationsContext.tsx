@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation } from '@semiont/core-types';
+import type { Annotation, CreateAnnotationRequest } from '@semiont/core-types';
 import { getExactText, getTextPositionSelector } from '@semiont/core-types';
 
 interface DocumentAnnotationsContextType {
@@ -78,28 +78,25 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceType?: string
   ): Promise<string | undefined> => {
     try {
-      // Build CreateAnnotationRequest directly
-      const createData: any = {
-        documentId,
-        exact,
-        selector: {
-          type: 'text_span',
-          offset: position.start,
-          length: position.end - position.start,
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      const createData: CreateAnnotationRequest = {
+        target: {
+          source: documentId,
+          selector: {
+            type: 'TextPositionSelector',
+            exact: exact,
+            offset: position.start,
+            length: position.end - position.start,
+          },
         },
-        type: 'reference', // Always create a reference when this function is called
-        source: targetDocId !== undefined ? (targetDocId || null) : null, // Backend uses this to detect references
+        body: {
+          type: 'SpecificResource',
+          source: targetDocId !== undefined ? (targetDocId || null) : null,
+          entityTypes: entityType
+            ? entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t)
+            : [],
+        },
       };
-
-      // Remove source from explicit check since it's always set above
-
-      if (entityType) {
-        createData.body.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
-      }
-
-      if (referenceType) {
-        createData.body.referenceType = referenceType;
-      }
 
       // Create the annotation
       const result = await createAnnotationMutation.mutateAsync(createData);

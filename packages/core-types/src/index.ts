@@ -107,6 +107,8 @@ export {
   getAnnotationCategory,
   isHighlight,
   isReference,
+  isStubReference,
+  isResolvedReference,
 } from './annotation-schema';
 
 // Selector utilities

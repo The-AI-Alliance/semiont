@@ -3,6 +3,8 @@
  * These styles are used across the application for consistent appearance
  */
 
+import { isHighlight, isReference, type Annotation } from '@semiont/core-types';
+
 export const annotationStyles = {
   // Highlight annotation style - dark yellow with dashed ring
   highlight: {
@@ -24,19 +26,13 @@ export const annotationStyles = {
 
   // Helper function to get the appropriate style based on annotation type
   // Used by CodeMirrorRenderer (AnnotateView) - returns gradient backgrounds for all references
-  getAnnotationStyle: (annotation: {
-    type?: string;
-    referenceType?: string;
-    entityType?: string;
-    entityTypes?: string[];
-    source?: string;
-  }) => {
-    if (annotation.type === 'highlight') {
+  getAnnotationStyle: (annotation: Partial<Annotation>) => {
+    // Use W3C-compliant helper functions to determine annotation type
+    if (isHighlight(annotation as Annotation)) {
       return annotationStyles.highlight.className;
     }
 
-    // Check if it's a reference type - all references now use the same blue/cyan style
-    if (annotation.type === 'reference' || annotation.source) {
+    if (isReference(annotation as Annotation)) {
       return annotationStyles.reference.className;
     }
 
