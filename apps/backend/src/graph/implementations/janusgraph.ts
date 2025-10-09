@@ -6,6 +6,7 @@ import { GraphDatabase } from '../interface';
 import {
   Document,
   Annotation,
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -13,6 +14,7 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
+  getExactText,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -83,11 +85,11 @@ export class JanusGraphDatabase implements GraphDatabase {
     const id = this.getPropertyValue(props, 'id');
 
     // Validate required fields
-    const createdBy = this.getPropertyValue(props, 'createdBy');
+    const creator = this.getPropertyValue(props, 'creator');
     const creationMethod = this.getPropertyValue(props, 'creationMethod');
     const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
 
-    if (!createdBy) throw new Error(`Document ${id} missing required field: createdBy`);
+    if (!creator) throw new Error(`Document ${id} missing required field: creator`);
     if (!creationMethod) throw new Error(`Document ${id} missing required field: creationMethod`);
     if (!contentChecksum) throw new Error(`Document ${id} missing required field: contentChecksum`);
 
@@ -95,10 +97,10 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       name: this.getPropertyValue(props, 'name'),
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
-      contentType: this.getPropertyValue(props, 'contentType'),
+      format: this.getPropertyValue(props, 'contentType'),
       archived: this.getPropertyValue(props, 'archived') === 'true',
-      createdBy,
-      createdAt: this.getPropertyValue(props, 'createdAt'), // ISO string from DB
+      creator,
+      created: this.getPropertyValue(props, 'created'), // ISO string from DB
       creationMethod,
       contentChecksum,
       sourceAnnotationId: this.getPropertyValue(props, 'sourceAnnotationId'),
@@ -116,21 +118,39 @@ export class JanusGraphDatabase implements GraphDatabase {
   // Helper function to convert vertex to Annotation
   private vertexToAnnotation(vertex: any): Annotation {
     const props = vertex.properties || {};
-    return {
+
+    const type = this.getPropertyValue(props, 'type') as 'TextualBody' | 'SpecificResource';
+    // Derive motivation from type if not present (backward compatibility)
+    const motivation = this.getPropertyValue(props, 'motivation') || (type === 'TextualBody' ? 'highlighting' : 'linking');
+
+    const annotation: Annotation = {
       id: this.getPropertyValue(props, 'id'),
-      documentId: this.getPropertyValue(props, 'documentId'),
-      exact: this.getPropertyValue(props, 'text'),
-      selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
-      type: this.getPropertyValue(props, 'type') as 'highlight' | 'reference',
-      createdBy: this.getPropertyValue(props, 'createdBy'),
-      createdAt: this.getPropertyValue(props, 'createdAt'), // ISO string from DB
-      referencedDocumentId: this.getPropertyValue(props, 'referencedDocumentId') || undefined,
-      resolvedDocumentName: this.getPropertyValue(props, 'resolvedDocumentName') || undefined,
-      entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
-      referenceType: this.getPropertyValue(props, 'referenceType') || undefined,
-      resolvedAt: this.getPropertyValue(props, 'resolvedAt') || undefined, // ISO string from DB
-      resolvedBy: this.getPropertyValue(props, 'resolvedBy') || undefined,
+      motivation,
+      target: {
+        source: this.getPropertyValue(props, 'documentId'),
+        selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
+      },
+      body: {
+        type,
+        value: this.getPropertyValue(props, 'value') || undefined,
+        entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
+        source: this.getPropertyValue(props, 'source') || undefined,
+      },
+      creator: this.getPropertyValue(props, 'creator'),
+      created: this.getPropertyValue(props, 'created'), // ISO string from DB
     };
+
+    if (this.getPropertyValue(props, 'resolvedDocumentName')) {
+      annotation.resolvedDocumentName = this.getPropertyValue(props, 'resolvedDocumentName');
+    }
+    if (this.getPropertyValue(props, 'resolvedAt')) {
+      annotation.resolvedAt = this.getPropertyValue(props, 'resolvedAt');
+    }
+    if (this.getPropertyValue(props, 'resolvedBy')) {
+      annotation.resolvedBy = this.getPropertyValue(props, 'resolvedBy');
+    }
+
+    return annotation;
   }
   
   async createDocument(input: CreateDocumentInput): Promise<Document> {
@@ -141,10 +161,10 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
+      format: input.format,
       archived: false,
-      createdAt: now,
-      createdBy: input.createdBy,
+      created: now,
+      creator: input.creator,
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
       sourceAnnotationId: input.sourceAnnotationId,
@@ -157,10 +177,10 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('id', id)
       .property('name', input.name)
       .property('entityTypes', JSON.stringify(input.entityTypes))
-      .property('contentType', input.contentType)
+      .property('contentType', input.format)
       .property('archived', false)
-      .property('createdAt', now)
-      .property('createdBy', input.createdBy)
+      .property('created', now)
+      .property('creator', input.creator)
       .property('creationMethod', input.creationMethod)
       .property('contentChecksum', input.contentChecksum);
 
@@ -259,36 +279,44 @@ export class JanusGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
+    // Derive motivation from body type
+    const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
+
     const annotation: Annotation = {
       id,
-      documentId: input.documentId,
-      exact: input.exact,
-      selector: input.selector,
-      type: input.type,
-      createdBy: input.createdBy,
-      createdAt: new Date().toISOString(),
-      entityTypes: input.entityTypes || [],
-      referencedDocumentId: input.referencedDocumentId,
-      referenceType: input.referenceType,
+      motivation,
+      target: {
+        source: input.target.source,
+        selector: input.target.selector,
+      },
+      body: {
+        type: input.body.type,
+        value: input.body.value,
+        entityTypes: input.body.entityTypes || [],
+        source: input.body.source,
+      },
+      creator: input.creator,
+      created: new Date().toISOString(),
     };
 
     // Create annotation vertex
     const vertex = this.g!
       .addV('Annotation')
       .property('id', id)
-      .property('documentId', input.documentId)
-      .property('text', input.exact)
-      .property('selector', JSON.stringify(input.selector))
-      .property('type', input.type)
-      .property('createdBy', input.createdBy)
-      .property('createdAt', annotation.createdAt)
-      .property('entityTypes', JSON.stringify(input.entityTypes || []));
+      .property('documentId', input.target.source)
+      .property('text', getExactText(input.target.selector))
+      .property('selector', JSON.stringify(input.target.selector))
+      .property('type', input.body.type)
+      .property('motivation', motivation)
+      .property('creator', input.creator)
+      .property('created', annotation.created)
+      .property('entityTypes', JSON.stringify(input.body.entityTypes || []));
 
-    if (input.referenceType) {
-      vertex.property('referenceType', input.referenceType);
+    if (input.body.value) {
+      vertex.property('value', input.body.value);
     }
-    if (input.referencedDocumentId) {
-      vertex.property('referencedDocumentId', input.referencedDocumentId);
+    if (input.body.source) {
+      vertex.property('source', input.body.source);
     }
 
     const annVertex = await vertex.next();
@@ -297,15 +325,15 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.g!
       .V(annVertex.value)
       .addE('BELONGS_TO')
-      .to(this.g!.V().has('Document', 'id', input.documentId))
+      .to(this.g!.V().has('Document', 'id', input.target.source))
       .next();
 
     // If it's a reference, create edge to target document
-    if (input.referencedDocumentId) {
+    if (input.body.source) {
       await this.g!
         .V(annVertex.value)
         .addE('REFERENCES')
-        .to(this.g!.V().has('Document', 'id', input.referencedDocumentId))
+        .to(this.g!.V().has('Document', 'id', input.body.source))
         .next();
     }
 
@@ -332,17 +360,15 @@ export class JanusGraphDatabase implements GraphDatabase {
       .has('Annotation', 'id', id);
 
     // Update properties
-    if (updates.exact !== undefined) {
-      await traversalQuery.property('text', updates.exact).next();
+    if (updates.target?.selector !== undefined) {
+      await traversalQuery.property('text', getExactText(updates.target.selector)).next();
+      await traversalQuery.property('selector', JSON.stringify(updates.target.selector)).next();
     }
-    if (updates.selector !== undefined) {
-      await traversalQuery.property('selector', JSON.stringify(updates.selector)).next();
+    if (updates.body?.type !== undefined) {
+      await traversalQuery.property('type', updates.body?.type).next();
     }
-    if (updates.type !== undefined) {
-      await traversalQuery.property('type', updates.type).next();
-    }
-    if (updates.referencedDocumentId !== undefined) {
-      await traversalQuery.property('referencedDocumentId', updates.referencedDocumentId).next();
+    if (updates.body?.source !== undefined) {
+      await traversalQuery.property('source', updates.body?.source).next();
     }
     if (updates.resolvedDocumentName !== undefined) {
       await traversalQuery.property('resolvedDocumentName', updates.resolvedDocumentName).next();
@@ -353,11 +379,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (updates.resolvedBy !== undefined) {
       await traversalQuery.property('resolvedBy', updates.resolvedBy).next();
     }
-    if (updates.referenceType !== undefined) {
-      await traversalQuery.property('referenceType', updates.referenceType).next();
-    }
-    if (updates.entityTypes !== undefined) {
-      await traversalQuery.property('entityTypes', JSON.stringify(updates.entityTypes)).next();
+    if (updates.body?.entityTypes !== undefined) {
+      await traversalQuery.property('entityTypes', JSON.stringify(updates.body?.entityTypes)).next();
     }
 
     const updatedAnnotation = await this.getAnnotation(id);
@@ -378,7 +401,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     console.log('Deleted annotation from JanusGraph:', id);
   }
   
-  async listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     let traversalQuery = this.g!.V().hasLabel('Annotation');
 
     // Apply filters
@@ -387,7 +410,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     if (filter.type) {
-      traversalQuery = traversalQuery.has('type', filter.type);
+      const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
+      traversalQuery = traversalQuery.has('type', w3cType);
     }
 
     const vertices = await traversalQuery.toList();
@@ -407,16 +431,20 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations;
   }
 
-  async resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation> {
+  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
     const annotation = await this.getAnnotation(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
     // Get document name for resolvedDocumentName
-    const targetDoc = await this.getDocument(referencedDocumentId);
+    const targetDoc = await this.getDocument(source);
 
     // Update the annotation properties
     await this.updateAnnotation(annotationId, {
-      referencedDocumentId,
+      body: {
+        type: 'SpecificResource',
+        entityTypes: [],
+        source,
+      },
       resolvedDocumentName: targetDoc?.name,
       resolvedAt: new Date().toISOString(),
     });
@@ -426,7 +454,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .V()
       .has('Annotation', 'id', annotationId)
       .addE('REFERENCES')
-      .to(this.g!.V().has('Document', 'id', referencedDocumentId))
+      .to(this.g!.V().has('Document', 'id', source))
       .next();
 
     const updatedAnnotation = await this.getAnnotation(annotationId);
@@ -453,11 +481,11 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     if (entityTypes && entityTypes.length > 0) {
       return annotations.filter(ann =>
-        ann.entityTypes?.some(type => entityTypes.includes(type))
+        ann.body.entityTypes?.some((type: string) => entityTypes.includes(type))
       );
     }
 
-    return annotations.filter(ann => ann.entityTypes && ann.entityTypes.length > 0);
+    return annotations.filter(ann => ann.body.entityTypes && ann.body.entityTypes.length > 0);
   }
 
   async getDocumentAnnotations(documentId: string): Promise<Annotation[]> {
@@ -470,7 +498,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const vertices = await this.g!
       .V()
       .hasLabel('Annotation')
-      .has('referencedDocumentId', documentId)
+      .has('source', documentId)
       .toList();
 
     return vertices.map((v: any) => this.vertexToAnnotation(v));
@@ -497,8 +525,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     const refs = await this.getReferences(documentId);
 
     for (const ref of refs) {
-      if (ref.referencedDocumentId) {
-        const targetDoc = await this.getDocument(ref.referencedDocumentId);
+      if (ref.body.source) {
+        const targetDoc = await this.getDocument(ref.body.source);
         if (targetDoc) {
           const existing = connections.find(c => c.targetDocument.id === targetDoc.id);
           if (existing) {
@@ -507,7 +535,7 @@ export class JanusGraphDatabase implements GraphDatabase {
             connections.push({
               targetDocument: targetDoc,
               annotations: [ref],
-              relationshipType: ref.referenceType,
+              relationshipType: undefined,
               bidirectional: false,
             });
           }
@@ -551,16 +579,16 @@ export class JanusGraphDatabase implements GraphDatabase {
       for (const type of doc.entityTypes) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
+      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
     }
 
     // Get all annotations
     const anns = await this.g!.V().hasLabel('Annotation').toList();
     const annotations = anns.map((v: any) => this.vertexToAnnotation(v));
 
-    const highlights = annotations.filter(a => a.type === 'highlight');
-    const references = annotations.filter(a => a.type === 'reference');
-    const entityReferences = references.filter(a => a.entityTypes && a.entityTypes.length > 0);
+    const highlights = annotations.filter(a => a.body.type === 'TextualBody');
+    const references = annotations.filter(a => a.body.type === 'SpecificResource');
+    const entityReferences = references.filter(a => a.body.entityTypes && a.body.entityTypes.length > 0);
 
     return {
       documentCount: documents.length,
@@ -581,10 +609,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: Array<{ annotationId: string; referencedDocumentId: string }>): Promise<Annotation[]> {
+  async resolveReferences(inputs: Array<{ annotationId: string; source: string }>): Promise<Annotation[]> {
     const results = [];
     for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.referencedDocumentId));
+      results.push(await this.resolveReference(input.annotationId, input.source));
     }
     return results;
   }

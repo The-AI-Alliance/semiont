@@ -21,12 +21,12 @@ export function DocumentInfoPanel({
 }: Props) {
   // Count stub vs resolved references
   const stubCount = useMemo(
-    () => references.filter((r) => r.referencedDocumentId === null || r.referencedDocumentId === undefined).length,
+    () => references.filter((r) => r.body.source === null || r.body.source === undefined).length,
     [references]
   );
 
   const resolvedCount = useMemo(
-    () => references.filter((r) => r.referencedDocumentId !== null && r.referencedDocumentId !== undefined).length,
+    () => references.filter((r) => r.body.source !== null && r.body.source !== undefined).length,
     [references]
   );
 
@@ -34,7 +34,7 @@ export function DocumentInfoPanel({
   const entityTypesList = useMemo(() => {
     const entityTypeCounts = new Map<string, number>();
     references.forEach((ref) => {
-      const entityTypes = ref.entityTypes || [];
+      const entityTypes = ref.body.entityTypes || [];
       entityTypes.forEach((type: string) => {
         entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
       });
@@ -131,13 +131,13 @@ export function DocumentInfoPanel({
               {referencedBy.map((ref) => (
                 <div key={ref.id} className="border border-gray-200 dark:border-gray-700 rounded p-2">
                   <Link
-                    href={`/know/document/${encodeURIComponent(ref.documentId)}`}
+                    href={`/know/document/${encodeURIComponent(ref.target.source)}`}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline block font-medium mb-1"
                   >
                     {ref.documentName || 'Untitled Document'}
                   </Link>
                   <span className="text-xs text-gray-500 dark:text-gray-400 italic line-clamp-2">
-                    "{ref.selector?.exact || 'No text'}"
+                    "{ref.target.selector?.exact || 'No text'}"
                   </span>
                 </div>
               ))}

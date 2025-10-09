@@ -2,8 +2,8 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
-import { GetDocumentResponseSchema } from '@semiont/core-types';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/core-types';
+import { formatDocument } from '../helpers';
 
 export const getDocumentRoute = createRoute({
   method: 'get',
@@ -45,19 +45,21 @@ export function registerGetDocument(router: DocumentsRouterType) {
     // Clients must call GET /documents/:id/content separately to get content
 
     const annotations = [
-      ...stored.annotations.highlights.map(formatAnnotation),
-      ...stored.annotations.references.map(formatAnnotation)
+      ...stored.annotations.highlights,
+      ...stored.annotations.references
     ];
-    const highlights = stored.annotations.highlights.map(formatAnnotation);
-    const references = stored.annotations.references.map(formatAnnotation);
-    const entityReferences = references.filter(ref => ref.entityTypes && ref.entityTypes.length > 0);
+    const highlights = stored.annotations.highlights;
+    const references = stored.annotations.references;
+    const entityReferences = references.filter(ref => ref.body.entityTypes && ref.body.entityTypes.length > 0);
 
-    return c.json({
+    const response: GetDocumentResponse = {
       document: formatDocument(stored.document),
       annotations,
       highlights,
       references,
       entityReferences,
-    });
+    };
+
+    return c.json(response);
   });
 }

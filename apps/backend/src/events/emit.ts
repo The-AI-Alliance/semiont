@@ -15,7 +15,7 @@ export async function emitDocumentCreated(params: {
   documentId: string;
   userId: string;
   name: string;
-  contentType: string;
+  format: string;
   contentHash: string;
   entityTypes?: string[];
   metadata?: Record<string, any>;
@@ -31,7 +31,7 @@ export async function emitDocumentCreated(params: {
     version: 1,
     payload: {
       name: params.name,
-      contentType: params.contentType,
+      format: params.format,
       contentHash: params.contentHash,
       entityTypes: params.entityTypes,
       metadata: params.metadata,
@@ -50,7 +50,7 @@ export async function emitDocumentCloned(params: {
   documentId: string;
   userId: string;
   name: string;
-  contentType: string;
+  format: string;
   contentHash: string;
   parentDocumentId: string;
   entityTypes?: string[];
@@ -65,7 +65,7 @@ export async function emitDocumentCloned(params: {
     version: 1,
     payload: {
       name: params.name,
-      contentType: params.contentType,
+      format: params.format,
       contentHash: params.contentHash,
       parentDocumentId: params.parentDocumentId,
       entityTypes: params.entityTypes,
@@ -169,7 +169,6 @@ export async function emitReferenceCreated(params: {
   exact: string;
   position: { offset: number; length: number };
   entityTypes?: string[];
-  referenceType?: string;
   targetDocumentId?: string;
 }): Promise<StoredEvent> {
   const eventStore = await getEventStore();
@@ -184,7 +183,6 @@ export async function emitReferenceCreated(params: {
       exact: params.exact,
       position: params.position,
       entityTypes: params.entityTypes,
-      referenceType: params.referenceType,
       targetDocumentId: params.targetDocumentId,
     },
   });
@@ -198,7 +196,6 @@ export async function emitReferenceResolved(params: {
   userId: string;
   referenceId: string;
   targetDocumentId: string;
-  referenceType?: string;
 }): Promise<StoredEvent> {
   const eventStore = await getEventStore();
 
@@ -210,7 +207,6 @@ export async function emitReferenceResolved(params: {
     payload: {
       referenceId: params.referenceId,
       targetDocumentId: params.targetDocumentId,
-      referenceType: params.referenceType,
     },
   });
 }

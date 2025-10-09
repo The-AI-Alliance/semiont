@@ -54,7 +54,7 @@ export const UserResponseSchema = z.object({
   isActive: z.boolean(),
   termsAcceptedAt: z.string().nullable(),
   lastLogin: z.string().nullable(),
-  createdAt: z.string(),
+  created: z.string(),
 }).openapi('UserResponse');
 
 export const ErrorResponseSchema = z.object({
@@ -75,7 +75,7 @@ export const UserListResponseSchema = z.object({
     isAdmin: z.boolean(),
     isActive: z.boolean(),
     lastLogin: z.string().nullable(),
-    createdAt: z.string(),
+    created: z.string(),
     updatedAt: z.string(),
   })),
 }).openapi('UserListResponse');
@@ -95,7 +95,7 @@ export const UserStatsResponseSchema = z.object({
       id: z.string(),
       email: z.string(),
       name: z.string().nullable(),
-      createdAt: z.string(),
+      created: z.string(),
     })),
   }),
 }).openapi('UserStatsResponse');

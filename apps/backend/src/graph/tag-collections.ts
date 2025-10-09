@@ -5,7 +5,7 @@ export interface TagCollection {
   id: string;
   collectionType: 'entity-types' | 'reference-types';
   tags: string[];
-  createdAt: Date;
+  created: Date;
   updatedAt: Date;
 }
 

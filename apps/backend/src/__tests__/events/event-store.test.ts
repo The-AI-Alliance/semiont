@@ -42,7 +42,7 @@ describe('Event Store', () => {
       version: 1,
       payload: {
         name: 'Test',
-        contentType: 'text/plain',
+        format: 'text/plain',
         contentHash: 'hash1',
       },
     });
@@ -62,7 +62,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Test', contentType: 'text/plain', contentHash: 'h1' },
+      payload: { name: 'Test', format: 'text/plain', contentHash: 'h1' },
     });
 
     const e2 = await eventStore.appendEvent({
@@ -88,7 +88,7 @@ describe('Event Store', () => {
       documentId: docId,
       userId: 'user1',
       version: 1,
-      payload: { name: 'Doc', contentType: 'text/plain', contentHash: 'h1' },
+      payload: { name: 'Doc', format: 'text/plain', contentHash: 'h1' },
     });
 
     await eventStore.appendEvent({

@@ -9,26 +9,55 @@
  */
 
 import { z } from 'zod';
-import { CREATION_METHODS } from './creation-methods';
+import { AnnotationSchema } from './annotation-schema';
+import { DocumentSchema } from './document';
+
+/**
+ * Selector Types (imported from annotation-schema for consistency)
+ */
+const TextPositionSelectorSchema = z.object({
+  type: z.literal("TextPositionSelector"),
+  exact: z.string(),
+  offset: z.number(),
+  length: z.number(),
+});
+
+const TextQuoteSelectorSchema = z.object({
+  type: z.literal("TextQuoteSelector"),
+  exact: z.string(),
+  prefix: z.string().optional(),
+  suffix: z.string().optional(),
+});
+
+const SelectorSchema = z.union([
+  TextPositionSelectorSchema,
+  TextQuoteSelectorSchema,
+]);
 
 /**
  * Create Annotation API Request
  *
  * Frontend-to-backend API format for creating an annotation.
- * createdBy is derived from authenticated user on backend.
+ * creator is derived from authenticated user on backend.
+ *
+ * Phase 2: Multi-Selector Support
+ * - selector can be single selector or array of selectors
+ * - Multiple selectors identify the same text using different methods
  */
 export const CreateAnnotationRequestSchema = z.object({
-  documentId: z.string(),
-  exact: z.string(),  // Exact text content (W3C Web Annotation standard)
-  selector: z.object({
-    type: z.string(),
-    offset: z.number(),
-    length: z.number(),
+  target: z.object({
+    source: z.string(),
+    selector: z.union([
+      SelectorSchema,
+      z.array(SelectorSchema),
+    ]),
   }),
-  type: z.enum(['highlight', 'reference']),
-  entityTypes: z.array(z.string()).optional(),
-  referenceType: z.string().optional(),
-  referencedDocumentId: z.string().nullable().optional(),
+  body: z.object({
+    type: z.enum(['TextualBody', 'SpecificResource']),
+    value: z.string().optional(),
+    source: z.string().nullable().optional(),
+    entityTypes: z.array(z.string()).optional(),
+  }),
 });
 
 export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSchema>;
@@ -37,10 +66,10 @@ export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSche
  * Create Annotation Internal Input
  *
  * Backend internal format used by graph implementations when consuming events.
- * Includes createdBy from the event's userId.
+ * Includes creator from the event's userId.
  */
 export const CreateAnnotationInternalSchema = CreateAnnotationRequestSchema.extend({
-  createdBy: z.string(),
+  creator: z.string(),
 });
 
 export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSchema>;
@@ -49,83 +78,11 @@ export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSc
  * Create Annotation Response
  */
 export const CreateAnnotationResponseSchema = z.object({
-  annotation: z.object({
-    id: z.string(),
-    documentId: z.string(),
-    exact: z.string(),  // Exact text content (W3C Web Annotation standard)
-    selector: z.object({
-      type: z.string(),
-      offset: z.number(),
-      length: z.number(),
-    }),
-    type: z.enum(['highlight', 'reference']),
-    referencedDocumentId: z.string().nullable().optional(),
-    entityTypes: z.array(z.string()).optional(),
-    referenceType: z.string().optional(),
-    createdBy: z.string(),
-    createdAt: z.string(),
-  }),
+  annotation: AnnotationSchema,
 });
 
 export type CreateAnnotationResponse = z.infer<typeof CreateAnnotationResponseSchema>;
 
-/**
- * Annotation format returned by highlights/references endpoints
- *
- * This is the SINGLE SOURCE OF TRUTH for annotation types.
- *
- * Field Requirements:
- * - exact: REQUIRED - exact text content (W3C Web Annotation standard)
- * - type: REQUIRED (not optional)
- * - createdBy: REQUIRED (user who created)
- * - referencedDocumentId: OPTIONAL and nullable
- * - entityTypes: REQUIRED (always present, defaults to empty array)
- * - referenceType: OPTIONAL
- * - resolvedBy: OPTIONAL (user who resolved reference)
- * - resolvedAt: OPTIONAL (when reference was resolved)
- */
-const AnnotationSchema = z.object({
-  id: z.string(),
-  documentId: z.string(),
-  exact: z.string(),                                   // REQUIRED - exact text content (W3C Web Annotation standard)
-  selector: z.object({
-    type: z.string(),
-    offset: z.number(),
-    length: z.number(),
-  }),
-  type: z.enum(['highlight', 'reference']),            // REQUIRED
-  createdBy: z.string(),                               // REQUIRED
-  createdAt: z.string(),                               // REQUIRED - ISO 8601 string (JSON serialized)
-  referencedDocumentId: z.string().nullable().optional(), // OPTIONAL, nullable
-  resolvedDocumentName: z.string().optional(),         // OPTIONAL (name of referenced document)
-  entityTypes: z.array(z.string()).default([]),        // REQUIRED (defaults to [])
-  referenceType: z.string().optional(),                // OPTIONAL
-  resolvedBy: z.string().optional(),                   // OPTIONAL (who resolved the reference)
-  resolvedAt: z.string().optional(),                   // OPTIONAL (when resolved) - ISO 8601 string
-});
-
-export type Annotation = z.infer<typeof AnnotationSchema>;
-
-/**
- * Highlight-specific annotation type
- */
-export type HighlightAnnotation = Annotation & { type: 'highlight' };
-
-/**
- * Reference-specific annotation type
- */
-export type ReferenceAnnotation = Annotation & { type: 'reference' };
-
-/**
- * Annotation update payload (all fields optional except what's being changed)
- */
-export interface AnnotationUpdate {
-  type?: 'highlight' | 'reference';
-  entityTypes?: string[] | null;
-  referenceType?: string | null;
-  referencedDocumentId?: string | null;
-  resolvedDocumentName?: string | null;
-}
 
 /**
  * Text selection (position in document)
@@ -155,34 +112,13 @@ export const GetReferencesResponseSchema = z.object({
 export type GetReferencesResponse = z.infer<typeof GetReferencesResponseSchema>;
 
 /**
- * Document Schema
- *
- * Core document model used across the application.
- * - contentChecksum: Required, used by backend for content-addressing and graph storage
- * - content: REMOVED - All content access must go through filesystem service via storage.getDocument(id)
+ * Get All Annotations Response (both highlights and references)
  */
-export const DocumentSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  contentType: z.string(),
-  archived: z.boolean(),
-  entityTypes: z.array(z.string()),
-  creationMethod: z.enum([
-    CREATION_METHODS.API,
-    CREATION_METHODS.UPLOAD,
-    CREATION_METHODS.UI,
-    CREATION_METHODS.REFERENCE,
-    CREATION_METHODS.CLONE,
-    CREATION_METHODS.GENERATED,
-  ] as const),
-  sourceAnnotationId: z.string().optional(),
-  sourceDocumentId: z.string().optional(),
-  createdBy: z.string(),
-  createdAt: z.string(),
-  contentChecksum: z.string(),
+export const GetAnnotationsResponseSchema = z.object({
+  annotations: z.array(AnnotationSchema),
 });
 
-export type Document = z.infer<typeof DocumentSchema>;
+export type GetAnnotationsResponse = z.infer<typeof GetAnnotationsResponseSchema>;
 
 /**
  * Create Document Request
@@ -190,7 +126,7 @@ export type Document = z.infer<typeof DocumentSchema>;
 export const CreateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(500),
   content: z.string(),
-  contentType: z.string().optional().default('text/plain'),
+  format: z.string().optional().default('text/plain'), // MIME type
   entityTypes: z.array(z.string()).optional().default([]),
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),
@@ -277,7 +213,7 @@ export const AdminUserSchema = z.object({
   isAdmin: z.boolean(),
   isActive: z.boolean(),
   lastLogin: z.string().nullable(),
-  createdAt: z.string(),
+  created: z.string(),
   updatedAt: z.string(),
 });
 
@@ -311,7 +247,7 @@ export const AdminUserStatsResponseSchema = z.object({
       id: z.string(),
       email: z.string(),
       name: z.string().nullable(),
-      createdAt: z.string(),
+      created: z.string(),
     })),
   }),
 });
@@ -355,14 +291,25 @@ export type OAuthConfigResponse = z.infer<typeof OAuthConfigResponseSchema>;
  */
 export const ReferencedBySchema = z.object({
   id: z.string().describe('Reference annotation ID'),
-  documentId: z.string().describe('ID of document containing the reference'),
   documentName: z.string().describe('Name of document containing the reference'),
-  selector: z.object({
-    exact: z.string().describe('The selected text that references this document'),
+  target: z.object({
+    source: z.string().describe('ID of document containing the reference'),
+    selector: z.object({
+      exact: z.string().describe('The selected text that references this document'),
+    }),
   }),
 });
 
 export type ReferencedBy = z.infer<typeof ReferencedBySchema>;
+
+/**
+ * Get Referenced By Response
+ */
+export const GetReferencedByResponseSchema = z.object({
+  referencedBy: z.array(ReferencedBySchema),
+});
+
+export type GetReferencedByResponse = z.infer<typeof GetReferencedByResponseSchema>;
 
 /**
  * Accept Terms Response
@@ -477,3 +424,191 @@ export const CloneDocumentWithTokenResponseSchema = z.object({
 });
 
 export type CloneDocumentWithTokenResponse = z.infer<typeof CloneDocumentWithTokenResponseSchema>;
+
+/**
+ * Detect Annotations Response
+ */
+export const DetectAnnotationsResponseSchema = z.object({
+  annotations: z.array(z.object({
+    id: z.string(),
+    documentId: z.string(),
+    selector: z.union([SelectorSchema, z.array(SelectorSchema)]),
+    source: z.string().nullable(),
+    entityTypes: z.array(z.string()),
+    created: z.string(),
+  })),
+  detected: z.number(),
+});
+
+export type DetectAnnotationsResponse = z.infer<typeof DetectAnnotationsResponseSchema>;
+
+/**
+ * Discover Context Response
+ */
+export const DiscoverContextResponseSchema = z.object({
+  documents: z.array(DocumentSchema),
+  connections: z.array(z.object({
+    fromId: z.string(),
+    toId: z.string(),
+    type: z.string(),
+    metadata: z.record(z.string(), z.any()),
+  })),
+});
+
+export type DiscoverContextResponse = z.infer<typeof DiscoverContextResponseSchema>;
+
+/**
+ * Reference LLM Context Response
+ */
+export const ReferenceLLMContextResponseSchema = z.object({
+  reference: AnnotationSchema,
+  sourceDocument: DocumentSchema,
+  targetDocument: DocumentSchema.nullable(),
+  sourceContext: z.object({
+    before: z.string(),
+    selected: z.string(),
+    after: z.string(),
+  }).optional(),
+  targetContext: z.object({
+    content: z.string(),
+    summary: z.string().optional(),
+  }).optional(),
+  suggestedResolution: z.object({
+    documentId: z.string(),
+    documentName: z.string(),
+    confidence: z.number(),
+    reasoning: z.string(),
+  }).optional(),
+});
+
+export type ReferenceLLMContextResponse = z.infer<typeof ReferenceLLMContextResponseSchema>;
+
+/**
+ * Document LLM Context Response
+ */
+export const DocumentLLMContextResponseSchema = z.object({
+  mainDocument: DocumentSchema.extend({
+    content: z.string().optional(),
+  }),
+  relatedDocuments: z.array(DocumentSchema),
+  annotations: z.array(AnnotationSchema),
+  graph: z.object({
+    nodes: z.array(z.object({
+      id: z.string(),
+      type: z.string(),
+      label: z.string(),
+      metadata: z.record(z.string(), z.any()),
+    })),
+    edges: z.array(z.object({
+      source: z.string(),
+      target: z.string(),
+      type: z.string(),
+      metadata: z.record(z.string(), z.any()),
+    })),
+  }),
+  summary: z.string().optional(),
+  suggestedReferences: z.array(z.string()).optional(),
+});
+
+export type DocumentLLMContextResponse = z.infer<typeof DocumentLLMContextResponseSchema>;
+
+/**
+ * Get Events Response
+ */
+export const GetEventsResponseSchema = z.object({
+  events: z.array(z.object({
+    event: z.object({
+      id: z.string(),
+      type: z.string(),
+      timestamp: z.string(),
+      userId: z.string(),
+      documentId: z.string(),
+      payload: z.any(),
+    }),
+    metadata: z.object({
+      sequenceNumber: z.number(),
+      prevEventHash: z.string().optional(),
+      checksum: z.string().optional(),
+    }),
+  })),
+  total: z.number(),
+  documentId: z.string(),
+});
+
+export type GetEventsResponse = z.infer<typeof GetEventsResponseSchema>;
+
+/**
+ * Get Annotation Response
+ */
+export const GetAnnotationResponseSchema = z.object({
+  annotation: AnnotationSchema,
+  document: DocumentSchema.nullable(),
+  resolvedDocument: DocumentSchema.nullable(),
+});
+
+export type GetAnnotationResponse = z.infer<typeof GetAnnotationResponseSchema>;
+
+/**
+ * List Annotations Response
+ */
+export const ListAnnotationsResponseSchema = z.object({
+  annotations: z.array(AnnotationSchema),
+  total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
+});
+
+export type ListAnnotationsResponse = z.infer<typeof ListAnnotationsResponseSchema>;
+
+/**
+ * Create Document from Selection Response
+ */
+export const CreateDocumentFromSelectionResponseSchema = z.object({
+  document: DocumentSchema,
+  annotation: AnnotationSchema,
+});
+
+export type CreateDocumentFromSelectionResponse = z.infer<typeof CreateDocumentFromSelectionResponseSchema>;
+
+/**
+ * Annotation Context Response
+ */
+export const AnnotationContextResponseSchema = z.object({
+  annotation: z.object({
+    id: z.string(),
+    documentId: z.string(),
+    selector: z.object({
+      exact: z.string(),
+      offset: z.number(),
+      length: z.number(),
+    }),
+    referencedDocumentId: z.string().nullable(),
+    entityTypes: z.array(z.string()),
+    createdBy: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  }),
+  context: z.object({
+    before: z.string().optional(),
+    selected: z.string(),
+    after: z.string().optional(),
+  }),
+  document: DocumentSchema,
+});
+
+export type AnnotationContextResponse = z.infer<typeof AnnotationContextResponseSchema>;
+
+/**
+ * Contextual Summary Response
+ */
+export const ContextualSummaryResponseSchema = z.object({
+  summary: z.string(),
+  relevantFields: z.record(z.string(), z.any()),
+  context: z.object({
+    before: z.string().optional(),
+    selected: z.string(),
+    after: z.string().optional(),
+  }),
+});
+
+export type ContextualSummaryResponse = z.infer<typeof ContextualSummaryResponseSchema>;

@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
-import { ReferencedBySchema } from '@semiont/core-types';
+import { GetReferencedByResponseSchema, type GetReferencedByResponse, getExactText } from '@semiont/core-types';
 import type { DocumentsRouterType } from '../shared';
 
 export const getReferencedByRoute = createRoute({
@@ -19,9 +19,7 @@ export const getReferencedByRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            referencedBy: z.array(ReferencedBySchema),
-          }),
+          schema: GetReferencedByResponseSchema,
         },
       },
       description: 'Documents that reference this document',
@@ -37,8 +35,8 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
     // Get all annotations that reference this document
     const references = await graphDb.getDocumentReferencedBy(id);
 
-    // Get unique documents from the annotations
-    const docIds = [...new Set(references.map(ref => ref.documentId))];
+    // Get unique documents from the selections
+    const docIds = [...new Set(references.map(ref => ref.target.source))];
     const documents = await Promise.all(docIds.map(docId => graphDb.getDocument(docId)));
 
     // Build document map for lookup
@@ -46,19 +44,23 @@ export function registerGetReferencedBy(router: DocumentsRouterType) {
 
     // Transform into ReferencedBy structure
     const referencedBy = references.map(ref => {
-      const doc = docMap.get(ref.documentId);
+      const doc = docMap.get(ref.target.source);
       return {
         id: ref.id,
-        documentId: ref.documentId,
         documentName: doc?.name || 'Untitled Document',
-        selector: {
-          exact: ref.exact,
+        target: {
+          source: ref.target.source,
+          selector: {
+            exact: getExactText(ref.target.selector),
+          },
         },
       };
     });
 
-    return c.json({
+    const response: GetReferencedByResponse = {
       referencedBy,
-    });
+    };
+
+    return c.json(response);
   });
 }

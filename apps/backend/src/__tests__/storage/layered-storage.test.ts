@@ -74,14 +74,14 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'Test Doc',
-          contentType: 'text/plain',
+          format: 'text/plain',
           metadata: {},
           entityTypes: ['note'],
           archived: false,
-          createdAt: new Date().toISOString(),
+          created: new Date().toISOString(),
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          createdBy: 'did:web:test.com:users:test',
+          creator: 'did:web:test.com:users:test',
         },
         annotations: {
           documentId: docId,
@@ -105,31 +105,36 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'Projection Test',
-          contentType: 'text/markdown',
+          format: 'text/markdown',
           metadata: {},
           entityTypes: ['article', 'research'],
           archived: false,
-          createdAt: '2025-01-01T00:00:00Z',
+          created: '2025-01-01T00:00:00Z',
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          createdBy: 'did:web:test.com:users:test',
+          creator: 'did:web:test.com:users:test',
         },
         annotations: {
           documentId: docId,
           highlights: [
             {
               id: 'hl1',
-              documentId: docId,
-              exact: 'important',
-              selector: {
-                type: 'text_span' as const,
-                offset: 0,
-                length: 9,
+              motivation: 'highlighting' as const,
+              target: {
+                source: docId,
+                selector: {
+                  type: 'TextPositionSelector' as const,
+                  exact: 'important',
+                  offset: 0,
+                  length: 9,
+                },
               },
-              type: 'highlight' as const,
-              createdBy: 'did:web:test.com:users:test',
-              createdAt: '2025-01-01T00:00:00.000Z',
-              entityTypes: []
+              body: {
+                type: 'TextualBody' as const,
+                entityTypes: [],
+              },
+              creator: 'did:web:test.com:users:test',
+              created: '2025-01-01T00:00:00.000Z',
             },
           ],
           references: [],
@@ -155,14 +160,14 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'To Delete',
-          contentType: 'text/plain',
+          format: 'text/plain',
           metadata: {},
           entityTypes: [],
           archived: false,
-          createdAt: new Date().toISOString(),
+          created: new Date().toISOString(),
           contentChecksum: "test-checksum",
           creationMethod: 'api' as const,
-          createdBy: 'did:web:test.com:users:test',
+          creator: 'did:web:test.com:users:test',
         },
         annotations: {
           documentId: docId,
@@ -193,7 +198,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Integration Test',
-          contentType: 'text/plain',
+          format: 'text/plain',
           contentHash: 'hash1',
         },
       });
@@ -215,7 +220,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Update Test',
-          contentType: 'text/plain',
+          format: 'text/plain',
           contentHash: 'hash2',
         },
       });
@@ -254,7 +259,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Load Test',
-          contentType: 'text/plain',
+          format: 'text/plain',
           contentHash: 'hash3',
         },
       });

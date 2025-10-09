@@ -67,7 +67,7 @@ export class DetectionWorker extends JobWorker {
       // Detect entities using AI (loads content from filesystem internally)
       const detectedAnnotations = await detectAnnotationsInDocument(
         job.documentId,
-        document.contentType,
+        document.format,
         [entityType]
       );
 
@@ -96,8 +96,8 @@ export class DetectionWorker extends JobWorker {
               offset: detected.annotation.selector.offset,
               length: detected.annotation.selector.length,
             },
+
             entityTypes: detected.annotation.entityTypes,
-            referenceType: undefined, // Unresolved reference
             targetDocumentId: undefined, // Will be resolved later
           });
 

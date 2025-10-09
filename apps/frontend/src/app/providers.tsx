@@ -41,15 +41,23 @@ function createQueryClient() {
       queries: {
         // No default queryFn - each query provides its own via useAuthenticatedAPI
         retry: (failureCount, error) => {
-          // Don't retry on auth errors
+          // Don't retry on client errors (4xx) - these won't fix themselves
           if (error instanceof APIError) {
+            // Never retry auth errors
             if (error.status === 401 || error.status === 403) {
               return false;
             }
+            // Never retry other client errors (400, 404, 422, etc.)
+            if (error.status >= 400 && error.status < 500) {
+              return false;
+            }
           }
+          // Only retry server errors (5xx) or network errors, max 3 times
           return failureCount < 3;
         },
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s, max 30s
         staleTime: 5 * 60 * 1000, // 5 minutes
+        refetchOnWindowFocus: false, // Prevent unnecessary refetches when window regains focus
       },
     },
   });

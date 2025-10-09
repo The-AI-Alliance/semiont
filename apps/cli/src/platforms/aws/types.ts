@@ -56,7 +56,7 @@ export interface ECSTask {
   service: string;
   status: string;
   health: string;
-  createdAt: Date;
+  created: Date;
   lastStatus: string;
 }
 

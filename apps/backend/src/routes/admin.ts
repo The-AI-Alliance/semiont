@@ -134,7 +134,7 @@ export const updateUserRoute = createRoute({
               isAdmin: z.boolean(),
               isActive: z.boolean(),
               lastLogin: z.string().nullable(),
-              createdAt: z.string(),
+              created: z.string(),
               updatedAt: z.string(),
             }),
           }),
@@ -320,7 +320,7 @@ adminRouter.openapi(listUsersRoute, async (c) => {
       ...u,
       termsAcceptedAt: u.termsAcceptedAt?.toISOString() || null,
       lastLogin: u.lastLogin?.toISOString() || null,
-      createdAt: u.createdAt.toISOString(),
+      created: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),
     })),
   }, 200);
@@ -368,7 +368,7 @@ adminRouter.openapi(userStatsRoute, async (c) => {
       })),
       recentSignups: recentUsers.map((u) => ({
         ...u,
-        createdAt: u.createdAt.toISOString(),
+        created: u.createdAt.toISOString(),
       })),
     },
   }, 200);
@@ -411,7 +411,7 @@ adminRouter.openapi(updateUserRoute, async (c) => {
       isAdmin: updatedUser.isAdmin,
       isActive: updatedUser.isActive,
       lastLogin: updatedUser.lastLogin?.toISOString() || null,
-      createdAt: updatedUser.createdAt.toISOString(),
+      created: updatedUser.createdAt.toISOString(),
       updatedAt: updatedUser.updatedAt.toISOString(),
     },
   }, 200);

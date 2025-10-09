@@ -76,7 +76,7 @@ function UserTableRow({
         {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-        {new Date(user.createdAt).toLocaleDateString()}
+        {new Date(user.created).toLocaleDateString()}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
         <div className="flex items-center justify-end space-x-2">

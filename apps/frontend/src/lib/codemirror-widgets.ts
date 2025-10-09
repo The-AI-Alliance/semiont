@@ -8,7 +8,8 @@
  */
 
 import { WidgetType, Decoration, EditorView } from '@codemirror/view';
-import type { AnnotationSelection } from '@/components/CodeMirrorRenderer';
+import type { Annotation } from '@/components/CodeMirrorRenderer';
+import { isResolvedReference } from '@semiont/core-types';
 
 /**
  * Reference Resolution Widget
@@ -16,10 +17,10 @@ import type { AnnotationSelection } from '@/components/CodeMirrorRenderer';
  */
 export class ReferenceResolutionWidget extends WidgetType {
   constructor(
-    readonly annotation: AnnotationSelection,
+    readonly annotation: Annotation,
     readonly targetDocumentName?: string,
     readonly onNavigate?: (documentId: string) => void,
-    readonly onUnresolvedClick?: (annotation: AnnotationSelection) => void,
+    readonly onUnresolvedClick?: (annotation: Annotation) => void,
     readonly isGenerating?: boolean
   ) {
     super();
@@ -27,7 +28,7 @@ export class ReferenceResolutionWidget extends WidgetType {
 
   override eq(other: ReferenceResolutionWidget) {
     return other.annotation.id === this.annotation.id &&
-           other.annotation.referencedDocumentId === this.annotation.referencedDocumentId &&
+           other.annotation.body.source === this.annotation.body.source &&
            other.targetDocumentName === this.targetDocumentName &&
            other.isGenerating === this.isGenerating;
   }
@@ -48,7 +49,7 @@ export class ReferenceResolutionWidget extends WidgetType {
     indicator.type = 'button';
 
     // Different states: resolved, generating, or stub
-    const isResolved = !!this.annotation.referencedDocumentId;
+    const isResolved = isResolvedReference(this.annotation);
 
     if (isResolved) {
       indicator.innerHTML = '<span aria-hidden="true">🔗</span>';
@@ -159,11 +160,11 @@ export class ReferenceResolutionWidget extends WidgetType {
       });
 
       // Click handler: navigate for resolved, show popup for unresolved
-      if (isResolved && this.annotation.referencedDocumentId && this.onNavigate) {
+      if (isResolved && this.annotation.body.source && this.onNavigate) {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          this.onNavigate!(this.annotation.referencedDocumentId!);
+          this.onNavigate!(this.annotation.body.source!);
         });
       } else if (!isResolved && this.onUnresolvedClick) {
         indicator.addEventListener('click', (e) => {

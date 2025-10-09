@@ -9,9 +9,13 @@ import {
   CreateDocumentFromTokenRequestSchema,
   CreateDocumentFromTokenResponseSchema,
   CloneDocumentWithTokenResponseSchema,
+  type GetDocumentByTokenResponse,
+  type CreateDocumentFromTokenResponse,
+  type CloneDocumentWithTokenResponse,
+  type Document,
+  type CreateDocumentInput,
 } from '@semiont/core-types';
-import type { Document, CreateDocumentInput } from '@semiont/core-types';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Simple in-memory token store (replace with Redis/DB in production)
@@ -119,10 +123,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
 
     // NOTE: Content is NOT included - frontend should fetch via GET /documents/:id/content
 
-    return c.json({
+    const response: GetDocumentByTokenResponse = {
       sourceDocument: formatDocument(sourceDoc),
       expiresAt: tokenData.expiresAt.toISOString(),
-    });
+    };
+
+    return c.json(response);
   });
 
   // Create document from token
@@ -155,7 +161,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       id: Math.random().toString(36).substring(2, 11),
       name: body.name,
       archived: false,
-      contentType: sourceDoc.contentType,
+      format: sourceDoc.format,
       entityTypes: sourceDoc.entityTypes || [],
 
       // Clone context
@@ -163,8 +169,8 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       sourceDocumentId: tokenData.documentId,
       contentChecksum: checksum,
 
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
+      creator: user.id,
+      created: new Date().toISOString(),
     };
 
     const documentId = `doc-sha256:${checksum}`;
@@ -174,9 +180,9 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       name: document.name,
       entityTypes: document.entityTypes,
       content: body.content,
-      contentType: document.contentType,
+      format: document.format,
       contentChecksum: document.contentChecksum!,
-      createdBy: document.createdBy!,
+      creator: document.creator!,
       creationMethod: document.creationMethod,
       sourceDocumentId: document.sourceDocumentId,
     };
@@ -198,10 +204,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 
-    return c.json({
+    const response: CreateDocumentFromTokenResponse = {
       document: formatDocument(savedDoc),
-      annotations: [...highlights, ...references].map(formatAnnotation),
-    }, 201);
+      annotations: [...highlights, ...references],
+    };
+
+    return c.json(response, 201);
   });
 
   // Generate clone token
@@ -231,10 +239,12 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       expiresAt,
     });
 
-    return c.json({
+    const response: CloneDocumentWithTokenResponse = {
       token,
       expiresAt: expiresAt.toISOString(),
       document: formatDocument(sourceDoc),
-    });
+    };
+
+    return c.json(response);
   });
 }

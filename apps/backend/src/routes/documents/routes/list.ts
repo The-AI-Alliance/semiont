@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { getStorageService } from '../../../storage/filesystem';
 import { formatDocument, formatSearchResult } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
-import { ListDocumentsResponseSchema } from '@semiont/core-types';
+import { ListDocumentsResponseSchema, type ListDocumentsResponse } from '@semiont/core-types';
 import { DocumentQueryService } from '../../../services/document-queries';
 
 export const listDocumentsRoute = createRoute({
@@ -75,11 +75,13 @@ export function registerListDocuments(router: DocumentsRouterType) {
       formattedDocs = paginatedDocs.map(doc => formatDocument(doc));
     }
 
-    return c.json({
+    const response: ListDocumentsResponse = {
       documents: formattedDocs,
       total: filteredDocs.length,
       offset,
       limit,
-    });
+    };
+
+    return c.json(response);
   });
 }

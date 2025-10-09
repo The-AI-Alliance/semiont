@@ -9,7 +9,7 @@ import { getEventStore } from '../event-store';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import type { GraphDatabase } from '../../graph/interface';
-import type { DocumentEvent, StoredEvent } from '@semiont/core-types';
+import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core-types';
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
@@ -92,9 +92,9 @@ export class GraphDBConsumer {
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
-          contentType: event.payload.contentType,
+          format: event.payload.format,
           contentChecksum: event.payload.contentHash,
-          createdBy: event.userId,
+          creator: event.userId,
           creationMethod: 'api',
         });
         break;
@@ -108,9 +108,9 @@ export class GraphDBConsumer {
           name: event.payload.name,
           entityTypes: event.payload.entityTypes || [],
           content: content.toString('utf-8'),
-          contentType: event.payload.contentType,
+          format: event.payload.format,
           contentChecksum: event.payload.contentHash,
-          createdBy: event.userId,
+          creator: event.userId,
           creationMethod: 'clone',
         });
         break;
@@ -130,16 +130,20 @@ export class GraphDBConsumer {
 
       case 'highlight.added':
         await graphDb.createAnnotation({
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'highlight',
-          createdBy: event.userId,
-          entityTypes: [],
+          body: {
+            type: 'TextualBody',
+            entityTypes: [],
+          },
+          creator: event.userId,
         });
         break;
 
@@ -149,25 +153,33 @@ export class GraphDBConsumer {
 
       case 'reference.created':
         await graphDb.createAnnotation({
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'reference',
-          createdBy: event.userId,
-          referencedDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes || [],
-          referenceType: event.payload.referenceType,
+          body: {
+            type: 'SpecificResource',
+            entityTypes: event.payload.entityTypes || [],
+            source: event.payload.targetDocumentId,
+          },
+          creator: event.userId,
         });
         break;
 
       case 'reference.resolved':
+        // TODO: Graph implementation should handle partial body updates properly
         await graphDb.updateAnnotation(event.payload.referenceId, {
-          referencedDocumentId: event.payload.targetDocumentId,
-        });
+          body: {
+            type: 'SpecificResource',
+            entityTypes: [],  // Graph impl should merge, not replace
+            source: event.payload.targetDocumentId,
+          },
+        } as Partial<Annotation>);
         break;
 
       case 'reference.deleted':

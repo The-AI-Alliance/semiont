@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { remarkAnnotations } from '@/lib/remark-annotations';
 import { rehypeRenderAnnotations } from '@/lib/rehype-render-annotations';
 import type { Annotation } from '@semiont/core-types';
+import { getExactText, getTextPositionSelector, isReference, isStubReference } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import '@/styles/animations.css';
 
@@ -20,15 +21,20 @@ interface Props {
 // Convert Annotation[] to the simpler format needed by plugins
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
-    .filter(ann => ann.selector)
-    .map(ann => ({
-      id: ann.id,
-      exact: ann.exact,
-      offset: ann.selector!.offset,
-      length: ann.selector!.length,
-      type: ann.type as 'highlight' | 'reference',
-      referencedDocumentId: ann.referencedDocumentId
-    }));
+    .filter(ann => ann.target.selector)
+    .map(ann => {
+      const posSelector = getTextPositionSelector(ann.target.selector);
+      // Use W3C helper to determine type
+      const type = isReference(ann) ? 'reference' : 'highlight';
+      return {
+        id: ann.id,
+        exact: getExactText(ann.target.selector),
+        offset: posSelector?.offset ?? 0,
+        length: posSelector?.length ?? 0,
+        type,
+        source: ann.body.source
+      };
+    });
 }
 
 export function BrowseView({

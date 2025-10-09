@@ -51,7 +51,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (annotation.documentId !== documentId) {
+    if (annotation.target.source !== documentId) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
     }
 

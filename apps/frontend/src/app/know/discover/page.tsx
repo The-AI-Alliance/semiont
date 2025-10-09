@@ -47,7 +47,7 @@ const DocumentCard = React.memo(({
 
     {/* Document Metadata */}
     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
-      <span>Created {new Date(doc.createdAt).toLocaleDateString()}</span>
+      <span>Created {new Date(doc.created).toLocaleDateString()}</span>
       {doc.entityTypes && doc.entityTypes.length > 0 && (
         <div className="flex gap-1">
           {doc.entityTypes.slice(0, 2).map((type) => (

@@ -2,9 +2,10 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
+import { ReferenceLLMContextResponseSchema, type ReferenceLLMContextResponse } from '@semiont/core-types';
 
 export const getReferenceLLMContextRoute = createRoute({
   method: 'get',
@@ -36,26 +37,7 @@ export const getReferenceLLMContextRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            reference: z.any(),
-            sourceDocument: z.any(),
-            targetDocument: z.any().nullable(),
-            sourceContext: z.object({
-              before: z.string(),
-              selected: z.string(),
-              after: z.string(),
-            }).optional(),
-            targetContext: z.object({
-              content: z.string(),
-              summary: z.string().optional(),
-            }).optional(),
-            suggestedResolution: z.object({
-              documentId: z.string(),
-              documentName: z.string(),
-              confidence: z.number(),
-              reasoning: z.string(),
-            }).optional(),
-          }),
+          schema: ReferenceLLMContextResponseSchema,
         },
       },
       description: 'Reference LLM context',
@@ -72,7 +54,7 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
     // Get the reference
     const reference = await graphDb.getAnnotation(referenceId);
-    if (!reference || reference.documentId !== documentId) {
+    if (!reference || reference.target.source !== documentId) {
       throw new HTTPException(404, { message: 'Reference not found' });
     }
 
@@ -83,8 +65,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     }
 
     // Get target document if reference is resolved
-    const targetDoc = reference.referencedDocumentId ?
-      await graphDb.getDocument(reference.referencedDocumentId) : null;
+    const targetDoc = reference.body.source ?
+      await graphDb.getDocument(reference.body.source) : null;
 
     // Build source context if requested
     let sourceContext;
@@ -92,9 +74,9 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
       const sourceContent = await storage.getDocument(documentId);
       const contentStr = sourceContent.toString('utf-8');
 
-      if (reference.selector && 'offset' in reference.selector) {
-        const offset = reference.selector.offset as number;
-        const length = reference.selector.length as number;
+      if (reference.target.selector && 'offset' in reference.target.selector) {
+        const offset = reference.target.selector.offset as number;
+        const length = reference.target.selector.length as number;
 
         const before = contentStr.slice(Math.max(0, offset - contextWindow), offset);
         const selected = contentStr.slice(offset, offset + length);
@@ -119,13 +101,15 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
     // TODO: Generate suggested resolution using AI
     const suggestedResolution = undefined;
 
-    return c.json({
-      reference: formatAnnotation(reference),
+    const response: ReferenceLLMContextResponse = {
+      reference,
       sourceDocument: formatDocument(sourceDoc),
       targetDocument: targetDoc ? formatDocument(targetDoc) : null,
       ...(sourceContext ? { sourceContext } : {}),
       ...(targetContext ? { targetContext } : {}),
       ...(suggestedResolution ? { suggestedResolution } : {}),
-    });
+    };
+
+    return c.json(response);
   });
 }

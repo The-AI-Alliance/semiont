@@ -11,7 +11,7 @@
  * - Optional signatures for cross-org verification
  */
 
-import type { Annotation } from './api-contracts';
+import type { Annotation } from './annotation-schema';
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -26,7 +26,7 @@ export interface DocumentCreatedEvent extends BaseEvent {
   type: 'document.created';
   payload: {
     name: string;
-    contentType: string;
+    format: string;              // MIME type
     contentHash: string;        // SHA-256 of content (should match documentId)
     entityTypes?: string[];
     metadata?: Record<string, any>;
@@ -37,7 +37,7 @@ export interface DocumentClonedEvent extends BaseEvent {
   type: 'document.cloned';
   payload: {
     name: string;
-    contentType: string;
+    format: string;              // MIME type
     contentHash: string;        // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
     entityTypes?: string[];
@@ -88,7 +88,6 @@ export interface ReferenceCreatedEvent extends BaseEvent {
       length: number;
     };
     entityTypes?: string[];
-    referenceType?: string;
     targetDocumentId?: string;  // Content hash of target doc (if null, it's a stub reference)
   };
 }
@@ -98,7 +97,6 @@ export interface ReferenceResolvedEvent extends BaseEvent {
   payload: {
     referenceId: string;
     targetDocumentId: string;   // Content hash of target document
-    referenceType?: string;
   };
 }
 

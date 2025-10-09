@@ -10,7 +10,7 @@ import { z } from 'zod';
 // Document lifecycle event payloads
 export const DocumentCreatedPayloadSchema = z.object({
   name: z.string(),
-  contentType: z.string(),
+  format: z.string(), // MIME type
   contentHash: z.string(),
   entityTypes: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -18,7 +18,7 @@ export const DocumentCreatedPayloadSchema = z.object({
 
 export const DocumentClonedPayloadSchema = z.object({
   name: z.string(),
-  contentType: z.string(),
+  format: z.string(), // MIME type
   contentHash: z.string(),
   parentDocumentId: z.string(),
   entityTypes: z.array(z.string()).optional(),
@@ -54,14 +54,12 @@ export const ReferenceCreatedPayloadSchema = z.object({
     length: z.number(),
   }),
   entityTypes: z.array(z.string()).optional(),
-  referenceType: z.string().optional(),
   targetDocumentId: z.string().optional(),
 });
 
 export const ReferenceResolvedPayloadSchema = z.object({
   referenceId: z.string(),
   targetDocumentId: z.string(),
-  referenceType: z.string().optional(),
 });
 
 export const ReferenceDeletedPayloadSchema = z.object({

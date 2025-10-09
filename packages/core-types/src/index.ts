@@ -74,6 +74,52 @@ export {
   EventQuerySchema,
 } from './event-schemas';
 
+// Document schema (SINGLE SOURCE OF TRUTH)
+export {
+  DocumentSchema,
+} from './document';
+export type {
+  Document,
+} from './document';
+
+// Annotation schema (SINGLE SOURCE OF TRUTH)
+export {
+  AnnotationSchema,
+  MotivationSchema,
+  AgentSchema,
+  TextPositionSelectorSchema,
+  TextQuoteSelectorSchema,
+  SelectorSchema,
+} from './annotation-schema';
+export type {
+  Annotation,
+  HighlightAnnotation,
+  ReferenceAnnotation,
+  AnnotationUpdate,
+  AnnotationCategory,
+  Motivation,
+  Agent,
+  TextPositionSelector,
+  TextQuoteSelector,
+  Selector,
+} from './annotation-schema';
+export {
+  getAnnotationCategory,
+  isHighlight,
+  isReference,
+  isStubReference,
+  isResolvedReference,
+} from './annotation-schema';
+
+// Selector utilities
+export {
+  getExactText,
+  getAnnotationExactText,
+  getPrimarySelector,
+  getTextPositionSelector,
+  getTextQuoteSelector,
+} from './selector-utils';
+
 // API Contract schemas and types
 export {
   CreateAnnotationRequestSchema,
@@ -81,7 +127,7 @@ export {
   CreateAnnotationResponseSchema,
   GetHighlightsResponseSchema,
   GetReferencesResponseSchema,
-  DocumentSchema,
+  GetAnnotationsResponseSchema,
   CreateDocumentRequestSchema,
   CreateDocumentResponseSchema,
   UpdateDocumentRequestSchema,
@@ -96,6 +142,7 @@ export {
   OAuthProviderSchema,
   OAuthConfigResponseSchema,
   ReferencedBySchema,
+  GetReferencedByResponseSchema,
   AcceptTermsResponseSchema,
   AddEntityTypeResponseSchema,
   AddReferenceTypeResponseSchema,
@@ -107,19 +154,25 @@ export {
   CreateDocumentFromTokenRequestSchema,
   CreateDocumentFromTokenResponseSchema,
   CloneDocumentWithTokenResponseSchema,
+  DetectAnnotationsResponseSchema,
+  DiscoverContextResponseSchema,
+  ReferenceLLMContextResponseSchema,
+  DocumentLLMContextResponseSchema,
+  GetEventsResponseSchema,
+  GetAnnotationResponseSchema,
+  ListAnnotationsResponseSchema,
+  CreateDocumentFromSelectionResponseSchema,
+  AnnotationContextResponseSchema,
+  ContextualSummaryResponseSchema,
 } from './api-contracts';
 export type {
   CreateAnnotationRequest,
   CreateAnnotationInternal,
   CreateAnnotationResponse,
-  Annotation,
-  HighlightAnnotation,
-  ReferenceAnnotation,
-  AnnotationUpdate,
   TextSelection,
   GetHighlightsResponse,
   GetReferencesResponse,
-  Document,
+  GetAnnotationsResponse,
   CreateDocumentRequest,
   CreateDocumentResponse,
   UpdateDocumentRequest,
@@ -134,6 +187,7 @@ export type {
   OAuthProvider,
   OAuthConfigResponse,
   ReferencedBy,
+  GetReferencedByResponse,
   AcceptTermsResponse,
   AddEntityTypeResponse,
   AddReferenceTypeResponse,
@@ -145,6 +199,16 @@ export type {
   CreateDocumentFromTokenRequest,
   CreateDocumentFromTokenResponse,
   CloneDocumentWithTokenResponse,
+  DetectAnnotationsResponse,
+  DiscoverContextResponse,
+  ReferenceLLMContextResponse,
+  DocumentLLMContextResponse,
+  GetEventsResponse,
+  GetAnnotationResponse,
+  ListAnnotationsResponse,
+  CreateDocumentFromSelectionResponse,
+  AnnotationContextResponse,
+  ContextualSummaryResponse,
 } from './api-contracts';
 
 // Version information

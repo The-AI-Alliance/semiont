@@ -6,31 +6,15 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { annotationStyles } from '@/lib/annotation-styles';
 import { ReferenceResolutionWidget, findWikiLinks } from '@/lib/codemirror-widgets';
+import { isHighlight, isReference, isResolvedReference, type Annotation } from '@semiont/core-types';
 import '@/styles/animations.css';
 
-// Export types for use by other components
-export interface AnnotationSelection {
-  id: string;
-  documentId: string;
-  selector?: {
-    type: string;
-    offset: number;
-    length: number;
-    exact: string;
-  };
-  text?: string;
-  referencedDocumentId?: string;
-  entityType?: string;
-  entityTypes?: string[];
-  referenceType?: string;
-  type?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
+// Export W3C Annotation type for use by other components
+export type { Annotation };
 
 export interface TextSegment {
   exact: string;
-  annotation?: AnnotationSelection;
+  annotation?: Annotation;
   start: number;
   end: number;
 }
@@ -38,8 +22,8 @@ export interface TextSegment {
 interface Props {
   content: string;
   segments: TextSegment[];
-  onAnnotationClick?: (annotation: AnnotationSelection) => void;
-  onAnnotationRightClick?: (annotation: AnnotationSelection, x: number, y: number) => void;
+  onAnnotationClick?: (annotation: Annotation) => void;
+  onAnnotationRightClick?: (annotation: Annotation, x: number, y: number) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onChange?: (content: string) => void;
@@ -53,11 +37,11 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
   onEntityTypeClick?: (entityType: string) => void;
   onReferenceNavigate?: (documentId: string) => void;
-  onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+  onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
-  onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
-  onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+  onDeleteAnnotation?: (annotation: Annotation) => void;
+  onConvertAnnotation?: (annotation: Annotation) => void;
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -77,10 +61,10 @@ interface WidgetUpdate {
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
     onReferenceNavigate?: (documentId: string) => void;
-    onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+    onUnresolvedReferenceClick?: (annotation: Annotation) => void;
     getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
-    onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+    onDeleteAnnotation?: (annotation: Annotation) => void;
+    onConvertAnnotation?: (annotation: Annotation) => void;
   };
 }
 
@@ -103,14 +87,20 @@ function buildAnnotationDecorations(
     const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
     const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
     const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
+
+    // Use W3C helpers to determine annotation type
+    const isHighlightAnn = isHighlight(segment.annotation);
+    const isReferenceAnn = isReference(segment.annotation);
+    const isResolvedRef = isResolvedReference(segment.annotation);
+
     const decoration = Decoration.mark({
       class: className,
       attributes: {
         'data-annotation-id': segment.annotation.id,
-        'data-annotation-type': segment.annotation.type || '',
-        title: segment.annotation.type === 'highlight'
+        'data-annotation-type': isReferenceAnn ? 'reference' : 'highlight',
+        title: isHighlightAnn
           ? 'Click to delete or convert to reference'
-          : segment.annotation.referencedDocumentId
+          : isResolvedRef
             ? 'Click to navigate • Right-click for options'
             : 'Right-click for options'
       }
@@ -150,10 +140,10 @@ function buildWidgetDecorations(
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
     onReferenceNavigate?: (documentId: string) => void;
-    onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+    onUnresolvedReferenceClick?: (annotation: Annotation) => void;
     getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
-    onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+    onDeleteAnnotation?: (annotation: Annotation) => void;
+    onConvertAnnotation?: (annotation: Annotation) => void;
   }
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -172,9 +162,10 @@ function buildWidgetDecorations(
     const annotation = segment.annotation;
 
     // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
-    if (annotation.type === 'reference') {
-      const targetName = annotation.referencedDocumentId
-        ? callbacks.getTargetDocumentName?.(annotation.referencedDocumentId)
+    // Use W3C helper to determine if this is a reference
+    if (isReference(annotation)) {
+      const targetName = annotation.body.source
+        ? callbacks.getTargetDocumentName?.(annotation.body.source)
         : undefined;
       const isGenerating = generatingReferenceId === annotation.id;
       const widget = new ReferenceResolutionWidget(
@@ -253,10 +244,10 @@ export function CodeMirrorRenderer({
     onWikiLinkClick?: (pageName: string) => void;
     onEntityTypeClick?: (entityType: string) => void;
     onReferenceNavigate?: (documentId: string) => void;
-    onUnresolvedReferenceClick?: (annotation: AnnotationSelection) => void;
+    onUnresolvedReferenceClick?: (annotation: Annotation) => void;
     getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: AnnotationSelection) => void;
-    onConvertAnnotation?: (annotation: AnnotationSelection) => void;
+    onDeleteAnnotation?: (annotation: Annotation) => void;
+    onConvertAnnotation?: (annotation: Annotation) => void;
   }>({});
 
   // Update segments ref when they change
@@ -301,7 +292,8 @@ export function CodeMirrorRenderer({
         EditorView.domEventHandlers({
           click: (event, view) => {
             const target = event.target as HTMLElement;
-            const annotationId = target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+            const annotationElement = target.closest('[data-annotation-id]');
+            const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
             if (annotationId && onAnnotationClick) {
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);

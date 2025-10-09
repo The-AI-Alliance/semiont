@@ -1,5 +1,5 @@
 // Helper functions for document routes
-import type { Document, Annotation } from '@semiont/core-types';
+import type { Document } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
 import { getStorageService } from '../../storage/filesystem';
 
@@ -16,19 +16,6 @@ export function formatSearchResult(doc: Document, contentPreview: string): Docum
   };
 }
 
-export function formatAnnotation(annotation: Annotation): any {
-  return {
-    id: annotation.id,
-    documentId: annotation.documentId,
-    exact: annotation.exact,
-    selector: annotation.selector,
-    type: annotation.type,
-    referencedDocumentId: annotation.referencedDocumentId,
-    resolvedDocumentName: annotation.resolvedDocumentName,
-    entityTypes: annotation.entityTypes,
-    referenceType: annotation.referenceType,
-  };
-}
 
 // Types for the detection result
 export interface DetectedAnnotation {
@@ -46,7 +33,7 @@ export interface DetectedAnnotation {
 // Implementation for detecting entity references in document using AI
 export async function detectAnnotationsInDocument(
   documentId: string,
-  contentType: string,
+  format: string,
   entityTypes: string[]
 ): Promise<DetectedAnnotation[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
@@ -54,7 +41,7 @@ export async function detectAnnotationsInDocument(
   const detectedAnnotations: DetectedAnnotation[] = [];
 
   // Only process text content
-  if (contentType === 'text/plain' || contentType === 'text/markdown') {
+  if (format === 'text/plain' || format === 'text/markdown') {
     // Load content from filesystem
     const storage = getStorageService();
     const contentBuffer = await storage.getDocument(documentId);

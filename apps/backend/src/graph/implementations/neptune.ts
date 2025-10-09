@@ -5,15 +5,15 @@ import { GraphDatabase } from '../interface';
 import {
   Document,
   Annotation,
+  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   DocumentFilter,
-
   CreateDocumentInput,
   UpdateDocumentInput,
   CreateAnnotationInternal,
-
+  getExactText,
 } from '@semiont/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -67,18 +67,18 @@ function vertexToDocument(vertex: any): Document {
   const id = getValue('id', true);
   const name = getValue('name', true);
   const entityTypesRaw = getValue('entityTypes', true);
-  const contentType = getValue('contentType', true);
+  const format = getValue('format', true);
   const archived = getValue('archived', true);
-  const createdAtRaw = getValue('createdAt', true);
+  const createdRaw = getValue('created', true);
 
   const doc: Document = {
     id,
     name,
     entityTypes: JSON.parse(entityTypesRaw),
-    contentType,
+    format,
     archived: archived === 'true' || archived === true,
-    createdAt: createdAtRaw, // ISO string from DB
-    createdBy: getValue('createdBy', true),
+    created: createdRaw, // ISO string from DB
+    creator: getValue('creator', true),
     creationMethod: getValue('creationMethod', true),
     contentChecksum: getValue('contentChecksum', true),
   };
@@ -115,32 +115,34 @@ function vertexToAnnotation(vertex: any): Annotation {
   // Get required fields
   const id = getValue('id', true);
   const documentId = getValue('documentId', true);
-  const text = getValue('text', true);
-  const type = getValue('type', true) as 'highlight' | 'reference';
+  const type = getValue('type', true) as 'TextualBody' | 'SpecificResource';
   const selectorRaw = getValue('selector', true);
-  const createdBy = getValue('createdBy', true);
-  const createdAtRaw = getValue('createdAt', true);
+  const creator = getValue('creator', true);
+  const createdRaw = getValue('created', true);
+
+  // Derive motivation from type if not present (backward compatibility)
+  const motivation = getValue('motivation') || (type === 'TextualBody' ? 'highlighting' : 'linking');
 
   const annotation: Annotation = {
     id,
-    documentId,
-    exact: text,
-    selector: JSON.parse(selectorRaw),
-    type,
-    createdBy,
-    createdAt: createdAtRaw, // ISO string from DB
-    entityTypes: [],
+    motivation,
+    target: {
+      source: documentId,
+      selector: JSON.parse(selectorRaw),
+    },
+    body: {
+      type,
+      value: getValue('value'),
+      entityTypes: [],
+      source: getValue('source'),
+    },
+    creator,
+    created: createdRaw, // ISO string from DB
   };
 
-  // Optional fields
-  const referencedDocumentId = getValue('referencedDocumentId');
-  if (referencedDocumentId) annotation.referencedDocumentId = referencedDocumentId;
-
+  // Optional top-level fields
   const resolvedDocumentName = getValue('resolvedDocumentName');
   if (resolvedDocumentName) annotation.resolvedDocumentName = resolvedDocumentName;
-
-  const referenceType = getValue('referenceType');
-  if (referenceType) annotation.referenceType = referenceType;
 
   const resolvedAt = getValue('resolvedAt');
   if (resolvedAt) annotation.resolvedAt = resolvedAt; // ISO string from DB
@@ -149,7 +151,7 @@ function vertexToAnnotation(vertex: any): Annotation {
   if (resolvedBy) annotation.resolvedBy = resolvedBy;
 
   const entityTypes = getValue('entityTypes');
-  if (entityTypes) annotation.entityTypes = JSON.parse(entityTypes);
+  if (entityTypes) annotation.body.entityTypes = JSON.parse(entityTypes);
 
   return annotation;
 }
@@ -298,10 +300,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
+      format: input.format,
       archived: false,
-      createdAt: now,
-      createdBy: input.createdBy,
+      created: now,
+      creator: input.creator,
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
     };
@@ -313,10 +315,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const vertex = this.g.addV('Document')
         .property('id', document.id)
         .property('name', document.name)
-        .property('contentType', document.contentType)
+        .property('contentType', document.format)
         .property('archived', document.archived)
-        .property('createdAt', document.createdAt)
-        .property('createdBy', document.createdBy)
+        .property('created', document.created)
+        .property('creator', document.creator)
         .property('creationMethod', document.creationMethod)
         .property('contentChecksum', document.contentChecksum)
         .property('entityTypes', JSON.stringify(document.entityTypes));
@@ -428,7 +430,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const limit = filter.limit || 20;
       
       const results = await traversal
-        .order().by('createdAt', order.desc)
+        .order().by('created', order.desc)
         .range(offset, offset + limit)
         .elementMap()
         .toList();
@@ -448,7 +450,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const results = await this.g.V()
         .hasLabel('Document')
         .has('name', TextP.containing(query))
-        .order().by('createdAt', order.desc)
+        .order().by('created', order.desc)
         .limit(limit)
         .elementMap()
         .toList();
@@ -463,37 +465,45 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const id = this.generateId();
 
+    // Derive motivation from body type
+    const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
+
     const annotation: Annotation = {
       id,
-      documentId: input.documentId,
-      exact: input.exact,
-      selector: input.selector,
-      type: input.type,
-      createdBy: input.createdBy,
-      createdAt: new Date().toISOString(),
-      entityTypes: input.entityTypes || [],
-      referencedDocumentId: input.referencedDocumentId,
-      referenceType: input.referenceType,
+      motivation,
+      target: {
+        source: input.target.source,
+        selector: input.target.selector,
+      },
+      body: {
+        type: input.body.type,
+        value: input.body.value,
+        entityTypes: input.body.entityTypes || [],
+        source: input.body.source,
+      },
+      creator: input.creator,
+      created: new Date().toISOString(),
     };
 
     try {
       // Create Annotation vertex
       const vertex = this.g.addV('Annotation')
         .property('id', annotation.id)
-        .property('documentId', annotation.documentId)
-        .property('text', annotation.exact)
-        .property('selector', JSON.stringify(annotation.selector))
-        .property('type', annotation.type)
-        .property('createdBy', annotation.createdBy)
-        .property('createdAt', annotation.createdAt)
-        .property('entityTypes', JSON.stringify(annotation.entityTypes));
+        .property('documentId', annotation.target.source)
+        .property('text', getExactText(annotation.target.selector))
+        .property('selector', JSON.stringify(annotation.target.selector))
+        .property('type', annotation.body.type)
+        .property('motivation', motivation)
+        .property('creator', annotation.creator)
+        .property('created', annotation.created)
+        .property('entityTypes', JSON.stringify(annotation.body.entityTypes));
 
       // Add optional properties
-      if (annotation.referenceType) {
-        vertex.property('referenceType', annotation.referenceType);
+      if (annotation.body.value) {
+        vertex.property('value', annotation.body.value);
       }
-      if (annotation.referencedDocumentId) {
-        vertex.property('referencedDocumentId', annotation.referencedDocumentId);
+      if (annotation.body.source) {
+        vertex.property('source', annotation.body.source);
       }
 
       const newVertex = await vertex.next();
@@ -501,14 +511,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Create edge from Annotation to Document (BELONGS_TO)
       await this.g.V(newVertex.value)
         .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Document').has('id', input.documentId))
+        .to(this.g.V().hasLabel('Document').has('id', input.target.source))
         .next();
 
       // If it's a reference, create edge to target document (REFERENCES)
-      if (input.referencedDocumentId) {
+      if (input.body.source) {
         await this.g.V(newVertex.value)
           .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Document').has('id', input.referencedDocumentId))
+          .to(this.g.V().hasLabel('Document').has('id', input.body.source))
           .next();
       }
 
@@ -546,23 +556,20 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id);
 
       // Update properties
-      if (updates.exact !== undefined) {
-        traversal = traversal.property('text', updates.exact);
+      if (updates.target?.selector !== undefined) {
+        traversal = traversal.property('text', getExactText(updates.target.selector));
       }
-      if (updates.type !== undefined) {
-        traversal = traversal.property('type', updates.type);
+      if (updates.body?.type !== undefined) {
+        traversal = traversal.property('type', updates.body.type);
       }
-      if (updates.referencedDocumentId !== undefined) {
-        traversal = traversal.property('referencedDocumentId', updates.referencedDocumentId);
+      if (updates.body?.source !== undefined) {
+        traversal = traversal.property('source', updates.body.source);
       }
       if (updates.resolvedDocumentName !== undefined) {
         traversal = traversal.property('resolvedDocumentName', updates.resolvedDocumentName);
       }
-      if (updates.referenceType !== undefined) {
-        traversal = traversal.property('referenceType', updates.referenceType);
-      }
-      if (updates.entityTypes !== undefined) {
-        traversal = traversal.property('entityTypes', JSON.stringify(updates.entityTypes));
+      if (updates.body?.entityTypes !== undefined) {
+        traversal = traversal.property('entityTypes', JSON.stringify(updates.body.entityTypes));
       }
       if (updates.resolvedBy !== undefined) {
         traversal = traversal.property('resolvedBy', updates.resolvedBy);
@@ -599,7 +606,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listAnnotations(filter: { documentId?: string; type?: 'highlight' | 'reference' }): Promise<{ annotations: Annotation[]; total: number }> {
+  async listAnnotations(filter: { documentId?: string; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     try {
       let traversal = this.g.V().hasLabel('Annotation');
 
@@ -609,7 +616,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
 
       if (filter.type) {
-        traversal = traversal.has('type', filter.type);
+        const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
+        traversal = traversal.has('type', w3cType);
       }
 
       const results = await traversal.elementMap().toList();
@@ -639,12 +647,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async resolveReference(annotationId: string, referencedDocumentId: string): Promise<Annotation> {
+  async resolveReference(annotationId: string, source: string): Promise<Annotation> {
     try {
       // Get target document name
       const targetDocResult = await this.g.V()
         .hasLabel('Document')
-        .has('id', referencedDocumentId)
+        .has('id', source)
         .elementMap()
         .next();
       const targetDoc = targetDocResult.value ? vertexToDocument(targetDocResult.value) : null;
@@ -653,7 +661,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const traversal = this.g.V()
         .hasLabel('Annotation')
         .has('id', annotationId)
-        .property('referencedDocumentId', referencedDocumentId)
+        .property('source', source)
         .property('resolvedDocumentName', targetDoc?.name)
         .property('resolvedAt', new Date().toISOString());
 
@@ -671,7 +679,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       await this.g.V(annVertex.value)
         .addE('REFERENCES')
-        .to(this.g.V().hasLabel('Document').has('id', referencedDocumentId))
+        .to(this.g.V().hasLabel('Document').has('id', source))
         .next();
 
       return vertexToAnnotation(result.value);
@@ -760,14 +768,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const outgoingAnnotations = await this.g.V()
         .hasLabel('Annotation')
         .has('documentId', documentId)
-        .has('referencedDocumentId')
+        .has('source')
         .elementMap()
         .toList();
 
       // Get all annotations that reference this document
       const incomingAnnotations = await this.g.V()
         .hasLabel('Annotation')
-        .has('referencedDocumentId', documentId)
+        .has('source', documentId)
         .elementMap()
         .toList();
 
@@ -777,7 +785,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Process outgoing references
       for (const annVertex of outgoingAnnotations) {
         const annotation = vertexToAnnotation(annVertex);
-        const targetDocId = annotation.referencedDocumentId!;
+        const targetDocId = annotation.body.source!;
 
         // Get the target document
         const targetDocResult = await this.g.V()
@@ -804,7 +812,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Check for bidirectional connections
       for (const annVertex of incomingAnnotations) {
         const annotation = vertexToAnnotation(annVertex);
-        const sourceDocId = annotation.documentId;
+        const sourceDocId = annotation.target.source;
         const existing = connectionsMap.get(sourceDocId);
         if (existing) {
           existing.bidirectional = true;
@@ -992,12 +1000,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
 
 
-  async resolveReferences(inputs: { annotationId: string; referencedDocumentId: string }[]): Promise<Annotation[]> {
+  async resolveReferences(inputs: { annotationId: string; source: string }[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
 
     try {
       for (const input of inputs) {
-        const annotation = await this.resolveReference(input.annotationId, input.referencedDocumentId);
+        const annotation = await this.resolveReference(input.annotationId, input.source);
         results.push(annotation);
       }
 

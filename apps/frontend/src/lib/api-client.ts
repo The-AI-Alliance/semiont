@@ -510,7 +510,7 @@ const annotations = {
             body: JSON.stringify(data),
           }, session?.backendToken),
         onSuccess: (response) => {
-          const documentId = response.annotation.documentId;
+          const documentId = response.annotation.target.source;
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(documentId) });
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(documentId) });
@@ -531,14 +531,18 @@ const annotations = {
           position: { start: number; end: number };
         }) => {
           const data: CreateAnnotationRequest = {
-            documentId,
-            exact,
-            selector: {
-              type: 'text_span',
-              offset: position.start,
-              length: position.end - position.start,
+            target: {
+              source: documentId,
+              selector: {
+                type: 'TextPositionSelector',
+                exact,
+                offset: position.start,
+                length: position.end - position.start,
+              },
             },
-            type: 'highlight',
+            body: {
+              type: 'TextualBody',
+            },
           };
 
           return fetchAPI<CreateAnnotationResponse>('/api/annotations', {
@@ -547,7 +551,7 @@ const annotations = {
           }, session?.backendToken);
         },
         onSuccess: (response) => {
-          const documentId = response.annotation.documentId;
+          const documentId = response.annotation.target.source;
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(documentId) });
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(documentId) });
         },
@@ -593,8 +597,8 @@ const annotations = {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.document.id) });
           }
-          if (response.annotation?.documentId) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.documentId) });
+          if (response.annotation?.target.source) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.target.source) });
           }
         },
       });
@@ -613,10 +617,10 @@ const annotations = {
             body: JSON.stringify({ documentId }),
           }, session?.backendToken),
         onSuccess: (response) => {
-          if (response.annotation?.documentId) {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.annotation.documentId) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.documentId) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(response.annotation.documentId) });
+          if (response.annotation?.target.source) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(response.annotation.target.source) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.references(response.annotation.target.source) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.highlights(response.annotation.target.source) });
           }
           if (response.targetDocument?.id) {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.referencedBy(response.targetDocument.id) });

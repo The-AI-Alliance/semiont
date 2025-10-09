@@ -303,13 +303,13 @@ export class EventStore {
     const document: Document = {
       id: documentId,
       name: '',
-      contentType: 'text/markdown',
+      format: 'text/markdown',
       contentChecksum: documentId.replace('doc-sha256:', ''),
       entityTypes: [],
       archived: false,
-      createdAt: '',
+      created: '',
       creationMethod: 'api',
-      createdBy: '',
+      creator: '',
     };
 
     // Start with empty annotations
@@ -341,21 +341,21 @@ export class EventStore {
     switch (event.type) {
       case 'document.created':
         document.name = event.payload.name;
-        document.contentType = event.payload.contentType;
+        document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.createdAt = event.timestamp;
+        document.created = event.timestamp;
         document.creationMethod = 'api';
-        document.createdBy = event.userId;
+        document.creator = event.userId;
         break;
 
       case 'document.cloned':
         document.name = event.payload.name;
-        document.contentType = event.payload.contentType;
+        document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
-        document.createdAt = event.timestamp;
+        document.created = event.timestamp;
         document.creationMethod = 'clone';
         document.sourceDocumentId = event.payload.parentDocumentId;
-        document.createdBy = event.userId;
+        document.creator = event.userId;
         break;
 
       case 'document.archived':
@@ -396,17 +396,22 @@ export class EventStore {
       case 'highlight.added':
         annotations.highlights.push({
           id: event.payload.highlightId,
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          motivation: 'highlighting',
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'highlight',
-          createdBy: event.userId,
-          createdAt: new Date(event.timestamp).toISOString(),
-          entityTypes: [],
+          body: {
+            type: 'TextualBody',
+            entityTypes: [],
+          },
+          creator: event.userId,
+          created: new Date(event.timestamp).toISOString(),
         });
         break;
 
@@ -419,29 +424,30 @@ export class EventStore {
       case 'reference.created':
         annotations.references.push({
           id: event.payload.referenceId,
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          motivation: 'linking',
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'reference',
-          createdBy: event.userId,
-          createdAt: new Date(event.timestamp).toISOString(),
-          referencedDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes || [],
-          referenceType: event.payload.referenceType,
+          body: {
+            type: 'SpecificResource',
+            entityTypes: event.payload.entityTypes || [],
+            source: event.payload.targetDocumentId,
+          },
+          creator: event.userId,
+          created: new Date(event.timestamp).toISOString(),
         });
         break;
 
       case 'reference.resolved':
         const ref = annotations.references.find(r => r.id === event.payload.referenceId);
         if (ref) {
-          ref.referencedDocumentId = event.payload.targetDocumentId;
-          if (event.payload.referenceType) {
-            ref.referenceType = event.payload.referenceType;
-          }
+          ref.body.source = event.payload.targetDocumentId;
         }
         break;
 

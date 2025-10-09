@@ -1,7 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { formatAnnotation } from './helpers';
 import { emitHighlightAdded, emitHighlightRemoved, emitReferenceCreated, emitReferenceResolved, emitReferenceDeleted } from '../../events/emit';
 import {
   CreateAnnotationRequestSchema,
@@ -9,6 +8,14 @@ import {
   ResolveAnnotationRequestSchema,
   ResolveAnnotationResponseSchema,
   DeleteAnnotationRequestSchema,
+  GetAnnotationResponseSchema,
+  ListAnnotationsResponseSchema,
+  getExactText,
+  getTextPositionSelector,
+  type CreateAnnotationResponse,
+  type ResolveAnnotationResponse,
+  type GetAnnotationResponse,
+  type ListAnnotationsResponse,
 } from '@semiont/core-types';
 import { generateAnnotationId } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
@@ -49,63 +56,64 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   const body = c.req.valid('json');
   const user = c.get('user');
 
-  // Use selector from the request body (already in correct format)
-  const selector = body.selector;
-
   // Generate ID - backend-internal, not graph-dependent
   const annotationId = generateAnnotationId();
-  const isReference = body.referencedDocumentId !== undefined;
+  const isReference = body.body.type === 'SpecificResource';
+
+  // Extract TextPositionSelector for event (events require offset/length)
+  const posSelector = getTextPositionSelector(body.target.selector);
+  if (!posSelector) {
+    throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
+  }
 
   // Emit event first (single source of truth)
   if (isReference) {
     await emitReferenceCreated({
-      documentId: body.documentId,
+      documentId: body.target.source,
       userId: user.id,
       referenceId: annotationId,
-      exact: body.exact,
+      exact: getExactText(body.target.selector),
       position: {
-        offset: selector.offset,
-        length: selector.length,
+        offset: posSelector.offset,
+        length: posSelector.length,
       },
-      entityTypes: body.entityTypes,
-      referenceType: body.referenceType,
-      targetDocumentId: body.referencedDocumentId ?? undefined,
+      entityTypes: body.body.entityTypes || [],
+      targetDocumentId: body.body.source ?? undefined,
     });
   } else {
     await emitHighlightAdded({
-      documentId: body.documentId,
+      documentId: body.target.source,
       userId: user.id,
       highlightId: annotationId,
-      exact: body.exact,
+      exact: getExactText(body.target.selector),
       position: {
-        offset: selector.offset,
-        length: selector.length,
+        offset: posSelector.offset,
+        length: posSelector.length,
       },
     });
   }
 
   // Return optimistic response (consumer will update GraphDB async)
-  return c.json({
+  const response: CreateAnnotationResponse = {
     annotation: {
       id: annotationId,
-      documentId: body.documentId,
-      exact: body.exact,
-      selector,
-      type: body.type,
-      referencedDocumentId: body.referencedDocumentId,
-      entityTypes: body.entityTypes || [],
-      referenceType: body.referenceType,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
+      motivation: body.body.type === 'TextualBody' ? 'highlighting' : 'linking',
+      target: {
+        source: body.target.source,
+        selector: body.target.selector,
+      },
+      body: {
+        type: body.body.type,
+        value: body.body.value,
+        entityTypes: body.body.entityTypes || [],
+        source: body.body.source,
+      },
+      creator: user.id,
+      created: new Date().toISOString(),
     },
-  }, 201);
-});
+  };
 
-// Local schema for GET
-const GetAnnotationResponse = z.object({
-  annotation: z.any(),
-  document: z.any().nullable(),
-  resolvedDocument: z.any().nullable(),
+  return c.json(response, 201);
 });
 
 // RESOLVE - Must come BEFORE GET to avoid {id} matching "/resolve"
@@ -157,24 +165,28 @@ crudRouter.openapi(resolveAnnotationRoute, async (c) => {
 
   // Emit reference.resolved event to Layer 2 (consumer will update Layer 3 projection)
   await emitReferenceResolved({
-    documentId: annotation.documentId,
+    documentId: annotation.target.source,
     userId: user.id,
     referenceId: id,
     targetDocumentId: body.documentId,
-    referenceType: annotation.referenceType,
   });
 
   // Get target document from Layer 3
   const targetDocument = await DocumentQueryService.getDocumentMetadata(body.documentId);
 
   // Return optimistic response
-  return c.json({
-    annotation: formatAnnotation({
+  const response: ResolveAnnotationResponse = {
+    annotation: {
       ...annotation,
-      referencedDocumentId: body.documentId,
-    }),
+      body: {
+        ...annotation.body,
+        source: body.documentId,
+      },
+    },
     targetDocument,
-  });
+  };
+
+  return c.json(response);
 });
 
 // GET
@@ -197,7 +209,7 @@ const getAnnotationRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetAnnotationResponse,
+          schema: GetAnnotationResponseSchema,
         },
       },
       description: 'Annotation retrieved successfully',
@@ -221,22 +233,16 @@ crudRouter.openapi(getAnnotationRoute, async (c) => {
 
   // Get document metadata from Layer 3
   const document = await DocumentQueryService.getDocumentMetadata(documentId);
-  const resolvedDocument = annotation.referencedDocumentId ?
-    await DocumentQueryService.getDocumentMetadata(annotation.referencedDocumentId) : null;
+  const resolvedDocument = annotation.body.source ?
+    await DocumentQueryService.getDocumentMetadata(annotation.body.source) : null;
 
-  return c.json({
-    annotation: formatAnnotation(annotation),
+  const response: GetAnnotationResponse = {
+    annotation,
     document,
     resolvedDocument,
-  });
-});
+  };
 
-// Local schema for LIST
-const ListAnnotationsResponse = z.object({
-  annotations: z.array(z.any()),
-  total: z.number(),
-  offset: z.number(),
-  limit: z.number(),
+  return c.json(response);
 });
 
 // LIST
@@ -258,7 +264,7 @@ const listAnnotationsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: ListAnnotationsResponse,
+          schema: ListAnnotationsResponseSchema,
         },
       },
       description: 'Annotations listed successfully',
@@ -277,12 +283,14 @@ crudRouter.openapi(listAnnotationsRoute, async (c) => {
   // Apply pagination
   const paginatedAnnotations = allAnnotations.slice(query.offset, query.offset + query.limit);
 
-  return c.json({
-    annotations: paginatedAnnotations.map(formatAnnotation),
+  const response: ListAnnotationsResponse = {
+    annotations: paginatedAnnotations,
     total: allAnnotations.length,
     offset: query.offset,
     limit: query.limit,
-  });
+  };
+
+  return c.json(response);
 });
 
 // DELETE

@@ -1,14 +1,14 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { GetHighlightsResponseSchema } from '@semiont/core-types';
+import { GetHighlightsResponseSchema, type GetHighlightsResponse } from '@semiont/core-types';
 
 // GET /api/documents/{id}/highlights
 export const getDocumentHighlightsRoute = createRoute({
   method: 'get',
   path: '/api/documents/{id}/highlights',
   summary: 'Get Document Highlights',
-  description: 'Get only highlights (annotations without referencedDocumentId) in a document',
+  description: 'Get only highlights (annotations without body of type SpecifiedResource with a source) in a document',
   tags: ['Documents', 'Selections'],
   security: [{ bearerAuth: [] }],
   request: {
@@ -36,8 +36,10 @@ export function registerDocumentHighlights(router: DocumentsRouterType) {
     // Projections now store full Annotation objects - no transformation needed
     const highlights = await AnnotationQueryService.getHighlights(id);
 
-    return c.json({
+    const response: GetHighlightsResponse = {
       highlights
-    });
+    };
+
+    return c.json(response);
   });
 }

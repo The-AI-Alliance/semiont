@@ -5,21 +5,24 @@ import { getStorageService } from '../../../storage/filesystem';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument, formatAnnotation } from '../helpers';
+import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
+import { AnnotationQueryService } from '../../../services/annotation-queries';
 
 // Local schemas to avoid TypeScript hanging
 const CreateFromSelectionRequest = z.object({
   name: z.string(),
   content: z.string(),
-  contentType: z.string().optional(),
+  format: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
-const CreateFromSelectionResponse = z.object({
+const CreateFromAnnotationResponse = z.object({
   document: z.any(),
   annotations: z.array(z.any()),
 });
+
+type CreateFromAnnotationResponse = z.infer<typeof CreateFromAnnotationResponse>;
 
 export const createDocumentFromAnnotationRoute = createRoute({
   method: 'post',
@@ -44,7 +47,7 @@ export const createDocumentFromAnnotationRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: CreateFromSelectionResponse,
+          schema: CreateFromAnnotationResponse,
         },
       },
       description: 'Document created from annotation',
@@ -60,7 +63,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
     const graphDb = await getGraphDatabase();
     const storage = getStorageService();
 
-    const annotation = await graphDb.getAnnotation(annotationId);
+    const annotation = await AnnotationQueryService.getAnnotation(annotationId);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
@@ -70,14 +73,14 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       id: Math.random().toString(36).substring(2, 11),
       name: body.name,
       archived: false,
-      contentType: body.contentType || 'text/plain',
-      entityTypes: annotation.entityTypes || [],
+      format: body.format || 'text/plain',
+      entityTypes: annotation.body.entityTypes || [],
       creationMethod: CREATION_METHODS.REFERENCE,
       sourceAnnotationId: annotationId,
-      sourceDocumentId: annotation.documentId,
+      sourceDocumentId: annotation.target.source,
       contentChecksum: checksum,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
+      creator: user.id,
+      created: new Date().toISOString(),
     };
 
     const documentId = `doc-sha256:${checksum}`;
@@ -87,9 +90,9 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
       name: document.name,
       entityTypes: document.entityTypes,
       content: body.content,
-      contentType: document.contentType,
+      format: document.format,
       contentChecksum: document.contentChecksum!,
-      createdBy: document.createdBy!,
+      creator: document.creator!,
       creationMethod: document.creationMethod,
       sourceAnnotationId: document.sourceAnnotationId,
       sourceDocumentId: document.sourceDocumentId,
@@ -104,9 +107,11 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
     const highlights = await graphDb.getHighlights(savedDoc.id);
     const references = await graphDb.getReferences(savedDoc.id);
 
-    return c.json({
+    const response: CreateFromAnnotationResponse = {
       document: formatDocument(savedDoc),
-      annotations: [...highlights, ...references].map(formatAnnotation),
-    }, 201);
+      annotations: [...highlights, ...references],
+    };
+
+    return c.json(response, 201);
   });
 }

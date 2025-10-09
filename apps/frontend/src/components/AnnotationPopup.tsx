@@ -6,6 +6,7 @@ import { HighlightPopup } from './annotation-popups/HighlightPopup';
 import { StubReferencePopup } from './annotation-popups/StubReferencePopup';
 import { ResolvedReferencePopup } from './annotation-popups/ResolvedReferencePopup';
 import type { Annotation, AnnotationUpdate, TextSelection, HighlightAnnotation, ReferenceAnnotation } from '@semiont/core-types';
+import { isHighlight, isReference } from '@semiont/core-types';
 
 interface AnnotationPopupProps {
   isOpen: boolean;
@@ -37,9 +38,9 @@ export function AnnotationPopup({
   // Determine which popup to show
   const getPopupState = (): PopupState => {
     if (!annotation) return 'initial';
-    if (annotation.type === 'highlight') return 'highlight';
-    if (annotation.type === 'reference') {
-      return annotation.referencedDocumentId ? 'resolved_reference' : 'stub_reference';
+    if (isHighlight(annotation)) return 'highlight';
+    if (isReference(annotation)) {
+      return annotation.body.source ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';
   };

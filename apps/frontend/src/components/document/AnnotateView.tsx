@@ -2,9 +2,10 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import type { Annotation } from '@semiont/core-types';
+import { getTextPositionSelector } from '@semiont/core-types';
 import { useDocumentAnnotations } from '@/contexts/DocumentAnnotationsContext';
 import { CodeMirrorRenderer } from '@/components/CodeMirrorRenderer';
-import type { TextSegment as CMTextSegment } from '@/components/CodeMirrorRenderer';
+import type { TextSegment } from '@/components/CodeMirrorRenderer';
 import '@/styles/animations.css';
 
 interface Props {
@@ -22,19 +23,12 @@ interface Props {
   onWikiLinkClick?: (pageName: string) => void;
   onEntityTypeClick?: (entityType: string) => void;
   onReferenceNavigate?: (documentId: string) => void;
-  onUnresolvedReferenceClick?: (annotation: any) => void;
+  onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
-  onDeleteAnnotation?: (annotation: any) => void;
-  onConvertAnnotation?: (annotation: any) => void;
+  onDeleteAnnotation?: (annotation: Annotation) => void;
+  onConvertAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
-}
-
-interface TextSegment {
-  exact: string;
-  annotation?: Annotation;
-  start: number;
-  end: number;
 }
 
 // Segment text with annotations - SIMPLE because it's source view!
@@ -44,11 +38,14 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
   }
 
   const normalizedAnnotations = annotations
-    .map(ann => ({
-      annotation: ann,
-      start: ann.selector?.offset ?? 0,
-      end: (ann.selector?.offset ?? 0) + (ann.selector?.length ?? 0)
-    }))
+    .map(ann => {
+      const posSelector = getTextPositionSelector(ann.target.selector);
+      return {
+        annotation: ann,
+        start: posSelector?.offset ?? 0,
+        end: (posSelector?.offset ?? 0) + (posSelector?.length ?? 0)
+      };
+    })
     .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);
 
@@ -218,22 +215,14 @@ export function AnnotateView({
       setSelectionState(null);
     }
   }, [annotationState, onTextSelect]);
-  
-  // Convert segments to CodeMirror format
-  const cmSegments: CMTextSegment[] = segments.map(seg => ({
-    exact: seg.exact,
-    annotation: seg.annotation as any, // Types are compatible
-    start: seg.start,
-    end: seg.end
-  }));
 
   return (
     <div className="relative h-full" ref={containerRef} onContextMenu={handleContextMenu}>
       <CodeMirrorRenderer
         content={content}
-        segments={cmSegments}
-        onAnnotationClick={onAnnotationClick as any}
-        onAnnotationRightClick={onAnnotationRightClick as any}
+        segments={segments}
+        {...(onAnnotationClick && { onAnnotationClick })}
+        {...(onAnnotationRightClick && { onAnnotationRightClick })}
         {...(onAnnotationHover && { onAnnotationHover })}
         editable={false}
         newAnnotationIds={newAnnotationIds}

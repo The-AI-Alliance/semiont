@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
 import { useAuthenticatedAPI } from '@/hooks/useAuthenticatedAPI';
-import type { Annotation } from '@semiont/core-types';
+import type { Annotation, CreateAnnotationRequest } from '@semiont/core-types';
+import { getExactText, getTextPositionSelector } from '@semiont/core-types';
 
 interface DocumentAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
@@ -77,28 +78,25 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
     referenceType?: string
   ): Promise<string | undefined> => {
     try {
-      // Build CreateAnnotationRequest directly
-      const createData: any = {
-        documentId,
-        exact,
-        selector: {
-          type: 'text_span',
-          offset: position.start,
-          length: position.end - position.start,
+      // Build CreateAnnotationRequest following W3C Web Annotation format
+      const createData: CreateAnnotationRequest = {
+        target: {
+          source: documentId,
+          selector: {
+            type: 'TextPositionSelector',
+            exact: exact,
+            offset: position.start,
+            length: position.end - position.start,
+          },
         },
-        type: 'reference', // Always create a reference when this function is called
-        referencedDocumentId: targetDocId !== undefined ? (targetDocId || null) : null, // Backend uses this to detect references
+        body: {
+          type: 'SpecificResource',
+          source: targetDocId !== undefined ? (targetDocId || null) : null,
+          entityTypes: entityType
+            ? entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t)
+            : [],
+        },
       };
-
-      // Remove referencedDocumentId from explicit check since it's always set above
-
-      if (entityType) {
-        createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
-      }
-
-      if (referenceType) {
-        createData.referenceType = referenceType;
-      }
 
       // Create the annotation
       const result = await createAnnotationMutation.mutateAsync(createData);
@@ -153,14 +151,18 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Delete old highlight (documentId required for Layer 3 lookup)
       await deleteAnnotationMutation.mutateAsync({
         id: highlightId,
-        documentId: highlight.documentId
+        documentId: highlight.target.source
       });
 
       // Create new reference with same position
+      const posSelector = getTextPositionSelector(highlight.target.selector);
+      if (!posSelector) {
+        throw new Error('Cannot convert highlight to reference: TextPositionSelector required');
+      }
       await addReference(
-        highlight.documentId,
-        highlight.exact,
-        { start: highlight.selector.offset, end: highlight.selector.offset + highlight.selector.length },
+        highlight.target.source,
+        getExactText(highlight.target.selector),
+        { start: posSelector.offset, end: posSelector.offset + posSelector.length },
         targetDocId,
         entityType,
         referenceType
@@ -182,14 +184,18 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Delete old reference (documentId required for Layer 3 lookup)
       await deleteAnnotationMutation.mutateAsync({
         id: referenceId,
-        documentId: reference.documentId
+        documentId: reference.target.source
       });
 
       // Create new highlight with same position
+      const posSelector = getTextPositionSelector(reference.target.selector);
+      if (!posSelector) {
+        throw new Error('Cannot convert reference to highlight: TextPositionSelector required');
+      }
       await addHighlight(
-        reference.documentId,
-        reference.exact,
-        { start: reference.selector.offset, end: reference.selector.offset + reference.selector.length }
+        reference.target.source,
+        getExactText(reference.target.selector),
+        { start: posSelector.offset, end: posSelector.offset + posSelector.length }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);

@@ -1,28 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DocumentsRouterType } from '../shared';
 import { getEventStore } from '../../../events/event-store';
-import type { EventQuery, StoredEvent } from '@semiont/core-types';
-
-// Response schema matching StoredEvent structure (nested, not flat)
-const GetEventsResponse = z.object({
-  events: z.array(z.object({
-    event: z.object({
-      id: z.string(),
-      type: z.string(),
-      timestamp: z.string(),
-      userId: z.string(),
-      documentId: z.string(),
-      payload: z.any(),
-    }),
-    metadata: z.object({
-      sequenceNumber: z.number(),
-      prevEventHash: z.string().optional(),
-      checksum: z.string().optional(),
-    }),
-  })),
-  total: z.number(),
-  documentId: z.string(),
-});
+import { GetEventsResponseSchema, type GetEventsResponse, type EventQuery, type StoredEvent } from '@semiont/core-types';
 
 const eventTypes = [
   'document.created',
@@ -59,7 +38,7 @@ export const getEventsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: GetEventsResponse,
+          schema: GetEventsResponseSchema,
         },
       },
       description: 'Events retrieved successfully',
@@ -95,11 +74,12 @@ export function registerGetEvents(router: DocumentsRouterType) {
     const storedEvents: StoredEvent[] = await eventStore.queryEvents(filters);
 
     if (!storedEvents || storedEvents.length === 0) {
-      return c.json({
+      const emptyResponse: GetEventsResponse = {
         events: [],
         total: 0,
         documentId: id,
-      });
+      };
+      return c.json(emptyResponse);
     }
 
     // Validate and transform events to match API response structure
@@ -139,10 +119,12 @@ export function registerGetEvents(router: DocumentsRouterType) {
       };
     });
 
-    return c.json({
+    const response: GetEventsResponse = {
       events,
       total: events.length,
       documentId: id,
-    });
+    };
+
+    return c.json(response);
   });
 }

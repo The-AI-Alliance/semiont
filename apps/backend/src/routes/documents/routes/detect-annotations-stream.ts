@@ -91,7 +91,7 @@ export function registerDetectAnnotationsStream(router: DocumentsRouterType) {
       userId: user.id,
       documentId: id,
       entityTypes,
-      createdAt: new Date().toISOString(),
+      created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3
     };

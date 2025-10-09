@@ -7,7 +7,7 @@ interface Annotation {
   offset: number;
   length: number;
   type: 'highlight' | 'reference';
-  referencedDocumentId?: string;
+  source?: string;
 }
 
 interface ChildSpan {
@@ -120,7 +120,7 @@ function wrapChildRange(element: Element, span: ChildSpan) {
     className = 'bg-yellow-200 dark:bg-yellow-800';
   } else if (annotation.type === 'reference') {
     // Stub reference (no target document) - red text with !important-like specificity
-    if (!annotation.referencedDocumentId) {
+    if (!annotation.source) {
       className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
     } else {
       // Resolved reference - blue text with !important-like specificity
@@ -215,7 +215,7 @@ function applyWithinTextNodeAnnotations(
         className = 'bg-yellow-200 dark:bg-yellow-800';
       } else if (ann.type === 'reference') {
         // Stub reference (no target document) - red text with !important-like specificity
-        if (!ann.referencedDocumentId) {
+        if (!ann.source) {
           className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
         } else {
           // Resolved reference - blue text with !important-like specificity

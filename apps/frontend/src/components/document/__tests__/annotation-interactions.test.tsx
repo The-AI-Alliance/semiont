@@ -36,7 +36,7 @@ describe('Annotation Interaction Transitions', () => {
 
   describe('Resolved Reference Interactions', () => {
     it('should navigate to referenced document when clicking on resolved reference text', () => {
-      // Given: A resolved reference annotation exists (with referencedDocumentId)
+      // Given: A resolved reference annotation exists (with source)
       // When: User clicks on the reference text
       // Then: Should navigate to the referenced document
       //   - In both Browse mode and Annotate mode
@@ -45,7 +45,7 @@ describe('Annotation Interaction Transitions', () => {
     });
 
     it('should show "Resolved Reference" popup when right-clicking on resolved reference', () => {
-      // Given: A resolved reference annotation exists (with referencedDocumentId)
+      // Given: A resolved reference annotation exists (with source)
       // When: User right-clicks on the reference text
       // Then: "Resolved Reference" popup should appear with:
       //   - Selected text display
@@ -71,7 +71,7 @@ describe('Annotation Interaction Transitions', () => {
 
   describe('Stub Reference Interactions', () => {
     it('should show "Stub Reference" popup when clicking on stub reference text', () => {
-      // Given: A stub reference annotation exists (no referencedDocumentId)
+      // Given: A stub reference annotation exists (no source)
       // When: User clicks on the reference text (in Annotate mode)
       // Then: "Stub Reference" popup should appear with:
       //   - Selected text display
