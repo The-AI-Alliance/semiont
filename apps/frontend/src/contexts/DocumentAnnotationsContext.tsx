@@ -93,11 +93,11 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Remove referencedDocumentId from explicit check since it's always set above
 
       if (entityType) {
-        createData.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+        createData.body.entityTypes = entityType.split(',').map((t: string) => t.trim()).filter((t: string) => t);
       }
 
       if (referenceType) {
-        createData.referenceType = referenceType;
+        createData.body.referenceType = referenceType;
       }
 
       // Create the annotation
@@ -153,14 +153,14 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Delete old highlight (documentId required for Layer 3 lookup)
       await deleteAnnotationMutation.mutateAsync({
         id: highlightId,
-        documentId: highlight.documentId
+        documentId: highlight.target.source
       });
 
       // Create new reference with same position
       await addReference(
-        highlight.documentId,
-        highlight.exact,
-        { start: highlight.selector.offset, end: highlight.selector.offset + highlight.selector.length },
+        highlight.target.source,
+        highlight.target.selector.exact,
+        { start: highlight.target.selector.offset, end: highlight.target.selector.offset + highlight.target.selector.length },
         targetDocId,
         entityType,
         referenceType
@@ -182,14 +182,14 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
       // Delete old reference (documentId required for Layer 3 lookup)
       await deleteAnnotationMutation.mutateAsync({
         id: referenceId,
-        documentId: reference.documentId
+        documentId: reference.target.source
       });
 
       // Create new highlight with same position
       await addHighlight(
-        reference.documentId,
-        reference.exact,
-        { start: reference.selector.offset, end: reference.selector.offset + reference.selector.length }
+        reference.target.source,
+        reference.target.selector.exact,
+        { start: reference.target.selector.offset, end: reference.target.selector.offset + reference.target.selector.length }
       );
     } catch (err) {
       console.error('Failed to convert reference to highlight:', err);

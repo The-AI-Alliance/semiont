@@ -49,16 +49,22 @@ describe('StubReferencePopup', () => {
     } as TextSelection,
     annotation: {
       id: 'test-annotation',
-      documentId: 'test-doc',
-      exact: 'Selected text',
-      selector: {
-        type: 'text_span',
-        offset: 0,
-        length: 13,
+      target: {
+        source: 'test-doc',
+        selector: {
+          type: 'TextPositionSelector',
+          exact: 'Selected text',
+          offset: 0,
+          length: 13,
+        },
       },
-      type: 'reference',
-      entityTypes: ['Person'],
-      referenceType: 'Mention'
+      body: {
+        type: 'reference',
+        entityTypes: ['Person'],
+        referenceType: 'Mention',
+      },
+      createdBy: 'test-user',
+      createdAt: new Date().toISOString(),
     } as ReferenceAnnotation,
     onUpdateAnnotation: mockOnUpdateAnnotation,
     onDeleteAnnotation: mockOnDeleteAnnotation,

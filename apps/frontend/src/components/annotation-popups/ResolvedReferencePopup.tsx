@@ -50,16 +50,20 @@ export function ResolvedReferencePopup({
 
   const handleUnlinkDocument = () => {
     onUpdateAnnotation({
-      referencedDocumentId: null,
+      body: {
+        referencedDocumentId: null,
+      },
     });
   };
 
   const handleConvertToHighlight = () => {
     onUpdateAnnotation({
-      type: 'highlight',
-      entityTypes: null,
-      referenceType: null,
-      referencedDocumentId: null,
+      body: {
+        type: 'highlight',
+        entityTypes: null,
+        referenceType: null,
+        referencedDocumentId: null,
+      },
     });
   };
 
@@ -74,13 +78,13 @@ export function ResolvedReferencePopup({
 
       <SelectedTextDisplay exact={selection.exact} />
 
-      {annotation.entityTypes && annotation.entityTypes.length > 0 && (
-        <EntityTypeBadges entityTypes={annotation.entityTypes.join(', ')} />
+      {annotation.body.entityTypes && annotation.body.entityTypes.length > 0 && (
+        <EntityTypeBadges entityTypes={annotation.body.entityTypes.join(', ')} />
       )}
 
-      {annotation.referenceType && (
+      {annotation.body.referenceType && (
         <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-          Reference Type: <span className="font-medium">{annotation.referenceType}</span>
+          Reference Type: <span className="font-medium">{annotation.body.referenceType}</span>
         </div>
       )}
 

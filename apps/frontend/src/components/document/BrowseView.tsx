@@ -20,14 +20,14 @@ interface Props {
 // Convert Annotation[] to the simpler format needed by plugins
 function prepareAnnotations(annotations: Annotation[]) {
   return annotations
-    .filter(ann => ann.selector)
+    .filter(ann => ann.target.selector)
     .map(ann => ({
       id: ann.id,
-      exact: ann.exact,
-      offset: ann.selector!.offset,
-      length: ann.selector!.length,
-      type: ann.type as 'highlight' | 'reference',
-      referencedDocumentId: ann.referencedDocumentId
+      exact: ann.target.selector.exact,
+      offset: ann.target.selector!.offset,
+      length: ann.target.selector!.length,
+      type: ann.body.type as 'highlight' | 'reference',
+      referencedDocumentId: ann.body.referencedDocumentId
     }));
 }
 

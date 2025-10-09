@@ -46,8 +46,8 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
   const normalizedAnnotations = annotations
     .map(ann => ({
       annotation: ann,
-      start: ann.selector?.offset ?? 0,
-      end: (ann.selector?.offset ?? 0) + (ann.selector?.length ?? 0)
+      start: ann.target.selector?.offset ?? 0,
+      end: (ann.target.selector?.offset ?? 0) + (ann.target.selector?.length ?? 0)
     }))
     .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);
@@ -206,7 +206,7 @@ export function AnnotateView({
       setSelectionState(null);
     }
   }, [selectionState, onTextSelect]);
-  
+
   // Handle right-click on selection
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (selectionState && onTextSelect) {
@@ -218,7 +218,7 @@ export function AnnotateView({
       setSelectionState(null);
     }
   }, [selectionState, onTextSelect]);
-  
+
   // Convert segments to CodeMirror format
   const cmSegments: CMTextSegment[] = segments.map(seg => ({
     exact: seg.exact,

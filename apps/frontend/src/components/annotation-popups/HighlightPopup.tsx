@@ -26,7 +26,9 @@ export function HighlightPopup({
 }: HighlightPopupProps) {
   const handleConvertToReference = () => {
     onUpdateAnnotation({
-      type: 'reference',
+      body: {
+        type: 'reference',
+      },
     });
   };
 

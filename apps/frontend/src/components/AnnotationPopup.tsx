@@ -37,9 +37,9 @@ export function AnnotationPopup({
   // Determine which popup to show
   const getPopupState = (): PopupState => {
     if (!annotation) return 'initial';
-    if (annotation.type === 'highlight') return 'highlight';
-    if (annotation.type === 'reference') {
-      return annotation.referencedDocumentId ? 'resolved_reference' : 'stub_reference';
+    if (annotation.body.type === 'highlight') return 'highlight';
+    if (annotation.body.type === 'reference') {
+      return annotation.body.referencedDocumentId ? 'resolved_reference' : 'stub_reference';
     }
     return 'initial';
   };
