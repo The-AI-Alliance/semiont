@@ -72,6 +72,8 @@ export type Motivation = z.infer<typeof MotivationSchema>;
  * - body: What we're saying about the annotated text
  *   - type: 'TextualBody' (textual content/comments) or 'SpecificResource' (links to another document)
  *   - value: Optional comment or note about the annotation (for TextualBody)
+ *   - format: MIME type of the body value (e.g., 'text/plain', 'text/markdown')
+ *   - language: ISO language code of the body value (e.g., 'en', 'fr')
  *   - source: Target document ID (for SpecificResource)
  *   - entityTypes: Classification tags (e.g., ["Person", "Scientist"])
  * - creator: User who created the annotation
@@ -87,6 +89,8 @@ export type Motivation = z.infer<typeof MotivationSchema>;
  * - Uses full W3C 'motivation' vocabulary ✓
  * - Uses 'creator' and 'created' field names ✓
  * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
+ * - Uses 'body.format' for MIME type metadata ✓
+ * - Uses 'body.language' for language metadata ✓
  * - Uses W3C body types: 'TextualBody' | 'SpecificResource' ✓
  * - Uses 'body.source' for linked resources (W3C SpecificResource pattern) ✓
  *
@@ -94,6 +98,7 @@ export type Motivation = z.infer<typeof MotivationSchema>;
  * - Single target only (no multi-target arrays) - our architecture is document-centric
  * - Single body only (no multi-body arrays) - application-specific body structure
  * - Application-specific 'entityTypes' field for classification tags
+ * - Simple creator (string) instead of rich Agent object
  */
 export const AnnotationSchema = z.object({
   id: z.string(),
@@ -108,6 +113,8 @@ export const AnnotationSchema = z.object({
   body: z.object({
     type: z.enum(['TextualBody', 'SpecificResource']),
     value: z.string().optional(),
+    format: z.string().optional(),      // MIME type (e.g., 'text/plain', 'text/html', 'text/markdown')
+    language: z.string().optional(),    // ISO language code (e.g., 'en', 'fr', 'es')
     source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
   }),
