@@ -172,7 +172,6 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         contentType: 'text/plain',
         contentChecksum: 'hash123',
-        metadata: { foo: 'bar' },
         createdBy: 'user1',
         creationMethod: 'api',
       });
@@ -211,7 +210,6 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         contentType: 'text/plain',
         contentChecksum: 'hash123',
-        metadata: {},
         createdBy: 'user1',
         creationMethod: 'api',
       });
@@ -255,7 +253,6 @@ describe('GraphDBConsumer', () => {
         content: 'test content',
         contentType: 'text/plain',
         contentChecksum: 'hash456',
-        metadata: { clonedFrom: 'doc-123' },
         createdBy: 'user1',
         creationMethod: 'clone',
       });
