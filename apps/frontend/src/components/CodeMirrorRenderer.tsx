@@ -172,7 +172,11 @@ function buildWidgetDecorations(
     const annotation = segment.annotation;
 
     // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
-    if (annotation.type === 'reference') {
+    // Check for W3C SpecificResource body type (references have body.type: 'SpecificResource')
+    const isReference = (annotation as any).body?.type === 'SpecificResource' ||
+                        (annotation as any).motivation === 'linking';
+
+    if (isReference) {
       const targetName = annotation.source
         ? callbacks.getTargetDocumentName?.(annotation.source)
         : undefined;
