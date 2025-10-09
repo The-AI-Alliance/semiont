@@ -395,45 +395,45 @@ export const AddReferenceTypeResponseSchema = z.object({
 export type AddReferenceTypeResponse = z.infer<typeof AddReferenceTypeResponseSchema>;
 
 /**
- * Generate Document From Selection Request
+ * Generate Document From Annotation Request
  */
-export const GenerateDocumentFromSelectionRequestSchema = z.object({
+export const GenerateDocumentFromAnnotationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional().describe('Custom title for generated document'),
   entityTypes: z.array(z.string()).optional().describe('Entity types to apply to generated document'),
   prompt: z.string().optional().describe('Custom prompt for content generation'),
 });
 
-export type GenerateDocumentFromSelectionRequest = z.infer<typeof GenerateDocumentFromSelectionRequestSchema>;
+export type GenerateDocumentFromAnnotationRequest = z.infer<typeof GenerateDocumentFromAnnotationRequestSchema>;
 
 /**
- * Generate Document From Selection Response
+ * Generate Document From Annotation Response
  */
-export const GenerateDocumentFromSelectionResponseSchema = z.object({
+export const GenerateDocumentFromAnnotationResponseSchema = z.object({
   document: DocumentSchema,
   annotation: AnnotationSchema,
   generated: z.boolean(),
 });
 
-export type GenerateDocumentFromSelectionResponse = z.infer<typeof GenerateDocumentFromSelectionResponseSchema>;
+export type GenerateDocumentFromAnnotationResponse = z.infer<typeof GenerateDocumentFromAnnotationResponseSchema>;
 
 /**
- * Resolve Selection Request
+ * Resolve Annotation Request
  */
-export const ResolveSelectionRequestSchema = z.object({
+export const ResolveAnnotationRequestSchema = z.object({
   documentId: z.string().describe('Target document ID to resolve reference to'),
 });
 
-export type ResolveSelectionRequest = z.infer<typeof ResolveSelectionRequestSchema>;
+export type ResolveAnnotationRequest = z.infer<typeof ResolveAnnotationRequestSchema>;
 
 /**
- * Resolve Selection Response
+ * Resolve Annotation Response
  */
-export const ResolveSelectionResponseSchema = z.object({
+export const ResolveAnnotationResponseSchema = z.object({
   annotation: AnnotationSchema,
   targetDocument: DocumentSchema.nullable(),
 });
 
-export type ResolveSelectionResponse = z.infer<typeof ResolveSelectionResponseSchema>;
+export type ResolveAnnotationResponse = z.infer<typeof ResolveAnnotationResponseSchema>;
 
 /**
  * Get Document By Token Response
