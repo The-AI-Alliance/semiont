@@ -9,7 +9,7 @@ import { getEventStore } from '../event-store';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
 import type { GraphDatabase } from '../../graph/interface';
-import type { DocumentEvent, StoredEvent } from '@semiont/core-types';
+import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core-types';
 
 export class GraphDBConsumer {
   private graphDb: GraphDatabase | null = null;
@@ -130,16 +130,20 @@ export class GraphDBConsumer {
 
       case 'highlight.added':
         await graphDb.createAnnotation({
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'highlight',
+          body: {
+            type: 'highlight',
+            entityTypes: [],
+          },
           createdBy: event.userId,
-          entityTypes: [],
         });
         break;
 
@@ -149,25 +153,34 @@ export class GraphDBConsumer {
 
       case 'reference.created':
         await graphDb.createAnnotation({
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'reference',
+          body: {
+            type: 'reference',
+            entityTypes: event.payload.entityTypes || [],
+            referenceType: event.payload.referenceType,
+            referencedDocumentId: event.payload.targetDocumentId,
+          },
           createdBy: event.userId,
-          referencedDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes || [],
-          referenceType: event.payload.referenceType,
         });
         break;
 
       case 'reference.resolved':
+        // TODO: Graph implementation should handle partial body updates properly
         await graphDb.updateAnnotation(event.payload.referenceId, {
-          referencedDocumentId: event.payload.targetDocumentId,
-        });
+          body: {
+            type: 'reference',
+            entityTypes: [],  // Graph impl should merge, not replace
+            referencedDocumentId: event.payload.targetDocumentId,
+          },
+        } as Partial<Annotation>);
         break;
 
       case 'reference.deleted':

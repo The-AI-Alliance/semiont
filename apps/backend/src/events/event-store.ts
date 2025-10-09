@@ -396,17 +396,21 @@ export class EventStore {
       case 'highlight.added':
         annotations.highlights.push({
           id: event.payload.highlightId,
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'highlight',
+          body: {
+            type: 'highlight',
+            entityTypes: [],
+          },
           createdBy: event.userId,
           createdAt: new Date(event.timestamp).toISOString(),
-          entityTypes: [],
         });
         break;
 
@@ -419,28 +423,32 @@ export class EventStore {
       case 'reference.created':
         annotations.references.push({
           id: event.payload.referenceId,
-          documentId: event.documentId,
-          exact: event.payload.exact,
-          selector: {
-            type: 'text_span',
-            offset: event.payload.position.offset,
-            length: event.payload.position.length,
+          target: {
+            source: event.documentId,
+            selector: {
+              type: 'TextPositionSelector',
+              exact: event.payload.exact,
+              offset: event.payload.position.offset,
+              length: event.payload.position.length,
+            },
           },
-          type: 'reference',
+          body: {
+            type: 'reference',
+            entityTypes: event.payload.entityTypes || [],
+            referenceType: event.payload.referenceType,
+            referencedDocumentId: event.payload.targetDocumentId,
+          },
           createdBy: event.userId,
           createdAt: new Date(event.timestamp).toISOString(),
-          referencedDocumentId: event.payload.targetDocumentId,
-          entityTypes: event.payload.entityTypes || [],
-          referenceType: event.payload.referenceType,
         });
         break;
 
       case 'reference.resolved':
         const ref = annotations.references.find(r => r.id === event.payload.referenceId);
         if (ref) {
-          ref.referencedDocumentId = event.payload.targetDocumentId;
+          ref.body.referencedDocumentId = event.payload.targetDocumentId;
           if (event.payload.referenceType) {
-            ref.referenceType = event.payload.referenceType;
+            ref.body.referenceType = event.payload.referenceType;
           }
         }
         break;

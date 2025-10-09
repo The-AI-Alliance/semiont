@@ -119,17 +119,21 @@ describe('Layered Storage', () => {
           highlights: [
             {
               id: 'hl1',
-              documentId: docId,
-              exact: 'important',
-              selector: {
-                type: 'text_span' as const,
-                offset: 0,
-                length: 9,
+              target: {
+                source: docId,
+                selector: {
+                  type: 'TextPositionSelector' as const,
+                  exact: 'important',
+                  offset: 0,
+                  length: 9,
+                },
               },
-              type: 'highlight' as const,
+              body: {
+                type: 'highlight' as const,
+                entityTypes: [],
+              },
               createdBy: 'did:web:test.com:users:test',
               createdAt: '2025-01-01T00:00:00.000Z',
-              entityTypes: []
             },
           ],
           references: [],
