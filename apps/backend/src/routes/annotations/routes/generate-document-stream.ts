@@ -29,7 +29,7 @@ export const generateDocumentStreamRoute = createRoute({
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
-      id: z.string().describe('Reference/selection ID'),
+      id: z.string().describe('Reference/annotation ID'),
     }),
     body: {
       content: {

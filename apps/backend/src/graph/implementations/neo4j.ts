@@ -255,7 +255,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async deleteDocument(id: string): Promise<void> {
     const session = this.getSession();
     try {
-      // Delete document and all its selections
+      // Delete document and all its annotations
       await session.run(
         `MATCH (d:Document {id: $id})
          OPTIONAL MATCH (a:Annotation)-[:BELONGS_TO|:REFERENCES]->(d)
@@ -459,7 +459,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       if (result.records.length === 0) {
-        throw new Error('Selection not found');
+        throw new Error('Annotation not found');
       }
 
       return this.parseAnnotationNode(result.records[0]!.get('a'));
@@ -517,7 +517,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (a:Annotation {documentId: $documentId})
-         WHERE a.selectionCategory = 'highlight'
+         WHERE a.annotationCategory = 'highlight'
          RETURN a
          ORDER BY a.createdAt DESC`,
         { documentId }
@@ -566,7 +566,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       const result = await session.run(
         `MATCH (a:Annotation {documentId: $documentId})
-         WHERE a.selectionCategory IN ['stub_reference', 'resolved_reference']
+         WHERE a.annotationCategory IN ['stub_reference', 'resolved_reference']
          RETURN a
          ORDER BY a.createdAt DESC`,
         { documentId }
@@ -684,14 +684,14 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         const docs = record.get('docs').map((node: any) => this.parseDocumentNode(node));
         const rels = record.get('rels');
 
-        // Get selection details for the relationships
-        const selectionIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
+        // Get annotation details for the relationships
+        const annotationIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
         const annotations: Annotation[] = [];
 
-        if (selectionIds.length > 0) {
+        if (annotationIds.length > 0) {
           const selResult = await session.run(
             'MATCH (a:Annotation) WHERE a.id IN $ids RETURN a',
-            { ids: selectionIds }
+            { ids: annotationIds }
           );
           const annotations: Annotation[] = [];
           selResult.records.forEach(rec => {
@@ -745,7 +745,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const docCountResult = await session.run('MATCH (d:Document) RETURN count(d) as count');
       const documentCount = docCountResult.records[0]!.get('count').toNumber();
 
-      // Get selection counts
+      // Get annotation counts
       const selCountResult = await session.run('MATCH (a:Annotation) RETURN count(a) as count');
       const annotationCount = selCountResult.records[0]!.get('count').toNumber();
 
@@ -818,7 +818,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async detectAnnotations(_documentId: string): Promise<Annotation[]> {
-    // This would use AI/ML to detect selections in a document
+    // This would use AI/ML to detect annotations in a document
     // For now, return empty array as a placeholder
     return [];
   }

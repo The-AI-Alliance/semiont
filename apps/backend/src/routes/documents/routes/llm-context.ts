@@ -96,7 +96,7 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
         }
       })) : limitedRelatedDocs;
 
-    // Get all selections for the main document
+    // Get all annotations for the main document
     const highlights = await graphDb.getHighlights(id);
     const references = await graphDb.getReferences(id);
 
