@@ -15,7 +15,6 @@ export interface CreateDocumentInput {
   content: string;
   contentType: string;
   contentChecksum: string;  // SHA-256 hash calculated by backend
-  metadata: Record<string, any>;
   createdBy: string;  // Set by backend from auth context (REQUIRED)
 
   // Provenance tracking (only context fields, not derived fields)
@@ -31,7 +30,6 @@ export interface CreateDocumentInput {
 export interface UpdateDocumentInput {
   name?: string;
   entityTypes?: string[];
-  metadata?: Record<string, any>;
   archived?: boolean;
 }
 

@@ -43,12 +43,12 @@ export function findProjectRoot(): string {
   const currentDir = process.cwd();
   if (!isProjectRoot(currentDir)) {
     throw new ConfigurationError(
-      'Not in a Semiont project directory',
+      `Not in a Semiont project directory: ${currentDir}`,
       undefined,
-      'Change to a project directory or run "semiont init" to initialize a new project'
+      'Change to a project directory, run "semiont init" to initialize a new project, or set SEMIONT_ROOT environment variable'
     );
   }
-  
+
   return currentDir;
 }
 

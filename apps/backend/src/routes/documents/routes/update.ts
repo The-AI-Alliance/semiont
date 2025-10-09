@@ -127,7 +127,6 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
           ...doc,
           archived: body.archived !== undefined ? body.archived : doc.archived,
           entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
-          metadata: body.metadata !== undefined ? body.metadata : doc.metadata,
         }),
         content: content.toString('utf-8')
       },

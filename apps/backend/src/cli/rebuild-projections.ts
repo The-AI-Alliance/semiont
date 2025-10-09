@@ -43,19 +43,19 @@ async function rebuildProjections(documentId?: string) {
     console.log(`   ✅ Event chain valid`);
 
     // Rebuild projection
-    const projection = await eventStore.projectDocument(documentId);
-    if (!projection) {
+    const stored = await eventStore.projectDocument(documentId);
+    if (!stored) {
       console.error(`❌ Failed to build projection`);
       process.exit(1);
     }
 
     console.log(`   ✅ Projection rebuilt:`);
-    console.log(`      - Name: ${projection.name}`);
-    console.log(`      - Highlights: ${projection.highlights.length}`);
-    console.log(`      - References: ${projection.references.length}`);
-    console.log(`      - Entity Types: ${projection.entityTypes.join(', ') || 'none'}`);
-    console.log(`      - Version: ${projection.version}`);
-    console.log(`      - Archived: ${projection.archived}`);
+    console.log(`      - Name: ${stored.document.name}`);
+    console.log(`      - Highlights: ${stored.annotations.highlights.length}`);
+    console.log(`      - References: ${stored.annotations.references.length}`);
+    console.log(`      - Entity Types: ${stored.document.entityTypes.join(', ') || 'none'}`);
+    console.log(`      - Version: ${stored.annotations.version}`);
+    console.log(`      - Archived: ${stored.document.archived}`);
 
   } else {
     // Rebuild all projections

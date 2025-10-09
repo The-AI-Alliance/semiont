@@ -159,13 +159,12 @@ export type GetReferencesResponse = z.infer<typeof GetReferencesResponseSchema>;
  *
  * Core document model used across the application.
  * - contentChecksum: Required, used by backend for content-addressing and graph storage
- * - content: Optional, only included in API responses when requested (not stored in graph)
+ * - content: REMOVED - All content access must go through filesystem service via storage.getDocument(id)
  */
 export const DocumentSchema = z.object({
   id: z.string(),
   name: z.string(),
   contentType: z.string(),
-  metadata: z.record(z.string(), z.any()),
   archived: z.boolean(),
   entityTypes: z.array(z.string()),
   creationMethod: z.enum([
@@ -181,7 +180,6 @@ export const DocumentSchema = z.object({
   createdBy: z.string(),
   createdAt: z.string(),
   contentChecksum: z.string(),
-  content: z.string().optional(), // Optional - only in API responses, not in graph storage
 });
 
 export type Document = z.infer<typeof DocumentSchema>;
@@ -194,7 +192,6 @@ export const CreateDocumentRequestSchema = z.object({
   content: z.string(),
   contentType: z.string().optional().default('text/plain'),
   entityTypes: z.array(z.string()).optional().default([]),
-  metadata: z.record(z.string(), z.any()).optional().default({}),
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),
   sourceDocumentId: z.string().optional(),
@@ -208,7 +205,6 @@ export type CreateDocumentRequest = z.infer<typeof CreateDocumentRequestSchema>;
  */
 export const UpdateDocumentRequestSchema = z.object({
   entityTypes: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
   archived: z.boolean().optional(), // Can archive (one-way operation)
 });
 
@@ -226,9 +222,10 @@ export type CreateDocumentResponse = z.infer<typeof CreateDocumentResponseSchema
 
 /**
  * Get Document Response
+ * Note: Content must be fetched separately via GET /documents/:id/content
  */
 export const GetDocumentResponseSchema = z.object({
-  document: DocumentSchema.extend({ content: z.string() }), // content is always included
+  document: DocumentSchema, // Metadata only - no content field
   annotations: z.array(AnnotationSchema),
   highlights: z.array(AnnotationSchema),
   references: z.array(AnnotationSchema),

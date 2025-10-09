@@ -99,12 +99,12 @@ describe('Event Store', () => {
       payload: { entityType: 'note' },
     });
 
-    const projection = await eventStore.projectDocument(docId);
+    const stored = await eventStore.projectDocument(docId);
 
-    expect(projection).toBeDefined();
-    expect(projection!.name).toBe('Doc');
+    expect(stored).toBeDefined();
+    expect(stored!.document.name).toBe('Doc');
     // Note: content is NOT in projections - must be loaded from filesystem separately
-    expect(projection!.entityTypes).toContain('note');
-    expect(projection!.version).toBe(2);
+    expect(stored!.document.entityTypes).toContain('note');
+    expect(stored!.annotations.version).toBe(2);
   });
 });

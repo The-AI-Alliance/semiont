@@ -54,7 +54,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
       name: input.name,
       entityTypes: input.entityTypes,
       contentType: input.contentType,
-      metadata: input.metadata,
       archived: false,  // New documents are not archived by default
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,

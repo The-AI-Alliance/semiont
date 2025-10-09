@@ -12,7 +12,6 @@
  */
 
 import type { Annotation } from './api-contracts';
-import type { CreationMethod } from './creation-methods';
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -190,23 +189,12 @@ export interface EventQuery {
   limit?: number;
 }
 
-// Document state projection from events (Layer 3)
-// NOTE: content is NOT here - it lives in Layer 1 (filesystem)
-export interface DocumentProjection {
-  id: string;
-  name: string;
-  contentType: string;
-  contentChecksum: string;  // SHA-256 checksum of content (extracted from doc ID)
-  metadata: Record<string, any>;
-  entityTypes: string[];
-  highlights: Annotation[];  // Full Annotation objects (single source of truth)
-  references: Annotation[];  // Full Annotation objects (single source of truth)
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
-  version: number;  // Number of events applied
-  creationMethod: CreationMethod;
-  sourceAnnotationId?: string;
-  sourceDocumentId?: string;
-  createdBy: string;  // userId (DID format)
+// Annotation collections for a document (Layer 3 projection)
+// Annotations are NOT part of the document - they reference the document
+export interface DocumentAnnotations {
+  documentId: string;           // Which document these annotations belong to
+  highlights: Annotation[];     // Full Annotation objects
+  references: Annotation[];     // Full Annotation objects
+  version: number;              // Event count for this document's annotation stream
+  updatedAt: string;           // Last annotation event timestamp
 }

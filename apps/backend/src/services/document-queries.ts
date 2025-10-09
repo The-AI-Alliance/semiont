@@ -8,14 +8,14 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getFilesystemConfig } from '../config/environment-loader';
-import type { DocumentProjection, CreationMethod } from '@semiont/core-types';
+import type { CreationMethod } from '@semiont/core-types';
+import type { DocumentState } from '../storage/projection-storage';
 
 export interface DocumentMetadata {
   id: string;
   name: string;
   contentType: string;
   contentChecksum: string;
-  metadata: Record<string, any>;
   entityTypes: string[];
   archived: boolean;
   createdAt: string;
@@ -45,22 +45,22 @@ export class DocumentQueryService {
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
-      const projection: DocumentProjection = JSON.parse(content);
+      const state: DocumentState = JSON.parse(content);
+      const doc = state.document;
 
       return {
-        id: projection.id,
-        name: projection.name,
-        contentType: projection.contentType,
-        contentChecksum: projection.contentChecksum,
-        metadata: projection.metadata,
-        entityTypes: projection.entityTypes,
-        archived: projection.archived,
-        createdAt: projection.createdAt,
-        updatedAt: projection.updatedAt,
-        creationMethod: projection.creationMethod,
-        sourceAnnotationId: projection.sourceAnnotationId,
-        sourceDocumentId: projection.sourceDocumentId,
-        createdBy: projection.createdBy,
+        id: doc.id,
+        name: doc.name,
+        contentType: doc.contentType,
+        contentChecksum: doc.contentChecksum,
+        entityTypes: doc.entityTypes,
+        archived: doc.archived,
+        createdAt: doc.createdAt,
+        updatedAt: state.annotations.updatedAt,
+        creationMethod: doc.creationMethod,
+        sourceAnnotationId: doc.sourceAnnotationId,
+        sourceDocumentId: doc.sourceDocumentId,
+        createdBy: doc.createdBy,
       };
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -103,34 +103,34 @@ export class DocumentQueryService {
 
             const filePath = path.join(cdPath, file);
             const content = await fs.readFile(filePath, 'utf-8');
-            const projection: DocumentProjection = JSON.parse(content);
+            const state: DocumentState = JSON.parse(content);
+            const doc = state.document;
 
             // Apply filters
-            if (filters?.archived !== undefined && projection.archived !== filters.archived) {
+            if (filters?.archived !== undefined && doc.archived !== filters.archived) {
               continue;
             }
 
             if (filters?.search) {
               const searchLower = filters.search.toLowerCase();
-              if (!projection.name.toLowerCase().includes(searchLower)) {
+              if (!doc.name.toLowerCase().includes(searchLower)) {
                 continue;
               }
             }
 
             documents.push({
-              id: projection.id,
-              name: projection.name,
-              contentType: projection.contentType,
-              contentChecksum: projection.contentChecksum,
-              metadata: projection.metadata,
-              entityTypes: projection.entityTypes,
-              archived: projection.archived,
-              createdAt: projection.createdAt,
-              updatedAt: projection.updatedAt,
-              creationMethod: projection.creationMethod,
-              sourceAnnotationId: projection.sourceAnnotationId,
-              sourceDocumentId: projection.sourceDocumentId,
-              createdBy: projection.createdBy,
+              id: doc.id,
+              name: doc.name,
+              contentType: doc.contentType,
+              contentChecksum: doc.contentChecksum,
+              entityTypes: doc.entityTypes,
+              archived: doc.archived,
+              createdAt: doc.createdAt,
+              updatedAt: state.annotations.updatedAt,
+              creationMethod: doc.creationMethod,
+              sourceAnnotationId: doc.sourceAnnotationId,
+              sourceDocumentId: doc.sourceDocumentId,
+              createdBy: doc.createdBy,
             });
           }
         }

@@ -63,12 +63,6 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       : CREATION_METHODS.API;
 
     // Emit document.created event (consumer will update GraphDB)
-    const eventMetadata = {
-      ...(body.metadata || {}),
-      creationMethod,
-    };
-    console.log('[CreateDocument] Event metadata:', eventMetadata);
-
     await emitDocumentCreated({
       documentId,
       userId: user.id,
@@ -76,7 +70,6 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       contentType: body.contentType || 'text/plain',
       contentHash: checksum,
       entityTypes: body.entityTypes || [],
-      metadata: eventMetadata,
     });
 
     // Return optimistic response
@@ -86,7 +79,6 @@ export function registerCreateDocument(router: DocumentsRouterType) {
         name: body.name,
         archived: false,
         contentType: body.contentType || 'text/plain',
-        metadata: body.metadata || {},
         entityTypes: body.entityTypes || [],
         creationMethod,
         contentChecksum: checksum,

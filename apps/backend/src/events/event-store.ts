@@ -18,9 +18,10 @@ import type {
   StoredEvent,
   EventQuery,
   EventMetadata,
-  DocumentProjection,
+  Document,
+  DocumentAnnotations,
 } from '@semiont/core-types';
-import type { ProjectionStorage } from '../storage/projection-storage';
+import type { ProjectionStorage, DocumentState } from '../storage/projection-storage';
 import { jumpConsistentHash, sha256 } from '../storage/shard-utils';
 
 export interface EventStoreConfig {
@@ -246,7 +247,7 @@ export class EventStore {
    * Build document projection from events
    * Loads from Layer 3 if exists, otherwise rebuilds from Layer 2 events
    */
-  async projectDocument(documentId: string): Promise<DocumentProjection | null> {
+  async projectDocument(documentId: string): Promise<DocumentState | null> {
     // Try to load existing projection from Layer 3
     const existing = await this.projectionStorage.getProjection(documentId);
     if (existing) {
@@ -282,89 +283,118 @@ export class EventStore {
       projection = this.buildProjectionFromEvents(events, documentId);
     } else {
       // Apply single event incrementally to existing projection
-      console.log(`[EventStore] Applying event incrementally to existing projection (version ${projection.version})`);
-      this.applyEventToProjection(projection, event);
-      projection.version++;
-      projection.updatedAt = event.timestamp;
+      console.log(`[EventStore] Applying event incrementally to existing projection (version ${projection.annotations.version})`);
+      this.applyEventToDocument(projection.document, event);
+      this.applyEventToAnnotations(projection.annotations, event);
+      projection.annotations.version++;
+      projection.annotations.updatedAt = event.timestamp;
     }
 
     // Save updated projection
     await this.projectionStorage.saveProjection(documentId, projection);
-    console.log(`[EventStore] Projection saved (version ${projection.version}, ${projection.highlights.length} highlights, ${projection.references.length} references)`);
+    console.log(`[EventStore] Projection saved (version ${projection.annotations.version}, ${projection.annotations.highlights.length} highlights, ${projection.annotations.references.length} references)`);
   }
 
   /**
    * Build projection from event list (full rebuild)
    */
-  private buildProjectionFromEvents(events: StoredEvent[], documentId: string): DocumentProjection {
-    // Start with empty projection
-    const projection: DocumentProjection = {
+  private buildProjectionFromEvents(events: StoredEvent[], documentId: string): DocumentState {
+    // Start with empty document state
+    const document: Document = {
       id: documentId,
       name: '',
       contentType: 'text/markdown',
       contentChecksum: documentId.replace('doc-sha256:', ''),
-      metadata: {},
       entityTypes: [],
-      highlights: [],
-      references: [],
       archived: false,
       createdAt: '',
-      updatedAt: '',
-      version: 0,
       creationMethod: 'api',
       createdBy: '',
+    };
+
+    // Start with empty annotations
+    const annotations: DocumentAnnotations = {
+      documentId,
+      highlights: [],
+      references: [],
+      version: 0,
+      updatedAt: '',
     };
 
     // Apply events in sequenceNumber order
     events.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
     for (const storedEvent of events) {
-      this.applyEventToProjection(projection, storedEvent.event);
-      projection.version++;
-      projection.updatedAt = storedEvent.event.timestamp;
+      this.applyEventToDocument(document, storedEvent.event);
+      this.applyEventToAnnotations(annotations, storedEvent.event);
+      annotations.version++;
+      annotations.updatedAt = storedEvent.event.timestamp;
     }
 
-    return projection;
+    return { document, annotations };
   }
 
   /**
-   * Apply an event to a projection
+   * Apply an event to Document state (metadata only)
    */
-  private applyEventToProjection(projection: DocumentProjection, event: DocumentEvent): void {
+  private applyEventToDocument(document: Document, event: DocumentEvent): void {
     switch (event.type) {
       case 'document.created':
-        projection.name = event.payload.name;
-        projection.contentType = event.payload.contentType;
-        projection.entityTypes = event.payload.entityTypes || [];
-        projection.metadata = event.payload.metadata || {};
-        projection.createdAt = event.timestamp;
-        projection.creationMethod = 'api';
-        projection.createdBy = event.userId;
-        // Note: content is NOT in events - must be loaded from filesystem separately
+        document.name = event.payload.name;
+        document.contentType = event.payload.contentType;
+        document.entityTypes = event.payload.entityTypes || [];
+        document.createdAt = event.timestamp;
+        document.creationMethod = 'api';
+        document.createdBy = event.userId;
         break;
 
       case 'document.cloned':
-        projection.name = event.payload.name;
-        projection.contentType = event.payload.contentType;
-        projection.entityTypes = event.payload.entityTypes || [];
-        projection.metadata = event.payload.metadata || {};
-        projection.createdAt = event.timestamp;
-        projection.creationMethod = 'clone';
-        projection.sourceDocumentId = event.payload.parentDocumentId;
-        projection.createdBy = event.userId;
-        // Note: content is NOT in events - must be loaded from filesystem separately
+        document.name = event.payload.name;
+        document.contentType = event.payload.contentType;
+        document.entityTypes = event.payload.entityTypes || [];
+        document.createdAt = event.timestamp;
+        document.creationMethod = 'clone';
+        document.sourceDocumentId = event.payload.parentDocumentId;
+        document.createdBy = event.userId;
         break;
 
       case 'document.archived':
-        projection.archived = true;
+        document.archived = true;
         break;
 
       case 'document.unarchived':
-        projection.archived = false;
+        document.archived = false;
         break;
 
+      case 'entitytag.added':
+        if (!document.entityTypes.includes(event.payload.entityType)) {
+          document.entityTypes.push(event.payload.entityType);
+        }
+        break;
+
+      case 'entitytag.removed':
+        document.entityTypes = document.entityTypes.filter(
+          t => t !== event.payload.entityType
+        );
+        break;
+
+      // Annotation events don't affect document metadata
       case 'highlight.added':
-        projection.highlights.push({
+      case 'highlight.removed':
+      case 'reference.created':
+      case 'reference.resolved':
+      case 'reference.deleted':
+        break;
+    }
+  }
+
+  /**
+   * Apply an event to DocumentAnnotations (annotation collections only)
+   */
+  private applyEventToAnnotations(annotations: DocumentAnnotations, event: DocumentEvent): void {
+    switch (event.type) {
+      case 'highlight.added':
+        annotations.highlights.push({
           id: event.payload.highlightId,
           documentId: event.documentId,
           exact: event.payload.exact,
@@ -381,13 +411,13 @@ export class EventStore {
         break;
 
       case 'highlight.removed':
-        projection.highlights = projection.highlights.filter(
+        annotations.highlights = annotations.highlights.filter(
           h => h.id !== event.payload.highlightId
         );
         break;
 
       case 'reference.created':
-        projection.references.push({
+        annotations.references.push({
           id: event.payload.referenceId,
           documentId: event.documentId,
           exact: event.payload.exact,
@@ -406,7 +436,7 @@ export class EventStore {
         break;
 
       case 'reference.resolved':
-        const ref = projection.references.find(r => r.id === event.payload.referenceId);
+        const ref = annotations.references.find(r => r.id === event.payload.referenceId);
         if (ref) {
           ref.referencedDocumentId = event.payload.targetDocumentId;
           if (event.payload.referenceType) {
@@ -416,21 +446,18 @@ export class EventStore {
         break;
 
       case 'reference.deleted':
-        projection.references = projection.references.filter(
+        annotations.references = annotations.references.filter(
           r => r.id !== event.payload.referenceId
         );
         break;
 
+      // Document metadata events don't affect annotations
+      case 'document.created':
+      case 'document.cloned':
+      case 'document.archived':
+      case 'document.unarchived':
       case 'entitytag.added':
-        if (!projection.entityTypes.includes(event.payload.entityType)) {
-          projection.entityTypes.push(event.payload.entityType);
-        }
-        break;
-
       case 'entitytag.removed':
-        projection.entityTypes = projection.entityTypes.filter(
-          t => t !== event.payload.entityType
-        );
         break;
     }
   }
@@ -746,8 +773,8 @@ export class EventStore {
   async validateProjection(documentId: string): Promise<{
     valid: boolean;
     errors: string[];
-    projection: DocumentProjection | null;
-    rebuilt?: DocumentProjection;
+    projection: DocumentState | null;
+    rebuilt?: DocumentState;
   }> {
     const projection = await this.projectionStorage.getProjection(documentId);
     if (!projection) {
@@ -772,39 +799,39 @@ export class EventStore {
     const errors: string[] = [];
 
     // Compare key fields
-    if (projection.version !== rebuilt.version) {
+    if (projection.annotations.version !== rebuilt.annotations.version) {
       errors.push(
-        `Version mismatch: projection=${projection.version} rebuilt=${rebuilt.version}`
+        `Version mismatch: projection=${projection.annotations.version} rebuilt=${rebuilt.annotations.version}`
       );
     }
 
-    if (projection.name !== rebuilt.name) {
+    if (projection.document.name !== rebuilt.document.name) {
       errors.push(
-        `Name mismatch: projection="${projection.name}" rebuilt="${rebuilt.name}"`
+        `Name mismatch: projection="${projection.document.name}" rebuilt="${rebuilt.document.name}"`
       );
     }
 
-    if (projection.highlights.length !== rebuilt.highlights.length) {
+    if (projection.annotations.highlights.length !== rebuilt.annotations.highlights.length) {
       errors.push(
-        `Highlight count mismatch: projection=${projection.highlights.length} rebuilt=${rebuilt.highlights.length}`
+        `Highlight count mismatch: projection=${projection.annotations.highlights.length} rebuilt=${rebuilt.annotations.highlights.length}`
       );
     }
 
-    if (projection.references.length !== rebuilt.references.length) {
+    if (projection.annotations.references.length !== rebuilt.annotations.references.length) {
       errors.push(
-        `Reference count mismatch: projection=${projection.references.length} rebuilt=${rebuilt.references.length}`
+        `Reference count mismatch: projection=${projection.annotations.references.length} rebuilt=${rebuilt.annotations.references.length}`
       );
     }
 
-    if (projection.entityTypes.length !== rebuilt.entityTypes.length) {
+    if (projection.document.entityTypes.length !== rebuilt.document.entityTypes.length) {
       errors.push(
-        `Entity type count mismatch: projection=${projection.entityTypes.length} rebuilt=${rebuilt.entityTypes.length}`
+        `Entity type count mismatch: projection=${projection.document.entityTypes.length} rebuilt=${rebuilt.document.entityTypes.length}`
       );
     }
 
-    if (projection.archived !== rebuilt.archived) {
+    if (projection.document.archived !== rebuilt.document.archived) {
       errors.push(
-        `Archived status mismatch: projection=${projection.archived} rebuilt=${rebuilt.archived}`
+        `Archived status mismatch: projection=${projection.document.archived} rebuilt=${rebuilt.document.archived}`
       );
     }
 

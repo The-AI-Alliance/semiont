@@ -1,7 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
-import { getStorageService } from '../../../storage/filesystem';
 import { detectSelectionsInDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
@@ -59,18 +58,14 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     const body = c.req.valid('json');
     const user = c.get('user');
     const graphDb = await getGraphDatabase();
-    const storage = getStorageService();
 
     const document = await graphDb.getDocument(id);
     if (!document) {
       throw new HTTPException(404, { message: 'Document not found' });
     }
 
-    const content = await storage.getDocument(id);
-    const docWithContent = { ...document, content: content.toString('utf-8') };
-
-    // Detect selections using AI
-    const detectedSelections = await detectSelectionsInDocument(docWithContent, body.entityTypes || []);
+    // Detect selections using AI (loads content from filesystem internally)
+    const detectedSelections = await detectSelectionsInDocument(id, document.contentType, body.entityTypes || []);
 
     // Save the stub references
     const savedSelections = [];

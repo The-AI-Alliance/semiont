@@ -373,7 +373,6 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
       id: document.id,
       name: document.name,
       contentType: document.contentType,
-      metadata: document.metadata,
       entityTypes: document.entityTypes,
       archived: document.archived,
       creationMethod: document.creationMethod,

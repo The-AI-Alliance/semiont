@@ -84,12 +84,23 @@ function ComposeDocumentContent() {
         data: requestData
       });
 
-      if (!response.document || !response.document.content) {
-        throw new Error('No content returned from generation service');
+      if (!response.document) {
+        throw new Error('No document returned from generation service');
       }
 
-      // Use the generated content from the backend
-      setNewDocContent(response.document.content);
+      // Fetch the generated content separately
+      const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${response.document.id}/content`, {
+        headers: {
+          'Authorization': `Bearer ${session?.backendToken}`,
+        },
+      });
+
+      if (!contentResponse.ok) {
+        throw new Error('Failed to fetch generated content');
+      }
+
+      const content = await contentResponse.text();
+      setNewDocContent(content);
       // Also update the name if the AI generated a better title
       if (response.document.name && response.document.name !== documentName) {
         setNewDocName(response.document.name);
@@ -138,11 +149,29 @@ function ComposeDocumentContent() {
       
       // Handle clone mode - data loaded via React Query
       if (mode === 'clone' && cloneData) {
-        if (cloneData.sourceDocument) {
+        if (cloneData.sourceDocument && session?.backendToken) {
           setIsClone(true);
           setCloneToken(tokenFromUrl || null);
           setNewDocName(cloneData.sourceDocument.name);
-          setNewDocContent(cloneData.sourceDocument.content || '');
+
+          // Fetch content separately
+          try {
+            const contentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${cloneData.sourceDocument.id}/content`, {
+              headers: {
+                'Authorization': `Bearer ${session.backendToken}`,
+              },
+            });
+
+            if (contentResponse.ok) {
+              const content = await contentResponse.text();
+              setNewDocContent(content);
+            } else {
+              showError('Failed to load document content');
+            }
+          } catch (error) {
+            console.error('Failed to fetch content:', error);
+            showError('Failed to load document content');
+          }
         } else {
           showError('Invalid or expired clone token');
           router.push('/know/discover');
@@ -190,7 +219,6 @@ function ComposeDocumentContent() {
           content: newDocContent,
           contentType: 'text/markdown',
           entityTypes: selectedEntityTypes,
-          metadata: {},
           creationMethod: 'ui'
         });
 

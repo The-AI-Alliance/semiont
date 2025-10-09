@@ -10,7 +10,6 @@ import { EventStore } from '../../events/event-store';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import type { DocumentProjection } from '@semiont/core-types';
 
 describe('Layered Storage', () => {
   let testDir: string;
@@ -71,24 +70,29 @@ describe('Layered Storage', () => {
   describe('Layer 3: Projection Storage', () => {
     it('should use 4-hex sharding for projections', async () => {
       const docId = 'doc-sha256:xyz789';
-      const projection: DocumentProjection = {
-        id: docId,
-        name: 'Test Doc',
-        contentType: 'text/plain',
-        metadata: {},
-        entityTypes: ['note'],
-        highlights: [],
-        references: [],
-        archived: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        version: 1,
-        contentChecksum: "test-checksum",
-        creationMethod: 'api',
-        createdBy: 'did:web:test.com:users:test',
+      const stored = {
+        document: {
+          id: docId,
+          name: 'Test Doc',
+          contentType: 'text/plain',
+          metadata: {},
+          entityTypes: ['note'],
+          archived: false,
+          createdAt: new Date().toISOString(),
+          contentChecksum: "test-checksum",
+          creationMethod: 'api' as const,
+          createdBy: 'did:web:test.com:users:test',
+        },
+        annotations: {
+          documentId: docId,
+          highlights: [],
+          references: [],
+          version: 1,
+          updatedAt: new Date().toISOString(),
+        },
       };
 
-      await projectionStorage.saveProjection(docId, projection);
+      await projectionStorage.saveProjection(docId, stored);
 
       // Verify file was created in correct shard
       const exists = await projectionStorage.projectionExists(docId);
@@ -97,42 +101,47 @@ describe('Layered Storage', () => {
 
     it('should save and retrieve projections', async () => {
       const docId = 'doc-sha256:proj1';
-      const projection: DocumentProjection = {
-        id: docId,
-        name: 'Projection Test',
-        contentType: 'text/markdown',
-        metadata: {},
-        entityTypes: ['article', 'research'],
-        highlights: [
-          {
-            id: 'hl1',
-            documentId: docId,
-            exact: 'important',
-            selector: {
-              type: 'text_span',
-              offset: 0,
-              length: 9,
+      const stored = {
+        document: {
+          id: docId,
+          name: 'Projection Test',
+          contentType: 'text/markdown',
+          metadata: {},
+          entityTypes: ['article', 'research'],
+          archived: false,
+          createdAt: '2025-01-01T00:00:00Z',
+          contentChecksum: "test-checksum",
+          creationMethod: 'api' as const,
+          createdBy: 'did:web:test.com:users:test',
+        },
+        annotations: {
+          documentId: docId,
+          highlights: [
+            {
+              id: 'hl1',
+              documentId: docId,
+              exact: 'important',
+              selector: {
+                type: 'text_span' as const,
+                offset: 0,
+                length: 9,
+              },
+              type: 'highlight' as const,
+              createdBy: 'did:web:test.com:users:test',
+              createdAt: '2025-01-01T00:00:00.000Z',
+              entityTypes: []
             },
-            type: 'highlight',
-            createdBy: 'did:web:test.com:users:test',
-            createdAt: '2025-01-01T00:00:00.000Z',
-            entityTypes: []
-          },
-        ],
-        references: [],
-        archived: false,
-        createdAt: '2025-01-01T00:00:00Z',
-        updatedAt: '2025-01-01T00:00:00Z',
-        version: 2,
-        contentChecksum: "test-checksum",
-        creationMethod: 'api',
-        createdBy: 'did:web:test.com:users:test',
+          ],
+          references: [],
+          version: 2,
+          updatedAt: '2025-01-01T00:00:00Z',
+        },
       };
 
-      await projectionStorage.saveProjection(docId, projection);
+      await projectionStorage.saveProjection(docId, stored);
       const retrieved = await projectionStorage.getProjection(docId);
 
-      expect(retrieved).toEqual(projection);
+      expect(retrieved).toEqual(stored);
     });
 
     it('should return null for non-existent projection', async () => {
@@ -142,24 +151,29 @@ describe('Layered Storage', () => {
 
     it('should delete projections', async () => {
       const docId = 'doc-sha256:delete-me';
-      const projection: DocumentProjection = {
-        id: docId,
-        name: 'To Delete',
-        contentType: 'text/plain',
-        metadata: {},
-        entityTypes: [],
-        highlights: [],
-        references: [],
-        archived: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        version: 1,
-        contentChecksum: "test-checksum",
-        creationMethod: 'api',
-        createdBy: 'did:web:test.com:users:test',
+      const stored = {
+        document: {
+          id: docId,
+          name: 'To Delete',
+          contentType: 'text/plain',
+          metadata: {},
+          entityTypes: [],
+          archived: false,
+          createdAt: new Date().toISOString(),
+          contentChecksum: "test-checksum",
+          creationMethod: 'api' as const,
+          createdBy: 'did:web:test.com:users:test',
+        },
+        annotations: {
+          documentId: docId,
+          highlights: [],
+          references: [],
+          version: 1,
+          updatedAt: new Date().toISOString(),
+        },
       };
 
-      await projectionStorage.saveProjection(docId, projection);
+      await projectionStorage.saveProjection(docId, stored);
       expect(await projectionStorage.projectionExists(docId)).toBe(true);
 
       await projectionStorage.deleteProjection(docId);
@@ -187,7 +201,7 @@ describe('Layered Storage', () => {
       // Projection should be saved to Layer 3
       const stored = await projectionStorage.getProjection(docId);
       expect(stored).toBeDefined();
-      expect(stored!.name).toBe('Integration Test');
+      expect(stored!.document.name).toBe('Integration Test');
     });
 
     it('should update projections when events appended', async () => {
@@ -207,7 +221,7 @@ describe('Layered Storage', () => {
       });
 
       const before = await projectionStorage.getProjection(docId);
-      expect(before!.highlights).toHaveLength(0);
+      expect(before!.annotations.highlights).toHaveLength(0);
 
       // Add highlight
       await eventStore.appendEvent({
@@ -224,9 +238,9 @@ describe('Layered Storage', () => {
 
       // Projection should be updated
       const after = await projectionStorage.getProjection(docId);
-      expect(after!.highlights).toHaveLength(1);
-      expect(after!.highlights[0]?.id).toBe('hl1');
-      expect(after!.version).toBe(2);
+      expect(after!.annotations.highlights).toHaveLength(1);
+      expect(after!.annotations.highlights[0]?.id).toBe('hl1');
+      expect(after!.annotations.version).toBe(2);
     });
 
     it('should load from Layer 3 when projection exists', async () => {

@@ -166,7 +166,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         name: input.name,
         entityTypes: input.entityTypes,
         contentType: input.contentType,
-        metadata: input.metadata,
         archived: false,
         createdAt: now,
         createdBy: input.createdBy,
@@ -197,7 +196,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           name: document.name,
           entityTypes: document.entityTypes,
           contentType: document.contentType,
-          metadata: JSON.stringify(document.metadata),
           archived: document.archived,
           createdAt: now,
           createdBy: document.createdBy,
@@ -946,7 +944,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.name) throw new Error(`Document ${props.id} missing required field: name`);
     if (!props.entityTypes) throw new Error(`Document ${props.id} missing required field: entityTypes`);
     if (!props.contentType) throw new Error(`Document ${props.id} missing required field: contentType`);
-    if (!props.metadata) throw new Error(`Document ${props.id} missing required field: metadata`);
     if (props.archived === undefined || props.archived === null) throw new Error(`Document ${props.id} missing required field: archived`);
     if (!props.createdAt) throw new Error(`Document ${props.id} missing required field: createdAt`);
     if (!props.createdBy) throw new Error(`Document ${props.id} missing required field: createdBy`);
@@ -958,7 +955,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       name: props.name,
       entityTypes: props.entityTypes,
       contentType: props.contentType,
-      metadata: JSON.parse(props.metadata),
       archived: props.archived,
       createdAt: props.createdAt.toString(), // ISO string from DB
       createdBy: props.createdBy,
