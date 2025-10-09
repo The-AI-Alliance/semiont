@@ -43,6 +43,8 @@ export const AuthResponseSchema = z.object({
   isNewUser: z.boolean(),
 }).openapi('AuthResponse');
 
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
 export const UserResponseSchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -56,6 +58,8 @@ export const UserResponseSchema = z.object({
   lastLogin: z.string().nullable(),
   created: z.string(),
 }).openapi('UserResponse');
+
+export type UserResponse = z.infer<typeof UserResponseSchema>;
 
 export const ErrorResponseSchema = z.object({
   error: z.string().openapi({ example: 'An error occurred' }),

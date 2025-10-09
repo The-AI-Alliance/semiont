@@ -322,6 +322,80 @@ export const AcceptTermsResponseSchema = z.object({
 export type AcceptTermsResponse = z.infer<typeof AcceptTermsResponseSchema>;
 
 /**
+ * Token Refresh Response
+ */
+export const TokenRefreshResponseSchema = z.object({
+  access_token: z.string(),
+});
+
+export type TokenRefreshResponse = z.infer<typeof TokenRefreshResponseSchema>;
+
+/**
+ * MCP Generate Response
+ */
+export const MCPGenerateResponseSchema = z.object({
+  refresh_token: z.string(),
+});
+
+export type MCPGenerateResponse = z.infer<typeof MCPGenerateResponseSchema>;
+
+/**
+ * Logout Response
+ */
+export const LogoutResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
+export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;
+
+/**
+ * Update User Response
+ */
+export const UpdateUserResponseSchema = z.object({
+  success: z.boolean(),
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string().nullable(),
+    image: z.string().nullable(),
+    domain: z.string(),
+    provider: z.string(),
+    isAdmin: z.boolean(),
+    isActive: z.boolean(),
+    lastLogin: z.string().nullable(),
+    created: z.string(),
+    updatedAt: z.string(),
+  }),
+});
+
+export type UpdateUserResponse = z.infer<typeof UpdateUserResponseSchema>;
+
+/**
+ * Delete User Response
+ */
+export const DeleteUserResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
+export type DeleteUserResponse = z.infer<typeof DeleteUserResponseSchema>;
+
+/**
+ * OAuth Config Response
+ */
+export const OAuthConfigResponseSchemaActual = z.object({
+  providers: z.array(z.object({
+    name: z.string(),
+    isConfigured: z.boolean(),
+    clientId: z.string(),
+  })),
+  allowedDomains: z.array(z.string()),
+});
+
+export type OAuthConfigResponseActual = z.infer<typeof OAuthConfigResponseSchemaActual>;
+
+/**
  * Add Entity Type Response
  */
 export const AddEntityTypeResponseSchema = z.object({

@@ -1,10 +1,18 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { 
+import {
   UserListResponseSchema,
   UserStatsResponseSchema,
   UpdateUserRequestSchema,
-  ErrorResponseSchema 
+  ErrorResponseSchema
 } from '../openapi';
+import {
+  UpdateUserResponseSchema,
+  DeleteUserResponseSchema,
+  OAuthConfigResponseSchemaActual,
+  type UpdateUserResponse,
+  type DeleteUserResponse,
+  type OAuthConfigResponseActual
+} from '@semiont/core-types';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
@@ -122,22 +130,7 @@ export const updateUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            user: z.object({
-              id: z.string(),
-              email: z.string(),
-              name: z.string().nullable(),
-              image: z.string().nullable(),
-              domain: z.string(),
-              provider: z.string(),
-              isAdmin: z.boolean(),
-              isActive: z.boolean(),
-              lastLogin: z.string().nullable(),
-              created: z.string(),
-              updatedAt: z.string(),
-            }),
-          }),
+          schema: UpdateUserResponseSchema,
         },
       },
       description: 'User updated successfully',
@@ -189,14 +182,7 @@ export const oauthConfigRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            providers: z.array(z.object({
-              name: z.string(),
-              isConfigured: z.boolean(),
-              clientId: z.string(),
-            })),
-            allowedDomains: z.array(z.string()),
-          }),
+          schema: OAuthConfigResponseSchemaActual,
         },
       },
       description: 'OAuth configuration',
@@ -243,10 +229,7 @@ export const deleteUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            message: z.string(),
-          }),
+          schema: DeleteUserResponseSchema,
         },
       },
       description: 'User deleted successfully',
@@ -398,8 +381,8 @@ adminRouter.openapi(updateUserRoute, async (c) => {
       ...(body.name !== undefined && { name: body.name }),
     },
   });
-  
-  return c.json({
+
+  const response: UpdateUserResponse = {
     success: true,
     user: {
       id: updatedUser.id,
@@ -414,7 +397,9 @@ adminRouter.openapi(updateUserRoute, async (c) => {
       created: updatedUser.createdAt.toISOString(),
       updatedAt: updatedUser.updatedAt.toISOString(),
     },
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });
 
 // Delete user
@@ -441,11 +426,13 @@ adminRouter.openapi(deleteUserRoute, async (c) => {
   await prisma.user.delete({
     where: { id },
   });
-  
-  return c.json({
+
+  const response: DeleteUserResponse = {
     success: true,
     message: `User ${existingUser.email} deleted successfully`,
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });
 
 // OAuth configuration
@@ -466,9 +453,11 @@ adminRouter.openapi(oauthConfigRoute, async (c) => {
       clientId: process.env.GOOGLE_CLIENT_ID.substring(0, 20) + '...'
     });
   }
-  
-  return c.json({
+
+  const response: OAuthConfigResponseActual = {
     providers,
     allowedDomains
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });
