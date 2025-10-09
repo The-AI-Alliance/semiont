@@ -78,6 +78,7 @@ export {
 export {
   AnnotationSchema,
   MotivationSchema,
+  AgentSchema,
   TextPositionSelectorSchema,
   TextQuoteSelectorSchema,
   SelectorSchema,
@@ -89,6 +90,7 @@ export type {
   AnnotationUpdate,
   AnnotationCategory,
   Motivation,
+  Agent,
   TextPositionSelector,
   TextQuoteSelector,
   Selector,

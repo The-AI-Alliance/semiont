@@ -59,6 +59,24 @@ export const MotivationSchema = z.enum([
 export type Motivation = z.infer<typeof MotivationSchema>;
 
 /**
+ * W3C Web Annotation Agent Schema
+ *
+ * Represents an agent (person, software, or organization) that participates in annotation activities.
+ * See https://www.w3.org/TR/annotation-model/#agents-and-attribution
+ */
+export const AgentSchema = z.object({
+  id: z.string(),                                      // IRI identifying the agent
+  type: z.enum(['Person', 'Organization', 'Software']), // Type of agent
+  name: z.string(),                                    // Name of the agent
+  nickname: z.string().optional(),                     // Optional nickname
+  email: z.string().optional(),                        // Email (mailto: IRI)
+  email_sha1: z.string().optional(),                   // SHA1 hash of email
+  homepage: z.string().optional(),                     // Homepage URL
+});
+
+export type Agent = z.infer<typeof AgentSchema>;
+
+/**
  * Annotation Schema
  *
  * Represents an annotation on a document, following W3C Web Annotation Data Model principles.
@@ -76,7 +94,7 @@ export type Motivation = z.infer<typeof MotivationSchema>;
  *   - language: ISO language code of the body value (e.g., 'en', 'fr')
  *   - source: Target document ID (for SpecificResource)
  *   - entityTypes: Classification tags (e.g., ["Person", "Scientist"])
- * - creator: User who created the annotation
+ * - creator: Agent who created the annotation (string ID or rich Agent object)
  * - created: ISO 8601 timestamp
  * - resolvedBy: User who resolved a reference (optional)
  * - resolvedAt: When reference was resolved (optional)
@@ -88,6 +106,7 @@ export type Motivation = z.infer<typeof MotivationSchema>;
  * - Allows selector arrays for redundant identification ✓
  * - Uses full W3C 'motivation' vocabulary ✓
  * - Uses 'creator' and 'created' field names ✓
+ * - Supports W3C Agent objects for creator (Person, Organization, Software) ✓
  * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
  * - Uses 'body.format' for MIME type metadata ✓
  * - Uses 'body.language' for language metadata ✓
@@ -98,7 +117,7 @@ export type Motivation = z.infer<typeof MotivationSchema>;
  * - Single target only (no multi-target arrays) - our architecture is document-centric
  * - Single body only (no multi-body arrays) - application-specific body structure
  * - Application-specific 'entityTypes' field for classification tags
- * - Simple creator (string) instead of rich Agent object
+ * - Creator accepts simple string for backward compatibility (but also supports rich Agent)
  */
 export const AnnotationSchema = z.object({
   id: z.string(),
@@ -118,7 +137,7 @@ export const AnnotationSchema = z.object({
     source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
   }),
-  creator: z.string(),
+  creator: z.union([z.string(), AgentSchema]),  // Simple string ID or rich Agent object
   created: z.string(),
   resolvedBy: z.string().optional(),
   resolvedAt: z.string().optional(),
