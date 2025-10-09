@@ -97,7 +97,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       name: this.getPropertyValue(props, 'name'),
       entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
-      contentType: this.getPropertyValue(props, 'contentType'),
+      format: this.getPropertyValue(props, 'contentType'),
       archived: this.getPropertyValue(props, 'archived') === 'true',
       creator,
       created: this.getPropertyValue(props, 'created'), // ISO string from DB
@@ -161,7 +161,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
+      format: input.format,
       archived: false,
       created: now,
       creator: input.creator,
@@ -177,7 +177,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .property('id', id)
       .property('name', input.name)
       .property('entityTypes', JSON.stringify(input.entityTypes))
-      .property('contentType', input.contentType)
+      .property('contentType', input.format)
       .property('archived', false)
       .property('created', now)
       .property('creator', input.creator)
@@ -579,7 +579,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       for (const type of doc.entityTypes) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
+      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
     }
 
     // Get all annotations

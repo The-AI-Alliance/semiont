@@ -33,7 +33,7 @@ const CreateDocumentFromSelectionRequest = z.object({
   name: z.string().min(1).max(255),
   entityTypes: z.array(z.string()).optional(),
   content: z.string().optional(),
-  contentType: z.string().default('text/plain'),
+  format: z.string().default('text/plain'),
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
@@ -97,7 +97,7 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
     documentId,
     userId: user.id,
     name: body.name,
-    contentType: body.contentType,
+    format: body.format,
     contentHash: checksum,
     entityTypes: body.entityTypes || [],
     metadata: body.metadata || {},
@@ -128,7 +128,7 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
   const documentMetadata: Document = {
     id: documentId,
     name: body.name,
-    contentType: body.contentType,
+    format: body.format,
     entityTypes: body.entityTypes || [],
     creationMethod: CREATION_METHODS.API,
     contentChecksum: checksum,
@@ -222,7 +222,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
     documentId,
     userId: user.id,
     name: documentName,
-    contentType: 'text/markdown',
+    format: 'text/markdown',
     contentHash: checksum,
     entityTypes: body.entityTypes || annotation.body.entityTypes || [],
     metadata: {
@@ -256,7 +256,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
   const documentMetadata: Document = {
     id: documentId,
     name: documentName,
-    contentType: 'text/markdown',
+    format: 'text/markdown',
     entityTypes: body.entityTypes || annotation.body.entityTypes || [],
     sourceAnnotationId: id,
     creationMethod: CREATION_METHODS.GENERATED,
@@ -362,7 +362,7 @@ operationsRouter.openapi(getSelectionContextRoute, async (c) => {
     document: {
       id: document.id,
       name: document.name,
-      contentType: document.contentType,
+      format: document.format,
       entityTypes: document.entityTypes,
       archived: document.archived,
       creationMethod: document.creationMethod,

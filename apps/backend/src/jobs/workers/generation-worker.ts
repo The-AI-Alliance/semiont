@@ -111,7 +111,7 @@ export class GenerationWorker extends JobWorker {
       documentId,
       userId: job.userId,
       name: documentName,
-      contentType: 'text/markdown',
+      format: 'text/markdown',
       contentHash: checksum,
       entityTypes: job.entityTypes || reference.body.entityTypes || [],
       metadata: {

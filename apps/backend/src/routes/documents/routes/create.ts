@@ -67,7 +67,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       documentId,
       userId: user.id,
       name: body.name,
-      contentType: body.contentType || 'text/plain',
+      format: body.format || 'text/plain',
       contentHash: checksum,
       entityTypes: body.entityTypes || [],
     });
@@ -77,7 +77,7 @@ export function registerCreateDocument(router: DocumentsRouterType) {
       id: documentId,
       name: body.name,
       archived: false,
-      contentType: body.contentType || 'text/plain',
+      format: body.format || 'text/plain',
       entityTypes: body.entityTypes || [],
       creationMethod,
       contentChecksum: checksum,

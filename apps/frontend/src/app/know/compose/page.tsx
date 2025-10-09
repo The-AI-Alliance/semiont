@@ -217,7 +217,7 @@ function ComposeDocumentContent() {
         const response = await createDocMutation.mutateAsync({
           name: newDocName,
           content: newDocContent,
-          contentType: 'text/markdown',
+          format: 'text/markdown',
           entityTypes: selectedEntityTypes,
           creationMethod: 'ui'
         });

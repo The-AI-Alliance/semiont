@@ -54,7 +54,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
+      format: input.format,
       archived: false,  // New documents are not archived by default
       creationMethod: input.creationMethod,
       contentChecksum: input.contentChecksum,
@@ -416,7 +416,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       for (const type of doc.entityTypes) {
         entityTypes[type] = (entityTypes[type] || 0) + 1;
       }
-      contentTypes[doc.contentType] = (contentTypes[doc.contentType] || 0) + 1;
+      contentTypes[doc.format] = (contentTypes[doc.format] || 0) + 1;
     }
     
     const annotations = Array.from(this.annotations.values());

@@ -15,7 +15,7 @@ export async function emitDocumentCreated(params: {
   documentId: string;
   userId: string;
   name: string;
-  contentType: string;
+  format: string;
   contentHash: string;
   entityTypes?: string[];
   metadata?: Record<string, any>;
@@ -31,7 +31,7 @@ export async function emitDocumentCreated(params: {
     version: 1,
     payload: {
       name: params.name,
-      contentType: params.contentType,
+      format: params.format,
       contentHash: params.contentHash,
       entityTypes: params.entityTypes,
       metadata: params.metadata,
@@ -50,7 +50,7 @@ export async function emitDocumentCloned(params: {
   documentId: string;
   userId: string;
   name: string;
-  contentType: string;
+  format: string;
   contentHash: string;
   parentDocumentId: string;
   entityTypes?: string[];
@@ -65,7 +65,7 @@ export async function emitDocumentCloned(params: {
     version: 1,
     payload: {
       name: params.name,
-      contentType: params.contentType,
+      format: params.format,
       contentHash: params.contentHash,
       parentDocumentId: params.parentDocumentId,
       entityTypes: params.entityTypes,

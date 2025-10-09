@@ -74,6 +74,14 @@ export {
   EventQuerySchema,
 } from './event-schemas';
 
+// Document schema (SINGLE SOURCE OF TRUTH)
+export {
+  DocumentSchema,
+} from './document';
+export type {
+  Document,
+} from './document';
+
 // Annotation schema (SINGLE SOURCE OF TRUTH)
 export {
   AnnotationSchema,
@@ -118,7 +126,6 @@ export {
   GetHighlightsResponseSchema,
   GetReferencesResponseSchema,
   GetAnnotationsResponseSchema,
-  DocumentSchema,
   CreateDocumentRequestSchema,
   CreateDocumentResponseSchema,
   UpdateDocumentRequestSchema,
@@ -164,7 +171,6 @@ export type {
   GetHighlightsResponse,
   GetReferencesResponse,
   GetAnnotationsResponse,
-  Document,
   CreateDocumentRequest,
   CreateDocumentResponse,
   UpdateDocumentRequest,

@@ -67,7 +67,7 @@ export class DetectionWorker extends JobWorker {
       // Detect entities using AI (loads content from filesystem internally)
       const detectedAnnotations = await detectAnnotationsInDocument(
         job.documentId,
-        document.contentType,
+        document.format,
         [entityType]
       );
 

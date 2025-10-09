@@ -74,7 +74,7 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'Test Doc',
-          contentType: 'text/plain',
+          format: 'text/plain',
           metadata: {},
           entityTypes: ['note'],
           archived: false,
@@ -105,7 +105,7 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'Projection Test',
-          contentType: 'text/markdown',
+          format: 'text/markdown',
           metadata: {},
           entityTypes: ['article', 'research'],
           archived: false,
@@ -160,7 +160,7 @@ describe('Layered Storage', () => {
         document: {
           id: docId,
           name: 'To Delete',
-          contentType: 'text/plain',
+          format: 'text/plain',
           metadata: {},
           entityTypes: [],
           archived: false,
@@ -198,7 +198,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Integration Test',
-          contentType: 'text/plain',
+          format: 'text/plain',
           contentHash: 'hash1',
         },
       });
@@ -220,7 +220,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Update Test',
-          contentType: 'text/plain',
+          format: 'text/plain',
           contentHash: 'hash2',
         },
       });
@@ -259,7 +259,7 @@ describe('Layered Storage', () => {
         version: 1,
         payload: {
           name: 'Load Test',
-          contentType: 'text/plain',
+          format: 'text/plain',
           contentHash: 'hash3',
         },
       });

@@ -9,8 +9,8 @@
  */
 
 import { z } from 'zod';
-import { CREATION_METHODS } from './creation-methods';
 import { AnnotationSchema } from './annotation-schema';
+import { DocumentSchema } from './document';
 
 /**
  * Selector Types (imported from annotation-schema for consistency)
@@ -121,42 +121,12 @@ export const GetAnnotationsResponseSchema = z.object({
 export type GetAnnotationsResponse = z.infer<typeof GetAnnotationsResponseSchema>;
 
 /**
- * Document Schema
- *
- * Core document model used across the application.
- * - contentChecksum: Required, used by backend for content-addressing and graph storage
- * - content: REMOVED - All content access must go through filesystem service via storage.getDocument(id)
- */
-export const DocumentSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  contentType: z.string(),
-  archived: z.boolean(),
-  entityTypes: z.array(z.string()),
-  creationMethod: z.enum([
-    CREATION_METHODS.API,
-    CREATION_METHODS.UPLOAD,
-    CREATION_METHODS.UI,
-    CREATION_METHODS.REFERENCE,
-    CREATION_METHODS.CLONE,
-    CREATION_METHODS.GENERATED,
-  ] as const),
-  sourceAnnotationId: z.string().optional(),
-  sourceDocumentId: z.string().optional(),
-  creator: z.string(),
-  created: z.string(),
-  contentChecksum: z.string(),
-});
-
-export type Document = z.infer<typeof DocumentSchema>;
-
-/**
  * Create Document Request
  */
 export const CreateDocumentRequestSchema = z.object({
   name: z.string().min(1).max(500),
   content: z.string(),
-  contentType: z.string().optional().default('text/plain'),
+  format: z.string().optional().default('text/plain'), // MIME type
   entityTypes: z.array(z.string()).optional().default([]),
   creationMethod: z.string().optional(),
   sourceAnnotationId: z.string().optional(),

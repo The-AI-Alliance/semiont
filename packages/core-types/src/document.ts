@@ -1,10 +1,11 @@
 /**
  * Document types - Input/filter types for document operations
  *
- * NOTE: The Document type itself is in api-contracts.ts (single source of truth)
  */
 
+import { z } from 'zod';
 import { CreationMethod } from './creation-methods';
+import { CREATION_METHODS } from './creation-methods';
 
 /**
  * Input for creating a new document
@@ -13,7 +14,7 @@ export interface CreateDocumentInput {
   name: string;
   entityTypes: string[];
   content: string;
-  contentType: string;
+  format: string;  // MIME type (e.g., 'text/plain', 'text/markdown')
   contentChecksum: string;  // SHA-256 hash calculated by backend
   creator: string;  // Set by backend from auth context (REQUIRED)
 
@@ -42,3 +43,34 @@ export interface DocumentFilter {
   limit?: number;
   offset?: number;
 }
+
+/**
+ * Document Schema
+ *
+ * Core document model used across the application.
+ * - contentChecksum: Required, used by backend for content-addressing and graph storage
+ * - content: REMOVED - All content access must go through filesystem service via storage.getDocument(id)
+ * - format: MIME type of the document content (e.g., 'text/plain', 'text/markdown') - aligned with W3C Web Annotation Data Model
+ */
+export const DocumentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  format: z.string(), // MIME type (e.g., 'text/plain', 'text/markdown', 'application/pdf')
+  archived: z.boolean(),
+  entityTypes: z.array(z.string()),
+  creationMethod: z.enum([
+    CREATION_METHODS.API,
+    CREATION_METHODS.UPLOAD,
+    CREATION_METHODS.UI,
+    CREATION_METHODS.REFERENCE,
+    CREATION_METHODS.CLONE,
+    CREATION_METHODS.GENERATED,
+  ] as const),
+  sourceAnnotationId: z.string().optional(),
+  sourceDocumentId: z.string().optional(),
+  creator: z.string(),
+  created: z.string(),
+  contentChecksum: z.string(),
+});
+
+export type Document = z.infer<typeof DocumentSchema>;

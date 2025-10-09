@@ -67,7 +67,7 @@ function vertexToDocument(vertex: any): Document {
   const id = getValue('id', true);
   const name = getValue('name', true);
   const entityTypesRaw = getValue('entityTypes', true);
-  const contentType = getValue('contentType', true);
+  const format = getValue('format', true);
   const archived = getValue('archived', true);
   const createdRaw = getValue('created', true);
 
@@ -75,7 +75,7 @@ function vertexToDocument(vertex: any): Document {
     id,
     name,
     entityTypes: JSON.parse(entityTypesRaw),
-    contentType,
+    format,
     archived: archived === 'true' || archived === true,
     created: createdRaw, // ISO string from DB
     creator: getValue('creator', true),
@@ -300,7 +300,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       id,
       name: input.name,
       entityTypes: input.entityTypes,
-      contentType: input.contentType,
+      format: input.format,
       archived: false,
       created: now,
       creator: input.creator,
@@ -315,7 +315,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const vertex = this.g.addV('Document')
         .property('id', document.id)
         .property('name', document.name)
-        .property('contentType', document.contentType)
+        .property('contentType', document.format)
         .property('archived', document.archived)
         .property('created', document.created)
         .property('creator', document.creator)

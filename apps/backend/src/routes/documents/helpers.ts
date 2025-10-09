@@ -33,7 +33,7 @@ export interface DetectedAnnotation {
 // Implementation for detecting entity references in document using AI
 export async function detectAnnotationsInDocument(
   documentId: string,
-  contentType: string,
+  format: string,
   entityTypes: string[]
 ): Promise<DetectedAnnotation[]> {
   console.log(`Detecting entities of types: ${entityTypes.join(', ')}`);
@@ -41,7 +41,7 @@ export async function detectAnnotationsInDocument(
   const detectedAnnotations: DetectedAnnotation[] = [];
 
   // Only process text content
-  if (contentType === 'text/plain' || contentType === 'text/markdown') {
+  if (format === 'text/plain' || format === 'text/markdown') {
     // Load content from filesystem
     const storage = getStorageService();
     const contentBuffer = await storage.getDocument(documentId);

@@ -5,7 +5,7 @@ export function formatDocument(doc: Document): any {
   return {
     id: doc.id,
     name: doc.name,
-    contentType: doc.contentType,
+    format: doc.format,
     archived: doc.archived || false,
     entityTypes: doc.entityTypes || [],
     creator: doc.creator,

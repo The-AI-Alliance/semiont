@@ -238,7 +238,7 @@ function DocumentView({
           const newDoc = await createDocMutation.mutateAsync({
             name: pageName,
             content: `# ${pageName}\n\nThis page was created from a wiki link.`,
-            contentType: 'text/markdown',
+            format: 'text/markdown',
             entityTypes: []
           });
           router.push(`/know/document/${encodeURIComponent(newDoc.document.id)}`);

@@ -167,7 +167,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         id,
         name: input.name,
         entityTypes: input.entityTypes,
-        contentType: input.contentType,
+        format: input.format,
         archived: false,
         created: now,
         creator: input.creator,
@@ -183,7 +183,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           id: $id,
           name: $name,
           entityTypes: $entityTypes,
-          contentType: $contentType,
+          format: $contentType,
           metadata: $metadata,
           archived: $archived,
           created: datetime($created),
@@ -197,7 +197,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           id,
           name: document.name,
           entityTypes: document.entityTypes,
-          contentType: document.contentType,
+          format: document.format,
           archived: document.archived,
           created: now,
           creator: document.creator,
@@ -793,7 +793,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Get content type stats
       const contentTypeResult = await session.run(
         `MATCH (d:Document)
-         RETURN d.contentType as type, count(*) AS count`
+         RETURN d.format as type, count(*) AS count`
       );
 
       const contentTypes: Record<string, number> = {};
@@ -957,7 +957,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     if (!props.id) throw new Error('Document missing required field: id');
     if (!props.name) throw new Error(`Document ${props.id} missing required field: name`);
     if (!props.entityTypes) throw new Error(`Document ${props.id} missing required field: entityTypes`);
-    if (!props.contentType) throw new Error(`Document ${props.id} missing required field: contentType`);
+    if (!props.format) throw new Error(`Document ${props.id} missing required field: contentType`);
     if (props.archived === undefined || props.archived === null) throw new Error(`Document ${props.id} missing required field: archived`);
     if (!props.created) throw new Error(`Document ${props.id} missing required field: created`);
     if (!props.creator) throw new Error(`Document ${props.id} missing required field: creator`);
@@ -968,7 +968,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       id: props.id,
       name: props.name,
       entityTypes: props.entityTypes,
-      contentType: props.contentType,
+      format: props.format,
       archived: props.archived,
       created: props.created.toString(), // ISO string from DB
       creator: props.creator,

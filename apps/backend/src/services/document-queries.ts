@@ -14,7 +14,7 @@ import type { DocumentState } from '../storage/projection-storage';
 export interface DocumentMetadata {
   id: string;
   name: string;
-  contentType: string;
+  format: string;
   contentChecksum: string;
   entityTypes: string[];
   archived: boolean;
@@ -51,7 +51,7 @@ export class DocumentQueryService {
       return {
         id: doc.id,
         name: doc.name,
-        contentType: doc.contentType,
+        format: doc.format,
         contentChecksum: doc.contentChecksum,
         entityTypes: doc.entityTypes,
         archived: doc.archived,
@@ -121,7 +121,7 @@ export class DocumentQueryService {
             documents.push({
               id: doc.id,
               name: doc.name,
-              contentType: doc.contentType,
+              format: doc.format,
               contentChecksum: doc.contentChecksum,
               entityTypes: doc.entityTypes,
               archived: doc.archived,

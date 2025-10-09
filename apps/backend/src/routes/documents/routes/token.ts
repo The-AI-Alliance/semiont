@@ -161,7 +161,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       id: Math.random().toString(36).substring(2, 11),
       name: body.name,
       archived: false,
-      contentType: sourceDoc.contentType,
+      format: sourceDoc.format,
       entityTypes: sourceDoc.entityTypes || [],
 
       // Clone context
@@ -180,7 +180,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
       name: document.name,
       entityTypes: document.entityTypes,
       content: body.content,
-      contentType: document.contentType,
+      format: document.format,
       contentChecksum: document.contentChecksum!,
       creator: document.creator!,
       creationMethod: document.creationMethod,

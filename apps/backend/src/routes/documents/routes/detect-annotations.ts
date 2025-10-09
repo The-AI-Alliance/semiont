@@ -54,7 +54,7 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
     }
 
     // Detect annotations using AI (loads content from filesystem internally)
-    const detectedAnnotations = await detectAnnotationsInDocument(id, document.contentType, body.entityTypes || []);
+    const detectedAnnotations = await detectAnnotationsInDocument(id, document.format, body.entityTypes || []);
 
     // Save the stub references
     const savedSelections = [];

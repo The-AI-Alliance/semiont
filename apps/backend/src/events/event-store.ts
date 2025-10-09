@@ -303,7 +303,7 @@ export class EventStore {
     const document: Document = {
       id: documentId,
       name: '',
-      contentType: 'text/markdown',
+      format: 'text/markdown',
       contentChecksum: documentId.replace('doc-sha256:', ''),
       entityTypes: [],
       archived: false,
@@ -341,7 +341,7 @@ export class EventStore {
     switch (event.type) {
       case 'document.created':
         document.name = event.payload.name;
-        document.contentType = event.payload.contentType;
+        document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
         document.created = event.timestamp;
         document.creationMethod = 'api';
@@ -350,7 +350,7 @@ export class EventStore {
 
       case 'document.cloned':
         document.name = event.payload.name;
-        document.contentType = event.payload.contentType;
+        document.format = event.payload.format;
         document.entityTypes = event.payload.entityTypes || [];
         document.created = event.timestamp;
         document.creationMethod = 'clone';

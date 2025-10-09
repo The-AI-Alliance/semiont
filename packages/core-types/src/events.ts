@@ -26,7 +26,7 @@ export interface DocumentCreatedEvent extends BaseEvent {
   type: 'document.created';
   payload: {
     name: string;
-    contentType: string;
+    format: string;              // MIME type
     contentHash: string;        // SHA-256 of content (should match documentId)
     entityTypes?: string[];
     metadata?: Record<string, any>;
@@ -37,7 +37,7 @@ export interface DocumentClonedEvent extends BaseEvent {
   type: 'document.cloned';
   payload: {
     name: string;
-    contentType: string;
+    format: string;              // MIME type
     contentHash: string;        // SHA-256 of new content
     parentDocumentId: string;   // Content hash of parent document
     entityTypes?: string[];
