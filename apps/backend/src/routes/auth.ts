@@ -1,13 +1,8 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import {
-  GoogleAuthRequestSchema,
-  AuthResponseSchema,
-  UserResponseSchema,
-  ErrorResponseSchema,
-  type AuthResponse,
-  type UserResponse
-} from '../openapi';
-import {
+  GoogleAuthRequestSchema as BaseGoogleAuthRequestSchema,
+  AuthResponseSchema as BaseAuthResponseSchema,
+  UserResponseSchema as BaseUserResponseSchema,
   AcceptTermsResponseSchema,
   TokenRefreshResponseSchema,
   MCPGenerateResponseSchema,
@@ -16,12 +11,27 @@ import {
   type MCPGenerateResponse,
   type LogoutResponse
 } from '@semiont/core-types';
+import { ErrorResponseSchema } from '../openapi';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
+
+// OpenAPI-wrapped schemas for this route
+export const GoogleAuthRequestSchema = BaseGoogleAuthRequestSchema.extend({
+  access_token: z.string().openapi({
+    example: 'ya29.a0AfH6SMBx...',
+    description: 'Google OAuth access token'
+  }),
+}).openapi('GoogleAuthRequest');
+
+export const AuthResponseSchema = BaseAuthResponseSchema.openapi('AuthResponse');
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
+export const UserResponseSchema = BaseUserResponseSchema.openapi('UserResponse');
+export type UserResponse = z.infer<typeof UserResponseSchema>;
 
 // Token refresh request schema
 const TokenRefreshRequestSchema = z.object({

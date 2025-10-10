@@ -255,17 +255,6 @@ export const AdminUserStatsResponseSchema = z.object({
 export type AdminUserStatsResponse = z.infer<typeof AdminUserStatsResponseSchema>;
 
 /**
- * Update User Request
- */
-export const UpdateUserRequestSchema = z.object({
-  isAdmin: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-  name: z.string().optional(),
-});
-
-export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
-
-/**
  * OAuth Provider Schema
  */
 export const OAuthProviderSchema = z.object({

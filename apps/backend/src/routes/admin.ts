@@ -1,11 +1,8 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import {
-  UserListResponseSchema,
-  UserStatsResponseSchema,
-  UpdateUserRequestSchema,
-  ErrorResponseSchema
-} from '../openapi';
-import {
+  UserListResponseSchema as BaseUserListResponseSchema,
+  UserStatsResponseSchema as BaseUserStatsResponseSchema,
+  UpdateUserRequestSchema as BaseUpdateUserRequestSchema,
   UpdateUserResponseSchema,
   DeleteUserResponseSchema,
   OAuthConfigResponseSchemaActual,
@@ -13,18 +10,24 @@ import {
   type DeleteUserResponse,
   type OAuthConfigResponseActual
 } from '@semiont/core-types';
+import { ErrorResponseSchema } from '../openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 
+// OpenAPI-wrapped schemas for this route
+export const UserListResponseSchema = BaseUserListResponseSchema.openapi('UserListResponse');
+export const UserStatsResponseSchema = BaseUserStatsResponseSchema.openapi('UserStatsResponse');
+export const UpdateUserRequestSchema = BaseUpdateUserRequestSchema.openapi('UpdateUserRequest');
+
 // Admin middleware to check admin privileges
 const adminMiddleware = async (c: any, next: any) => {
   const user = c.get('user');
-  
+
   if (!user || !user.isAdmin) {
     return c.json({ error: 'Forbidden: Admin access required' }, 403);
   }
-  
+
   return next();
 };
 

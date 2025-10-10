@@ -120,6 +120,42 @@ export {
   getTextQuoteSelector,
 } from './selector-utils';
 
+// Status schemas and types
+export {
+  StatusResponseSchema,
+  HealthResponseSchema,
+  ErrorResponseSchema,
+} from './status-schemas';
+export type {
+  StatusResponse,
+  HealthResponse,
+  ErrorResponse,
+} from './status-schemas';
+
+// Auth schemas and types
+export {
+  GoogleAuthRequestSchema,
+} from './auth-schemas';
+export type {
+  GoogleAuthRequest,
+} from './auth-schemas';
+
+// User schemas and types
+export {
+  AuthResponseSchema,
+  UserResponseSchema,
+  UserListResponseSchema,
+  UserStatsResponseSchema,
+  UpdateUserRequestSchema,
+} from './user-schemas';
+export type {
+  AuthResponse,
+  UserResponse,
+  UserListResponse,
+  UserStatsResponse,
+  UpdateUserRequest,
+} from './user-schemas';
+
 // API Contract schemas and types
 export {
   CreateAnnotationRequestSchema,
@@ -138,7 +174,6 @@ export {
   AdminUserSchema,
   AdminUsersResponseSchema,
   AdminUserStatsResponseSchema,
-  UpdateUserRequestSchema,
   OAuthProviderSchema,
   OAuthConfigResponseSchema,
   ReferencedBySchema,
@@ -189,7 +224,6 @@ export type {
   AdminUser,
   AdminUsersResponse,
   AdminUserStatsResponse,
-  UpdateUserRequest,
   OAuthProvider,
   OAuthConfigResponse,
   ReferencedBy,
