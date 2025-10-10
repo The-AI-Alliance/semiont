@@ -35,7 +35,7 @@ export class GenerationWorker extends JobWorker {
   }
 
   private async processGenerationJob(job: GenerationJob): Promise<void> {
-    console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId}`);
+    console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
 
     const storage = getStorageService();
 
@@ -45,6 +45,7 @@ export class GenerationWorker extends JobWorker {
       percentage: 20,
       message: 'Fetching source document...'
     };
+    console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
     // Fetch reference from Layer 3
@@ -75,6 +76,7 @@ export class GenerationWorker extends JobWorker {
       percentage: 40,
       message: 'Creating content with AI...'
     };
+    console.log(`[GenerationWorker] 🤖 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
     // Generate content using AI
@@ -85,7 +87,7 @@ export class GenerationWorker extends JobWorker {
       prompt
     );
 
-    console.log(`[GenerationWorker] Generated ${generatedContent.content.length} bytes of content`);
+    console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
 
     // Update progress: creating
     job.progress = {
@@ -105,11 +107,12 @@ export class GenerationWorker extends JobWorker {
       percentage: 85,
       message: 'Saving document...'
     };
+    console.log(`[GenerationWorker] 💾 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
     // Save content to Layer 1 (filesystem)
     await storage.saveDocument(documentId, Buffer.from(generatedContent.content));
-    console.log(`[GenerationWorker] Saved document to filesystem: ${documentId}`);
+    console.log(`[GenerationWorker] ✅ Saved document to filesystem: ${documentId}`);
 
     // Emit document.created event
     await emitDocumentCreated({
@@ -132,6 +135,7 @@ export class GenerationWorker extends JobWorker {
       percentage: 95,
       message: 'Linking reference...'
     };
+    console.log(`[GenerationWorker] 🔗 ${job.progress.message}`);
     await this.updateJobProgress(job);
 
     // Emit reference.resolved event to link the reference to the new document
@@ -141,7 +145,7 @@ export class GenerationWorker extends JobWorker {
       userId: job.userId,
       targetDocumentId: documentId,
     });
-    console.log(`[GenerationWorker] Emitted reference.resolved event linking ${job.referenceId} → ${documentId}`);
+    console.log(`[GenerationWorker] ✅ Emitted reference.resolved event linking ${job.referenceId} → ${documentId}`);
 
     // Set final result
     job.result = {

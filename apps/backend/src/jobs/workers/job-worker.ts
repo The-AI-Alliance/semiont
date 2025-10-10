@@ -97,7 +97,7 @@ export abstract class JobWorker {
       job.startedAt = new Date().toISOString();
       await jobQueue.updateJob(job, oldStatus);
 
-      console.log(`[${this.getWorkerName()}] Processing job ${job.id} (type: ${job.type})`);
+      console.log(`[${this.getWorkerName()}] 🔄 Processing job ${job.id} (type: ${job.type})`);
 
       // Execute job-specific logic
       await this.executeJob(job);

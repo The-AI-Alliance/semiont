@@ -32,8 +32,8 @@ export class DetectionWorker extends JobWorker {
   }
 
   private async processDetectionJob(job: DetectionJob): Promise<void> {
-    console.log(`[DetectionWorker] Processing detection for document ${job.documentId}`);
-    console.log(`[DetectionWorker] Entity types: ${job.entityTypes.join(', ')}`);
+    console.log(`[DetectionWorker] Processing detection for document ${job.documentId} (job: ${job.id})`);
+    console.log(`[DetectionWorker] 🔍 Entity types: ${job.entityTypes.join(', ')}`);
 
     // Fetch document content
     const document = await DocumentQueryService.getDocumentMetadata(job.documentId);
@@ -52,7 +52,7 @@ export class DetectionWorker extends JobWorker {
 
       if (!entityType) continue;
 
-      console.log(`[DetectionWorker] [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
+      console.log(`[DetectionWorker] 🤖 [${i + 1}/${job.entityTypes.length}] Detecting ${entityType}...`);
 
       // Update progress
       job.progress = {
@@ -72,7 +72,7 @@ export class DetectionWorker extends JobWorker {
       );
 
       totalFound += detectedAnnotations.length;
-      console.log(`[DetectionWorker] Found ${detectedAnnotations.length} ${entityType} entities`);
+      console.log(`[DetectionWorker] ✅ Found ${detectedAnnotations.length} ${entityType} entities`);
 
       // Emit events for each detected entity
       // This happens INDEPENDENT of any HTTP client!
@@ -113,12 +113,12 @@ export class DetectionWorker extends JobWorker {
           totalEmitted++;
 
           if ((idx + 1) % 10 === 0 || idx === detectedAnnotations.length - 1) {
-            console.log(`[DetectionWorker] Emitted ${idx + 1}/${detectedAnnotations.length} events for ${entityType}`);
+            console.log(`[DetectionWorker] 📤 Emitted ${idx + 1}/${detectedAnnotations.length} events for ${entityType}`);
           }
 
         } catch (error) {
           totalErrors++;
-          console.error(`[DetectionWorker] Failed to emit event for ${referenceId}:`, error);
+          console.error(`[DetectionWorker] ❌ Failed to emit event for ${referenceId}:`, error);
           // Continue processing other entities even if one fails
         }
       }
