@@ -20,7 +20,7 @@ export const openApiConfig = {
   },
   servers: [
     {
-      url: process.env.API_URL || 'http://localhost:4000',
+      url: process.env.BACKEND_URL || 'http://localhost:4000',
       description: 'API Server'
     }
   ]

@@ -57,7 +57,13 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
   const user = c.get('user');
 
   // Generate ID - backend-internal, not graph-dependent
-  const annotationId = generateAnnotationId();
+  let annotationId: string;
+  try {
+    annotationId = generateAnnotationId();
+  } catch (error) {
+    console.error('Failed to generate annotation ID:', error);
+    throw new HTTPException(500, { message: 'Failed to create annotation' });
+  }
   const isReference = body.body.type === 'SpecificResource';
 
   // Extract TextPositionSelector for event (events require offset/length)

@@ -2,17 +2,26 @@ import { nanoid } from 'nanoid';
 import { User } from '@prisma/client';
 
 /**
- * Generate a unique ID for annotations (highlights/references)
+ * Generate a unique URI for annotations (highlights/references)
  *
- * This is a backend-internal ID generation utility that does NOT depend on
- * any graph database. Each graph implementation (Neo4j, JanusGraph, Neptune, etc.)
- * can do whatever they need internally, but our Layer 2/3 architecture uses
- * these IDs as the canonical identifiers.
+ * W3C Web Annotation Data Model requires annotations to have URI identifiers.
+ * This function generates full URIs based on the backend base URL.
+ *
+ * Format: {BACKEND_URL}/annotations/{nanoid}
+ * Example: https://api.semiont.ai/annotations/abc123xyz
  *
  * Uses nanoid for URL-safe, collision-resistant IDs.
+ *
+ * @throws Error if BACKEND_URL environment variable is not set
  */
 export function generateAnnotationId(): string {
-  return `ann-${nanoid(21)}`;
+  const baseUrl = process.env.BACKEND_URL;
+  if (!baseUrl) {
+    throw new Error('BACKEND_URL environment variable is required to generate annotation URIs');
+  }
+  // Remove trailing slash if present
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return `${normalizedBase}/annotations/${nanoid(21)}`;
 }
 
 /**

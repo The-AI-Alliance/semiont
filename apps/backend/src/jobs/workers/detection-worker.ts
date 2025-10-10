@@ -84,7 +84,16 @@ export class DetectionWorker extends JobWorker {
           continue;
         }
 
-        const referenceId = generateAnnotationId();
+        let referenceId: string;
+        try {
+          referenceId = generateAnnotationId();
+        } catch (error) {
+          console.error(`[DetectionWorker] Failed to generate annotation ID:`, error);
+          job.status = 'failed';
+          job.error = 'Configuration error: BACKEND_URL not set';
+          await this.updateJobProgress(job);
+          return;
+        }
 
         try {
           await emitReferenceCreated({

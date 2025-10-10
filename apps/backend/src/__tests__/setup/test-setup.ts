@@ -48,6 +48,7 @@ beforeAll(async () => {
   process.env.DATABASE_PASSWORD = 'integration_test_password';
   process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
   process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
+  process.env.BACKEND_URL = 'http://localhost:4000';
   
   // Only set up database for integration tests
   const testPath = expect.getState().testPath;
