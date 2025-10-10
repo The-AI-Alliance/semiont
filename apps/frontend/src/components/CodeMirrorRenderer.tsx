@@ -85,9 +85,6 @@ function buildAnnotationDecorations(
     if (!segment.annotation) continue;
 
     const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
-    if (newAnnotationIds && newAnnotationIds.size > 0) {
-      console.log('[CodeMirror] Checking annotation:', segment.annotation.id, 'isNew:', isNew, 'newAnnotationIds:', Array.from(newAnnotationIds));
-    }
     const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
     const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
 
