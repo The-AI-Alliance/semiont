@@ -18,7 +18,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import fetch from 'node-fetch';
+import fetch, { RequestInit } from 'node-fetch';
 
 // Configuration from environment variables
 const SEMIONT_ENV = process.env.SEMIONT_ENV || 'development';
