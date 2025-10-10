@@ -356,16 +356,23 @@ function DocumentView({
     clearProgress
   } = useGenerationProgress({
     onComplete: (progress) => {
-      // Note: The reference.resolved event will trigger onReferenceResolved which refetches
-
       // Trigger sparkle animation on the now-resolved reference
       if (progress.referenceId) {
-        triggerSparkleAnimation(progress.referenceId);
+        // Reconstruct full URI if needed (backend sends internal ID, but UI uses URI-based IDs)
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const fullUri = progress.referenceId.includes('/')
+          ? progress.referenceId
+          : `${apiUrl}/annotations/${progress.referenceId}`;
+        triggerSparkleAnimation(fullUri);
       }
 
-      // Clear progress after a brief delay to allow the refetch to complete
-      // This removes the pulsing sparkle and lets the link icon show
-      setTimeout(() => clearProgress(), 100);
+      // DO NOT refetch here - the reference.resolved real-time event will trigger refetch via onReferenceResolved
+      // This ensures we refetch AFTER the backend projection is updated, not before (avoiding stale data)
+      // The document events SSE stream guarantees the event is sent after the projection update is complete
+
+      // Clear progress after allowing animation to show briefly
+      // The refetch will happen when the reference.resolved event arrives
+      setTimeout(() => clearProgress(), 1000);
     },
     onError: (error) => {
       console.error('[Generation] Error:', error);

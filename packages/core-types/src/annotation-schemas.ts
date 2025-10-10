@@ -71,6 +71,7 @@ export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSche
  * Includes creator Agent object with DID:WEB identifier.
  */
 export const CreateAnnotationInternalSchema = CreateAnnotationRequestSchema.extend({
+  id: z.string(),  // Required: ID comes from event payload (generated upstream in Layer 2)
   creator: AgentSchema,
 });
 

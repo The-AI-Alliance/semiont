@@ -49,7 +49,12 @@ export class GenerationWorker extends JobWorker {
 
     // Fetch reference from Layer 3
     const projection = await AnnotationQueryService.getDocumentAnnotations(job.sourceDocumentId);
-    const reference = projection.references.find((r: any) => r.id === job.referenceId);
+    // Compare by ID portion (handle both URI and simple ID formats)
+    const reference = projection.references.find((r: any) => {
+      const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
+      const jobRefId = job.referenceId.includes('/') ? job.referenceId.split('/').pop() : job.referenceId;
+      return rId === jobRefId;
+    });
 
     if (!reference) {
       throw new Error(`Reference ${job.referenceId} not found in document ${job.sourceDocumentId}`);

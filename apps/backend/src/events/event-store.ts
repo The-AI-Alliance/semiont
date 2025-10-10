@@ -446,16 +446,23 @@ export class EventStore {
         break;
 
       case 'reference.resolved':
-        const ref = annotations.references.find(r => r.id === event.payload.referenceId);
+        // Compare by ID portion (handle both URI and internal ID formats)
+        const ref = annotations.references.find(r => {
+          const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
+          const eventId = event.payload.referenceId.includes('/') ? event.payload.referenceId.split('/').pop() : event.payload.referenceId;
+          return rId === eventId;
+        });
         if (ref) {
           ref.body.source = event.payload.targetDocumentId;
         }
         break;
 
       case 'reference.deleted':
-        annotations.references = annotations.references.filter(
-          r => r.id !== event.payload.referenceId
-        );
+        annotations.references = annotations.references.filter(r => {
+          const rId = r.id.includes('/') ? r.id.split('/').pop() : r.id;
+          const eventId = event.payload.referenceId.includes('/') ? event.payload.referenceId.split('/').pop() : event.payload.referenceId;
+          return rId !== eventId;
+        });
         break;
 
       // Document metadata events don't affect annotations

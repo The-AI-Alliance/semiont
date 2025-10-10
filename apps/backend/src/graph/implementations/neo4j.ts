@@ -338,7 +338,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const session = this.getSession();
     try {
-      const id = this.generateId();
+      const id = input.id;
 
       // Derive motivation from body type
       const motivation = input.body.type === 'TextualBody' ? 'highlighting' : 'linking';
@@ -453,7 +453,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Build SET clauses dynamically
       Object.entries(updates).forEach(([key, value]) => {
         if (key !== 'id' && key !== 'updatedAt') {
-          setClauses.push(`s.${key} = $${key}`);
+          setClauses.push(`a.${key} = $${key}`);
           if (key === 'selector' || key === 'metadata') {
             params[key] = JSON.stringify(value);
           } else if (key === 'created' || key === 'resolvedAt') {
