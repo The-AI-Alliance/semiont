@@ -2,7 +2,6 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument } from '../helpers';
 import { generateDocumentSummary, generateReferenceSuggestions } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import { DocumentLLMContextResponseSchema, type DocumentLLMContextResponse } from '@semiont/core-types';
@@ -114,10 +113,10 @@ export function registerGetDocumentLLMContext(router: DocumentsRouterType) {
 
     const response: DocumentLLMContextResponse = {
       mainDocument: {
-        ...formatDocument(mainDoc),
+        ...mainDoc,
         ...(mainContent ? { content: mainContent } : {}),
       },
-      relatedDocuments: relatedWithContent.map(formatDocument),
+      relatedDocuments: relatedWithContent,
       annotations: [...highlights, ...references],
       graph: { nodes, edges },
       ...(summary ? { summary } : {}),

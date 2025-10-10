@@ -3,7 +3,6 @@ import { HTTPException } from 'hono/http-exception';
 import { getEventStore } from '../../../events/event-store';
 import type { DocumentsRouterType } from '../shared';
 import { GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/core-types';
-import { formatDocument } from '../helpers';
 
 export const getDocumentRoute = createRoute({
   method: 'get',
@@ -53,7 +52,7 @@ export function registerGetDocument(router: DocumentsRouterType) {
     const entityReferences = references.filter(ref => ref.body.entityTypes && ref.body.entityTypes.length > 0);
 
     const response: GetDocumentResponse = {
-      document: formatDocument(stored.document),
+      document: stored.document,
       annotations,
       highlights,
       references,

@@ -5,7 +5,6 @@ import { getStorageService } from '../../../storage/filesystem';
 import type { Document, CreateDocumentInput } from '@semiont/core-types';
 import { CREATION_METHODS } from '@semiont/core-types';
 import { calculateChecksum } from '@semiont/utils';
-import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { AnnotationQueryService } from '../../../services/annotation-queries';
 
@@ -108,7 +107,7 @@ export function registerCreateDocumentFromAnnotation(router: DocumentsRouterType
     const references = await graphDb.getReferences(savedDoc.id);
 
     const response: CreateFromAnnotationResponse = {
-      document: formatDocument(savedDoc),
+      document: savedDoc,
       annotations: [...highlights, ...references],
     };
 

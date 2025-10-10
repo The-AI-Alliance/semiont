@@ -2,7 +2,6 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { getStorageService } from '../../../storage/filesystem';
-import { formatDocument } from '../helpers';
 import { generateDocumentSummary } from '../../../inference/factory';
 import type { DocumentsRouterType } from '../shared';
 import { ReferenceLLMContextResponseSchema, type ReferenceLLMContextResponse } from '@semiont/core-types';
@@ -103,8 +102,8 @@ export function registerGetReferenceLLMContext(router: DocumentsRouterType) {
 
     const response: ReferenceLLMContextResponse = {
       reference,
-      sourceDocument: formatDocument(sourceDoc),
-      targetDocument: targetDoc ? formatDocument(targetDoc) : null,
+      sourceDocument: sourceDoc,
+      targetDocument: targetDoc,
       ...(sourceContext ? { sourceContext } : {}),
       ...(targetContext ? { targetContext } : {}),
       ...(suggestedResolution ? { suggestedResolution } : {}),

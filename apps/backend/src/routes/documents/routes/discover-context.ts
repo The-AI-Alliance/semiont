@@ -1,6 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { getGraphDatabase } from '../../../graph/factory';
-import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { DiscoverContextResponseSchema, type DiscoverContextResponse } from '@semiont/core-types';
 
@@ -47,7 +46,7 @@ export function registerDiscoverContext(router: DocumentsRouterType) {
     const connectedDocs = connections.map(conn => conn.targetDocument);
 
     const response: DiscoverContextResponse = {
-      documents: connectedDocs.map(formatDocument),
+      documents: connectedDocs,
       connections: connections.map(conn => ({
         fromId: id,
         toId: conn.targetDocument.id,
