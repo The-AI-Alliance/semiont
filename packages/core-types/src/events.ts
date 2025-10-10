@@ -11,7 +11,7 @@
  * - Optional signatures for cross-org verification
  */
 
-import type { Annotation } from './annotation-schema';
+import type { Annotation } from './annotation-schemas';
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)

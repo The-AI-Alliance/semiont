@@ -95,3 +95,89 @@ export const UpdateUserRequestSchema = z.object({
 });
 
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
+
+/**
+ * Admin User Schema
+ */
+export const AdminUserSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().nullable(),
+  image: z.string().nullable(),
+  domain: z.string(),
+  provider: z.string(),
+  isAdmin: z.boolean(),
+  isActive: z.boolean(),
+  lastLogin: z.string().nullable(),
+  created: z.string(),
+  updatedAt: z.string(),
+});
+
+export type AdminUser = z.infer<typeof AdminUserSchema>;
+
+/**
+ * Admin Users List Response
+ */
+export const AdminUsersResponseSchema = z.object({
+  success: z.boolean(),
+  users: z.array(AdminUserSchema),
+});
+
+export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
+
+/**
+ * Admin User Stats Response
+ */
+export const AdminUserStatsResponseSchema = z.object({
+  success: z.boolean(),
+  stats: z.object({
+    totalUsers: z.number(),
+    activeUsers: z.number(),
+    adminUsers: z.number(),
+    regularUsers: z.number(),
+    domainBreakdown: z.array(z.object({
+      domain: z.string(),
+      count: z.number(),
+    })),
+    recentSignups: z.array(z.object({
+      id: z.string(),
+      email: z.string(),
+      name: z.string().nullable(),
+      created: z.string(),
+    })),
+  }),
+});
+
+export type AdminUserStatsResponse = z.infer<typeof AdminUserStatsResponseSchema>;
+
+/**
+ * Update User Response
+ */
+export const UpdateUserResponseSchema = z.object({
+  success: z.boolean(),
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string().nullable(),
+    image: z.string().nullable(),
+    domain: z.string(),
+    provider: z.string(),
+    isAdmin: z.boolean(),
+    isActive: z.boolean(),
+    lastLogin: z.string().nullable(),
+    created: z.string(),
+    updatedAt: z.string(),
+  }),
+});
+
+export type UpdateUserResponse = z.infer<typeof UpdateUserResponseSchema>;
+
+/**
+ * Delete User Response
+ */
+export const DeleteUserResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
+export type DeleteUserResponse = z.infer<typeof DeleteUserResponseSchema>;

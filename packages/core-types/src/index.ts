@@ -10,7 +10,7 @@ export type {
   CreateDocumentInput,
   UpdateDocumentInput,
   DocumentFilter,
-} from './document';
+} from './document-schemas';
 
 // Creation methods
 export { CREATION_METHODS } from './creation-methods';
@@ -77,10 +77,10 @@ export {
 // Document schema (SINGLE SOURCE OF TRUTH)
 export {
   DocumentSchema,
-} from './document';
+} from './document-schemas';
 export type {
   Document,
-} from './document';
+} from './document-schemas';
 
 // Annotation schema (SINGLE SOURCE OF TRUTH)
 export {
@@ -90,7 +90,7 @@ export {
   TextPositionSelectorSchema,
   TextQuoteSelectorSchema,
   SelectorSchema,
-} from './annotation-schema';
+} from './annotation-schemas';
 export type {
   Annotation,
   HighlightAnnotation,
@@ -102,14 +102,14 @@ export type {
   TextPositionSelector,
   TextQuoteSelector,
   Selector,
-} from './annotation-schema';
+} from './annotation-schemas';
 export {
   getAnnotationCategory,
   isHighlight,
   isReference,
   isStubReference,
   isResolvedReference,
-} from './annotation-schema';
+} from './annotation-schemas';
 
 // Selector utilities
 export {
@@ -156,7 +156,7 @@ export type {
   UpdateUserRequest,
 } from './user-schemas';
 
-// API Contract schemas and types
+// Annotation API schemas
 export {
   CreateAnnotationRequestSchema,
   CreateAnnotationInternalSchema,
@@ -164,48 +164,73 @@ export {
   GetHighlightsResponseSchema,
   GetReferencesResponseSchema,
   GetAnnotationsResponseSchema,
+  DeleteAnnotationRequestSchema,
+  DeleteAnnotationResponseSchema,
+  GetAnnotationResponseSchema,
+  ListAnnotationsResponseSchema,
+  DetectAnnotationsResponseSchema,
+  ResolveAnnotationRequestSchema,
+  ResolveAnnotationResponseSchema,
+  AnnotationContextResponseSchema,
+  ReferencedBySchema,
+  GetReferencedByResponseSchema,
+  ReferenceLLMContextResponseSchema,
+} from './annotation-schemas';
+
+// Document API schemas
+export {
   CreateDocumentRequestSchema,
   CreateDocumentResponseSchema,
   UpdateDocumentRequestSchema,
   GetDocumentResponseSchema,
   ListDocumentsResponseSchema,
-  DeleteAnnotationRequestSchema,
-  DeleteAnnotationResponseSchema,
-  AdminUserSchema,
-  AdminUsersResponseSchema,
-  AdminUserStatsResponseSchema,
-  OAuthProviderSchema,
-  OAuthConfigResponseSchema,
-  ReferencedBySchema,
-  GetReferencedByResponseSchema,
-  AcceptTermsResponseSchema,
-  TokenRefreshResponseSchema,
-  MCPGenerateResponseSchema,
-  LogoutResponseSchema,
-  UpdateUserResponseSchema,
-  DeleteUserResponseSchema,
-  OAuthConfigResponseSchemaActual,
-  AddEntityTypeResponseSchema,
-  AddReferenceTypeResponseSchema,
   GenerateDocumentFromAnnotationRequestSchema,
   GenerateDocumentFromAnnotationResponseSchema,
-  ResolveAnnotationRequestSchema,
-  ResolveAnnotationResponseSchema,
+  CreateDocumentFromSelectionResponseSchema,
   GetDocumentByTokenResponseSchema,
   CreateDocumentFromTokenRequestSchema,
   CreateDocumentFromTokenResponseSchema,
   CloneDocumentWithTokenResponseSchema,
-  DetectAnnotationsResponseSchema,
-  DiscoverContextResponseSchema,
-  ReferenceLLMContextResponseSchema,
   DocumentLLMContextResponseSchema,
-  GetEventsResponseSchema,
-  GetAnnotationResponseSchema,
-  ListAnnotationsResponseSchema,
-  CreateDocumentFromSelectionResponseSchema,
-  AnnotationContextResponseSchema,
+} from './document-schemas';
+
+// User/Admin API schemas
+export {
+  AdminUserSchema,
+  AdminUsersResponseSchema,
+  AdminUserStatsResponseSchema,
+  UpdateUserResponseSchema,
+  DeleteUserResponseSchema,
+} from './user-schemas';
+
+// Auth API schemas
+export {
+  OAuthProviderSchema,
+  OAuthConfigResponseSchema,
+  AcceptTermsResponseSchema,
+  TokenRefreshResponseSchema,
+  MCPGenerateResponseSchema,
+  LogoutResponseSchema,
+  OAuthConfigResponseSchemaActual,
+} from './auth-schemas';
+
+// Type schemas
+export {
+  AddEntityTypeResponseSchema,
+  AddReferenceTypeResponseSchema,
+} from './type-schemas';
+
+// Discovery schemas
+export {
+  DiscoverContextResponseSchema,
   ContextualSummaryResponseSchema,
-} from './api-contracts';
+} from './discovery-schemas';
+
+// Event schemas
+export {
+  GetEventsResponseSchema,
+} from './event-schemas';
+// Annotation API types
 export type {
   CreateAnnotationRequest,
   CreateAnnotationInternal,
@@ -214,48 +239,72 @@ export type {
   GetHighlightsResponse,
   GetReferencesResponse,
   GetAnnotationsResponse,
+  DeleteAnnotationRequest,
+  DeleteAnnotationResponse,
+  GetAnnotationResponse,
+  ListAnnotationsResponse,
+  DetectAnnotationsResponse,
+  ResolveAnnotationRequest,
+  ResolveAnnotationResponse,
+  AnnotationContextResponse,
+  ReferencedBy,
+  GetReferencedByResponse,
+  ReferenceLLMContextResponse,
+} from './annotation-schemas';
+
+// Document API types
+export type {
   CreateDocumentRequest,
   CreateDocumentResponse,
   UpdateDocumentRequest,
   GetDocumentResponse,
   ListDocumentsResponse,
-  DeleteAnnotationRequest,
-  DeleteAnnotationResponse,
-  AdminUser,
-  AdminUsersResponse,
-  AdminUserStatsResponse,
-  OAuthProvider,
-  OAuthConfigResponse,
-  ReferencedBy,
-  GetReferencedByResponse,
-  AcceptTermsResponse,
-  TokenRefreshResponse,
-  MCPGenerateResponse,
-  LogoutResponse,
-  UpdateUserResponse,
-  DeleteUserResponse,
-  OAuthConfigResponseActual,
-  AddEntityTypeResponse,
-  AddReferenceTypeResponse,
   GenerateDocumentFromAnnotationRequest,
   GenerateDocumentFromAnnotationResponse,
-  ResolveAnnotationRequest,
-  ResolveAnnotationResponse,
+  CreateDocumentFromSelectionResponse,
   GetDocumentByTokenResponse,
   CreateDocumentFromTokenRequest,
   CreateDocumentFromTokenResponse,
   CloneDocumentWithTokenResponse,
-  DetectAnnotationsResponse,
-  DiscoverContextResponse,
-  ReferenceLLMContextResponse,
   DocumentLLMContextResponse,
-  GetEventsResponse,
-  GetAnnotationResponse,
-  ListAnnotationsResponse,
-  CreateDocumentFromSelectionResponse,
-  AnnotationContextResponse,
+} from './document-schemas';
+
+// User/Admin API types
+export type {
+  AdminUser,
+  AdminUsersResponse,
+  AdminUserStatsResponse,
+  UpdateUserResponse,
+  DeleteUserResponse,
+} from './user-schemas';
+
+// Auth API types
+export type {
+  OAuthProvider,
+  OAuthConfigResponse,
+  AcceptTermsResponse,
+  TokenRefreshResponse,
+  MCPGenerateResponse,
+  LogoutResponse,
+  OAuthConfigResponseActual,
+} from './auth-schemas';
+
+// Type API types
+export type {
+  AddEntityTypeResponse,
+  AddReferenceTypeResponse,
+} from './type-schemas';
+
+// Discovery API types
+export type {
+  DiscoverContextResponse,
   ContextualSummaryResponse,
-} from './api-contracts';
+} from './discovery-schemas';
+
+// Event API types
+export type {
+  GetEventsResponse,
+} from './event-schemas';
 
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';

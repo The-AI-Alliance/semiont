@@ -4,7 +4,7 @@
  * Helper functions for working with W3C Web Annotation selectors
  */
 
-import type { Annotation, Selector, TextPositionSelector, TextQuoteSelector } from './annotation-schema';
+import type { Annotation, Selector, TextPositionSelector, TextQuoteSelector } from './annotation-schemas';
 
 /**
  * Get the exact text from a selector (single or array)
