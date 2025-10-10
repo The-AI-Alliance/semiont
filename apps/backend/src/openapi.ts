@@ -1,8 +1,7 @@
 import { z } from '@hono/zod-openapi';
-import { ErrorResponseSchema as BaseErrorResponseSchema } from '@semiont/core-types';
 
 // Shared error response schema used across all routes
-export const ErrorResponseSchema = BaseErrorResponseSchema.extend({
+export const ErrorResponseSchema = z.object({
   error: z.string().openapi({ example: 'An error occurred' }),
   code: z.string().optional().openapi({ example: 'ERROR_CODE' }),
 }).openapi('ErrorResponse');
