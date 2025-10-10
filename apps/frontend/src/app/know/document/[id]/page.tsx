@@ -375,17 +375,18 @@ function DocumentView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
-    // Trigger sparkle animation immediately when generation starts
-    // Reconstruct full URI if needed (backend sends internal ID, but UI uses URI-based IDs)
+    // Clear CSS sparkle animation if reference was recently created
+    // (it may still be in newAnnotationIds with a 6-second timer from creation)
+    // We only want the widget sparkle (✨ emoji) during generation, not the CSS pulse
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const fullUri = referenceId.includes('/')
       ? referenceId
       : `${apiUrl}/annotations/${referenceId}`;
-    console.log('[DocumentPage] 🎇 Starting generation, triggering sparkle for:', fullUri);
-    triggerSparkleAnimation(fullUri);
+    clearNewAnnotationId(fullUri);
 
+    // Widget sparkle (✨ emoji) will show automatically during generation via generatingReferenceId
     startGeneration(referenceId, documentId, options);
-  }, [startGeneration, documentId, triggerSparkleAnimation]);
+  }, [startGeneration, documentId, clearNewAnnotationId]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
@@ -436,18 +437,10 @@ function DocumentView({
         }
       );
 
-      // Clear sparkle animation - reference is now resolved
-      // Reconstruct full URI from event payload
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const fullUri = event.payload.referenceId.includes('/')
-        ? event.payload.referenceId
-        : `${apiUrl}/annotations/${event.payload.referenceId}`;
-      console.log('[DocumentPage] ✨ Clearing sparkle for resolved reference:', fullUri);
-      clearNewAnnotationId(fullUri);
-
+      // Widget sparkle (✨ emoji) will clear automatically when generatingReferenceId changes
       // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
-    }, [queryClient, documentId, clearNewAnnotationId]),
+    }, [queryClient, documentId]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);
