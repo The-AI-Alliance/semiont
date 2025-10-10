@@ -96,9 +96,8 @@ export type Agent = z.infer<typeof AgentSchema>;
  *   - entityTypes: Classification tags (e.g., ["Person", "Scientist"])
  * - creator: Agent who created the annotation (string ID or rich Agent object)
  * - created: ISO 8601 timestamp
- * - resolvedBy: User who resolved a reference (optional)
- * - resolvedAt: When reference was resolved (optional)
- * - resolvedDocumentName: Display name of resolved document (optional)
+ * - modified: ISO 8601 timestamp of last modification (optional, W3C standard)
+ * - generator: Agent who last modified the annotation (optional, W3C standard)
  *
  * W3C Alignment:
  * - Separates target (what) from body (why/how) ✓
@@ -106,7 +105,8 @@ export type Agent = z.infer<typeof AgentSchema>;
  * - Allows selector arrays for redundant identification ✓
  * - Uses full W3C 'motivation' vocabulary ✓
  * - Uses 'creator' and 'created' field names ✓
- * - Supports W3C Agent objects for creator (Person, Organization, Software) ✓
+ * - Uses 'modified' and 'generator' for modification tracking ✓
+ * - Supports W3C Agent objects for creator/generator (Person, Organization, Software) ✓
  * - Uses 'body.value' for textual content (W3C TextualBody pattern) ✓
  * - Uses 'body.format' for MIME type metadata ✓
  * - Uses 'body.language' for language metadata ✓
@@ -139,9 +139,8 @@ export const AnnotationSchema = z.object({
   }),
   creator: z.union([z.string(), AgentSchema]),  // Simple string ID or rich Agent object
   created: z.string(),
-  resolvedBy: z.string().optional(),
-  resolvedAt: z.string().optional(),
-  resolvedDocumentName: z.string().optional(),
+  modified: z.string().optional(),               // W3C: Timestamp of last modification
+  generator: AgentSchema.optional(),             // W3C: Agent who last modified
 });
 
 export type Annotation = z.infer<typeof AnnotationSchema>;
