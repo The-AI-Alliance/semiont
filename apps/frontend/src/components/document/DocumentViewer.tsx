@@ -133,10 +133,7 @@ export function DocumentViewer({
   const handleResolvedReferenceWidgetClick = useCallback((documentId: string) => {
     const reference = references.find(r => r.body.source === documentId);
     if (reference && reference.body.type) {
-      setEditingAnnotation({
-        ...reference,  // Include all fields from reference (documentId, text, selector, etc.)
-        resolvedDocumentName: 'Document'
-      });
+      setEditingAnnotation(reference);
       setSelectedText(getExactText(reference.target.selector));
       const posSelector = getTextPositionSelector(reference.target.selector);
       if (posSelector) {

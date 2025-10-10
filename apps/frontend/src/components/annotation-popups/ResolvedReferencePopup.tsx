@@ -11,7 +11,8 @@ interface ResolvedReferencePopupProps {
   onClose: () => void;
   position: { x: number; y: number };
   selection: TextSelection;
-  annotation: ReferenceAnnotation & { resolvedDocumentId: string };
+  annotation: ReferenceAnnotation;
+  documentName?: string;  // Optional document name fetched from API
   onUpdateAnnotation: (updates: AnnotationUpdate) => void;
   onDeleteAnnotation: () => void;
 }
@@ -22,21 +23,23 @@ export function ResolvedReferencePopup({
   position,
   selection,
   annotation,
+  documentName,
   onUpdateAnnotation,
   onDeleteAnnotation,
 }: ResolvedReferencePopupProps) {
   const router = useRouter();
+  const resolvedDocumentId = annotation.body.source;
 
   const handleViewDocument = () => {
-    if (annotation.resolvedDocumentId) {
-      router.push(`/know/document/${encodeURIComponent(annotation.resolvedDocumentId)}`);
+    if (resolvedDocumentId) {
+      router.push(`/know/document/${encodeURIComponent(resolvedDocumentId)}`);
       onClose();
     }
   };
 
   const handleOpenInNewTab = () => {
-    if (annotation.resolvedDocumentId) {
-      window.open(`/know/document/${encodeURIComponent(annotation.resolvedDocumentId)}`, '_blank');
+    if (resolvedDocumentId) {
+      window.open(`/know/document/${encodeURIComponent(resolvedDocumentId)}`, '_blank');
     }
   };
 
@@ -88,7 +91,7 @@ export function ResolvedReferencePopup({
           Resolved to:
         </p>
         <p className="text-sm text-blue-700 dark:text-blue-300">
-          {annotation.resolvedDocumentName || 'Document'}
+          {documentName || resolvedDocumentId || 'Document'}
         </p>
       </div>
 
