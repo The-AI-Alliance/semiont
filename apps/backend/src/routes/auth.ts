@@ -1,11 +1,14 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import {
-  GoogleAuthRequestSchema,
-  AuthResponseSchema,
-  UserResponseSchema,
-  ErrorResponseSchema
-} from '../openapi';
-import { AcceptTermsResponseSchema } from '@semiont/core-types';
+  AcceptTermsResponseSchema,
+  TokenRefreshResponseSchema,
+  MCPGenerateResponseSchema,
+  LogoutResponseSchema,
+  type TokenRefreshResponse,
+  type MCPGenerateResponse,
+  type LogoutResponse
+} from '@semiont/core-types';
+import { ErrorResponseSchema } from '../openapi';
 import { OAuthService } from '../auth/oauth';
 import { JWTService } from '../auth/jwt';
 import { authMiddleware } from '../middleware/auth';
@@ -13,34 +16,50 @@ import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 
+// OpenAPI-wrapped schemas for this route
+export const GoogleAuthRequestSchema = z.object({
+  access_token: z.string().openapi({
+    example: 'ya29.a0AfH6SMBx...',
+    description: 'Google OAuth access token'
+  }),
+}).openapi('GoogleAuthRequest');
+
+export const AuthResponseSchema = z.object({
+  success: z.boolean().openapi({ example: true }),
+  user: z.object({
+    id: z.string().openapi({ example: 'user-123' }),
+    email: z.string().email().openapi({ example: 'user@example.com' }),
+    name: z.string().nullable().openapi({ example: 'John Doe' }),
+    image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+    domain: z.string().nullable().openapi({ example: 'example.com' }),
+    isAdmin: z.boolean().openapi({ example: false }),
+  }),
+  token: z.string().openapi({ example: 'eyJhbGciOiJIUzI1NiIs...' }),
+  isNewUser: z.boolean().openapi({ example: false }),
+}).openapi('AuthResponse');
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
+export const UserResponseSchema = z.object({
+  id: z.string().openapi({ example: 'user-123' }),
+  email: z.string().email().openapi({ example: 'user@example.com' }),
+  name: z.string().nullable().openapi({ example: 'John Doe' }),
+  image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+  domain: z.string().nullable().openapi({ example: 'example.com' }),
+  provider: z.string().openapi({ example: 'google' }),
+  isAdmin: z.boolean().openapi({ example: false }),
+  isActive: z.boolean().openapi({ example: true }),
+  termsAcceptedAt: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  lastLogin: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+}).openapi('UserResponse');
+export type UserResponse = z.infer<typeof UserResponseSchema>;
+
 // Token refresh request schema
 const TokenRefreshRequestSchema = z.object({
   refreshToken: z.string().openapi({
     example: 'eyJhbGciOiJIUzI1NiIs...',
     description: 'Refresh token obtained during login',
   }),
-});
-
-// Token refresh response schema
-const TokenRefreshResponseSchema = z.object({
-  access_token: z.string().openapi({
-    example: 'eyJhbGciOiJIUzI1NiIs...',
-    description: 'JWT access token (1 hour expiration)',
-  }),
-});
-
-// MCP token generate schema  
-const MCPGenerateResponseSchema = z.object({
-  refresh_token: z.string().openapi({
-    example: 'eyJhbGciOiJIUzI1NiIs...',
-    description: 'JWT refresh token (30 day expiration)',
-  }),
-});
-
-// Logout response schema
-const LogoutResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
 });
 
 // Local auth request schema (for development only)
@@ -326,7 +345,7 @@ authRouter.openapi(localAuthRoute, async (c) => {
       data: { lastLogin: new Date() }
     });
 
-    return c.json({
+    const response: AuthResponse = {
       success: true,
       user: {
         id: user.id,
@@ -338,7 +357,9 @@ authRouter.openapi(localAuthRoute, async (c) => {
       },
       token,
       isNewUser: false,
-    }, 200);
+    };
+
+    return c.json(response, 200);
   } catch (error) {
     console.error('Local auth error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
@@ -363,8 +384,8 @@ authRouter.openapi(googleAuthRoute, async (c) => {
     
     // Create or update user
     const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
-    
-    return c.json({
+
+    const response: AuthResponse = {
       success: true,
       user: {
         id: user.id,
@@ -376,7 +397,9 @@ authRouter.openapi(googleAuthRoute, async (c) => {
       },
       token,
       isNewUser,
-    }, 200);
+    };
+
+    return c.json(response, 200);
   } catch (error) {
     console.error('OAuth error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
@@ -427,11 +450,12 @@ authRouter.openapi(refreshTokenRoute, async (c) => {
       ...(user.name && { name: user.name })
     };
     const accessToken = JWTService.generateToken(accessTokenPayload, '1h'); // 1 hour expiration
-    
-    // Return in the format MCP expects
-    return c.json({ 
-      access_token: accessToken  // Note: using snake_case for consistency
-    }, 200);
+
+    const response: TokenRefreshResponse = {
+      access_token: accessToken
+    };
+
+    return c.json(response, 200);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Token refresh error:', errorMessage);
@@ -467,10 +491,12 @@ authRouter.openapi(mcpGenerateRoute, async (c) => {
       ...(user.name && { name: user.name })
     };
     const refreshToken = JWTService.generateToken(tokenPayload, '30d'); // 30 day expiration
-    
-    return c.json({ 
-      refresh_token: refreshToken  // Note: returning refresh_token, not access_token
-    }, 200);
+
+    const response: MCPGenerateResponse = {
+      refresh_token: refreshToken
+    };
+
+    return c.json(response, 200);
   } catch (error) {
     console.error('MCP token generation error:', error);
     return c.json({ error: 'Failed to generate refresh token' }, 401);
@@ -481,8 +507,8 @@ authRouter.openapi(mcpGenerateRoute, async (c) => {
 authRouter.use('/api/users/me', authMiddleware);
 authRouter.openapi(getCurrentUserRoute, async (c) => {
   const user = c.get('user');
-  
-  return c.json({
+
+  const response: UserResponse = {
     id: user.id,
     email: user.email,
     name: user.name,
@@ -494,7 +520,9 @@ authRouter.openapi(getCurrentUserRoute, async (c) => {
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
     created: user.createdAt.toISOString(),
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });
 
 // Accept terms endpoint
@@ -516,8 +544,10 @@ authRouter.use('/api/users/logout', authMiddleware);
 authRouter.openapi(logoutRoute, async (c) => {
   // In JWT-based auth, logout is handled client-side
   // This endpoint exists for consistency and future session management
-  return c.json({
+  const response: LogoutResponse = {
     success: true,
     message: 'Logged out successfully',
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });

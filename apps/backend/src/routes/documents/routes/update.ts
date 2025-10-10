@@ -1,6 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { UpdateDocumentRequestSchema, GetDocumentResponseSchema, type GetDocumentResponse } from '@semiont/core-types';
 import { emitDocumentArchived, emitDocumentUnarchived, emitEntityTagAdded, emitEntityTagRemoved } from '../../../events/emit';
@@ -84,11 +83,11 @@ export function registerUpdateDocument(router: DocumentsRouterType) {
 
     // Return optimistic response (content NOT included - must be fetched separately)
     const response: GetDocumentResponse = {
-      document: formatDocument({
+      document: {
         ...doc,
         archived: body.archived !== undefined ? body.archived : doc.archived,
         entityTypes: body.entityTypes !== undefined ? body.entityTypes : doc.entityTypes,
-      }),
+      },
       annotations: [...highlights, ...references],
       highlights: highlights,
       references: references,

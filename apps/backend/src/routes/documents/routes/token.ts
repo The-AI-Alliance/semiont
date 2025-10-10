@@ -15,7 +15,6 @@ import {
   type Document,
   type CreateDocumentInput,
 } from '@semiont/core-types';
-import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 
 // Simple in-memory token store (replace with Redis/DB in production)
@@ -124,7 +123,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     // NOTE: Content is NOT included - frontend should fetch via GET /documents/:id/content
 
     const response: GetDocumentByTokenResponse = {
-      sourceDocument: formatDocument(sourceDoc),
+      sourceDocument: sourceDoc,
       expiresAt: tokenData.expiresAt.toISOString(),
     };
 
@@ -205,7 +204,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const references = await graphDb.getReferences(savedDoc.id);
 
     const response: CreateDocumentFromTokenResponse = {
-      document: formatDocument(savedDoc),
+      document: savedDoc,
       annotations: [...highlights, ...references],
     };
 
@@ -242,7 +241,7 @@ export function registerTokenRoutes(router: DocumentsRouterType) {
     const response: CloneDocumentWithTokenResponse = {
       token,
       expiresAt: expiresAt.toISOString(),
-      document: formatDocument(sourceDoc),
+      document: sourceDoc,
     };
 
     return c.json(response);

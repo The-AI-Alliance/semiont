@@ -1,5 +1,4 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { formatDocument } from '../helpers';
 import type { DocumentsRouterType } from '../shared';
 import { ListDocumentsResponseSchema, type ListDocumentsResponse } from '@semiont/core-types';
 import { DocumentQueryService } from '../../../services/document-queries';
@@ -42,7 +41,7 @@ export function registerSearchDocuments(router: DocumentsRouterType) {
     const limitedDocs = matchingDocs.slice(0, limit);
 
     const response: ListDocumentsResponse = {
-      documents: limitedDocs.map(doc => formatDocument(doc)),
+      documents: limitedDocs,
       total: limitedDocs.length,
       offset: 0,
       limit,

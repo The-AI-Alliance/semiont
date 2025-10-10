@@ -153,3 +153,28 @@ export const EventQuerySchema = z.object({
   fromSequence: z.number().optional(),
   limit: z.number().optional(),
 });
+
+/**
+ * Get Events Response
+ */
+export const GetEventsResponseSchema = z.object({
+  events: z.array(z.object({
+    event: z.object({
+      id: z.string(),
+      type: z.string(),
+      timestamp: z.string(),
+      userId: z.string(),
+      documentId: z.string(),
+      payload: z.any(),
+    }),
+    metadata: z.object({
+      sequenceNumber: z.number(),
+      prevEventHash: z.string().optional(),
+      checksum: z.string().optional(),
+    }),
+  })),
+  total: z.number(),
+  documentId: z.string(),
+});
+
+export type GetEventsResponse = z.infer<typeof GetEventsResponseSchema>;

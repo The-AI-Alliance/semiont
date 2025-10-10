@@ -1,22 +1,69 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { 
-  UserListResponseSchema,
-  UserStatsResponseSchema,
-  UpdateUserRequestSchema,
-  ErrorResponseSchema 
-} from '../openapi';
+import {
+  UpdateUserResponseSchema,
+  DeleteUserResponseSchema,
+  OAuthConfigResponseSchemaActual,
+  type UpdateUserResponse,
+  type DeleteUserResponse,
+  type OAuthConfigResponseActual
+} from '@semiont/core-types';
+import { ErrorResponseSchema } from '../openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 
+// OpenAPI-wrapped schemas for this route
+export const UserListResponseSchema = z.object({
+  success: z.boolean().openapi({ example: true }),
+  users: z.array(z.object({
+    id: z.string().openapi({ example: 'user-123' }),
+    email: z.string().openapi({ example: 'user@example.com' }),
+    name: z.string().nullable().openapi({ example: 'John Doe' }),
+    image: z.string().nullable().openapi({ example: 'https://example.com/avatar.jpg' }),
+    domain: z.string().openapi({ example: 'example.com' }),
+    provider: z.string().openapi({ example: 'google' }),
+    isAdmin: z.boolean().openapi({ example: false }),
+    isActive: z.boolean().openapi({ example: true }),
+    lastLogin: z.string().nullable().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+    created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+    updatedAt: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+  })),
+}).openapi('UserListResponse');
+
+export const UserStatsResponseSchema = z.object({
+  success: z.boolean().openapi({ example: true }),
+  stats: z.object({
+    totalUsers: z.number().openapi({ example: 100 }),
+    activeUsers: z.number().openapi({ example: 85 }),
+    adminUsers: z.number().openapi({ example: 5 }),
+    regularUsers: z.number().openapi({ example: 95 }),
+    domainBreakdown: z.array(z.object({
+      domain: z.string().openapi({ example: 'example.com' }),
+      count: z.number().openapi({ example: 50 }),
+    })),
+    recentSignups: z.array(z.object({
+      id: z.string().openapi({ example: 'user-123' }),
+      email: z.string().openapi({ example: 'user@example.com' }),
+      name: z.string().nullable().openapi({ example: 'John Doe' }),
+      created: z.string().openapi({ example: '2024-01-01T00:00:00.000Z' }),
+    })),
+  }),
+}).openapi('UserStatsResponse');
+
+export const UpdateUserRequestSchema = z.object({
+  isAdmin: z.boolean().optional().openapi({ example: false }),
+  isActive: z.boolean().optional().openapi({ example: true }),
+  name: z.string().optional().openapi({ example: 'John Doe' }),
+}).openapi('UpdateUserRequest');
+
 // Admin middleware to check admin privileges
 const adminMiddleware = async (c: any, next: any) => {
   const user = c.get('user');
-  
+
   if (!user || !user.isAdmin) {
     return c.json({ error: 'Forbidden: Admin access required' }, 403);
   }
-  
+
   return next();
 };
 
@@ -122,22 +169,7 @@ export const updateUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            user: z.object({
-              id: z.string(),
-              email: z.string(),
-              name: z.string().nullable(),
-              image: z.string().nullable(),
-              domain: z.string(),
-              provider: z.string(),
-              isAdmin: z.boolean(),
-              isActive: z.boolean(),
-              lastLogin: z.string().nullable(),
-              created: z.string(),
-              updatedAt: z.string(),
-            }),
-          }),
+          schema: UpdateUserResponseSchema,
         },
       },
       description: 'User updated successfully',
@@ -189,14 +221,7 @@ export const oauthConfigRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            providers: z.array(z.object({
-              name: z.string(),
-              isConfigured: z.boolean(),
-              clientId: z.string(),
-            })),
-            allowedDomains: z.array(z.string()),
-          }),
+          schema: OAuthConfigResponseSchemaActual,
         },
       },
       description: 'OAuth configuration',
@@ -243,10 +268,7 @@ export const deleteUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            message: z.string(),
-          }),
+          schema: DeleteUserResponseSchema,
         },
       },
       description: 'User deleted successfully',
@@ -398,8 +420,8 @@ adminRouter.openapi(updateUserRoute, async (c) => {
       ...(body.name !== undefined && { name: body.name }),
     },
   });
-  
-  return c.json({
+
+  const response: UpdateUserResponse = {
     success: true,
     user: {
       id: updatedUser.id,
@@ -414,7 +436,9 @@ adminRouter.openapi(updateUserRoute, async (c) => {
       created: updatedUser.createdAt.toISOString(),
       updatedAt: updatedUser.updatedAt.toISOString(),
     },
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });
 
 // Delete user
@@ -441,11 +465,13 @@ adminRouter.openapi(deleteUserRoute, async (c) => {
   await prisma.user.delete({
     where: { id },
   });
-  
-  return c.json({
+
+  const response: DeleteUserResponse = {
     success: true,
     message: `User ${existingUser.email} deleted successfully`,
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });
 
 // OAuth configuration
@@ -466,9 +492,11 @@ adminRouter.openapi(oauthConfigRoute, async (c) => {
       clientId: process.env.GOOGLE_CLIENT_ID.substring(0, 20) + '...'
     });
   }
-  
-  return c.json({
+
+  const response: OAuthConfigResponseActual = {
     providers,
     allowedDomains
-  }, 200);
+  };
+
+  return c.json(response, 200);
 });

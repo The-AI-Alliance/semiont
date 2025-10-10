@@ -3,15 +3,10 @@ import type { Document } from '@semiont/core-types';
 import { extractEntities } from '../../inference/entity-extractor';
 import { getStorageService } from '../../storage/filesystem';
 
-export function formatDocument(source: Document): Document {
-  return source;
-}
-
 // For search results ONLY - includes content preview
 export function formatSearchResult(doc: Document, contentPreview: string): Document & { content: string } {
-  const base = formatDocument(doc);
   return {
-    ...base,
+    ...doc,
     content: contentPreview,
   };
 }
