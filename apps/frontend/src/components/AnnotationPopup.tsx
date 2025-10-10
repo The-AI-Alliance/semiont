@@ -80,7 +80,7 @@ export function AnnotationPopup({
       );
 
     case 'stub_reference':
-      // We know annotation is a reference without resolvedDocumentId
+      // We know annotation is a reference without body.source
       return (
         <StubReferencePopup
           isOpen={isOpen}
@@ -95,14 +95,14 @@ export function AnnotationPopup({
       );
 
     case 'resolved_reference':
-      // We know annotation is a reference with resolvedDocumentId
+      // We know annotation is a reference with body.source
       return (
         <ResolvedReferencePopup
           isOpen={isOpen}
           onClose={onClose}
           position={position}
           selection={selection}
-          annotation={annotation as ReferenceAnnotation & { resolvedDocumentId: string }}
+          annotation={annotation as ReferenceAnnotation}
           onUpdateAnnotation={onUpdateAnnotation!}
           onDeleteAnnotation={onDeleteAnnotation!}
         />

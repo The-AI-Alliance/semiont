@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { User } from '@prisma/client';
 
 /**
  * Generate a unique ID for annotations (highlights/references)
@@ -23,4 +24,16 @@ export function generateAnnotationId(): string {
  */
 export function generateDocumentId(): string {
   return `doc-${nanoid(21)}`;
+}
+
+/**
+ * Convert a User object to a DID:WEB identifier
+ *
+ * Format: did:web:domain.com:users:userId
+ * Example: did:web:example.com:users:abc123
+ *
+ * This is used for W3C Web Annotation compliance and federation readiness.
+ */
+export function userToDid(user: Pick<User, 'id' | 'domain'>): string {
+  return `did:web:${user.domain}:users:${user.id}`;
 }

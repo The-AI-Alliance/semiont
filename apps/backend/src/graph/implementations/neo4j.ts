@@ -1010,9 +1010,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       created: props.created, // ISO string from DB
     };
 
-    if (props.resolvedDocumentName) annotation.resolvedDocumentName = props.resolvedDocumentName;
-    if (props.resolvedAt) annotation.resolvedAt = props.resolvedAt.toString(); // ISO string from DB
-    if (props.resolvedBy) annotation.resolvedBy = props.resolvedBy;
+    // W3C Web Annotation modification tracking
+    if (props.modified) annotation.modified = props.modified.toString();
+    if (props.generator) {
+      try {
+        annotation.generator = JSON.parse(props.generator);
+      } catch (e) {
+        // Ignore parse errors for backward compatibility
+      }
+    }
 
     return annotation;
   }

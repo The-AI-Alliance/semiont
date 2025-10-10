@@ -140,14 +140,19 @@ export class JanusGraphDatabase implements GraphDatabase {
       created: this.getPropertyValue(props, 'created'), // ISO string from DB
     };
 
-    if (this.getPropertyValue(props, 'resolvedDocumentName')) {
-      annotation.resolvedDocumentName = this.getPropertyValue(props, 'resolvedDocumentName');
+    // W3C Web Annotation modification tracking
+    const modified = this.getPropertyValue(props, 'modified');
+    if (modified) {
+      annotation.modified = modified;
     }
-    if (this.getPropertyValue(props, 'resolvedAt')) {
-      annotation.resolvedAt = this.getPropertyValue(props, 'resolvedAt');
-    }
-    if (this.getPropertyValue(props, 'resolvedBy')) {
-      annotation.resolvedBy = this.getPropertyValue(props, 'resolvedBy');
+
+    const generatorJson = this.getPropertyValue(props, 'generator');
+    if (generatorJson) {
+      try {
+        annotation.generator = JSON.parse(generatorJson);
+      } catch (e) {
+        // Ignore parse errors for backward compatibility
+      }
     }
 
     return annotation;
@@ -370,14 +375,11 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (updates.body?.source !== undefined) {
       await traversalQuery.property('source', updates.body?.source).next();
     }
-    if (updates.resolvedDocumentName !== undefined) {
-      await traversalQuery.property('resolvedDocumentName', updates.resolvedDocumentName).next();
+    if (updates.modified !== undefined) {
+      await traversalQuery.property('modified', updates.modified).next();
     }
-    if (updates.resolvedAt !== undefined) {
-      await traversalQuery.property('resolvedAt', updates.resolvedAt).next();
-    }
-    if (updates.resolvedBy !== undefined) {
-      await traversalQuery.property('resolvedBy', updates.resolvedBy).next();
+    if (updates.generator !== undefined) {
+      await traversalQuery.property('generator', JSON.stringify(updates.generator)).next();
     }
     if (updates.body?.entityTypes !== undefined) {
       await traversalQuery.property('entityTypes', JSON.stringify(updates.body?.entityTypes)).next();
@@ -435,18 +437,14 @@ export class JanusGraphDatabase implements GraphDatabase {
     const annotation = await this.getAnnotation(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
-    // Get document name for resolvedDocumentName
-    const targetDoc = await this.getDocument(source);
-
     // Update the annotation properties
+    // Note: modified and generator should be set by the caller (operations.ts)
     await this.updateAnnotation(annotationId, {
       body: {
         type: 'SpecificResource',
         entityTypes: [],
         source,
       },
-      resolvedDocumentName: targetDoc?.name,
-      resolvedAt: new Date().toISOString(),
     });
 
     // Create edge from annotation to target document
