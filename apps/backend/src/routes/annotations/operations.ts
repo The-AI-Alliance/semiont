@@ -252,9 +252,12 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
       type: 'SpecificResource' as const,
       source: documentId,
     },
-    resolvedBy: user.id,
-    resolvedAt: new Date().toISOString(),
-    resolvedDocumentName: documentName,
+    modified: new Date().toISOString(),
+    generator: {
+      type: 'Person' as const,
+      id: userToDid(user),
+      name: user.name || user.email,
+    },
   };
 
   const documentMetadata: Document = {

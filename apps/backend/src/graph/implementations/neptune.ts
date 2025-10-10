@@ -141,17 +141,21 @@ function vertexToAnnotation(vertex: any): Annotation {
   };
 
   // Optional top-level fields
-  const resolvedDocumentName = getValue('resolvedDocumentName');
-  if (resolvedDocumentName) annotation.resolvedDocumentName = resolvedDocumentName;
-
-  const resolvedAt = getValue('resolvedAt');
-  if (resolvedAt) annotation.resolvedAt = resolvedAt; // ISO string from DB
-
-  const resolvedBy = getValue('resolvedBy');
-  if (resolvedBy) annotation.resolvedBy = resolvedBy;
-
   const entityTypes = getValue('entityTypes');
   if (entityTypes) annotation.body.entityTypes = JSON.parse(entityTypes);
+
+  // W3C Web Annotation modification tracking
+  const modified = getValue('modified');
+  if (modified) annotation.modified = modified;
+
+  const generatorJson = getValue('generator');
+  if (generatorJson) {
+    try {
+      annotation.generator = JSON.parse(generatorJson);
+    } catch (e) {
+      // Ignore parse errors for backward compatibility
+    }
+  }
 
   return annotation;
 }
@@ -565,17 +569,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       if (updates.body?.source !== undefined) {
         traversal = traversal.property('source', updates.body.source);
       }
-      if (updates.resolvedDocumentName !== undefined) {
-        traversal = traversal.property('resolvedDocumentName', updates.resolvedDocumentName);
-      }
       if (updates.body?.entityTypes !== undefined) {
         traversal = traversal.property('entityTypes', JSON.stringify(updates.body.entityTypes));
       }
-      if (updates.resolvedBy !== undefined) {
-        traversal = traversal.property('resolvedBy', updates.resolvedBy);
+      if (updates.modified !== undefined) {
+        traversal = traversal.property('modified', updates.modified);
       }
-      if (updates.resolvedAt !== undefined) {
-        traversal = traversal.property('resolvedAt', updates.resolvedAt);
+      if (updates.generator !== undefined) {
+        traversal = traversal.property('generator', JSON.stringify(updates.generator));
       }
 
       const result = await traversal.elementMap().next();
