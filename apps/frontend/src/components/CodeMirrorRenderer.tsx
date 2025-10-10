@@ -85,6 +85,9 @@ function buildAnnotationDecorations(
     if (!segment.annotation) continue;
 
     const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
+    if (newAnnotationIds && newAnnotationIds.size > 0) {
+      console.log('[CodeMirror] Checking annotation:', segment.annotation.id, 'isNew:', isNew, 'newAnnotationIds:', Array.from(newAnnotationIds));
+    }
     const baseClassName = annotationStyles.getAnnotationStyle(segment.annotation);
     const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
 
@@ -167,7 +170,10 @@ function buildWidgetDecorations(
       const targetName = annotation.body.source
         ? callbacks.getTargetDocumentName?.(annotation.body.source)
         : undefined;
-      const isGenerating = generatingReferenceId === annotation.id;
+      // Compare by ID portion (handle both URI and internal ID formats)
+      const annotationIdPortion = annotation.id.includes('/') ? annotation.id.split('/').pop() : annotation.id;
+      const generatingIdPortion = generatingReferenceId?.includes('/') ? generatingReferenceId.split('/').pop() : generatingReferenceId;
+      const isGenerating = generatingIdPortion === annotationIdPortion;
       const widget = new ReferenceResolutionWidget(
         annotation,
         targetName,

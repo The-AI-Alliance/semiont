@@ -119,7 +119,7 @@ function DocumentView({
   const router = useRouter();
   const { data: session } = useSession();
   const { addDocument } = useOpenDocuments();
-  const { triggerSparkleAnimation, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId, convertHighlightToReference, convertReferenceToHighlight } = useDocumentAnnotations();
   const { showError, showSuccess } = useToast();
   const { fetchAPI } = useAuthenticatedAPI();
   const queryClient = useQueryClient();
@@ -356,22 +356,10 @@ function DocumentView({
     clearProgress
   } = useGenerationProgress({
     onComplete: (progress) => {
-      // Trigger sparkle animation on the now-resolved reference
-      if (progress.referenceId) {
-        // Reconstruct full URI if needed (backend sends internal ID, but UI uses URI-based IDs)
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const fullUri = progress.referenceId.includes('/')
-          ? progress.referenceId
-          : `${apiUrl}/annotations/${progress.referenceId}`;
-        triggerSparkleAnimation(fullUri);
-      }
+      // Sparkle animation was already triggered when generation started (in handleGenerateDocument)
+      // It will continue pulsing until reference.resolved event updates the cache
 
-      // DO NOT refetch here - the reference.resolved real-time event will trigger refetch via onReferenceResolved
-      // This ensures we refetch AFTER the backend projection is updated, not before (avoiding stale data)
-      // The document events SSE stream guarantees the event is sent after the projection update is complete
-
-      // Clear progress after allowing animation to show briefly
-      // The refetch will happen when the reference.resolved event arrives
+      // Clear progress widget
       setTimeout(() => clearProgress(), 1000);
     },
     onError: (error) => {
@@ -387,8 +375,17 @@ function DocumentView({
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((referenceId: string, options: { title: string; prompt?: string }) => {
+    // Trigger sparkle animation immediately when generation starts
+    // Reconstruct full URI if needed (backend sends internal ID, but UI uses URI-based IDs)
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const fullUri = referenceId.includes('/')
+      ? referenceId
+      : `${apiUrl}/annotations/${referenceId}`;
+    console.log('[DocumentPage] 🎇 Starting generation, triggering sparkle for:', fullUri);
+    triggerSparkleAnimation(fullUri);
+
     startGeneration(referenceId, documentId, options);
-  }, [startGeneration, documentId]);
+  }, [startGeneration, documentId, triggerSparkleAnimation]);
 
   // Real-time document events for collaboration - document is guaranteed to exist here
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useDocumentEvents({
@@ -410,11 +407,47 @@ function DocumentView({
     }, [debouncedInvalidateAnnotations]),
 
     onReferenceResolved: useCallback((event) => {
-      // Immediately refetch references to update UI (don't debounce for this critical update)
-      refetchReferences();
-      // Immediately invalidate events to update History Panel (don't debounce this either)
+      // Optimistically update the reference in cache
+      queryClient.setQueryData(
+        QUERY_KEYS.documents.references(documentId),
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            references: old.references.map((ref: any) => {
+              // Match by ID portion (handle both URI and internal ID formats)
+              const refIdPortion = ref.id.includes('/') ? ref.id.split('/').pop() : ref.id;
+              const eventIdPortion = event.payload.referenceId.includes('/')
+                ? event.payload.referenceId.split('/').pop()
+                : event.payload.referenceId;
+
+              if (refIdPortion === eventIdPortion) {
+                return {
+                  ...ref,
+                  body: {
+                    ...ref.body,
+                    source: event.payload.targetDocumentId,
+                  },
+                };
+              }
+              return ref;
+            }),
+          };
+        }
+      );
+
+      // Clear sparkle animation - reference is now resolved
+      // Reconstruct full URI from event payload
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const fullUri = event.payload.referenceId.includes('/')
+        ? event.payload.referenceId
+        : `${apiUrl}/annotations/${event.payload.referenceId}`;
+      console.log('[DocumentPage] ✨ Clearing sparkle for resolved reference:', fullUri);
+      clearNewAnnotationId(fullUri);
+
+      // Immediately invalidate events to update History Panel
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(documentId) });
-    }, [refetchReferences, queryClient, documentId]),
+    }, [queryClient, documentId, clearNewAnnotationId]),
 
     onReferenceDeleted: useCallback((event) => {
       console.log('[RealTime] Reference deleted:', event.payload);

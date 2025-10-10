@@ -212,13 +212,20 @@ export function DocumentAnnotationsProvider({ children }: { children: React.Reac
   }, []);
 
   const triggerSparkleAnimation = useCallback((annotationId: string) => {
-    setNewAnnotationIds(prev => new Set(prev).add(annotationId));
+    console.log('[DocumentAnnotations] 🎇 Adding to newAnnotationIds:', annotationId);
+    setNewAnnotationIds(prev => {
+      const updated = new Set(prev).add(annotationId);
+      console.log('[DocumentAnnotations] newAnnotationIds set now contains:', Array.from(updated));
+      return updated;
+    });
 
     // Clear after animation
     setTimeout(() => {
+      console.log('[DocumentAnnotations] ⏰ Clearing animation for:', annotationId);
       setNewAnnotationIds(prev => {
         const next = new Set(prev);
         next.delete(annotationId);
+        console.log('[DocumentAnnotations] newAnnotationIds set now contains:', Array.from(next));
         return next;
       });
     }, 6000);
