@@ -117,7 +117,6 @@ export type Agent = z.infer<typeof AgentSchema>;
  * - Single target only (no multi-target arrays) - our architecture is document-centric
  * - Single body only (no multi-body arrays) - application-specific body structure
  * - Application-specific 'entityTypes' field for classification tags
- * - Creator accepts simple string for backward compatibility (but also supports rich Agent)
  */
 export const AnnotationSchema = z.object({
   id: z.string(),
@@ -137,7 +136,7 @@ export const AnnotationSchema = z.object({
     source: z.string().nullable().optional(),
     entityTypes: z.array(z.string()).default([]),
   }),
-  creator: z.union([z.string(), AgentSchema]),  // Simple string ID or rich Agent object
+  creator: AgentSchema,                          // W3C: Agent who created (always Agent object with DID:WEB)
   created: z.string(),
   modified: z.string().optional(),               // W3C: Timestamp of last modification
   generator: AgentSchema.optional(),             // W3C: Agent who last modified

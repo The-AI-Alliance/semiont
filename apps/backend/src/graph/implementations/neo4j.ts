@@ -411,7 +411,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         type: annotation.body.type,
         motivation: annotation.motivation,
         value: annotation.body.value || null,
-        creator: annotation.creator,
+        creator: JSON.stringify(annotation.creator),
         created: annotation.created,
         entityTypes: annotation.body.entityTypes,
         source: annotation.body.source || null,
@@ -993,6 +993,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     // Derive motivation from type if not present (backward compatibility)
     const motivation = props.motivation || (props.type === 'TextualBody' ? 'highlighting' : 'linking');
 
+    // Parse creator - always stored as JSON string in DB
+    const creator = JSON.parse(props.creator);
+
     const annotation: Annotation = {
       id: props.id,
       motivation,
@@ -1006,7 +1009,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         entityTypes: props.entityTypes || [],
         source: props.source,
       },
-      creator: props.creator,
+      creator,
       created: props.created, // ISO string from DB
     };
 
@@ -1016,7 +1019,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       try {
         annotation.generator = JSON.parse(props.generator);
       } catch (e) {
-        // Ignore parse errors for backward compatibility
+        // Ignore parse errors
       }
     }
 
