@@ -17,7 +17,7 @@ import {
   type GetAnnotationResponse,
   type ListAnnotationsResponse,
 } from '@semiont/core-types';
-import { generateAnnotationId, userToDid } from '../../utils/id-generator';
+import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
 import { AnnotationQueryService } from '../../services/annotation-queries';
 import { DocumentQueryService } from '../../services/document-queries';
 
@@ -114,11 +114,7 @@ crudRouter.openapi(createAnnotationRoute, async (c) => {
         entityTypes: body.body.entityTypes || [],
         source: body.body.source,
       },
-      creator: {
-        type: 'Person' as const,
-        id: userToDid(user),
-        name: user.name || user.email,
-      },
+      creator: userToAgent(user),
       created: new Date().toISOString(),
     },
   };

@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { AnnotationSchema, SelectorSchema } from './annotation-schema';
+import { AnnotationSchema, SelectorSchema, AgentSchema } from './annotation-schema';
 import { DocumentSchema } from './document';
 
 // Re-export core annotation types for convenience
@@ -68,10 +68,10 @@ export type CreateAnnotationRequest = z.infer<typeof CreateAnnotationRequestSche
  * Create Annotation Internal Input
  *
  * Backend internal format used by graph implementations when consuming events.
- * Includes creator from the event's userId.
+ * Includes creator Agent object with DID:WEB identifier.
  */
 export const CreateAnnotationInternalSchema = CreateAnnotationRequestSchema.extend({
-  creator: z.string(),
+  creator: AgentSchema,
 });
 
 export type CreateAnnotationInternal = z.infer<typeof CreateAnnotationInternalSchema>;

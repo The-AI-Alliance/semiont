@@ -13,6 +13,7 @@ import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
+import { didToAgent } from '../utils/id-generator';
 import type {
   DocumentEvent,
   StoredEvent,
@@ -410,7 +411,7 @@ export class EventStore {
             type: 'TextualBody',
             entityTypes: [],
           },
-          creator: event.userId,
+          creator: didToAgent(event.userId),
           created: new Date(event.timestamp).toISOString(),
         });
         break;
@@ -439,7 +440,7 @@ export class EventStore {
             entityTypes: event.payload.entityTypes || [],
             source: event.payload.targetDocumentId,
           },
-          creator: event.userId,
+          creator: didToAgent(event.userId),
           created: new Date(event.timestamp).toISOString(),
         });
         break;

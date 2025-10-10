@@ -8,6 +8,7 @@
 import { getEventStore } from '../event-store';
 import { getGraphDatabase } from '../../graph/factory';
 import { getStorageService } from '../../storage/filesystem';
+import { didToAgent } from '../../utils/id-generator';
 import type { GraphDatabase } from '../../graph/interface';
 import type { DocumentEvent, StoredEvent, Annotation } from '@semiont/core-types';
 
@@ -143,7 +144,7 @@ export class GraphDBConsumer {
             type: 'TextualBody',
             entityTypes: [],
           },
-          creator: event.userId,
+          creator: didToAgent(event.userId),
         });
         break;
 
@@ -167,7 +168,7 @@ export class GraphDBConsumer {
             entityTypes: event.payload.entityTypes || [],
             source: event.payload.targetDocumentId,
           },
-          creator: event.userId,
+          creator: didToAgent(event.userId),
         });
         break;
 

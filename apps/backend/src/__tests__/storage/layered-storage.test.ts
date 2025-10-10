@@ -133,7 +133,11 @@ describe('Layered Storage', () => {
                 type: 'TextualBody' as const,
                 entityTypes: [],
               },
-              creator: 'did:web:test.com:users:test',
+              creator: {
+                type: 'Person' as const,
+                id: 'did:web:test.com:users:test',
+                name: 'test',
+              },
               created: '2025-01-01T00:00:00.000Z',
             },
           ],

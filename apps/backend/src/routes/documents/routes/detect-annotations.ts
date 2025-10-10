@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { getGraphDatabase } from '../../../graph/factory';
 import { detectAnnotationsInDocument } from '../helpers';
+import { userToAgent } from '../../../utils/id-generator';
 import type { DocumentsRouterType } from '../shared';
 import { DetectAnnotationsResponseSchema, type DetectAnnotationsResponse } from '@semiont/core-types';
 
@@ -74,7 +75,7 @@ export function registerDetectAnnotations(router: DocumentsRouterType) {
           entityTypes: detected.annotation.entityTypes || [],
           source: null,  // null = stub reference
         },
-        creator: user.id
+        creator: userToAgent(user)
       };
       const saved = await graphDb.createAnnotation(selectionInput);
       savedSelections.push(saved);

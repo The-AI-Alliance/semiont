@@ -4,7 +4,7 @@ import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { getStorageService } from '../../storage/filesystem';
 import { generateDocumentFromTopic, generateText } from '../../inference/factory';
 import { calculateChecksum } from '@semiont/utils';
-import { userToDid } from '../../utils/id-generator';
+import { userToAgent } from '../../utils/id-generator';
 import {
   CREATION_METHODS,
   GenerateDocumentFromAnnotationRequestSchema,
@@ -122,11 +122,7 @@ operationsRouter.openapi(createDocumentFromAnnotationRoute, async (c) => {
       source: documentId,
     },
     modified: new Date().toISOString(),
-    generator: {
-      type: 'Person' as const,
-      id: userToDid(user),
-      name: user.name || user.email,
-    },
+    generator: userToAgent(user),
   };
 
   const documentMetadata: Document = {
@@ -253,11 +249,7 @@ operationsRouter.openapi(generateDocumentFromAnnotationRoute, async (c) => {
       source: documentId,
     },
     modified: new Date().toISOString(),
-    generator: {
-      type: 'Person' as const,
-      id: userToDid(user),
-      name: user.name || user.email,
-    },
+    generator: userToAgent(user),
   };
 
   const documentMetadata: Document = {

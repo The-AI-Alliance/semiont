@@ -358,7 +358,11 @@ describe('GraphDBConsumer', () => {
           type: 'TextualBody',
           entityTypes: [],
         },
-        creator: 'user1',
+        creator: {
+          type: 'Person',
+          id: 'user1',
+          name: 'user1',
+        },
       });
     });
   });
@@ -436,7 +440,11 @@ describe('GraphDBConsumer', () => {
           source: 'doc-456',
           entityTypes: ['Person', 'Organization'],
         },
-        creator: 'user1',
+        creator: {
+          type: 'Person',
+          id: 'user1',
+          name: 'user1',
+        },
       });
     });
 
@@ -481,7 +489,11 @@ describe('GraphDBConsumer', () => {
           source: undefined,
           entityTypes: [],
         },
-        creator: 'user1',
+        creator: {
+          type: 'Person',
+          id: 'user1',
+          name: 'user1',
+        },
       });
     });
   });

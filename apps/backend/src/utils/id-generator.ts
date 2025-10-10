@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { User } from '@prisma/client';
+import type { Agent } from '@semiont/core-types';
 
 /**
  * Generate a unique URI for annotations (highlights/references)
@@ -45,4 +46,37 @@ export function generateDocumentId(): string {
  */
 export function userToDid(user: Pick<User, 'id' | 'domain'>): string {
   return `did:web:${user.domain}:users:${user.id}`;
+}
+
+/**
+ * Convert a User object to a W3C Agent object with DID:WEB identifier
+ *
+ * Creates a full Agent object for W3C Web Annotation compliance.
+ * Includes DID:WEB identifier, type, and name.
+ */
+export function userToAgent(user: Pick<User, 'id' | 'domain' | 'name' | 'email'>): Agent {
+  return {
+    type: 'Person' as const,
+    id: userToDid(user),
+    name: user.name || user.email,
+  };
+}
+
+/**
+ * Convert a DID string to a minimal W3C Agent object
+ *
+ * Used when reconstructing annotations from events where only the DID is available.
+ * Creates a minimal Agent with just the required fields (id, type).
+ * Name is derived from the DID for display purposes.
+ */
+export function didToAgent(did: string): Agent {
+  // Extract user ID from DID format: did:web:domain.com:users:userId
+  const parts = did.split(':');
+  const userId = parts[parts.length - 1] || 'unknown';
+
+  return {
+    type: 'Person' as const,
+    id: did,
+    name: userId, // Use user ID as name since we don't have full user data
+  };
 }
